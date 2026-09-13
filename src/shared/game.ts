@@ -75,6 +75,10 @@ export const BLAST_LEVEL_RANGE = 75;
 export const PICKUP_SPAWN_INTERVAL_TICKS = 120;
 export const PICKUP_LIFETIME_TICKS = 300;
 export const MAX_ACTIVE_PICKUPS = 3;
+export function pickupPacing(elapsedTicks: number): { interval: number; cap: number } {
+  const stage = Math.min(3, Math.max(0, Math.floor(elapsedTicks / 400)));
+  return { interval: [120, 80, 60, 40][stage]!, cap: MAX_ACTIVE_PICKUPS + stage };
+}
 export const PICKUP_SPAWN_ATTEMPTS = 24;
 export const PICKUP_RADIUS = 14;
 export const PICKUP_SPAWN_MARGIN = 40;
@@ -395,7 +399,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   if (state.tick >= state.nextPickupSpawnTick) {
-    state.nextPickupSpawnTick += PICKUP_SPAWN_INTERVAL_TICKS;
+    state.nextPickupSpawnTick = state.tick + pickupPacing(elapsed).interval;
     maybeSpawnPickup(state);
   }
 
@@ -678,7 +682,7 @@ function prepareRound(state: GameState): void {
 }
 
 function maybeSpawnPickup(state: GameState): void {
-  if (state.pickups.length >= MAX_ACTIVE_PICKUPS) return;
+  if (state.pickups.length >= pickupPacing(state.tick - (state.roundStartedTick ?? state.tick)).cap) return;
   const typeRoll = nextRandom(state);
   const type = pickupTypeForRoll(typeRoll);
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
