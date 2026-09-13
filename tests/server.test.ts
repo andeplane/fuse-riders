@@ -13,7 +13,7 @@ test('controller snapshots strip the full match statistics table', () => {
     distanceUnits: 750, bombsPlaced: 9, bombsExploded: 8, eliminations: 4,
     deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 3,
     blastPickups: 2, starPickups: 1, beerPickups: 0, triplePickups: 0, homingPickups: 0,
-    shieldPickups: 0, invulnerableTicks: 10, wallBounces: 2, earlyExits: 0,
+    shieldPickups: 0, portalPickups: 0, portalTransits: 0, invulnerableTicks: 10, wallBounces: 2, earlyExits: 0,
   };
   const compact = controllerSnapshot({
     phase: 'matchOver', width: 1600, height: 900, boundaryInset: 20,

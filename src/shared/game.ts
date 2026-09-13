@@ -1,3 +1,4 @@
+import { createPortalPair, findPortalTransit, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
   BlastRect,
   BombAction,
@@ -23,6 +24,7 @@ import {
   recordDeath,
   recordEarlyExit,
   recordPickup,
+  recordPortalTransit,
   recordSurvivalTick,
   snapshotMatchStats,
   type MatchStatsState,
@@ -91,7 +93,7 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
-export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield';
+export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield' | 'portal';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -123,6 +125,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   homingArmed: boolean;
   shielded: boolean;
   shieldGraceUntilTick: number;
+  portalCooldownUntilTick: number;
+  portalGraceUntilTick: number;
   trail: TrailSegment[];
 }
 
@@ -173,6 +177,7 @@ export interface GameState {
   bombs: Map<number, BombState>;
   blasts: BlastState[];
   pickups: PickupState[];
+  portalPair?: PortalPair;
   nextBombId: number;
   nextPickupId: number;
   nextPickupSpawnTick: number;
@@ -264,6 +269,8 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     homingArmed: false,
     shielded: false,
     shieldGraceUntilTick: 0,
+    portalCooldownUntilTick: 0,
+    portalGraceUntilTick: 0,
     trail: [],
   });
   const historical = state.leaderboard.get(identity.id);
@@ -330,6 +337,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
 
 export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent>): TickResult {
   state.tick += 1;
+  if (state.portalPair && state.tick >= state.portalPair.expiresAtTick) state.portalPair = undefined;
   const events: GameEvent[] = [];
 
   for (const player of state.players.values()) {
@@ -434,6 +442,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       const a = movementList[first]!;
       const b = movementList[second]!;
       if (segmentDistanceSquared(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y) <= square(2 * RIDER_RADIUS) + EPSILON) {
+        // Portal grace is defensive: neither rider is harmed by this contact.
+        if (a.player.portalGraceUntilTick > state.tick || b.player.portalGraceUntilTick > state.tick) continue;
         const aInvulnerable = isHazardImmune(a.player, state.tick);
         const bInvulnerable = isHazardImmune(b.player, state.tick);
         if (!aInvulnerable) markCause(causes, causeOwners, a.player.id, 'rider', b.player.id);
@@ -451,11 +461,25 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     causeOwners.delete(movement.player.id);
   }
 
+  const transits = new Map<PlayerId, PortalTransit>();
   for (const movement of movementList) {
+    if (causes.has(movement.player.id)) continue;
+    const transit = findPortalTransit({
+      pair: state.portalPair, tick: state.tick,
+      from: { x: movement.oldX, y: movement.oldY }, to: movement,
+      heading: movement.angle, cooldownUntilTick: movement.player.portalCooldownUntilTick,
+      bounds: portalBounds(state), riderRadius: RIDER_RADIUS,
+      isSafeExit: (point, radius) => isSafePortalPosition(state, point, radius, movements, movement.player.id, causes, transits),
+    });
+    if (transit) transits.set(movement.player.id, transit);
+  }
+
+  for (const movement of movementList) {
+    const travelledTo = transits.get(movement.player.id)?.entryPoint ?? movement;
     recordSurvivalTick(
       state.matchStats,
       movement.player.id,
-      Math.hypot(movement.x - movement.oldX, movement.y - movement.oldY),
+      Math.hypot(travelledTo.x - movement.oldX, travelledTo.y - movement.oldY),
       isInvulnerable(movement.player, state.tick),
       bounced.has(movement.player.id),
     );
@@ -471,14 +495,20 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       events.push({ type: 'playerEliminated', playerId: movement.player.id, cause });
       continue;
     }
-    movement.player.x = movement.x;
-    movement.player.y = movement.y;
+    const transit = transits.get(movement.player.id);
+    movement.player.x = transit?.exitPoint.x ?? movement.x;
+    movement.player.y = transit?.exitPoint.y ?? movement.y;
+    if (transit) {
+      movement.player.portalCooldownUntilTick = transit.cooldownUntilTick;
+      movement.player.portalGraceUntilTick = transit.graceUntilTick;
+      recordPortalTransit(state.matchStats, movement.player.id);
+    }
     movement.player.angle = movement.angle;
     movement.player.trail.push({
       x1: movement.oldX,
       y1: movement.oldY,
-      x2: movement.x,
-      y2: movement.y,
+      x2: transit?.entryPoint.x ?? movement.x,
+      y2: transit?.entryPoint.y ?? movement.y,
       createdTick: state.tick,
       expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
     });
@@ -520,6 +550,8 @@ export function toSnapshot(state: GameState): GameSnapshot {
       homingArmed: player.homingArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
+      portalCooldownUntilTick: player.portalCooldownUntilTick,
+      portalGraceUntilTick: player.portalGraceUntilTick,
       trail: player.trail.map((segment) => ({ ...segment })),
     })),
     bombs: [...state.bombs.values()].sort((a, b) => a.id - b.id).map((bomb) => ({
@@ -545,6 +577,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       rects: blast.rects.map((rect) => ({ ...rect })),
       expiresAtTick: blast.expiresAtTick,
     })),
+    ...(state.portalPair ? { portalPair: { ...state.portalPair, gates: [{ ...state.portalPair.gates[0] }, { ...state.portalPair.gates[1] }] as const } } : {}),
     pickups: state.pickups.map((pickup) => ({ ...pickup })),
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
@@ -566,6 +599,7 @@ function prepareRound(state: GameState): void {
   state.bombs.clear();
   state.blasts = [];
   state.pickups = [];
+  state.portalPair = undefined;
   state.roundWinnerId = undefined;
   state.matchWinnerId = undefined;
   state.nextBombId = 1;
@@ -591,6 +625,8 @@ function prepareRound(state: GameState): void {
     player.homingArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
+    player.portalCooldownUntilTick = 0;
+    player.portalGraceUntilTick = 0;
   }
   const radius = 0.28 * Math.min(state.width, state.height);
   participants.forEach((player, index) => {
@@ -605,7 +641,7 @@ function prepareRound(state: GameState): void {
 function maybeSpawnPickup(state: GameState): void {
   if (state.pickups.length >= MAX_ACTIVE_PICKUPS) return;
   const typeRoll = nextRandom(state);
-  const pickupTypes: readonly PickupType[] = ['blast', 'star', 'beer', 'triple', 'homing', 'orbitShield'];
+  const pickupTypes: readonly PickupType[] = ['blast', 'star', 'beer', 'triple', 'homing', 'orbitShield', 'portal'];
   const type = pickupTypes[Math.min(pickupTypes.length - 1, Math.floor(typeRoll * pickupTypes.length))]!;
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;
@@ -655,6 +691,15 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       .sort((a, b) => a.distance - b.distance || a.movement.player.slot - b.movement.player.slot);
     const collector = collectors[0]?.movement.player;
     if (!collector) continue;
+    if (pickup.type === 'portal') {
+      // Placement radius already includes gate plus rider; hazard radii add conservative clearance.
+      const pair = createPortalPair({ id: `${state.round}:${pickup.id}:${state.tick}`, tick: state.tick,
+        bounds: portalBounds(state), riderRadius: RIDER_RADIUS, random: () => nextRandom(state),
+        isSafe: (point, radius) => isSafePortalPosition(state, point, radius, movements),
+      });
+      if (!pair) continue;
+      state.portalPair = pair;
+    }
     consumed.add(pickup.id);
     recordPickup(state.matchStats, collector.id, pickup.type);
     if (pickup.type === 'blast') {
@@ -671,11 +716,47 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.tripleShotArmed = true;
     } else if (pickup.type === 'homing') {
       collector.homingArmed = true;
-    } else {
+    } else if (pickup.type === 'orbitShield') {
       collector.shielded = true;
     }
   }
   if (consumed.size > 0) state.pickups = state.pickups.filter((pickup) => !consumed.has(pickup.id));
+}
+
+function portalBounds(state: GameState) {
+  return { minX: state.boundaryInset, minY: state.boundaryInset,
+    maxX: state.width - state.boundaryInset, maxY: state.height - state.boundaryInset };
+}
+
+function isSafePortalPosition(
+  state: GameState, point: PortalPoint, radius: number,
+  movements: ReadonlyMap<PlayerId, Movement>, ignoredPlayerId?: PlayerId,
+  deaths: ReadonlyMap<PlayerId, EliminationCause> = new Map(),
+  transits: ReadonlyMap<PlayerId, PortalTransit> = new Map(),
+): boolean {
+  for (const player of state.players.values()) {
+    const movement = movements.get(player.id);
+    const transit = transits.get(player.id);
+    if (player.id !== ignoredPlayerId && player.alive && !deaths.has(player.id)) {
+      const position = transit?.exitPoint ?? movement ?? player;
+      if (Math.hypot(position.x - point.x, position.y - point.y) <= radius + RIDER_RADIUS) return false;
+    }
+    for (const trail of player.trail) {
+      if (pointSegmentDistanceSquared(point.x, point.y, trail.x1, trail.y1, trail.x2, trail.y2) <= square(radius + TRAIL_WIDTH / 2)) return false;
+    }
+    // Include this tick's pending trail, which has not yet been committed.
+    if (movement && !deaths.has(player.id) && pointSegmentDistanceSquared(point.x, point.y,
+      movement.oldX, movement.oldY, transit?.entryPoint.x ?? movement.x, transit?.entryPoint.y ?? movement.y) <= square(radius + TRAIL_WIDTH / 2)) return false;
+  }
+  // Reserve both current flight location and landing site of every bomb.
+  for (const bomb of state.bombs.values()) {
+    const flight = bomb.flightPath[Math.max(0, Math.min(bomb.flightPath.length - 1, state.tick - bomb.launchedTick))];
+    if (Math.hypot(point.x - bomb.x, point.y - bomb.y) <= radius + 14 ||
+      (flight && Math.hypot(point.x - flight.x, point.y - flight.y) <= radius + 14)) return false;
+  }
+  return !state.blasts.some(blast => blast.rects.some(rect =>
+    point.x + radius >= rect.x && point.x - radius <= rect.x + rect.width &&
+    point.y + radius >= rect.y && point.y - radius <= rect.y + rect.height));
 }
 
 function isInvulnerable(player: PlayerState, tick: number): boolean {
@@ -683,7 +764,7 @@ function isInvulnerable(player: PlayerState, tick: number): boolean {
 }
 
 function isHazardImmune(player: PlayerState, tick: number): boolean {
-  return isInvulnerable(player, tick) || player.shieldGraceUntilTick > tick;
+  return isInvulnerable(player, tick) || player.shieldGraceUntilTick > tick || player.portalGraceUntilTick > tick;
 }
 
 function reflectAtBoundary(state: GameState, movement: Movement): boolean {
