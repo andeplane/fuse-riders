@@ -354,6 +354,13 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   }
 
   for (const bomb of snapshot.bombs) {
+    // Ground-space outline is the exact damage radius, even while the bomb flies.
+    ctx.save();
+    ctx.strokeStyle = '#ff7eaa'; ctx.fillStyle = '#ff397e';
+    ctx.beginPath(); ctx.arc(bomb.x, bomb.y, bomb.blastRange, 0, Math.PI * 2);
+    ctx.globalAlpha = .035; ctx.fill();
+    ctx.globalAlpha = .3 + .12 * Math.sin(now / 140); ctx.lineWidth = 2;
+    ctx.setLineDash([8, 8]); ctx.stroke(); ctx.restore();
     const airborne = snapshot.tick < bomb.landsAtTick;
     const flightDuration = Math.max(1, bomb.landsAtTick - bomb.launchedTick);
     const flight = clamp((snapshot.tick - bomb.launchedTick) / flightDuration, 0, 1);
