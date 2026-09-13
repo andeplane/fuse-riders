@@ -1,0 +1,81 @@
+{
+  "date": "2026-09-13T22:13:53.479Z",
+  "environment": "darwin/arm64 Node v22.20.0",
+  "limitations": "Local Node benchmark, no browser rendering or real packet loss. Ordered application-level delay/HOL injection, not TCP emulation. CPU stress uses invulnerable circling riders.",
+  "cpu": [
+    {
+      "shellCount": 0,
+      "p50Ms": 0.4189580000000035,
+      "p95Ms": 0.6027500000000146,
+      "p99Ms": 0.6995829999999614,
+      "meanSnapshotBytes": 108377.89166666666,
+      "fullViewMbpsAt20Hz": 17.340462666666664
+    },
+    {
+      "shellCount": 5,
+      "p50Ms": 0.48891600000001745,
+      "p95Ms": 0.6830420000000004,
+      "p99Ms": 0.8549580000000105,
+      "meanSnapshotBytes": 109709.67666666667,
+      "fullViewMbpsAt20Hz": 17.553548266666667
+    },
+    {
+      "shellCount": 20,
+      "p50Ms": 0.7345829999999296,
+      "p95Ms": 0.9702500000000782,
+      "p99Ms": 1.103917000000024,
+      "meanSnapshotBytes": 113707.59333333334,
+      "fullViewMbpsAt20Hz": 18.193214933333334
+    }
+  ],
+  "network": [
+    {
+      "name": "LAN",
+      "oneWay": 5,
+      "jitter": 2,
+      "stall": 0,
+      "sent": 495,
+      "acknowledged": 477,
+      "p50AckMs": 36.78579100000002,
+      "p95AckMs": 58.39958300000035,
+      "p99AckMs": 60.19708400000036,
+      "maxAckMs": 62.33720799999992
+    },
+    {
+      "name": "regional",
+      "oneWay": 40,
+      "jitter": 10,
+      "stall": 0,
+      "sent": 495,
+      "acknowledged": 444,
+      "p50AckMs": 116.18379199999981,
+      "p95AckMs": 133.70412499999838,
+      "p99AckMs": 140.58470900000066,
+      "maxAckMs": 143.8311249999997
+    },
+    {
+      "name": "poor-wifi",
+      "oneWay": 75,
+      "jitter": 30,
+      "stall": 0.03,
+      "sent": 495,
+      "acknowledged": 325,
+      "p50AckMs": 177.61654099999942,
+      "p95AckMs": 303.59299999999894,
+      "p99AckMs": 382.1184170000015,
+      "maxAckMs": 427.0770420000008
+    },
+    {
+      "name": "very-poor",
+      "oneWay": 150,
+      "jitter": 75,
+      "stall": 0.05,
+      "sent": 495,
+      "acknowledged": 241,
+      "p50AckMs": 339.4744580000006,
+      "p95AckMs": 506.8245829999978,
+      "p99AckMs": 571.6334170000009,
+      "maxAckMs": 618.5118750000001
+    }
+  ]
+}
