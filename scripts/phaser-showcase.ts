@@ -6,7 +6,7 @@ import { visualFixture } from '../src/client/phaser/benchmark-fixture.js';
 const app=await createGameServer({port:0,hostname:'127.0.0.1',lanAddress:'127.0.0.1',manualTicks:true,buildDirectory:process.env.BUILD_DIRECTORY??'artifacts/phaser-dist'});
 const browser=await chromium.launch({channel:'chrome'});
 try{
- const fixture=visualFixture(40);
+ const base=visualFixture(40);const names=['ADA','BO','CY','DEE','ELI'];const fixture={...base,players:base.players.map(player=>({...player,name:names[player.slot]!}))};
  for(const player of fixture.players)addPlayer(app.game,player);startMatch(app.game);app.game.phase='playing';app.game.tick=40;app.game.roundStartedTick=0;
  for(const player of fixture.players){Object.assign(app.game.players.get(player.id)!,player,{trail:[...player.trail]});}
  app.game.pickups=fixture.pickups.map(p=>({...p}));

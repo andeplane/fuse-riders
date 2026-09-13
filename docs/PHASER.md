@@ -1,0 +1,47 @@
+# Phaser presentation and renderer evidence
+
+Fuse Riders uses **Phaser 3.90.0 for arena presentation**. The shared TypeScript simulation remains the authority; Phaser physics, input and audio systems do not own game rules. DOM menus, pointer controls and the existing audio director remain outside the scene.
+
+`src/client/phaser/presentation.ts` lazily loads Phaser when a board is first rendered, so shared-TV phone controllers do not download or initialize a hidden arena. The caller supplies snapshots and the frame clock. The Phaser automatic loop stops after scene creation and each caller frame manually steps presentation once. An explicit scope string (authority epoch plus match ID) and snapshot round delimit effect history. Callers must provide a coherent visual tick for smoothly sampled bomb flights; the renderer never predicts authoritative collisions.
+
+The scene batches sprites and cached explosion textures, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include luminous segmented trails, rider halos, animated charge/fuse/target markers, readable shell/cannon silhouettes, layered radial fire, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
+
+Desktop quality reserves 480 particles (mobile-width quality: 160), with matching live-particle limits. Phaser's total-object limit is one higher because its `atLimit` includes reserved dead particles. Sprite and label pools shrink to the current snapshot's needs plus 16 and 8 spare objects. These pools do not cap or omit valid authoritative projectiles. The snapshot validation boundary must still bound world complexity.
+
+A lost GPU context displays recovery status. Successful restoration resets transient effects and redraws current state. If restoration does not happen within two seconds, the adapter replaces the incompatible canvas and uses the original Canvas renderer. `?renderer=canvas` selects that renderer explicitly; `?renderer=phaser-canvas` exercises Phaser's Canvas backend. Destroy is idempotent and flushes Phaser's deferred destruction without leaving an independent animation loop. Assets resolve beneath `import.meta.env.BASE_URL`, including `/fuse-riders/` on GitHub Pages.
+
+## Verified desktop evidence
+
+Measured on Apple M4 Max / 48 GiB RAM, macOS, headless Chrome 153 and Playwright WebKit 26.6. Each renderer ran for 30 seconds with a one-second warmup at 1600×900: five riders, 800 trail segments, 24 projectiles, six pickups and five repeating explosions. Other development processes were active. Raw samples, source SHA-256 hashes and limitations are preserved in [Chrome results](performance/phaser-chrome.json) and [WebKit results](performance/phaser-webkit.json).
+
+| Browser / renderer | Frame p95 / p99 / max | Render CPU p95 | Maximum scene objects / live particles |
+| --- | --- | --- | --- |
+| Chrome / original Canvas | 16.7 / 16.8 / 16.8 ms | 0.6 ms | Not instrumented |
+| Chrome / Phaser WebGL | 16.7 / 16.8 / 16.8 ms | 4.9 ms | 83 / 284 |
+| WebKit / original Canvas | 18 / 18 / 21 ms | 1 ms | Not instrumented |
+| WebKit / Phaser WebGL | 18 / 19 / 20 ms | 4 ms | 79 / 289 |
+
+Both renderers sustained the desktop frame budget. Phaser's richer scene costs more CPU than the original Canvas renderer; this is **not evidence of a CPU speedup**. An earlier 60-second WebKit run recorded a 112 ms maximum frame despite an 18 ms p95, so occasional long frames remain worth tracking. Object counts and particle caps are not a heap-allocation/GC profile. These are synthetic rendering results, not proof of phone performance, network smoothness, or the complete online 30-minute soak gate.
+
+The dedicated browser check passed in Chrome and WebKit: WebGL plus forced Phaser Canvas, bounded active particles, one automatic-loop invariant, scope/reset behavior, a nonblank pixel after GPU context restoration, automatic visible Canvas fallback after unrecovered context loss, and repeated disposal. The integrated LAN smoke passed in both browsers with five phones, controls, themes, pickups, reconnect and rematch. A production build with `/fuse-riders/` base loaded all 29 avatar/theme resources successfully with no duplicated prefix or browser errors.
+
+## Reproduce
+
+```sh
+npm run typecheck
+npx tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
+npx tsx scripts/phaser-browser.ts
+BROWSER=webkit npx tsx scripts/phaser-browser.ts
+DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
+BROWSER=webkit DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
+npx vite build --outDir artifacts/phaser-dist
+BUILD_DIRECTORY=artifacts/phaser-dist npm run test:browser
+BUILD_DIRECTORY=artifacts/phaser-dist BROWSER=webkit npm run test:browser
+npx vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
+npx tsx scripts/phaser-pages-smoke.ts
+npx tsx scripts/phaser-showcase.ts
+```
+
+The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot with a deterministic showcase state injected by `scripts/phaser-showcase.ts`, not an image-generated mockup or evidence of a natural online match. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
+
+Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authority and release acceptance remain governed by the online ADRs and roadmap; this rendering work does not close those gates.
