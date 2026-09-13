@@ -316,10 +316,16 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   ctx.clearRect(0, 0, width, height);
   ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
 
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(snapshot.boundaryInset, snapshot.boundaryInset,
+    width - 2 * snapshot.boundaryInset, height - 2 * snapshot.boundaryInset);
+  ctx.clip();
   for (const player of snapshot.players) {
     const color = escapeColor(player.color);
     drawPlayerTrail(ctx, player.trail, snapshot.tick, player.alive, color, theme);
   }
+  ctx.restore();
   ctx.globalAlpha = 1;
 
   if ((snapshot.pickups ?? []).length) drawPickups(ctx, snapshot, snapshot.tick, now, theme);

@@ -1,3 +1,4 @@
+import { clipTrailSegment } from './trail-clipping.js';
 import { createPortalPair, findPortalTransit, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
   BlastRect,
@@ -358,6 +359,15 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const elapsed = state.tick - (state.roundStartedTick ?? state.tick);
   state.boundaryInset = INITIAL_BOUNDARY_INSET +
     Math.max(0, elapsed - OVERTIME_START_TICK) * OVERTIME_INSET_PER_TICK;
+  const trailBounds = portalBounds(state);
+  for (const player of state.players.values()) {
+    const clippedTrail: TrailSegment[] = [];
+    for (const segment of player.trail) {
+      const clipped = clipTrailSegment(segment, trailBounds);
+      if (clipped) clippedTrail.push(clipped);
+    }
+    player.trail = clippedTrail;
+  }
 
   if (state.tick >= state.nextPickupSpawnTick) {
     state.nextPickupSpawnTick += PICKUP_SPAWN_INTERVAL_TICKS;
@@ -504,14 +514,15 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       recordPortalTransit(state.matchStats, movement.player.id);
     }
     movement.player.angle = movement.angle;
-    movement.player.trail.push({
+    const trail = clipTrailSegment({
       x1: movement.oldX,
       y1: movement.oldY,
       x2: transit?.entryPoint.x ?? movement.x,
       y2: transit?.entryPoint.y ?? movement.y,
       createdTick: state.tick,
       expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
-    });
+    }, trailBounds);
+    if (trail) movement.player.trail.push(trail);
   }
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movementList) {
