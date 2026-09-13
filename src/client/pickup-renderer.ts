@@ -58,8 +58,11 @@ function fallbackPowerup(ctx: CanvasRenderingContext2D, type: PickupType, x: num
     for (const offset of [-.24, 0, .24]) { ctx.beginPath(); ctx.arc(x + size * offset, y, size * .13, 0, Math.PI * 2); ctx.fill(); }
   } else if (type === 'homing') {
     ctx.strokeStyle = '#7dff6a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, size * .3, 0, Math.PI * 2); ctx.stroke(); ctx.fillRect(x - 2, y - 2, 4, 4);
-  } else {
+  } else if (type === 'orbitShield') {
     ctx.strokeStyle = '#5cf4ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, size * .35, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#b76cff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x - size * .12, y, size * .25, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#ff9b32'; ctx.beginPath(); ctx.arc(x + size * .18, y, size * .25, 0, Math.PI * 2); ctx.stroke();
   }
 }
 
@@ -93,7 +96,7 @@ export function drawPickups(
     const image = pickupImage(theme, pickup.type);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'homing' ? '#7dff6a' : pickup.type === 'orbitShield' ? '#5cf4ff' : pickup.type === 'triple' ? '#ff55bd' : '#ffe45c';
+    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'homing' ? '#7dff6a' : pickup.type === 'orbitShield' ? '#5cf4ff' : pickup.type === 'triple' ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
     ctx.shadowBlur = 5;
     if (image?.complete && image.naturalWidth > 0) ctx.drawImage(image, pickup.x - size / 2, pickup.y - size / 2, size, size);
     else if (pickup.type === 'blast') fallbackCross(ctx, pickup.x, pickup.y, size);
@@ -101,9 +104,9 @@ export function drawPickups(
     else if (pickup.type === 'star') fallbackStar(ctx, pickup.x, pickup.y, size);
     else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
-    const labels: Record<PickupType, string> = { blast: 'BLAST+', star: 'STAR', beer: 'BEER', triple: 'TRIPLE', homing: 'HOMING', orbitShield: 'SHIELD' };
+    const labels: Record<PickupType, string> = { blast: 'BLAST+', star: 'STAR', beer: 'BEER', triple: 'TRIPLE', homing: 'HOMING', orbitShield: 'SHIELD', portal: 'PORTAL' };
     const text = labels[pickup.type];
-    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'homing' ? '#9dff8e' : pickup.type === 'orbitShield' ? '#8ff8ff' : pickup.type === 'triple' ? '#ff8ed2' : '#fff04a';
+    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'homing' ? '#9dff8e' : pickup.type === 'orbitShield' ? '#8ff8ff' : pickup.type === 'triple' ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);
   }
 }
@@ -118,6 +121,32 @@ export function drawOrbitShield(ctx: CanvasRenderingContext2D, player: GameSnaps
   } else {
     ctx.fillStyle = '#a8faff'; ctx.shadowColor = '#6aefff'; ctx.shadowBlur = 8;
     for (let index = 0; index < 8; index += 1) { const angle = index * Math.PI / 4; const radius = 19 + (index % 2) * 8; ctx.fillRect(Math.cos(angle) * radius - 2, Math.sin(angle) * radius - 2, 4, 4); }
+  }
+  ctx.restore();
+}
+
+export function drawPortalPair(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {
+  const pair = snapshot.portalPair;
+  if (!pair || pair.expiresAtTick <= tick) return;
+  const colors = ['#b968ff', '#ff9b32'] as const;
+  ctx.save(); ctx.globalAlpha = .2; ctx.strokeStyle = '#d697ff'; ctx.lineWidth = 2; ctx.setLineDash([5, 12]);
+  ctx.beginPath(); ctx.moveTo(pair.gates[0].x, pair.gates[0].y); ctx.lineTo(pair.gates[1].x, pair.gates[1].y); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+  pair.gates.forEach((gate, index) => {
+    ctx.save(); ctx.translate(gate.x, gate.y); ctx.rotate((index ? -1 : 1) * now / 420);
+    ctx.strokeStyle = colors[index]; ctx.shadowColor = colors[index]; ctx.shadowBlur = 14; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = .8; ctx.lineWidth = 2; ctx.strokeStyle = '#effcff'; ctx.setLineDash([4, 5]);
+    ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = colors[1 - index]; ctx.fillRect(21, -3, 7, 7); ctx.restore();
+  });
+}
+
+export function drawPortalGrace(ctx: CanvasRenderingContext2D, player: GameSnapshot['players'][number], tick: number, now: number): void {
+  if (player.portalGraceUntilTick <= tick) return;
+  ctx.save(); ctx.globalAlpha = .48; ctx.strokeStyle = '#d48aff'; ctx.shadowColor = '#ff9b32'; ctx.shadowBlur = 10; ctx.lineWidth = 3;
+  for (let index = 0; index < 3; index += 1) {
+    const radius = 18 + index * 7 + Math.sin(now / 90 + index) * 2;
+    ctx.beginPath(); ctx.arc(player.x, player.y, radius, index * .8, index * .8 + Math.PI * 1.25); ctx.stroke();
   }
   ctx.restore();
 }

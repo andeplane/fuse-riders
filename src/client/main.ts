@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, ServerMessage, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState, type ControllerControl } from './controller-state.js';
-import { drawDrunkAura, drawOrbitShield, drawPickups, drawStarAura } from './pickup-renderer.js';
+import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortalPair, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
@@ -323,6 +323,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   ctx.globalAlpha = 1;
 
   if ((snapshot.pickups ?? []).length) drawPickups(ctx, snapshot, snapshot.tick, now, theme);
+  drawPortalPair(ctx, snapshot, snapshot.tick, now);
 
   for (const player of snapshot.players) {
     if (player.bombChargeStartedTick === undefined || !player.alive) continue;
@@ -439,6 +440,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);
     if (player.drunkUntilTick > snapshot.tick) drawDrunkAura(ctx, player, snapshot.tick, now);
     drawOrbitShield(ctx, player, snapshot.tick, now);
+    drawPortalGrace(ctx, player, snapshot.tick, now);
     ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
     if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
     else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
@@ -483,13 +485,15 @@ function startDisplay(): void {
   const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = '/themes/neon-pixel/pickup-triple.svg';
   const homingLegendImage = element('img'); homingLegendImage.alt = ''; homingLegendImage.src = '/themes/neon-pixel/pickup-homing.svg';
   const shieldLegendImage = element('img'); shieldLegendImage.alt = ''; shieldLegendImage.src = '/themes/neon-pixel/pickup-orbitShield.svg';
+  const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = '/themes/neon-pixel/pickup-portal.svg';
   const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' longer explosions'));
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 2.5s invulnerable'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const homingLegend = element('span'); homingLegend.append(homingLegendImage, element('b', '', 'HOMING'), document.createTextNode(' next launch seeks'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend, tripleLegend, homingLegend, shieldLegend); lobbyCopy.append(pickupLegend);
+  const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
+  pickupLegend.append(blastLegend, starLegend, beerLegend, tripleLegend, homingLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -560,6 +564,7 @@ function startDisplay(): void {
   tripleLegendImage.src = `/themes/${activeTheme.id}/pickup-triple.svg`;
   homingLegendImage.src = `/themes/${activeTheme.id}/pickup-homing.svg`;
   shieldLegendImage.src = `/themes/${activeTheme.id}/pickup-orbitShield.svg`;
+  portalLegendImage.src = `/themes/${activeTheme.id}/pickup-portal.svg`;
   void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
 
   themeSelect.addEventListener('change', () => {
@@ -569,6 +574,7 @@ function startDisplay(): void {
     blastLegendImage.src = `/themes/${next.id}/pickup-blast.svg`; starLegendImage.src = `/themes/${next.id}/pickup-star.svg`;
     beerLegendImage.src = `/themes/${next.id}/pickup-beer.svg`;
     tripleLegendImage.src = `/themes/${next.id}/pickup-triple.svg`; homingLegendImage.src = `/themes/${next.id}/pickup-homing.svg`; shieldLegendImage.src = `/themes/${next.id}/pickup-orbitShield.svg`;
+    portalLegendImage.src = `/themes/${next.id}/pickup-portal.svg`;
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
 
@@ -627,7 +633,7 @@ function startDisplay(): void {
     const stats = [...(snapshot.matchStats ?? [])].sort((a, b) => a.matchPlacement - b.matchPlacement || a.slot - b.slot);
     const signature = stats.map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
       entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected, entry.invulnerableTicks,
-      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.triplePickups, entry.homingPickups, entry.shieldPickups,
+      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.triplePickups, entry.homingPickups, entry.shieldPickups, entry.portalPickups, entry.portalTransits,
       ...Object.values(entry.deathsByCause)].join(':')).join('|');
     if (signature === recapSignature) return;
     recapSignature = signature;
@@ -682,7 +688,7 @@ function startDisplay(): void {
       row.append(rider, element('strong', '', String(entry.roundWins)), element('span', '', durationText(entry.survivalTicks)),
         element('span', '', durationText(entry.longestSurvivalTicks)), element('span', '', `${Math.round(entry.distanceUnits)}u`),
         element('span', '', `${entry.bombsExploded}/${entry.bombsPlaced}`), element('span', '', String(entry.eliminations)),
-        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} T${entry.triplePickups} H${entry.homingPickups} O${entry.shieldPickups}`), element('span', '', durationText(entry.invulnerableTicks)),
+        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} T${entry.triplePickups} H${entry.homingPickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
         element('span', 'death-counts', `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`));
       comparison.append(row);
     }
@@ -876,8 +882,9 @@ function startController(): void {
   const triplePower = element('span', 'power-chip triple-power', 'TRIPLE · --');
   const homingPower = element('span', 'power-chip homing-power', 'HOMING · --');
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
-  const sessionPoints = element('span', 'power-chip points-power', 'SESSION · 0 PTS');
-  powerStrip.append(blastPower, starPower, wobblePower, triplePower, homingPower, shieldPower, sessionPoints);
+  const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
+  const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
+  powerStrip.append(blastPower, starPower, wobblePower, triplePower, homingPower, shieldPower, portalPower, sessionPoints);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -904,6 +911,7 @@ function startController(): void {
   const inputSentAt = new Map<number, number>();
   let controllerRtt: number | undefined;
   let inputAckMs: number | undefined;
+  let lastLaunchKey = '';
   function updateControllerDiagnostics(): void {
     controllerPerformance.value = `RTT ${controllerRtt === undefined ? '--' : controllerRtt.toFixed(0)}ms  ACK ${inputAckMs === undefined ? '--' : inputAckMs.toFixed(0)}ms`;
   }
@@ -948,11 +956,14 @@ function startController(): void {
     triplePower.textContent = player.tripleShotArmed ? 'TRIPLE · ARMED' : 'TRIPLE · --';
     homingPower.textContent = player.homingArmed ? 'HOMING · ARMED' : 'HOMING · --';
     shieldPower.textContent = player.shielded ? 'SHIELD · READY' : player.shieldGraceUntilTick > snapshot.tick ? 'SHIELD · SPENT' : 'SHIELD · --';
+    const portalGraceTicks = player.portalGraceUntilTick - snapshot.tick;
+    const portalCooldownTicks = player.portalCooldownUntilTick - snapshot.tick;
+    portalPower.textContent = portalGraceTicks > 0 ? `PORTAL · PHASE ${(portalGraceTicks / 20).toFixed(1)}s` : portalCooldownTicks > 0 ? `PORTAL · ${(portalCooldownTicks / 20).toFixed(1)}s` : 'PORTAL · --';
     const leaderboardEntry = (scored.leaderboard ?? []).find((entry) => entry.id === playerId);
     const placement = (scored.roundPlacements ?? []).find((entry) => entry.playerId === playerId);
     sessionPoints.textContent = placement && (snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver')
-      ? `#${placement.place} · +${scoreText(placement.scoreUnits)} · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)} PTS`
-      : `SESSION · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)} PTS`;
+      ? `#${placement.place} · +${scoreText(placement.scoreUnits)} · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)}PTS`
+      : `PTS · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)}`;
     if (!player.connected) instruction.textContent = 'Reconnecting to your rider…';
     else if (snapshot.phase === 'lobby') instruction.textContent = 'You’re in. Look at the TV!';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
@@ -989,6 +1000,14 @@ function startController(): void {
         const accepted = snapshotStream.accept(message);
         if (accepted) updateFromSnapshot(accepted);
       } else if (message.type === 'event') {
+        if (message.event.type === 'bombPlaced' && message.event.playerId === playerId) {
+          const launchKey = `${message.matchId}:${message.round}:${message.tick}:${playerId}`;
+          if (launchKey !== lastLaunchKey) {
+            lastLaunchKey = launchKey; bomb.classList.remove('launching'); void bomb.offsetWidth; bomb.classList.add('launching');
+            window.setTimeout(() => bomb.classList.remove('launching'), 280);
+            if (navigator.vibrate) navigator.vibrate(45);
+          }
+        }
         if (message.event.type === 'explosion' && navigator.vibrate) navigator.vibrate([35, 25, 55]);
         if (message.event.type === 'playerEliminated' && message.event.playerId === playerId && navigator.vibrate) navigator.vibrate(180);
       } else if (message.type === 'error') {

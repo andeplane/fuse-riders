@@ -14,7 +14,7 @@ function playingFrame(tick: number, receivedAt: number, x: number, alive = true)
     matchId: 'match', round: 1, receivedAt,
     snapshot: {
       ...snapshot(), phase: 'playing', tick, round: 1, roundStartedTick: 0,
-      players: [{ id: 'p1', name: 'One', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], blastLevel: 0, invulnerableUntilTick: 0, drunkUntilTick: 0, tripleShotArmed: false, homingArmed: false, shielded: false, shieldGraceUntilTick: 0 }],
+      players: [{ id: 'p1', name: 'One', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], blastLevel: 0, invulnerableUntilTick: 0, drunkUntilTick: 0, tripleShotArmed: false, homingArmed: false, shielded: false, shieldGraceUntilTick: 0, portalCooldownUntilTick: 0, portalGraceUntilTick: 0 }],
     },
   };
 }
@@ -51,6 +51,16 @@ test('visual projection does not cross round, match, membership or timestamp bou
     { ...first, snapshot: { ...first.snapshot, players: [] } },
     playingFrame(10, 100, 100, false),
   ]) assert.equal(renderedSnapshot([previous, next], 200)!.players[0], next.snapshot.players[0]);
+});
+
+test('visual projection snaps a portal transit and resumes on the next ordinary movement pair', () => {
+  const before = playingFrame(10, 100, 100);
+  const transitBase = playingFrame(11, 150, 600);
+  const transit: SnapshotFrame = { ...transitBase, snapshot: { ...transitBase.snapshot, players: transitBase.snapshot.players.map((player) => ({ ...player, portalCooldownUntilTick: 26 })) } };
+  assert.equal(renderedSnapshot([before, transit], 200)!.players[0]!.x, 600, 'teleport displacement is never extrapolated');
+  const afterBase = playingFrame(12, 200, 607.5);
+  const after: SnapshotFrame = { ...afterBase, snapshot: { ...afterBase.snapshot, players: afterBase.snapshot.players.map((player) => ({ ...player, portalCooldownUntilTick: 26 })) } };
+  assert.equal(renderedSnapshot([transit, after], 250)!.players[0]!.x, 615, 'normal projection resumes after the transit frame');
 });
 
 test('multitouch retains a control until its final pointer releases', () => {

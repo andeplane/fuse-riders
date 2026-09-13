@@ -146,6 +146,7 @@ button { color: inherit; }
 .triple-power { color: #ff8ed2; border-color: #7b2f62; }
 .homing-power { color: #a3ff89; border-color: #3e7540; }
 .shield-power { color: #91f8ff; border-color: #2a7480; }
+.portal-power { color: #d69aff; border-color: #69418a; }
 .points-power { color: #8ff5ff; border-color: #255d75; }
 .control-pad { min-height: 0; display: grid; grid-template-columns: 1fr .72fr 1fr; gap: clamp(8px, 2vw, 16px); }
 .control-button { position: relative; overflow: hidden; border: 2px solid #2d81b7; background: linear-gradient(160deg, #09284a, #041125); font-size: clamp(3rem, 17vw, 7rem); font-weight: 900; min-height: 130px; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; box-shadow: inset 0 0 30px rgba(22, 191, 255, .08); }
@@ -154,10 +155,12 @@ button { color: inherit; }
 .control-button.bomb { border-color: #a92770; background: radial-gradient(circle, #591746 0, #190b27 65%); color: #ffec9d; text-shadow: 0 0 18px #ff8a16; display: grid; place-items: center; }
 .control-button.bomb::before { content: ''; position: absolute; left: 8px; right: 8px; bottom: 8px; height: 7px; background: linear-gradient(90deg, #ff7b20 var(--charge, 0%), rgba(255,255,255,.08) var(--charge, 0%)); box-shadow: 0 0 9px rgba(255,127,32,.5); }
 .control-button.bomb.charging { animation: charge-pulse .55s steps(2, end) infinite; border-color: #ffb833; }
+.control-button.bomb.launching { animation: launch-kick .26s steps(4, end); }
 .control-button.bomb.active { border-color: #ffb22e; background: #7e2425; box-shadow: inset 0 0 55px rgba(255, 148, 19, .35), 0 0 18px rgba(255, 83, 43, .4); }
 .control-button.bomb:disabled { opacity: .42; }
 .bomb-label { position: absolute; left: 4px; right: 4px; bottom: 15px; font-size: clamp(.5rem, 2vw, .7rem); color: #ff8fbf; text-shadow: none; letter-spacing: .08em; }
 @keyframes charge-pulse { 50% { box-shadow: inset 0 0 55px rgba(255,148,19,.35), 0 0 22px rgba(190,64,255,.55); } }
+@keyframes launch-kick { 0% { transform: scale(1); filter: brightness(1); } 35% { transform: scale(.9) rotate(-2deg); filter: brightness(2); } 70% { transform: scale(1.06) rotate(1deg); } 100% { transform: scale(1); filter: brightness(1); } }
 .leave-button { justify-self: center; border: 0; background: transparent; color: #657895; padding: 5px 14px; font-size: .62rem; letter-spacing: .12em; cursor: pointer; }
 
 @media (orientation: portrait) {
@@ -177,6 +180,10 @@ button { color: inherit; }
   .roster { grid-column: 1 / -1; grid-template-columns: repeat(5, 1fr); }
   .seat { min-width: 0; grid-template-columns: 1fr; text-align: center; }
   .seat-details small { display: none; }
+}
+
+@media (max-width: 460px) {
+  .power-chip { padding-inline: 2px; font-size: .34rem; }
 }
 
 @media (max-height: 720px) and (min-width: 901px) {

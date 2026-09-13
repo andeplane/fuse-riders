@@ -34,7 +34,7 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
     ...newer.snapshot,
     players: newer.snapshot.players.map((player) => {
       const previous = oldById.get(player.id);
-      if (!previous?.alive || !player.alive) return player;
+      if (!previous?.alive || !player.alive || player.portalCooldownUntilTick > previous.portalCooldownUntilTick) return player;
       const delta = angleDelta(previous.angle, player.angle);
       return {
         ...player,

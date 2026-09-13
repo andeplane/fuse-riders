@@ -34,6 +34,7 @@ try {
   await host.getByText('next launch fires 3', { exact: false }).waitFor();
   await host.getByText('next launch seeks', { exact: false }).waitFor();
   await host.getByText('blocks one crash', { exact: false }).waitFor();
+  await host.getByText('opens linked gates', { exact: false }).waitFor();
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
 
   // A fresh token delivered as a hash-only navigation must be consumed and re-authenticated.
@@ -56,7 +57,7 @@ try {
   }
   await phones[0].getByText('BLAST · BASE', { exact: true }).waitFor();
   await phones[0].getByText('STAR · --', { exact: true }).waitFor();
-  await phones[0].getByText('SESSION · 0 PTS', { exact: true }).waitFor();
+  await phones[0].getByText('PTS · 0', { exact: true }).waitFor();
   await waitFor(() => app.game.players.size === 5, 'five controller seats');
   await host.getByRole('button', { name: 'START RACE' }).click();
   await waitFor(() => app.game.phase === 'countdown', 'start countdown');
@@ -81,8 +82,6 @@ try {
   assert.notEqual(rider.angle, initialAngle, 'phone steers authoritative rider');
   await phones[1].mouse.up(); await new Promise(r => setTimeout(r, 50));
   const releasedAngle = rider.angle; app.advance(2); assert.equal(rider.angle, releasedAngle, 'pointer release neutralizes');
-  await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
-  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 1, 'phone bomb tap places one bomb');
   const poweredRider = [...app.game.players.values()].find((player) => player.slot === 0)!;
   app.game.pickups.push({ id: 9_001, type: 'blast', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('BLAST · +1', { exact: true }).waitFor();
@@ -100,9 +99,30 @@ try {
   app.game.pickups.push({ id: 9_005, type: 'homing', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('HOMING · ARMED', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_005), false, 'homing pickup consumed authoritatively');
+  await phones[0].screenshot({ path: 'artifacts/phone-armed-portrait.png' });
+  await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
+  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 3, 'combined Triple and Homing release launches one three-bomb volley');
+  assert.ok([...app.game.bombs.values()].every((bomb) => bomb.homingTargetId), 'all volley bombs capture a homing target');
+  await phones[0].locator('.bomb.launching').waitFor();
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');
+  app.game.pickups.push({ id: 9_007, type: 'portal', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_007), false, 'portal pickup consumed authoritatively');
+  assert.ok(app.game.portalPair, 'portal pickup opens an authoritative gate pair');
+  const entryGate = app.game.portalPair!.gates[0];
+  const towardCenter = Math.atan2(app.game.height / 2 - entryGate.y, app.game.width / 2 - entryGate.x);
+  poweredRider.x = entryGate.x + Math.cos(towardCenter) * 35;
+  poweredRider.y = entryGate.y + Math.sin(towardCenter) * 35;
+  poweredRider.angle = towardCenter + Math.PI; poweredRider.trail = [];
+  app.advance(2); await phones[0].getByText(/PORTAL · PHASE [0-9.]+s/).waitFor();
+  assert.ok(poweredRider.portalCooldownUntilTick > app.game.tick, 'gate transit starts authoritative cooldown');
+  for (const phone of phones) {
+    const overflow = await phone.evaluate(() => ({ x: document.documentElement.scrollWidth > innerWidth, y: document.documentElement.scrollHeight > innerHeight }));
+    assert.equal(overflow.x, false, 'power-up phone has no horizontal overflow'); assert.equal(overflow.y, false, 'power-up phone has no vertical overflow');
+  }
+  await phones[0].screenshot({ path: 'artifacts/phone-powerups-portrait.png' });
+  await phones[1].screenshot({ path: 'artifacts/phone-powerups-landscape.png' });
   // Exercise theme changes during active gameplay: styling has no simulation writes.
   const beforeTheme = JSON.stringify([...app.game.players.values()]);
   await host.getByRole('combobox').selectOption('clean-neon');
@@ -132,7 +152,7 @@ try {
   await host.locator('.leaderboard-drawer:not(.hidden)').waitFor();
   await host.getByText('25 PTS', { exact: true }).waitFor();
   await host.getByText('ROUND POINTS // 5 · 3 · 2 · 1 · 0', { exact: false }).waitFor();
-  await phones[0].getByText(/#1 · \+5 · 25 PTS/).waitFor();
+  await phones[0].getByText(/#1 · \+5 · 25PTS/).waitFor();
   await host.getByRole('button', { name: 'Close leaderboard' }).click();
   const matchId = app.game.matchId; await host.getByRole('button', { name: 'REMATCH' }).click();
   await waitFor(() => app.game.matchId !== matchId, 'new match scope'); app.advance(2);
