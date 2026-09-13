@@ -1,3 +1,4 @@
+import { BotController, BOT_ID_PREFIX, type BotDependencies } from '../shared/bot-controller.js';
 import { encodeCheckpoint, decodeCheckpoint } from './checkpoint.js';
 import { addPlayer, createGame, removePlayer, resetMatch, returnToLobby, setPlayerConnected, SLOT_COLORS, startMatch, startNextRound, step, toSnapshot, type GameState, type InputIntent } from '../shared/game.js';
 import { BombInputBuffer } from '../server/bomb-input.js';
@@ -10,18 +11,29 @@ export type RoomCommand =
   | { type:'input'; seq:number; left:boolean;right:boolean;bomb:boolean;bombAction?:'press'|'release'|'cancel';aim?:AimPoint }
   | { type:'avatar'; avatarId:AvatarId }
   | { type:'action'; action:'start'|'lobby'|'rematch' }
-  | { type:'settings'; settings:RoomSettings };
+  | { type:'settings'; settings:RoomSettings }
+  | { type:'bot'; action:'add'|'remove'; id?:string };
 interface Seat { seq:number; tick:number; input:InputIntent; bombs:BombInputBuffer }
-export interface HostDependencies { token:()=>string }
+export interface HostDependencies { token:()=>string; botRandom?:BotDependencies['random'] }
 export class HostSession {
   game:GameState;
   private seats=new Map<string,Seat>();
+  private bots=new Set<string>();
+  private readonly botController:BotController;
   constructor(readonly hostId:string, public settings:RoomSettings, private readonly dependencies:HostDependencies) {
     this.game=createGame(dependencies.token());this.game.settings=settings;
+    this.botController=new BotController(dependencies.botRandom?{random:dependencies.botRandom}:undefined);
   }
   command(peerId:string, raw:unknown):string|undefined {
     if(!raw||typeof raw!=='object')return 'Invalid command';
     const command=raw as RoomCommand;
+    if(command.type==='bot'){
+      if(peerId!==this.hostId)return 'Only the host can manage AI riders';
+      if(command.action==='add')return this.addBot();
+      if(command.action==='remove'&&typeof command.id==='string')return this.removeBot(command.id);
+      return 'Invalid AI command';
+    }
+    if(this.bots.has(peerId))return 'AI riders are controlled by the host';
     if(command.type==='join') {
       if(typeof command.name!=='string'||!command.name.trim()||command.name.length>20)return 'Choose a name (1–20 characters)';
       const existing=this.game.players.get(peerId);
@@ -62,12 +74,12 @@ export class HostSession {
     const inputs=new Map<string,InputIntent>();
     for(const [id,seat] of this.seats){
       if(this.game.tick-seat.tick>10){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel();}
-      inputs.set(id,{...seat.input,bombCommands:seat.bombs.drainCommands()});
+      inputs.set(id,this.bots.has(id)?this.botController.input(this.game,id):{...seat.input,bombCommands:seat.bombs.drainCommands()});
     }
     const before=this.game.phase;const result=step(this.game,inputs);
     if(before!==this.game.phase)this.clear();
     if(this.game.phase==='roundOver'&&this.game.phaseEndsAtTick!==undefined&&this.game.tick>=this.game.phaseEndsAtTick){
-      for(const player of [...this.game.players.values()])if(!player.connected){removePlayer(this.game,player.id);this.seats.delete(player.id);}
+      for(const player of [...this.game.players.values()])if(!player.connected){removePlayer(this.game,player.id);this.seats.delete(player.id);this.bots.delete(player.id);}
       if([...this.game.players.values()].filter(player=>player.connected).length>=2){
         // Format stays fixed for a match; powerup changes apply at round boundaries.
         this.game.settings={...this.settings,match:this.game.settings!.match,length:this.game.settings!.length};
@@ -76,17 +88,31 @@ export class HostSession {
     }
     return result.events;
   }
+  private addBot():string|undefined {
+    const slot=SLOT_COLORS.findIndex((_,slot)=>![...this.game.players.values()].some(player=>player.slot===slot));
+    if(slot<0)return 'Room is full (5 players including AI)';
+    if(this.game.leaderboard.size>=128)return 'Start a fresh room before adding more riders';
+    let number=1;while(this.game.leaderboard.has(`${BOT_ID_PREFIX}${number}`))number++;
+    const id=`${BOT_ID_PREFIX}${number}`,names=['Ada','Turing','Hopper','Nova','Byte'];
+    addPlayer(this.game,{id,name:`AI ${names[slot]!}`,slot,color:SLOT_COLORS[slot]!,avatarId:'robot',connected:true});
+    this.bots.add(id);this.seats.set(id,{seq:-1,tick:this.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer()});
+  }
+  private removeBot(id:string):string|undefined {
+    if(!this.bots.has(id))return 'AI rider not found';
+    if(!['lobby','roundOver','matchOver'].includes(this.game.phase))return 'Remove AI between rounds or return to menu';
+    removePlayer(this.game,id);this.bots.delete(id);this.seats.delete(id);
+  }
   acknowledgements():Record<string,number>{return Object.fromEntries([...this.seats].map(([id,seat])=>[id,seat.seq]));}
-  disconnect(id:string):void {if(this.game.players.has(id))setPlayerConnected(this.game,id,false);const seat=this.seats.get(id);if(seat){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}}
+  disconnect(id:string):void {if(this.bots.has(id))return;if(this.game.players.has(id))setPlayerConnected(this.game,id,false);const seat=this.seats.get(id);if(seat){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}}
   clear():void {for(const seat of this.seats.values()){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}}
   checkpoint():string {
-    return encodeCheckpoint(this.hostId,this.game,this.settings,[...this.seats].filter(([id])=>this.game.players.has(id)).map(([id,seat])=>[id,seat.seq] as const));
+    return encodeCheckpoint(this.hostId,this.game,this.settings,[...this.seats].filter(([id])=>this.game.players.has(id)).map(([id,seat])=>[id,seat.seq] as const),this.bots);
   }
   restore(raw:string):boolean {
     const candidate=decodeCheckpoint(raw,this.hostId);if(!candidate)return false;
     const seats=new Map<string,Seat>();
     for(const [id,seq] of candidate.sequences)seats.set(id,{seq,tick:candidate.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer()});
-    this.game=candidate.game;this.settings=candidate.settings;this.seats=seats;
+    this.game=candidate.game;this.settings=candidate.settings;this.seats=seats;this.bots=new Set(candidate.botIds);
     return true;
   }
   snapshot(){return toSnapshot(this.game);}

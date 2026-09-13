@@ -1,3 +1,4 @@
+import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
 import { ControllerInputState } from '../client/controller-state.js';
@@ -46,7 +47,8 @@ export async function startOnline():Promise<void>{
   const joinPanel=node('form','','online-join');const name=node('input');name.placeholder='Your name';name.maxLength=20;const previousName=read('fuse-riders-player-name');name.value=previousName??'';
   const joinButton=node('button','JOIN AS PLAYER');joinPanel.append(name,joinButton);joinButton.disabled=true;
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);
-  const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','INVITE / TV');hostControls.append(start,reset,settingsButton,share);
+  const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','INVITE / TV'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
+  const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;remove:HTMLButtonElement}>();
   const avatarButton=node('button','HEAD'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');fullscreen.onclick=()=>void document.documentElement.requestFullscreen?.();header.append(avatarButton,fullscreen);
   const dialog=node('dialog');const close=node('button','CLOSE');close.onclick=()=>dialog.close();const dialogBody=node('div');dialog.append(dialogBody,close);
   app.replaceChildren(header,canvas,notice,roster,joinPanel,controls,hostControls,dialog);
@@ -56,8 +58,8 @@ export async function startOnline():Promise<void>{
     status:text=>{status.textContent=text;},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     state:(state,rules,ack,matchId)=>{
-      snapshot=state;renderScope=matchId;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack);
-      frames.push({snapshot:state,matchId:code,round:state.round,receivedAt:performance.now()});if(frames.length>2)frames.shift();
+      snapshot=state;renderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}`;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack);
+      frames.push({snapshot:state,matchId,round:state.round,receivedAt:performance.now()});if(frames.length>2)frames.shift();
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
       if(state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0)&&lastRecap!==String(state.phaseEndsAtTick)){
@@ -69,13 +71,21 @@ export async function startOnline():Promise<void>{
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?'Join your friends, then start the race':state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`:state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
-      roster.replaceChildren(...state.players.map(p=>{const entry=node('span',`${p.name} · ${p.roundWins} wins${p.connected?'':' · offline'}`);entry.style.color=p.color;return entry;}));
+      for(const [playerId,row] of rosterEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();rosterEntries.delete(playerId);}
+      for(const p of state.players){
+        let row=rosterEntries.get(p.id);
+        if(!row){const entry=node('span'),label=node('span'),remove=node('button','×');entry.append(label,remove);remove.onclick=()=>runtime.command({type:'bot',action:'remove',id:p.id});row={entry,label,remove};rosterEntries.set(p.id,row);roster.append(entry);}
+        const label=`${p.name} · ${p.roundWins} wins${p.waitingForNextRound?' · next round':p.connected?'':' · offline'}`;if(row.label.textContent!==label)row.label.textContent=label;row.entry.style.color=p.color;
+        row.remove.hidden=!isHost||!p.id.startsWith(BOT_ID_PREFIX);row.remove.disabled=!['lobby','roundOver','matchOver'].includes(state.phase);row.remove.setAttribute('aria-label',`Remove ${p.name}`);row.remove.title=row.remove.disabled?'Remove AI between rounds or return to menu':'Remove AI rider';
+      }
+      addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
       hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';
     }
   });
   joinPanel.onsubmit=event=>{event.preventDefault();save('fuse-riders-player-name',name.value);runtime.command({type:'join',name:name.value,avatarId:avatar});};
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
+  addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p','Leave this room?'));const leave=node('button','LEAVE ROOM');leave.onclick=()=>{runtime.stop();location.href=appUrl();};dialogBody.append(leave);dialog.showModal();};
   avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(localStorage,chosen=>{avatar=chosen;if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
   share.onclick=async()=>{const link=new URL(appUrl(`?room=${code}`),location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=appUrl(`?room=${code}&display=1`);tv.target='_blank';dialogBody.append(tv);dialog.showModal();};

@@ -1,3 +1,4 @@
+import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import type { GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
@@ -5,7 +6,7 @@ import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 
 /** Bump compatibility whenever persisted simulation semantics or required fields change. No implicit migration. */
-export const CHECKPOINT_VERSION = 2;
+export const CHECKPOINT_VERSION = 3;
 export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-1';
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
@@ -121,23 +122,25 @@ function gameInvariants(game: GameState): boolean {
   return true;
 }
 
-export interface RestoredCheckpoint { game: GameState; settings: RoomSettings; sequences: Map<string, number> }
-export function encodeCheckpoint(host: string, game: GameState, roomSettings: RoomSettings, sequences: Iterable<readonly [string, number]>): string {
-  return JSON.stringify({ version: CHECKPOINT_VERSION, compatibility: CHECKPOINT_COMPATIBILITY, host, settings: roomSettings, game, sequences: [...sequences] }, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : value);
+export interface RestoredCheckpoint { game: GameState; settings: RoomSettings; sequences: Map<string, number>; botIds: Set<string> }
+export function encodeCheckpoint(host: string, game: GameState, roomSettings: RoomSettings, sequences: Iterable<readonly [string, number]>, botIds: Iterable<string> = []): string {
+  return JSON.stringify({ version: CHECKPOINT_VERSION, compatibility: CHECKPOINT_COMPATIBILITY, host, settings: roomSettings, game, sequences: [...sequences], botIds: [...botIds] }, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : value);
 }
 export function decodeCheckpoint(raw: string, host: string): RestoredCheckpoint | undefined {
   if (raw.length > MAX_CHECKPOINT_BYTES || new TextEncoder().encode(raw).byteLength > MAX_CHECKPOINT_BYTES) return;
   try {
     const data: unknown = decodeTree(JSON.parse(raw));
-    if (!shape({ version: v => v === CHECKPOINT_VERSION, compatibility: v => v === CHECKPOINT_COMPATIBILITY, host: v => v === host, settings, game: gameShape, sequences: array(v => Array.isArray(v) && v.length === 2 && text(v[0]) && Number.isSafeInteger(v[1]) && v[1] >= -1, 5) })(data) || !record(data)) return;
+    if (!shape({ version: v => v === CHECKPOINT_VERSION, compatibility: v => v === CHECKPOINT_COMPATIBILITY, host: v => v === host, settings, game: gameShape, sequences: array(v => Array.isArray(v) && v.length === 2 && text(v[0]) && Number.isSafeInteger(v[1]) && v[1] >= -1, 5), botIds: array(text, 5) })(data) || !record(data)) return;
     // Every property and nested container is checked by the exhaustive schemas above.
     const game = data.game as GameState;
     if (!gameInvariants(game)) return;
     const sequences = new Map<string, number>();
     for (const [id, seq] of data.sequences as [string, number][]) { if (!game.players.has(id) || sequences.has(id)) return; sequences.set(id, seq); }
     if (sequences.size !== game.players.size) return;
-    for (const player of game.players.values()) { player.connected = false; player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
-    return { game, settings: parseRoomSettings(data.settings)!, sequences };
+    const botIds=new Set<string>();
+    for(const id of data.botIds as string[]){if(!id.startsWith(BOT_ID_PREFIX)||id===host||!game.players.has(id)||botIds.has(id))return;botIds.add(id);}
+    for (const player of game.players.values()) { player.connected = botIds.has(player.id); player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
+    return { game, settings: parseRoomSettings(data.settings)!, sequences, botIds };
   } catch { return; }
 }
 
