@@ -29,7 +29,7 @@ test('checkpoint restore is atomic on the malformed sequences regression', () =>
 });
 
 test('checkpoint restores exact physics, pending preferences and neutral disconnected identities', () => {
-  const source = playing(); source.command('guest', { type: 'input', seq: 0, left: false, right: false, bomb: false }); source.command('guest', { type: 'input', seq: 99, left: true, right: false, bomb: true, bombAction: 'press' }); source.advance();
+  const source = playing(); source.command('guest', { type: 'input', scope: source.controlScope('guest'), intendedTick: source.game.tick+1, seq: 0, left: false, right: false, bomb: false }); source.command('guest', { type: 'input', scope: source.controlScope('guest'), intendedTick: source.game.tick+1, seq: 99, left: true, right: false, bomb: true, bombAction: 'press' }); source.advance();
   assert.notEqual(source.game.players.get('guest')?.bombChargeStartedTick, undefined);
   source.settings = { ...source.settings, length: 9 };
   const destination = session(); assert.equal(destination.restore(source.checkpoint()), true);
@@ -78,9 +78,9 @@ test('real countdown, playing and round transitions produce restorable bounded c
 test('checkpoint validates bombs, shell lifetime sentinel, pickups and portal geometry', () => {
   const source = playing();
   const p = source.game.players.get('host')!; p.shellArmed = true;
-  source.command('host', { type: 'input', seq: 0, left: false, right: false, bomb: false });
-  source.command('host', { type: 'input', seq: 1, left: false, right: false, bomb: true, bombAction: 'press' }); source.advance();
-  source.command('host', { type: 'input', seq: 2, left: false, right: false, bomb: false, bombAction: 'release' }); source.advance();
+  source.command('host', { type: 'input', scope: source.controlScope('host'), intendedTick: source.game.tick+1, seq: 0, left: false, right: false, bomb: false });
+  source.command('host', { type: 'input', scope: source.controlScope('host'), intendedTick: source.game.tick+1, seq: 1, left: false, right: false, bomb: true, bombAction: 'press' }); source.advance();
+  source.command('host', { type: 'input', scope: source.controlScope('host'), intendedTick: source.game.tick+1, seq: 2, left: false, right: false, bomb: false, bombAction: 'release' }); source.advance();
   assert.equal(source.game.bombs.size, 1); assert.equal(session().restore(source.checkpoint()), true);
   rejectedWithoutMutation(corrupt(source, (_data, game) => { object(mapped(game.bombs)[0][1]).ownerId = 'unknown'; }));
   rejectedWithoutMutation(corrupt(source, (_data, game) => { object(object(mapped(game.bombs)[0][1]).shell).vx = Infinity; }));

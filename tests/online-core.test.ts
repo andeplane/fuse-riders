@@ -49,7 +49,7 @@ test('fresh encoder after reconnection replaces old stream without accepting ret
 
 test('host checkpoint restores world and sequence numbers without replaying held fire',()=>{
   const a=session();a.command('host',{type:'join',name:'Host'});a.command('p',{type:'join',name:'P'});a.command('host',{type:'action',action:'start'});
-  for(let i=0;i<60;i++)a.advance();a.command('p',{type:'input',seq:99,left:true,right:false,bomb:true,bombAction:'press'});a.advance();
+  for(let i=0;i<60;i++)a.advance();a.command('p', { type: 'input', scope: a.controlScope('p'), intendedTick: a.game.tick+1,seq:99,left:true,right:false,bomb:true,bombAction:'press'});a.advance();
   const b=session();assert.equal(b.restore(a.checkpoint()),true);assert.equal(b.game.tick,a.game.tick);assert.equal(b.acknowledgements().p,99);
   b.advance();assert.equal(b.game.players.get('p')!.bombChargeStartedTick,undefined);
   assert.equal(b.restore('invalid'),false);
