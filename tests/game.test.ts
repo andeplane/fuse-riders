@@ -245,6 +245,7 @@ test('bomb input charges, launches on release, caps one live bomb, chains once, 
   result = step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
   assert.equal(state.bombs.size, 1);
   const firstBomb = [...state.bombs.values()][0]!;
+  assert.equal(firstBomb.blastRange, 90, 'base radius is 60% of the original 150');
   assert.equal(firstBomb.explodeAtTick, state.tick + BOMB_FUSE_TICKS);
   assert.equal(firstBomb.landsAtTick, state.tick + BOMB_FLIGHT_TICKS);
   assert.equal(firstBomb.launchX, owner.x);
@@ -259,14 +260,14 @@ test('bomb input charges, launches on release, caps one live bomb, chains once, 
   state.bombs.set(77, {
     id: 77,
     ownerId: 'p1',
-    launchX: firstBomb.x + 100,
+    launchX: firstBomb.x + BOMB_BLAST_RANGE / 2,
     launchY: firstBomb.y,
-    x: firstBomb.x + 100,
+    x: firstBomb.x + BOMB_BLAST_RANGE / 2,
     y: firstBomb.y,
     placedTick: state.tick,
     launchedTick: state.tick,
     landsAtTick: state.tick,
-    flightPath: fixedFlightPath(firstBomb.x + 100, firstBomb.y),
+    flightPath: fixedFlightPath(firstBomb.x + BOMB_BLAST_RANGE / 2, firstBomb.y),
     explodeAtTick: state.tick + 999,
     blastRange: 150,
   });

@@ -18,7 +18,7 @@ Production does not refresh automatically. To install changes, stop the server b
 
 ## Controls and powerups
 
-Hold left or right to steer. Hold **Fire**, then release to launch ahead: a tap fires 100 world units; holding for 1.2 seconds reaches 400. The TV and phone show charge/release feedback. Flight takes 0.3 seconds, the fuse lasts 2 seconds from release, and the cooldown is 4 seconds. Only one active bomb volley per rider is allowed.
+Hold left or right to steer. Hold **Fire**, then release to launch ahead: a tap fires 100 world units; holding for 1.2 seconds reaches 400. The TV and phone show charge/release feedback. Flight takes 0.3 seconds, the fuse lasts 2 seconds from release, and the cooldown is 4 seconds. Only one active bomb volley per rider is allowed. Base explosion radius is 90 world units.
 
 Drops begin about six seconds into each round and attempt to spawn every six seconds, with at most three on the field. They disappear after 15 seconds; crowded areas can delay safe placement.
 

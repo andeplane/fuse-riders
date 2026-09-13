@@ -65,7 +65,7 @@ export const SELF_TRAIL_GRACE_TICKS = 10;
 
 export const BOMB_FUSE_TICKS = 40;
 export const BOMB_COOLDOWN_TICKS = 80;
-export const BOMB_BLAST_RANGE = 150;
+export const BOMB_BLAST_RANGE = 90;
 export const BLAST_VISIBLE_TICKS = 8;
 export const BLAST_LEVEL_RANGE = 75;
 
