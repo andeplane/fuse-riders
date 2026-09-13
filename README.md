@@ -2,6 +2,10 @@
 
 A TypeScript party game for 2–5 players: steer neon riders, dodge their trails, and launch bombs and other projectiles. Play together around a TV with phones as controllers, or try the online room prototype with an arena on each device. The default match is first to three round wins.
 
+![Fuse Riders Phaser gameplay showcase](docs/gameplay-phaser.png)
+
+*Rendered in the real game client using a reproducible gameplay showcase.*
+
 **Online play is being hardened and is not yet a qualified Internet release.** Independent reviews identified blocking problems in prediction, stale-message handling, duplicate host tabs, transport recovery, and checkpoint validation. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The existing LAN path remains available while these are addressed.
 
 ## Run a LAN game
@@ -45,17 +49,17 @@ The LAN TV provides audio controls, fullscreen, a main-menu reset, session score
 | Path | Simulation authority | Communication | Lifetime |
 | --- | --- | --- | --- |
 | LAN | Local Node process | WebSocket intents, snapshots and events | Process must run during play; restart resets state |
-| Online prototype | Creator's browser | Host-to-peer WebRTC star; Worker WebSocket signalling and application relay | Host must remain available; recovery is under review |
+| Online prototype | Creator's browser | Host-to-peer WebRTC star; backend WebSocket signalling only | Host must remain available; recovery is under review |
 
 ```text
 LAN:     phones ── WebSocket ── Node simulation ── WebSocket ── TV
 
 Online:  player/display ── WebRTC ── host browser simulation
                 └── Worker + room Durable Object ──┘
-                    signalling / fallback relay
+                    signalling / room coordination
 ```
 
-The shared deterministic simulation advances at 20 Hz. Online replication currently publishes at 10 Hz using field changes and trail deltas with periodic keyframes. Clients have a prediction/interpolation prototype; it is not yet deterministic replay on a fully specified authoritative timebase. WebRTC is transport, not a substitute for that protocol work. The current relay implementation also needs liveness-based switching and recovery tests.
+The shared deterministic simulation advances at 20 Hz. Online replication currently publishes at 10 Hz using field changes and trail deltas with periodic keyframes. Clients have a prediction/interpolation prototype; it is not yet deterministic replay on a fully specified authoritative timebase. WebRTC is transport, not a substitute for that protocol work. Gameplay never uses the backend as a relay. Failed WebRTC connections show a retry state; direct-link recovery is tested separately.
 
 | Location | Responsibility |
 | --- | --- |
@@ -105,10 +109,12 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Hosting and deployment status
 
-The online prototype uses **Cloudflare Workers static assets plus a hibernating SQLite Durable Object per room**, configured as Worker `fuse-riders` and binding `ROOMS`. It requires no provisioned always-running game simulation server. Direct peer traffic avoids application relay traffic; fallback still consumes service work and quotas. Optional TURN uses `TURN_KEY_ID` and `TURN_API_TOKEN` as Worker secrets. It is not configured merely by deploying the source.
+The current deployment target uses **GitHub Pages, Cloud Run, Firestore room metadata and Pub/Sub signalling only**. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). The older local Cloudflare adapter remains available through `dev:online`. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
 
 A temporary experimental preview was reported at **https://fuse-riders.vagabond-walk.workers.dev**. This is not a declared production endpoint: current reachability, account ownership, claim status and expiry must be verified before relying on it. No permanent production deployment, operating account, custom domain, or billing arrangement is certified by this README. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
-For an authenticated account, `npm run deploy` builds and invokes Wrangler. **That command does not run the release gates.** Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting to production. See [deployment details and cost assumptions](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, `.dev.vars`, Wrangler credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
+The production target is GitHub Pages plus GCP Cloud Run, with Firestore room metadata and Pub/Sub **signalling only**. See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The Pages Play link will be published after frontend/backend verification.
+
+For the older Cloudflare prototype, `npm run deploy` builds and invokes Wrangler. **That command does not run the release gates.** Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting to production. See [deployment details and cost assumptions](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, `.dev.vars`, Wrangler credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
 Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.
