@@ -1,6 +1,6 @@
 export const DRUNK_DURATION_TICKS = 80;
-export const DRUNK_KNOT_INTERVAL_TICKS = 10;
-export const DRUNK_MAX_ANGULAR_VELOCITY = 2.0;
+export const DRUNK_KNOT_INTERVAL_TICKS = 8;
+export const DRUNK_MAX_ANGULAR_VELOCITY = 5.0;
 
 function fnv1aUtf16(value: string): number {
   let hash = 0x811c9dc5;
