@@ -19,7 +19,7 @@ export type ClientMessage =
   | { type: 'hostAuth'; token: string }
   | { type: 'hostAction'; action: 'start' | 'nextRound' | 'rematch' };
 export interface TrailSegment { x1: number; y1: number; x2: number; y2: number; createdTick: number; expiresAtTick: number }
-export interface BlastRect { x: number; y: number; width: number; height: number }
+export interface BlastCircle { x: number; y: number; radius: number }
 export interface GameSnapshot {
   phase: 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
   phaseEndsAtTick?: number;
@@ -37,7 +37,7 @@ export interface GameSnapshot {
     launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number;
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
-  blasts: ReadonlyArray<{ bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number }>;
+  blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPair?: PortalPair;
   pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star' | 'beer' | 'triple' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;

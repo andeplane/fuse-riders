@@ -384,58 +384,25 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
 
   for (const blast of snapshot.blasts) {
     const alpha = clamp((blast.expiresAtTick - snapshot.tick) / 8, 0.15, 1);
-    for (const rect of blast.rects) {
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = theme.palette.blast; ctx.shadowColor = theme.palette.blast; ctx.shadowBlur = 34;
-      ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-      const horizontal = rect.width >= rect.height;
-      const minor = horizontal ? rect.height : rect.width;
-      const pad = Math.min(4, minor / 5);
-      if (sprites.flame) {
-        const length = horizontal ? rect.width : rect.height;
-        for (const t of [.06, .94]) {
-          const x = horizontal ? rect.x + t * length : rect.x + rect.width / 2;
-          const y = horizontal ? rect.y + rect.height / 2 : rect.y + t * length;
-          drawSprite(ctx, sprites.flame, x, y, 38, horizontal ? Math.PI / 2 : 0, undefined, theme.rendering.pixelated);
-        }
+    const { x, y, radius } = blast.circle;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(snapshot.boundaryInset, snapshot.boundaryInset, snapshot.width - 2 * snapshot.boundaryInset, snapshot.height - 2 * snapshot.boundaryInset); ctx.clip();
+    ctx.globalAlpha = alpha;
+    // One bounded polygon per ring keeps five simultaneous explosions cheap.
+    for (const [scale, color] of [[1, theme.palette.blast], [.84, '#ffb21e'], [.56, theme.palette.blastCore]] as const) {
+      ctx.fillStyle = color; ctx.beginPath();
+      const steps = theme.rendering.pixelated ? 32 : 64;
+      for (let i = 0; i < steps; i += 1) {
+        const angle = i * Math.PI * 2 / steps;
+        const px = x + Math.cos(angle) * radius * scale;
+        const py = y + Math.sin(angle) * radius * scale;
+        const snap = theme.rendering.pixelated ? 6 : 1;
+        if (i === 0) ctx.moveTo(Math.round(px / snap) * snap, Math.round(py / snap) * snap);
+        else ctx.lineTo(Math.round(px / snap) * snap, Math.round(py / snap) * snap);
       }
-      ctx.fillStyle = '#ffb21e'; ctx.shadowBlur = 15;
-      ctx.fillRect(rect.x + pad / 2, rect.y + pad / 2, rect.width - pad, rect.height - pad);
-      ctx.fillStyle = theme.palette.blastCore; ctx.shadowColor = '#fff5a4'; ctx.shadowBlur = 12;
-      ctx.fillRect(rect.x + pad, rect.y + pad, rect.width - pad * 2, rect.height - pad * 2);
-      if (theme.rendering.pixelated) {
-        const length = horizontal ? rect.width : rect.height;
-        for (let index = 0; index < Math.floor(length / 18); index += 1) {
-          const along = (index + .35) * length / Math.max(1, Math.floor(length / 18));
-          const side = index % 2 ? 1 : -1;
-          const x = horizontal ? rect.x + along : rect.x + rect.width / 2 + side * (minor / 2 + 3 + index % 4);
-          const y = horizontal ? rect.y + rect.height / 2 + side * (minor / 2 + 3 + index % 4) : rect.y + along;
-          ctx.globalAlpha = alpha * .7; ctx.fillStyle = index % 3 ? '#ff7618' : '#ffe14a'; ctx.shadowBlur = 8;
-          ctx.fillRect(Math.round(x), Math.round(y), index % 3 === 0 ? 5 : 3, index % 3 === 0 ? 5 : 3);
-        }
-      }
-      ctx.restore();
+      ctx.closePath(); ctx.fill();
     }
-    const horizontal = blast.rects.find((rect) => rect.width >= rect.height);
-    const vertical = blast.rects.find((rect) => rect.height > rect.width);
-    if (horizontal && vertical) {
-      const cx = vertical.x + vertical.width / 2; const cy = horizontal.y + horizontal.height / 2;
-      ctx.save(); ctx.globalAlpha = alpha; ctx.translate(Math.round(cx), Math.round(cy));
-      ctx.shadowColor = '#ff6b12'; ctx.shadowBlur = 35;
-      if (sprites.flame) drawSprite(ctx, sprites.flame, 0, 9, 74, 0, undefined, theme.rendering.pixelated);
-      ctx.fillStyle = '#ff5c12';
-      ctx.beginPath(); ctx.moveTo(-42, -7); ctx.lineTo(-25, -16); ctx.lineTo(-12, -25); ctx.lineTo(-7, -43); ctx.lineTo(6, -43); ctx.lineTo(13, -24); ctx.lineTo(27, -16); ctx.lineTo(43, -7); ctx.lineTo(43, 7); ctx.lineTo(25, 13); ctx.lineTo(14, 27); ctx.lineTo(7, 43); ctx.lineTo(-7, 43); ctx.lineTo(-14, 26); ctx.lineTo(-27, 15); ctx.lineTo(-43, 7); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#ffd52f'; ctx.shadowBlur = 18; ctx.fillRect(-22, -22, 44, 44);
-      ctx.fillStyle = '#fffde1'; ctx.shadowColor = '#fff7a1'; ctx.shadowBlur = 15; ctx.fillRect(-12, -31, 24, 62); ctx.fillRect(-31, -12, 62, 24);
-      for (let index = 0; index < 13; index += 1) {
-        const angle = index * 2.4; const radius = 47 + index % 4 * 6;
-        const size = index % 3 === 0 ? 6 : 3;
-        ctx.fillStyle = index % 2 ? '#ff6417' : '#ffd32d';
-        ctx.fillRect(Math.round(Math.cos(angle) * radius), Math.round(Math.sin(angle) * radius), size, size);
-      }
-      ctx.restore();
-    }
+    ctx.restore();
   }
 
   for (const player of snapshot.players) {

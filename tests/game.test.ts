@@ -479,7 +479,7 @@ test('wall and explosion causes are authoritative, clipped, and blast visuals ex
   assert.equal(explosion.roundParticipants.get('p0')!.eliminatedAtTick, explosion.tick);
   assert.equal(explosion.matchStats.get('p0')!.deathsByCause.explosion, 1);
   assert.equal(explosion.matchStats.get('p1')!.eliminations, 1);
-  assert.equal(explosion.blasts[0]!.rects[0]!.x, explosion.boundaryInset, 'cross is clipped to the active boundary');
+  assert.deepEqual(explosion.blasts[0]!.circle, { x: 30, y: 350, radius: 150 });
   for (let age = 1; age <= BLAST_VISIBLE_TICKS; age += 1) {
     step(explosion, new Map());
     assert.equal(explosion.blasts.length, age < BLAST_VISIBLE_TICKS ? 1 : 0);

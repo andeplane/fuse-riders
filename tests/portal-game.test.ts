@@ -53,7 +53,7 @@ test('unsafe exit defers teleport for rider, pending trail, trail, bomb and blas
       launchedTick: state.tick, landsAtTick: state.tick + 6, placedTick: state.tick, explodeAtTick: 500,
       blastRange: 150, flightPath: [{ x: 1000, y: 300, angle: 0 }],
     });
-    if (hazard === 'blast') state.blasts.push({ bombId: 99, ownerId: 'p1', rects: [{ x: 990, y: 290, width: 20, height: 20 }], expiresAtTick: 500 });
+    if (hazard === 'blast') state.blasts.push({ bombId: 99, ownerId: 'p1', circle: { x: 1000, y: 300, radius: 10 }, expiresAtTick: 500 });
     step(state, new Map());
     assert.equal(state.players.get('p0')!.x, 172.5, hazard);
     assert.equal(state.matchStats.get('p0')!.portalTransits, 0, hazard);

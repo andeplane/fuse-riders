@@ -1,7 +1,8 @@
 import { clipTrailSegment } from './trail-clipping.js';
+import { segmentIntersectsDisk } from './blast-geometry.js';
 import { createPortalPair, findPortalTransit, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
-  BlastRect,
+  BlastCircle,
   BombAction,
   GameEvent,
   GameSnapshot,
@@ -41,7 +42,7 @@ import {
   type LaunchBounds,
 } from './launch-modifiers.js';
 
-export type { BlastRect, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
+export type { BlastCircle, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
 export const TICK_HZ = 20;
 export const SNAPSHOT_HZ = 10;
@@ -147,7 +148,7 @@ export interface BombState {
 export interface BlastState {
   bombId: number;
   ownerId: PlayerId;
-  rects: BlastRect[];
+  circle: BlastCircle;
   expiresAtTick: number;
 }
 
@@ -397,10 +398,10 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   const newBlasts = resolveExplosions(state, events);
   if (newBlasts.length > 0) {
-    const rects = newBlasts.flatMap((blast) => blast.rects);
+
     for (const player of state.players.values()) {
       player.trail = player.trail.filter((segment) =>
-        !rects.some((rect) => segmentIntersectsRect(segment.x1, segment.y1, segment.x2, segment.y2, rect)),
+        !newBlasts.some((blast) => segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)),
       );
     }
   }
@@ -409,7 +410,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
-      if (!isHazardImmune(movement.player, state.tick) && blast.rects.some((rect) => sweptCircleIntersectsRect(movement, RIDER_RADIUS, rect))) {
+      if (!isHazardImmune(movement.player, state.tick) && segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, blast.circle, RIDER_RADIUS)) {
         markCause(causes, causeOwners, movement.player.id, 'explosion', blast.ownerId);
       }
     }
@@ -573,7 +574,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     })),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,
-      rects: blast.rects.map((rect) => ({ ...rect })),
+      circle: { ...blast.circle },
       expiresAtTick: blast.expiresAtTick,
     })),
     ...(state.portalPair ? { portalPair: { ...state.portalPair, gates: [{ ...state.portalPair.gates[0] }, { ...state.portalPair.gates[1] }] as const } } : {}),
@@ -750,9 +751,7 @@ function isSafePortalPosition(
     if (Math.hypot(point.x - bomb.x, point.y - bomb.y) <= radius + 14 ||
       (flight && Math.hypot(point.x - flight.x, point.y - flight.y) <= radius + 14)) return false;
   }
-  return !state.blasts.some(blast => blast.rects.some(rect =>
-    point.x + radius >= rect.x && point.x - radius <= rect.x + rect.width &&
-    point.y + radius >= rect.y && point.y - radius <= rect.y + rect.height));
+  return !state.blasts.some(blast => segmentIntersectsDisk(point.x, point.y, point.x, point.y, blast.circle, radius));
 }
 
 function isInvulnerable(player: PlayerState, tick: number): boolean {
@@ -880,15 +879,15 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     const bomb = state.bombs.get(id);
     if (!bomb) continue;
     exploded.add(id);
-    const rects = createBlastRects(state, bomb);
-    result.push({ bombId: id, ownerId: bomb.ownerId, rects, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS });
+    const circle = { x: bomb.x, y: bomb.y, radius: bomb.blastRange };
+    result.push({ bombId: id, ownerId: bomb.ownerId, circle, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS });
     recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: 'explosion', bombId: id });
 
     for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
       if (exploded.has(candidate.id) || queued.has(candidate.id)) continue;
       if (candidate.landsAtTick > state.tick) continue;
-      if (rects.some((rect) => pointInRect(candidate.x, candidate.y, rect))) {
+      if (segmentIntersectsDisk(candidate.x, candidate.y, candidate.x, candidate.y, circle)) {
         queued.add(candidate.id);
         queue.push(candidate.id);
       }
@@ -897,25 +896,6 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
   for (const id of exploded) state.bombs.delete(id);
   state.blasts.push(...result);
   return result;
-}
-
-function createBlastRects(state: GameState, bomb: BombState): BlastRect[] {
-  const left = state.boundaryInset;
-  const right = state.width - state.boundaryInset;
-  const top = state.boundaryInset;
-  const bottom = state.height - state.boundaryInset;
-  const horizontalLeft = Math.max(left, bomb.x - bomb.blastRange);
-  const horizontalRight = Math.min(right, bomb.x + bomb.blastRange);
-  const horizontalTop = Math.max(top, bomb.y - BOMB_BLAST_HALF_WIDTH);
-  const horizontalBottom = Math.min(bottom, bomb.y + BOMB_BLAST_HALF_WIDTH);
-  const verticalLeft = Math.max(left, bomb.x - BOMB_BLAST_HALF_WIDTH);
-  const verticalRight = Math.min(right, bomb.x + BOMB_BLAST_HALF_WIDTH);
-  const verticalTop = Math.max(top, bomb.y - bomb.blastRange);
-  const verticalBottom = Math.min(bottom, bomb.y + bomb.blastRange);
-  return [
-    rectFromEdges(horizontalLeft, horizontalTop, horizontalRight, horizontalBottom),
-    rectFromEdges(verticalLeft, verticalTop, verticalRight, verticalBottom),
-  ];
 }
 
 function resolveRound(state: GameState, events: GameEvent[], elapsed: number): void {
@@ -1020,37 +1000,6 @@ function normalizeAngle(angle: number): number {
 
 function square(value: number): number {
   return value * value;
-}
-
-function rectFromEdges(left: number, top: number, right: number, bottom: number): BlastRect {
-  return { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
-}
-
-function pointInRect(x: number, y: number, rect: BlastRect): boolean {
-  return x >= rect.x - EPSILON && x <= rect.x + rect.width + EPSILON &&
-    y >= rect.y - EPSILON && y <= rect.y + rect.height + EPSILON;
-}
-
-function sweptCircleIntersectsRect(movement: Movement, radius: number, rect: BlastRect): boolean {
-  return segmentIntersectsRect(
-    movement.oldX,
-    movement.oldY,
-    movement.x,
-    movement.y,
-    { x: rect.x - radius, y: rect.y - radius, width: rect.width + 2 * radius, height: rect.height + 2 * radius },
-  );
-}
-
-function segmentIntersectsRect(x1: number, y1: number, x2: number, y2: number, rect: BlastRect): boolean {
-  if (pointInRect(x1, y1, rect) || pointInRect(x2, y2, rect)) return true;
-  const left = rect.x;
-  const right = rect.x + rect.width;
-  const top = rect.y;
-  const bottom = rect.y + rect.height;
-  return segmentsIntersect(x1, y1, x2, y2, left, top, right, top) ||
-    segmentsIntersect(x1, y1, x2, y2, right, top, right, bottom) ||
-    segmentsIntersect(x1, y1, x2, y2, right, bottom, left, bottom) ||
-    segmentsIntersect(x1, y1, x2, y2, left, bottom, left, top);
 }
 
 function segmentDistanceSquared(
