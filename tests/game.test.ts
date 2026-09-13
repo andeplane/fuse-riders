@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { POINT_UNIT } from '../src/shared/leaderboard.ts';
-import { DRUNK_DURATION_TICKS, drunkAngularVelocity } from '../src/shared/drunk.ts';
+import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from '../src/shared/drunk.ts';
 import {
   BOMB_FLIGHT_TICKS,
   BOMB_MAX_CHARGE_TICKS,
@@ -632,8 +632,9 @@ test('beer pickup debuffs every other living rider, refreshes, and keeps the col
   assert.equal(state.matchStats.get('p0')!.beerPickups, 1);
   assert.equal(state.matchStats.get('p0')!.pickupsCollected, 1);
 
+  const startedTick = target.drunkStartedTick;
   const angleBefore = target.angle;
-  const expectedNoise = drunkAngularVelocity(state.seed, target.id, state.tick + 1) / 20;
+  const expectedNoise = drunkHeadingOffset(state.seed, target.id, state.tick + 1, target.drunkStartedTick, target.drunkUntilTick) - target.drunkHeadingOffset;
   step(state, inputs(['p1', { left: true }]));
   const expectedAngle = ((angleBefore - 2.8 / 20 + expectedNoise) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
   assert.ok(Math.abs(target.angle - expectedAngle) < 1e-10, 'normal steering and deterministic wobble are added');
@@ -641,6 +642,7 @@ test('beer pickup debuffs every other living rider, refreshes, and keeps the col
   state.pickups = [{ id: 2, type: 'beer', x: collector.x + 3, y: collector.y, expiresAtTick: state.tick + 100 }];
   step(state, new Map());
   assert.equal(target.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS, 'a second beer refreshes without stacking');
+  assert.equal(target.drunkStartedTick, startedTick, 'refresh preserves the sway phase');
 });
 
 test('drunk wobble expires at the strict tick boundary and resets between rounds', () => {
@@ -657,6 +659,8 @@ test('drunk wobble expires at the strict tick boundary and resets between rounds
   state.tick = state.phaseEndsAtTick!;
   startNextRound(state);
   assert.equal(player.drunkUntilTick, 0);
+  assert.equal(player.drunkStartedTick, 0);
+  assert.equal(player.drunkHeadingOffset, 0);
   assert.equal(toSnapshot(state).players.find((candidate) => candidate.id === player.id)!.drunkUntilTick, 0);
 });
 

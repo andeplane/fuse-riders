@@ -1,49 +1,64 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  DRUNK_DURATION_TICKS, DRUNK_KNOT_INTERVAL_TICKS, DRUNK_MAX_ANGULAR_VELOCITY,
-  drunkAngularVelocity,
-} from '../src/shared/drunk.ts';
+import { DRUNK_DURATION_TICKS, DRUNK_CYCLE_TICKS, DRUNK_MAX_HEADING_OFFSET, drunkHeadingOffset } from '../src/shared/drunk.js';
+import { addPlayer, createGame, startMatch, step } from '../src/shared/game.js';
 
-test('uses the accepted duration, interval, and bound', () => {
-  assert.equal(DRUNK_DURATION_TICKS, 80);
-  assert.equal(DRUNK_KNOT_INTERVAL_TICKS, 8);
-  assert.equal(DRUNK_MAX_ANGULAR_VELOCITY, 5);
-  for (let tick = 0; tick < 500; tick += 1) {
-    assert.ok(Math.abs(drunkAngularVelocity(42, 'p1', tick)) <= DRUNK_MAX_ANGULAR_VELOCITY);
-  }
-});
+const delta = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
-test('is deterministic, smooth between knots, and independent per player', () => {
-  const first = Array.from({ length: 80 }, (_, tick) => drunkAngularVelocity(123, 'alice', tick));
-  assert.deepEqual(first, Array.from({ length: 80 }, (_, tick) => drunkAngularVelocity(123, 'alice', tick)));
-  assert.notDeepEqual(first, Array.from({ length: 80 }, (_, tick) => drunkAngularVelocity(123, 'bob', tick)));
-  for (let tick = 1; tick < first.length; tick += 1) assert.ok(Math.abs(first[tick]! - first[tick - 1]!) <= 1.875);
-});
-
-test('changes with seed and does not mutate inputs', () => {
-  const id = 'player-ø';
-  const before = id.slice();
-  assert.notEqual(drunkAngularVelocity(1, id, 17), drunkAngularVelocity(2, id, 17));
-  assert.equal(id, before);
-});
-
-test('four-second trajectories wind substantially more than the original Beer Worms', () => {
-  // Baselines measured using ADR009's original 2 rad/s, 10-tick implementation.
-  const baselines = [
-    { seed: 1, turning: 4.100479761761725, displacement: Math.hypot(462.43775465204146, 303.08478344215706) },
-    { seed: 42, turning: 3.8532260821809117, displacement: Math.hypot(192.07349835147951, -454.3485031859066) },
-    { seed: 123, turning: 3.9907394044957005, displacement: Math.hypot(-35.48819948696864, -493.0557184472399) },
-    { seed: 999, turning: 3.240144007107277, displacement: Math.hypot(374.22004416261996, -402.52564650297495) },
-  ];
-  for (const baseline of baselines) {
-    let angle = 0; let turning = 0; let x = 0; let y = 0;
-    for (let tick = 0; tick < DRUNK_DURATION_TICKS; tick += 1) {
-      const delta = drunkAngularVelocity(baseline.seed, 'alice', tick) * .05;
-      angle += delta; turning += Math.abs(delta);
-      x += 7.5 * Math.cos(angle); y += 7.5 * Math.sin(angle);
+test('integrated sway remains within 15 degrees and leaves zero heading drift for many seeded effects', () => {
+  assert.equal(DRUNK_DURATION_TICKS, 80); assert.equal(DRUNK_CYCLE_TICKS, 40);
+  assert.equal(DRUNK_MAX_HEADING_OFFSET, Math.PI / 12);
+  for (let seed = 0; seed < 100; seed += 1) {
+    const id = `player-${seed % 5}`; const start = seed * 197; const until = start + 80;
+    let accumulated = 0; let previous = 0;
+    for (let tick = start; tick <= until + 2; tick += 1) {
+      const offset = drunkHeadingOffset(seed, id, tick, start, until);
+      assert.equal(offset, drunkHeadingOffset(seed, id, tick, start, until));
+      accumulated += offset - previous; previous = offset;
+      assert.ok(Math.abs(accumulated) <= Math.PI / 12 + 1e-12);
+      assert.ok(Math.abs(accumulated - offset) < 1e-12);
     }
-    assert.ok(turning > baseline.turning * 2.3, `seed ${baseline.seed}: much more winding`);
-    assert.ok(Math.hypot(x, y) < baseline.displacement * .7, `seed ${baseline.seed}: less straight progress`);
+    assert.ok(Math.abs(accumulated) < 1e-12);
   }
+});
+
+test('two-second cycle preserves phase during refresh and smooth onset/expiry', () => {
+  for (const tick of [11, 15, 20, 29]) {
+    assert.ok(Math.abs(drunkHeadingOffset(42, 'alice', tick, 0, 80) - drunkHeadingOffset(42, 'alice', tick + 40, 0, 80)) < 1e-12);
+    assert.equal(drunkHeadingOffset(42, 'alice', tick, 0, 80), drunkHeadingOffset(42, 'alice', tick, 0, 120));
+  }
+  assert.ok(Math.abs(drunkHeadingOffset(42, 'alice', 1, 0, 80)) < .01);
+  assert.ok(Math.abs(drunkHeadingOffset(42, 'alice', 79, 0, 80)) < .01);
+  for (const tick of [-1, 0, 80, 81, NaN, Infinity]) assert.equal(drunkHeadingOffset(42, 'alice', tick, 0, 80), 0);
+  assert.notEqual(drunkHeadingOffset(42, 'alice', 20, 0, 80), drunkHeadingOffset(42, 'bob', 20, 0, 80));
+});
+
+test('engine adds bounded sway to ordinary steering and restores intended heading at expiry', () => {
+  const game = createGame('bounded-drunk', 42);
+  for (let slot = 0; slot < 2; slot += 1) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: '#fff' });
+  startMatch(game); while (game.phase === 'countdown') step(game, new Map());
+  const player = game.players.get('p0')!; const other = game.players.get('p1')!;
+  player.drunkStartedTick = game.tick; player.drunkUntilTick = game.tick + 80;
+  let intended = player.angle;
+  for (let tick = 1; tick <= 82; tick += 1) {
+    // Keep geometry out of this heading invariant; wall reactions are covered separately.
+    player.x = 700; player.y = 400; player.trail = [];
+    other.x = 1200; other.y = 700; other.trail = []; other.angle = 0;
+    const direction = tick % 3 === 0 ? 1 : -1;
+    intended += direction * 2.8 / 20;
+    step(game, new Map([['p0', { left: direction < 0, right: direction > 0, bomb: false }]]));
+    assert.ok(Math.abs(delta(player.angle, intended)) <= Math.PI / 12 + 1e-10);
+    if (tick >= 80) assert.ok(Math.abs(delta(player.angle, intended)) < 1e-10);
+  }
+});
+
+test('late refresh stays bounded and leaves no residual at the extended deadline', () => {
+  let accumulated = 0; let previous = 0;
+  for (let tick = 0; tick <= 151; tick += 1) {
+    const until = tick < 71 ? 80 : 151;
+    const offset = drunkHeadingOffset(321, 'refreshed', tick, 0, until);
+    accumulated += offset - previous; previous = offset;
+    assert.ok(Math.abs(accumulated) <= Math.PI / 12 + 1e-12);
+  }
+  assert.ok(Math.abs(accumulated) < 1e-12);
 });

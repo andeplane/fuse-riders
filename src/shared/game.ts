@@ -34,7 +34,7 @@ import {
   snapshotMatchStats,
   type MatchStatsState,
 } from './match-stats.js';
-import { DRUNK_DURATION_TICKS, drunkAngularVelocity } from './drunk.js';
+import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from './drunk.js';
 import {
   BOMB_FLIGHT_TICKS,
   bombLandingPoint,
@@ -130,6 +130,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
   drunkUntilTick: number; inkUntilTick: number;
+  drunkStartedTick: number;
+  drunkHeadingOffset: number;
   tripleShotArmed: boolean; fiveShotArmed: boolean;
 
   shielded: boolean;
@@ -271,6 +273,8 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     invulnerableUntilTick: 0,
     drunkUntilTick: 0, inkUntilTick: 0,
     targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false,
+    drunkStartedTick: 0,
+    drunkHeadingOffset: 0,
 
     shielded: false,
     shieldGraceUntilTick: 0,
@@ -383,10 +387,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const direction = Number(input.right) - Number(input.left);
-    const drunkTurn = player.drunkUntilTick > state.tick
-      ? drunkAngularVelocity(state.seed, player.id, state.tick) / TICK_HZ
-      : 0;
-    const angle = normalizeAngle(player.angle + direction * TURN_PER_TICK + drunkTurn);
+    const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
+    const angle = normalizeAngle(player.angle - player.drunkHeadingOffset + direction * TURN_PER_TICK + offset);
+    player.drunkHeadingOffset = offset;
     movements.set(player.id, {
       player,
       oldX: player.x,
@@ -637,6 +640,8 @@ function prepareRound(state: GameState): void {
     player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
     player.drunkUntilTick = 0;
+    player.drunkStartedTick = 0;
+    player.drunkHeadingOffset = 0;
     player.inkUntilTick = 0;
     player.targetBombArmed = false;
     player.tripleShotArmed = false; player.fiveShotArmed = false;
@@ -732,6 +737,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     } else if (pickup.type === 'beer') {
       for (const player of state.players.values()) {
         if (player.alive && player.id !== collector.id) {
+          if (player.drunkUntilTick <= state.tick) player.drunkStartedTick = state.tick;
           player.drunkUntilTick = Math.max(player.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
         }
       }
@@ -798,8 +804,8 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
   if (!hitX && !hitY) return false;
   movement.x = Math.max(left, Math.min(right, movement.x));
   movement.y = Math.max(top, Math.min(bottom, movement.y));
-  if (hitX) movement.angle = normalizeAngle(Math.PI - movement.angle);
-  if (hitY) movement.angle = normalizeAngle(-movement.angle);
+  if (hitX) { movement.angle = normalizeAngle(Math.PI - movement.angle); movement.player.drunkHeadingOffset *= -1; }
+  if (hitY) { movement.angle = normalizeAngle(-movement.angle); movement.player.drunkHeadingOffset *= -1; }
   return true;
 }
 
