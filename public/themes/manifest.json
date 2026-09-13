@@ -121,6 +121,16 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Ink bottle for one second of rival clouds."
+    },
+    "pickup-target": {
+      "file": "pickup-target.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Rare Target Bomb: slide Fire to place its public reticle."
     }
   }
 }

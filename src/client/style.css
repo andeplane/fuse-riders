@@ -214,3 +214,5 @@ button { color: inherit; }
 .audio-panel input { width: 100%; }
 
 .fullscreen-toolbar { padding: 6px 10px; font-size: 1.15rem; line-height: 1; min-height: 34px; }
+
+.control-button.bomb.target-armed { border-color: #75ffe0; background-image: radial-gradient(circle, transparent 30%, #75ffe030 31%, transparent 33%); }

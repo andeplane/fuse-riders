@@ -1,3 +1,4 @@
+import { drawBombTargets } from './target-renderer.js';
 import { drawInkClouds } from './ink-renderer.js';
 import { ControllerPointerBindings } from './controller-pointers.js';
 import { createGameAudio } from './game-audio.js';
@@ -336,7 +337,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   drawPortalPair(ctx, snapshot, snapshot.tick, now);
 
   for (const player of snapshot.players) {
-    if (player.bombChargeStartedTick === undefined || !player.alive) continue;
+    if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed) continue;
     const chargeTicks = Math.max(0, snapshot.tick - player.bombChargeStartedTick);
     const distance = bombLaunchDistance(chargeTicks);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
@@ -425,6 +426,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     }
   }
   drawInkClouds(ctx, snapshot, snapshot.tick);
+  drawBombTargets(ctx, snapshot);
 }
 
 function startDisplay(): void {
@@ -462,6 +464,7 @@ function startDisplay(): void {
   const inkLegendImage = element('img'); inkLegendImage.alt = ''; inkLegendImage.src = '/themes/neon-pixel/pickup-ink.svg';
   const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = '/themes/neon-pixel/pickup-beer.svg';
   const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = '/themes/neon-pixel/pickup-triple.svg';
+  const targetLegendImage = element('img'); targetLegendImage.alt = ''; targetLegendImage.src = '/themes/neon-pixel/pickup-target.svg';
   const fiveLegendImage = element('img'); fiveLegendImage.alt = ''; fiveLegendImage.src = '/themes/neon-pixel/pickup-five.svg';
   const shieldLegendImage = element('img'); shieldLegendImage.alt = ''; shieldLegendImage.src = '/themes/neon-pixel/pickup-orbitShield.svg';
   const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = '/themes/neon-pixel/pickup-portal.svg';
@@ -469,11 +472,12 @@ function startDisplay(): void {
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 5s invulnerable'));
   const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 1s'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
+  const targetLegend = element('span'); targetLegend.append(targetLegendImage, element('b', '', 'TARGET'), document.createTextNode(' rare: slide Fire to aim'));
   const fiveLegend = element('span'); fiveLegend.append(fiveLegendImage, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
+  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -545,6 +549,7 @@ function startDisplay(): void {
 
   shieldLegendImage.src = `/themes/${activeTheme.id}/pickup-orbitShield.svg`;
   portalLegendImage.src = `/themes/${activeTheme.id}/pickup-portal.svg`;
+  targetLegendImage.src = `/themes/${activeTheme.id}/pickup-target.svg`;
   void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
 
   themeSelect.addEventListener('change', () => {
@@ -556,6 +561,7 @@ function startDisplay(): void {
     inkLegendImage.src = `/themes/${next.id}/pickup-ink.svg`;
     tripleLegendImage.src = `/themes/${next.id}/pickup-triple.svg`; fiveLegendImage.src = `/themes/${next.id}/pickup-five.svg`;  shieldLegendImage.src = `/themes/${next.id}/pickup-orbitShield.svg`;
     portalLegendImage.src = `/themes/${next.id}/pickup-portal.svg`;
+    targetLegendImage.src = `/themes/${next.id}/pickup-target.svg`;
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
 
@@ -614,7 +620,7 @@ function startDisplay(): void {
     const stats = [...(snapshot.matchStats ?? [])].sort((a, b) => a.matchPlacement - b.matchPlacement || a.slot - b.slot);
     const signature = stats.map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
       entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected, entry.invulnerableTicks,
-      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.inkPickups, entry.triplePickups, entry.fivePickups,  entry.shieldPickups, entry.portalPickups, entry.portalTransits,
+      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.inkPickups, entry.triplePickups, entry.fivePickups, entry.targetPickups,  entry.shieldPickups, entry.portalPickups, entry.portalTransits,
       ...Object.values(entry.deathsByCause)].join(':')).join('|');
     if (signature === recapSignature) return;
     recapSignature = signature;
@@ -669,7 +675,7 @@ function startDisplay(): void {
       row.append(rider, element('strong', '', String(entry.roundWins)), element('span', '', durationText(entry.survivalTicks)),
         element('span', '', durationText(entry.longestSurvivalTicks)), element('span', '', `${Math.round(entry.distanceUnits)}u`),
         element('span', '', `${entry.bombsExploded}/${entry.bombsPlaced}`), element('span', '', String(entry.eliminations)),
-        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} I${entry.inkPickups} T${entry.triplePickups} F${entry.fivePickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
+        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} I${entry.inkPickups} T${entry.triplePickups} F${entry.fivePickups} A${entry.targetPickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
         element('span', 'death-counts', `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`));
       comparison.append(row);
     }
@@ -878,6 +884,7 @@ function startController(): void {
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
   powerStrip.append(blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
+  const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -935,6 +942,11 @@ function startController(): void {
     if (phaseChanged) clearControls(true, true);
     const player = snapshot.players.find((candidate) => candidate.id === playerId);
     if (!player) return;
+    inputState.configureTargetAim(player.targetBombArmed && player.alive ? {
+      x: clamp((player.x + Math.cos(player.angle) * 100) / snapshot.width, 0, 1),
+      y: clamp((player.y + Math.sin(player.angle) * 100) / snapshot.height, 0, 1),
+    } : undefined);
+    targetPower.textContent = player.targetBombArmed ? 'TARGET · ARMED' : 'TARGET · --';
     const scored = snapshot as ScoredSnapshot;
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
@@ -961,7 +973,7 @@ function startController(): void {
     else if (player.waitingForNextRound) instruction.textContent = snapshot.phase === 'matchOver' ? 'You’re in — joining when the next match starts.' : 'You’re in — joining next round automatically.';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
     else if (!player.alive) instruction.textContent = 'Wiped out! Watch the TV for the next round.';
-    else if (snapshot.phase === 'playing') instruction.textContent = 'Hold to steer. Hold bomb to charge, release to launch!';
+    else if (snapshot.phase === 'playing') instruction.textContent = player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to drop!' : 'Hold to steer. Hold bomb to charge, release to launch!';
     else if (snapshot.phase === 'matchOver') instruction.textContent = snapshot.matchWinnerId === playerId ? 'You rule the grid!' : 'Match complete.';
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
@@ -971,7 +983,8 @@ function startController(): void {
     bomb.disabled = !ready && !charging;
     bomb.style.setProperty('--charge', `${chargePercent}%`);
     bomb.classList.toggle('charging', charging);
-    bombLabel.textContent = charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
+    bomb.classList.toggle('target-armed', player.targetBombArmed);
+    bombLabel.textContent = player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO DROP' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
   }
 
   socket = new SocketClient(
