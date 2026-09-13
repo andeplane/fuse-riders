@@ -12,16 +12,20 @@ test('weighted table gives Five one third Triple probability with deterministic 
   }
   for (const row of PICKUP_WEIGHTS) assert.equal(counts.get(row.type), row.weight);
   assert.equal(counts.get('triple'), counts.get('five')! * 3);
-  assert.equal(counts.get('target'), 2, 'Target Bomb now has twice its original spawn weight');
+  assert.equal(counts.get('target'), counts.get('shell')! * 2, 'Target remains twice as likely as Shell');
   assert.equal(pickupTypeForRoll(0), 'shell');
   assert.equal(pickupTypeForRoll(1 - Number.EPSILON), 'portal');
   for (const invalid of [-1, 1, NaN, Infinity]) assert.throws(() => pickupTypeForRoll(invalid));
 });
 
-test('Blast pickup probability is approximately tripled', () => {
+test('both volley probabilities increase by exactly fifty percent', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
-  const multiplier = (PICKUP_WEIGHTS.find(row => row.type === 'blast')!.weight / total) / (3 / 28);
-  assert.ok(multiplier >= 2.9 && multiplier <= 3.1);
+  for (const [type, priorWeight] of [['triple', 6], ['five', 2]] as const) {
+    const probability = PICKUP_WEIGHTS.find(row => row.type === type)!.weight / total;
+    assert.ok(Math.abs(probability / (priorWeight / 38) - 1.5) < 1e-12);
+  }
+  const weight = (type: string) => PICKUP_WEIGHTS.find(row => row.type === type)!.weight;
+  assert.equal(weight('blast') / weight('star'), 4, 'non-volley relative balance is preserved');
 });
 
 test('powerup pacing ramps every twenty seconds and stays bounded in overtime', () => {

@@ -1,9 +1,9 @@
 import type { PickupType } from './game.js';
-/** Five Shot remains three times rarer than Triple Shot. */
+/** Scale volleys by 45 and other drops by 26: exactly 1.5x previous volley probability after normalization. */
 export const PICKUP_WEIGHTS: ReadonlyArray<Readonly<{ type: PickupType; weight: number }>> = [
-  { type: 'shell', weight: 1 }, { type: 'blast', weight: 12 }, { type: 'star', weight: 3 }, { type: 'beer', weight: 3 }, { type: 'ink', weight: 3 },
-  { type: 'triple', weight: 6 }, { type: 'five', weight: 2 }, { type: 'target', weight: 2 },
-  { type: 'orbitShield', weight: 3 }, { type: 'portal', weight: 3 },
+  { type: 'shell', weight: 1 * 26 }, { type: 'blast', weight: 12 * 26 }, { type: 'star', weight: 3 * 26 }, { type: 'beer', weight: 3 * 26 }, { type: 'ink', weight: 3 * 26 },
+  { type: 'triple', weight: 6 * 45 }, { type: 'five', weight: 2 * 45 }, { type: 'target', weight: 2 * 26 },
+  { type: 'orbitShield', weight: 3 * 26 }, { type: 'portal', weight: 3 * 26 },
 ];
 export function pickupTypeForRoll(roll: number): PickupType {
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new RangeError('roll must be in [0, 1)');
