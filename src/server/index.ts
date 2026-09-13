@@ -173,7 +173,7 @@ export async function createGameServer(options: ServerOptions = {}) {
           if (seats.size >= 5) { error(ws, 'full'); return; }
           const slot = COLORS.findIndex((_, i) => ![...seats.values()].some(s => s.slot === i));
           seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, bombInput: new BombInputBuffer(), leaving: false };
-          addPlayer(game, { id: seat.id, name: message.name, slot, color: COLORS[slot], connected: true });
+          addPlayer(game, { id: seat.id, name: message.name, avatarId: message.avatarId, slot, color: COLORS[slot], connected: true });
           seats.set(seat.id, seat);
         }
         c.seat = seat; seat.socket = ws; setPlayerConnected(game, seat.id, true);

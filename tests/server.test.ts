@@ -323,3 +323,20 @@ test('host can abort to lobby without losing phone seats or replaying buffered b
     assert.equal(f.app.game.players.has(a.joined.playerId), true);
   } finally { await f.close(); }
 });
+
+test('serialized avatar joins assign an allowed head and reconnect preserves server identity', async () => {
+  const f = await fixture();
+  try {
+    const peer = await f.connect(); peer.send({ type: 'join', name: 'Dragon', avatarId: 'dragon' });
+    const joined = await peer.take('joined');
+    const assigned = await peer.take('snapshot', message => message.state.players.some(player => player.id === joined.playerId));
+    assert.equal(assigned.state.players.find(player => player.id === joined.playerId)!.avatarId, 'dragon');
+    const replacement = await f.connect();
+    replacement.send({ type: 'join', name: 'Changed', avatarId: 'cat', playerToken: joined.playerToken });
+    await replacement.take('joined');
+    const recovered = await replacement.take('snapshot', message => message.state.players.some(player => player.id === joined.playerId));
+    assert.equal(recovered.state.players.find(player => player.id === joined.playerId)!.avatarId, 'dragon');
+    const invalid = await f.connect(); invalid.socket.send(JSON.stringify({ type: 'join', name: 'No', avatarId: 'bad' }));
+    await invalid.take('error', message => message.code === 'invalid_message'); assert.equal(f.app.game.players.size, 1);
+  } finally { await f.close(); }
+});

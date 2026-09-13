@@ -1,3 +1,4 @@
+import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
 import { clipTrailSegment } from './trail-clipping.js';
 import { pickupTypeForRoll } from './pickup-weights.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
@@ -106,6 +107,7 @@ export interface PlayerIdentity {
   slot: number;
   color: string;
   connected?: boolean;
+  avatarId?: AvatarId;
 }
 
 export interface InputIntent {
@@ -263,6 +265,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
   state.players.set(identity.id, {
     ...identity,
     connected: identity.connected ?? true,
+    avatarId: identity.avatarId ?? DEFAULT_AVATAR,
     x: state.width / 2,
     y: state.height / 2,
     angle: 0,
@@ -569,6 +572,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     players: sortedPlayers(state).map((player) => ({
       id: player.id,
       name: player.name,
+      avatarId: player.avatarId,
       slot: player.slot,
       color: player.color,
       connected: player.connected,
