@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "default": "neon-pixel",
+  "themes": {
+    "neon-pixel": { "label": "Neon Pixel", "path": "/themes/neon-pixel" },
+    "clean-neon": { "label": "Clean Neon", "path": "/themes/clean-neon" }
+  },
+  "sprites": {
+    "rider": { "file": "rider.svg", "anchor": [16, 16], "baseAngle": 0, "tint": true, "description": "Arrow points right; rotate by world angle." },
+    "bomb": { "file": "bomb.svg", "anchor": [16, 16], "baseAngle": 0, "tint": true, "description": "Centered bomb with fuse at upper right." },
+    "flame": { "file": "flame.svg", "anchor": [16, 27], "baseAngle": 0, "tint": false, "description": "Centered blast spark; anchor at bottom." }
+  }
+}

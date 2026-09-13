@@ -1,0 +1,80 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { ControllerInputState, type ControllerInputMessage } from '../src/client/controller-state.js';
+import { SnapshotStream } from '../src/client/snapshot-stream.js';
+import type { GameSnapshot } from '../src/shared/protocol.js';
+
+function snapshot(): GameSnapshot {
+  return { phase: 'lobby', width: 1200, height: 700, boundaryInset: 20, players: [], bombs: [], blasts: [] };
+}
+
+test('multitouch retains a control until its final pointer releases', () => {
+  const messages: ControllerInputMessage[] = [];
+  const state = new ControllerInputState({ send: (message) => { messages.push(message); return true; } });
+  state.setNextSequence(7);
+  state.pointerDown(1, 'left');
+  state.pointerDown(2, 'left');
+  state.pointerDown(3, 'right');
+  state.pointerRelease(1);
+  state.pointerRelease(2);
+  assert.deepEqual(messages, [
+    { type: 'input', seq: 7, left: true, right: false, bomb: false },
+    { type: 'input', seq: 8, left: true, right: true, bomb: false },
+    { type: 'input', seq: 9, left: false, right: true, bomb: false },
+  ]);
+});
+
+test('fast bomb tap and cancellation always send the falling edge', () => {
+  const messages: ControllerInputMessage[] = [];
+  const state = new ControllerInputState({ send: (message) => { messages.push(message); return true; } });
+  state.pointerDown(20, 'bomb');
+  state.pointerRelease(20);
+  state.pointerDown(21, 'bomb');
+  state.clear();
+  assert.deepEqual(messages.map(({ bomb }) => bomb), [true, false, true, false]);
+  assert.deepEqual(messages.map(({ seq }) => seq), [0, 1, 2, 3]);
+});
+
+test('reconnect can force a neutral sample to rearm bomb edges', () => {
+  const messages: ControllerInputMessage[] = [];
+  const state = new ControllerInputState({ send: (message) => { messages.push(message); return true; } });
+  state.setNextSequence(42);
+  state.clear(true, true);
+  assert.deepEqual(messages, [{ type: 'input', seq: 42, left: false, right: false, bomb: false }]);
+});
+
+test('held-state resend advances sequence while idle resend stays silent', () => {
+  const messages: ControllerInputMessage[] = [];
+  const state = new ControllerInputState({ send: (message) => { messages.push(message); return true; } });
+  assert.equal(state.resend(), false);
+  state.pointerDown(1, 'right');
+  assert.equal(state.isHeld('right'), true);
+  assert.equal(state.resend(), true);
+  state.clear(false);
+  assert.equal(state.isHeld('right'), false);
+  assert.equal(state.hasHeld(), false);
+  assert.equal(state.resend(), false);
+  assert.deepEqual(messages, [
+    { type: 'input', seq: 0, left: false, right: true, bomb: false },
+    { type: 'input', seq: 1, left: false, right: true, bomb: false },
+  ]);
+});
+
+test('snapshot acceptance handles opaque match ids without lexicographic ordering', () => {
+  const stream = new SnapshotStream();
+  assert.ok(stream.accept({ matchId: 'ffff', round: 1, tick: 30, state: snapshot() }));
+  assert.deepEqual(stream.scope, { matchId: 'ffff', round: 1, tick: 30 });
+  assert.ok(stream.accept({ matchId: 'ffff', round: 1, tick: 30, state: snapshot() }), 'same-tick resync is accepted');
+  assert.equal(stream.accept({ matchId: 'ffff', round: 1, tick: 29, state: snapshot() }), undefined);
+  assert.deepEqual(stream.scope, { matchId: 'ffff', round: 1, tick: 30 }, 'rejected frame cannot rewind scope');
+  assert.ok(stream.accept({ matchId: '0000', round: 1, tick: 1, state: snapshot() }));
+  assert.deepEqual(stream.scope, { matchId: '0000', round: 1, tick: 1 });
+  assert.equal(stream.accept({ matchId: 'ffff', round: 99, tick: 999, state: snapshot() }), undefined);
+});
+
+test('snapshot acceptance rejects an older round in the active match', () => {
+  const stream = new SnapshotStream();
+  assert.ok(stream.accept({ matchId: 'match', round: 2, tick: 100, state: snapshot() }));
+  assert.equal(stream.accept({ matchId: 'match', round: 1, tick: 101, state: snapshot() }), undefined);
+  assert.ok(stream.accept({ matchId: 'match', round: 3, tick: 1, state: snapshot() }));
+});
