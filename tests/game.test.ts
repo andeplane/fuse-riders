@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { POINT_UNIT } from '../src/shared/leaderboard.ts';
+import { DRUNK_DURATION_TICKS, drunkAngularVelocity } from '../src/shared/drunk.ts';
 
 import {
   BOMB_COOLDOWN_TICKS,
@@ -497,6 +498,52 @@ test('pickup expiry, active cap, and impossible safe interior stay bounded', () 
   state.nextPickupSpawnTick = state.tick + 1;
   step(state, new Map());
   assert.equal(state.pickups.length, 0, 'an empty safe rectangle skips instead of looping');
+});
+
+test('beer pickup debuffs every other living rider, refreshes, and keeps the collector unchanged', () => {
+  const state = gameWithPlayers(3, 'beer-match', 2468);
+  enterPlaying(state);
+  const collector = state.players.get('p0')!;
+  const target = state.players.get('p1')!;
+  const other = state.players.get('p2')!;
+  collector.x = 500; collector.y = 450; collector.angle = 0; collector.drunkUntilTick = state.tick + 12;
+  target.x = 900; target.y = 300; target.angle = 0; target.drunkUntilTick = state.tick + 5;
+  other.x = 1100; other.y = 700; other.angle = 0;
+  state.pickups = [{ id: 1, type: 'beer', x: 503, y: 450, expiresAtTick: state.tick + 100 }];
+
+  step(state, new Map());
+  assert.equal(collector.drunkUntilTick, state.tick + 11, 'collection does not cure or replace the collector existing debuff');
+  assert.equal(target.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
+  assert.equal(other.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
+  assert.equal(state.matchStats.get('p0')!.beerPickups, 1);
+  assert.equal(state.matchStats.get('p0')!.pickupsCollected, 1);
+
+  const angleBefore = target.angle;
+  const expectedNoise = drunkAngularVelocity(state.seed, target.id, state.tick + 1) / 20;
+  step(state, inputs(['p1', { left: true }]));
+  const expectedAngle = ((angleBefore - 2.8 / 20 + expectedNoise) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  assert.ok(Math.abs(target.angle - expectedAngle) < 1e-10, 'normal steering and deterministic wobble are added');
+
+  state.pickups = [{ id: 2, type: 'beer', x: collector.x + 3, y: collector.y, expiresAtTick: state.tick + 100 }];
+  step(state, new Map());
+  assert.equal(target.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS, 'a second beer refreshes without stacking');
+});
+
+test('drunk wobble expires at the strict tick boundary and resets between rounds', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const player = state.players.get('p0')!;
+  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
+  player.x = 500; player.y = 450; player.angle = 0; player.drunkUntilTick = state.tick + 1;
+  step(state, new Map());
+  assert.equal(player.angle, 0, 'drunkUntilTick equal to the current tick is expired');
+  player.drunkUntilTick = state.tick + 50;
+  eliminatePlayer(state, 'p1');
+  step(state, new Map());
+  state.tick = state.phaseEndsAtTick!;
+  startNextRound(state);
+  assert.equal(player.drunkUntilTick, 0);
+  assert.equal(toSnapshot(state).players.find((candidate) => candidate.id === player.id)!.drunkUntilTick, 0);
 });
 
 test('countdown leave is stamped, scored once, and a later join receives no prior-round award', () => {

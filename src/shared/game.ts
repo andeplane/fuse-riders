@@ -25,6 +25,7 @@ import {
   snapshotMatchStats,
   type MatchStatsState,
 } from './match-stats.js';
+import { DRUNK_DURATION_TICKS, drunkAngularVelocity } from './drunk.js';
 
 export type { BlastRect, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
@@ -77,7 +78,7 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
-export type PickupType = 'blast' | 'star';
+export type PickupType = 'blast' | 'star' | 'beer';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -103,6 +104,7 @@ export interface PlayerState extends Required<PlayerIdentity> {
   previousBombInput: boolean;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
+  drunkUntilTick: number;
   trail: TrailSegment[];
 }
 
@@ -232,6 +234,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     previousBombInput: false,
     blastLevel: 0,
     invulnerableUntilTick: 0,
+    drunkUntilTick: 0,
     trail: [],
   });
   const historical = state.leaderboard.get(identity.id);
@@ -327,7 +330,10 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const direction = Number(input.right) - Number(input.left);
-    const angle = normalizeAngle(player.angle + direction * TURN_PER_TICK);
+    const drunkTurn = player.drunkUntilTick > state.tick
+      ? drunkAngularVelocity(state.seed, player.id, state.tick) / TICK_HZ
+      : 0;
+    const angle = normalizeAngle(player.angle + direction * TURN_PER_TICK + drunkTurn);
     movements.set(player.id, {
       player,
       oldX: player.x,
@@ -495,6 +501,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       bombReadyAtTick: player.bombReadyAtTick,
       blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
+      drunkUntilTick: player.drunkUntilTick,
       trail: player.trail.map((segment) => ({ ...segment })),
     })),
     bombs: [...state.bombs.values()].sort((a, b) => a.id - b.id).map((bomb) => ({
@@ -551,6 +558,7 @@ function prepareRound(state: GameState): void {
     player.bombReadyAtTick = state.tick;
     player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
+    player.drunkUntilTick = 0;
   }
   const radius = 0.28 * Math.min(state.width, state.height);
   participants.forEach((player, index) => {
@@ -564,7 +572,8 @@ function prepareRound(state: GameState): void {
 
 function maybeSpawnPickup(state: GameState): void {
   if (state.pickups.length >= MAX_ACTIVE_PICKUPS) return;
-  const type: PickupType = nextRandom(state) < 0.5 ? 'blast' : 'star';
+  const typeRoll = nextRandom(state);
+  const type: PickupType = typeRoll < 1 / 3 ? 'blast' : typeRoll < 2 / 3 ? 'star' : 'beer';
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;
   const minimumY = state.boundaryInset + PICKUP_SPAWN_MARGIN;
@@ -617,8 +626,14 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     recordPickup(state.matchStats, collector.id, pickup.type);
     if (pickup.type === 'blast') {
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
-    } else {
+    } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+    } else {
+      for (const player of state.players.values()) {
+        if (player.alive && player.id !== collector.id) {
+          player.drunkUntilTick = Math.max(player.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
+        }
+      }
     }
   }
   if (consumed.size > 0) state.pickups = state.pickups.filter((pickup) => !consumed.has(pickup.id));
