@@ -37,6 +37,11 @@ try {
   });
   for (const [id,x,y] of [[1,405,145],[2,1040,355],[3,670,605]]) app.game.bombs.set(id,{id,ownerId:`p${id}`,x,y,placedTick:940,explodeAtTick:980+id*5,blastRange:150});
   app.game.blasts.push({ bombId: 5, rects: [{x:360,y:328,width:300,height:24},{x:498,y:190,width:24,height:300}], expiresAtTick:968 });
+  app.game.pickups = [
+    { id: 1, type: 'blast', x: 1250, y: 320, expiresAtTick: 1200 },
+    { id: 2, type: 'star', x: 1250, y: 520, expiresAtTick: 1200 },
+  ];
+  app.game.players.get('p4')!.invulnerableUntilTick = 1000;
   const page = await browser.newPage({ viewport: {width:1672,height:940} });
   // tsx preserves nested function names with this helper when serializing evaluate callbacks.
   await page.addInitScript('globalThis.__name = (fn) => fn;');

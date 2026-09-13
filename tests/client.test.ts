@@ -34,6 +34,25 @@ test('visual projection freezes after 50 ms and never projects death or non-play
   assert.equal(renderedSnapshot([frames[0]!, lobby], 200), lobby.snapshot);
 });
 
+test('visual projection does not cross round, match, membership or timestamp boundaries', () => {
+  assert.equal(renderedSnapshot([], 0), undefined);
+  const first = playingFrame(10, 100, 100);
+  assert.equal(renderedSnapshot([first], 200), first.snapshot);
+  const next = playingFrame(11, 150, 107.5);
+  for (const altered of [
+    { ...next, matchId: 'another' },
+    { ...next, round: 2 },
+    playingFrame(10, 150, 107.5),
+  ]) assert.equal(renderedSnapshot([first, altered], 200), altered.snapshot);
+  assert.equal(renderedSnapshot([first, next], 150), next.snapshot);
+  const countdown = { ...first, snapshot: { ...first.snapshot, phase: 'countdown' as const } };
+  assert.equal(renderedSnapshot([countdown, next], 200), next.snapshot);
+  for (const previous of [
+    { ...first, snapshot: { ...first.snapshot, players: [] } },
+    playingFrame(10, 100, 100, false),
+  ]) assert.equal(renderedSnapshot([previous, next], 200)!.players[0], next.snapshot.players[0]);
+});
+
 test('multitouch retains a control until its final pointer releases', () => {
   const messages: ControllerInputMessage[] = [];
   const state = new ControllerInputState({ send: (message) => { messages.push(message); return true; } });
