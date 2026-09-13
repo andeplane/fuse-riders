@@ -157,3 +157,13 @@ test('target preview projects for at most one tick and stays inside the arena', 
   delete frames[1]!.snapshot.players[0]!.bombTarget;
   assert.equal(renderedSnapshot(frames, 175)!.players[0]!.bombTarget, undefined);
 });
+
+test('shell visuals advance between server ticks and reflect off walls without changing authority', () => {
+  const before = playingFrame(10, 100, 100); const current = playingFrame(11, 150, 107.5);
+  current.snapshot.bombs = [{ id: 1, ownerId: 'p1', launchX: 1500, launchY: 400, x: 1560, y: 400,
+    launchedTick: 1, landsAtTick: 100, explodeAtTick: 100, blastRange: 0, flightPath: [], shell: { vx: 400, vy: 0 } }];
+  const projected = renderedSnapshot([before, current], 175)!;
+  assert.equal(projected.bombs[0]!.x, 1562, 'travels 6 units to wall and reflects remaining 4');
+  assert.equal(current.snapshot.bombs[0]!.x, 1560);
+  assert.equal(renderedSnapshot([before, current], 9999)!.bombs[0]!.x, 1552, 'projection caps at 50ms');
+});

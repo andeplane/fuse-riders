@@ -1,3 +1,4 @@
+import { advanceShell, SHELL_RADIUS } from '../shared/shell.js';
 import type { ViewSnapshot } from './snapshot-stream.js';
 
 export const VISUAL_PROJECTION_LIMIT_MS = 50;
@@ -32,6 +33,17 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
   const oldById = new Map(older.snapshot.players.map((player) => [player.id, player]));
   return {
     ...newer.snapshot,
+    bombs: newer.snapshot.bombs.map(bomb => {
+      if (!bomb.shell) return bomb;
+      const dt = projectionDuration / 1000;
+      if (bomb.shell.gun) return { ...bomb, x: bomb.x + bomb.shell.vx * dt, y: bomb.y + bomb.shell.vy * dt };
+      const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx * dt * 20, vy: bomb.shell.vy * dt * 20 };
+      advanceShell(motion, { left: newer.snapshot.boundaryInset + SHELL_RADIUS,
+        right: newer.snapshot.width - newer.snapshot.boundaryInset - SHELL_RADIUS,
+        top: newer.snapshot.boundaryInset + SHELL_RADIUS,
+        bottom: newer.snapshot.height - newer.snapshot.boundaryInset - SHELL_RADIUS });
+      return { ...bomb, x: motion.x, y: motion.y };
+    }),
     players: newer.snapshot.players.map((player) => {
       const previous = oldById.get(player.id);
       if (!previous?.alive || !player.alive || player.portalCooldownUntilTick > previous.portalCooldownUntilTick) return player;
