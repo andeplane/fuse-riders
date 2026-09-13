@@ -23,7 +23,7 @@ test('target collection arms one normal-strength bomb and preserves volley upgra
   input({ bombCommands: [{ action: 'release', aim: { x: .8, y: .2 } }] });
   assert.equal(game.bombs.size, 0); const blast = game.blasts[0]!;
   assert.equal(blast.circle.x, 1280); assert.equal(blast.circle.y, 180);
-  assert.equal(blast.circle.radius, BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE);
+  assert.equal(blast.circle.radius, (BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE) * .7);
   assert.equal(player.bombReadyAtTick, game.tick + BOMB_COOLDOWN_TICKS); assert.equal(player.targetBombArmed, false); assert.equal(player.bombTarget, undefined);
   assert.equal(player.fiveShotArmed, true); assert.equal(player.tripleShotArmed, true);
 });

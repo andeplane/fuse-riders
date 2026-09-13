@@ -989,7 +989,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
         explodeAtTick: target ? state.tick : state.tick + BOMB_FUSE_TICKS,
-        blastRange: BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE,
+        blastRange: (BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE) * (target ? .7 : 1),
         flightPath,
       };
       state.bombs.set(bomb.id, bomb);
