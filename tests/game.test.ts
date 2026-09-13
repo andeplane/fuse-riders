@@ -929,3 +929,20 @@ test('projectile stops at first body contact, not at the preview center or rider
   assert.equal(bomb.landsAtTick, state.tick);
   assert.equal(state.blasts.length, 0);
 });
+
+test('landing step never uses blast radius for contact damage', () => {
+  for (const offset of [30, 50, 100, 135]) {
+    const state = gameWithPlayers(3); enterPlaying(state);
+    for (const player of state.players.values()) player.trail = [];
+    Object.assign(state.players.get('p0')!, { x: 200, y: 200, angle: 0 });
+    Object.assign(state.players.get('p1')!, { x: 600, y: 450 + offset, angle: 0 });
+    Object.assign(state.players.get('p2')!, { x: 1200, y: 700, angle: 0 });
+    state.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 500, launchY: 450, x: 600, y: 450,
+      placedTick: state.tick - 5, launchedTick: state.tick - 5, landsAtTick: state.tick + 1,
+      explodeAtTick: state.tick + 35, blastRange: 140,
+      flightPath: Array.from({ length: 7 }, (_, i) => ({ x: 500 + i * 100 / 6, y: 450, angle: 0 })) });
+    step(state, new Map());
+    assert.equal(state.players.get('p1')!.alive, true, `landing preview at offset ${offset} is harmless`);
+    assert.equal(state.blasts.length, 0);
+  }
+});
