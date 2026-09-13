@@ -11,6 +11,7 @@ test('weighted table gives Five one third Triple probability with deterministic 
   }
   for (const row of PICKUP_WEIGHTS) assert.equal(counts.get(row.type), row.weight);
   assert.equal(counts.get('triple'), counts.get('five')! * 3);
+  assert.equal(counts.get('target'), 2, 'Target Bomb now has twice its original spawn weight');
   assert.equal(pickupTypeForRoll(0), 'blast');
   assert.equal(pickupTypeForRoll(1 - Number.EPSILON), 'portal');
   for (const invalid of [-1, 1, NaN, Infinity]) assert.throws(() => pickupTypeForRoll(invalid));
