@@ -888,3 +888,24 @@ test('a bomb landing inside an active blast chains immediately', () => {
   assert.equal(state.bombs.has(99), false);
   assert.equal(state.blasts.filter(blast => blast.bombId === 99).length, 1);
 });
+
+test('blast preview is harmless before the fuse, both in flight and after landing', () => {
+  for (const airborne of [false, true]) {
+    const state = gameWithPlayers(3); enterPlaying(state);
+    const rider = state.players.get('p1')!;
+    rider.x = 600; rider.y = 500; rider.angle = 0;
+    state.players.get('p0')!.x = 200; state.players.get('p0')!.y = 200;
+    state.players.get('p2')!.x = 1200; state.players.get('p2')!.y = 700;
+    for (const player of state.players.values()) player.trail = [];
+    state.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 500, launchY: 450, x: 600, y: 450,
+      placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + (airborne ? 6 : 0),
+      explodeAtTick: state.tick + 40, blastRange: 140,
+      flightPath: Array.from({ length: 7 }, (_, i) => ({ x: 500 + i * 100 / 6, y: 450, angle: 0 })) });
+    for (let tick = 0; tick < 8; tick++) step(state, new Map());
+    assert.equal(rider.alive, true, 'inside the large preview but outside the physical bomb');
+    assert.equal(state.blasts.length, 0);
+    state.bombs.get(99)!.explodeAtTick = state.tick + 1;
+    step(state, new Map());
+    assert.equal(rider.alive, false, 'radius becomes lethal only when bomb detonates');
+  }
+});
