@@ -1,4 +1,5 @@
 import { ControllerPointerBindings } from './controller-pointers.js';
+import { createGameAudio } from './game-audio.js';
 import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
@@ -426,6 +427,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
 
 function startDisplay(): void {
   document.body.className = 'display-page';
+  const audio = createGameAudio();
   const root = element('main', 'display-shell');
   const topbar = element('header', 'topbar');
   const brand = element('div', 'brand');
@@ -441,7 +443,7 @@ function startDisplay(): void {
   for (const theme of Object.values(themes)) {
     const option = element('option', '', theme.label); option.value = theme.id; themeSelect.append(option);
   }
-  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, connection);
+  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, connection);
 
   const stage = element('section', 'stage');
   const canvas = element('canvas', 'arena');
@@ -738,11 +740,13 @@ function startDisplay(): void {
       if (message.type === 'snapshot') {
         const accepted = snapshotStream.accept(message);
         if (!accepted) return;
+        if (!document.hidden) audio.director.message(message);
         if (!latest || latest.matchId !== message.matchId || latest.round !== message.round) frames.length = 0;
         latest = { snapshot: accepted, matchId: message.matchId, round: message.round, receivedAt: performance.now() };
         frames.push(latest); if (frames.length > 5) frames.shift();
         updateUi(accepted);
       } else if (message.type === 'event') {
+        if (!document.hidden) audio.director.message(message);
         const key = `${message.matchId}:${message.round}:${message.tick}:${JSON.stringify(message.event)}`;
         if (handledEvents.has(key)) return;
         handledEvents.add(key);
@@ -751,7 +755,7 @@ function startDisplay(): void {
       }
     },
     (connected) => {
-      if (!connected) authenticated = false;
+      if (!connected) { authenticated = false; audio.director.disconnect(); }
       connection.textContent = connected ? 'AUTHENTICATING' : 'RECONNECTING'; connection.classList.toggle('online', connected && authenticated);
     },
     (milliseconds) => { transportRtt = milliseconds; },
@@ -763,10 +767,11 @@ function startDisplay(): void {
   });
 
   action.addEventListener('click', () => {
+    audio.unlock();
     const hostAction = action.dataset.action as 'start' | 'nextRound' | 'rematch' | undefined;
     if (hostAction) socket.send({ type: 'hostAction', action: hostAction });
   });
-  recapAction.addEventListener('click', () => socket.send({ type: 'hostAction', action: 'rematch' }));
+  recapAction.addEventListener('click', () => { audio.unlock(); socket.send({ type: 'hostAction', action: 'rematch' }); });
   fullscreen.addEventListener('click', () => document.documentElement.requestFullscreen?.());
   leaderboardButton.addEventListener('click', () => {
     const opening = leaderboardDrawer.classList.contains('hidden');
@@ -808,6 +813,7 @@ function startDisplay(): void {
       performanceDisplay.value = `FPS ${Math.round(1000 / Math.max(1, averageFrameMs))}  RENDER ${averageRenderMs.toFixed(1)}ms  SNAP ${age.toFixed(0)}ms${transportRtt === undefined ? '' : `  RTT ${transportRtt.toFixed(0)}ms`}`;
       lastMetricsAt = now;
     }
+    if (!document.hidden) audio.director.update();
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

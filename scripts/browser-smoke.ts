@@ -28,6 +28,13 @@ try {
   await host.getByText('HOST ONLINE', { exact: true }).waitFor();
   assert.equal(new URL(host.url()).hash, '', 'host fragment removed from URL');
   await host.locator('.qr').waitFor();
+  await host.locator('.audio-controls summary').click();
+  await host.getByRole('button', { name: 'Enable TV audio', exact: true }).click();
+  await host.getByRole('button', { name: 'TV audio enabled', exact: true }).waitFor();
+  await host.getByRole('button', { name: 'Mute music', exact: true }).click();
+  assert.equal(await host.getByRole('button', { name: 'Mute music', exact: true }).getAttribute('aria-pressed'), 'true');
+  await host.getByLabel('Effects volume', { exact: true }).fill('20');
+  await host.locator('.audio-controls summary').click();
   await host.getByText('larger explosions', { exact: false }).waitFor();
   await host.getByText('5s invulnerable', { exact: false }).waitFor();
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();

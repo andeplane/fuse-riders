@@ -390,7 +390,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     });
   }
 
-  collectPickups(state, movements);
+  collectPickups(state, movements, events);
 
   const bounced = new Set<PlayerId>();
   for (const movement of movements.values()) {
@@ -680,7 +680,7 @@ function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
   );
 }
 
-function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movement>): void {
+function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movement>, events: GameEvent[]): void {
   const consumed = new Set<number>();
   for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
     const collectors = [...movements.values()]
@@ -702,6 +702,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       state.portalPair = pair;
     }
     consumed.add(pickup.id);
+    events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
     recordPickup(state.matchStats, collector.id, pickup.type);
     if (pickup.type === 'blast') {
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;

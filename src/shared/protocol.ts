@@ -47,6 +47,7 @@ export interface GameSnapshot {
   matchWinnerId?: PlayerId;
 }
 export type GameEvent =
+  | { type: 'pickupCollected'; playerId: PlayerId; pickupId: number }
   | { type: 'bombPlaced'; bombId: number; playerId: PlayerId }
   | { type: 'explosion'; bombId: number }
   | { type: 'playerEliminated'; playerId: PlayerId; cause: 'wall' | 'trail' | 'explosion' | 'rider' }
