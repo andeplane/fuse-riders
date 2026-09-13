@@ -1,6 +1,6 @@
 import type { TrailSegment } from './protocol.js';
 export const GUN_SPEED = 300;
-export const GUN_RADIUS = 4;
+export const GUN_RADIUS = 14;
 export const GUN_HOLE_RADIUS = 50;
 export const GUN_HOMING_RADIUS = 220;
 export const GUN_TURN_PER_TICK = .03;

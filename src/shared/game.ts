@@ -444,13 +444,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       const to = { x: bomb.x + velocity.vx / TICK_HZ, y: bomb.y + velocity.vy / TICK_HZ, t: 1 };
       const wall = to.x < state.boundaryInset + GUN_RADIUS || to.x > state.width - state.boundaryInset - GUN_RADIUS ||
         to.y < state.boundaryInset + GUN_RADIUS || to.y > state.height - state.boundaryInset - GUN_RADIUS;
-      if (wall) { state.bombs.delete(bomb.id); continue; }
+      if (wall) { detonateGun(bomb, state.tick, to.x, to.y); continue; }
       const trailHit = [...state.players.values()].some(player => player.trail.some(trail =>
         !(player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6) &&
         segmentDistanceSquared(from.x, from.y, to.x, to.y, trail.x1, trail.y1, trail.x2, trail.y2) <= square(GUN_RADIUS + TRAIL_WIDTH / 2)));
       if (trailHit) {
         for (const player of state.players.values()) player.trail = player.trail.flatMap(trail => cutTrailHole(trail, to.x, to.y, GUN_HOLE_RADIUS));
-        state.bombs.delete(bomb.id); continue;
+        detonateGun(bomb, state.tick, to.x, to.y); continue;
       }
       shellPaths.set(bomb.id, [from, to]); bomb.x = to.x; bomb.y = to.y;
       bomb.shell = { ...velocity, gun: true }; continue;
@@ -509,7 +509,10 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     }
     if (hit) {
       markCause(causes, causeOwners, hit.player.id, 'explosion', bomb.ownerId);
-      state.bombs.delete(bomb.id);
+      if (bomb.shell?.gun) {
+        detonateGun(bomb, state.tick, hit.oldX + (hit.x - hit.oldX) * hitTime, hit.oldY + (hit.y - hit.oldY) * hitTime);
+        newBlasts.push(...resolveExplosions(state, events));
+      } else state.bombs.delete(bomb.id);
     }
   }
 
@@ -966,7 +969,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       if (gun) player.gunArmed = false; else player.shellArmed = false;
       player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
       recordBombPlaced(state.matchStats, player.id);
-      events.push({ type: 'bombPlaced', bombId: id, playerId: player.id });
+      events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
     }
     const distance = bombLaunchDistance(state.tick - chargeStartedTick);
@@ -1036,6 +1039,12 @@ function nextRandom(state: GameState): number {
   value = Math.imul(value ^ (value >>> 15), value | 1);
   value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
   return ((value ^ (value >>> 14)) >>> 0) / 0x1_0000_0000;
+}
+
+function detonateGun(bomb: BombState, tick: number, x: number, y: number): void {
+  delete bomb.shell;
+  bomb.x = x; bomb.y = y;
+  bomb.landsAtTick = tick; bomb.explodeAtTick = tick; bomb.blastRange = 32;
 }
 
 function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {

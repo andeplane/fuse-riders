@@ -1008,12 +1008,12 @@ test('Gun pickup fires one bullet at twice rider speed and cuts a traversable tr
   assert.equal(owner.gunArmed, false); assert.equal(owner.fiveShotArmed, true);
   state.players.get('p1')!.trail = [{ x1: bullet.x + 15, x2: bullet.x + 15, y1: 300, y2: 600, createdTick: state.tick, expiresAtTick: state.tick + 100 }];
   step(state, new Map());
-  assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 0);
+  assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 1);
   const pieces = state.players.get('p1')!.trail.filter(t => t.y1 < 600 && t.y2 > 300);
   assert.ok(pieces.some(t => t.y2 === 400)); assert.ok(pieces.some(t => t.y1 === 500));
-  assert.equal(owner.alive, true);
+  assert.equal(owner.alive, false);
 });
-test('gun head hit consumes bullet without a blast; walls also consume it', () => {
+test('gun head and wall impacts explode', () => {
   for (const wall of [false, true]) {
     const state = gameWithPlayers(3); enterPlaying(state);
     for (const player of state.players.values()) player.trail = [];
@@ -1024,7 +1024,7 @@ test('gun head hit consumes bullet without a blast; walls also consume it', () =
     state.bombs.set(99, { id: 99, ownerId: 'p0', x, y: 450, launchX: x, launchY: 450, placedTick: state.tick,
       launchedTick: state.tick - 1, landsAtTick: state.tick + 60, explodeAtTick: state.tick + 60,
       blastRange: 0, flightPath: [], shell: { vx: 300, vy: 0, gun: true } });
-    step(state, new Map()); assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 0);
+    step(state, new Map()); assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 1);
     assert.equal(state.players.get('p1')!.alive, wall);
   }
 });
@@ -1080,4 +1080,18 @@ test('live shell bounces off a rider trail without damage or resetting its lifet
   assert.equal(shell.explodeAtTick, expires);
   assert.deepEqual(state.players.get('p1')!.trail.find(segment => segment.x1 === 536), tail);
   assert.equal(state.blasts.length, 0);
+});
+
+test('gun explodes against the trail directly behind a rider and kills the rider', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  Object.assign(state.players.get('p0')!, { x: 200, y: 200, trail: [] });
+  Object.assign(state.players.get('p1')!, { x: 525, y: 450, angle: 0, trail: [{ x1: 480, y1: 450, x2: 525, y2: 450, createdTick: state.tick, expiresAtTick: state.tick + 100 }] });
+  Object.assign(state.players.get('p2')!, { x: 1200, y: 700, trail: [] });
+  state.bombs.set(99, { id: 99, ownerId: 'p0', x: 500, y: 450, launchX: 500, launchY: 450, placedTick: state.tick,
+    launchedTick: state.tick - 10, landsAtTick: state.tick + 60, explodeAtTick: state.tick + 60,
+    blastRange: 0, flightPath: [], shell: { vx: 300, vy: 0, gun: true } });
+  const result = step(state, new Map());
+  assert.equal(state.players.get('p1')!.alive, false);
+  assert.equal(state.blasts.length, 1);
+  assert.ok(result.events.some(event => event.type === 'explosion'));
 });

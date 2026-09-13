@@ -52,7 +52,7 @@ export interface GameSnapshot {
 }
 export type GameEvent =
   | { type: 'pickupCollected'; playerId: PlayerId; pickupId: number }
-  | { type: 'bombPlaced'; bombId: number; playerId: PlayerId }
+  | { type: 'bombPlaced'; bombId: number; playerId: PlayerId; gun?: boolean }
   | { type: 'explosion'; bombId: number }
   | { type: 'playerEliminated'; playerId: PlayerId; cause: 'wall' | 'trail' | 'explosion' | 'rider' }
   | { type: 'roundEnded'; winnerId?: PlayerId }

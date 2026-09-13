@@ -62,7 +62,7 @@ export class AudioDirector {
     const key = `${message.tick}:${message.event.type}`;
     if (this.seen.has(key)) return;
     this.seen.add(key); if (this.seen.size > 100) this.seen.delete(this.seen.values().next().value!);
-    this.cue(message.event.type);
+    this.cue(message.event.type === 'bombPlaced' && message.event.gun ? 'cannon' : message.event.type);
   }
   update(): void {
     if (!this.unlocked || !this.playing) { this.nextBeat = this.now(); return; }
@@ -77,6 +77,7 @@ export class AudioDirector {
     if (!this.unlocked) return;
     const note = (frequency: number, endFrequency: number, duration: number, wave: SynthNote['wave'] = 'square', delay = 0) => this.synth.note('effects', { frequency, endFrequency, duration, wave, delay, level: .24 });
     switch (type) {
+      case 'cannon': note(180, 35, .32, 'sawtooth'); note(90, 24, .4, 'triangle'); note(900, 90, .09); break;
       case 'bombPlaced': note(260, 1050, .12); break;
       case 'explosion': note(130, 28, .25, 'sawtooth'); note(68, 25, .3, 'triangle'); break;
       case 'playerEliminated': note(700, 90, .3); break;

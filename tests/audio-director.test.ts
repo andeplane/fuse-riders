@@ -172,3 +172,11 @@ test('director schedules swung offbeats without catch-up bursts', async () => {
   f.setTime(CHIPTUNES[6]!.stepMs * 2); f.director.update(); assert.ok(f.notes.length > offbeat);
   const count = f.notes.length; f.setTime(999999); f.director.update(); assert.ok(f.notes.length <= count + 4);
 });
+
+test('gun launch plays a layered cannon cue', async () => {
+  const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(10));
+  f.director.message(f.event(11, { type: 'bombPlaced', bombId: 1, playerId: 'p', gun: true }));
+  assert.equal(f.notes.length, 3);
+  assert.ok(f.notes.some(({ note }) => note.wave === 'triangle' && note.endFrequency === 24 && note.duration === .4));
+  assert.ok(f.notes.every(({ channel }) => channel === 'effects'));
+});
