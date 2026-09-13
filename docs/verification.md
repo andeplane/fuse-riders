@@ -10,7 +10,7 @@ Portal coverage includes entry hazards before teleport, failed placement retaini
 
 ## Browser and performance evidence
 
-Final Chrome and WebKit smoke runs passed with five independent phone-controller sessions. They exercised host authentication including hash changes, QR display, portrait/landscape controls, pointer steering/release, bomb actions, pickups, leaderboard, theme changes without simulation changes, same-seat refresh recovery, first-to-five, and rematch. They ran on isolated ephemeral servers, not the live match.
+Final Chrome and WebKit smoke runs passed with five independent phone-controller sessions. They exercised host authentication including hash changes, QR display, portrait/landscape controls, pointer steering/release, bomb actions, pickups, leaderboard, theme changes without simulation changes, same-seat refresh recovery, first-to-three, and rematch. They ran on isolated ephemeral servers, not the live match.
 
 The controlled busy renderer fixture measured **60.19 FPS** with **16.7 ms p95 frame time** after performance improvements. The original pre-hotfix fixture measured 7.10 FPS. These are controlled browser measurements, not physical-TV measurements. `scripts/visual-fixture.ts` produces scenes for comparison with the [neon/pixel reference](gameplay-concepts/06-neon-pixel-hybrid.png).
 

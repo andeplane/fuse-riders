@@ -370,15 +370,15 @@ test('invalid release and cancellation preserve launch modifiers', () => {
   assert.equal(owner.tripleShotArmed, true);
 });
 
-test('round wins score once, first to five ends the match, and rematch resets wins and scope', () => {
+test('round wins score once, first to three ends the match, and rematch resets wins and scope', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  for (let win = 1; win <= 5; win += 1) {
+  for (let win = 1; win <= 3; win += 1) {
     eliminatePlayer(state, 'p1');
     const result = step(state, new Map());
     assert.equal(state.players.get('p0')!.roundWins, win);
     assert.equal(result.events.filter((event) => event.type === 'roundEnded').length, 1);
-    if (win < 5) {
+    if (win < 3) {
       assert.equal(state.phase, 'roundOver');
       state.tick = state.phaseEndsAtTick!;
       startNextRound(state);
@@ -390,15 +390,15 @@ test('round wins score once, first to five ends the match, and rematch resets wi
   const matchStats = toSnapshot(state).matchStats;
   assert.equal(matchStats.length, 2);
   assert.deepEqual(matchStats.map((entry) => [entry.playerId, entry.roundWins, entry.roundsPlayed, entry.matchPlacement]), [
-    ['p0', 5, 5, 1], ['p1', 0, 5, 2],
+    ['p0', 3, 3, 1], ['p1', 0, 3, 2],
   ]);
   assert.deepEqual(state.leaderboard.get('p0'), {
-    id: 'p0', name: 'Player 1', totalScoreUnits: 25 * POINT_UNIT,
-    roundsPlayed: 5, roundWins: 5, matchWins: 1,
+    id: 'p0', name: 'Player 1', totalScoreUnits: 15 * POINT_UNIT,
+    roundsPlayed: 3, roundWins: 3, matchWins: 1,
   });
   assert.deepEqual(state.leaderboard.get('p1'), {
-    id: 'p1', name: 'Player 2', totalScoreUnits: 15 * POINT_UNIT,
-    roundsPlayed: 5, roundWins: 0, matchWins: 0,
+    id: 'p1', name: 'Player 2', totalScoreUnits: 9 * POINT_UNIT,
+    roundsPlayed: 3, roundWins: 0, matchWins: 0,
   });
   resetMatch(state, 'rematch');
   assert.equal(state.matchId, 'rematch');
@@ -410,8 +410,8 @@ test('round wins score once, first to five ends the match, and rematch resets wi
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
   eliminatePlayer(state, 'p1');
   step(state, new Map());
-  assert.equal(state.leaderboard.get('p0')!.roundsPlayed, 6);
-  assert.equal(state.leaderboard.get('p0')!.totalScoreUnits, 30 * POINT_UNIT);
+  assert.equal(state.leaderboard.get('p0')!.roundsPlayed, 4);
+  assert.equal(state.leaderboard.get('p0')!.totalScoreUnits, 20 * POINT_UNIT);
 });
 
 test('overtime inset updates before collision and a 90-second unresolved round draws', () => {
@@ -489,7 +489,7 @@ test('wall and explosion causes are authoritative, clipped, and blast visuals ex
 test('a finished match can replace every seat and start a clean rematch without restarting the server', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  state.players.get('p0')!.roundWins = 4;
+  state.players.get('p0')!.roundWins = 2;
   eliminatePlayer(state, 'p1');
   step(state, new Map());
   assert.equal(state.phase, 'matchOver');
@@ -793,7 +793,7 @@ test('overlapping blast owners receive no speculative elimination credit', () =>
 test('match-over recap is frozen and deeply detached from engine state', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  state.players.get('p0')!.roundWins = 4;
+  state.players.get('p0')!.roundWins = 2;
   eliminatePlayer(state, 'p1');
   step(state, new Map());
   const before = toSnapshot(state).matchStats;

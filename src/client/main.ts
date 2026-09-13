@@ -575,7 +575,7 @@ function startDisplay(): void {
       const card = element('div', `score-card ${player.alive ? '' : 'out'}`);
       card.style.setProperty('--player-color', escapeColor(player.color));
       const pips = element('span', 'score-pips');
-      for (let win = 0; win < 5; win += 1) pips.append(element('i', win < player.roundWins ? 'won' : ''));
+      for (let win = 0; win < 3; win += 1) pips.append(element('i', win < player.roundWins ? 'won' : ''));
       const details = element('span', 'score-details');
       const seatName = player.name.toUpperCase() === `P${player.slot + 1}` ? `P${player.slot + 1}` : `P${player.slot + 1} ${player.name}`;
       details.append(element('span', 'score-name', seatName), pips);

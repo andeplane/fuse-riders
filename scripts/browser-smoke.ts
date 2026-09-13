@@ -131,9 +131,9 @@ try {
   // Refresh reclaims exactly the same seat and updates full state.
   const previousIds = [...app.game.players.keys()]; await phones[0].reload();
   await phones[0].locator('.controls:not(.hidden)').waitFor(); assert.deepEqual([...app.game.players.keys()], previousIds);
-  // Exercise complete first-to-five / automatic round restart / host rematch UI.
+  // Exercise complete first-to-three / automatic round restart / host rematch UI.
   const winner = previousIds[0];
-  for (let round = 0; round < 5; round++) {
+  for (let round = 0; round < 3; round++) {
     if (app.game.phase === 'countdown') app.advance(60);
     for (const id of previousIds) if (id !== winner) eliminatePlayer(app.game, id);
     app.advance(2);
@@ -148,9 +148,9 @@ try {
   await host.screenshot({ path: 'artifacts/tv-match-over.png' });
   await host.getByRole('button', { name: '🏆 SESSION' }).click();
   await host.locator('.leaderboard-drawer:not(.hidden)').waitFor();
-  await host.getByText('25 PTS', { exact: true }).waitFor();
+  await host.getByText('15 PTS', { exact: true }).waitFor();
   await host.getByText('ROUND POINTS // 5 · 3 · 2 · 1 · 0', { exact: false }).waitFor();
-  await phones[0].getByText(/#1 · \+5 · 25PTS/).waitFor();
+  await phones[0].getByText(/#1 · \+5 · 15PTS/).waitFor();
   await host.getByRole('button', { name: 'Close leaderboard' }).click();
   const matchId = app.game.matchId; await host.getByRole('button', { name: 'REMATCH' }).click();
   await waitFor(() => app.game.matchId !== matchId, 'new match scope'); app.advance(2);

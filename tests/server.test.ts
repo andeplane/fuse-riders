@@ -208,7 +208,7 @@ test('a finished match can accept fresh phones after every original player leave
   try {
     const host = await f.host(); const a = await f.join('A'); const b = await f.join('B');
     host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown'); f.app.advance(60);
-    f.app.game.players.get(a.joined.playerId)!.roundWins = 4;
+    f.app.game.players.get(a.joined.playerId)!.roundWins = 2;
     eliminatePlayer(f.app.game, b.joined.playerId); f.app.advance(); assert.equal(f.app.game.phase, 'matchOver');
     a.peer.send({ type: 'leave' }); await a.peer.flush(); b.peer.send({ type: 'leave' }); await b.peer.flush();
     assert.equal(f.app.game.players.size, 0);

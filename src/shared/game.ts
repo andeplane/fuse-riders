@@ -913,7 +913,7 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
     winner.roundWins += 1;
     winnerId = winner.id;
     state.roundWinnerId = winner.id;
-    if (winner.roundWins >= 5) {
+    if (winner.roundWins >= 3) {
       matchWinnerId = winner.id;
       state.matchWinnerId = winner.id;
     }

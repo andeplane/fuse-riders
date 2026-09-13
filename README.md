@@ -1,6 +1,6 @@
 # Fuse Riders
 
-Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and seven random powerups change the fight. Last rider alive wins the round; first to five round wins takes the match.
+Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and seven random powerups change the fight. Last rider alive wins the round; first to three round wins takes the match.
 
 ## Play tonight
 
