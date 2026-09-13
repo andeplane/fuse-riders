@@ -35,6 +35,10 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 
 Riders collide with walls, eight-second trails, other riders, and explosions. Bombs clear trail segments and chain nearby landed bombs. Upgrades reset each round. After 60 seconds the boundary shrinks and trims trails at its edge; at 90 seconds, remaining riders draw. Simultaneous final deaths also draw. The next round starts automatically after the three-second results pause when at least two players remain connected.
 
+## Audio
+
+The TV plays original synthesized chiptune music and arcade effects after you press Start race or enable audio. Open **♪ AUDIO** for separate music/effects volume and mute controls. Phones stay silent.
+
 ## Scores and stats
 
 Each round awards placement points of **5 / 3 / 2 / 1 / 0**. Ties split the average points for their occupied places. The leaderboard adds points across matches for the lifetime of the server process. At match end, the stats screen shows survival, distance, bombs launched/exploded, eliminations, deaths by cause, pickups by type, portal trips, wall bounces, and more. A rematch resets match statistics while keeping session points.
@@ -57,3 +61,5 @@ npm run test:browser
 Browser smoke uses installed Google Chrome. For WebKit, run `npx playwright install webkit`, then `BROWSER=webkit npm run test:browser`. Tests run isolated servers on ephemeral ports and never join the live match. [Verification evidence](docs/verification.md) distinguishes automated checks, controlled FPS measurements, and physical-device feedback.
 
 The server advances a deterministic simulation at 20 Hz. Type-safe injected clocks, schedulers, token generators, input transports, and seeded randomness make timing and network boundaries testable.
+
+GitHub Actions runs type checking, enforced coverage, a production build, and Chrome/WebKit browser smoke on pushes and pull requests.

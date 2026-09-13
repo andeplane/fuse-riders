@@ -46,6 +46,7 @@ try {
   app.game.players.get('p4')!.invulnerableUntilTick = 1000;
   app.game.players.get('p0')!.shielded = true;
   app.game.players.get('p1')!.drunkUntilTick = 1020;
+  app.game.players.get('p3')!.inkUntilTick = 980;
   app.game.players.get('p2')!.fiveShotArmed = true;
   app.game.players.get('p2')!.bombChargeStartedTick = 942;
   app.game.portalPair = { id: 'fixture-gates', gates: [{ x: 1300, y: 180, halfLength: 140 }, { x: 900, y: 720, halfLength: 140 }], expiresAtTick: 1150 };
