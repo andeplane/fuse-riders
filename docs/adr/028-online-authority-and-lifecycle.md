@@ -26,3 +26,5 @@ Checkpoint restore validates a versioned, bounded complete state into temporary 
 Duplicate host tab, refresh, delayed old socket close, delayed old RTC frames, signalling loss beyond lease, background/resume, bfcache and denied storage tests prove exactly one accepted authority and neutral controls on recovery. Corrupt nested checkpoint fields/maps, unknown versions and malformed sequences leave the original session byte-for-byte unchanged. Physical iOS/Android hosting remains a separate required release check.
 
 Review basis: [netcode](../reviews/online-netcode-review.md), [security/operations](../reviews/online-security-operations-review.md). Existing prototype does not implement this full contract.
+
+Concrete proposed protocol amendment: [v2 contract](../online/PROTOCOL.md).

@@ -21,3 +21,5 @@ Current arrival-based extrapolation is rejected: it has neither an applied-input
 ## Acceptance
 
 Injected-clock replay covers straight/constant turn, both turns, press/release inside a tick, late acknowledgement, zero pending input, drift, 30/60/120 Hz render, drunk mode, portal, death, boundary and reset. Fixed-tick kernel results match authority to floating-point tolerance (1e-6 world units) when supplied the same world/inputs. Network-dependent correction budgets are ADR 032 gates, not a promise of exact prediction for unknown obstacles. Crossing-trail cases with unequal latency document host advantage and confirm one outcome. Irregular snapshot arrival preserves monotonic render time and discontinuities.
+
+Concrete proposed protocol amendment: [v2 contract](../online/PROTOCOL.md).

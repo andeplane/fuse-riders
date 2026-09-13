@@ -26,3 +26,5 @@ Physical iOS Safari and Android Chrome tests cover touch, foreground/background,
 ## Review and implementation sequence
 
 ADRs 028–032 are proposals until reviewers resolve contradictions. Implement separate commits for authority fencing, atomic checkpoint validation, input/action semantics, ordered generations, shared movement replay, interpolation, liveness/resource bounds, then product flows and measured release. Regression tests first for reproduced blockers. Review again against the final code; passing unit tests alone cannot close architectural findings.
+
+Concrete proposed protocol amendment: [v2 contract](../online/PROTOCOL.md).

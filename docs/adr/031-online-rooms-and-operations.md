@@ -21,3 +21,5 @@ Database/Redis/VPS are not needed for the selected friend-room topology. Hiberna
 ## Acceptance
 
 Five players plus display run forced fallback without rate-limit disconnects. Malformed/oversized RTC and WSS traffic, ICE/resync floods, reconnect churn, slow receivers and credential bursts stay bounded. Cross-room/host privilege tests reject unauthorized actions. Release evidence includes privacy scan, protocol mismatch, rollback compatibility, Worker tests, artifact checks and permanent ownership/expiry verification. Physical device and WAN acceptance remain ADR 032 requirements.
+
+Concrete proposed protocol amendment: [v2 contract](../online/PROTOCOL.md).

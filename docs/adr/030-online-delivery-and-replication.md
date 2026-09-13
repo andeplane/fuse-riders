@@ -24,3 +24,5 @@ A single reliable RTC channel is simpler but creates head-of-line blocking betwe
 ## Acceptance
 
 Deterministic carriers inject duplication, reordering, delayed first keyframe, missing delta, old epoch, asymmetric loss and cross-lane press/release permutations. Exactly one shot or explicit cancellation; zero stale action execution; monotonic accepted world generation; bounded retained memory. Browser tests blackhole established direct links without closing channels, restore UDP, drop signalling alone, lose both paths, refresh host/guest and resume without page reload. Measure actual fallback/recovery duration and preserve traces for failures.
+
+Concrete proposed protocol amendment: [v2 contract](../online/PROTOCOL.md).
