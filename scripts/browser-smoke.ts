@@ -171,7 +171,7 @@ try {
   await phones[0].mouse.up(); await new Promise(r => setTimeout(r, 50)); app.advance(1);
   const targetBomb = [...app.game.bombs.values()][0]!;
   assert.equal(app.game.bombs.size, 1); assert.equal(targetBomb.x, finalTarget.x); assert.equal(targetBomb.y, finalTarget.y);
-  assert.equal(targetBomb.blastRange, 165); assert.ok(targetBomb.landsAtTick <= app.game.tick);
+  assert.equal(targetBomb.blastRange, 115); assert.ok(targetBomb.landsAtTick <= app.game.tick);
   assert.equal(poweredRider.targetBombArmed, false); assert.equal(poweredRider.fiveShotArmed, true);
   app.game.bombs.clear(); poweredRider.bombReadyAtTick = app.game.tick; app.advance(2);
   await phones[0].screenshot({ path: 'artifacts/phone-armed-portrait.png' });

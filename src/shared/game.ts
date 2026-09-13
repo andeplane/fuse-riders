@@ -70,14 +70,14 @@ export const BOMB_FUSE_TICKS = 40;
 export const BOMB_COOLDOWN_TICKS = 80;
 export const BOMB_BLAST_RANGE = 90;
 export const BLAST_VISIBLE_TICKS = 8;
-export const BLAST_LEVEL_RANGE = 75;
+export const BLAST_LEVEL_RANGE = 25;
 
-export const PICKUP_SPAWN_INTERVAL_TICKS = 120;
+export const PICKUP_SPAWN_INTERVAL_TICKS = 80;
 export const PICKUP_LIFETIME_TICKS = 300;
 export const MAX_ACTIVE_PICKUPS = 3;
 export function pickupPacing(elapsedTicks: number): { interval: number; cap: number } {
   const stage = Math.min(3, Math.max(0, Math.floor(elapsedTicks / 400)));
-  return { interval: [120, 80, 60, 40][stage]!, cap: MAX_ACTIVE_PICKUPS + stage };
+  return { interval: [80, 53, 40, 27][stage]!, cap: MAX_ACTIVE_PICKUPS + stage };
 }
 export const PICKUP_SPAWN_ATTEMPTS = 24;
 export const PICKUP_RADIUS = 14;
