@@ -702,7 +702,8 @@ function startDisplay(): void {
     menuButton.disabled = !authenticated || snapshot.phase === 'lobby';
     recapAction.disabled = !authenticated || playerCount < 2;
     if (snapshot.phase === 'lobby') {
-      lobbyFooter.append(action); announcement.className = 'announcement hidden';
+      if (action.parentElement !== lobbyFooter) lobbyFooter.append(action);
+      announcement.className = 'announcement hidden';
       action.textContent = 'START RACE'; action.dataset.action = 'start'; action.disabled = !authenticated || playerCount < 2;
       lobbyFooter.querySelector('p')!.textContent = !authenticated
         ? !hostToken ? 'Open the current TV host link to enable Start race.'

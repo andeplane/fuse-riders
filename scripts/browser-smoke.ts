@@ -76,7 +76,11 @@ try {
   await phones[0].getByText('STAR · --', { exact: true }).waitFor();
   await phones[0].getByText('PTS · 0', { exact: true }).waitFor();
   await waitFor(() => app.game.players.size === 5, 'five controller seats');
-  await host.getByRole('button', { name: 'START RACE' }).click();
+  const startBounds = (await host.getByRole('button', { name: 'START RACE', exact: true }).boundingBox())!;
+  await host.mouse.move(startBounds.x + startBounds.width / 2, startBounds.y + startBounds.height / 2);
+  await host.mouse.down();
+  app.advance(2); await new Promise(r => setTimeout(r, 120));
+  await host.mouse.up();
   await waitFor(() => app.game.phase === 'countdown', 'start countdown');
   app.advance(60);
   await phones[0].getByRole('button', { name: 'Drop bomb' }).waitFor({ state: 'visible' });
