@@ -1,7 +1,8 @@
 import QRCode from 'qrcode';
-import type { ClientMessage, GameEvent, GameSnapshot, ServerMessage, TrailSegment } from '../shared/protocol.js';
+import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
+import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, ServerMessage, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState, type ControllerControl } from './controller-state.js';
-import { drawPickups, drawStarAura } from './pickup-renderer.js';
+import { drawDrunkAura, drawPickups, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
@@ -20,11 +21,20 @@ const THEME_KEY = 'fuse-riders-display-theme';
 
 type LeaderboardEntryView = { id: string; name: string; totalScoreUnits: number; roundsPlayed: number; roundWins: number; matchWins: number };
 type RoundPlacementView = { playerId: string; name: string; place: number; scoreUnits: number };
-type ScoredSnapshot = ViewSnapshot & { leaderboard?: ReadonlyArray<LeaderboardEntryView>; roundPlacements?: ReadonlyArray<RoundPlacementView> };
+type ScoredSnapshot = ViewSnapshot & {
+  leaderboard?: ReadonlyArray<LeaderboardEntryView>;
+  roundPlacements?: ReadonlyArray<RoundPlacementView>;
+  matchStats?: ReadonlyArray<MatchPlayerStats>;
+};
 
 function scoreText(scoreUnits: number): string {
   const points = scoreUnits / 60;
   return Number.isInteger(points) ? String(points) : points.toFixed(1);
+}
+
+function durationText(ticks: number): string {
+  const seconds = ticks / 20;
+  return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s` : `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -313,18 +323,38 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
 
   if ((snapshot.pickups ?? []).length) drawPickups(ctx, snapshot, snapshot.tick, now, theme);
 
+  for (const player of snapshot.players) {
+    if (player.bombChargeStartedTick === undefined || !player.alive) continue;
+    const chargeTicks = Math.max(0, snapshot.tick - player.bombChargeStartedTick);
+    const distance = bombLaunchDistance(chargeTicks);
+    const targetX = clamp(player.x + Math.cos(player.angle) * distance, snapshot.boundaryInset + 20, width - snapshot.boundaryInset - 20);
+    const targetY = clamp(player.y + Math.sin(player.angle) * distance, snapshot.boundaryInset + 20, height - snapshot.boundaryInset - 20);
+    ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
+    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8; ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(targetX, targetY); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = .8; ctx.strokeRect(targetX - 10, targetY - 10, 20, 20); ctx.restore();
+  }
+
   for (const bomb of snapshot.bombs) {
+    const airborne = snapshot.tick < bomb.landsAtTick;
+    const flightDuration = Math.max(1, bomb.landsAtTick - bomb.launchedTick);
+    const flight = clamp((snapshot.tick - bomb.launchedTick) / flightDuration, 0, 1);
+    const drawX = bomb.launchX + (bomb.x - bomb.launchX) * flight;
+    const drawY = bomb.launchY + (bomb.y - bomb.launchY) * flight - Math.sin(flight * Math.PI) * 56;
     const pulse = 1 + Math.sin(now / 90) * 0.08;
     const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / 40, 0, 1);
+    if (airborne) {
+      ctx.save(); ctx.globalAlpha = .36 + flight * .35; ctx.strokeStyle = '#ff73c5'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(bomb.x, bomb.y, 14 + flight * 5, 6 + flight * 2, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
     ctx.save();
-    ctx.translate(Math.round(bomb.x), Math.round(bomb.y));
-    ctx.scale(pulse, pulse);
+    ctx.translate(Math.round(drawX), Math.round(drawY));
+    ctx.scale(pulse * (airborne ? 1.12 : 1), pulse * (airborne ? 1.12 : 1));
     ctx.shadowColor = '#ff397e'; ctx.shadowBlur = 12;
     if (sprites.bomb) drawSprite(ctx, sprites.bomb, 0, 0, 44, 0, undefined, theme.rendering.pixelated);
     else { const ball = ctx.createRadialGradient(-5, -7, 1, 0, 0, 18); ball.addColorStop(0, '#7481a8'); ball.addColorStop(.3, '#242a4a'); ball.addColorStop(1, '#070815'); ctx.fillStyle = ball; ctx.strokeStyle = '#8f7bbd'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-    ctx.strokeStyle = remaining < 0.3 ? '#fff06a' : '#ff2d7d';
+    ctx.strokeStyle = airborne ? '#d67cff' : remaining < 0.3 ? '#fff06a' : '#ff2d7d';
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14; ctx.lineWidth = 5; ctx.setLineDash([5, 4]);
-    ctx.beginPath(); ctx.arc(0, 0, 20, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remaining); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 20, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (airborne ? flight : remaining)); ctx.stroke();
     ctx.setLineDash([]);
     if (!sprites.bomb) { ctx.fillStyle = '#ffb52e'; ctx.fillRect(9, -20, 3, 9); }
     const spark = Math.round(now / 80 + bomb.id) % 3;
@@ -393,6 +423,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   for (const player of snapshot.players) {
     const color = escapeColor(player.color);
     if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);
+    if (player.drunkUntilTick > snapshot.tick) drawDrunkAura(ctx, player, snapshot.tick, now);
     ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
     if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
     else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
@@ -433,9 +464,11 @@ function startDisplay(): void {
   const pickupLegend = element('div', 'pickup-legend');
   const blastLegendImage = element('img'); blastLegendImage.alt = ''; blastLegendImage.src = '/themes/neon-pixel/pickup-blast.svg';
   const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = '/themes/neon-pixel/pickup-star.svg';
+  const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = '/themes/neon-pixel/pickup-beer.svg';
   const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' longer explosions'));
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 2.5s invulnerable'));
-  pickupLegend.append(blastLegend, starLegend); lobbyCopy.append(pickupLegend);
+  const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
+  pickupLegend.append(blastLegend, starLegend, beerLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -456,9 +489,19 @@ function startDisplay(): void {
   leaderboardHeader.append(element('div', '', 'SESSION LEADERBOARD'), leaderboardClose);
   const leaderboardRows = element('div', 'leaderboard-rows');
   leaderboardDrawer.append(leaderboardHeader, leaderboardRows, element('p', 'leaderboard-key', 'ROUND POINTS // 5 · 3 · 2 · 1 · 0  // TIES SHARE THE PLACES'));
+  const matchRecap = element('section', 'match-recap hidden');
+  const recapHeading = element('header', 'recap-heading');
+  const recapTitle = element('div');
+  recapTitle.append(element('p', 'kicker', 'MATCH COMPLETE // AFTER ACTION REPORT'), element('h2', '', 'Grid legends'));
+  const recapAction = element('button', 'host-action recap-rematch', 'REMATCH'); recapAction.type = 'button';
+  recapHeading.append(recapTitle, recapAction);
+  const podium = element('div', 'recap-podium');
+  const awards = element('div', 'recap-awards');
+  const comparison = element('div', 'recap-comparison');
+  matchRecap.append(recapHeading, podium, awards, comparison);
   const performanceDisplay = element('output', 'perf-overlay hidden', 'FPS --  RENDER --ms');
   const roundBadge = element('div', 'round-badge', 'ROUND 1');
-  stage.append(canvas, lobby, roundBadge, announcement, leaderboardDrawer, performanceDisplay);
+  stage.append(canvas, lobby, roundBadge, announcement, matchRecap, leaderboardDrawer, performanceDisplay);
   root.append(topbar, stage);
   app.replaceChildren(root);
 
@@ -482,6 +525,7 @@ function startDisplay(): void {
   let rosterSignature = '';
   let scoresSignature = '';
   let leaderboardSignature = '';
+  let recapSignature = '';
   let showPerformance = new URLSearchParams(location.search).get('perf') === '1';
   performanceDisplay.classList.toggle('hidden', !showPerformance);
   const savedTheme = localStorage.getItem(THEME_KEY);
@@ -491,6 +535,7 @@ function startDisplay(): void {
   applyThemeProperties(activeTheme);
   blastLegendImage.src = `/themes/${activeTheme.id}/pickup-blast.svg`;
   starLegendImage.src = `/themes/${activeTheme.id}/pickup-star.svg`;
+  beerLegendImage.src = `/themes/${activeTheme.id}/pickup-beer.svg`;
   void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
 
   themeSelect.addEventListener('change', () => {
@@ -498,6 +543,7 @@ function startDisplay(): void {
     if (!next) return;
     activeTheme = next; activeSprites = {}; localStorage.setItem(THEME_KEY, next.id); applyThemeProperties(next);
     blastLegendImage.src = `/themes/${next.id}/pickup-blast.svg`; starLegendImage.src = `/themes/${next.id}/pickup-star.svg`;
+    beerLegendImage.src = `/themes/${next.id}/pickup-beer.svg`;
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
 
@@ -552,9 +598,74 @@ function startDisplay(): void {
     });
   }
 
+  function renderMatchRecap(snapshot: ScoredSnapshot): void {
+    const stats = [...(snapshot.matchStats ?? [])].sort((a, b) => a.matchPlacement - b.matchPlacement || a.slot - b.slot);
+    const signature = stats.map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
+      entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected, entry.invulnerableTicks,
+      entry.wallBounces, entry.earlyExits, entry.beerPickups, ...Object.values(entry.deathsByCause)].join(':')).join('|');
+    if (signature === recapSignature) return;
+    recapSignature = signature;
+    podium.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
+    if (!stats.length) {
+      podium.append(element('p', 'recap-empty', 'Compiling the after action report…'));
+      return;
+    }
+
+    const podiumEntries = stats.filter((candidate) => candidate.matchPlacement <= 3);
+    const champions = podiumEntries.filter((entry) => entry.matchPlacement === 1);
+    const runners = podiumEntries.filter((entry) => entry.matchPlacement !== 1);
+    const centerAt = Math.ceil(runners.length / 2);
+    const podiumOrder = [...runners.slice(0, centerAt), ...champions, ...runners.slice(centerAt)];
+    for (const entry of podiumOrder) {
+      const card = element('article', `podium-card podium-place-${entry.matchPlacement}`);
+      card.style.setProperty('--player-color', escapeColor(entry.color));
+      card.append(
+        element('span', 'podium-place', entry.matchPlacement === 1 ? '♛  #1' : `#${entry.matchPlacement}`),
+        element('strong', '', entry.name),
+        element('small', '', `${entry.roundWins} ROUND ${entry.roundWins === 1 ? 'WIN' : 'WINS'}`),
+      );
+      podium.append(card);
+    }
+
+    const awardMetrics: Array<{ title: string; icon: string; value: (entry: MatchPlayerStats) => number; detail: (value: number) => string }> = [
+      { title: 'DEMOLITION EXPERT', icon: '✹', value: (entry) => entry.bombsExploded, detail: (value) => `${value} BOMBS BOOMED` },
+      { title: 'TRAILBLAZER', icon: '⌁', value: (entry) => entry.distanceUnits, detail: (value) => `${Math.round(value)}u TRAVELLED` },
+      { title: 'UNTOUCHABLE', icon: '✦', value: (entry) => entry.survivalTicks, detail: (value) => `${durationText(value)} ALIVE` },
+      { title: 'COLLECTOR', icon: '◆', value: (entry) => entry.pickupsCollected, detail: (value) => `${value} POWER-UPS` },
+    ];
+    for (const metric of awardMetrics) {
+      const best = Math.max(...stats.map(metric.value));
+      if (best <= 0) continue;
+      const winners = stats.filter((entry) => metric.value(entry) === best);
+      const card = element('article', 'award-card');
+      card.append(element('span', 'award-icon', metric.icon), element('small', '', metric.title), element('strong', '', winners.map((entry) => entry.name).join(' + ')), element('em', '', metric.detail(best)));
+      awards.append(card);
+    }
+
+    comparison.append(element('p', 'comparison-key', 'BOMBS = EXPLODED / PLACED   ·   DEATHS = WALL / TRAIL / BLAST / RIDER'));
+    const header = element('div', 'comparison-row comparison-header');
+    for (const label of ['RIDER', 'WINS', 'SURVIVED', 'BEST', 'DIST', 'BOMBS', 'KOs', 'PICKUPS', 'STAR', 'DEATHS']) header.append(element('span', '', label));
+    comparison.append(header);
+    for (const entry of stats) {
+      const row = element('div', 'comparison-row'); row.style.setProperty('--player-color', escapeColor(entry.color));
+      const rider = element('span', 'comparison-rider');
+      const riderCopy = element('span');
+      riderCopy.append(element('b', '', `#${entry.matchPlacement} ${entry.name}`), element('small', '', `${entry.wallBounces} BOUNCE · ${entry.earlyExits} EXIT`));
+      rider.append(element('i'), riderCopy);
+      const deaths = entry.deathsByCause;
+      row.append(rider, element('strong', '', String(entry.roundWins)), element('span', '', durationText(entry.survivalTicks)),
+        element('span', '', durationText(entry.longestSurvivalTicks)), element('span', '', `${Math.round(entry.distanceUnits)}u`),
+        element('span', '', `${entry.bombsExploded}/${entry.bombsPlaced}`), element('span', '', String(entry.eliminations)),
+        element('span', '', `${entry.pickupsCollected} (${entry.blastPickups}+${entry.starPickups}+${entry.beerPickups})`), element('span', '', durationText(entry.invulnerableTicks)),
+        element('span', 'death-counts', `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`));
+      comparison.append(row);
+    }
+  }
+
   function updateUi(snapshot: ViewSnapshot): void {
     renderScores(snapshot);
     renderLeaderboard(snapshot as ScoredSnapshot);
+    renderMatchRecap(snapshot as ScoredSnapshot);
     timer.querySelector('strong')!.textContent = formatTimer(secondsRemaining(snapshot));
     timer.querySelector('.eyebrow')!.textContent = snapshot.phase === 'playing' ? `ROUND ${snapshot.round}` : phaseLabel(snapshot);
     roundBadge.textContent = `ROUND ${snapshot.round}`;
@@ -564,6 +675,8 @@ function startDisplay(): void {
     if (!leaderboardAllowed) { leaderboardDrawer.classList.add('hidden'); leaderboardButton.setAttribute('aria-expanded', 'false'); }
     renderRoster(snapshot);
     lobby.classList.toggle('hidden', snapshot.phase !== 'lobby');
+    matchRecap.classList.toggle('hidden', snapshot.phase !== 'matchOver');
+    recapAction.disabled = !authenticated || playerCount < 2;
     if (snapshot.phase === 'lobby') {
       action.textContent = 'START RACE'; action.dataset.action = 'start'; action.disabled = !authenticated || playerCount < 2;
       lobbyFooter.querySelector('p')!.textContent = playerCount < 2 ? 'Waiting for at least 2 riders' : `${playerCount} riders ready`;
@@ -577,12 +690,11 @@ function startDisplay(): void {
         announcement.className = 'announcement overtime';
         announcement.textContent = 'OVERTIME // WALLS CLOSING';
       }
-    } else {
-      const winnerId = snapshot.phase === 'matchOver' ? snapshot.matchWinnerId : snapshot.roundWinnerId;
-      const winner = snapshot.players.find((player) => player.id === winnerId);
+    } else if (snapshot.phase === 'roundOver') {
+      const winner = snapshot.players.find((player) => player.id === snapshot.roundWinnerId);
       announcement.className = 'announcement result';
       announcement.replaceChildren(
-        element('span', 'announcement-small', snapshot.phase === 'matchOver' ? 'CHAMPION' : `ROUND ${snapshot.round}`),
+        element('span', 'announcement-small', `ROUND ${snapshot.round}`),
         element('strong', '', winner ? `${winner.name} WINS` : 'DRAW'),
       );
       const placements = (snapshot as ScoredSnapshot).roundPlacements ?? [];
@@ -595,10 +707,12 @@ function startDisplay(): void {
         }
         announcement.append(resultRows);
       }
-      action.dataset.action = snapshot.phase === 'matchOver' ? 'rematch' : 'nextRound';
-      action.textContent = snapshot.phase === 'matchOver' ? 'REMATCH' : 'NEXT ROUND';
+      action.dataset.action = 'nextRound';
+      action.textContent = 'NEXT ROUND';
       action.disabled = !authenticated || playerCount < 2 || (snapshot.phaseEndsAtTick !== undefined && snapshot.tick < snapshot.phaseEndsAtTick);
       announcement.append(action);
+    } else {
+      announcement.className = 'announcement hidden';
     }
   }
 
@@ -648,6 +762,7 @@ function startDisplay(): void {
     const hostAction = action.dataset.action as 'start' | 'nextRound' | 'rematch' | undefined;
     if (hostAction) socket.send({ type: 'hostAction', action: hostAction });
   });
+  recapAction.addEventListener('click', () => socket.send({ type: 'hostAction', action: 'rematch' }));
   fullscreen.addEventListener('click', () => document.documentElement.requestFullscreen?.());
   leaderboardButton.addEventListener('click', () => {
     const opening = leaderboardDrawer.classList.contains('hidden');
@@ -731,8 +846,9 @@ function startController(): void {
   const powerStrip = element('div', 'power-strip');
   const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
+  const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
   const sessionPoints = element('span', 'power-chip points-power', 'SESSION · 0 PTS');
-  powerStrip.append(blastPower, starPower, sessionPoints);
+  powerStrip.append(blastPower, starPower, wobblePower, sessionPoints);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -798,6 +914,8 @@ function startController(): void {
     blastPower.textContent = player.blastLevel > 0 ? `BLAST · +${player.blastLevel}` : 'BLAST · BASE';
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
+    const drunkTicks = player.drunkUntilTick - snapshot.tick;
+    wobblePower.textContent = drunkTicks > 0 ? `WOBBLE · ${(drunkTicks / 20).toFixed(1)}s` : 'WOBBLE · --';
     const leaderboardEntry = (scored.leaderboard ?? []).find((entry) => entry.id === playerId);
     const placement = (scored.roundPlacements ?? []).find((entry) => entry.playerId === playerId);
     sessionPoints.textContent = placement && (snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver')
@@ -807,13 +925,17 @@ function startController(): void {
     else if (snapshot.phase === 'lobby') instruction.textContent = 'You’re in. Look at the TV!';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
     else if (!player.alive) instruction.textContent = 'Wiped out! Watch the TV for the next round.';
-    else if (snapshot.phase === 'playing') instruction.textContent = 'Hold to steer. Tap bomb, then move!';
+    else if (snapshot.phase === 'playing') instruction.textContent = 'Hold to steer. Hold bomb to charge, release to launch!';
     else if (snapshot.phase === 'matchOver') instruction.textContent = snapshot.matchWinnerId === playerId ? 'You rule the grid!' : 'Match complete.';
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
+    const charging = player.bombChargeStartedTick !== undefined;
+    const chargePercent = charging ? Math.min(100, Math.round((snapshot.tick - player.bombChargeStartedTick!) / BOMB_MAX_CHARGE_TICKS * 100)) : 0;
     const ready = readyTicks <= 0 && snapshot.phase === 'playing' && player.alive;
-    bomb.disabled = !ready;
-    bombLabel.textContent = ready ? 'BOMB READY' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
+    bomb.disabled = !ready && !charging;
+    bomb.style.setProperty('--charge', `${chargePercent}%`);
+    bomb.classList.toggle('charging', charging);
+    bombLabel.textContent = charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
   }
 
   socket = new SocketClient(
@@ -888,7 +1010,13 @@ function startController(): void {
       inputState.pointerRelease(event.pointerId);
       button.classList.toggle('active', inputState.isHeld(control)); updateResend();
     };
-    button.addEventListener('pointerup', release); button.addEventListener('pointercancel', release); button.addEventListener('lostpointercapture', release);
+    const cancel = (event: PointerEvent) => {
+      event.preventDefault();
+      const control = button.dataset.control as ControllerControl;
+      inputState.pointerCancel(event.pointerId);
+      button.classList.toggle('active', inputState.isHeld(control)); updateResend();
+    };
+    button.addEventListener('pointerup', release); button.addEventListener('pointercancel', cancel); button.addEventListener('lostpointercapture', cancel);
   }
   leave.addEventListener('click', () => {
     hasLeft = true; clearControls(); socket.send({ type: 'leave' }); socket.close();

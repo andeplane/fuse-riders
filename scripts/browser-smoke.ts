@@ -30,6 +30,7 @@ try {
   await host.locator('.qr').waitFor();
   await host.getByText('longer explosions', { exact: false }).waitFor();
   await host.getByText('2.5s invulnerable', { exact: false }).waitFor();
+  await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
 
   // A fresh token delivered as a hash-only navigation must be consumed and re-authenticated.
@@ -79,6 +80,17 @@ try {
   const releasedAngle = rider.angle; app.advance(2); assert.equal(rider.angle, releasedAngle, 'pointer release neutralizes');
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 1, 'phone bomb tap places one bomb');
+  const poweredRider = [...app.game.players.values()].find((player) => player.slot === 0)!;
+  app.game.pickups.push({ id: 9_001, type: 'blast', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('BLAST · +1', { exact: true }).waitFor();
+  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_001), false, 'blast pickup consumed authoritatively');
+  app.game.pickups.push({ id: 9_002, type: 'star', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText(/STAR · [0-9.]+s/).waitFor();
+  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_002), false, 'star pickup consumed authoritatively');
+  app.game.pickups.push({ id: 9_003, type: 'beer', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[1].getByText(/WOBBLE · [0-9.]+s/).waitFor();
+  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_003), false, 'beer pickup consumed authoritatively');
+  assert.equal(poweredRider.drunkUntilTick, 0, 'beer collector is immune to own pickup');
   // Exercise theme changes during active gameplay: styling has no simulation writes.
   const beforeTheme = JSON.stringify([...app.game.players.values()]);
   await host.getByRole('combobox').selectOption('clean-neon');
@@ -99,11 +111,17 @@ try {
   }
   assert.equal(app.game.phase, 'matchOver');
   await host.getByRole('button', { name: 'REMATCH' }).waitFor();
+  await host.locator('.match-recap:not(.hidden)').waitFor();
+  assert.equal(await host.locator('.comparison-row:not(.comparison-header)').count(), 5);
+  await host.getByText('TRAILBLAZER', { exact: true }).waitFor();
+  await host.getByText('UNTOUCHABLE', { exact: true }).waitFor();
+  await host.screenshot({ path: 'artifacts/tv-match-over.png' });
   await host.getByRole('button', { name: '🏆 SESSION' }).click();
   await host.locator('.leaderboard-drawer:not(.hidden)').waitFor();
   await host.getByText('25 PTS', { exact: true }).waitFor();
   await host.getByText('ROUND POINTS // 5 · 3 · 2 · 1 · 0', { exact: false }).waitFor();
   await phones[0].getByText(/#1 · \+5 · 25 PTS/).waitFor();
+  await host.getByRole('button', { name: 'Close leaderboard' }).click();
   const matchId = app.game.matchId; await host.getByRole('button', { name: 'REMATCH' }).click();
   await waitFor(() => app.game.matchId !== matchId, 'new match scope'); app.advance(2);
   assert.equal(app.game.phase, 'countdown'); assert.ok([...app.game.players.values()].every(p => p.roundWins === 0));
