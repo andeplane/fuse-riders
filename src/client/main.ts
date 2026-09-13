@@ -1,3 +1,4 @@
+import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, ServerMessage, TrailSegment } from '../shared/protocol.js';
