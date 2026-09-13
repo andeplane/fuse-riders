@@ -704,7 +704,10 @@ function startDisplay(): void {
     if (snapshot.phase === 'lobby') {
       if (action.parentElement !== lobbyFooter) lobbyFooter.append(action);
       announcement.className = 'announcement hidden';
-      action.textContent = 'START RACE'; action.dataset.action = 'start'; action.disabled = !authenticated || playerCount < 2;
+      if (action.textContent !== 'START RACE') action.textContent = 'START RACE';
+      if (action.dataset.action !== 'start') action.dataset.action = 'start';
+      const startDisabled = !authenticated || playerCount < 2;
+      if (action.disabled !== startDisabled) action.disabled = startDisabled;
       lobbyFooter.querySelector('p')!.textContent = !authenticated
         ? !hostToken ? 'Open the current TV host link to enable Start race.'
           : connection.textContent === 'HOST LINK EXPIRED' ? 'Host link expired — open the newest TV link to enable Start race.'
