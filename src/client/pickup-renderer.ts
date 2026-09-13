@@ -130,12 +130,19 @@ export function drawPortalPair(ctx: CanvasRenderingContext2D, snapshot: GameSnap
   ctx.save(); ctx.globalAlpha = .2; ctx.strokeStyle = '#d697ff'; ctx.lineWidth = 2; ctx.setLineDash([5, 12]);
   ctx.beginPath(); ctx.moveTo(pair.gates[0].x, pair.gates[0].y); ctx.lineTo(pair.gates[1].x, pair.gates[1].y); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
   pair.gates.forEach((gate, index) => {
-    ctx.save(); ctx.translate(gate.x, gate.y); ctx.rotate((index ? -1 : 1) * now / 420);
-    ctx.strokeStyle = colors[index]; ctx.shadowColor = colors[index]; ctx.shadowBlur = 14; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.arc(0, 0, 24, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = .8; ctx.lineWidth = 2; ctx.strokeStyle = '#effcff'; ctx.setLineDash([4, 5]);
-    ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = colors[1 - index]; ctx.fillRect(21, -3, 7, 7); ctx.restore();
+    ctx.save(); ctx.translate(gate.x, gate.y);
+    ctx.strokeStyle = colors[index]; ctx.shadowColor = colors[index]; ctx.shadowBlur = 16; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(0, -gate.halfLength); ctx.lineTo(0, gate.halfLength); ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#effcff'; ctx.setLineDash([8, 5]); ctx.lineDashOffset = (index ? -1 : 1) * now / 40;
+    ctx.beginPath(); ctx.moveTo(0, -gate.halfLength); ctx.lineTo(0, gate.halfLength); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = colors[index];
+    for (const y of [-gate.halfLength, gate.halfLength]) ctx.fillRect(-8, y - 4, 16, 8);
+    ctx.lineWidth = 2; ctx.strokeStyle = colors[1 - index]; ctx.globalAlpha = .75;
+    for (let y = -gate.halfLength + 20; y < gate.halfLength; y += 40) {
+      ctx.beginPath(); ctx.moveTo(-14, y - 5); ctx.lineTo(-9, y); ctx.lineTo(-14, y + 5);
+      ctx.moveTo(9, y - 5); ctx.lineTo(14, y); ctx.lineTo(9, y + 5); ctx.stroke();
+    }
+    ctx.restore();
   });
 }
 
