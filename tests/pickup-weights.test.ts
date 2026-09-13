@@ -17,13 +17,14 @@ test('weighted table gives Five one third Triple probability with deterministic 
   for (const invalid of [-1, 1, NaN, Infinity]) assert.throws(() => pickupTypeForRoll(invalid));
 });
 
-test('Target probability is halved while other pickup ratios are preserved', () => {
+test('Star is removed while remaining relative weights are preserved', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const weight = (type: string) => PICKUP_WEIGHTS.find(row => row.type === type)!.weight;
-  assert.ok(Math.abs((weight('target') / (total - weight('stopwatch'))) / (3536 / 28090) - .5) < .001);
+  assert.ok(Math.abs((weight('target') / (total - weight('stopwatch') + 1599)) / (3536 / 28090) - .5) < .001);
+  assert.equal(PICKUP_WEIGHTS.some(row => row.type === 'star'), false);
   assert.equal(weight('triple') / weight('five'), 3);
-  assert.equal(weight('blast') / weight('star'), 4);
-  assert.ok(Math.abs(weight('triple') / weight('star') - 270 / 78) < 1e-12);
+  assert.equal(weight('blast') / weight('beer'), 4);
+  assert.ok(Math.abs(weight('triple') / weight('beer') - 270 / 78) < 1e-12);
 });
 
 test('powerup pacing ramps every twenty seconds and stays bounded in overtime', () => {
