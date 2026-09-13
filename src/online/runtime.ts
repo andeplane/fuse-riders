@@ -1,3 +1,4 @@
+import { JoinRequest } from './join-request.js';
 import { HostSession, type RoomCommand } from './host-session.js';
 import { PeerTransport } from './peer-transport.js';
 import { WorldDecoder, WorldEncoder, type WorldFrame } from './world-codec.js';
@@ -19,8 +20,7 @@ export class RoomRuntime {
   private announced=false;
   private recovering=false;
   private lastPausedPublish=0;
-  private pendingJoin?:Extract<RoomCommand,{type:'join'}>;
-  private lastJoinAttempt=0;
+  private readonly joinRequest=new JoinRequest<Extract<RoomCommand,{type:'join'}>>();
   readonly transport:PeerTransport;
   constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks){
     this.transport=new PeerTransport(code,token,{
@@ -55,7 +55,7 @@ export class RoomRuntime {
       const result=this.decoder.decode(data.frame);
       if(result.status!=='accepted'){if((result.status==='needsBaseline'||result.status==='invalid')&&performance.now()-this.lastResync>=500){this.lastResync=performance.now();this.transport.send(id,{type:'resync'});}return;}
       const snapshot=result.state;
-      if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.pendingJoin=undefined;
+      if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.joinRequest.confirm();
       this.lastState=performance.now();
     this.callbacks.state({...snapshot,tick:data.frame.tick,round:data.frame.round},data.settings,data.ack?.[this.transport.id]??-1,data.frame.matchId);
       if(data.paused)this.callbacks.status('Paused — host is in the background');
@@ -63,16 +63,20 @@ export class RoomRuntime {
     else if(data.type==='error')this.callbacks.status(data.error??'Room error');
   }
   command(command:RoomCommand):boolean {
+    if(command.type==='join'){this.joinRequest.request(command);return true;}
     if(!this.transport.authorityPermitted()){this.callbacks.status('Waiting for room authority — try again when connected');return false;}
     if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error)this.callbacks.status(error);return !error;}
-    if(command.type==='join')this.pendingJoin=command;
     const sent=this.transport.send(this.transport.hostId,{type:'command',command});
-    return sent||command.type==='join';
+    return sent;
   }
   private tick():void {
     const now=performance.now(),elapsed=now-this.lastTick;this.lastTick=now;
     if(!this.transport.authorityPermitted()){this.accumulator=0;this.session?.clear();this.callbacks.status('Paused — confirming room authority');return;}
-    if(!this.session){if(this.pendingJoin&&now-this.lastJoinAttempt>=500){this.lastJoinAttempt=now;this.transport.send(this.transport.hostId,{type:'command',command:this.pendingJoin});}if(now-this.lastState>2000)this.callbacks.status('Waiting for direct connection — retrying; check Wi-Fi or network access');return;}
+    this.joinRequest.retry(now,true,command=>{
+      if(this.session){const error=this.session.command(this.transport.id,command);this.joinRequest.confirm();if(error)this.callbacks.status(error);else this.save();}
+      else this.transport.send(this.transport.hostId,{type:'command',command});
+    });
+    if(!this.session){if(now-this.lastState>2000)this.callbacks.status('Waiting for direct connection — retrying; check Wi-Fi or network access');return;}
     if(this.recovering){
       if(this.session.game.phase==='lobby'||[...this.session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
       else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(true);this.lastPausedPublish=now;}this.callbacks.status('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
