@@ -13,6 +13,7 @@ GCP_REGION="${GCP_REGION:-europe-west1}" # Verified location of the isolated fus
 : "${ALLOWED_ORIGINS:?Set exact allowed browser origins, comma-separated}"
 CLOUD_RUN_SERVICE="${CLOUD_RUN_SERVICE:-fuse-riders-gateway}"
 ARTIFACT_LOCATION="${ARTIFACT_LOCATION:-$GCP_REGION}"
+BUILD_SOURCE_BUCKET="${BUILD_SOURCE_BUCKET:-andershaf-87-fuse-riders-build}"
 export GCP_REGION FIRESTORE_DATABASE_ID PUBSUB_TOPIC ROOM_COLLECTION_PREFIX ALLOWED_ORIGINS
 
 for command in git gh gcloud node tar; do command -v "$command" >/dev/null || { echo "Missing $command" >&2; exit 1; }; done
@@ -58,6 +59,7 @@ image_name="$ARTIFACT_LOCATION-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REPOSITORY/f
 image_tag="$image_name:$revision"
 build_id="$(gcloud builds submit "$build_dir" --project="$PROJECT_ID" --region="$GCP_REGION" \
   --config="$build_dir/scripts/cloudbuild.yaml" \
+  --gcs-source-staging-dir="gs://$BUILD_SOURCE_BUCKET/source" \
   --service-account="projects/$PROJECT_ID/serviceAccounts/$BUILD_SERVICE_ACCOUNT" \
   --substitutions="_IMAGE=$image_tag,_REVISION=$revision" --async --format='value(id)')"
 gcloud builds log "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" --stream
