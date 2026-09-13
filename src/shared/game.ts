@@ -1,7 +1,7 @@
 import { clipTrailSegment } from './trail-clipping.js';
 import { pickupTypeForRoll } from './pickup-weights.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
-import { createPortalPair, findPortalTransit, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
+import { createPortalPair, findPortalTransit, fitPortalPair, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
   BlastCircle,
   BombAction,
@@ -357,6 +357,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.boundaryInset = INITIAL_BOUNDARY_INSET +
     Math.max(0, elapsed - OVERTIME_START_TICK) * OVERTIME_INSET_PER_TICK;
   const trailBounds = portalBounds(state);
+  if (state.portalPair) state.portalPair = fitPortalPair(state.portalPair, trailBounds, RIDER_RADIUS);
   for (const player of state.players.values()) {
     const clippedTrail: TrailSegment[] = [];
     for (const segment of player.trail) {
@@ -692,7 +693,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     const collector = collectors[0]?.movement.player;
     if (!collector) continue;
     if (pickup.type === 'portal') {
-      // Placement radius already includes gate plus rider; hazard radii add conservative clearance.
+      // Safety disks conservatively cover the entire portal wall plus rider clearance.
       const pair = createPortalPair({ id: `${state.round}:${pickup.id}:${state.tick}`, tick: state.tick,
         bounds: portalBounds(state), riderRadius: RIDER_RADIUS, random: () => nextRandom(state),
         isSafe: (point, radius) => isSafePortalPosition(state, point, radius, movements),

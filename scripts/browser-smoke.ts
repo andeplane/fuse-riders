@@ -134,10 +134,10 @@ try {
   app.advance(2); assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_007), false, 'portal pickup consumed authoritatively');
   assert.ok(app.game.portalPair, 'portal pickup opens an authoritative gate pair');
   const entryGate = app.game.portalPair!.gates[0];
-  const towardCenter = Math.atan2(app.game.height / 2 - entryGate.y, app.game.width / 2 - entryGate.x);
-  poweredRider.x = entryGate.x + Math.cos(towardCenter) * 35;
-  poweredRider.y = entryGate.y + Math.sin(towardCenter) * 35;
-  poweredRider.angle = towardCenter + Math.PI; poweredRider.trail = [];
+  const entrySide = entryGate.x < app.game.width / 2 ? 1 : -1;
+  poweredRider.x = entryGate.x + entrySide * 15;
+  poweredRider.y = entryGate.y;
+  poweredRider.angle = entrySide > 0 ? Math.PI : 0; poweredRider.trail = [];
   app.advance(2); await phones[0].getByText(/PORTAL · PHASE [0-9.]+s/).waitFor();
   assert.ok(poweredRider.portalCooldownUntilTick > app.game.tick, 'gate transit starts authoritative cooldown');
   for (const phone of phones) {

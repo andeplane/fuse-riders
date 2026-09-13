@@ -8,8 +8,8 @@ function arena() {
   for (let slot = 0; slot < 3; slot++) addPlayer(state, { id: `p${slot}`, name: `P${slot}`, slot, color: '#fff' });
   startMatch(state);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(state, new Map());
-  for (const [index, player] of [...state.players.values()].entries()) Object.assign(player, { x: 165 + index * 500, y: 200 + index * 200, angle: 0, trail: [] });
-  state.portalPair = { id: 'pair', gates: [{ x: 200, y: 200 }, { x: 1000, y: 300 }], expiresAtTick: state.tick + 200 };
+  for (const [index, player] of [...state.players.values()].entries()) Object.assign(player, { x: 185 + index * 500, y: 200 + index * 200, angle: 0, trail: [] });
+  state.portalPair = { id: 'pair', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 200 };
   return state;
 }
 
@@ -19,22 +19,22 @@ test('portal transits survivors, breaks trail, preserves heading/charge, counts 
   player.bombChargeStartedTick = state.tick;
   const beforeDistance = state.matchStats.get('p0')!.distanceUnits;
   step(state, new Map());
-  assert.equal(player.x, 1000); assert.equal(player.y, 300); assert.equal(player.angle, 0);
-  assert.equal(player.trail.at(-1)!.x2, 169);
+  assert.equal(player.x, 1012); assert.equal(player.y, 300); assert.equal(player.angle, 0);
+  assert.equal(player.trail.at(-1)!.x2, 189);
   assert.equal(player.portalCooldownUntilTick, state.tick + 15);
   assert.equal(player.portalGraceUntilTick, state.tick + 10);
   assert.equal(state.matchStats.get('p0')!.portalTransits, 1);
   assert.equal(state.matchStats.get('p0')!.distanceUnits - beforeDistance, 4);
   assert.equal(player.bombChargeStartedTick, state.tick - 1);
   step(state, new Map());
-  assert.equal(player.trail.at(-1)!.x1, 1000);
-  assert.equal(player.x, 1007.5);
+  assert.equal(player.trail.at(-1)!.x1, 1012);
+  assert.equal(player.x, 1019.5);
 });
 
 test('entry collision is resolved before transit, and shield remains independent', () => {
   for (const shielded of [false, true]) {
     const state = arena(); const player = state.players.get('p0')!; player.shielded = shielded;
-    state.players.get('p1')!.trail.push({ x1: 168, y1: 100, x2: 168, y2: 250, createdTick: 0, expiresAtTick: 500 });
+    state.players.get('p1')!.trail.push({ x1: 188, y1: 100, x2: 188, y2: 250, createdTick: 0, expiresAtTick: 500 });
     step(state, new Map());
     assert.equal(player.alive, shielded);
     assert.equal(state.matchStats.get('p0')!.portalTransits, shielded ? 1 : 0);
@@ -46,7 +46,7 @@ test('unsafe exit defers teleport for rider, pending trail, trail, bomb and blas
   for (const hazard of ['rider', 'pending', 'trail', 'bomb', 'flight', 'blast'] as const) {
     const state = arena(); const other = state.players.get('p1')!;
     if (hazard === 'rider') Object.assign(other, { x: 999, y: 300 });
-    if (hazard === 'pending') Object.assign(other, { x: 995, y: 307, angle: Math.PI });
+    if (hazard === 'pending') Object.assign(other, { x: 1010, y: 307, angle: Math.PI });
     if (hazard === 'trail') other.trail.push({ x1: 990, y1: 300, x2: 1010, y2: 300, createdTick: 0, expiresAtTick: 500 });
     if (hazard === 'bomb' || hazard === 'flight') state.bombs.set(1, {
       id: 1, ownerId: 'p1', x: hazard === 'bomb' ? 1000 : 1200, y: 300, launchX: 1000, launchY: 300,
@@ -55,7 +55,7 @@ test('unsafe exit defers teleport for rider, pending trail, trail, bomb and blas
     });
     if (hazard === 'blast') state.blasts.push({ bombId: 99, ownerId: 'p1', circle: { x: 1000, y: 300, radius: 10 }, expiresAtTick: 500 });
     step(state, new Map());
-    assert.equal(state.players.get('p0')!.x, 172.5, hazard);
+    assert.equal(state.players.get('p0')!.x, 192.5, hazard);
     assert.equal(state.matchStats.get('p0')!.portalTransits, 0, hazard);
   }
 });
@@ -106,20 +106,20 @@ test('impossible placement leaves pickup and old pair unconsumed', () => {
   state.pickups.push({ id: 50, type: 'portal', x: 170, y: 200, expiresAtTick: 500 });
   step(state, new Map());
   assert.equal(state.pickups.length, 1);
-  assert.equal(state.portalPair!.id, 'pair');
+  assert.equal(state.portalPair, undefined, 'reclaimed wall pair is removed');
   assert.equal(state.matchStats.get('p0')!.portalPickups, 0);
 });
 
 test('reverse transit respects cooldown at its exact deadline after replacement', () => {
   const state = arena(); const player = state.players.get('p0')!;
-  Object.assign(player, { x: 965, y: 300, portalCooldownUntilTick: state.tick + 2 });
+  Object.assign(player, { x: 985, y: 300, portalCooldownUntilTick: state.tick + 2 });
   state.portalPair!.id = 'replacement';
   step(state, new Map());
-  assert.equal(player.x, 972.5);
-  player.x = 965;
+  assert.equal(player.x, 992.5);
+  player.x = 985;
   player.trail = [];
   step(state, new Map());
-  assert.equal(player.x, 200); assert.equal(player.y, 200);
+  assert.equal(player.x, 212); assert.equal(player.y, 200);
   assert.equal(state.matchStats.get('p0')!.portalTransits, 1);
 });
 
@@ -128,23 +128,73 @@ test('portal defensive grace expires exactly at the authoritative tick', () => {
     const state = arena(); const player = state.players.get('p0')!;
     state.portalPair = undefined;
     player.portalGraceUntilTick = state.tick + remaining;
-    state.players.get('p1')!.trail.push({ x1: 168, y1: 100, x2: 168, y2: 250, createdTick: 0, expiresAtTick: 500 });
+    state.players.get('p1')!.trail.push({ x1: 188, y1: 100, x2: 188, y2: 250, createdTick: 0, expiresAtTick: 500 });
     step(state, new Map());
     assert.equal(player.alive, remaining === 2);
   }
 });
 
-test('concurrent riders reserve one linked exit in stable slot order without overlapping', () => {
+test('concurrent riders preserve separate entry heights at the linked wall', () => {
   const state = arena();
-  const first = state.players.get('p0')!;
-  const second = state.players.get('p1')!;
-  Object.assign(first, { x: 168, y: 185, angle: 0 });
-  Object.assign(second, { x: 168, y: 215, angle: 0 });
+  const first = state.players.get('p0')!; const second = state.players.get('p1')!;
+  Object.assign(first, { x: 185, y: 185, angle: 0 });
+  Object.assign(second, { x: 185, y: 215, angle: 0 });
   step(state, new Map());
-  assert.equal(first.alive, true); assert.equal(second.alive, true);
+  assert.equal(state.matchStats.get('p0')!.portalTransits, 1);
+  assert.equal(state.matchStats.get('p1')!.portalTransits, 1);
+  assert.deepEqual({ x: first.x, y: first.y }, { x: 1012, y: 285 });
+  assert.deepEqual({ x: second.x, y: second.y }, { x: 1012, y: 315 });
+});
+
+test('wall placement remains useful on an occupied five-rider field across seeds', () => {
+  let placed = 0;
+  for (let seed = 1; seed <= 50; seed++) {
+    const state = createGame('occupied-walls', seed);
+    for (let slot = 0; slot < 5; slot++) addPlayer(state, { id: `p${slot}`, name: `P${slot}`, slot, color: '#fff' });
+    startMatch(state);
+    for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(state, new Map());
+    for (const [slot, player] of [...state.players.values()].entries()) {
+      const x = 200 + slot * 280; const y = slot % 2 ? 600 : 260;
+      Object.assign(player, { x, y, angle: 0, invulnerableUntilTick: state.tick + 10 });
+      player.trail = Array.from({ length: 30 }, (_, index) => ({
+        x1: x - 150 + index * 5, y1: y + Math.sin(index / 5) * 35,
+        x2: x - 145 + index * 5, y2: y + Math.sin((index + 1) / 5) * 35,
+        createdTick: 0, expiresAtTick: 9999,
+      }));
+    }
+    state.pickups = [{ id: 1, type: 'portal', x: 200, y: 260, expiresAtTick: 9999 }];
+    step(state, new Map());
+    if (state.portalPair) placed++;
+  }
+  assert.ok(placed >= 45, `at least 90% of representative occupied arenas should place walls; got ${placed}/50`);
+});
+
+test('authoritative overtime shrinks portal wall length and removes reclaimed walls from snapshots', () => {
+  const state = arena();
+  state.tick = state.roundStartedTick! + 1200 + 160;
+  state.portalPair!.expiresAtTick = state.tick + 200;
+  state.nextPickupSpawnTick = state.tick + 100;
+  const first = state.portalPair!.gates[0];
+  Object.assign(first, { y: 200, halfLength: 140 });
+  const { snapshot } = step(state, new Map());
+  const gate = snapshot.portalPair!.gates[0];
+  assert.equal(gate.y - gate.halfLength, state.boundaryInset + 12);
+  assert.ok(gate.halfLength <= (state.height - state.boundaryInset * 2) / 6);
+  first.x = 50;
+  // The snapshot and current pair are independent copies.
+  state.portalPair!.gates[0].x = 50;
+  assert.equal(step(state, new Map()).snapshot.portalPair, undefined);
+});
+
+test('compressed linked wall reserves an exit for the first rider rather than overlapping arrivals', () => {
+  const state = arena();
+  state.portalPair!.gates[1].halfLength = 10;
+  const first = state.players.get('p0')!; const second = state.players.get('p1')!;
+  Object.assign(first, { x: 185, y: 185, angle: 0 });
+  Object.assign(second, { x: 185, y: 215, angle: 0 });
+  step(state, new Map());
   assert.equal(state.matchStats.get('p0')!.portalTransits, 1);
   assert.equal(state.matchStats.get('p1')!.portalTransits, 0);
-  assert.deepEqual({ x: first.x, y: first.y }, { x: 1000, y: 300 });
-  assert.deepEqual({ x: second.x, y: second.y }, { x: 175.5, y: 215 });
-  assert.ok(Math.hypot(first.x - second.x, first.y - second.y) > 14);
+  assert.deepEqual({ x: first.x, y: first.y }, { x: 1012, y: 298.5 });
+  assert.deepEqual({ x: second.x, y: second.y }, { x: 192.5, y: 215 });
 });
