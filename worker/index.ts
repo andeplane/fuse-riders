@@ -107,7 +107,10 @@ export class SignalRoom {
     const connectionId=this.dependencies.token(),hostId=await peerId(host);
     const admission=await this.ctx.storage.transaction(async storage=>{
       const members=await storage.get<Membership>('connections')??{};
-      if(Object.keys(members).length>=6&&!members[id])return;
+      // A room created on a phone must retain its creator's connection slot
+      // even when invitations are opened before the creator connects.
+      const capacity=token===host||members[hostId]?6:5;
+      if(Object.keys(members).length>=capacity&&!members[id])return;
       // Existing v1 rooms require a fresh incarnation on their first v2 connection.
       const incarnation=await storage.get<string>('incarnation')??this.dependencies.token();
       await storage.put('incarnation',incarnation);

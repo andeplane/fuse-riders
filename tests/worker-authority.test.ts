@@ -114,3 +114,12 @@ test('Worker rejects malformed clock requests and bounds six active memberships 
   assert.equal(denied.status,429);await f.join(guestToken);
   assert.equal(Object.keys((await f.storage.get<Record<string,string>>('connections'))!).length,6);
 });
+
+test('Worker reserves creator capacity when invitees arrive before the host',async()=>{
+  const f=await fixture();
+  for(const digit of ['b','c','d','e','f'])await f.join(digit.repeat(64));
+  const denied=await f.room.fetch(new Request(`https://game.test/api/rooms/AAAAAAAAAA/ws?token=${'1'.repeat(64)}`,{headers:{Upgrade:'websocket'}}));
+  assert.equal(denied.status,429);
+  const host=await f.join(hostToken);assert.equal(grant(host).epoch,1);
+  assert.equal(Object.keys((await f.storage.get<Record<string,string>>('connections'))!).length,6);
+});
