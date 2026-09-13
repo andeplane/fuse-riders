@@ -1,9 +1,9 @@
 import type { PickupType } from './game.js';
-/** Scale volleys by 45 and other drops by 26: exactly 1.5x previous volley probability after normalization. */
+/** Target has 3x its previous probability; all other drops retain their relative ratios. */
 export const PICKUP_WEIGHTS: ReadonlyArray<Readonly<{ type: PickupType; weight: number }>> = [
-  { type: 'shell', weight: 1 * 26 }, { type: 'blast', weight: 12 * 26 }, { type: 'star', weight: 3 * 26 }, { type: 'beer', weight: 3 * 26 }, { type: 'ink', weight: 3 * 26 },
-  { type: 'triple', weight: 6 * 45 }, { type: 'five', weight: 2 * 45 }, { type: 'target', weight: 2 * 26 },
-  { type: 'orbitShield', weight: 3 * 26 }, { type: 'portal', weight: 3 * 26 },
+  { type: 'shell', weight: 533 }, { type: 'blast', weight: 6396 }, { type: 'star', weight: 1599 }, { type: 'beer', weight: 1599 }, { type: 'ink', weight: 1599 },
+  { type: 'triple', weight: 5535 }, { type: 'five', weight: 1845 }, { type: 'target', weight: 3536 },
+  { type: 'orbitShield', weight: 1599 }, { type: 'portal', weight: 1599 },
 ];
 export function pickupTypeForRoll(roll: number): PickupType {
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new RangeError('roll must be in [0, 1)');
