@@ -56,7 +56,7 @@ export type GameEvent =
   | { type: 'explosion'; bombId: number }
   | { type: 'playerEliminated'; playerId: PlayerId; cause: 'wall' | 'trail' | 'explosion' | 'rider' }
   | { type: 'roundEnded'; winnerId?: PlayerId }
-  | { type: 'matchEnded'; winnerId: PlayerId };
+  | { type: 'matchEnded'; winnerId?: PlayerId };
 export type ErrorCode = 'invalid_message' | 'full' | 'unauthorized' | 'stale' | 'invalid_phase' | 'not_enough_players';
 export type ServerMessage =
   | { type: 'joined'; playerId: PlayerId; playerToken: PlayerToken; slot: number; color: string; nextInputSeq: number }

@@ -1,3 +1,4 @@
+import { roomPickup, type RoomSettings } from './room-settings.js';
 import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
 import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
 import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
@@ -182,6 +183,7 @@ export interface PickupState {
 }
 
 export interface GameState {
+  settings?: RoomSettings;
   matchId: string;
   round: number;
   tick: number;
@@ -346,6 +348,7 @@ export function startNextRound(state: GameState): void {
 export function returnToLobby(state: GameState, newMatchId: string): void {
   const fresh = createGame(newMatchId);
   fresh.leaderboard = state.leaderboard;
+  fresh.settings = state.settings;
   for (const player of sortedPlayers(state)) {
     if (player.connected) addPlayer(fresh, { id: player.id, name: player.name, avatarId: player.avatarId, slot: player.slot, color: player.color, connected: true });
   }
@@ -776,7 +779,8 @@ function prepareRound(state: GameState): void {
 function maybeSpawnPickup(state: GameState): void {
   if (state.pickups.length >= pickupPacing(state.tick - (state.roundStartedTick ?? state.tick)).cap) return;
   const typeRoll = nextRandom(state);
-  const type = pickupTypeForRoll(typeRoll);
+  const type = state.settings ? roomPickup(typeRoll, state.settings.weights) : pickupTypeForRoll(typeRoll);
+  if (!type) return;
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;
   const minimumY = state.boundaryInset + PICKUP_SPAWN_MARGIN;
@@ -1094,7 +1098,7 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
     winner.roundWins += 1;
     winnerId = winner.id;
     state.roundWinnerId = winner.id;
-    if (winner.roundWins >= 3) {
+    if ((state.settings?.match ?? 'wins') === 'wins' && winner.roundWins >= (state.settings?.length ?? 3)) {
       matchWinnerId = winner.id;
       state.matchWinnerId = winner.id;
     }
@@ -1102,12 +1106,18 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
     state.roundWinnerId = undefined;
   }
 
+  const fixedEnd = state.settings?.match === 'rounds' && state.round >= state.settings.length;
+  if (fixedEnd) {
+    const ranking = sortedPlayers(state).sort((a,b)=>b.roundWins-a.roundWins);
+    if (ranking[0] && ranking[0].roundWins > (ranking[1]?.roundWins ?? -1)) matchWinnerId = ranking[0].id;
+    state.matchWinnerId = matchWinnerId;
+  }
   scoreRoundOnce(state, winnerId, matchWinnerId);
   events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
-  if (matchWinnerId !== undefined) {
+  if (matchWinnerId !== undefined || fixedEnd) {
     state.phase = 'matchOver';
     state.phaseEndsAtTick = state.tick + 60;
-    events.push({ type: 'matchEnded', winnerId: matchWinnerId });
+    events.push({ type: 'matchEnded', ...(matchWinnerId ? { winnerId: matchWinnerId } : {}) });
     return;
   }
   state.phase = 'roundOver';
