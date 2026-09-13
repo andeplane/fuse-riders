@@ -1,7 +1,6 @@
 export interface ShellMotion { x: number; y: number; vx: number; vy: number }
 export interface ShellPoint { x: number; y: number; t: number }
 export interface ShellTrail { x1: number; y1: number; x2: number; y2: number }
-export const SHELL_LIFETIME_TICKS = 100;
 export const SHELL_SPEED = 450;
 export const SHELL_RADIUS = 14;
 /** Piecewise path preserves wall contact rather than cutting diagonally across a bounce. */

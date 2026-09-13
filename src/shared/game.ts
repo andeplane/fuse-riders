@@ -1,5 +1,5 @@
 import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
-import { advanceShell, SHELL_LIFETIME_TICKS, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
+import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
 import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
 import { clipTrailSegment } from './trail-clipping.js';
 import { pickupTypeForRoll } from './pickup-weights.js';
@@ -436,7 +436,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const shellPaths = new Map<number, ShellPoint[]>();
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
-    if (state.tick >= bomb.explodeAtTick) { state.bombs.delete(bomb.id); continue; }
+    if (bomb.shell.gun && state.tick >= bomb.explodeAtTick) { state.bombs.delete(bomb.id); continue; }
     if (bomb.shell.gun) {
       const velocity = gunVelocity(bomb.x, bomb.y, bomb.shell.vx, bomb.shell.vy,
         [...state.players.values()].filter(player => player.alive && player.id !== bomb.ownerId));
@@ -476,7 +476,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
-    if (bomb.launchedTick >= state.tick || bomb.landsAtTick < state.tick) continue;
+    if (bomb.launchedTick >= state.tick || (!bomb.shell && bomb.landsAtTick < state.tick)) continue;
     if (!bomb.shell) {
       if (bomb.landsAtTick !== state.tick) continue;
       for (const movement of movements.values()) {
@@ -940,7 +940,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       continue;
     }
     if (action === 'press') {
-      const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
+      const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id && (!bomb.shell || bomb.shell.gun));
       if (player.bombChargeStartedTick === undefined && !ownsBomb && player.bombReadyAtTick <= state.tick) {
         player.bombChargeStartedTick = state.tick;
         if (player.targetBombArmed && !player.shellArmed && !player.gunArmed) player.bombTarget = targetPoint(state, player, command.aim);
@@ -952,16 +952,16 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
     const chargeStartedTick = player.bombChargeStartedTick;
     player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     if (chargeStartedTick === undefined) continue;
-    const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
+    const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id && (!bomb.shell || bomb.shell.gun));
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
     if (player.shellArmed || player.gunArmed) {
       const gun = player.gunArmed === true;
-      const lifetime = gun ? GUN_LIFETIME_TICKS : SHELL_LIFETIME_TICKS;
+      const deadline = gun ? state.tick + GUN_LIFETIME_TICKS : Number.MAX_SAFE_INTEGER;
       const speed = gun ? GUN_SPEED : SHELL_SPEED;
       const id = state.nextBombId++;
       state.bombs.set(id, { id, ownerId: player.id, launchX: player.x, launchY: player.y,
         x: player.x, y: player.y, launchedTick: state.tick, placedTick: state.tick,
-        landsAtTick: state.tick + lifetime, explodeAtTick: state.tick + lifetime,
+        landsAtTick: deadline, explodeAtTick: deadline,
         blastRange: 0, flightPath: [], shell: { vx: Math.cos(player.angle) * speed, vy: Math.sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
       if (gun) player.gunArmed = false; else player.shellArmed = false;
       player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;

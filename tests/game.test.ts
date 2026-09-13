@@ -951,7 +951,7 @@ test('landing step never uses blast radius for contact damage', () => {
   }
 });
 
-test('shell pickup replaces one shot, preserves other upgrades and expires without explosion', () => {
+test('shell persists beyond five seconds and permits another shot after cooldown', () => {
   const state = gameWithPlayers(3); enterPlaying(state);
   const owner = state.players.get('p0')!; owner.x = 500; owner.y = 450; owner.angle = 0;
   state.pickups = [{ id: 999, type: 'shell', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
@@ -961,12 +961,21 @@ test('shell pickup replaces one shot, preserves other upgrades and expires witho
   step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
   assert.equal(state.bombs.size, 1);
   const shell = [...state.bombs.values()][0]!;
-  assert.ok(shell.shell); assert.equal(shell.explodeAtTick - state.tick, 100);
+  assert.ok(shell.shell); assert.equal(shell.explodeAtTick, Number.MAX_SAFE_INTEGER);
   assert.equal(owner.shellArmed, false); assert.equal(owner.fiveShotArmed, true); assert.equal(owner.targetBombArmed, true);
   const snap = toSnapshot(state).bombs[0]!; assert.equal(snap.shell!.vx, 450);
   snap.shell!.vx = -2; assert.equal(shell.shell!.vx, 450);
-  state.tick = shell.explodeAtTick - 1; step(state, new Map());
-  assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 0);
+  shell.x = 800; shell.y = 700;
+  state.tick += 200;
+  shell.explodeAtTick = state.tick - 1;
+  shell.landsAtTick = state.tick - 1;
+  step(state, new Map());
+  assert.ok(state.bombs.has(shell.id)); assert.equal(state.blasts.length, 0);
+  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  assert.notEqual(owner.bombChargeStartedTick, undefined);
+  owner.targetBombArmed = false;
+  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  assert.equal(state.bombs.size, 6);
 });
 test('shell body hits once, shield absorbs it, and no blast radius is produced', () => {
   for (const shield of [false, true]) {

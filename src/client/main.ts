@@ -517,7 +517,7 @@ function startDisplay(): void {
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = '/themes/neon-pixel/pickup-shell.svg'; shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces for 5s · next shot'));
+  const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = '/themes/neon-pixel/pickup-shell.svg'; shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces until hit · next shot'));
   const gunLegend = element('span'); const gunImage = element('img'); gunImage.src = '/themes/neon-pixel/pickup-gun.svg'; gunImage.alt = ''; gunLegend.append(gunImage, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
   const watchLegend = element('span'); const watchImage = element('img'); watchImage.src = '/themes/neon-pixel/pickup-stopwatch.svg'; watchImage.alt = ''; watchLegend.append(watchImage, element('b', '', 'FUSE'), document.createTextNode(' your bombs: 2s → 1.5s → 1s'));
   pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend, gunLegend, watchLegend); lobbyCopy.append(pickupLegend);
