@@ -14,7 +14,7 @@ function playingFrame(tick: number, receivedAt: number, x: number, alive = true)
     matchId: 'match', round: 1, receivedAt,
     snapshot: {
       ...snapshot(), phase: 'playing', tick, round: 1, roundStartedTick: 0,
-      players: [{ id: 'p1', name: 'One', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], blastLevel: 0, invulnerableUntilTick: 0 }],
+      players: [{ id: 'p1', name: 'One', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], blastLevel: 0, invulnerableUntilTick: 0, drunkUntilTick: 0 }],
     },
   };
 }
@@ -77,7 +77,21 @@ test('fast bomb tap and cancellation always send the falling edge', () => {
   state.pointerDown(21, 'bomb');
   state.clear();
   assert.deepEqual(messages.map(({ bomb }) => bomb), [true, false, true, false]);
+  assert.deepEqual(messages.map(({ bombAction }) => bombAction), ['press', 'release', 'press', 'cancel']);
   assert.deepEqual(messages.map(({ seq }) => seq), [0, 1, 2, 3]);
+});
+
+test('pointer cancellation never launches and lost capture after release is a no-op', () => {
+  const messages: ControllerInputMessage[] = [];
+  const state = new ControllerInputState({ send: (message) => { messages.push(message); return true; } });
+  state.pointerDown(7, 'bomb');
+  state.resend();
+  state.pointerCancel(7);
+  assert.equal(state.pointerCancel(7), false);
+  state.pointerDown(8, 'bomb');
+  state.pointerRelease(8);
+  assert.equal(state.pointerCancel(8), false);
+  assert.deepEqual(messages.map(({ bombAction }) => bombAction), ['press', undefined, 'cancel', 'press', 'release']);
 });
 
 test('reconnect can force a neutral sample to rearm bomb edges', () => {
