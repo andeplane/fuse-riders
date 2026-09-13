@@ -109,7 +109,7 @@ export interface GameSnapshot {
     x: number; y: number; angle: number; alive: boolean; roundWins: number;
     bombReadyAtTick: number; bombChargeStartedTick?: number; blastLevel: 0 | 1 | 2;
     invulnerableUntilTick: number; drunkUntilTick: number;
-    tripleShotArmed: boolean; homingArmed: boolean;
+    tripleShotArmed: boolean;
     shielded: boolean; shieldGraceUntilTick: number;
     trail: ReadonlyArray<TrailSegment>;
   }>;
@@ -118,13 +118,12 @@ export interface GameSnapshot {
     x: number; y: number; launchedTick: number; landsAtTick: number;
     explodeAtTick: number; blastRange: number;
     flightPath: ReadonlyArray<{ x: number; y: number; angle: number }>;
-    homingTargetId?: PlayerId; homingTargetX?: number; homingTargetY?: number;
   }>;
   blasts: ReadonlyArray<{
     bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number;
   }>;
   pickups: ReadonlyArray<{
-    id: number; type: 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield';
+    id: number; type: 'blast' | 'star' | 'beer' | 'triple' | 'orbitShield';
     x: number; y: number; expiresAtTick: number;
   }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;

@@ -37,7 +37,6 @@ import {
   bombLaunchDistance,
 } from './bomb-launch.js';
 import {
-  createHomingFlightPath,
   createVolleyFlightPaths,
   type LaunchBounds,
 } from './launch-modifiers.js';
@@ -94,7 +93,7 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
-export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield' | 'portal';
+export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'orbitShield' | 'portal';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -123,7 +122,6 @@ export interface PlayerState extends Required<PlayerIdentity> {
   invulnerableUntilTick: number;
   drunkUntilTick: number;
   tripleShotArmed: boolean;
-  homingArmed: boolean;
   shielded: boolean;
   shieldGraceUntilTick: number;
   portalCooldownUntilTick: number;
@@ -141,9 +139,6 @@ export interface BombState {
   launchedTick: number;
   landsAtTick: number;
   flightPath: FlightPoint[];
-  homingTargetId?: PlayerId;
-  homingTargetX?: number;
-  homingTargetY?: number;
   placedTick: number;
   explodeAtTick: number;
   blastRange: number;
@@ -267,7 +262,6 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     invulnerableUntilTick: 0,
     drunkUntilTick: 0,
     tripleShotArmed: false,
-    homingArmed: false,
     shielded: false,
     shieldGraceUntilTick: 0,
     portalCooldownUntilTick: 0,
@@ -558,7 +552,6 @@ export function toSnapshot(state: GameState): GameSnapshot {
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
       tripleShotArmed: player.tripleShotArmed,
-      homingArmed: player.homingArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
       portalCooldownUntilTick: player.portalCooldownUntilTick,
@@ -575,11 +568,6 @@ export function toSnapshot(state: GameState): GameSnapshot {
       launchedTick: bomb.launchedTick,
       landsAtTick: bomb.landsAtTick,
       flightPath: bomb.flightPath.map((point) => ({ ...point })),
-      ...(bomb.homingTargetId === undefined ? {} : {
-        homingTargetId: bomb.homingTargetId,
-        homingTargetX: bomb.homingTargetX,
-        homingTargetY: bomb.homingTargetY,
-      }),
       explodeAtTick: bomb.explodeAtTick,
       blastRange: bomb.blastRange,
     })),
@@ -633,7 +621,6 @@ function prepareRound(state: GameState): void {
     player.invulnerableUntilTick = 0;
     player.drunkUntilTick = 0;
     player.tripleShotArmed = false;
-    player.homingArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
     player.portalCooldownUntilTick = 0;
@@ -652,7 +639,7 @@ function prepareRound(state: GameState): void {
 function maybeSpawnPickup(state: GameState): void {
   if (state.pickups.length >= MAX_ACTIVE_PICKUPS) return;
   const typeRoll = nextRandom(state);
-  const pickupTypes: readonly PickupType[] = ['blast', 'star', 'beer', 'triple', 'homing', 'orbitShield', 'portal'];
+  const pickupTypes: readonly PickupType[] = ['blast', 'star', 'beer', 'triple', 'orbitShield', 'portal'];
   const type = pickupTypes[Math.min(pickupTypes.length - 1, Math.floor(typeRoll * pickupTypes.length))]!;
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;
@@ -725,8 +712,6 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       }
     } else if (pickup.type === 'triple') {
       collector.tripleShotArmed = true;
-    } else if (pickup.type === 'homing') {
-      collector.homingArmed = true;
     } else if (pickup.type === 'orbitShield') {
       collector.shielded = true;
     }
@@ -819,14 +804,10 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       minY: state.boundaryInset + RIDER_RADIUS,
       maxY: state.height - state.boundaryInset - RIDER_RADIUS,
     };
-    const target = player.homingArmed ? nearestHomingTarget(state, player) : undefined;
     const paths = player.tripleShotArmed
-      ? createVolleyFlightPaths(player, player.angle, distance, bounds, target)
-      : [target
-          ? createHomingFlightPath({ x: player.x, y: player.y, angle: player.angle }, target, distance, bounds)
-          : createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
+      ? createVolleyFlightPaths(player, player.angle, distance, bounds)
+      : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
     player.tripleShotArmed = false;
-    player.homingArmed = false;
     for (const flightPath of paths) {
       const landing = flightPath[flightPath.length - 1]!;
       const bomb: BombState = {
@@ -842,11 +823,6 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         explodeAtTick: state.tick + BOMB_FUSE_TICKS,
         blastRange: BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE,
         flightPath,
-        ...(target === undefined ? {} : {
-          homingTargetId: target.id,
-          homingTargetX: target.x,
-          homingTargetY: target.y,
-        }),
       };
       state.bombs.set(bomb.id, bomb);
       recordBombPlaced(state.matchStats, player.id);
@@ -854,12 +830,6 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
     }
     player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
   }
-}
-
-function nearestHomingTarget(state: GameState, player: PlayerState): PlayerState | undefined {
-  return sortedPlayers(state)
-    .filter((candidate) => candidate.alive && candidate.id !== player.id)
-    .sort((a, b) => square(a.x - player.x) + square(a.y - player.y) - square(b.x - player.x) - square(b.y - player.y) || a.id.localeCompare(b.id))[0];
 }
 
 function createStraightFlightPath(x: number, y: number, angle: number, distance: number, bounds: LaunchBounds): FlightPoint[] {

@@ -336,23 +336,21 @@ test('a flying bomb cannot explode or chain-trigger before landing', () => {
   assert.equal(state.bombs.has(1), true);
 });
 
-test('Triple Shot and Homing Spark compose into one deterministic three-bomb volley', () => {
+test('Triple Shot releases one deterministic straight three-bomb volley', () => {
   const state = gameWithPlayers(3, 'modifier-launch', 99);
   enterPlaying(state);
   const owner = state.players.get('p0')!;
   owner.x = 500; owner.y = 450; owner.angle = 0;
-  owner.tripleShotArmed = true; owner.homingArmed = true;
+  owner.tripleShotArmed = true;
   state.players.get('p1')!.x = 850; state.players.get('p1')!.y = 600;
   state.players.get('p2')!.x = 1300; state.players.get('p2')!.y = 700;
   const result = step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
   const bombs = [...state.bombs.values()];
   assert.equal(bombs.length, 3);
   assert.equal(result.events.filter((event) => event.type === 'bombPlaced').length, 3);
-  assert.ok(bombs.every((bomb) => bomb.flightPath.length === 7 && bomb.homingTargetId === 'p1'));
-  assert.ok(bombs.every((bomb) => bomb.homingTargetX === state.players.get('p1')!.x && bomb.homingTargetY === state.players.get('p1')!.y));
+  assert.ok(bombs.every((bomb) => bomb.flightPath.length === 7));
   assert.notEqual(bombs[0]!.flightPath[1]!.y, bombs[2]!.flightPath[1]!.y);
   assert.equal(owner.tripleShotArmed, false);
-  assert.equal(owner.homingArmed, false);
   assert.equal(state.matchStats.get('p0')!.bombsPlaced, 3);
   assert.equal(owner.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
   const snapshot = toSnapshot(state).bombs;
@@ -364,13 +362,12 @@ test('invalid release and cancellation preserve launch modifiers', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
   const owner = state.players.get('p0')!;
-  owner.tripleShotArmed = true; owner.homingArmed = true;
+  owner.tripleShotArmed = true;
   step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
   step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
   step(state, inputs(['p0', { bomb: false, bombActions: ['cancel'] }]));
   assert.equal(state.bombs.size, 0);
   assert.equal(owner.tripleShotArmed, true);
-  assert.equal(owner.homingArmed, true);
 });
 
 test('round wins score once, first to five ends the match, and rematch resets wins and scope', () => {
@@ -668,16 +665,15 @@ test('modifier pickups arm one use, refresh without stacking, and reset between 
   const player = state.players.get('p0')!;
   player.x = 500; player.y = 450; player.angle = 0;
   state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
-  state.pickups = (['triple', 'homing', 'orbitShield'] as const).map((type, index) => ({
+  state.pickups = (['triple', 'orbitShield'] as const).map((type, index) => ({
     id: index + 1, type, x: 502 + index * 2, y: 450, expiresAtTick: state.tick + 100,
   }));
   step(state, new Map());
   assert.equal(player.tripleShotArmed, true);
-  assert.equal(player.homingArmed, true);
   assert.equal(player.shielded, true);
   assert.deepEqual(
-    [state.matchStats.get('p0')!.triplePickups, state.matchStats.get('p0')!.homingPickups, state.matchStats.get('p0')!.shieldPickups],
-    [1, 1, 1],
+    [state.matchStats.get('p0')!.triplePickups, state.matchStats.get('p0')!.shieldPickups],
+    [1, 1],
   );
   state.pickups = [{ id: 9, type: 'triple', x: player.x + 2, y: player.y, expiresAtTick: state.tick + 10 }];
   step(state, new Map());
@@ -688,7 +684,6 @@ test('modifier pickups arm one use, refresh without stacking, and reset between 
   state.tick = state.phaseEndsAtTick!;
   startNextRound(state);
   assert.equal(player.tripleShotArmed, false);
-  assert.equal(player.homingArmed, false);
   assert.equal(player.shielded, false);
   assert.equal(player.shieldGraceUntilTick, 0);
 });

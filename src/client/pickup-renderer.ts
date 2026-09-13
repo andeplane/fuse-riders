@@ -56,8 +56,6 @@ function fallbackPowerup(ctx: CanvasRenderingContext2D, type: PickupType, x: num
   if (type === 'triple') {
     ctx.fillStyle = '#ff55bd';
     for (const offset of [-.24, 0, .24]) { ctx.beginPath(); ctx.arc(x + size * offset, y, size * .13, 0, Math.PI * 2); ctx.fill(); }
-  } else if (type === 'homing') {
-    ctx.strokeStyle = '#7dff6a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, size * .3, 0, Math.PI * 2); ctx.stroke(); ctx.fillRect(x - 2, y - 2, 4, 4);
   } else if (type === 'orbitShield') {
     ctx.strokeStyle = '#5cf4ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, size * .35, 0, Math.PI * 2); ctx.stroke();
   } else {
@@ -96,7 +94,7 @@ export function drawPickups(
     const image = pickupImage(theme, pickup.type);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'homing' ? '#7dff6a' : pickup.type === 'orbitShield' ? '#5cf4ff' : pickup.type === 'triple' ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
+    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'orbitShield' ? '#5cf4ff' : pickup.type === 'triple' ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
     ctx.shadowBlur = 5;
     if (image?.complete && image.naturalWidth > 0) ctx.drawImage(image, pickup.x - size / 2, pickup.y - size / 2, size, size);
     else if (pickup.type === 'blast') fallbackCross(ctx, pickup.x, pickup.y, size);
@@ -104,9 +102,9 @@ export function drawPickups(
     else if (pickup.type === 'star') fallbackStar(ctx, pickup.x, pickup.y, size);
     else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
-    const labels: Record<PickupType, string> = { blast: 'BLAST+', star: 'STAR', beer: 'BEER', triple: 'TRIPLE', homing: 'HOMING', orbitShield: 'SHIELD', portal: 'PORTAL' };
+    const labels: Record<PickupType, string> = { blast: 'BLAST+', star: 'STAR', beer: 'BEER', triple: 'TRIPLE', orbitShield: 'SHIELD', portal: 'PORTAL' };
     const text = labels[pickup.type];
-    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'homing' ? '#9dff8e' : pickup.type === 'orbitShield' ? '#8ff8ff' : pickup.type === 'triple' ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
+    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : pickup.type === 'triple' ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);
   }
 }

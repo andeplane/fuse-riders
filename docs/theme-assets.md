@@ -9,7 +9,7 @@ The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` sup
 | `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and blast art. |
 | `pickup-blast.svg`, `pickup-star.svg` | Larger explosions and invincibility. |
 | `pickup-beer.svg` | Opponent wobble. |
-| `pickup-triple.svg`, `pickup-homing.svg` | Triple Shot and Homing Spark. |
+| `pickup-triple.svg` | Triple Shot. |
 | `pickup-orbitShield.svg`, `pickup-portal.svg` | Orbit Shield and Portal. |
 
 All sprites have transparent 32×32 SVG viewboxes. The rider points right at angle zero, centered at `[16,16]`. Recoloring preserves white highlights and dark interiors. Bombs keep a dark body with a procedural fuse ring. Pickup icons use `[16,16]` anchors; flame source art uses `[16,27]`. Charge indicators, bomb flight/release effects, shield orbits, and linked portal rings are rendered procedurally using the active palette. Art never changes server hitboxes.

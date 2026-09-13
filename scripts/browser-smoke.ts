@@ -96,13 +96,9 @@ try {
   app.game.pickups.push({ id: 9_004, type: 'triple', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_004), false, 'triple pickup consumed authoritatively');
-  app.game.pickups.push({ id: 9_005, type: 'homing', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('HOMING · ARMED', { exact: true }).waitFor();
-  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_005), false, 'homing pickup consumed authoritatively');
   await phones[0].screenshot({ path: 'artifacts/phone-armed-portrait.png' });
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
-  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 3, 'combined Triple and Homing release launches one three-bomb volley');
-  assert.ok([...app.game.bombs.values()].every((bomb) => bomb.homingTargetId), 'all volley bombs capture a homing target');
+  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 3, 'Triple Shot release launches one three-bomb volley');
   await phones[0].locator('.bomb.launching').waitFor();
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();

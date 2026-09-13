@@ -1,6 +1,6 @@
 # ADR-012: Homing Spark launch modifier
 
-- Status: Accepted
+- Status: Superseded by ADR-016; retained as historical design. Previously Accepted
 - Date: 2026-09-13
 
 ## Context

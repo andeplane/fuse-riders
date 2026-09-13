@@ -28,7 +28,6 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 | Star | Protects against hazards for 2.5 seconds; walls bounce you back into play. |
 | Beer Worms | Makes the other living riders wobble for four seconds. You can still steer. |
 | Triple Shot | Your next accepted release launches three bombs in a fan. |
-| Homing Spark | Your next volley curves toward the nearest living opponent's position captured at release. Combines with Triple Shot. |
 | Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
 | Portal | Creates two linked gates for ten seconds. Enter either to exit the other with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
 

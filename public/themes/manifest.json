@@ -82,16 +82,6 @@
       "tint": false,
       "description": "Three-arrow fan for the next three-bomb volley."
     },
-    "pickup-homing": {
-      "file": "pickup-homing.svg",
-      "anchor": [
-        16,
-        16
-      ],
-      "baseAngle": 0,
-      "tint": false,
-      "description": "Target icon for a volley that curves toward a captured opponent position."
-    },
     "pickup-orbitShield": {
       "file": "pickup-orbitShield.svg",
       "anchor": [
