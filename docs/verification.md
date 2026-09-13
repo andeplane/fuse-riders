@@ -2,11 +2,11 @@
 
 ## Final release verification
 
-The latest full behavioral run passes **102 tests** with **99.15% lines/statements, 93.82% branches, and 99.23% functions**. Verified with `npm run test:coverage`; machine-readable totals are in `coverage/coverage-summary.json`. It includes all seven pickups, charged bomb release, Triple Shot/Homing composition, Orbit Shield, safe Portal transit, match statistics, session scoring, protocol, server, controller state, and snapshot projection.
+The latest full behavioral run passes **113 tests** with **99.13% lines/statements, 94.13% branches, and 99.21% functions**. Verified with `npm run test:coverage`; machine-readable totals are in `coverage/coverage-summary.json`. It includes all seven pickups, charged bomb release, Triple/Five Shot precedence, Orbit Shield, safe Portal transit, match statistics, session scoring, protocol, server, controller state, and snapshot projection.
 
-Portal coverage includes entry hazards before teleport, failed placement retaining the pickup, safe exit checks against heads/trails/bomb flight/blasts, trail breaks, exact cooldown/grace deadlines, replacement, round resets, compact snapshot omission, and simultaneous riders reserving a shared exit. Homing tests verify that target positions come from the same committed simulation tick regardless of player slot.
+Portal coverage includes entry hazards before teleport, failed placement retaining the pickup, safe exit checks against heads/trails/bomb flight/blasts, trail breaks, exact cooldown/grace deadlines, replacement, round resets, compact snapshot omission, and simultaneous riders reserving a shared exit. Circular-blast tests verify diagonal damage, trail clearing and chain reactions. Shrinking-field tests check trail geometry and visual clipping. Seeded Beer Worms tests measure over 2.3 times the original turning.
 
-`npm run build` and TypeScript checking pass. The final combined browser smoke passes in Chrome and WebKit, including all seven pickups, Portal transit, a combined Triple Shot/Homing volley, authoritative phone launch feedback, and portrait/landscape layouts without overflow.
+`npm run build` and TypeScript checking pass. The final combined browser smoke passes in Chrome and WebKit, including all seven pickups, Portal transit, a Five Shot volley after collecting Triple Shot, authoritative phone launch feedback, and portrait/landscape layouts without overflow.
 
 ## Browser and performance evidence
 

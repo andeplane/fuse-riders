@@ -24,14 +24,15 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 
 | Drop | Effect |
 | --- | --- |
-| Blast | Increases future explosion range by 75 units, up to two upgrades. |
+| Blast | Increases circular explosion radius by 75 units, up to two upgrades. |
 | Star | Protects against hazards for 2.5 seconds; walls bounce you back into play. |
-| Beer Worms | Makes the other living riders wobble for four seconds. You can still steer. |
+| Beer Worms | Makes the other living riders swerve violently for four seconds. You can still steer. |
 | Triple Shot | Your next accepted release launches three bombs in a fan. |
+| Five Shot | Your next accepted release launches five bombs in a wider fan. Three times rarer than Triple Shot; collecting Triple preserves an armed Five Shot. |
 | Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
 | Portal | Creates two linked gates for ten seconds. Enter either to exit the other with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
 
-Riders collide with walls, eight-second trails, other riders, and explosions. Bombs clear trail segments and chain nearby landed bombs. Upgrades reset each round. After 60 seconds the boundary shrinks; at 90 seconds, remaining riders draw. Simultaneous final deaths also draw. The next round starts automatically after the three-second results pause when at least two players remain connected.
+Riders collide with walls, eight-second trails, other riders, and explosions. Bombs clear trail segments and chain nearby landed bombs. Upgrades reset each round. After 60 seconds the boundary shrinks and trims trails at its edge; at 90 seconds, remaining riders draw. Simultaneous final deaths also draw. The next round starts automatically after the three-second results pause when at least two players remain connected.
 
 ## Scores and stats
 
