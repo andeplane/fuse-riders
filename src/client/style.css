@@ -224,3 +224,7 @@ button { color: inherit; }
 .controller-shell .control-button { border-color: var(--player-color); color: #f4f8ff; text-shadow: none; background: linear-gradient(150deg, color-mix(in srgb, var(--player-color) 38%, #07101e), color-mix(in srgb, var(--player-color) 14%, #050b18)); box-shadow: inset 0 0 24px color-mix(in srgb, var(--player-color) 12%, transparent); }
 .controller-shell .control-button.active { border-color: white; background: color-mix(in srgb, var(--player-color) 55%, #07101e); box-shadow: inset 0 0 30px color-mix(in srgb, var(--player-color) 30%, transparent); }
 .controller-shell .control-button.bomb::before { background: linear-gradient(90deg, var(--player-color) var(--charge, 0%), #ffffff18 var(--charge, 0%)); box-shadow: 0 0 8px var(--player-color); }
+
+.ai-remove{margin-left:auto;background:#08152b;color:#eefaff;border:1px solid #365477;min-width:36px;min-height:36px;cursor:pointer}.ai-remove:disabled{opacity:.4}
+
+.host-tools{display:flex;gap:6px;align-items:center}

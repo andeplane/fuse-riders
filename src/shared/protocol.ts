@@ -21,7 +21,8 @@ export type ClientMessage =
   | { type: 'ping'; id: number; sentAt: number }
   | { type: 'leave' }
   | { type: 'hostAuth'; token: string }
-  | { type: 'hostAction'; action: 'start' | 'nextRound' | 'rematch' | 'lobby' };
+  | { type: 'hostAction'; action: 'start' | 'nextRound' | 'rematch' | 'lobby' }
+  | { type: 'hostBot'; action: 'add' | 'remove'; id?:string };
 export interface TrailSegment { x1: number; y1: number; x2: number; y2: number; createdTick: number; expiresAtTick: number }
 export interface BlastCircle { x: number; y: number; radius: number }
 export interface GameSnapshot {
@@ -97,6 +98,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case 'heartbeat': case 'leave': return keys('type') ? v as ClientMessage : null;
     case 'ping': return keys('type', 'id', 'sentAt') && Number.isSafeInteger(v.id) && (v.id as number) >= 0 && typeof v.sentAt === 'number' && Number.isFinite(v.sentAt) && v.sentAt >= 0 ? v as ClientMessage : null;
     case 'hostAuth': return keys('type', 'token') && token(v.token) ? v as ClientMessage : null;
+    case 'hostBot': return keys('type','action','id') && (v.action==='add' ? v.id===undefined : v.action==='remove'&&typeof v.id==='string'&&/^bot:[0-9]+$/.test(v.id)&&v.id.length<=128) ? v as ClientMessage : null;
     case 'hostAction': return keys('type', 'action') && ['start', 'nextRound', 'rematch', 'lobby'].includes(v.action as string) ? v as ClientMessage : null;
     default: return null;
   }

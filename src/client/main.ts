@@ -1,3 +1,4 @@
+import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { assetUrl } from './asset-url.js';
 import { drawBombTargets } from './target-renderer.js';
@@ -480,6 +481,7 @@ function startDisplay(): void {
   const timer = element('div', 'timer');
   timer.append(element('span', 'eyebrow', 'ROUND'), element('strong', '', '--:--'));
   const connection = element('span', 'connection', 'CONNECTING');
+  const addAIButton=element('button','leaderboard-toggle','ADD AI');addAIButton.type='button';addAIButton.disabled=true;
   const menuButton = element('button', 'leaderboard-toggle', 'MENU');
   menuButton.type = 'button'; menuButton.setAttribute('aria-label', 'Main menu'); menuButton.title = 'End current game and return to main menu'; menuButton.disabled = true;
   const leaderboardButton = element('button', 'leaderboard-toggle hidden', '🏆 SESSION');
@@ -491,7 +493,8 @@ function startDisplay(): void {
   }
   const fullscreen = element('button', 'fullscreen fullscreen-toolbar', '⛶');
   fullscreen.type = 'button'; fullscreen.title = 'Fullscreen'; fullscreen.setAttribute('aria-label', 'Fullscreen');
-  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, fullscreen, menuButton, connection);
+  const hostTools=element('div','host-tools');hostTools.append(addAIButton,menuButton);
+  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, fullscreen, hostTools, connection);
 
   const stage = element('section', 'stage');
   let canvas = element('canvas', 'arena');
@@ -610,7 +613,7 @@ function startDisplay(): void {
   });
 
   function renderRoster(snapshot?: ViewSnapshot): void {
-    const signature = snapshot?.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.avatarId}:${player.connected}`).join('|') ?? 'empty';
+    const signature = snapshot?.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.avatarId}:${player.connected}`).join('|') + `:${authenticated}:${snapshot?.phase}`;
     if (signature === rosterSignature) return;
     rosterSignature = signature;
     roster.replaceChildren();
@@ -625,6 +628,7 @@ function startDisplay(): void {
       const details = element('div', 'seat-details');
       details.append(element('strong', '', player?.name ?? 'OPEN SLOT'), element('small', '', player ? (player.connected ? 'READY' : 'RECONNECTING') : 'SCAN TO JOIN'));
       seat.append(marker, details);
+      if(player?.id.startsWith(BOT_ID_PREFIX)){const remove=element('button','ai-remove','×');remove.type='button';remove.setAttribute('aria-label',`Remove ${player.name}`);remove.title='Remove AI between rounds or return to menu';remove.disabled=!authenticated||!['lobby','roundOver','matchOver'].includes(snapshot!.phase);remove.onclick=()=>socket.send({type:'hostBot',action:'remove',id:player.id});seat.append(remove);}
       roster.append(seat);
     }
   }
@@ -743,6 +747,7 @@ function startDisplay(): void {
     lobby.classList.toggle('hidden', snapshot.phase !== 'lobby');
     const finalRoundPause = snapshot.phase === 'matchOver' && snapshot.phaseEndsAtTick !== undefined && snapshot.tick < snapshot.phaseEndsAtTick;
     matchRecap.classList.toggle('hidden', snapshot.phase !== 'matchOver' || finalRoundPause);
+    addAIButton.disabled=!authenticated||snapshot.players.length>=5;
     menuButton.disabled = !authenticated || snapshot.phase === 'lobby';
     recapAction.disabled = !authenticated || playerCount < 2;
     if (snapshot.phase === 'lobby') {
@@ -842,6 +847,7 @@ function startDisplay(): void {
     socket.send({ type: 'hostAuth', token: hostToken });
   });
 
+  addAIButton.addEventListener('click',()=>socket.send({type:'hostBot',action:'add'}));
   menuButton.addEventListener('click', () => {
     if (authenticated && latest?.snapshot.phase !== 'lobby') socket.send({ type: 'hostAction', action: 'lobby' });
   });

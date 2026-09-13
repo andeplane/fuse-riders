@@ -1,3 +1,4 @@
+import { BotController, BOT_ID_PREFIX, botRandom, type BotDependencies } from '../shared/bot-controller.js';
 import http from 'node:http';
 import { BombInputBuffer } from './bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -25,6 +26,7 @@ interface Seat {
 interface Connection { host: boolean; seat?: Seat; lastSeen: number; window: number; count: number }
 export interface ServerDependencies {
   now: () => number;
+  botRandom: BotDependencies['random'];
   token: () => string;
   schedule: (callback: () => void, intervalMs: number) => () => void;
 }
@@ -43,13 +45,14 @@ export function catchUpSteps(elapsed: number) { return Math.min(5, Math.max(0, M
 
 export async function createGameServer(options: ServerOptions = {}) {
   const dependencies: ServerDependencies = {
-    now: () => performance.now(), token: secret,
+    now: () => performance.now(), token: secret, botRandom,
     schedule: (callback, interval) => { const timer = setInterval(callback, interval); return () => clearInterval(timer); },
     ...options.dependencies,
   };
   const game = createGame(dependencies.token());
   const hostToken = dependencies.token();
   const seats = new Map<string, Seat>();
+  const bots=new Set<string>(),botController=new BotController({random:dependencies.botRandom});
   const connections = new Map<WebSocket, Connection>();
   const joins = new Map<string, { since: number; count: number }>();
   let controllerUrl = '';
@@ -110,7 +113,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       removePlayer(game, id); seats.delete(id);
     }
   }
-  function connectedCount() { return [...seats.values()].filter(s => s.socket && !s.leaving).length; }
+  function connectedCount() { return [...seats.values()].filter(s => s.socket && !s.leaving).length+bots.size; }
   function hostAction(ws: WebSocket, action: 'start' | 'nextRound' | 'rematch' | 'lobby') {
     if (action === 'lobby') {
       returnToLobby(game, dependencies.token());
@@ -150,6 +153,20 @@ export async function createGameServer(options: ServerOptions = {}) {
         }
         c.host = true; send(ws, { type: 'hostAuthenticated' }); snapshot(ws); return;
       }
+      if(message.type==='hostBot'){
+        if(!c.host){error(ws,'unauthorized');return;}
+        if(message.action==='add'){
+          if(game.players.size>=5||game.leaderboard.size>=128){error(ws,'full');return;}
+          const slot=COLORS.findIndex((_,slot)=>![...game.players.values()].some(player=>player.slot===slot));
+          let number=1;while(game.leaderboard.has(`${BOT_ID_PREFIX}${number}`))number++;
+          const id=`${BOT_ID_PREFIX}${number}`;addPlayer(game,{id,name:`AI ${['Ada','Turing','Hopper','Nova','Byte'][slot]}`,slot,color:COLORS[slot]!,avatarId:'robot',connected:true});bots.add(id);
+        }else{
+          if(!['lobby','roundOver','matchOver'].includes(game.phase)){error(ws,'invalid_phase');return;}
+          if(!message.id||!bots.has(message.id)){error(ws,'invalid_message');return;}
+          removePlayer(game,message.id);bots.delete(message.id);
+        }
+        snapshot();return;
+      }
       if (message.type === 'hostAction') {
         if (!c.host || c.seat) { error(ws, 'unauthorized'); return; }
         hostAction(ws, message.action); return;
@@ -170,8 +187,8 @@ export async function createGameServer(options: ServerOptions = {}) {
           if (old) { connections.delete(old); old.close(4001, 'Controller replaced'); }
           neutral(seat, true);
         } else {
-          if (seats.size >= 5) { error(ws, 'full'); return; }
-          const slot = COLORS.findIndex((_, i) => ![...seats.values()].some(s => s.slot === i));
+          if (game.players.size >= 5) { error(ws, 'full'); return; }
+          const slot = COLORS.findIndex((_, i) => ![...game.players.values()].some(s => s.slot === i));
           seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, bombInput: new BombInputBuffer(), leaving: false };
           addPlayer(game, { id: seat.id, name: message.name, avatarId: message.avatarId, slot, color: COLORS[slot], connected: true });
           seats.set(seat.id, seat);
@@ -210,6 +227,7 @@ export async function createGameServer(options: ServerOptions = {}) {
         if (!seat.socket || game.tick - seat.inputTick >= 10) neutral(seat);
         inputs.set(seat.id, { ...seat.intent, bombCommands: seat.bombInput.drainCommands() });
       }
+      for(const id of bots)inputs.set(id,botController.input(game,id));
       const result = step(game, inputs);
       for (const seat of seats.values()) if (seat.socket && seat.seq > seat.appliedSeq) {
         seat.appliedSeq = seat.seq;
