@@ -452,17 +452,25 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   const causes = new Map<PlayerId, EliminationCause>();
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
-  // Sweep relative motion so a fast projectile cannot tunnel through a rider.
+  // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
     if (bomb.launchedTick >= state.tick || bomb.landsAtTick < state.tick) continue;
-    const index = Math.min(bomb.flightPath.length - 1, state.tick - bomb.launchedTick);
-    const from = bomb.flightPath[Math.max(0, index - 1)]; const to = bomb.flightPath[index];
-    const path = shellPaths.get(bomb.id) ?? (from && to ? [{ ...from, t: 0 }, { ...to, t: 1 }] : []);
-    let hit: Movement | undefined; let hitTime = Infinity; let hitX = 0; let hitY = 0;
+    if (!bomb.shell) {
+      if (bomb.landsAtTick !== state.tick) continue;
+      for (const movement of movements.values()) {
+        if (movement.player.id === bomb.ownerId || isHazardImmune(movement.player, state.tick)) continue;
+        if (square(movement.x - bomb.x) + square(movement.y - bomb.y) <= square(RIDER_RADIUS + SHELL_RADIUS)) {
+          markCause(causes, causeOwners, movement.player.id, 'explosion', bomb.ownerId);
+        }
+      }
+      continue;
+    }
+    const path = shellPaths.get(bomb.id) ?? [];
+    let hit: Movement | undefined; let hitTime = Infinity;
     for (let i = 1; i < path.length; i++) {
       const start = path[i - 1]!; const end = path[i]!;
       for (const movement of movements.values()) {
-        if ((movement.player.id === bomb.ownerId && (!bomb.shell || state.tick - bomb.launchedTick < 6)) || isHazardImmune(movement.player, state.tick)) continue;
+        if ((movement.player.id === bomb.ownerId && (state.tick - bomb.launchedTick < 6)) || isHazardImmune(movement.player, state.tick)) continue;
         const mx = movement.x - movement.oldX; const my = movement.y - movement.oldY;
         const px = start.x - movement.oldX - mx * start.t; const py = start.y - movement.oldY - my * start.t;
         const vx = end.x - start.x - mx * (end.t - start.t); const vy = end.y - start.y - my * (end.t - start.t);
@@ -473,15 +481,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         const contact = c <= 0 ? 0 : a > 0 && discriminant >= 0 ? (-b - Math.sqrt(discriminant)) / (2 * a) : Infinity;
         const time = start.t + contact * (end.t - start.t);
         if (contact >= 0 && contact <= 1 && time < hitTime) {
-          hit = movement; hitTime = time; hitX = start.x + (end.x - start.x) * contact; hitY = start.y + (end.y - start.y) * contact;
+          hit = movement; hitTime = time;
         }
       }
     }
     if (hit) {
       markCause(causes, causeOwners, hit.player.id, 'explosion', bomb.ownerId);
-      if (bomb.shell) { state.bombs.delete(bomb.id); continue; }
-      bomb.x = hitX; bomb.y = hitY; bomb.landsAtTick = state.tick;
-      bomb.flightPath = [{ x: bomb.x, y: bomb.y, angle: to?.angle ?? 0 }];
+      state.bombs.delete(bomb.id);
     }
   }
 

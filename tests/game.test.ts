@@ -856,11 +856,11 @@ test('radial blast hits diagonal riders, clears diagonal trails and chains diago
   assert.ok(distant.trail.every(t => t.x1 !== 560));
 });
 
-test('flying bombs hit moving opponents before detonation, respecting star and shield', () => {
+test('bomb landing hits a rider before detonation, respecting star and shield', () => {
   for (const protection of ['none', 'star', 'shield'] as const) {
     const state = gameWithPlayers(3); enterPlaying(state);
     const victim = state.players.get('p1')!;
-    victim.x = 550; victim.y = 450; victim.angle = Math.PI / 2;
+    victim.x = 1055; victim.y = 450; victim.angle = 0;
     victim.invulnerableUntilTick = protection === 'star' ? state.tick + 20 : 0;
     victim.shielded = protection === 'shield';
     const owner = state.players.get('p0')!; owner.x = 500; owner.y = 450;
@@ -869,6 +869,8 @@ test('flying bombs hit moving opponents before detonation, respecting star and s
     state.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 500, launchY: 450, x: 1100, y: 450,
       placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + 6, explodeAtTick: state.tick + 40,
       blastRange: 90, flightPath: Array.from({ length: 7 }, (_, i) => ({ x: 500 + i * 100, y: 450, angle: 0 })) });
+    for (let tick = 0; tick < 5; tick++) step(state, new Map());
+    assert.equal(victim.alive, true, 'flight is harmless');
     step(state, new Map());
     assert.equal(victim.alive, protection !== 'none');
     assert.equal(owner.alive, true, 'owner is not struck by their own launch');
@@ -910,24 +912,26 @@ test('blast preview is harmless before the fuse, both in flight and after landin
   }
 });
 
-test('projectile stops at first body contact, not at the preview center or riders behind it', () => {
+test('bomb skips riders along flight and only snipes at its landing position', () => {
   const state = gameWithPlayers(4); enterPlaying(state);
   for (const player of state.players.values()) { player.trail = []; player.angle = 0; }
   Object.assign(state.players.get('p0')!, { x: 200, y: 200 });
-  Object.assign(state.players.get('p1')!, { x: 550, y: 450 });
-  Object.assign(state.players.get('p2')!, { x: 590, y: 450 });
+  Object.assign(state.players.get('p1')!, { x: 540, y: 450 });
+  Object.assign(state.players.get('p2')!, { x: 900, y: 700 });
   Object.assign(state.players.get('p3')!, { x: 600, y: 500 });
   state.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 500, launchY: 450, x: 600, y: 450,
     placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + 6, explodeAtTick: state.tick + 40,
     blastRange: 140, flightPath: [{ x: 500, y: 450, angle: 0 }, ...fixedFlightPath(600, 450)] });
   step(state, new Map());
-  assert.equal(state.players.get('p1')!.alive, false);
-  assert.equal(state.players.get('p2')!.alive, true, 'rider behind first contact survives');
-  assert.equal(state.players.get('p3')!.alive, true, 'rider inside large radius survives');
-  const bomb = state.bombs.get(99)!;
-  assert.ok(bomb.x > 500 && bomb.x < 550);
-  assert.equal(bomb.landsAtTick, state.tick);
-  assert.equal(state.blasts.length, 0);
+  assert.equal(state.players.get('p1')!.alive, true, 'crossing the flight path is harmless');
+  state.tick += 4;
+  Object.assign(state.players.get('p1')!, { x: 400, y: 450, trail: [] });
+  Object.assign(state.players.get('p2')!, { x: 592.5, y: 450, trail: [] });
+  step(state, new Map());
+  assert.equal(state.players.get('p1')!.alive, true);
+  assert.equal(state.players.get('p2')!.alive, false, 'physical landing contact snipes');
+  assert.equal(state.players.get('p3')!.alive, true, 'large preview is still harmless');
+  assert.equal(state.bombs.get(99)!.x, 600); assert.equal(state.blasts.length, 0);
 });
 
 test('landing step never uses blast radius for contact damage', () => {
