@@ -94,7 +94,9 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
-export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'five' | 'orbitShield' | 'portal';
+export const INK_DURATION_TICKS = 20;
+
+export type PickupType = 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -121,7 +123,7 @@ export interface PlayerState extends Required<PlayerIdentity> {
   bombChargeStartedTick?: number;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
-  drunkUntilTick: number;
+  drunkUntilTick: number; inkUntilTick: number;
   tripleShotArmed: boolean; fiveShotArmed: boolean;
 
   shielded: boolean;
@@ -262,7 +264,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     bombReadyAtTick: 0,
     blastLevel: 0,
     invulnerableUntilTick: 0,
-    drunkUntilTick: 0,
+    drunkUntilTick: 0, inkUntilTick: 0,
     tripleShotArmed: false, fiveShotArmed: false,
 
     shielded: false,
@@ -555,6 +557,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
+      inkUntilTick: player.inkUntilTick,
       tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
@@ -624,6 +627,7 @@ function prepareRound(state: GameState): void {
     player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
     player.drunkUntilTick = 0;
+    player.inkUntilTick = 0;
     player.tripleShotArmed = false; player.fiveShotArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
@@ -708,6 +712,10 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+    } else if (pickup.type === 'ink') {
+      for (const player of state.players.values()) {
+        if (player.alive && player.id !== collector.id) player.inkUntilTick = Math.max(player.inkUntilTick, state.tick + INK_DURATION_TICKS);
+      }
     } else if (pickup.type === 'beer') {
       for (const player of state.players.values()) {
         if (player.alive && player.id !== collector.id) {

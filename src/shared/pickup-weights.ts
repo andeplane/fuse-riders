@@ -1,7 +1,7 @@
 import type { PickupType } from './game.js';
 /** Every ordinary drop is three times as likely as the rare five-bomb fan. */
 export const PICKUP_WEIGHTS: ReadonlyArray<Readonly<{ type: PickupType; weight: number }>> = [
-  { type: 'blast', weight: 3 }, { type: 'star', weight: 3 }, { type: 'beer', weight: 3 },
+  { type: 'blast', weight: 3 }, { type: 'star', weight: 3 }, { type: 'beer', weight: 3 }, { type: 'ink', weight: 3 },
   { type: 'triple', weight: 3 }, { type: 'five', weight: 1 },
   { type: 'orbitShield', weight: 3 }, { type: 'portal', weight: 3 },
 ];

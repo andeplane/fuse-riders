@@ -29,7 +29,7 @@ export interface GameSnapshot {
     id: PlayerId; name: string; slot: number; color: string; connected: boolean;
     x: number; y: number; angle: number; alive: boolean; roundWins: number;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
-    blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number;
+    blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
     tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{
@@ -39,7 +39,7 @@ export interface GameSnapshot {
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPair?: PortalPair;
-  pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star' | 'beer' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
+  pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;

@@ -125,6 +125,11 @@ try {
   app.advance(2); await phones[1].getByText(/WOBBLE · [0-9.]+s/).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_003), false, 'beer pickup consumed authoritatively');
   assert.equal(poweredRider.drunkUntilTick, 0, 'beer collector is immune to own pickup');
+  app.game.pickups.push({ id: 9_020, type: 'ink', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[1].getByText(/INK · [0-9.]+s/).waitFor();
+  assert.equal(poweredRider.inkUntilTick, 0, 'ink collector is unaffected');
+  assert.equal(app.game.matchStats.get(poweredRider.id)!.inkPickups, 1);
+  await host.screenshot({ path: 'artifacts/ink-clouds.png' });
   app.game.pickups.push({ id: 9_004, type: 'triple', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_004), false, 'triple pickup consumed authoritatively');

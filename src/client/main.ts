@@ -1,3 +1,4 @@
+import { drawInkClouds } from './ink-renderer.js';
 import { ControllerPointerBindings } from './controller-pointers.js';
 import { createGameAudio } from './game-audio.js';
 import { volleyAngles } from '../shared/launch-modifiers.js';
@@ -423,6 +424,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
       ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 29)); ctx.restore();
     }
   }
+  drawInkClouds(ctx, snapshot, snapshot.tick);
 }
 
 function startDisplay(): void {
@@ -455,6 +457,7 @@ function startDisplay(): void {
   const pickupLegend = element('div', 'pickup-legend');
   const blastLegendImage = element('img'); blastLegendImage.alt = ''; blastLegendImage.src = '/themes/neon-pixel/pickup-blast.svg';
   const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = '/themes/neon-pixel/pickup-star.svg';
+  const inkLegendImage = element('img'); inkLegendImage.alt = ''; inkLegendImage.src = '/themes/neon-pixel/pickup-ink.svg';
   const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = '/themes/neon-pixel/pickup-beer.svg';
   const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = '/themes/neon-pixel/pickup-triple.svg';
   const fiveLegendImage = element('img'); fiveLegendImage.alt = ''; fiveLegendImage.src = '/themes/neon-pixel/pickup-five.svg';
@@ -462,12 +465,13 @@ function startDisplay(): void {
   const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = '/themes/neon-pixel/pickup-portal.svg';
   const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 5s invulnerable'));
+  const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 1s'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
   const fiveLegend = element('span'); fiveLegend.append(fiveLegendImage, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend, tripleLegend, fiveLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
+  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -535,6 +539,7 @@ function startDisplay(): void {
   blastLegendImage.src = `/themes/${activeTheme.id}/pickup-blast.svg`;
   starLegendImage.src = `/themes/${activeTheme.id}/pickup-star.svg`;
   beerLegendImage.src = `/themes/${activeTheme.id}/pickup-beer.svg`;
+  inkLegendImage.src = `/themes/${activeTheme.id}/pickup-ink.svg`;
   tripleLegendImage.src = `/themes/${activeTheme.id}/pickup-triple.svg`; fiveLegendImage.src = `/themes/${activeTheme.id}/pickup-five.svg`;
 
   shieldLegendImage.src = `/themes/${activeTheme.id}/pickup-orbitShield.svg`;
@@ -547,6 +552,7 @@ function startDisplay(): void {
     activeTheme = next; activeSprites = {}; localStorage.setItem(THEME_KEY, next.id); applyThemeProperties(next);
     blastLegendImage.src = `/themes/${next.id}/pickup-blast.svg`; starLegendImage.src = `/themes/${next.id}/pickup-star.svg`;
     beerLegendImage.src = `/themes/${next.id}/pickup-beer.svg`;
+    inkLegendImage.src = `/themes/${next.id}/pickup-ink.svg`;
     tripleLegendImage.src = `/themes/${next.id}/pickup-triple.svg`; fiveLegendImage.src = `/themes/${next.id}/pickup-five.svg`;  shieldLegendImage.src = `/themes/${next.id}/pickup-orbitShield.svg`;
     portalLegendImage.src = `/themes/${next.id}/pickup-portal.svg`;
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
@@ -607,7 +613,7 @@ function startDisplay(): void {
     const stats = [...(snapshot.matchStats ?? [])].sort((a, b) => a.matchPlacement - b.matchPlacement || a.slot - b.slot);
     const signature = stats.map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
       entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected, entry.invulnerableTicks,
-      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.triplePickups, entry.fivePickups,  entry.shieldPickups, entry.portalPickups, entry.portalTransits,
+      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.inkPickups, entry.triplePickups, entry.fivePickups,  entry.shieldPickups, entry.portalPickups, entry.portalTransits,
       ...Object.values(entry.deathsByCause)].join(':')).join('|');
     if (signature === recapSignature) return;
     recapSignature = signature;
@@ -662,7 +668,7 @@ function startDisplay(): void {
       row.append(rider, element('strong', '', String(entry.roundWins)), element('span', '', durationText(entry.survivalTicks)),
         element('span', '', durationText(entry.longestSurvivalTicks)), element('span', '', `${Math.round(entry.distanceUnits)}u`),
         element('span', '', `${entry.bombsExploded}/${entry.bombsPlaced}`), element('span', '', String(entry.eliminations)),
-        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} T${entry.triplePickups} F${entry.fivePickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
+        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} I${entry.inkPickups} T${entry.triplePickups} F${entry.fivePickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
         element('span', 'death-counts', `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`));
       comparison.append(row);
     }
@@ -856,12 +862,13 @@ function startController(): void {
   const powerStrip = element('div', 'power-strip');
   const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
+  const inkPower = element('span', 'power-chip', 'INK · --');
   const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
   const triplePower = element('span', 'power-chip triple-power', 'TRIPLE · --');
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(blastPower, starPower, wobblePower, triplePower, shieldPower, portalPower, sessionPoints);
+  powerStrip.append(blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -926,6 +933,8 @@ function startController(): void {
     blastPower.textContent = player.blastLevel > 0 ? `BLAST · +${player.blastLevel}` : 'BLAST · BASE';
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
+    const inkTicks = player.inkUntilTick - snapshot.tick;
+    inkPower.textContent = inkTicks > 0 ? `INK · ${(inkTicks / 20).toFixed(1)}s` : 'INK · --';
     const drunkTicks = player.drunkUntilTick - snapshot.tick;
     wobblePower.textContent = drunkTicks > 0 ? `WOBBLE · ${(drunkTicks / 20).toFixed(1)}s` : 'WOBBLE · --';
     triplePower.textContent = player.fiveShotArmed ? 'FIVE · ARMED' : player.tripleShotArmed ? 'TRIPLE · ARMED' : 'TRIPLE · --';

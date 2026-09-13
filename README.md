@@ -1,6 +1,6 @@
 # Fuse Riders
 
-Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and seven random powerups change the fight. Last rider alive wins the round; first to three round wins takes the match.
+Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and eight random powerups change the fight. Last rider alive wins the round; first to three round wins takes the match.
 
 ## Play tonight
 
@@ -27,6 +27,7 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 | Blast | Increases circular explosion radius by 75 units, up to two upgrades. |
 | Star | Protects against hazards for 5 seconds; walls bounce you back into play. |
 | Beer Worms | Makes the other living riders swerve violently for four seconds. You can still steer. |
+| Ink | One second of dark clouds around other living riders; your nearby area stays clear. |
 | Triple Shot | Your next accepted release launches three bombs in a fan. |
 | Five Shot | Your next accepted release launches five bombs in a wider fan. Three times rarer than Triple Shot; collecting Triple preserves an armed Five Shot. |
 | Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
