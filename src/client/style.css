@@ -159,7 +159,7 @@ button { color: inherit; }
 .control-button.bomb:disabled { opacity: .42; }
 .bomb-label { position: absolute; left: 4px; right: 4px; bottom: 15px; font-size: clamp(.5rem, 2vw, .7rem); color: #ff8fbf; text-shadow: none; letter-spacing: .08em; }
 @keyframes charge-pulse { 50% { box-shadow: inset 0 0 55px rgba(255,148,19,.35), 0 0 22px rgba(190,64,255,.55); } }
-@keyframes launch-kick { 0% { transform: scale(1); filter: brightness(1); } 35% { transform: scale(.9) rotate(-2deg); filter: brightness(2); } 70% { transform: scale(1.06) rotate(1deg); } 100% { transform: scale(1); filter: brightness(1); } }
+@keyframes launch-kick { 0% { transform: scale(1); filter: brightness(1); } 35% { transform: scale(.9); filter: brightness(2); } 70% { transform: scale(.98); } 100% { transform: scale(1); filter: brightness(1); } }
 .leave-button { justify-self: center; border: 0; background: transparent; color: #657895; padding: 5px 14px; font-size: .62rem; letter-spacing: .12em; cursor: pointer; }
 
 @media (orientation: portrait) {
