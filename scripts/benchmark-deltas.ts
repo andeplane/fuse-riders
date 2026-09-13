@@ -1,9 +1,9 @@
 import { performance } from 'node:perf_hooks';
 import { writeFile } from 'node:fs/promises';
-import { createGame,addPlayer,startMatch,step,toSnapshot } from '../src/shared/game.js';
+import { createGame,addPlayer,startMatch,step,toSnapshot,SLOT_COLORS } from '../src/shared/game.js';
 import { WorldEncoder,WorldDecoder } from '../src/online/world-codec.js';
 import assert from 'node:assert/strict';
-const game=createGame('delta-bench');for(let i=0;i<5;i++)addPlayer(game,{id:`p${i}`,name:`P${i}`,slot:i,color:'#ffffff'});
+const game=createGame('delta-bench');for(let i=0;i<5;i++)addPlayer(game,{id:`p${i}`,name:`P${i}`,slot:i,color:SLOT_COLORS[i]!});
 startMatch(game);for(let i=0;i<60;i++)step(game,new Map());
 for(const [i,p] of [...game.players.values()].entries())Object.assign(p,{x:220+i*260,y:400,invulnerableUntilTick:99999});
 const inputs=new Map([...game.players.keys()].map(id=>[id,{left:true,right:false,bomb:false}]));
