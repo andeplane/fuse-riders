@@ -1,12 +1,58 @@
-interface Env { ROOMS: DurableObjectNamespace; ASSETS: Fetcher; TURN_KEY_ID?:string; TURN_API_TOKEN?:string }
-interface Identity { id:string;host:boolean;window:number;count:number }
+import { reserveAuthority, renewAuthority, type AuthorityGrant, type GrantIdentity } from '../src/online/authority.js';
+
+export interface RoomSocket {
+  send(data:string):void;
+  close(code?:number,reason?:string):void;
+  serializeAttachment(value:unknown):void;
+  deserializeAttachment():unknown;
+}
+export interface RoomStorage {
+  get<T>(key:string):Promise<T|undefined>;
+  put<T>(key:string,value:T):Promise<void>;
+  setAlarm(at:number):Promise<void>;
+  deleteAll():Promise<void>;
+  transaction<T>(callback:(storage:RoomStorage)=>Promise<T>):Promise<T>;
+}
+export interface RoomContext { storage:RoomStorage;getWebSockets():RoomSocket[];acceptWebSocket(socket:RoomSocket):void }
+interface RoomStub { fetch(request:Request):Promise<Response> }
+interface Env {
+  ROOMS:{idFromName(name:string):unknown;get(id:unknown):RoomStub};
+  ASSETS:{fetch(request:Request):Promise<Response>};
+  TURN_KEY_ID?:string;TURN_API_TOKEN?:string;
+}
+interface Identity { id:string;connectionId:string;host:boolean;window:number;count:number;bytes:number }
+interface Membership { [id:string]:string }
+export interface RoomDependencies {
+  now:()=>number;
+  token:()=>string;
+  pair:()=>{client:RoomSocket;server:RoomSocket};
+  upgrade:(client:RoomSocket)=>Response;
+  fetch:typeof fetch;
+}
+const defaults:RoomDependencies={
+  now:()=>Date.now(),token:()=>crypto.randomUUID(),
+  pair:()=>{const Pair=(globalThis as unknown as {WebSocketPair:new()=>{0:RoomSocket;1:RoomSocket}}).WebSocketPair;const pair=new Pair();return{client:pair[0],server:pair[1]};},
+  upgrade:client=>new Response(null,{status:101,webSocket:client} as ResponseInit),fetch:(...args)=>fetch(...args),
+};
 const json=(value:unknown,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
 const secret=()=>crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
 async function peerId(token:string):Promise<string>{return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))].slice(0,12).map(n=>n.toString(16).padStart(2,'0')).join('');}
+function identity(socket:RoomSocket):Identity|undefined {
+  const value=socket.deserializeAttachment();
+  if(!value||typeof value!=='object')return;
+  const candidate=value as Identity;
+  if(typeof candidate.id==='string'&&typeof candidate.connectionId==='string'&&typeof candidate.host==='boolean')return candidate;
+}
+function grantIdentity(value:unknown):value is GrantIdentity {
+  if(!value||typeof value!=='object'||Array.isArray(value))return false;
+  const item=value as Record<string,unknown>;
+  return ['incarnation','holder','grantId'].every(key=>typeof item[key]==='string'&&item[key].length>0&&item[key].length<=128)
+    &&typeof item.epoch==='number'&&Number.isSafeInteger(item.epoch)&&item.epoch>0;
+}
 export default {
   async fetch(request:Request,env:Env):Promise<Response>{
     const url=new URL(request.url);
-    if(request.headers.get('Origin') && request.headers.get('Origin')!==url.origin)return json({error:'Origin denied'},403);
+    if(request.headers.get('Origin')&&request.headers.get('Origin')!==url.origin)return json({error:'Origin denied'},403);
     if(url.pathname==='/api/rooms'&&request.method==='POST') {
       const rate=env.ROOMS.get(env.ROOMS.idFromName(`rate:${await peerId(request.headers.get('CF-Connecting-IP')??'local')}`));
       const allowance=await rate.fetch(new Request(`${url.origin}/create-limit`,{method:'POST'}));if(!allowance.ok)return allowance;
@@ -23,61 +69,112 @@ export default {
   }
 };
 export class SignalRoom {
-  constructor(private ctx:DurableObjectState,private env:Env){}
+  constructor(private ctx:RoomContext,private env:Env,private dependencies:RoomDependencies=defaults){}
   async fetch(request:Request):Promise<Response>{
-    const url=new URL(request.url);
+    const url=new URL(request.url),now=this.dependencies.now();
     if(url.pathname==='/create-limit'){
-      const hour=Math.floor(Date.now()/3600000);const previous=await this.ctx.storage.get<{hour:number;count:number}>('rate');
-      const count=previous?.hour===hour?previous.count+1:1;if(count>30)return json({error:'Room creation limit reached; try later'},429);
-      await this.ctx.storage.put('rate',{hour,count});await this.ctx.storage.setAlarm(Date.now()+3600000);return json({ok:true});
+      const count=await this.ctx.storage.transaction(async storage=>{
+        const hour=Math.floor(now/3600000),previous=await storage.get<{hour:number;count:number}>('rate');
+        const count=previous?.hour===hour?previous.count+1:1;
+        if(count<=30){await storage.put('rate',{hour,count});await storage.setAlarm(now+3600000);}return count;
+      });
+      return count>30?json({error:'Room creation limit reached; try later'},429):json({ok:true});
     }
     if(url.pathname==='/initialize'){
-      if(await this.ctx.storage.get('host'))return json({error:'Room exists'},409);
-      const body=await request.json() as {token:string};
-      await this.ctx.storage.put('host',body.token);
-      await this.ctx.storage.setAlarm(Date.now()+24*60*60*1000);
-      return json({ok:true});
+      let body:unknown;try{body=await request.json();}catch{return json({error:'Invalid initialization'},400);}
+      const token=(body as {token?:unknown}|null)?.token;
+      if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return json({error:'Invalid identity'},400);
+      const initialized=await this.ctx.storage.transaction(async storage=>{
+        if(await storage.get('host'))return false;
+        await storage.put('host',token);await storage.put('incarnation',this.dependencies.token());await storage.put('connections',{});
+        await storage.setAlarm(now+24*60*60*1000);return true;
+      });
+      return initialized?json({ok:true}):json({error:'Room exists'},409);
     }
     const host=await this.ctx.storage.get<string>('host');if(!host)return json({error:'Room expired or not found'},404);
     const token=url.searchParams.get('token')??'';
     if(!/^[a-f0-9]{64}$/.test(token))return json({error:'Invalid identity'},401);
     const id=await peerId(token);
     if(url.pathname.endsWith('/ice')){
-      if(!this.ctx.getWebSockets().some(ws=>(ws.deserializeAttachment() as Identity).id===id))return json({error:'Join the room first'},403);
+      const members=await this.ctx.storage.get<Membership>('connections')??{};
+      if(!this.currentSockets(members).some(ws=>identity(ws)?.id===id))return json({error:'Join the room first'},403);
       if(!this.env.TURN_KEY_ID||!this.env.TURN_API_TOKEN)return json({iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],relayConfigured:false});
-      const response=await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${this.env.TURN_KEY_ID}/credentials/generate-ice-servers`,{method:'POST',headers:{Authorization:`Bearer ${this.env.TURN_API_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({ttl:3600})});
+      const response=await this.dependencies.fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${this.env.TURN_KEY_ID}/credentials/generate-ice-servers`,{method:'POST',headers:{Authorization:`Bearer ${this.env.TURN_API_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({ttl:3600})});
       if(!response.ok)return json({iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],relayConfigured:false});
       const body=await response.json() as {iceServers:unknown};return json({iceServers:body.iceServers,relayConfigured:true});
     }
     if(request.headers.get('Upgrade')!=='websocket')return json({error:'WebSocket required'},426);
-    const sockets=this.ctx.getWebSockets();
-    if(sockets.length>=12&&!sockets.some(ws=>(ws.deserializeAttachment() as Identity).id===id))return json({error:'Room connection limit'},429);
-    for(const ws of sockets)if((ws.deserializeAttachment() as Identity).id===id)ws.close(4001,'Reconnected elsewhere');
-    const pair=new WebSocketPair();const client=pair[0],server=pair[1];
-    this.ctx.acceptWebSocket(server);server.serializeAttachment({id,host:token===host,window:Date.now(),count:0} satisfies Identity);
-    server.send(JSON.stringify({type:'welcome',id,hostId:await peerId(host),peers:this.ctx.getWebSockets().filter(ws=>ws!==server).map(ws=>(ws.deserializeAttachment() as Identity).id)}));
-    this.broadcast({type:'peer',id,online:true},server);
-    return new Response(null,{status:101,webSocket:client});
+    const connectionId=this.dependencies.token(),hostId=await peerId(host);
+    const admission=await this.ctx.storage.transaction(async storage=>{
+      const members=await storage.get<Membership>('connections')??{};
+      if(Object.keys(members).length>=6&&!members[id])return;
+      // Existing v1 rooms require a fresh incarnation on their first v2 connection.
+      const incarnation=await storage.get<string>('incarnation')??this.dependencies.token();
+      await storage.put('incarnation',incarnation);
+      let grant=await storage.get<AuthorityGrant>('authority');
+      if(token===host){grant=reserveAuthority(grant,incarnation,connectionId,this.dependencies.token(),this.dependencies.now());await storage.put('authority',grant);}
+      members[id]=connectionId;await storage.put('connections',members);return{members,grant};
+    });
+    if(!admission)return json({error:'Room connection limit (5 players and TV)'},429);
+    for(const ws of this.ctx.getWebSockets())if(identity(ws)?.id===id)ws.close(4001,'Reconnected elsewhere');
+    const {client,server}=this.dependencies.pair();
+    this.ctx.acceptWebSocket(server);server.serializeAttachment({id,connectionId,host:token===host,window:now,count:0,bytes:0} satisfies Identity);
+    const peers=this.currentSockets(admission.members).filter(ws=>ws!==server).map(ws=>{const peer=identity(ws)!;return{id:peer.id,connectionId:peer.connectionId};});
+    server.send(JSON.stringify({type:'welcome',protocol:2,id,hostId,connectionId,peers,grant:admission.grant}));
+    this.broadcast({type:'peer',id,connectionId,online:true},admission.members,server);
+    if(token===host)this.broadcast({type:'authority',grant:admission.grant},admission.members);
+    return this.dependencies.upgrade(client);
   }
-  webSocketMessage(ws:WebSocket,raw:string|ArrayBuffer):void {
+  async webSocketMessage(ws:RoomSocket,raw:string|ArrayBuffer):Promise<void> {
     if(typeof raw!=='string'||raw.length>200000){ws.close(1009,'Too large');return;}
-    const identity=ws.deserializeAttachment() as Identity;
-    if(Date.now()-identity.window>1000){identity.window=Date.now();identity.count=0;}
-    if(++identity.count>100){ws.close(1008,'Rate limit');return;}ws.serializeAttachment(identity);
-    let message:{type:string;to?:string;data?:unknown};try{message=JSON.parse(raw);}catch{return;}
-    if(!['signal','relay'].includes(message.type)||typeof message.to!=='string')return;
-    const target=this.ctx.getWebSockets().find(peer=>(peer.deserializeAttachment() as Identity).id===message.to);
-    if(!target)return;
-    const targetIdentity=target.deserializeAttachment() as Identity;
-    // Only host-to-peer edges are valid. A joiner cannot send commands as another player.
-    if(!identity.host&&!targetIdentity.host)return;
-    target.send(JSON.stringify({type:message.type,from:identity.id,data:message.data}));
+    const sender=identity(ws);if(!sender){ws.close(4001,'Identity expired');return;}
+    const members=await this.ctx.storage.get<Membership>('connections')??{};
+    if(members[sender.id]!==sender.connectionId){ws.close(4001,'Reconnected elsewhere');return;}
+    const now=this.dependencies.now();
+    if(now-sender.window>=1000){sender.window=now;sender.count=0;sender.bytes=0;}
+    sender.count++;sender.bytes+=new TextEncoder().encode(raw).byteLength;
+    // A host fans out five world streams plus control/probe messages.
+    if(sender.count>(sender.host?400:100)||sender.bytes>(sender.host?2_000_000:256_000)){ws.close(1008,'Rate limit');return;}ws.serializeAttachment(sender);
+    let message:Record<string,unknown>;try{const decoded:unknown=JSON.parse(raw);if(!decoded||typeof decoded!=='object'||Array.isArray(decoded))return;message=decoded as Record<string,unknown>;}catch{return;}
+    if(message.type==='time'){
+      if(!((typeof message.id==='string'&&message.id.length>0&&message.id.length<=64)||(typeof message.id==='number'&&Number.isSafeInteger(message.id)&&message.id>=0))||typeof message.sentAt!=='number'||!Number.isFinite(message.sentAt)||message.sentAt<0)return;
+      const result=await this.ctx.storage.transaction(async storage=>{
+        const currentMembers=await storage.get<Membership>('connections')??{};
+        if(currentMembers[sender.id]!==sender.connectionId)return;
+        let grant=await storage.get<AuthorityGrant>('authority'),renewed=false;
+        if(sender.host&&grant&&grant.holder===sender.connectionId&&grantIdentity(message.renew)){
+          const update=renewAuthority(grant,message.renew,this.dependencies.now());
+          if(update){grant=update;renewed=true;await storage.put('authority',grant);}
+        }
+        return{grant,renewed,members:currentMembers};
+      });
+      if(!result)return;
+      ws.send(JSON.stringify({type:'time',id:message.id,sentAt:message.sentAt,serviceTime:this.dependencies.now(),grant:result.grant}));
+      if(result.renewed)this.broadcast({type:'authority',grant:result.grant},result.members);
+      return;
+    }
+    if(!['signal','relay'].includes(String(message.type))||typeof message.to!=='string')return;
+    const target=this.currentSockets(members).find(peer=>identity(peer)?.id===message.to);if(!target)return;
+    const targetIdentity=identity(target)!;
+    if(message.targetConnectionId!==undefined&&message.targetConnectionId!==targetIdentity.connectionId)return;
+    if(!sender.host&&!targetIdentity.host)return;
+    try{target.send(JSON.stringify({type:message.type,from:sender.id,connectionId:sender.connectionId,data:message.data}));}catch{}
   }
-  webSocketClose(ws:WebSocket):void {this.broadcast({type:'peer',id:(ws.deserializeAttachment() as Identity).id,online:false},ws);}
-  webSocketError(ws:WebSocket):void {this.webSocketClose(ws);}
-  private broadcast(message:unknown,except?:WebSocket){for(const ws of this.ctx.getWebSockets())if(ws!==except)try{ws.send(JSON.stringify(message));}catch{}}
+  async webSocketClose(ws:RoomSocket):Promise<void> {
+    const departed=identity(ws);if(!departed)return;
+    const members=await this.ctx.storage.transaction(async storage=>{
+      const members=await storage.get<Membership>('connections')??{};
+      if(members[departed.id]!==departed.connectionId)return;
+      delete members[departed.id];await storage.put('connections',members);return members;
+    });
+    if(members)this.broadcast({type:'peer',id:departed.id,connectionId:departed.connectionId,online:false},members,ws);
+  }
+  async webSocketError(ws:RoomSocket):Promise<void>{await this.webSocketClose(ws);}
+  private currentSockets(members:Membership):RoomSocket[]{return this.ctx.getWebSockets().filter(ws=>{const peer=identity(ws);return !!peer&&members[peer.id]===peer.connectionId;});}
+  private broadcast(message:unknown,members:Membership,except?:RoomSocket){for(const ws of this.currentSockets(members))if(ws!==except)try{ws.send(JSON.stringify(message));}catch{}}
   async alarm():Promise<void>{
-    if(this.ctx.getWebSockets().length){await this.ctx.storage.setAlarm(Date.now()+60*60*1000);return;}
+    const members=await this.ctx.storage.get<Membership>('connections')??{};
+    if(this.currentSockets(members).length){await this.ctx.storage.setAlarm(this.dependencies.now()+60*60*1000);return;}
     await this.ctx.storage.deleteAll();
   }
 }
