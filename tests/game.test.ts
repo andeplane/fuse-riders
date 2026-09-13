@@ -42,6 +42,7 @@ import {
 } from '../src/shared/game.ts';
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
+const fixedFlightPath = (x: number, y: number) => Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));
 
 function gameWithPlayers(count = 2, matchId = 'match', seed?: number): GameState {
   const state = createGame(matchId, seed);
@@ -146,6 +147,7 @@ test('a due blast removes an intersecting segment before trail collision', () =>
     placedTick: state.tick - BOMB_FUSE_TICKS,
     launchedTick: state.tick - BOMB_FUSE_TICKS,
     landsAtTick: state.tick - BOMB_FUSE_TICKS + BOMB_FLIGHT_TICKS,
+    flightPath: fixedFlightPath(700, 350),
     explodeAtTick: state.tick + 1,
     blastRange: 150,
   });
@@ -264,6 +266,7 @@ test('bomb input charges, launches on release, caps one live bomb, chains once, 
     placedTick: state.tick,
     launchedTick: state.tick,
     landsAtTick: state.tick,
+    flightPath: fixedFlightPath(firstBomb.x + 100, firstBomb.y),
     explodeAtTick: state.tick + 999,
     blastRange: 150,
   });
@@ -326,11 +329,48 @@ test('a flying bomb cannot explode or chain-trigger before landing', () => {
   enterPlaying(state);
   state.players.get('p0')!.x = 1000; state.players.get('p0')!.y = 700;
   state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
-  state.bombs.set(1, { id: 1, ownerId: 'p0', launchX: 500, launchY: 450, x: 600, y: 450, placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + 5, explodeAtTick: state.tick + 1, blastRange: 150 });
-  state.bombs.set(2, { id: 2, ownerId: 'p1', launchX: 500, launchY: 450, x: 500, y: 450, placedTick: 0, launchedTick: 0, landsAtTick: 0, explodeAtTick: state.tick + 1, blastRange: 150 });
+  state.bombs.set(1, { id: 1, ownerId: 'p0', launchX: 500, launchY: 450, x: 600, y: 450, placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + 5, explodeAtTick: state.tick + 1, blastRange: 150, flightPath: fixedFlightPath(600, 450) });
+  state.bombs.set(2, { id: 2, ownerId: 'p1', launchX: 500, launchY: 450, x: 500, y: 450, placedTick: 0, launchedTick: 0, landsAtTick: 0, explodeAtTick: state.tick + 1, blastRange: 150, flightPath: fixedFlightPath(500, 450) });
   const result = step(state, new Map());
   assert.deepEqual(result.events.filter((event) => event.type === 'explosion').map((event) => event.bombId), [2]);
   assert.equal(state.bombs.has(1), true);
+});
+
+test('Triple Shot and Homing Spark compose into one deterministic three-bomb volley', () => {
+  const state = gameWithPlayers(3, 'modifier-launch', 99);
+  enterPlaying(state);
+  const owner = state.players.get('p0')!;
+  owner.x = 500; owner.y = 450; owner.angle = 0;
+  owner.tripleShotArmed = true; owner.homingArmed = true;
+  state.players.get('p1')!.x = 850; state.players.get('p1')!.y = 600;
+  state.players.get('p2')!.x = 1300; state.players.get('p2')!.y = 700;
+  const result = step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  const bombs = [...state.bombs.values()];
+  assert.equal(bombs.length, 3);
+  assert.equal(result.events.filter((event) => event.type === 'bombPlaced').length, 3);
+  assert.ok(bombs.every((bomb) => bomb.flightPath.length === 7 && bomb.homingTargetId === 'p1'));
+  assert.ok(bombs.every((bomb) => bomb.homingTargetX === 850 && bomb.homingTargetY === 600));
+  assert.notEqual(bombs[0]!.flightPath[1]!.y, bombs[2]!.flightPath[1]!.y);
+  assert.equal(owner.tripleShotArmed, false);
+  assert.equal(owner.homingArmed, false);
+  assert.equal(state.matchStats.get('p0')!.bombsPlaced, 3);
+  assert.equal(owner.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
+  const snapshot = toSnapshot(state).bombs;
+  snapshot[0]!.flightPath[0]!.x = -1;
+  assert.notEqual(toSnapshot(state).bombs[0]!.flightPath[0]!.x, -1);
+});
+
+test('invalid release and cancellation preserve launch modifiers', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const owner = state.players.get('p0')!;
+  owner.tripleShotArmed = true; owner.homingArmed = true;
+  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: false, bombActions: ['cancel'] }]));
+  assert.equal(state.bombs.size, 0);
+  assert.equal(owner.tripleShotArmed, true);
+  assert.equal(owner.homingArmed, true);
 });
 
 test('round wins score once, first to five ends the match, and rematch resets wins and scope', () => {
@@ -436,7 +476,7 @@ test('wall and explosion causes are authoritative, clipped, and blast visuals ex
   target.x = 30; target.y = 350; target.angle = 0;
   explosion.players.get('p1')!.x = 900;
   explosion.players.get('p1')!.y = 600;
-  explosion.bombs.set(10, { id: 10, ownerId: 'p1', launchX: 30, launchY: 350, x: 30, y: 350, placedTick: 0, launchedTick: 0, landsAtTick: 0, explodeAtTick: explosion.tick + 1, blastRange: 150 });
+  explosion.bombs.set(10, { id: 10, ownerId: 'p1', launchX: 30, launchY: 350, x: 30, y: 350, placedTick: 0, launchedTick: 0, landsAtTick: 0, explodeAtTick: explosion.tick + 1, blastRange: 150, flightPath: fixedFlightPath(30, 350) });
   const blastResult = step(explosion, new Map());
   assert.ok(blastResult.events.some((event) => event.type === 'playerEliminated' && event.playerId === 'p0' && event.cause === 'explosion'));
   assert.equal(explosion.roundParticipants.get('p0')!.eliminatedAtTick, explosion.tick);
@@ -622,6 +662,97 @@ test('drunk wobble expires at the strict tick boundary and resets between rounds
   assert.equal(toSnapshot(state).players.find((candidate) => candidate.id === player.id)!.drunkUntilTick, 0);
 });
 
+test('modifier pickups arm one use, refresh without stacking, and reset between rounds', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const player = state.players.get('p0')!;
+  player.x = 500; player.y = 450; player.angle = 0;
+  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
+  state.pickups = (['triple', 'homing', 'orbitShield'] as const).map((type, index) => ({
+    id: index + 1, type, x: 502 + index * 2, y: 450, expiresAtTick: state.tick + 100,
+  }));
+  step(state, new Map());
+  assert.equal(player.tripleShotArmed, true);
+  assert.equal(player.homingArmed, true);
+  assert.equal(player.shielded, true);
+  assert.deepEqual(
+    [state.matchStats.get('p0')!.triplePickups, state.matchStats.get('p0')!.homingPickups, state.matchStats.get('p0')!.shieldPickups],
+    [1, 1, 1],
+  );
+  state.pickups = [{ id: 9, type: 'triple', x: player.x + 2, y: player.y, expiresAtTick: state.tick + 10 }];
+  step(state, new Map());
+  assert.equal(player.tripleShotArmed, true);
+
+  eliminatePlayer(state, 'p1');
+  step(state, new Map());
+  state.tick = state.phaseEndsAtTick!;
+  startNextRound(state);
+  assert.equal(player.tripleShotArmed, false);
+  assert.equal(player.homingArmed, false);
+  assert.equal(player.shielded, false);
+  assert.equal(player.shieldGraceUntilTick, 0);
+});
+
+test('orbit shields absorb a whole clustered hazard tick and grace protects until strict expiry', () => {
+  const state = gameWithPlayers(3);
+  enterPlaying(state);
+  const shield = state.players.get('p0')!;
+  const collider = state.players.get('p1')!;
+  const bomber = state.players.get('p2')!;
+  shield.x = 500; shield.y = 450; shield.angle = 0; shield.shielded = true;
+  collider.x = 520; collider.y = 450; collider.angle = Math.PI;
+  bomber.x = 1200; bomber.y = 700;
+  state.bombs.set(90, { id: 90, ownerId: 'p2', launchX: 500, launchY: 450, x: 500, y: 450, placedTick: 0, launchedTick: 0, landsAtTick: 0, explodeAtTick: state.tick + 1, blastRange: 150, flightPath: fixedFlightPath(500, 450) });
+  step(state, new Map());
+  assert.equal(shield.alive, true);
+  assert.equal(shield.shielded, false);
+  assert.equal(shield.shieldGraceUntilTick, state.tick + 10);
+
+  collider.trail = [{ x1: shield.x + 3, y1: 400, x2: shield.x + 3, y2: 500, createdTick: 0, expiresAtTick: state.tick + 100 }];
+  step(state, new Map());
+  assert.equal(shield.alive, true, 'grace blocks the trail after the clustered break tick');
+  shield.shieldGraceUntilTick = state.tick + 1;
+  step(state, new Map());
+  assert.equal(shield.alive, false, 'grace is expired when untilTick equals the current tick');
+});
+
+test('two shields both break on contact while Star preserves its stored shield', () => {
+  const both = gameWithPlayers();
+  enterPlaying(both);
+  const first = both.players.get('p0')!;
+  const second = both.players.get('p1')!;
+  first.x = 500; first.y = 450; first.angle = 0; first.shielded = true;
+  second.x = 520; second.y = 450; second.angle = Math.PI; second.shielded = true;
+  step(both, new Map());
+  assert.equal(first.alive, true); assert.equal(second.alive, true);
+  assert.equal(first.shielded, false); assert.equal(second.shielded, false);
+
+  const star = gameWithPlayers();
+  enterPlaying(star);
+  const protectedPlayer = star.players.get('p0')!;
+  const normal = star.players.get('p1')!;
+  protectedPlayer.x = 500; protectedPlayer.y = 450; protectedPlayer.angle = 0;
+  protectedPlayer.shielded = true; protectedPlayer.invulnerableUntilTick = star.tick + 2;
+  normal.x = 520; normal.y = 450; normal.angle = Math.PI;
+  step(star, new Map());
+  assert.equal(protectedPlayer.alive, true);
+  assert.equal(protectedPlayer.shielded, true);
+  assert.equal(normal.alive, false);
+});
+
+test('shield break reflects an outward wall sweep and records the bounce', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const player = state.players.get('p0')!;
+  player.x = state.boundaryInset + 7.1; player.y = 450; player.angle = Math.PI; player.shielded = true;
+  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
+  step(state, new Map());
+  assert.equal(player.alive, true);
+  assert.equal(player.x, state.boundaryInset + 7);
+  assert.ok(Math.abs(player.angle) < 1e-8);
+  assert.equal(state.matchStats.get('p0')!.wallBounces, 1);
+});
+
 test('countdown leave is stamped, scored once, and a later join receives no prior-round award', () => {
   const state = gameWithPlayers();
   startMatch(state);
@@ -654,7 +785,7 @@ test('overlapping blast owners receive no speculative elimination credit', () =>
   state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 200;
   state.players.get('p2')!.x = 1200; state.players.get('p2')!.y = 700;
   for (const [id, ownerId] of [[41, 'p1'], [42, 'p2']] as const) {
-    state.bombs.set(id, { id, ownerId, launchX: 500, launchY: 450, x: 500, y: 450, placedTick: 0, launchedTick: 0, landsAtTick: 0, explodeAtTick: state.tick + 1, blastRange: 150 });
+    state.bombs.set(id, { id, ownerId, launchX: 500, launchY: 450, x: 500, y: 450, placedTick: 0, launchedTick: 0, landsAtTick: 0, explodeAtTick: state.tick + 1, blastRange: 150, flightPath: fixedFlightPath(500, 450) });
   }
   step(state, new Map());
   assert.equal(state.matchStats.get('p0')!.deathsByCause.explosion, 1);

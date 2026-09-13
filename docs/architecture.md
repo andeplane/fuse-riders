@@ -35,6 +35,10 @@ export const SELF_TRAIL_GRACE_TICKS = 10;
 
 export const BOMB_FUSE_TICKS = 40;       // 2 seconds
 export const BOMB_COOLDOWN_TICKS = 80;   // 4 seconds between accepted placements
+export const BOMB_MIN_LAUNCH_DISTANCE = 100;
+export const BOMB_MAX_LAUNCH_DISTANCE = 400;
+export const BOMB_MAX_CHARGE_TICKS = 24;
+export const BOMB_FLIGHT_TICKS = 6;
 export const BOMB_BLAST_RANGE = 150;
 export const BOMB_BLAST_HALF_WIDTH = 12;
 export const BLAST_VISIBLE_TICKS = 8;
@@ -45,6 +49,8 @@ export const PICKUP_LIFETIME_TICKS = 300;
 export const MAX_ACTIVE_PICKUPS = 3;
 export const PICKUP_SPAWN_ATTEMPTS = 24;
 export const STAR_DURATION_TICKS = 50;
+export const DRUNK_DURATION_TICKS = 80;
+export const SHIELD_GRACE_TICKS = 10;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
@@ -58,7 +64,7 @@ export const HEARTBEAT_INTERVAL_MS = 2000;
 export const SOCKET_TIMEOUT_MS = 6000;
 ```
 
-The loop uses a monotonic clock and advances at most five catch-up steps per callback. If more elapsed time remains, it discards the excess and restarts the accumulator from the current monotonic time. Simulation ticks never derive from render frames or client clocks. The server broadcasts every second tick and immediately after authentication, phase transitions, and reconnect. The display renders about 100 ms behind the newest pair of snapshots and interpolates position and angle only; phase, collisions, scores, bombs, trails, and deaths are never predicted.
+The loop uses a monotonic clock and advances at most five catch-up steps per callback. If more elapsed time remains, it discards the excess and restarts the accumulator from the current monotonic time. Simulation ticks never derive from render frames or client clocks. The host-authenticated display receives complete snapshots at 20 Hz, serialized once per tick. Joined controllers and unauthenticated spectators receive compact snapshots at 10 Hz without trails, bombs, blasts, or pickups, while retaining player metadata, cooldowns, phase, and scores. The display renders the newest authoritative state immediately and may visually extrapolate alive position/angle for at most 50 ms; it freezes when stale. Only visual position/angle are projected; phase, collisions, scores, bombs, trails, deaths, and pickups are never predicted.
 
 ## Wire contract
 
@@ -68,7 +74,8 @@ export type PlayerToken = string;
 
 export type ClientMessage =
   | { type: 'join'; name: string; playerToken?: PlayerToken }
-  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean }
+  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean;
+      bombAction?: 'press' | 'release' | 'cancel' }
   | { type: 'heartbeat' }
   | { type: 'leave' }
   | { type: 'hostAuth'; token: string }
@@ -100,21 +107,29 @@ export interface GameSnapshot {
   players: ReadonlyArray<{
     id: PlayerId; name: string; slot: number; color: string; connected: boolean;
     x: number; y: number; angle: number; alive: boolean; roundWins: number;
-    bombReadyAtTick: number; blastLevel: 0 | 1 | 2;
-    invulnerableUntilTick: number; trail: ReadonlyArray<TrailSegment>;
+    bombReadyAtTick: number; bombChargeStartedTick?: number; blastLevel: 0 | 1 | 2;
+    invulnerableUntilTick: number; drunkUntilTick: number;
+    tripleShotArmed: boolean; homingArmed: boolean;
+    shielded: boolean; shieldGraceUntilTick: number;
+    trail: ReadonlyArray<TrailSegment>;
   }>;
   bombs: ReadonlyArray<{
-    id: number; ownerId: PlayerId; x: number; y: number; explodeAtTick: number;
-    blastRange: number;
+    id: number; ownerId: PlayerId; launchX: number; launchY: number;
+    x: number; y: number; launchedTick: number; landsAtTick: number;
+    explodeAtTick: number; blastRange: number;
+    flightPath: ReadonlyArray<{ x: number; y: number; angle: number }>;
+    homingTargetId?: PlayerId; homingTargetX?: number; homingTargetY?: number;
   }>;
   blasts: ReadonlyArray<{
     bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number;
   }>;
   pickups: ReadonlyArray<{
-    id: number; type: 'blast' | 'star'; x: number; y: number; expiresAtTick: number;
+    id: number; type: 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield';
+    x: number; y: number; expiresAtTick: number;
   }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
+  matchStats: ReadonlyArray<MatchPlayerStats>; // complete only in matchOver display snapshots
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -129,6 +144,8 @@ export type GameEvent =
 ```
 
 Snapshots contain every fact needed to reconstruct the current screen. Events only trigger transient sound, vibration, and particles; missing an event cannot change rendered gameplay state. Every envelope carries match, round, and tick scope. Clients discard messages from an older match/round, snapshots with a strictly older tick, and events already handled at that tick; equal-tick snapshots are accepted as replacements.
+
+Current-match statistics follow ADR-008. The engine records only authoritative simulation facts: alive playing ticks, collision-checked movement distance including the fatal tick, accepted bombs, actual explosions, consumed pickups, star-active ticks, wall bounces, final death causes, and unambiguous non-self eliminations. It finalizes round participation once alongside scoring, preserves the counters across rounds and departures, exposes the full table only at `matchOver`, and clears it on `resetMatch`. Compact controller snapshots always replace `matchStats` with an empty array. Session leaderboard totals remain independent and persist across rematches.
 
 Runtime validation rejects unknown discriminants or fields, non-booleans, non-integer or unsafe sequences, non-finite numbers, names longer than 18 Unicode code points, and messages larger than 2 KiB. Names are inserted with text APIs, never HTML. Only a joined socket may send input/leave; only the host-authenticated socket may send host actions. Input is rate-limited to 30 messages per second per socket and joins to five attempts per minute per address.
 

@@ -33,6 +33,10 @@ interface MatchPlayerStats {
   pickupsCollected: number;
   blastPickups: number;
   starPickups: number;
+  beerPickups: number;
+  triplePickups: number;
+  homingPickups: number;
+  shieldPickups: number;
   invulnerableTicks: number;
   wallBounces: number;
   earlyExits: number;

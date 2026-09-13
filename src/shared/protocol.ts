@@ -1,8 +1,10 @@
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 import type { MatchPlayerStats } from './match-stats.js';
+import type { FlightPoint } from './launch-modifiers.js';
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
+export type { FlightPoint } from './launch-modifiers.js';
 
 export type PlayerId = string;
 export type PlayerToken = string;
@@ -27,13 +29,16 @@ export interface GameSnapshot {
     x: number; y: number; angle: number; alive: boolean; roundWins: number;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number;
+    tripleShotArmed: boolean; homingArmed: boolean; shielded: boolean; shieldGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
     launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number;
+    flightPath: ReadonlyArray<FlightPoint>;
+    homingTargetId?: PlayerId; homingTargetX?: number; homingTargetY?: number;
   }>;
   blasts: ReadonlyArray<{ bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number }>;
-  pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star' | 'beer'; x: number; y: number; expiresAtTick: number }>;
+  pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;

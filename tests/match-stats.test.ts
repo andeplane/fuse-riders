@@ -25,6 +25,9 @@ test('records authoritative actions and returns detached snapshots', () => {
   recordPickup(stats, 'a', 'blast');
   recordPickup(stats, 'a', 'star');
   recordPickup(stats, 'a', 'beer');
+  recordPickup(stats, 'a', 'triple');
+  recordPickup(stats, 'a', 'homing');
+  recordPickup(stats, 'a', 'orbitShield');
   recordDeath(stats, 'b', 'explosion', 'a');
   recordEarlyExit(stats, 'b');
   finalizeMatchStatsRound(stats, ['a', 'b'], 'a');
@@ -34,8 +37,9 @@ test('records authoritative actions and returns detached snapshots', () => {
     playerId: 'a', name: 'A', slot: 0, color: 'color-0', roundsPlayed: 1, roundWins: 1,
     roundsDrawn: 0, matchPlacement: 1, survivalTicks: 1, longestSurvivalTicks: 1,
     distanceUnits: 7.5, bombsPlaced: 1, bombsExploded: 1, eliminations: 1,
-    deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 3,
-    blastPickups: 1, starPickups: 1, beerPickups: 1, invulnerableTicks: 1, wallBounces: 1, earlyExits: 0,
+    deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 6,
+    blastPickups: 1, starPickups: 1, beerPickups: 1, triplePickups: 1, homingPickups: 1,
+    shieldPickups: 1, invulnerableTicks: 1, wallBounces: 1, earlyExits: 0,
   });
   assert.equal(snapshot[1]!.deathsByCause.explosion, 1);
   snapshot[1]!.deathsByCause.explosion = 99;

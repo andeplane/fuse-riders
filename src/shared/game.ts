@@ -5,6 +5,7 @@ import type {
   GameSnapshot,
   PlayerId,
   TrailSegment,
+  FlightPoint,
 } from './protocol.js';
 import {
   applyRoundScores,
@@ -32,6 +33,11 @@ import {
   bombLandingPoint,
   bombLaunchDistance,
 } from './bomb-launch.js';
+import {
+  createHomingFlightPath,
+  createVolleyFlightPaths,
+  type LaunchBounds,
+} from './launch-modifiers.js';
 
 export type { BlastRect, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
@@ -70,6 +76,7 @@ export const PICKUP_RIDER_BOMB_CLEARANCE = 80;
 export const PICKUP_TRAIL_CLEARANCE = 40;
 export const PICKUP_SEPARATION = 28;
 export const STAR_DURATION_TICKS = 50;
+export const SHIELD_GRACE_TICKS = 10;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
@@ -84,7 +91,7 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
-export type PickupType = 'blast' | 'star' | 'beer';
+export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -112,6 +119,10 @@ export interface PlayerState extends Required<PlayerIdentity> {
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
   drunkUntilTick: number;
+  tripleShotArmed: boolean;
+  homingArmed: boolean;
+  shielded: boolean;
+  shieldGraceUntilTick: number;
   trail: TrailSegment[];
 }
 
@@ -124,6 +135,10 @@ export interface BombState {
   y: number;
   launchedTick: number;
   landsAtTick: number;
+  flightPath: FlightPoint[];
+  homingTargetId?: PlayerId;
+  homingTargetX?: number;
+  homingTargetY?: number;
   placedTick: number;
   explodeAtTick: number;
   blastRange: number;
@@ -245,6 +260,10 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     blastLevel: 0,
     invulnerableUntilTick: 0,
     drunkUntilTick: 0,
+    tripleShotArmed: false,
+    homingArmed: false,
+    shielded: false,
+    shieldGraceUntilTick: 0,
     trail: [],
   });
   const historical = state.leaderboard.get(identity.id);
@@ -359,28 +378,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   const bounced = new Set<PlayerId>();
   for (const movement of movements.values()) {
-    if (!isInvulnerable(movement.player, state.tick)) continue;
-    const left = state.boundaryInset + RIDER_RADIUS;
-    const right = state.width - state.boundaryInset - RIDER_RADIUS;
-    const top = state.boundaryInset + RIDER_RADIUS;
-    const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
-    const hitX = movement.x < left || movement.x > right;
-    const hitY = movement.y < top || movement.y > bottom;
-    movement.x = Math.max(left, Math.min(right, movement.x));
-    movement.y = Math.max(top, Math.min(bottom, movement.y));
-    if (hitX) movement.angle = normalizeAngle(Math.PI - movement.angle);
-    if (hitY) movement.angle = normalizeAngle(-movement.angle);
-    if (hitX || hitY) bounced.add(movement.player.id);
-  }
-
-  for (const movement of movements.values()) {
-    recordSurvivalTick(
-      state.matchStats,
-      movement.player.id,
-      Math.hypot(movement.x - movement.oldX, movement.y - movement.oldY),
-      isInvulnerable(movement.player, state.tick),
-      bounced.has(movement.player.id),
-    );
+    if (isHazardImmune(movement.player, state.tick) && reflectAtBoundary(state, movement)) {
+      bounced.add(movement.player.id);
+    }
   }
 
   const newBlasts = resolveExplosions(state, events);
@@ -397,7 +397,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
-      if (!isInvulnerable(movement.player, state.tick) && blast.rects.some((rect) => sweptCircleIntersectsRect(movement, RIDER_RADIUS, rect))) {
+      if (!isHazardImmune(movement.player, state.tick) && blast.rects.some((rect) => sweptCircleIntersectsRect(movement, RIDER_RADIUS, rect))) {
         markCause(causes, causeOwners, movement.player.id, 'explosion', blast.ownerId);
       }
     }
@@ -406,12 +406,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const right = state.width - state.boundaryInset - RIDER_RADIUS;
     const top = state.boundaryInset + RIDER_RADIUS;
     const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
-    if (!isInvulnerable(movement.player, state.tick) && (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom)) {
+    if (!isHazardImmune(movement.player, state.tick) && (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom)) {
       markCause(causes, causeOwners, movement.player.id, 'wall');
     }
 
     for (const owner of state.players.values()) {
-      if (isInvulnerable(movement.player, state.tick)) break;
+      if (isHazardImmune(movement.player, state.tick)) break;
       for (const trail of owner.trail) {
         if (
           owner.id === movement.player.id &&
@@ -434,12 +434,31 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       const a = movementList[first]!;
       const b = movementList[second]!;
       if (segmentDistanceSquared(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y) <= square(2 * RIDER_RADIUS) + EPSILON) {
-        const aInvulnerable = isInvulnerable(a.player, state.tick);
-        const bInvulnerable = isInvulnerable(b.player, state.tick);
+        const aInvulnerable = isHazardImmune(a.player, state.tick);
+        const bInvulnerable = isHazardImmune(b.player, state.tick);
         if (!aInvulnerable) markCause(causes, causeOwners, a.player.id, 'rider', b.player.id);
         if (!bInvulnerable) markCause(causes, causeOwners, b.player.id, 'rider', a.player.id);
       }
     }
+  }
+
+  for (const movement of movementList) {
+    if (!causes.has(movement.player.id) || !movement.player.shielded) continue;
+    movement.player.shielded = false;
+    movement.player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
+    if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
+    causes.delete(movement.player.id);
+    causeOwners.delete(movement.player.id);
+  }
+
+  for (const movement of movementList) {
+    recordSurvivalTick(
+      state.matchStats,
+      movement.player.id,
+      Math.hypot(movement.x - movement.oldX, movement.y - movement.oldY),
+      isInvulnerable(movement.player, state.tick),
+      bounced.has(movement.player.id),
+    );
   }
 
   for (const movement of movementList) {
@@ -494,6 +513,10 @@ export function toSnapshot(state: GameState): GameSnapshot {
       blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
+      tripleShotArmed: player.tripleShotArmed,
+      homingArmed: player.homingArmed,
+      shielded: player.shielded,
+      shieldGraceUntilTick: player.shieldGraceUntilTick,
       trail: player.trail.map((segment) => ({ ...segment })),
     })),
     bombs: [...state.bombs.values()].sort((a, b) => a.id - b.id).map((bomb) => ({
@@ -505,6 +528,12 @@ export function toSnapshot(state: GameState): GameSnapshot {
       y: bomb.y,
       launchedTick: bomb.launchedTick,
       landsAtTick: bomb.landsAtTick,
+      flightPath: bomb.flightPath.map((point) => ({ ...point })),
+      ...(bomb.homingTargetId === undefined ? {} : {
+        homingTargetId: bomb.homingTargetId,
+        homingTargetX: bomb.homingTargetX,
+        homingTargetY: bomb.homingTargetY,
+      }),
       explodeAtTick: bomb.explodeAtTick,
       blastRange: bomb.blastRange,
     })),
@@ -555,6 +584,10 @@ function prepareRound(state: GameState): void {
     player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
     player.drunkUntilTick = 0;
+    player.tripleShotArmed = false;
+    player.homingArmed = false;
+    player.shielded = false;
+    player.shieldGraceUntilTick = 0;
   }
   const radius = 0.28 * Math.min(state.width, state.height);
   participants.forEach((player, index) => {
@@ -569,7 +602,8 @@ function prepareRound(state: GameState): void {
 function maybeSpawnPickup(state: GameState): void {
   if (state.pickups.length >= MAX_ACTIVE_PICKUPS) return;
   const typeRoll = nextRandom(state);
-  const type: PickupType = typeRoll < 1 / 3 ? 'blast' : typeRoll < 2 / 3 ? 'star' : 'beer';
+  const pickupTypes: readonly PickupType[] = ['blast', 'star', 'beer', 'triple', 'homing', 'orbitShield'];
+  const type = pickupTypes[Math.min(pickupTypes.length - 1, Math.floor(typeRoll * pickupTypes.length))]!;
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;
   const minimumY = state.boundaryInset + PICKUP_SPAWN_MARGIN;
@@ -624,12 +658,18 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
-    } else {
+    } else if (pickup.type === 'beer') {
       for (const player of state.players.values()) {
         if (player.alive && player.id !== collector.id) {
           player.drunkUntilTick = Math.max(player.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
         }
       }
+    } else if (pickup.type === 'triple') {
+      collector.tripleShotArmed = true;
+    } else if (pickup.type === 'homing') {
+      collector.homingArmed = true;
+    } else {
+      collector.shielded = true;
     }
   }
   if (consumed.size > 0) state.pickups = state.pickups.filter((pickup) => !consumed.has(pickup.id));
@@ -637,6 +677,25 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
 
 function isInvulnerable(player: PlayerState, tick: number): boolean {
   return player.invulnerableUntilTick > tick;
+}
+
+function isHazardImmune(player: PlayerState, tick: number): boolean {
+  return isInvulnerable(player, tick) || player.shieldGraceUntilTick > tick;
+}
+
+function reflectAtBoundary(state: GameState, movement: Movement): boolean {
+  const left = state.boundaryInset + RIDER_RADIUS;
+  const right = state.width - state.boundaryInset - RIDER_RADIUS;
+  const top = state.boundaryInset + RIDER_RADIUS;
+  const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
+  const hitX = movement.x < left || movement.x > right;
+  const hitY = movement.y < top || movement.y > bottom;
+  if (!hitX && !hitY) return false;
+  movement.x = Math.max(left, Math.min(right, movement.x));
+  movement.y = Math.max(top, Math.min(bottom, movement.y));
+  if (hitX) movement.angle = normalizeAngle(Math.PI - movement.angle);
+  if (hitY) movement.angle = normalizeAngle(-movement.angle);
+  return true;
 }
 
 function applyBombActions(state: GameState, player: PlayerState, actions: readonly BombAction[], events: GameEvent[]): void {
@@ -659,30 +718,64 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
     const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
     const distance = bombLaunchDistance(state.tick - chargeStartedTick);
-    const landing = bombLandingPoint(player.x, player.y, player.angle, distance, {
-      left: state.boundaryInset + RIDER_RADIUS,
-      right: state.width - state.boundaryInset - RIDER_RADIUS,
-      top: state.boundaryInset + RIDER_RADIUS,
-      bottom: state.height - state.boundaryInset - RIDER_RADIUS,
-    });
-    const bomb: BombState = {
-      id: state.nextBombId++,
-      ownerId: player.id,
-      launchX: player.x,
-      launchY: player.y,
-      x: landing.x,
-      y: landing.y,
-      placedTick: state.tick,
-      launchedTick: state.tick,
-      landsAtTick: state.tick + BOMB_FLIGHT_TICKS,
-      explodeAtTick: state.tick + BOMB_FUSE_TICKS,
-      blastRange: BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE,
+    const bounds: LaunchBounds = {
+      minX: state.boundaryInset + RIDER_RADIUS,
+      maxX: state.width - state.boundaryInset - RIDER_RADIUS,
+      minY: state.boundaryInset + RIDER_RADIUS,
+      maxY: state.height - state.boundaryInset - RIDER_RADIUS,
     };
-    state.bombs.set(bomb.id, bomb);
-    recordBombPlaced(state.matchStats, player.id);
+    const target = player.homingArmed ? nearestHomingTarget(state, player) : undefined;
+    const paths = player.tripleShotArmed
+      ? createVolleyFlightPaths(player, player.angle, distance, bounds, target)
+      : [target
+          ? createHomingFlightPath({ x: player.x, y: player.y, angle: player.angle }, target, distance, bounds)
+          : createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
+    player.tripleShotArmed = false;
+    player.homingArmed = false;
+    for (const flightPath of paths) {
+      const landing = flightPath[flightPath.length - 1]!;
+      const bomb: BombState = {
+        id: state.nextBombId++,
+        ownerId: player.id,
+        launchX: player.x,
+        launchY: player.y,
+        x: landing.x,
+        y: landing.y,
+        placedTick: state.tick,
+        launchedTick: state.tick,
+        landsAtTick: state.tick + BOMB_FLIGHT_TICKS,
+        explodeAtTick: state.tick + BOMB_FUSE_TICKS,
+        blastRange: BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE,
+        flightPath,
+        ...(target === undefined ? {} : {
+          homingTargetId: target.id,
+          homingTargetX: target.x,
+          homingTargetY: target.y,
+        }),
+      };
+      state.bombs.set(bomb.id, bomb);
+      recordBombPlaced(state.matchStats, player.id);
+      events.push({ type: 'bombPlaced', bombId: bomb.id, playerId: player.id });
+    }
     player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
-    events.push({ type: 'bombPlaced', bombId: bomb.id, playerId: player.id });
   }
+}
+
+function nearestHomingTarget(state: GameState, player: PlayerState): PlayerState | undefined {
+  return sortedPlayers(state)
+    .filter((candidate) => candidate.alive && candidate.id !== player.id)
+    .sort((a, b) => square(a.x - player.x) + square(a.y - player.y) - square(b.x - player.x) - square(b.y - player.y) || a.id.localeCompare(b.id))[0];
+}
+
+function createStraightFlightPath(x: number, y: number, angle: number, distance: number, bounds: LaunchBounds): FlightPoint[] {
+  const landing = bombLandingPoint(x, y, angle, distance, {
+    left: bounds.minX, right: bounds.maxX, top: bounds.minY, bottom: bounds.maxY,
+  });
+  return Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, (_, step) => ({
+    x: x + (landing.x - x) * step / BOMB_FLIGHT_TICKS,
+    y: y + (landing.y - y) * step / BOMB_FLIGHT_TICKS,
+    angle,
+  }));
 }
 
 function hashSeed(value: string): number {

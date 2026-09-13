@@ -34,6 +34,9 @@ export interface MatchPlayerStats {
   blastPickups: number;
   starPickups: number;
   beerPickups: number;
+  triplePickups: number;
+  homingPickups: number;
+  shieldPickups: number;
   invulnerableTicks: number;
   wallBounces: number;
   earlyExits: number;
@@ -73,6 +76,9 @@ export function beginMatchParticipant(stats: MatchStatsState, identity: MatchPla
     blastPickups: 0,
     starPickups: 0,
     beerPickups: 0,
+    triplePickups: 0,
+    homingPickups: 0,
+    shieldPickups: 0,
     invulnerableTicks: 0,
     wallBounces: 0,
     earlyExits: 0,
@@ -104,12 +110,19 @@ export function recordBombExploded(stats: MatchStatsState, playerId: string): vo
   requireEntry(stats, playerId).bombsExploded += 1;
 }
 
-export function recordPickup(stats: MatchStatsState, playerId: string, type: 'blast' | 'star' | 'beer'): void {
+export function recordPickup(
+  stats: MatchStatsState,
+  playerId: string,
+  type: 'blast' | 'star' | 'beer' | 'triple' | 'homing' | 'orbitShield',
+): void {
   const entry = requireEntry(stats, playerId);
   entry.pickupsCollected += 1;
   if (type === 'blast') entry.blastPickups += 1;
   else if (type === 'star') entry.starPickups += 1;
-  else entry.beerPickups += 1;
+  else if (type === 'beer') entry.beerPickups += 1;
+  else if (type === 'triple') entry.triplePickups += 1;
+  else if (type === 'homing') entry.homingPickups += 1;
+  else entry.shieldPickups += 1;
 }
 
 export function recordDeath(
@@ -176,6 +189,9 @@ export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsSt
       blastPickups: entry.blastPickups,
       starPickups: entry.starPickups,
       beerPickups: entry.beerPickups,
+      triplePickups: entry.triplePickups,
+      homingPickups: entry.homingPickups,
+      shieldPickups: entry.shieldPickups,
       invulnerableTicks: entry.invulnerableTicks,
       wallBounces: entry.wallBounces,
       earlyExits: entry.earlyExits,
