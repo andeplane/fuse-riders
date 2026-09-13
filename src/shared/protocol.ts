@@ -16,6 +16,7 @@ export type BombAction = 'press' | 'release' | 'cancel';
 export type ClientMessage =
   | { type: 'join'; name: string; playerToken?: PlayerToken; avatarId?: AvatarId }
   | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: BombAction; aim?: AimPoint }
+  | { type: 'setAvatar'; avatarId: AvatarId }
   | { type: 'heartbeat' }
   | { type: 'ping'; id: number; sentAt: number }
   | { type: 'leave' }
@@ -92,6 +93,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       if ((v.bombAction === 'press' && v.bomb !== true) ||
         ((v.bombAction === 'release' || v.bombAction === 'cancel') && v.bomb !== false)) return null;
       return v as Extract<ClientMessage, { type: 'input' }>;
+    case 'setAvatar': return keys('type', 'avatarId') && isAvatarId(v.avatarId) ? v as ClientMessage : null;
     case 'heartbeat': case 'leave': return keys('type') ? v as ClientMessage : null;
     case 'ping': return keys('type', 'id', 'sentAt') && Number.isSafeInteger(v.id) && (v.id as number) >= 0 && typeof v.sentAt === 'number' && Number.isFinite(v.sentAt) && v.sentAt >= 0 ? v as ClientMessage : null;
     case 'hostAuth': return keys('type', 'token') && token(v.token) ? v as ClientMessage : null;

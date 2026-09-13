@@ -15,3 +15,8 @@
   .controller-page .avatar-portrait { width: 32px; height: 32px; }
   .controller-page .join-screen h1 { margin: 4px 0 8px; }
 }
+
+.avatar-dialog { width: min(420px, 92vw); max-height: 88dvh; overflow: auto; color: white; background: #08132b; border: 2px solid #22d3ee; border-radius: 12px; padding: 16px; }
+.avatar-dialog::backdrop { background: #020816bb; }
+.avatar-close { display: block; margin: 10px auto 0; padding: 8px 20px; color: white; background: #20385c; border: 1px solid #22d3ee; cursor: pointer; }
+button.identity-marker { background: #08132b; cursor: pointer; font-size: .7rem; font-weight: bold; }

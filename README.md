@@ -29,12 +29,14 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 | Beer Worms | Adds a gentle sway for four seconds, bounded to 15° with a two-second cycle. Orbiting stars show who is dizzy. |
 | Ink | One second of dark clouds around other living riders; your nearby area stays clear. |
 | Triple Shot | Your next accepted release launches three bombs in a fan. |
-| Target Bomb | Hold Fire and slide your thumb like a trackpad to move a public TV target. Release to drop one normal-strength bomb there. Three times rarer than ordinary pickups; Triple/Five remain armed for a later launch. |
+| Target Bomb | Hold Fire and slide your thumb like a trackpad to move a public TV target. Release to drop one normal-strength bomb there. Less common than ordinary pickups; Triple/Five remain armed for a later launch. |
 | Five Shot | Your next accepted release launches five bombs in a wider fan. Three times rarer than Triple Shot; collecting Triple preserves an armed Five Shot. |
 | Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
 | Portal | Creates two linked portal walls for ten seconds, each up to one-third of the field height. Enter either to exit at the corresponding height with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
 
 Riders collide with walls, eight-second trails, other riders, and explosions. Bombs clear trail segments and chain nearby landed bombs. Upgrades reset each round. After 60 seconds the boundary shrinks and trims trails at its edge; at 90 seconds, remaining riders draw. Simultaneous final deaths also draw. The next round starts automatically after the three-second results pause when at least two players remain connected.
+
+Tap **HEAD** on the phone controls to change avatar at any time, including during a match. The new head appears immediately on the TV.
 
 ## Audio
 

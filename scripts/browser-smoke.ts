@@ -59,7 +59,7 @@ try {
     const context = await browser.newContext({ viewport: i === 0 ? { width: 390, height: 844 } : { width: 844, height: 390 }, isMobile: true, hasTouch: true });
     const phone = await context.newPage(); monitor(phone); phones.push(phone);
     await phone.goto(`${origin}/controller`);
-    assert.equal(await phone.locator('.avatar-option').count(), 10);
+    assert.equal(await phone.locator('.join-screen .avatar-option').count(), 10);
     const avatarLabels = ['Robot', 'Cat', 'Fox', 'Alien', 'Astronaut'];
     await phone.getByRole('button', { name: avatarLabels[i], exact: true }).click();
     if (i === 0) {
@@ -85,6 +85,10 @@ try {
   app.advance(60);
   await phones[0].getByRole('button', { name: 'Drop bomb' }).waitFor({ state: 'visible' });
   await waitFor(() => app.game.phase === 'playing', 'playing');
+  await phones[0].getByRole('button', { name: 'Change avatar', exact: true }).click();
+  await phones[0].getByRole('button', { name: 'Slime', exact: true }).click();
+  await waitFor(() => [...app.game.players.values()].find(p => p.slot === 0)!.avatarId === 'slime', 'live avatar selection reaches TV state');
+  assert.equal(String(app.game.phase), 'playing');
   await host.locator('.announcement.hidden').waitFor({ state: 'attached' });
   await phones[0].screenshot({ path: 'artifacts/phone-portrait.png' });
   await phones[1].screenshot({ path: 'artifacts/phone-landscape.png' });

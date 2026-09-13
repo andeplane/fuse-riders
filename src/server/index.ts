@@ -182,6 +182,10 @@ export async function createGameServer(options: ServerOptions = {}) {
       }
       const seat = c.seat;
       if (!seat || seat.socket !== ws || seat.leaving) { error(ws, 'unauthorized'); return; }
+      if (message.type === 'setAvatar') {
+        game.players.get(seat.id)!.avatarId = message.avatarId;
+        snapshot(); return;
+      }
       if (message.type === 'leave') {
         neutral(seat); seat.leaving = true; seat.socket = undefined; c.seat = undefined;
         setPlayerConnected(game, seat.id, false);

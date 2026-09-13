@@ -340,3 +340,21 @@ test('serialized avatar joins assign an allowed head and reconnect preserves ser
     await invalid.take('error', message => message.code === 'invalid_message'); assert.equal(f.app.game.players.size, 1);
   } finally { await f.close(); }
 });
+
+test('a joined controller can change only its own avatar during play without altering gameplay', async () => {
+  const f = await fixture();
+  try {
+    const outsider = await f.connect(); outsider.send({ type: 'setAvatar', avatarId: 'slime' }); assert.equal((await outsider.take('error')).code, 'unauthorized');
+    const a = await f.join('A'); const b = await f.join('B'); const host = await f.host();
+    host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown'); f.app.advance(60);
+    const before = structuredClone(f.app.game.players.get(a.joined.playerId)!);
+    a.peer.send({ type: 'setAvatar', avatarId: 'slime' });
+    await host.take('snapshot', s => s.state.players.some(p => p.id === a.joined.playerId && p.avatarId === 'slime'));
+    assert.deepEqual(f.app.game.players.get(a.joined.playerId), { ...before, avatarId: 'slime' });
+    assert.equal(f.app.game.players.get(b.joined.playerId)!.avatarId, 'robot');
+    assert.equal(f.app.game.phase, 'playing');
+    const reconnect = await f.connect(); reconnect.send({ type: 'join', name: 'A', playerToken: a.joined.playerToken }); await reconnect.take('joined');
+    const state = await reconnect.take('snapshot', s => s.state.players.some(p => p.id === a.joined.playerId));
+    assert.equal(state.state.players.find(p => p.id === a.joined.playerId)!.avatarId, 'slime');
+  } finally { await f.close(); }
+});

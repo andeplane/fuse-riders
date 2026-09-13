@@ -883,7 +883,8 @@ function startController(): void {
 
   const controls = element('section', 'controls hidden');
   const identity = element('div', 'controller-identity');
-  const identityMarker = element('span', 'identity-marker', '➤');
+  const identityMarker = element('button', 'identity-marker', 'HEAD');
+  identityMarker.type = 'button'; identityMarker.setAttribute('aria-label', 'Change avatar'); identityMarker.title = 'Change avatar';
   const identityCopy = element('div'); identityCopy.append(element('small', '', 'YOU ARE'), element('strong', '', 'RIDER'));
   const stateBadge = element('span', 'state-badge', 'LOBBY');
   identity.append(identityMarker, identityCopy, stateBadge);
@@ -910,7 +911,16 @@ function startController(): void {
   let showControllerPerformance = new URLSearchParams(location.search).get('perf') === '1';
   controllerPerformance.classList.toggle('hidden', !showControllerPerformance);
   controls.append(identity, instruction, powerStrip, pad, leave);
-  root.append(header, join, controls, controllerPerformance);
+  const avatarDialog = element('dialog', 'avatar-dialog');
+  const liveAvatarPicker = createAvatarPicker(localStorage, avatarId => {
+    if (playerId) socket.send({ type: 'setAvatar', avatarId });
+    avatarDialog.close();
+  });
+  const closeAvatar = element('button', 'avatar-close', 'CLOSE'); closeAvatar.type = 'button';
+  closeAvatar.addEventListener('click', () => avatarDialog.close());
+  avatarDialog.append(liveAvatarPicker.element, closeAvatar);
+  identityMarker.addEventListener('click', () => { clearControls(true, true); avatarDialog.showModal(); });
+  root.append(header, join, controls, controllerPerformance, avatarDialog);
   app.replaceChildren(root);
 
   let playerToken = localStorage.getItem(PLAYER_TOKEN_KEY) ?? '';
@@ -962,6 +972,7 @@ function startController(): void {
     } : undefined);
     targetPower.textContent = player.targetBombArmed ? 'TARGET · ARMED' : 'TARGET · --';
     const scored = snapshot as ScoredSnapshot;
+    liveAvatarPicker.sync(player.avatarId);
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);

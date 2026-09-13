@@ -15,7 +15,7 @@ export function drawAvatarHead(ctx: CanvasRenderingContext2D, id: AvatarId, x: n
   ctx.restore(); return true;
 }
 
-export function createAvatarPicker(storage: Pick<Storage, 'getItem' | 'setItem'>): { element: HTMLElement; selected: () => AvatarId } {
+export function createAvatarPicker(storage: Pick<Storage, 'getItem' | 'setItem'>, onChange?: (id: AvatarId) => void): { element: HTMLElement; selected: () => AvatarId; sync: (id: AvatarId) => void } {
   const stored = storage.getItem('fuse-riders-avatar');
   let selected: AvatarId = isAvatarId(stored) ? stored : DEFAULT_AVATAR;
   const element = document.createElement('fieldset'); element.className = 'avatar-picker';
@@ -32,7 +32,12 @@ export function createAvatarPicker(storage: Pick<Storage, 'getItem' | 'setItem'>
     button.addEventListener('click', () => {
       selected = avatar.id; storage.setItem('fuse-riders-avatar', selected);
       for (const candidate of buttons) candidate.setAttribute('aria-pressed', String(candidate === button));
+      onChange?.(selected);
     });
   }
-  return { element, selected: () => selected };
+  return { element, selected: () => selected, sync: id => {
+    if (selected === id) return;
+    selected = id; storage.setItem('fuse-riders-avatar', id);
+    buttons.forEach((button, index) => button.setAttribute('aria-pressed', String(AVATARS[index].id === id)));
+  } };
 }

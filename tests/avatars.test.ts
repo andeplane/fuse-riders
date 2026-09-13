@@ -25,3 +25,8 @@ test('default and selected heads appear in authoritative snapshots without chang
   const [a, b] = toSnapshot(state).players;
   assert.equal(a!.avatarId, 'robot'); assert.equal(b!.avatarId, 'dragon'); assert.equal(b!.color, '#ff4fa3');
 });
+
+test('live avatar messages only accept a known head and no player override', () => {
+  for (const { id } of AVATARS) assert.deepEqual(parseClientMessage(JSON.stringify({ type: 'setAvatar', avatarId: id })), { type: 'setAvatar', avatarId: id });
+  for (const body of [{ type: 'setAvatar' }, { type: 'setAvatar', avatarId: 'bad' }, { type: 'setAvatar', avatarId: 'robot', playerId: 'other' }]) assert.equal(parseClientMessage(JSON.stringify(body)), null);
+});
