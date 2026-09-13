@@ -74,7 +74,7 @@ export class RoomRuntime {
       this.lastState=performance.now();
       if(isAppliedMotionState(data.motion)){const scope=JSON.stringify(data.motion.scope);if(scope!==this.lastMotionScope){this.lastMotionScope=scope;this.lastClockProbe=-Infinity;}}
     this.callbacks.state({...snapshot,tick:data.frame.tick,round:data.frame.round},data.settings,data.ack?.[this.transport.id]??-1,data.frame.matchId,isAppliedMotionState(data.motion)&&data.motion.tick===data.frame.tick&&data.motion.scope.matchId===data.frame.matchId&&data.motion.scope.round===data.frame.round?data.motion:undefined);
-      if(data.paused)this.callbacks.status('Paused — host is in the background');
+      this.callbacks.status(data.paused?'Paused — host is in the background':'Connected · direct game link');
     }else if(data.type==='event'&&data.event)this.callbacks.event(data.event,data.matchId??'',data.round??0,data.tick??0);
     else if(data.type==='error')this.callbacks.status(data.error??'Room error');
   }

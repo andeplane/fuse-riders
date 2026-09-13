@@ -46,6 +46,7 @@ test('clock rejects bad samples and conservative intervals crossing lease bounda
   assert.equal(clock.synchronize(600, -1), false);
   assert.equal(clock.synchronize(300, 1000), true);
   assert.equal(clock.interval(), undefined); // valid RTT but uncertainty exceeds lease guard
+  assert.deepEqual(clock.diagnostics(),{reason:'uncertainty',roundTripMs:300});
   assert.equal(clock.synchronize(550, 1000), true);
   const grant = reserveAuthority(undefined, 'r', 'h', 'g', 1020);
   assert.equal(clock.permits(grant), false);

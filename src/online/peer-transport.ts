@@ -172,7 +172,7 @@ export class PeerTransport {
     }
   }
   close():void{this.stopped=true;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
-  async stats():Promise<{direct:number;relayed:number;buffered:number}>{
+  async stats():Promise<{direct:number;relayed:number;buffered:number;authority:{reason:string;roundTripMs?:number}}>{
     let direct=0,relayed=0,buffered=this.socket?.bufferedAmount??0;
     for(const link of this.links.values()){
       buffered+=link.channel?.bufferedAmount??0;
@@ -181,6 +181,6 @@ export class PeerTransport {
       report.forEach(stat=>{if(stat.type==='candidate-pair'&&stat.state==='succeeded'){const local=report.get(stat.localCandidateId);const remote=report.get(stat.remoteCandidateId);if(local?.candidateType==='relay'||remote?.candidateType==='relay')usesRelay=true;}});
       if(usesRelay)relayed++;else direct++;
     }
-    return{direct,relayed,buffered};
+    return{direct,relayed,buffered,authority:this.authorityClock.diagnostics()};
   }
 }
