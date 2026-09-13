@@ -1,0 +1,67 @@
+{
+  "date": "2026-09-13T23:30:31.560Z",
+  "revision": "84aff0bd680c5130050f2126b86564cb0edeeff0",
+  "sourceSha256": {
+    "src/service/index.ts": "00e1901427be960e950102e53041c94bba30c2117f9a9c350baf8ae8387ff2df",
+    "src/service/gateway.ts": "278cc4d7f0fb82f0ee5b98945a14c4bd29fd498267856c37d966f6be2564a998",
+    "src/service/room-store.ts": "48803327f8f15f1999fed8db9ca3841eed2a1d5c51596aa8a7494cdce2f3c35c",
+    "src/service/room-bus.ts": "3a61cfce671811cc44f8f262bc12af3e4192225433b32bb7091ef54451285271",
+    "src/service/pubsub-bus.ts": "d6d70d90730bdffca17d7d5d9521a3919ab1f386eda63f198ed83a2c0bf891ab",
+    "src/service/firestore-store.ts": "d303356e7f9bf6488b660085fd38410e2555fe2d5d1f10abb155709cf921bf3a",
+    "scripts/gcp-service-smoke.ts": "42bbfde0212ab8c14075a07ddf82cf82ecf7eacbe223fc4491e787dad93041b9",
+    "scripts/gcp-service-child.ts": "98e9d261e85de6c5670192ea88e87338e4794d7d72415da95053b136bdcb6d49",
+    "package-lock.json": "b8848a5bf333fb7619c12769f55d7d25fc7a8efb41d9ee739cc7c2efe813ca36"
+  },
+  "testPrefix": "fuse-smoke-1789342195821-95f044",
+  "auth": "active gcloud user short-lived token in memory",
+  "workingTreeChanged": true,
+  "project": "andershaf-87",
+  "database": "fuse-riders",
+  "region": "europe-west1",
+  "topic": "fuse-riders-signalling",
+  "passed": true,
+  "checks": [
+    {
+      "name": "two separate Node gateway processes started",
+      "milliseconds": 569
+    },
+    {
+      "name": "real Firestore room create and Origin boundary",
+      "milliseconds": 822
+    },
+    {
+      "name": "cross-process membership watcher and v2 welcome",
+      "milliseconds": 13122
+    },
+    {
+      "name": "real PubSub addressed SDP delivery between processes",
+      "milliseconds": 6678
+    },
+    {
+      "name": "reverse ordered signalling edge",
+      "milliseconds": 406
+    },
+    {
+      "name": "gameplay relay explicitly rejected",
+      "milliseconds": 0
+    },
+    {
+      "name": "identity-only lease renewal against real transaction",
+      "milliseconds": 382
+    },
+    {
+      "name": "creator replacement fenced across gateways",
+      "milliseconds": 339
+    },
+    {
+      "name": "guest connection replacement and old-close compare-and-set",
+      "milliseconds": 7534
+    },
+    {
+      "name": "test-only documents/subscriptions cleaned",
+      "milliseconds": 5195
+    }
+  ],
+  "limits": "Real Firestore/PubSub and two local Node processes. Synthetic SDP and WSS clients; does not prove WebRTC negotiation, physical phones, Cloud Run revision routing or runtime-service-account IAM.",
+  "diagnostics": []
+}
