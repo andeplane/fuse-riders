@@ -88,8 +88,8 @@ test('reconnect replaces the same seat, sequences continue, stale input becomes 
   try {
     const host = await f.host(); const a = await f.join('Alice'); await f.join('Bob');
     host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown'); f.app.advance(60);
-    a.peer.send({ type: 'input', seq: 3, left: true, right: false, bomb: true });
-    a.peer.send({ type: 'input', seq: 4, left: true, right: false, bomb: false }); await a.peer.flush();
+    a.peer.send({ type: 'input', seq: 3, left: true, right: false, bomb: true, bombAction: 'press' });
+    a.peer.send({ type: 'input', seq: 4, left: true, right: false, bomb: false, bombAction: 'release' }); await a.peer.flush();
     f.app.advance(); assert.equal(f.app.game.bombs.size, 1);
     a.peer.send({ type: 'input', seq: 4, left: false, right: false, bomb: true }); assert.equal((await a.peer.take('error')).code, 'stale');
     const player = f.app.game.players.get(a.joined.playerId)!;
@@ -120,6 +120,67 @@ test('admission rejects late/invalid joins, leave frees lobby seats and eliminat
     b.peer.send({ type: 'leave' }); await b.peer.take('snapshot', s => s.state.phase === 'countdown' && s.state.players.some(p => p.id === b.joined.playerId && !p.alive && !p.connected));
     f.app.advance(60); assert.equal(f.app.game.phase, 'roundOver');
     f.app.advance(60); assert.equal(f.app.game.players.size, 1); assert.equal(f.app.game.phase, 'roundOver');
+  } finally { await f.close(); }
+});
+
+test('charge holds use authoritative ticks and launch only on explicit release', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host(); const a = await f.join('A'); await f.join('B');
+    host.send({ type: 'hostAction', action: 'start' });
+    await host.take('snapshot', message => message.state.phase === 'countdown'); f.app.advance(60);
+    let seq = 0;
+    a.peer.send({ type: 'input', seq: seq++, left: false, right: false, bomb: true, bombAction: 'press' });
+    await a.peer.flush(); f.app.advance();
+    const player = f.app.game.players.get(a.joined.playerId)!;
+    assert.equal(player.bombChargeStartedTick, f.app.game.tick);
+    assert.equal(f.app.game.bombs.size, 0);
+    for (let index = 0; index < 3; index++) {
+      a.peer.send({ type: 'input', seq: seq++, left: false, right: false, bomb: true });
+      await a.peer.flush(); f.app.advance(8);
+    }
+    // Set a safe horizontal release direction: the charge remains authoritative.
+    player.x = 600; player.y = 450; player.angle = 0; player.trail = [];
+    a.peer.send({ type: 'input', seq: seq++, left: false, right: false, bomb: false, bombAction: 'release' });
+    await a.peer.flush(); f.app.advance();
+    const bomb = [...f.app.game.bombs.values()][0]!;
+    assert.ok(bomb);
+    assert.equal(player.bombChargeStartedTick, undefined);
+    assert.equal(bomb.explodeAtTick - f.app.game.tick, 40);
+    assert.equal(bomb.landsAtTick - f.app.game.tick, 6);
+    assert.ok(Math.abs(bomb.x - bomb.launchX - 400) < 0.001);
+    assert.equal(bomb.y, bomb.launchY);
+  } finally { await f.close(); }
+});
+
+test('cancel, stale input, and socket replacement discard charges and queued releases', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host(); const a = await f.join('A'); await f.join('B');
+    host.send({ type: 'hostAction', action: 'start' });
+    await host.take('snapshot', message => message.state.phase === 'countdown'); f.app.advance(60);
+    const player = f.app.game.players.get(a.joined.playerId)!;
+    a.peer.send({ type: 'input', seq: 0, left: false, right: false, bomb: true, bombAction: 'press' });
+    a.peer.send({ type: 'input', seq: 1, left: false, right: false, bomb: false, bombAction: 'release' });
+    a.peer.send({ type: 'input', seq: 2, left: false, right: false, bomb: false, bombAction: 'cancel' });
+    await a.peer.flush(); f.app.advance();
+    assert.equal(f.app.game.bombs.size, 0, 'cancel discards an unprocessed quick tap');
+    a.peer.send({ type: 'input', seq: 3, left: false, right: false, bomb: true, bombAction: 'press' });
+    await a.peer.flush(); f.app.advance();
+    assert.notEqual(player.bombChargeStartedTick, undefined);
+    f.app.advance(10);
+    assert.equal(player.bombChargeStartedTick, undefined, 'watchdog cancels held charge');
+    a.peer.send({ type: 'input', seq: 4, left: false, right: false, bomb: false, bombAction: 'release' });
+    a.peer.send({ type: 'input', seq: 5, left: false, right: false, bomb: true, bombAction: 'press' });
+    await a.peer.flush(); f.app.advance();
+    assert.notEqual(player.bombChargeStartedTick, undefined);
+    const replaced = await f.connect();
+    replaced.send({ type: 'join', name: 'A', playerToken: a.joined.playerToken });
+    const joined = await replaced.take('joined');
+    replaced.send({ type: 'input', seq: joined.nextInputSeq, left: false, right: false, bomb: false, bombAction: 'release' });
+    await replaced.flush(); f.app.advance();
+    assert.equal(player.bombChargeStartedTick, undefined);
+    assert.equal(f.app.game.bombs.size, 0, 'reconnect never releases an old charge');
   } finally { await f.close(); }
 });
 

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { BombInputBuffer } from './bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { readFile, stat } from 'node:fs/promises';
@@ -18,8 +19,8 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const secret = () => randomBytes(24).toString('hex');
 interface Seat {
   id: string; token: string; slot: number; socket?: WebSocket;
-  seq: number; appliedSeq: number; intent: InputIntent; inputTick: number; pendingBomb: boolean;
-  lastBomb: boolean; deliveredBomb: boolean; leaving: boolean; bombNeedsRelease: boolean;
+  seq: number; appliedSeq: number; intent: InputIntent; inputTick: number;
+  bombInput: BombInputBuffer; leaving: boolean;
 }
 interface Connection { host: boolean; seat?: Seat; lastSeen: number; window: number; count: number }
 export interface ServerDependencies {
@@ -89,8 +90,8 @@ export async function createGameServer(options: ServerOptions = {}) {
   }
   function error(ws: WebSocket, code: ErrorCode) { send(ws, { type: 'error', code }); }
   function neutral(seat: Seat, rearm = false) {
-    seat.bombNeedsRelease ||= rearm || seat.lastBomb;
-    seat.intent = { ...NEUTRAL }; seat.pendingBomb = false; seat.lastBomb = false; seat.deliveredBomb = false;
+    seat.bombInput.cancel(rearm);
+    seat.intent = { ...NEUTRAL };
   }
   function clearInputs() { for (const seat of seats.values()) neutral(seat); }
   function detach(ws: WebSocket) {
@@ -167,7 +168,7 @@ export async function createGameServer(options: ServerOptions = {}) {
           if (seats.size >= 5) { error(ws, 'full'); return; }
           if (!['lobby', 'roundOver', 'matchOver'].includes(game.phase)) { error(ws, 'invalid_phase'); return; }
           const slot = COLORS.findIndex((_, i) => ![...seats.values()].some(s => s.slot === i));
-          seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, pendingBomb: false, lastBomb: false, deliveredBomb: false, leaving: false, bombNeedsRelease: false };
+          seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, bombInput: new BombInputBuffer(), leaving: false };
           addPlayer(game, { id: seat.id, name: message.name, slot, color: COLORS[slot], connected: true });
           seats.set(seat.id, seat);
         }
@@ -188,9 +189,7 @@ export async function createGameServer(options: ServerOptions = {}) {
         if (message.seq <= seat.seq) { error(ws, 'stale'); return; }
         seat.seq = message.seq; seat.inputTick = game.tick;
         if (game.phase !== 'playing') { neutral(seat); return; }
-        if (!message.bomb) seat.bombNeedsRelease = false;
-        if (message.bomb && !seat.lastBomb && !seat.bombNeedsRelease) seat.pendingBomb = true;
-        seat.lastBomb = message.bomb;
+        seat.bombInput.accept(message.bomb, message.bombAction);
         seat.intent = { left: message.left, right: message.right, bomb: message.bomb };
       }
     });
@@ -201,12 +200,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       const inputs = new Map<string, InputIntent>();
       for (const seat of seats.values()) {
         if (!seat.socket || game.tick - seat.inputTick >= 10) neutral(seat);
-        // Preserve a tap that arrived and was released between simulation ticks.
-        // Insert one false sample between consecutive accepted edges for the engine.
-        const bomb = seat.pendingBomb && !seat.deliveredBomb;
-        if (bomb) seat.pendingBomb = false;
-        seat.deliveredBomb = bomb;
-        inputs.set(seat.id, { left: seat.intent.left, right: seat.intent.right, bomb });
+        inputs.set(seat.id, { ...seat.intent, bombActions: seat.bombInput.drain() });
       }
       const result = step(game, inputs);
       for (const seat of seats.values()) if (seat.socket && seat.seq > seat.appliedSeq) {

@@ -39,7 +39,7 @@ class ReviewPeer {
   }
 }
 
-test('a reconnect requires a bomb release before accepting another rising edge', async () => {
+test('a reconnect cancels prior charge and accepts a fresh explicit press-release pair', async () => {
   let nonce = 0;
   const app = await createGameServer({
     port: 0,
@@ -83,10 +83,11 @@ test('a reconnect requires a bomb release before accepting another rising edge',
     assert.equal(app.game.bombs.size, 0, 'a held input from before reconnect must not place a bomb');
 
     replacement.send({ type: 'input', seq: rejoined.nextInputSeq + 1, left: false, right: false, bomb: false });
-    replacement.send({ type: 'input', seq: rejoined.nextInputSeq + 2, left: false, right: false, bomb: true });
+    replacement.send({ type: 'input', seq: rejoined.nextInputSeq + 2, left: false, right: false, bomb: true, bombAction: 'press' });
+    replacement.send({ type: 'input', seq: rejoined.nextInputSeq + 3, left: false, right: false, bomb: false, bombAction: 'release' });
     await replacement.barrier();
     app.advance();
-    assert.equal(app.game.bombs.size, 1, 'release then press rearms bomb placement');
+    assert.equal(app.game.bombs.size, 1, 'fresh explicit edges launch after reconnect cancellation');
   } finally {
     peers.forEach((peer) => peer.socket.terminate());
     await app.close();

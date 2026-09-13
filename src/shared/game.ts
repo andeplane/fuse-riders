@@ -1,5 +1,6 @@
 import type {
   BlastRect,
+  BombAction,
   GameEvent,
   GameSnapshot,
   PlayerId,
@@ -26,8 +27,13 @@ import {
   type MatchStatsState,
 } from './match-stats.js';
 import { DRUNK_DURATION_TICKS, drunkAngularVelocity } from './drunk.js';
+import {
+  BOMB_FLIGHT_TICKS,
+  bombLandingPoint,
+  bombLaunchDistance,
+} from './bomb-launch.js';
 
-export type { BlastRect, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
+export type { BlastRect, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
 export const TICK_HZ = 20;
 export const SNAPSHOT_HZ = 10;
@@ -92,6 +98,7 @@ export interface InputIntent {
   left: boolean;
   right: boolean;
   bomb: boolean;
+  bombActions?: readonly BombAction[];
 }
 
 export interface PlayerState extends Required<PlayerIdentity> {
@@ -101,7 +108,7 @@ export interface PlayerState extends Required<PlayerIdentity> {
   alive: boolean;
   roundWins: number;
   bombReadyAtTick: number;
-  previousBombInput: boolean;
+  bombChargeStartedTick?: number;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
   drunkUntilTick: number;
@@ -111,8 +118,12 @@ export interface PlayerState extends Required<PlayerIdentity> {
 export interface BombState {
   id: number;
   ownerId: PlayerId;
+  launchX: number;
+  launchY: number;
   x: number;
   y: number;
+  launchedTick: number;
+  landsAtTick: number;
   placedTick: number;
   explodeAtTick: number;
   blastRange: number;
@@ -231,7 +242,6 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     alive: false,
     roundWins: 0,
     bombReadyAtTick: 0,
-    previousBombInput: false,
     blastLevel: 0,
     invulnerableUntilTick: 0,
     drunkUntilTick: 0,
@@ -263,6 +273,7 @@ export function eliminatePlayer(state: GameState, playerId: PlayerId): void {
   if (state.phase !== 'countdown' && state.phase !== 'playing') return;
   if (!player.alive) return;
   player.alive = false;
+  player.bombChargeStartedTick = undefined;
   recordElimination(state, playerId);
   if (state.roundParticipants.has(playerId)) recordEarlyExit(state.matchStats, playerId);
 }
@@ -372,28 +383,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     );
   }
 
-  for (const movement of movements.values()) {
-    const input = inputs.get(movement.player.id) ?? NEUTRAL_INPUT;
-    const risingBomb = input.bomb && !movement.player.previousBombInput;
-    movement.player.previousBombInput = input.bomb;
-    const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === movement.player.id);
-    if (risingBomb && !ownsBomb && movement.player.bombReadyAtTick <= state.tick) {
-      const bomb: BombState = {
-        id: state.nextBombId++,
-        ownerId: movement.player.id,
-        x: movement.oldX,
-        y: movement.oldY,
-        placedTick: state.tick,
-        explodeAtTick: state.tick + BOMB_FUSE_TICKS,
-        blastRange: BOMB_BLAST_RANGE + movement.player.blastLevel * BLAST_LEVEL_RANGE,
-      };
-      state.bombs.set(bomb.id, bomb);
-      recordBombPlaced(state.matchStats, movement.player.id);
-      movement.player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
-      events.push({ type: 'bombPlaced', bombId: bomb.id, playerId: movement.player.id });
-    }
-  }
-
   const newBlasts = resolveExplosions(state, events);
   if (newBlasts.length > 0) {
     const rects = newBlasts.flatMap((blast) => blast.rects);
@@ -457,6 +446,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const cause = causes.get(movement.player.id);
     if (cause) {
       movement.player.alive = false;
+      movement.player.bombChargeStartedTick = undefined;
       recordElimination(state, movement.player.id);
       recordDeath(state.matchStats, movement.player.id, cause, soleCreditedOwner(causeOwners, movement.player.id, cause));
       events.push({ type: 'playerEliminated', playerId: movement.player.id, cause });
@@ -473,6 +463,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       createdTick: state.tick,
       expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
     });
+    applyBombActions(state, movement.player, inputs.get(movement.player.id)?.bombActions ?? [], events);
   }
 
   resolveRound(state, events, elapsed);
@@ -499,6 +490,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       alive: player.alive,
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
+      ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
       blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
@@ -507,8 +499,12 @@ export function toSnapshot(state: GameState): GameSnapshot {
     bombs: [...state.bombs.values()].sort((a, b) => a.id - b.id).map((bomb) => ({
       id: bomb.id,
       ownerId: bomb.ownerId,
+      launchX: bomb.launchX,
+      launchY: bomb.launchY,
       x: bomb.x,
       y: bomb.y,
+      launchedTick: bomb.launchedTick,
+      landsAtTick: bomb.landsAtTick,
       explodeAtTick: bomb.explodeAtTick,
       blastRange: bomb.blastRange,
     })),
@@ -554,7 +550,7 @@ function prepareRound(state: GameState): void {
   for (const player of state.players.values()) {
     player.alive = false;
     player.trail = [];
-    player.previousBombInput = false;
+    player.bombChargeStartedTick = undefined;
     player.bombReadyAtTick = state.tick;
     player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
@@ -643,6 +639,52 @@ function isInvulnerable(player: PlayerState, tick: number): boolean {
   return player.invulnerableUntilTick > tick;
 }
 
+function applyBombActions(state: GameState, player: PlayerState, actions: readonly BombAction[], events: GameEvent[]): void {
+  for (const action of actions) {
+    if (action === 'cancel') {
+      player.bombChargeStartedTick = undefined;
+      continue;
+    }
+    if (action === 'press') {
+      const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
+      if (player.bombChargeStartedTick === undefined && !ownsBomb && player.bombReadyAtTick <= state.tick) {
+        player.bombChargeStartedTick = state.tick;
+      }
+      continue;
+    }
+
+    const chargeStartedTick = player.bombChargeStartedTick;
+    player.bombChargeStartedTick = undefined;
+    if (chargeStartedTick === undefined) continue;
+    const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
+    if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
+    const distance = bombLaunchDistance(state.tick - chargeStartedTick);
+    const landing = bombLandingPoint(player.x, player.y, player.angle, distance, {
+      left: state.boundaryInset + RIDER_RADIUS,
+      right: state.width - state.boundaryInset - RIDER_RADIUS,
+      top: state.boundaryInset + RIDER_RADIUS,
+      bottom: state.height - state.boundaryInset - RIDER_RADIUS,
+    });
+    const bomb: BombState = {
+      id: state.nextBombId++,
+      ownerId: player.id,
+      launchX: player.x,
+      launchY: player.y,
+      x: landing.x,
+      y: landing.y,
+      placedTick: state.tick,
+      launchedTick: state.tick,
+      landsAtTick: state.tick + BOMB_FLIGHT_TICKS,
+      explodeAtTick: state.tick + BOMB_FUSE_TICKS,
+      blastRange: BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE,
+    };
+    state.bombs.set(bomb.id, bomb);
+    recordBombPlaced(state.matchStats, player.id);
+    player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+    events.push({ type: 'bombPlaced', bombId: bomb.id, playerId: player.id });
+  }
+}
+
 function hashSeed(value: string): number {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {
@@ -667,7 +709,7 @@ function nextRandom(state: GameState): number {
 
 function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {
   const queue = [...state.bombs.values()]
-    .filter((bomb) => bomb.explodeAtTick <= state.tick)
+    .filter((bomb) => bomb.landsAtTick <= state.tick && bomb.explodeAtTick <= state.tick)
     .sort((a, b) => a.id - b.id)
     .map((bomb) => bomb.id);
   const queued = new Set(queue);
@@ -687,6 +729,7 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
 
     for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
       if (exploded.has(candidate.id) || queued.has(candidate.id)) continue;
+      if (candidate.landsAtTick > state.tick) continue;
       if (rects.some((rect) => pointInRect(candidate.x, candidate.y, rect))) {
         queued.add(candidate.id);
         queue.push(candidate.id);

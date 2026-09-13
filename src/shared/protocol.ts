@@ -6,9 +6,10 @@ export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './matc
 
 export type PlayerId = string;
 export type PlayerToken = string;
+export type BombAction = 'press' | 'release' | 'cancel';
 export type ClientMessage =
   | { type: 'join'; name: string; playerToken?: PlayerToken }
-  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean }
+  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: BombAction }
   | { type: 'heartbeat' }
   | { type: 'ping'; id: number; sentAt: number }
   | { type: 'leave' }
@@ -24,10 +25,13 @@ export interface GameSnapshot {
   players: ReadonlyArray<{
     id: PlayerId; name: string; slot: number; color: string; connected: boolean;
     x: number; y: number; angle: number; alive: boolean; roundWins: number;
-    bombReadyAtTick: number; trail: ReadonlyArray<TrailSegment>;
+    bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number;
   }>;
-  bombs: ReadonlyArray<{ id: number; ownerId: PlayerId; x: number; y: number; explodeAtTick: number; blastRange: number }>;
+  bombs: ReadonlyArray<{
+    id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
+    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number;
+  }>;
   blasts: ReadonlyArray<{ bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number }>;
   pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star' | 'beer'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
@@ -67,8 +71,11 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         (v.playerToken !== undefined && !token(v.playerToken))) return null;
       return { type: 'join', name: v.name.trim(), ...(v.playerToken ? { playerToken: v.playerToken as string } : {}) };
     case 'input':
-      if (!keys('type', 'seq', 'left', 'right', 'bomb') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
+      if (!keys('type', 'seq', 'left', 'right', 'bomb', 'bombAction') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
         !['left', 'right', 'bomb'].every(k => typeof v[k] === 'boolean')) return null;
+      if (v.bombAction !== undefined && !['press', 'release', 'cancel'].includes(v.bombAction as string)) return null;
+      if ((v.bombAction === 'press' && v.bomb !== true) ||
+        ((v.bombAction === 'release' || v.bombAction === 'cancel') && v.bomb !== false)) return null;
       return v as Extract<ClientMessage, { type: 'input' }>;
     case 'heartbeat': case 'leave': return keys('type') ? v as ClientMessage : null;
     case 'ping': return keys('type', 'id', 'sentAt') && Number.isSafeInteger(v.id) && (v.id as number) >= 0 && typeof v.sentAt === 'number' && Number.isFinite(v.sentAt) && v.sentAt >= 0 ? v as ClientMessage : null;
