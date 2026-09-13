@@ -2,6 +2,7 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { createGameServer } from '../src/server/index.js';
+import { AVATARS } from '../src/shared/avatars.js';
 import { addPlayer, type TrailSegment } from '../src/shared/game.js';
 import { createVolleyFlightPaths } from '../src/shared/launch-modifiers.js';
 
@@ -9,7 +10,7 @@ const app = await createGameServer({ port: 0, hostname: '127.0.0.1', lanAddress:
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const colors = ['#00d9ff', '#ff3aaf', '#b5ff36', '#ff963b', '#b76bff'];
-  for (let i = 0; i < 5; i++) addPlayer(app.game, { id: `p${i}`, name: `P${i + 1}`, slot: i, color: colors[i] });
+  for (let i = 0; i < 5; i++) addPlayer(app.game, { id: `p${i}`, name: `P${i + 1}`, avatarId: AVATARS[i * 2]!.id, slot: i, color: colors[i] });
   app.game.phase = 'playing'; app.game.tick = 960; app.game.roundStartedTick = 0;
   // Cubic Bézier chains place representative curved trails throughout the arena.
   type Point = readonly [number, number];

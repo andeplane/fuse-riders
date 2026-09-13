@@ -1,4 +1,5 @@
 import { drawBombTargets } from './target-renderer.js';
+import { createAvatarPicker, drawAvatarHead } from './avatar-heads.js';
 import { drawInkClouds } from './ink-renderer.js';
 import { ControllerPointerBindings } from './controller-pointers.js';
 import { createGameAudio } from './game-audio.js';
@@ -417,7 +418,8 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     drawOrbitShield(ctx, player, snapshot.tick, now);
     drawPortalGrace(ctx, player, snapshot.tick, now);
     ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
-    if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
+    if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, player.angle, color)) { /* Atlas head includes color and heading cues. */ }
+    else if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
     else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     ctx.restore();
     if (player.alive) {
@@ -872,7 +874,8 @@ function startController(): void {
   input.type = 'text'; input.maxLength = 18; input.setAttribute('autocomplete', 'nickname'); input.placeholder = 'Rider name'; input.value = localStorage.getItem(PLAYER_NAME_KEY) ?? '';
   const joinButton = element('button', 'join-button', 'JOIN THE GRID'); joinButton.type = 'submit';
   const joinStatus = element('p', 'join-status', 'Connect to the same Wi-Fi as the TV.');
-  form.append(input, joinButton); join.append(form, joinStatus);
+  const avatarPicker = createAvatarPicker(localStorage);
+  form.append(input, avatarPicker.element, joinButton); join.append(form, joinStatus);
 
   const controls = element('section', 'controls hidden');
   const identity = element('div', 'controller-identity');
@@ -934,7 +937,7 @@ function startController(): void {
   function status(text: string, error = false): void { joinStatus.textContent = text; joinStatus.classList.toggle('error', error); }
   function currentJoin(reconnectOnly = true): ClientMessage | undefined {
     if (!name || (reconnectOnly && !playerToken)) return undefined;
-    return playerToken ? { type: 'join', name, playerToken } : { type: 'join', name };
+    return playerToken ? { type: 'join', name, playerToken } : { type: 'join', name, avatarId: avatarPicker.selected() };
   }
   function updateResend(): void {
     window.clearInterval(resendTimer);

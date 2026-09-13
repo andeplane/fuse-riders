@@ -59,8 +59,17 @@ try {
     const context = await browser.newContext({ viewport: i === 0 ? { width: 390, height: 844 } : { width: 844, height: 390 }, isMobile: true, hasTouch: true });
     const phone = await context.newPage(); monitor(phone); phones.push(phone);
     await phone.goto(`${origin}/controller`);
+    assert.equal(await phone.locator('.avatar-option').count(), 10);
+    const avatarLabels = ['Robot', 'Cat', 'Fox', 'Alien', 'Astronaut'];
+    await phone.getByRole('button', { name: avatarLabels[i], exact: true }).click();
+    if (i === 0) {
+      await phone.getByRole('button', { name: 'Dragon', exact: true }).click();
+      await phone.reload();
+      assert.equal(await phone.getByRole('button', { name: 'Dragon', exact: true }).getAttribute('aria-pressed'), 'true');
+    }
     await phone.getByPlaceholder('Rider name').fill(['Ada', 'Bo', 'Cy', 'Dee', 'Eli'][i]);
     await phone.getByRole('button', { name: 'JOIN THE GRID' }).click();
+    await waitFor(() => [...app.game.players.values()].some(player => player.name === ['Ada', 'Bo', 'Cy', 'Dee', 'Eli'][i] && player.avatarId === ['dragon', 'cat', 'fox', 'alien', 'astronaut'][i]), 'chosen avatar reaches server');
     await phone.locator('.controls:not(.hidden)').waitFor(); app.advance(2);
   }
   await phones[0].getByText('BLAST · BASE', { exact: true }).waitFor();
