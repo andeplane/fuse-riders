@@ -78,7 +78,7 @@ export const PICKUP_SPAWN_MARGIN = 40;
 export const PICKUP_RIDER_BOMB_CLEARANCE = 80;
 export const PICKUP_TRAIL_CLEARANCE = 40;
 export const PICKUP_SEPARATION = 28;
-export const STAR_DURATION_TICKS = 50;
+export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
 
 export const COUNTDOWN_TICKS = 60;

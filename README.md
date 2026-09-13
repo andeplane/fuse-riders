@@ -25,7 +25,7 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 | Drop | Effect |
 | --- | --- |
 | Blast | Increases circular explosion radius by 75 units, up to two upgrades. |
-| Star | Protects against hazards for 2.5 seconds; walls bounce you back into play. |
+| Star | Protects against hazards for 5 seconds; walls bounce you back into play. |
 | Beer Worms | Makes the other living riders swerve violently for four seconds. You can still steer. |
 | Triple Shot | Your next accepted release launches three bombs in a fan. |
 | Five Shot | Your next accepted release launches five bombs in a wider fan. Three times rarer than Triple Shot; collecting Triple preserves an armed Five Shot. |
