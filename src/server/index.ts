@@ -1,0 +1,242 @@
+import http from 'node:http';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { networkInterfaces } from 'node:os';
+import { readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { performance } from 'node:perf_hooks';
+import { WebSocket, WebSocketServer } from 'ws';
+import { parseClientMessage, type ErrorCode, type ServerMessage } from '../shared/protocol.js';
+import {
+  createGame, addPlayer, removePlayer, startMatch, startNextRound, resetMatch,
+  setPlayerConnected, eliminatePlayer, step, toSnapshot, type InputIntent,
+} from '../shared/game.js';
+
+const COLORS = ['#00d9ff', '#ff3aaf', '#b5ff36', '#ff963b', '#b76bff'];
+const NEUTRAL: InputIntent = { left: false, right: false, bomb: false };
+const ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const secret = () => randomBytes(24).toString('hex');
+interface Seat {
+  id: string; token: string; slot: number; socket?: WebSocket;
+  seq: number; intent: InputIntent; inputTick: number; pendingBomb: boolean;
+  lastBomb: boolean; deliveredBomb: boolean; leaving: boolean; bombNeedsRelease: boolean;
+}
+interface Connection { host: boolean; seat?: Seat; lastSeen: number; window: number; count: number }
+export interface ServerDependencies {
+  now: () => number;
+  token: () => string;
+  schedule: (callback: () => void, intervalMs: number) => () => void;
+}
+export interface ServerOptions { port?: number; hostname?: string; lanAddress?: string; dev?: boolean; manualTicks?: boolean; dependencies?: Partial<ServerDependencies> }
+
+export function lanAddress() {
+  const ips = Object.values(networkInterfaces()).flat().filter(x => x && x.family === 'IPv4' && !x.internal).map(x => x!.address);
+  return process.env.HOST_IP || ips.find(x => /^192\.168\./.test(x)) || ips.find(x => /^10\./.test(x)) || ips.find(x => /^172\.(1[6-9]|2\d|3[01])\./.test(x)) || '127.0.0.1';
+}
+export function catchUpSteps(elapsed: number) { return Math.min(5, Math.max(0, Math.floor(elapsed / 50))); }
+
+export async function createGameServer(options: ServerOptions = {}) {
+  const dependencies: ServerDependencies = {
+    now: () => performance.now(), token: secret,
+    schedule: (callback, interval) => { const timer = setInterval(callback, interval); return () => clearInterval(timer); },
+    ...options.dependencies,
+  };
+  const game = createGame(dependencies.token());
+  const hostToken = dependencies.token();
+  const seats = new Map<string, Seat>();
+  const connections = new Map<WebSocket, Connection>();
+  const joins = new Map<string, { since: number; count: number }>();
+  let controllerUrl = '';
+  const vite = options.dev ? await (await import('vite')).createServer({
+    root: ROOT, server: { middlewareMode: true }, appType: 'spa',
+  }) : undefined;
+  const server = http.createServer(async (req, res) => {
+    if (req.url?.split('?')[0] === '/api/config') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ controllerUrl })); return;
+    }
+    if (vite) { vite.middlewares(req, res); return; }
+    try {
+      const urlPath = decodeURIComponent(new URL(req.url || '/', 'http://local').pathname);
+      const isPage = ['/', '/display', '/controller'].includes(urlPath);
+      const dist = path.join(ROOT, 'dist');
+      const filename = path.resolve(dist, isPage ? 'index.html' : '.' + urlPath);
+      if (!filename.startsWith(dist + path.sep) || !(await stat(filename)).isFile()) throw new Error('not found');
+      const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png' };
+      res.writeHead(200, { 'Content-Type': mime[path.extname(filename)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+      res.end(await readFile(filename));
+    } catch { res.writeHead(404); res.end('Not found'); }
+  });
+  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 2048 });
+  function send(ws: WebSocket, message: ServerMessage) {
+    if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 512_000) ws.send(JSON.stringify(message));
+  }
+  function snapshot(ws?: WebSocket) {
+    const message: ServerMessage = { type: 'snapshot', matchId: game.matchId, round: game.round, tick: game.tick, state: toSnapshot(game) };
+    if (ws) send(ws, message); else for (const client of connections.keys()) send(client, message);
+  }
+  function error(ws: WebSocket, code: ErrorCode) { send(ws, { type: 'error', code }); }
+  function neutral(seat: Seat, rearm = false) {
+    seat.bombNeedsRelease ||= rearm || seat.lastBomb;
+    seat.intent = { ...NEUTRAL }; seat.pendingBomb = false; seat.lastBomb = false; seat.deliveredBomb = false;
+  }
+  function clearInputs() { for (const seat of seats.values()) neutral(seat); }
+  function detach(ws: WebSocket) {
+    const c = connections.get(ws);
+    connections.delete(ws);
+    if (c?.seat && c.seat.socket === ws) {
+      neutral(c.seat, true); c.seat.socket = undefined;
+      setPlayerConnected(game, c.seat.id, false);
+      snapshot();
+    }
+  }
+  function pruneDisconnected() {
+    // Only invoked at a round boundary. Never alter participants mid-transaction.
+    for (const [id, seat] of seats) if (!seat.socket || seat.leaving) {
+      removePlayer(game, id); seats.delete(id);
+    }
+  }
+  function connectedCount() { return [...seats.values()].filter(s => s.socket && !s.leaving).length; }
+  function hostAction(ws: WebSocket, action: 'start' | 'nextRound' | 'rematch') {
+    const required = { start: 'lobby', nextRound: 'roundOver', rematch: 'matchOver' };
+    if (game.phase !== required[action]) { error(ws, 'invalid_phase'); return; }
+    if (connectedCount() < 2) { error(ws, 'not_enough_players'); return; }
+    // resetMatch handles filtering at matchOver; removePlayer supports boundary cleanup.
+    pruneDisconnected(); clearInputs();
+    try {
+      if (action === 'start') startMatch(game);
+      else if (action === 'nextRound') startNextRound(game);
+      else resetMatch(game, dependencies.token());
+      snapshot();
+    } catch { error(ws, 'invalid_phase'); }
+  }
+  wss.on('connection', (ws, req) => {
+    const now = dependencies.now();
+    const c: Connection = { host: false, lastSeen: now, window: now, count: 0 };
+    connections.set(ws, c);
+    snapshot(ws);
+    ws.on('error', () => { /* close handler owns session cleanup */ });
+    ws.on('close', () => detach(ws));
+    ws.on('message', (data, binary) => {
+      if (!connections.has(ws)) return;
+      const message = binary ? null : parseClientMessage(data.toString());
+      if (!message) { error(ws, 'invalid_message'); return; }
+      const now = dependencies.now(); c.lastSeen = now;
+      if (now - c.window >= 1000) { c.window = now; c.count = 0; }
+      if (++c.count > 40) { error(ws, 'invalid_message'); ws.close(1008, 'Rate limit'); return; }
+      if (message.type === 'heartbeat') return;
+      if (message.type === 'hostAuth') {
+        if (c.seat || message.token.length !== hostToken.length || !timingSafeEqual(Buffer.from(message.token), Buffer.from(hostToken))) {
+          error(ws, 'unauthorized'); return;
+        }
+        c.host = true; send(ws, { type: 'hostAuthenticated' }); snapshot(ws); return;
+      }
+      if (message.type === 'hostAction') {
+        if (!c.host || c.seat) { error(ws, 'unauthorized'); return; }
+        hostAction(ws, message.action); return;
+      }
+      if (message.type === 'join') {
+        if (c.seat || c.host) { error(ws, 'unauthorized'); return; }
+        const address = req.socket.remoteAddress || 'unknown';
+        let rate = joins.get(address);
+        if (!rate || now - rate.since > 60_000) { rate = { since: now, count: 0 }; joins.set(address, rate); }
+        // Reconnects are authorized by their token and must survive brief Wi-Fi drops.
+        if (!message.playerToken && ++rate.count > 5) { error(ws, 'full'); return; }
+        let seat: Seat | undefined;
+        if (message.playerToken) {
+          seat = [...seats.values()].find(s => s.token === message.playerToken && !s.leaving);
+          if (!seat) { error(ws, 'unauthorized'); return; }
+          const old = seat.socket;
+          seat.socket = undefined;
+          if (old) { connections.delete(old); old.close(4001, 'Controller replaced'); }
+          neutral(seat, true);
+        } else {
+          if (seats.size >= 5) { error(ws, 'full'); return; }
+          if (!['lobby', 'roundOver', 'matchOver'].includes(game.phase)) { error(ws, 'invalid_phase'); return; }
+          const slot = COLORS.findIndex((_, i) => ![...seats.values()].some(s => s.slot === i));
+          seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, pendingBomb: false, lastBomb: false, deliveredBomb: false, leaving: false, bombNeedsRelease: false };
+          addPlayer(game, { id: seat.id, name: message.name, slot, color: COLORS[slot], connected: true });
+          seats.set(seat.id, seat);
+        }
+        c.seat = seat; seat.socket = ws; setPlayerConnected(game, seat.id, true);
+        send(ws, { type: 'joined', playerId: seat.id, playerToken: seat.token, slot: seat.slot, color: COLORS[seat.slot], nextInputSeq: seat.seq + 1 });
+        snapshot(); return;
+      }
+      const seat = c.seat;
+      if (!seat || seat.socket !== ws || seat.leaving) { error(ws, 'unauthorized'); return; }
+      if (message.type === 'leave') {
+        neutral(seat); seat.leaving = true; seat.socket = undefined; c.seat = undefined;
+        setPlayerConnected(game, seat.id, false);
+        if (['lobby', 'roundOver', 'matchOver'].includes(game.phase)) { removePlayer(game, seat.id); seats.delete(seat.id); }
+        else eliminatePlayer(game, seat.id);
+        snapshot(); return;
+      }
+      if (message.type === 'input') {
+        if (message.seq <= seat.seq) { error(ws, 'stale'); return; }
+        seat.seq = message.seq; seat.inputTick = game.tick;
+        if (game.phase !== 'playing') { neutral(seat); return; }
+        if (!message.bomb) seat.bombNeedsRelease = false;
+        if (message.bomb && !seat.lastBomb && !seat.bombNeedsRelease) seat.pendingBomb = true;
+        seat.lastBomb = message.bomb;
+        seat.intent = { left: message.left, right: message.right, bomb: message.bomb };
+      }
+    });
+  });
+  function advance(count = 1) {
+    for (let i = 0; i < count; i++) {
+      const previousPhase = game.phase;
+      const inputs = new Map<string, InputIntent>();
+      for (const seat of seats.values()) {
+        if (!seat.socket || game.tick - seat.inputTick >= 10) neutral(seat);
+        // Preserve a tap that arrived and was released between simulation ticks.
+        // Insert one false sample between consecutive accepted edges for the engine.
+        const bomb = seat.pendingBomb && !seat.deliveredBomb;
+        if (bomb) seat.pendingBomb = false;
+        seat.deliveredBomb = bomb;
+        inputs.set(seat.id, { left: seat.intent.left, right: seat.intent.right, bomb });
+      }
+      const result = step(game, inputs);
+      if (game.phase !== previousPhase) clearInputs();
+      for (const event of result.events) for (const client of connections.keys()) send(client, { type: 'event', matchId: game.matchId, round: game.round, tick: game.tick, event });
+      if (game.phase === 'roundOver' && game.phaseEndsAtTick !== undefined && game.tick >= game.phaseEndsAtTick) {
+        pruneDisconnected();
+        if (connectedCount() >= 2) { clearInputs(); startNextRound(game); }
+      }
+      if (game.tick % 2 === 0 || game.phase !== previousPhase) snapshot();
+    }
+  }
+  let previousTime = dependencies.now();
+  let accumulator = 0;
+  const stopLoop = options.manualTicks ? undefined : dependencies.schedule(() => {
+    const now = dependencies.now(); accumulator += now - previousTime; previousTime = now;
+    const ticks = catchUpSteps(accumulator);
+    if (ticks) { advance(ticks); accumulator = accumulator >= 300 ? 0 : accumulator - ticks * 50; }
+  }, 10);
+  function checkConnections() {
+    const now = dependencies.now();
+    for (const [ws, c] of connections) if (now - c.lastSeen > 6000) { detach(ws); ws.terminate(); }
+    for (const [ip, rate] of joins) if (now - rate.since > 60_000) joins.delete(ip);
+  }
+  const stopWatchdog = dependencies.schedule(checkConnections, 1000);
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(options.port ?? Number(process.env.PORT || 3000), options.hostname ?? '0.0.0.0', resolve); });
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 3000;
+  const ip = options.lanAddress || lanAddress();
+  controllerUrl = `http://${ip}:${port}/controller`;
+  return {
+    game, port, hostToken, controllerUrl, hostUrl: `http://${ip}:${port}/display#${hostToken}`, advance, checkConnections,
+    async close() {
+      stopLoop?.(); stopWatchdog();
+      for (const ws of connections.keys()) ws.terminate();
+      await new Promise<void>(resolve => wss.close(() => resolve()));
+      if (vite) await vite.close();
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    },
+  };
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const app = await createGameServer({ dev: process.env.NODE_ENV !== 'production' });
+  console.log(`\nFUSE RIDERS — five phones, one arena\n\nTV / host: ${app.hostUrl}\nPhones:    ${app.controllerUrl}\n\nKeep this laptop awake. Connect the TV with HDMI and join the same Wi-Fi.\n`);
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { await app.close(); process.exit(0); });
+}

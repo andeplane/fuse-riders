@@ -1,0 +1,64 @@
+export type PlayerId = string;
+export type PlayerToken = string;
+export type ClientMessage =
+  | { type: 'join'; name: string; playerToken?: PlayerToken }
+  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean }
+  | { type: 'heartbeat' }
+  | { type: 'leave' }
+  | { type: 'hostAuth'; token: string }
+  | { type: 'hostAction'; action: 'start' | 'nextRound' | 'rematch' };
+export interface TrailSegment { x1: number; y1: number; x2: number; y2: number; createdTick: number; expiresAtTick: number }
+export interface BlastRect { x: number; y: number; width: number; height: number }
+export interface GameSnapshot {
+  phase: 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
+  phaseEndsAtTick?: number;
+  roundStartedTick?: number;
+  width: number; height: number; boundaryInset: number;
+  players: ReadonlyArray<{
+    id: PlayerId; name: string; slot: number; color: string; connected: boolean;
+    x: number; y: number; angle: number; alive: boolean; roundWins: number;
+    bombReadyAtTick: number; trail: ReadonlyArray<TrailSegment>;
+  }>;
+  bombs: ReadonlyArray<{ id: number; ownerId: PlayerId; x: number; y: number; explodeAtTick: number }>;
+  blasts: ReadonlyArray<{ bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number }>;
+  roundWinnerId?: PlayerId;
+  matchWinnerId?: PlayerId;
+}
+export type GameEvent =
+  | { type: 'bombPlaced'; bombId: number; playerId: PlayerId }
+  | { type: 'explosion'; bombId: number }
+  | { type: 'playerEliminated'; playerId: PlayerId; cause: 'wall' | 'trail' | 'explosion' | 'rider' }
+  | { type: 'roundEnded'; winnerId?: PlayerId }
+  | { type: 'matchEnded'; winnerId: PlayerId };
+export type ErrorCode = 'invalid_message' | 'full' | 'unauthorized' | 'stale' | 'invalid_phase' | 'not_enough_players';
+export type ServerMessage =
+  | { type: 'joined'; playerId: PlayerId; playerToken: PlayerToken; slot: number; color: string; nextInputSeq: number }
+  | { type: 'hostAuthenticated' }
+  | { type: 'snapshot'; matchId: string; round: number; tick: number; state: GameSnapshot }
+  | { type: 'event'; matchId: string; round: number; tick: number; event: GameEvent }
+  | { type: 'error'; code: ErrorCode };
+
+// Reject extra fields as well as invalid values: a message is an intent, never game state.
+export function parseClientMessage(raw: string): ClientMessage | null {
+  if (raw.length > 2048) return null;
+  let v: Record<string, unknown>;
+  try { v = JSON.parse(raw); } catch { return null; }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const keys = (...allowed: string[]) => Object.keys(v).every(k => allowed.includes(k));
+  const token = (x: unknown) => typeof x === 'string' && /^[a-f0-9]{32,64}$/.test(x);
+  switch (v.type) {
+    case 'join':
+      if (!keys('type', 'name', 'playerToken') || typeof v.name !== 'string' ||
+        !v.name.trim() || Array.from(v.name.trim()).length > 18 || /[\u0000-\u001f\u007f]/.test(v.name) ||
+        (v.playerToken !== undefined && !token(v.playerToken))) return null;
+      return { type: 'join', name: v.name.trim(), ...(v.playerToken ? { playerToken: v.playerToken as string } : {}) };
+    case 'input':
+      if (!keys('type', 'seq', 'left', 'right', 'bomb') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
+        !['left', 'right', 'bomb'].every(k => typeof v[k] === 'boolean')) return null;
+      return v as Extract<ClientMessage, { type: 'input' }>;
+    case 'heartbeat': case 'leave': return keys('type') ? v as ClientMessage : null;
+    case 'hostAuth': return keys('type', 'token') && token(v.token) ? v as ClientMessage : null;
+    case 'hostAction': return keys('type', 'action') && ['start', 'nextRound', 'rematch'].includes(v.action as string) ? v as ClientMessage : null;
+    default: return null;
+  }
+}
