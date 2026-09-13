@@ -5,7 +5,11 @@ try{
   const a=await browser.newContext({viewport:{width:1000,height:700}});a.setDefaultTimeout(30000);const host=await a.newPage();
   host.on('pageerror',error=>console.error('HOST ERROR',error));
   await host.goto(process.env.ONLINE_URL??'http://localhost:8787/');await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();
-  await host.waitForURL(/room=/);const url=host.url();
+  await host.waitForURL(/room=/);
+  // Keep UI room creation coverage. Explicit CI fallback avoids six software-GL views
+  // competing for one runner; dedicated Phaser gates test the intended renderer.
+  if(process.env.ROOM_RENDERER==='canvas'){await host.getByPlaceholder('Your name').waitFor();const target=new URL(host.url());target.searchParams.set('renderer','canvas');await host.goto(target.href);}
+  const url=host.url();
   await host.getByPlaceholder('Your name').fill('Host');await host.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
   const b=await browser.newContext({viewport:{width:844,height:390},isMobile:true,hasTouch:true});b.setDefaultTimeout(30000);const guest=await b.newPage();guest.on('pageerror',error=>console.error('GUEST ERROR',error));
   await guest.goto(url);await guest.getByPlaceholder('Your name').fill('Guest');await guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
@@ -32,7 +36,7 @@ try{
   console.log('Online smoke passed: room creation, guest join, host permissions, start, settings, reset, full phone view.');
 }catch(error){
   for(const [index,context] of browser.contexts().entries())for(const page of context.pages()){
-    console.error(`ROOM DIAGNOSTIC ${index}`,await page.locator('body').innerText().catch(()=>'<page closed>'));
+    console.error(`ROOM DIAGNOSTIC ${index}`,await page.evaluate(()=>{const canvas=document.querySelector<HTMLCanvasElement>('.online-arena');let savedMode:unknown;try{savedMode=JSON.parse(localStorage.getItem('fuse-riders-room-settings-v1')??'{}').mode;}catch{}return {body:document.body.innerText,metrics:document.querySelector<HTMLElement>('#app')?.dataset.metrics,canvas:{hidden:canvas?.hidden,parentClass:canvas?.parentElement?.className,renderer:canvas?.dataset.renderer},savedMode};}).catch(()=>'<page closed>'));
   }
   throw error;
 }finally{await browser.close();}
