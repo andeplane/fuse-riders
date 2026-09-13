@@ -30,7 +30,7 @@ export async function startOnline():Promise<void>{
     const error=node('p');
     create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=mode.value as RoomSettings['mode'];save(SETTINGS_KEY,JSON.stringify(settings));location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
     join.onclick=()=>{const value=input.value.trim().toUpperCase();if(/^[A-Z0-9]{10}$/.test(value))location.href=appUrl(`?room=${value}`);else error.textContent='Enter the 10-character room code';};
-    card.append(mode,create,input,join,error);app.replaceChildren(card);return;
+    card.append(node('p','Playing together? Use the same Wi-Fi for the best direct connection.'),mode,create,input,join,error);app.replaceChildren(card);return;
   }
   if(!/^[A-Z0-9]{10}$/.test(code)){app.textContent='Invalid room code';return;}
   const identityKey=`fuse-room-${code}`;const token=displayOnlyToken();
