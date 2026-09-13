@@ -445,7 +445,9 @@ function startDisplay(): void {
   for (const theme of Object.values(themes)) {
     const option = element('option', '', theme.label); option.value = theme.id; themeSelect.append(option);
   }
-  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, connection);
+  const fullscreen = element('button', 'fullscreen fullscreen-toolbar', '⛶');
+  fullscreen.type = 'button'; fullscreen.title = 'Fullscreen'; fullscreen.setAttribute('aria-label', 'Fullscreen');
+  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, fullscreen, connection);
 
   const stage = element('section', 'stage');
   const canvas = element('canvas', 'arena');
@@ -480,8 +482,7 @@ function startDisplay(): void {
   const lobbyFooter = element('div', 'lobby-footer');
   const action = element('button', 'host-action', 'START RACE');
   action.disabled = true;
-  const fullscreen = element('button', 'fullscreen', '⛶ FULLSCREEN');
-  lobbyFooter.append(element('p', 'host-hint', 'Waiting for at least 2 riders'), action, fullscreen);
+  lobbyFooter.append(element('p', 'host-hint', 'Waiting for at least 2 riders'), action);
   lobbyCard.append(lobbyCopy, joinPanel, roster, lobbyFooter);
   lobby.append(lobbyCard);
 
@@ -783,7 +784,10 @@ function startDisplay(): void {
     if (hostAction) socket.send({ type: 'hostAction', action: hostAction });
   });
   recapAction.addEventListener('click', () => { audio.unlock(); socket.send({ type: 'hostAction', action: 'rematch' }); });
-  fullscreen.addEventListener('click', () => document.documentElement.requestFullscreen?.());
+  fullscreen.addEventListener('click', () => {
+    const request = document.fullscreenElement ? document.exitFullscreen?.() : document.documentElement.requestFullscreen?.();
+    void request?.catch(() => { fullscreen.title = 'Fullscreen unavailable here — try opening the TV link in Chrome'; });
+  });
   leaderboardButton.addEventListener('click', () => {
     const opening = leaderboardDrawer.classList.contains('hidden');
     leaderboardDrawer.classList.toggle('hidden', !opening); leaderboardButton.setAttribute('aria-expanded', String(opening));

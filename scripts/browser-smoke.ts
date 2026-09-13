@@ -165,6 +165,8 @@ try {
   assert.equal(JSON.stringify([...app.game.players.values()]), beforeTheme);
   await host.getByRole('combobox').selectOption('neon-pixel');
   app.advance(20); await new Promise(r => setTimeout(r, 150));
+  assert.equal(await host.getByRole('button', { name: 'Fullscreen', exact: true }).isVisible(), true, 'fullscreen stays visible during a match');
+  assert.equal(await host.getByRole('button', { name: 'Fullscreen', exact: true }).isEnabled(), true);
   await host.screenshot({ path: 'artifacts/tv-playing.png' });
   // Refresh reclaims exactly the same seat and updates full state.
   const previousIds = [...app.game.players.keys()]; await phones[0].reload();
