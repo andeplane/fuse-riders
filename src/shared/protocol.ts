@@ -34,16 +34,16 @@ export interface GameSnapshot {
     x: number; y: number; angle: number; alive: boolean; roundWins: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
-    shellArmed?: boolean; targetBombArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
+    gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
-    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; shell?: { vx: number; vy: number };
+    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; shell?: { vx: number; vy: number; gun?: boolean };
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPair?: PortalPair;
-  pickups: ReadonlyArray<{ id: number; type: 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
+  pickups: ReadonlyArray<{ id: number; type: 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;

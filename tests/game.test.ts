@@ -983,3 +983,39 @@ test('shell body hits once, shield absorbs it, and no blast radius is produced',
     assert.equal(state.players.get('p1')!.shielded, false); assert.equal(state.blasts.length, 0);
   }
 });
+
+test('Gun pickup fires one bullet at twice rider speed and cuts a traversable trail gap', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  const owner = state.players.get('p0')!; Object.assign(owner, { x: 500, y: 450, angle: 0, trail: [] });
+  Object.assign(state.players.get('p1')!, { x: 1000, y: 700, trail: [] });
+  Object.assign(state.players.get('p2')!, { x: 1200, y: 200, trail: [] });
+  state.pickups = [{ id: 999, type: 'gun', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
+  step(state, new Map()); assert.equal(owner.gunArmed, true);
+  owner.fiveShotArmed = true;
+  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  const bullet = [...state.bombs.values()][0]!;
+  assert.equal(bullet.shell!.gun, true); assert.equal(bullet.shell!.vx, 300);
+  assert.equal(owner.gunArmed, false); assert.equal(owner.fiveShotArmed, true);
+  state.players.get('p1')!.trail = [{ x1: bullet.x + 15, x2: bullet.x + 15, y1: 300, y2: 600, createdTick: state.tick, expiresAtTick: state.tick + 100 }];
+  step(state, new Map());
+  assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 0);
+  const pieces = state.players.get('p1')!.trail.filter(t => t.y1 < 600 && t.y2 > 300);
+  assert.ok(pieces.some(t => t.y2 === 400)); assert.ok(pieces.some(t => t.y1 === 500));
+  assert.equal(owner.alive, true);
+});
+test('gun head hit consumes bullet without a blast; walls also consume it', () => {
+  for (const wall of [false, true]) {
+    const state = gameWithPlayers(3); enterPlaying(state);
+    for (const player of state.players.values()) player.trail = [];
+    Object.assign(state.players.get('p0')!, { x: 200, y: 200 });
+    Object.assign(state.players.get('p1')!, { x: 518, y: 450, angle: 0 });
+    Object.assign(state.players.get('p2')!, { x: 1200, y: 700 });
+    const x = wall ? state.width - state.boundaryInset - 5 : 500;
+    state.bombs.set(99, { id: 99, ownerId: 'p0', x, y: 450, launchX: x, launchY: 450, placedTick: state.tick,
+      launchedTick: state.tick - 1, landsAtTick: state.tick + 60, explodeAtTick: state.tick + 60,
+      blastRange: 0, flightPath: [], shell: { vx: 300, vy: 0, gun: true } });
+    step(state, new Map()); assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 0);
+    assert.equal(state.players.get('p1')!.alive, wall);
+  }
+});

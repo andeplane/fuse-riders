@@ -338,7 +338,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   drawPortalPair(ctx, snapshot, snapshot.tick, now);
 
   for (const player of snapshot.players) {
-    if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed) continue;
+    if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed || player.gunArmed) continue;
     const chargeTicks = Math.max(0, snapshot.tick - player.bombChargeStartedTick);
     const distance = bombLaunchDistance(chargeTicks);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
@@ -354,6 +354,11 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   }
 
   for (const bomb of snapshot.bombs) {
+    if (bomb.shell?.gun) {
+      ctx.save(); ctx.translate(bomb.x, bomb.y); ctx.rotate(Math.atan2(bomb.shell.vy, bomb.shell.vx));
+      ctx.strokeStyle = '#b9fff8'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-13, 0); ctx.lineTo(4, 0); ctx.stroke();
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore(); continue;
+    }
     if (bomb.shell) {
       ctx.save(); ctx.translate(bomb.x, bomb.y); ctx.rotate(now / 100);
       ctx.fillStyle = '#48dc55'; ctx.strokeStyle = '#dcffd1'; ctx.lineWidth = 3;
@@ -501,7 +506,8 @@ function startDisplay(): void {
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
   const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = '/themes/neon-pixel/pickup-shell.svg'; shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces for 5s · next shot'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend); lobbyCopy.append(pickupLegend);
+  const gunLegend = element('span'); const gunImage = element('img'); gunImage.src = '/themes/neon-pixel/pickup-gun.svg'; gunImage.alt = ''; gunLegend.append(gunImage, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
+  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend, gunLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -989,7 +995,7 @@ function startController(): void {
     if (phaseChanged) clearControls(true, true);
     const player = snapshot.players.find((candidate) => candidate.id === playerId);
     if (!player) return;
-    inputState.configureTargetAim(player.targetBombArmed && !player.shellArmed && player.alive ? {
+    inputState.configureTargetAim(player.targetBombArmed && !player.shellArmed && !player.gunArmed && player.alive ? {
       x: clamp((player.x + Math.cos(player.angle) * 100) / snapshot.width, 0, 1),
       y: clamp((player.y + Math.sin(player.angle) * 100) / snapshot.height, 0, 1),
     } : undefined);
@@ -1022,7 +1028,7 @@ function startController(): void {
     else if (player.waitingForNextRound) instruction.textContent = snapshot.phase === 'matchOver' ? 'You’re in — joining when the next match starts.' : 'You’re in — joining next round automatically.';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
     else if (!player.alive) instruction.textContent = 'Wiped out! Watch the TV for the next round.';
-    else if (snapshot.phase === 'playing') instruction.textContent = player.shellArmed ? 'Release Fire to launch a bouncing shell. Watch the ricochets!' : player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to detonate!' : 'Hold to steer. Hold bomb to charge, release to launch!';
+    else if (snapshot.phase === 'playing') instruction.textContent = player.gunArmed ? 'Release Fire to shoot through trails. Slight homing near rivals!' : player.shellArmed ? 'Release Fire to launch a bouncing shell. Watch the ricochets!' : player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to detonate!' : 'Hold to steer. Hold bomb to charge, release to launch!';
     else if (snapshot.phase === 'matchOver') instruction.textContent = snapshot.matchWinnerId === playerId ? 'You rule the grid!' : 'Match complete.';
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
@@ -1033,7 +1039,7 @@ function startController(): void {
     bomb.style.setProperty('--charge', `${chargePercent}%`);
     bomb.classList.toggle('charging', charging);
     bomb.classList.toggle('target-armed', player.targetBombArmed);
-    bombLabel.textContent = player.shellArmed && (ready || charging) ? (charging ? 'RELEASE TO FIRE SHELL' : 'GREEN SHELL · HOLD + RELEASE') : player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO BLAST' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
+    bombLabel.textContent = player.gunArmed && (ready || charging) ? (charging ? 'RELEASE TO SHOOT' : 'GUN · HOLD + RELEASE') : player.shellArmed && (ready || charging) ? (charging ? 'RELEASE TO FIRE SHELL' : 'GREEN SHELL · HOLD + RELEASE') : player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO BLAST' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
   }
 
   socket = new SocketClient(

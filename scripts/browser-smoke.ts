@@ -96,6 +96,7 @@ try {
   }
   assert.equal(new Set(controllerColors).size, 5, 'each phone has its own rider-colored controls');
   const startBounds = (await host.getByRole('button', { name: 'START RACE', exact: true }).boundingBox())!;
+  assert.ok(startBounds.y >= 0 && startBounds.y + startBounds.height <= 960, 'start button fits the TV viewport');
   await host.mouse.move(startBounds.x + startBounds.width / 2, startBounds.y + startBounds.height / 2);
   await host.mouse.down();
   app.advance(2); await new Promise(r => setTimeout(r, 120));
@@ -217,6 +218,13 @@ try {
   assert.equal(app.game.bombs.size, 1); assert.ok([...app.game.bombs.values()][0]!.shell);
   await host.screenshot({ path: 'artifacts/green-shell.png' });
   app.game.bombs.clear();
+  poweredRider.bombReadyAtTick = app.game.tick;
+  app.game.pickups.push({ id: 9_010, type: 'gun', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('GUN · HOLD + RELEASE', { exact: true }).waitFor();
+  await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
+  await new Promise(r => setTimeout(r, 50)); app.advance(1);
+  assert.equal(app.game.bombs.size, 1); assert.equal([...app.game.bombs.values()][0]!.shell?.gun, true);
+  await host.screenshot({ path: 'artifacts/gun-projectile.png' }); app.game.bombs.clear();
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');

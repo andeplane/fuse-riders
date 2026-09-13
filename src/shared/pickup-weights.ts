@@ -1,7 +1,7 @@
 import type { PickupType } from './game.js';
 /** Target has 3x its previous probability; all other drops retain their relative ratios. */
 export const PICKUP_WEIGHTS: ReadonlyArray<Readonly<{ type: PickupType; weight: number }>> = [
-  { type: 'shell', weight: 533 }, { type: 'blast', weight: 6396 }, { type: 'star', weight: 1599 }, { type: 'beer', weight: 1599 }, { type: 'ink', weight: 1599 },
+  { type: 'gun', weight: 2250 }, { type: 'shell', weight: 533 }, { type: 'blast', weight: 6396 }, { type: 'star', weight: 1599 }, { type: 'beer', weight: 1599 }, { type: 'ink', weight: 1599 },
   { type: 'triple', weight: 5535 }, { type: 'five', weight: 1845 }, { type: 'target', weight: 3536 },
   { type: 'orbitShield', weight: 1599 }, { type: 'portal', weight: 1599 },
 ];

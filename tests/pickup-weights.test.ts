@@ -12,7 +12,7 @@ test('weighted table gives Five one third Triple probability with deterministic 
   }
   for (const row of PICKUP_WEIGHTS) assert.equal(counts.get(row.type), row.weight);
   assert.equal(counts.get('triple'), counts.get('five')! * 3);
-  assert.equal(pickupTypeForRoll(0), 'shell');
+  assert.equal(pickupTypeForRoll(0), 'gun');
   assert.equal(pickupTypeForRoll(1 - Number.EPSILON), 'portal');
   for (const invalid of [-1, 1, NaN, Infinity]) assert.throws(() => pickupTypeForRoll(invalid));
 });
@@ -20,7 +20,7 @@ test('weighted table gives Five one third Triple probability with deterministic 
 test('Target probability is tripled while other pickup ratios are preserved', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const weight = (type: string) => PICKUP_WEIGHTS.find(row => row.type === type)!.weight;
-  assert.ok(Math.abs((weight('target') / total) / (52 / 1140) - 3) < 1e-12);
+  assert.ok(Math.abs((weight('target') / (total - weight('gun'))) / (52 / 1140) - 3) < 1e-12);
   assert.equal(weight('triple') / weight('five'), 3);
   assert.equal(weight('blast') / weight('star'), 4);
   assert.ok(Math.abs(weight('triple') / weight('star') - 270 / 78) < 1e-12);

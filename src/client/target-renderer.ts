@@ -4,7 +4,7 @@ import type { GameSnapshot } from '../shared/protocol.js';
 export function drawBombTargets(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot): void {
   for (const player of snapshot.players) {
     const target = player.bombTarget;
-    if (!player.alive || player.shellArmed || !player.targetBombArmed || player.bombChargeStartedTick === undefined || !target) continue;
+    if (!player.alive || player.shellArmed || player.gunArmed || !player.targetBombArmed || player.bombChargeStartedTick === undefined || !target) continue;
     ctx.save();
     ctx.strokeStyle = player.color; ctx.lineWidth = 3;
     ctx.setLineDash([6, 8]); ctx.globalAlpha = .65;

@@ -1,3 +1,4 @@
+import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
 import { advanceShell, SHELL_LIFETIME_TICKS, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
 import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
 import { clipTrailSegment } from './trail-clipping.js';
@@ -104,7 +105,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export type PickupType = 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
+export type PickupType = 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -132,7 +133,7 @@ export interface PlayerState extends Required<PlayerIdentity> {
   roundWins: number;
   bombReadyAtTick: number;
   bombChargeStartedTick?: number;
-  shellArmed?: boolean; targetBombArmed: boolean;
+  gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean;
   bombTarget?: AimPoint;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
@@ -160,7 +161,7 @@ export interface BombState {
   flightPath: FlightPoint[];
   placedTick: number;
   explodeAtTick: number;
-  blastRange: number; shell?: { vx: number; vy: number };
+  blastRange: number; shell?: { vx: number; vy: number; gun?: boolean };
 }
 
 export interface BlastState {
@@ -434,6 +435,24 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
     if (state.tick >= bomb.explodeAtTick) { state.bombs.delete(bomb.id); continue; }
+    if (bomb.shell.gun) {
+      const velocity = gunVelocity(bomb.x, bomb.y, bomb.shell.vx, bomb.shell.vy,
+        [...state.players.values()].filter(player => player.alive && player.id !== bomb.ownerId));
+      const from = { x: bomb.x, y: bomb.y, t: 0 };
+      const to = { x: bomb.x + velocity.vx / TICK_HZ, y: bomb.y + velocity.vy / TICK_HZ, t: 1 };
+      const wall = to.x < state.boundaryInset + GUN_RADIUS || to.x > state.width - state.boundaryInset - GUN_RADIUS ||
+        to.y < state.boundaryInset + GUN_RADIUS || to.y > state.height - state.boundaryInset - GUN_RADIUS;
+      if (wall) { state.bombs.delete(bomb.id); continue; }
+      const trailHit = [...state.players.values()].some(player => player.trail.some(trail =>
+        !(player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6) &&
+        segmentDistanceSquared(from.x, from.y, to.x, to.y, trail.x1, trail.y1, trail.x2, trail.y2) <= square(GUN_RADIUS + TRAIL_WIDTH / 2)));
+      if (trailHit) {
+        for (const player of state.players.values()) player.trail = player.trail.flatMap(trail => cutTrailHole(trail, to.x, to.y, GUN_HOLE_RADIUS));
+        state.bombs.delete(bomb.id); continue;
+      }
+      shellPaths.set(bomb.id, [from, to]); bomb.x = to.x; bomb.y = to.y;
+      bomb.shell = { ...velocity, gun: true }; continue;
+    }
     const motion = { x: bomb.x, y: bomb.y, ...bomb.shell };
     shellPaths.set(bomb.id, advanceShell(motion, { left: state.boundaryInset + SHELL_RADIUS,
       right: state.width - state.boundaryInset - SHELL_RADIUS, top: state.boundaryInset + SHELL_RADIUS,
@@ -474,7 +493,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         const mx = movement.x - movement.oldX; const my = movement.y - movement.oldY;
         const px = start.x - movement.oldX - mx * start.t; const py = start.y - movement.oldY - my * start.t;
         const vx = end.x - start.x - mx * (end.t - start.t); const vy = end.y - start.y - my * (end.t - start.t);
-        const radius = RIDER_RADIUS + SHELL_RADIUS;
+        const radius = RIDER_RADIUS + (bomb.shell.gun ? GUN_RADIUS : SHELL_RADIUS);
         const c = px * px + py * py - radius * radius;
         const a = vx * vx + vy * vy; const b = 2 * (px * vx + py * vy);
         const discriminant = b * b - 4 * a * c;
@@ -607,7 +626,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     if (movement.player.alive) {
       const input = inputs.get(movement.player.id);
       applyBombActions(state, movement.player, input?.bombCommands ?? input?.bombActions?.map(action => ({ action, aim: input.aim })) ?? [], events);
-      if (movement.player.targetBombArmed && !movement.player.shellArmed && movement.player.bombChargeStartedTick !== undefined) movement.player.bombTarget = targetPoint(state, movement.player, input?.aim, movement.player.bombTarget);
+      if (movement.player.targetBombArmed && !movement.player.shellArmed && !movement.player.gunArmed && movement.player.bombChargeStartedTick !== undefined) movement.player.bombTarget = targetPoint(state, movement.player, input?.aim, movement.player.bombTarget);
     }
   }
 
@@ -659,7 +678,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
-      shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
+      gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
       portalCooldownUntilTick: player.portalCooldownUntilTick,
@@ -731,7 +750,7 @@ function prepareRound(state: GameState): void {
     player.drunkStartedTick = 0;
     player.drunkHeadingOffset = 0;
     player.inkUntilTick = 0;
-    player.shellArmed = false; player.targetBombArmed = false;
+    player.gunArmed = false; player.shellArmed = false; player.targetBombArmed = false;
     player.tripleShotArmed = false; player.fiveShotArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
@@ -812,7 +831,9 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     consumed.add(pickup.id);
     events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
     recordPickup(state.matchStats, collector.id, pickup.type);
-    if (pickup.type === 'shell') {
+    if (pickup.type === 'gun') {
+      collector.gunArmed = true;
+    } else if (pickup.type === 'shell') {
       collector.shellArmed = true;
     } else if (pickup.type === 'target') {
       collector.targetBombArmed = true;
@@ -917,7 +938,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
       if (player.bombChargeStartedTick === undefined && !ownsBomb && player.bombReadyAtTick <= state.tick) {
         player.bombChargeStartedTick = state.tick;
-        if (player.targetBombArmed && !player.shellArmed) player.bombTarget = targetPoint(state, player, command.aim);
+        if (player.targetBombArmed && !player.shellArmed && !player.gunArmed) player.bombTarget = targetPoint(state, player, command.aim);
       }
       continue;
     }
@@ -928,13 +949,17 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
     if (chargeStartedTick === undefined) continue;
     const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
-    if (player.shellArmed) {
+    if (player.shellArmed || player.gunArmed) {
+      const gun = player.gunArmed === true;
+      const lifetime = gun ? GUN_LIFETIME_TICKS : SHELL_LIFETIME_TICKS;
+      const speed = gun ? GUN_SPEED : SHELL_SPEED;
       const id = state.nextBombId++;
       state.bombs.set(id, { id, ownerId: player.id, launchX: player.x, launchY: player.y,
         x: player.x, y: player.y, launchedTick: state.tick, placedTick: state.tick,
-        landsAtTick: state.tick + SHELL_LIFETIME_TICKS, explodeAtTick: state.tick + SHELL_LIFETIME_TICKS,
-        blastRange: 0, flightPath: [], shell: { vx: Math.cos(player.angle) * SHELL_SPEED, vy: Math.sin(player.angle) * SHELL_SPEED } });
-      player.shellArmed = false; player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+        landsAtTick: state.tick + lifetime, explodeAtTick: state.tick + lifetime,
+        blastRange: 0, flightPath: [], shell: { vx: Math.cos(player.angle) * speed, vy: Math.sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
+      if (gun) player.gunArmed = false; else player.shellArmed = false;
+      player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
       recordBombPlaced(state.matchStats, player.id);
       events.push({ type: 'bombPlaced', bombId: id, playerId: player.id });
       continue;
