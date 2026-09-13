@@ -4,7 +4,13 @@ import { mkdir } from 'node:fs/promises';
 import { createGameServer } from '../src/server/index.js';
 import { eliminatePlayer } from '../src/shared/game.js';
 
-const app = await createGameServer({ port: 0, hostname: '127.0.0.1', lanAddress: '127.0.0.1', manualTicks: true });
+const app = await createGameServer({
+  port: 0,
+  hostname: '127.0.0.1',
+  lanAddress: '127.0.0.1',
+  manualTicks: true,
+  buildDirectory: process.env.BUILD_DIRECTORY,
+});
 const browser = process.env.BROWSER === 'webkit'
   ? await webkit.launch({ headless: true })
   : await chromium.launch({ channel: 'chrome', headless: true });
@@ -22,6 +28,18 @@ try {
   await host.getByText('HOST ONLINE', { exact: true }).waitFor();
   assert.equal(new URL(host.url()).hash, '', 'host fragment removed from URL');
   await host.locator('.qr').waitFor();
+  await host.getByText('longer explosions', { exact: false }).waitFor();
+  await host.getByText('2.5s invulnerable', { exact: false }).waitFor();
+  assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
+
+  // A fresh token delivered as a hash-only navigation must be consumed and re-authenticated.
+  const recoveredHost = await browser.newPage({ viewport: { width: 1200, height: 800 } }); monitor(recoveredHost);
+  await recoveredHost.goto(`${origin}/display#${'0'.repeat(64)}`);
+  await recoveredHost.getByText('HOST LINK EXPIRED', { exact: true }).waitFor();
+  await recoveredHost.evaluate((token) => { location.hash = token; }, app.hostToken);
+  await recoveredHost.getByText('HOST ONLINE', { exact: true }).waitFor();
+  assert.equal(new URL(recoveredHost.url()).hash, '', 'replacement host fragment removed from URL');
+  await recoveredHost.close();
   await host.screenshot({ path: 'artifacts/tv-lobby.png' });
   const phones: Page[] = [];
   for (let i = 0; i < 5; i++) {
@@ -32,6 +50,9 @@ try {
     await phone.getByRole('button', { name: 'JOIN THE GRID' }).click();
     await phone.locator('.controls:not(.hidden)').waitFor(); app.advance(2);
   }
+  await phones[0].getByText('BLAST · BASE', { exact: true }).waitFor();
+  await phones[0].getByText('STAR · --', { exact: true }).waitFor();
+  await phones[0].getByText('SESSION · 0 PTS', { exact: true }).waitFor();
   await waitFor(() => app.game.players.size === 5, 'five controller seats');
   await host.getByRole('button', { name: 'START RACE' }).click();
   await waitFor(() => app.game.phase === 'countdown', 'start countdown');
@@ -78,9 +99,14 @@ try {
   }
   assert.equal(app.game.phase, 'matchOver');
   await host.getByRole('button', { name: 'REMATCH' }).waitFor();
+  await host.getByRole('button', { name: '🏆 SESSION' }).click();
+  await host.locator('.leaderboard-drawer:not(.hidden)').waitFor();
+  await host.getByText('25 PTS', { exact: true }).waitFor();
+  await host.getByText('ROUND POINTS // 5 · 3 · 2 · 1 · 0', { exact: false }).waitFor();
+  await phones[0].getByText(/#1 · \+5 · 25 PTS/).waitFor();
   const matchId = app.game.matchId; await host.getByRole('button', { name: 'REMATCH' }).click();
   await waitFor(() => app.game.matchId !== matchId, 'new match scope'); app.advance(2);
   assert.equal(app.game.phase, 'countdown'); assert.ok([...app.game.players.values()].every(p => p.roundWins === 0));
   assert.equal(errors.length, 0, errors.join('\n'));
-  console.log('Browser smoke passed: TV, five phones, portrait/landscape, pointer input, bomb, themes, reconnect, first-to-five and rematch.');
+  console.log('Browser smoke passed: host token recovery, pickups, leaderboard, TV, five phones, controls, themes, reconnect and rematch.');
 } finally { await browser.close(); await app.close(); }

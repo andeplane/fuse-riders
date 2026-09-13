@@ -1,6 +1,8 @@
 import QRCode from 'qrcode';
 import type { ClientMessage, GameEvent, GameSnapshot, ServerMessage, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState, type ControllerControl } from './controller-state.js';
+import { drawPickups, drawStarAura } from './pickup-renderer.js';
+import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
 import '@fontsource/press-start-2p/latin.css';
@@ -11,13 +13,19 @@ if (!app) throw new Error('Missing app root');
 
 const HEARTBEAT_MS = 2_000;
 const HELD_RESEND_MS = 100;
-const TICK_MS = 50;
 const PLAYER_TOKEN_KEY = 'fuse-riders-player-token';
 const PLAYER_NAME_KEY = 'fuse-riders-player-name';
 const HOST_TOKEN_KEY = 'fuse-riders-host-token';
 const THEME_KEY = 'fuse-riders-display-theme';
 
-type SnapshotFrame = { snapshot: ViewSnapshot; matchId: string; round: number; receivedAt: number };
+type LeaderboardEntryView = { id: string; name: string; totalScoreUnits: number; roundsPlayed: number; roundWins: number; matchWins: number };
+type RoundPlacementView = { playerId: string; name: string; place: number; scoreUnits: number };
+type ScoredSnapshot = ViewSnapshot & { leaderboard?: ReadonlyArray<LeaderboardEntryView>; roundPlacements?: ReadonlyArray<RoundPlacementView> };
+
+function scoreText(scoreUnits: number): string {
+  const points = scoreUnits / 60;
+  return Number.isInteger(points) ? String(points) : points.toFixed(1);
+}
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -128,35 +136,6 @@ function formatTimer(seconds: number | undefined): string {
   if (seconds === undefined) return '--:--';
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
   return `${mins}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
-}
-
-function interpolateAngle(from: number, to: number, t: number): number {
-  const delta = Math.atan2(Math.sin(to - from), Math.cos(to - from));
-  return from + delta * t;
-}
-
-function renderedSnapshot(frames: SnapshotFrame[], now: number): ViewSnapshot | undefined {
-  if (!frames.length) return undefined;
-  const newer = frames[frames.length - 1];
-  const older = frames.length > 1 ? frames[frames.length - 2] : newer;
-  if (older === newer || older.matchId !== newer.matchId || older.round !== newer.round) return newer.snapshot;
-  const sampleDuration = Math.max(1, newer.receivedAt - older.receivedAt);
-  const projectionDuration = clamp(now - newer.receivedAt, 0, TICK_MS);
-  const t = projectionDuration / sampleDuration;
-  const oldById = new Map(older.snapshot.players.map((player) => [player.id, player]));
-  return {
-    ...newer.snapshot,
-    players: newer.snapshot.players.map((player) => {
-      const previous = oldById.get(player.id);
-      if (!previous || !player.alive || !previous.alive) return player;
-      return {
-        ...player,
-        x: player.x + (player.x - previous.x) * t,
-        y: player.y + (player.y - previous.y) * t,
-        angle: interpolateAngle(player.angle, player.angle + Math.atan2(Math.sin(player.angle - previous.angle), Math.cos(player.angle - previous.angle)), t),
-      };
-    }),
-  };
 }
 
 interface TrailBatch { path: Path2D; alpha: number; pixels: number[]; fragments: number[] }
@@ -332,6 +311,8 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   }
   ctx.globalAlpha = 1;
 
+  if ((snapshot.pickups ?? []).length) drawPickups(ctx, snapshot, snapshot.tick, now, theme);
+
   for (const bomb of snapshot.bombs) {
     const pulse = 1 + Math.sin(now / 90) * 0.08;
     const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / 40, 0, 1);
@@ -411,6 +392,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
 
   for (const player of snapshot.players) {
     const color = escapeColor(player.color);
+    if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);
     ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
     if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
     else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
@@ -432,12 +414,14 @@ function startDisplay(): void {
   const timer = element('div', 'timer');
   timer.append(element('span', 'eyebrow', 'ROUND'), element('strong', '', '--:--'));
   const connection = element('span', 'connection', 'CONNECTING');
+  const leaderboardButton = element('button', 'leaderboard-toggle hidden', '🏆 SESSION');
+  leaderboardButton.type = 'button'; leaderboardButton.setAttribute('aria-expanded', 'false');
   const themeSelect = element('select', 'theme-select');
   themeSelect.setAttribute('aria-label', 'Visual style');
   for (const theme of Object.values(themes)) {
     const option = element('option', '', theme.label); option.value = theme.id; themeSelect.append(option);
   }
-  topbar.append(brand, scores, timer, themeSelect, connection);
+  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, connection);
 
   const stage = element('section', 'stage');
   const canvas = element('canvas', 'arena');
@@ -446,6 +430,12 @@ function startDisplay(): void {
   const lobbyCard = element('div', 'lobby-card');
   const lobbyCopy = element('div', 'lobby-copy');
   lobbyCopy.append(element('p', 'kicker', 'PHONE PARTY // 2–5 RIDERS'), element('h1', '', 'Scan. Steer. Survive.'), element('p', 'lede', 'Open the controller, pick a name, then use your phone to carve neon trails and trigger chain reactions.'));
+  const pickupLegend = element('div', 'pickup-legend');
+  const blastLegendImage = element('img'); blastLegendImage.alt = ''; blastLegendImage.src = '/themes/neon-pixel/pickup-blast.svg';
+  const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = '/themes/neon-pixel/pickup-star.svg';
+  const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' longer explosions'));
+  const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 2.5s invulnerable'));
+  pickupLegend.append(blastLegend, starLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -460,17 +450,29 @@ function startDisplay(): void {
   lobby.append(lobbyCard);
 
   const announcement = element('div', 'announcement hidden');
+  const leaderboardDrawer = element('aside', 'leaderboard-drawer hidden');
+  const leaderboardHeader = element('header');
+  const leaderboardClose = element('button', '', '×'); leaderboardClose.type = 'button'; leaderboardClose.setAttribute('aria-label', 'Close leaderboard');
+  leaderboardHeader.append(element('div', '', 'SESSION LEADERBOARD'), leaderboardClose);
+  const leaderboardRows = element('div', 'leaderboard-rows');
+  leaderboardDrawer.append(leaderboardHeader, leaderboardRows, element('p', 'leaderboard-key', 'ROUND POINTS // 5 · 3 · 2 · 1 · 0  // TIES SHARE THE PLACES'));
   const performanceDisplay = element('output', 'perf-overlay hidden', 'FPS --  RENDER --ms');
   const roundBadge = element('div', 'round-badge', 'ROUND 1');
-  stage.append(canvas, lobby, roundBadge, announcement, performanceDisplay);
+  stage.append(canvas, lobby, roundBadge, announcement, leaderboardDrawer, performanceDisplay);
   root.append(topbar, stage);
   app.replaceChildren(root);
 
-  const hostToken = location.hash.length > 1 ? decodeURIComponent(location.hash.slice(1)) : sessionStorage.getItem(HOST_TOKEN_KEY) ?? '';
-  if (location.hash) {
-    sessionStorage.setItem(HOST_TOKEN_KEY, hostToken);
+  let hostToken = sessionStorage.getItem(HOST_TOKEN_KEY) ?? '';
+  function captureHostToken(): boolean {
+    if (location.hash.length <= 1) return false;
+    let candidate = '';
+    try { candidate = decodeURIComponent(location.hash.slice(1)); } catch { /* invalid URL encoding */ }
     history.replaceState(null, '', `${location.pathname}${location.search}`);
+    if (!/^[a-f0-9]{32,64}$/.test(candidate)) { connection.textContent = 'INVALID HOST LINK'; return false; }
+    hostToken = candidate; sessionStorage.setItem(HOST_TOKEN_KEY, candidate); return true;
   }
+  captureHostToken();
+  if (!hostToken) connection.textContent = 'HOST LINK REQUIRED';
   let authenticated = false;
   let latest: SnapshotFrame | undefined;
   const snapshotStream = new SnapshotStream();
@@ -479,6 +481,7 @@ function startDisplay(): void {
   let configControllerUrl = '';
   let rosterSignature = '';
   let scoresSignature = '';
+  let leaderboardSignature = '';
   let showPerformance = new URLSearchParams(location.search).get('perf') === '1';
   performanceDisplay.classList.toggle('hidden', !showPerformance);
   const savedTheme = localStorage.getItem(THEME_KEY);
@@ -486,12 +489,15 @@ function startDisplay(): void {
   let activeSprites: ThemeSprites = {};
   themeSelect.value = activeTheme.id;
   applyThemeProperties(activeTheme);
+  blastLegendImage.src = `/themes/${activeTheme.id}/pickup-blast.svg`;
+  starLegendImage.src = `/themes/${activeTheme.id}/pickup-star.svg`;
   void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
 
   themeSelect.addEventListener('change', () => {
     const next = themes[themeSelect.value as ThemeId];
     if (!next) return;
     activeTheme = next; activeSprites = {}; localStorage.setItem(THEME_KEY, next.id); applyThemeProperties(next);
+    blastLegendImage.src = `/themes/${next.id}/pickup-blast.svg`; starLegendImage.src = `/themes/${next.id}/pickup-star.svg`;
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
 
@@ -530,12 +536,32 @@ function startDisplay(): void {
     }
   }
 
+  function renderLeaderboard(snapshot: ScoredSnapshot): void {
+    const entries = [...(snapshot.leaderboard ?? [])].sort((a, b) => b.totalScoreUnits - a.totalScoreUnits || b.matchWins - a.matchWins || a.name.localeCompare(b.name));
+    const signature = entries.map((entry) => `${entry.id}:${entry.name}:${entry.totalScoreUnits}:${entry.roundWins}:${entry.matchWins}`).join('|');
+    if (signature === leaderboardSignature) return;
+    leaderboardSignature = signature; leaderboardRows.replaceChildren();
+    if (!entries.length) { leaderboardRows.append(element('p', 'leaderboard-empty', 'Scores appear after round one.')); return; }
+    let previousUnits: number | undefined; let displayedRank = 0;
+    entries.forEach((entry, index) => {
+      if (entry.totalScoreUnits !== previousUnits) displayedRank = index + 1;
+      previousUnits = entry.totalScoreUnits;
+      const row = element('div', 'leaderboard-row');
+      row.append(element('strong', 'leaderboard-rank', `#${displayedRank}`), element('span', 'leaderboard-name', entry.name), element('b', 'leaderboard-points', `${scoreText(entry.totalScoreUnits)} PTS`), element('small', '', `${entry.matchWins} MATCH · ${entry.roundWins} ROUND`));
+      leaderboardRows.append(row);
+    });
+  }
+
   function updateUi(snapshot: ViewSnapshot): void {
     renderScores(snapshot);
+    renderLeaderboard(snapshot as ScoredSnapshot);
     timer.querySelector('strong')!.textContent = formatTimer(secondsRemaining(snapshot));
     timer.querySelector('.eyebrow')!.textContent = snapshot.phase === 'playing' ? `ROUND ${snapshot.round}` : phaseLabel(snapshot);
     roundBadge.textContent = `ROUND ${snapshot.round}`;
     const playerCount = snapshot.players.filter((player) => player.connected).length;
+    const leaderboardAllowed = snapshot.phase === 'lobby' || snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver';
+    leaderboardButton.classList.toggle('hidden', !leaderboardAllowed);
+    if (!leaderboardAllowed) { leaderboardDrawer.classList.add('hidden'); leaderboardButton.setAttribute('aria-expanded', 'false'); }
     renderRoster(snapshot);
     lobby.classList.toggle('hidden', snapshot.phase !== 'lobby');
     if (snapshot.phase === 'lobby') {
@@ -559,6 +585,16 @@ function startDisplay(): void {
         element('span', 'announcement-small', snapshot.phase === 'matchOver' ? 'CHAMPION' : `ROUND ${snapshot.round}`),
         element('strong', '', winner ? `${winner.name} WINS` : 'DRAW'),
       );
+      const placements = (snapshot as ScoredSnapshot).roundPlacements ?? [];
+      if (placements.length) {
+        const resultRows = element('div', 'round-placements');
+        for (const placement of placements) {
+          const row = element('span');
+          row.append(element('b', '', `#${placement.place}`), document.createTextNode(` ${placement.name}  +${scoreText(placement.scoreUnits)}`));
+          resultRows.append(row);
+        }
+        announcement.append(resultRows);
+      }
       action.dataset.action = snapshot.phase === 'matchOver' ? 'rematch' : 'nextRound';
       action.textContent = snapshot.phase === 'matchOver' ? 'REMATCH' : 'NEXT ROUND';
       action.disabled = !authenticated || playerCount < 2 || (snapshot.phaseEndsAtTick !== undefined && snapshot.tick < snapshot.phaseEndsAtTick);
@@ -576,7 +612,11 @@ function startDisplay(): void {
     () => hostToken ? { type: 'hostAuth', token: hostToken } : undefined,
     (message) => {
       if (message.type === 'hostAuthenticated') { authenticated = true; connection.textContent = 'HOST ONLINE'; connection.classList.add('online'); return; }
-      if (message.type === 'error') { connection.textContent = message.code.replaceAll('_', ' ').toUpperCase(); return; }
+      if (message.type === 'error') {
+        if (message.code === 'unauthorized') { authenticated = false; connection.classList.remove('online'); connection.textContent = 'HOST LINK EXPIRED'; }
+        else connection.textContent = message.code.replaceAll('_', ' ').toUpperCase();
+        return;
+      }
       if (message.type === 'snapshot') {
         const accepted = snapshotStream.accept(message);
         if (!accepted) return;
@@ -598,12 +638,22 @@ function startDisplay(): void {
     },
     (milliseconds) => { transportRtt = milliseconds; },
   );
+  window.addEventListener('hashchange', () => {
+    if (!captureHostToken()) return;
+    authenticated = false; connection.classList.remove('online'); connection.textContent = 'AUTHENTICATING';
+    socket.send({ type: 'hostAuth', token: hostToken });
+  });
 
   action.addEventListener('click', () => {
     const hostAction = action.dataset.action as 'start' | 'nextRound' | 'rematch' | undefined;
     if (hostAction) socket.send({ type: 'hostAction', action: hostAction });
   });
   fullscreen.addEventListener('click', () => document.documentElement.requestFullscreen?.());
+  leaderboardButton.addEventListener('click', () => {
+    const opening = leaderboardDrawer.classList.contains('hidden');
+    leaderboardDrawer.classList.toggle('hidden', !opening); leaderboardButton.setAttribute('aria-expanded', String(opening));
+  });
+  leaderboardClose.addEventListener('click', () => { leaderboardDrawer.classList.add('hidden'); leaderboardButton.setAttribute('aria-expanded', 'false'); });
   window.addEventListener('keydown', (event) => {
     if (event.key.toLowerCase() !== 'p' || event.repeat || event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
     showPerformance = !showPerformance; performanceDisplay.classList.toggle('hidden', !showPerformance);
@@ -678,6 +728,11 @@ function startController(): void {
   const stateBadge = element('span', 'state-badge', 'LOBBY');
   identity.append(identityMarker, identityCopy, stateBadge);
   const instruction = element('p', 'controller-instruction', 'Waiting for the host to start…');
+  const powerStrip = element('div', 'power-strip');
+  const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
+  const starPower = element('span', 'power-chip star-power', 'STAR · --');
+  const sessionPoints = element('span', 'power-chip points-power', 'SESSION · 0 PTS');
+  powerStrip.append(blastPower, starPower, sessionPoints);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -688,7 +743,7 @@ function startController(): void {
   const controllerPerformance = element('output', 'perf-overlay controller-perf hidden', 'RTT --ms  ACK --ms');
   let showControllerPerformance = new URLSearchParams(location.search).get('perf') === '1';
   controllerPerformance.classList.toggle('hidden', !showControllerPerformance);
-  controls.append(identity, instruction, pad, leave);
+  controls.append(identity, instruction, powerStrip, pad, leave);
   root.append(header, join, controls, controllerPerformance);
   app.replaceChildren(root);
 
@@ -736,9 +791,18 @@ function startController(): void {
     if (phaseChanged) clearControls(true, true);
     const player = snapshot.players.find((candidate) => candidate.id === playerId);
     if (!player) return;
+    const scored = snapshot as ScoredSnapshot;
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
+    blastPower.textContent = player.blastLevel > 0 ? `BLAST · +${player.blastLevel}` : 'BLAST · BASE';
+    const starTicks = player.invulnerableUntilTick - snapshot.tick;
+    starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
+    const leaderboardEntry = (scored.leaderboard ?? []).find((entry) => entry.id === playerId);
+    const placement = (scored.roundPlacements ?? []).find((entry) => entry.playerId === playerId);
+    sessionPoints.textContent = placement && (snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver')
+      ? `#${placement.place} · +${scoreText(placement.scoreUnits)} · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)} PTS`
+      : `SESSION · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)} PTS`;
     if (!player.connected) instruction.textContent = 'Reconnecting to your rider…';
     else if (snapshot.phase === 'lobby') instruction.textContent = 'You’re in. Look at the TV!';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;

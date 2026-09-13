@@ -1,12 +1,38 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ControllerInputState, type ControllerInputMessage } from '../src/client/controller-state.js';
+import { renderedSnapshot, type SnapshotFrame } from '../src/client/render-snapshot.js';
 import { SnapshotStream } from '../src/client/snapshot-stream.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
-  return { phase: 'lobby', width: 1200, height: 700, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [] };
+  return { phase: 'lobby', width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [] };
 }
+
+function playingFrame(tick: number, receivedAt: number, x: number, alive = true): SnapshotFrame {
+  return {
+    matchId: 'match', round: 1, receivedAt,
+    snapshot: {
+      ...snapshot(), phase: 'playing', tick, round: 1, roundStartedTick: 0,
+      players: [{ id: 'p1', name: 'One', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], blastLevel: 0, invulnerableUntilTick: 0 }],
+    },
+  };
+}
+
+test('visual projection uses authoritative tick spacing during packet bursts', () => {
+  const frames = [playingFrame(10, 100, 100), playingFrame(12, 101, 115)];
+  const projected = renderedSnapshot(frames, 151)!;
+  assert.equal(projected.players[0]!.x, 122.5, 'two-tick velocity projects at most one 7.5-unit step');
+});
+
+test('visual projection freezes after 50 ms and never projects death or non-playing phases', () => {
+  const frames = [playingFrame(10, 100, 100), playingFrame(11, 150, 107.5)];
+  assert.equal(renderedSnapshot(frames, 1_000)!.players[0]!.x, 115);
+  const dead = [frames[0]!, playingFrame(11, 150, 107.5, false)];
+  assert.equal(renderedSnapshot(dead, 200)!.players[0]!.x, 107.5);
+  const lobby = playingFrame(11, 150, 107.5); lobby.snapshot.phase = 'lobby';
+  assert.equal(renderedSnapshot([frames[0]!, lobby], 200), lobby.snapshot);
+});
 
 test('multitouch retains a control until its final pointer releases', () => {
   const messages: ControllerInputMessage[] = [];

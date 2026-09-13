@@ -4,7 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { createGameServer } from '../src/server/index.js';
 import { addPlayer, type TrailSegment } from '../src/shared/game.js';
 
-const app = await createGameServer({ port: 0, hostname: '127.0.0.1', lanAddress: '127.0.0.1', manualTicks: true });
+const app = await createGameServer({ port: 0, hostname: '127.0.0.1', lanAddress: '127.0.0.1', manualTicks: true, buildDirectory: process.env.BUILD_DIRECTORY });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const colors = ['#00d9ff', '#ff3aaf', '#b5ff36', '#ff963b', '#b76bff'];

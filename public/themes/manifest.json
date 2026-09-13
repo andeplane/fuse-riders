@@ -8,6 +8,8 @@
   "sprites": {
     "rider": { "file": "rider.svg", "anchor": [16, 16], "baseAngle": 0, "tint": true, "description": "Arrow points right; rotate by world angle." },
     "bomb": { "file": "bomb.svg", "anchor": [16, 16], "baseAngle": 0, "tint": true, "description": "Centered bomb with fuse at upper right." },
-    "flame": { "file": "flame.svg", "anchor": [16, 27], "baseAngle": 0, "tint": false, "description": "Centered blast spark; anchor at bottom." }
+    "flame": { "file": "flame.svg", "anchor": [16, 27], "baseAngle": 0, "tint": false, "description": "Centered blast spark; anchor at bottom." },
+    "pickup-blast": { "file": "pickup-blast.svg", "anchor": [16, 16], "baseAngle": 0, "tint": false, "description": "Orange cross upgrade icon with white-hot core." },
+    "pickup-star": { "file": "pickup-star.svg", "anchor": [16, 16], "baseAngle": 0, "tint": false, "description": "Five-point invulnerability star with white core." }
   }
 }

@@ -1,7 +1,17 @@
 {
   "all": true,
-  "include": ["src/shared/**", "src/server/**", "src/client/controller-state.ts", "src/client/snapshot-stream.ts"],
-  "reporter": ["text", "html", "json-summary"],
+  "include": [
+    "src/shared/**",
+    "src/server/**",
+    "src/client/controller-state.ts",
+    "src/client/snapshot-stream.ts",
+    "src/client/render-snapshot.ts"
+  ],
+  "reporter": [
+    "text",
+    "html",
+    "json-summary"
+  ],
   "check-coverage": true,
   "lines": 95,
   "statements": 95,
