@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { POINT_UNIT } from '../src/shared/leaderboard.ts';
 
 import {
   BOMB_COOLDOWN_TICKS,
@@ -164,6 +165,7 @@ test('swept movement collides with an old trail even when the endpoint has cross
   }];
   const result = step(state, new Map());
   assert.equal(rider.alive, false);
+  assert.equal(state.roundParticipants.get('p0')!.eliminatedAtTick, state.tick);
   assert.ok(result.events.some((event) => event.type === 'playerEliminated' && event.playerId === 'p0' && event.cause === 'trail'));
 });
 
@@ -198,10 +200,14 @@ test('head-on swept rider collision eliminates both and produces a draw', () => 
   const result = step(state, new Map());
   assert.equal(left.alive, false);
   assert.equal(right.alive, false);
+  assert.equal(state.roundParticipants.get('p0')!.eliminatedAtTick, state.tick);
+  assert.equal(state.roundParticipants.get('p1')!.eliminatedAtTick, state.tick);
   assert.equal(state.phase, 'roundOver');
   assert.equal(state.roundWinnerId, undefined);
   assert.deepEqual(result.events.filter((event) => event.type === 'playerEliminated').map((event) => event.playerId).sort(), ['p0', 'p1']);
   assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
+  assert.deepEqual(result.events.map((event) => event.type), ['playerEliminated', 'playerEliminated', 'roundEnded']);
+  assert.ok(state.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 4 * POINT_UNIT));
 });
 
 test('bomb input is edge-triggered, capped at one live bomb, chained once, and observes cooldown', () => {
@@ -257,10 +263,24 @@ test('round wins score once, first to five ends the match, and rematch resets wi
   }
   assert.equal(state.phase, 'matchOver');
   assert.equal(state.matchWinnerId, 'p0');
+  assert.deepEqual(state.leaderboard.get('p0'), {
+    id: 'p0', name: 'Player 1', totalScoreUnits: 25 * POINT_UNIT,
+    roundsPlayed: 5, roundWins: 5, matchWins: 1,
+  });
+  assert.deepEqual(state.leaderboard.get('p1'), {
+    id: 'p1', name: 'Player 2', totalScoreUnits: 15 * POINT_UNIT,
+    roundsPlayed: 5, roundWins: 0, matchWins: 0,
+  });
   resetMatch(state, 'rematch');
   assert.equal(state.matchId, 'rematch');
   assert.equal(state.round, 1);
   assert.ok([...state.players.values()].every((player) => player.roundWins === 0));
+  assert.equal(state.leaderboard.get('p0')!.matchWins, 1, 'session totals survive resetMatch');
+  for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  eliminatePlayer(state, 'p1');
+  step(state, new Map());
+  assert.equal(state.leaderboard.get('p0')!.roundsPlayed, 6);
+  assert.equal(state.leaderboard.get('p0')!.totalScoreUnits, 30 * POINT_UNIT);
 });
 
 test('overtime inset updates before collision and a 90-second unresolved round draws', () => {
@@ -279,6 +299,8 @@ test('overtime inset updates before collision and a 90-second unresolved round d
   assert.equal(timeout.phase, 'roundOver');
   assert.equal(timeout.roundWinnerId, undefined);
   assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
+  assert.ok(timeout.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 4 * POINT_UNIT));
+  assert.ok([...timeout.leaderboard.values()].every((entry) => entry.totalScoreUnits === 4 * POINT_UNIT && entry.roundsPlayed === 1));
 });
 
 test('lifecycle commands enforce phase, capacity, identity, and connected-player guards', () => {
@@ -311,6 +333,7 @@ test('wall and explosion causes are authoritative, clipped, and blast visuals ex
   wall.players.get('p1')!.y = 600;
   const wallResult = step(wall, new Map());
   assert.ok(wallResult.events.some((event) => event.type === 'playerEliminated' && event.playerId === 'p0' && event.cause === 'wall'));
+  assert.equal(wall.roundParticipants.get('p0')!.eliminatedAtTick, wall.tick);
 
   const explosion = gameWithPlayers();
   enterPlaying(explosion);
@@ -321,6 +344,7 @@ test('wall and explosion causes are authoritative, clipped, and blast visuals ex
   explosion.bombs.set(10, { id: 10, ownerId: 'p1', x: 30, y: 350, placedTick: 0, explodeAtTick: explosion.tick + 1, blastRange: 150 });
   const blastResult = step(explosion, new Map());
   assert.ok(blastResult.events.some((event) => event.type === 'playerEliminated' && event.playerId === 'p0' && event.cause === 'explosion'));
+  assert.equal(explosion.roundParticipants.get('p0')!.eliminatedAtTick, explosion.tick);
   assert.equal(explosion.blasts[0]!.rects[0]!.x, explosion.boundaryInset, 'cross is clipped to the active boundary');
   for (let age = 1; age <= BLAST_VISIBLE_TICKS; age += 1) {
     step(explosion, new Map());
@@ -396,6 +420,7 @@ test('a star collected on the swept path rescues and reflects a wall hit, then e
   state.pickups = [{ id: 1, type: 'star', x: player.x, y: player.y, expiresAtTick: state.tick + 100 }];
   step(state, new Map());
   assert.equal(player.alive, true);
+  assert.equal(state.roundParticipants.get('p0')!.eliminatedAtTick, undefined);
   assert.equal(player.x, state.boundaryInset + 7);
   assert.ok(Math.abs(player.angle) < 1e-8);
   assert.equal(player.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
@@ -448,4 +473,27 @@ test('pickup expiry, active cap, and impossible safe interior stay bounded', () 
   state.nextPickupSpawnTick = state.tick + 1;
   step(state, new Map());
   assert.equal(state.pickups.length, 0, 'an empty safe rectangle skips instead of looping');
+});
+
+test('countdown leave is stamped, scored once, and a later join receives no prior-round award', () => {
+  const state = gameWithPlayers();
+  startMatch(state);
+  eliminatePlayer(state, 'p1');
+  assert.equal(state.roundParticipants.get('p1')!.eliminatedAtTick, 0);
+  for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  assert.equal(state.phase, 'roundOver');
+  assert.deepEqual(state.roundPlacements.map((placement) => [placement.playerId, placement.place, placement.scoreUnits]), [
+    ['p0', 1, 5 * POINT_UNIT],
+    ['p1', 2, 3 * POINT_UNIT],
+  ]);
+  const totalAfterRound = state.leaderboard.get('p0')!.totalScoreUnits;
+  step(state, new Map());
+  assert.equal(state.leaderboard.get('p0')!.totalScoreUnits, totalAfterRound, 'round-over ticks cannot score twice');
+
+  addPlayer(state, { id: 'late', name: 'Late', slot: 2, color: SLOT_COLORS[2] });
+  assert.equal(state.leaderboard.get('late')!.roundsPlayed, 0);
+  assert.ok(!state.roundPlacements.some((placement) => placement.playerId === 'late'));
+  removePlayer(state, 'p1');
+  assert.ok(state.leaderboard.has('p1'), 'seat departure preserves session history');
+  assert.ok(toSnapshot(state).leaderboard.some((entry) => entry.id === 'p1'));
 });

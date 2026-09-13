@@ -1,3 +1,7 @@
+import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
+
+export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
+
 export type PlayerId = string;
 export type PlayerToken = string;
 export type ClientMessage =
@@ -24,6 +28,8 @@ export interface GameSnapshot {
   bombs: ReadonlyArray<{ id: number; ownerId: PlayerId; x: number; y: number; explodeAtTick: number; blastRange: number }>;
   blasts: ReadonlyArray<{ bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number }>;
   pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star'; x: number; y: number; expiresAtTick: number }>;
+  leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
+  roundPlacements: ReadonlyArray<RoundPlacement>;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }

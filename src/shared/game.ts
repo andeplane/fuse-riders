@@ -5,6 +5,14 @@ import type {
   PlayerId,
   TrailSegment,
 } from './protocol.js';
+import {
+  applyRoundScores,
+  rankRound,
+  sortedLeaderboard,
+  type RoundParticipant,
+  type RoundPlacement,
+  type SessionLeaderboardEntry,
+} from './leaderboard.js';
 
 export type { BlastRect, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
@@ -129,6 +137,10 @@ export interface GameState {
   nextPickupSpawnTick: number;
   seed: number;
   randomState: number;
+  leaderboard: Map<PlayerId, SessionLeaderboardEntry>;
+  roundParticipants: Map<PlayerId, RoundParticipant>;
+  roundPlacements: RoundPlacement[];
+  roundScored: boolean;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -176,6 +188,10 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     nextPickupSpawnTick: 0,
     seed: normalizeSeed(seed),
     randomState: normalizeSeed(seed),
+    leaderboard: new Map(),
+    roundParticipants: new Map(),
+    roundPlacements: [],
+    roundScored: false,
   };
 }
 
@@ -203,6 +219,16 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     invulnerableUntilTick: 0,
     trail: [],
   });
+  const historical = state.leaderboard.get(identity.id);
+  if (historical) historical.name = identity.name;
+  else state.leaderboard.set(identity.id, {
+    id: identity.id,
+    name: identity.name,
+    totalScoreUnits: 0,
+    roundsPlayed: 0,
+    roundWins: 0,
+    matchWins: 0,
+  });
 }
 
 export function removePlayer(state: GameState, playerId: PlayerId): void {
@@ -215,7 +241,10 @@ export function setPlayerConnected(state: GameState, playerId: PlayerId, connect
 }
 
 export function eliminatePlayer(state: GameState, playerId: PlayerId): void {
-  requirePlayer(state, playerId).alive = false;
+  const player = requirePlayer(state, playerId);
+  if (!player.alive) return;
+  player.alive = false;
+  recordElimination(state, playerId);
 }
 
 export function startMatch(state: GameState): void {
@@ -391,6 +420,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const cause = causes.get(movement.player.id);
     if (cause) {
       movement.player.alive = false;
+      recordElimination(state, movement.player.id);
       events.push({ type: 'playerEliminated', playerId: movement.player.id, cause });
       continue;
     }
@@ -449,6 +479,8 @@ export function toSnapshot(state: GameState): GameSnapshot {
       expiresAtTick: blast.expiresAtTick,
     })),
     pickups: state.pickups.map((pickup) => ({ ...pickup })),
+    leaderboard: sortedLeaderboard(state.leaderboard),
+    roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
     ...(state.roundWinnerId === undefined ? {} : { roundWinnerId: state.roundWinnerId }),
     ...(state.matchWinnerId === undefined ? {} : { matchWinnerId: state.matchWinnerId }),
   };
@@ -471,6 +503,12 @@ function prepareRound(state: GameState): void {
   state.nextBombId = 1;
   state.nextPickupId = 1;
   state.nextPickupSpawnTick = 0;
+  state.roundParticipants = new Map(participants.map((player) => [player.id, {
+    id: player.id,
+    name: player.name,
+  }]));
+  state.roundPlacements = [];
+  state.roundScored = false;
 
   for (const player of state.players.values()) {
     player.alive = false;
@@ -633,24 +671,44 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   const alive = sortedPlayers(state).filter((player) => player.alive);
   if (alive.length > 1 && elapsed < ROUND_DRAW_TICK) return;
 
+  let winnerId: PlayerId | undefined;
+  let matchWinnerId: PlayerId | undefined;
   if (alive.length === 1) {
     const winner = alive[0]!;
     winner.roundWins += 1;
+    winnerId = winner.id;
     state.roundWinnerId = winner.id;
-    events.push({ type: 'roundEnded', winnerId: winner.id });
     if (winner.roundWins >= 5) {
-      state.phase = 'matchOver';
-      state.phaseEndsAtTick = undefined;
+      matchWinnerId = winner.id;
       state.matchWinnerId = winner.id;
-      events.push({ type: 'matchEnded', winnerId: winner.id });
-      return;
     }
   } else {
     state.roundWinnerId = undefined;
-    events.push({ type: 'roundEnded' });
+  }
+
+  scoreRoundOnce(state, winnerId, matchWinnerId);
+  events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
+  if (matchWinnerId !== undefined) {
+    state.phase = 'matchOver';
+    state.phaseEndsAtTick = undefined;
+    events.push({ type: 'matchEnded', winnerId: matchWinnerId });
+    return;
   }
   state.phase = 'roundOver';
   state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS;
+}
+
+function recordElimination(state: GameState, playerId: PlayerId): void {
+  const participant = state.roundParticipants.get(playerId);
+  if (participant && participant.eliminatedAtTick === undefined) participant.eliminatedAtTick = state.tick;
+}
+
+function scoreRoundOnce(state: GameState, winnerId?: PlayerId, matchWinnerId?: PlayerId): void {
+  if (state.roundScored) return;
+  const placements = rankRound([...state.roundParticipants.values()]);
+  applyRoundScores(state.leaderboard, placements, winnerId, matchWinnerId);
+  state.roundPlacements = placements;
+  state.roundScored = true;
 }
 
 function requireEnoughPlayers(state: GameState): void {

@@ -113,6 +113,8 @@ export interface GameSnapshot {
   pickups: ReadonlyArray<{
     id: number; type: 'blast' | 'star'; x: number; y: number; expiresAtTick: number;
   }>;
+  leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
+  roundPlacements: ReadonlyArray<RoundPlacement>;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -169,7 +171,7 @@ playing --winner reaches five--> matchOver
 matchOver --rematch (2..5 connected seats)--> countdown of a new match
 ```
 
-Countdown and round-over timers are authoritative. Host `start` and `rematch` are valid only at their corresponding source phase. After the three-second round-over presentation, the server boundary automatically calls `startNextRound` when at least two connected seats remain; the engine remains in `roundOver` until that guarded server command runs. A new match gets a new `matchId`, resets all wins, and starts at round 1. A next round increments `round` and preserves wins. Both reset alive state, positions, directions, trails, bombs, blasts, pickups, upgrade levels, invulnerability, cooldowns, and buffered input.
+Countdown and round-over timers are authoritative. Host `start` and `rematch` are valid only at their corresponding source phase. After the three-second round-over presentation, the server boundary automatically calls `startNextRound` when at least two connected seats remain; the engine remains in `roundOver` until that guarded server command runs. A new match gets a new `matchId`, resets match-local wins, and starts at round 1. Session leaderboard totals persist for the server process lifetime. A next round increments `round` and preserves match wins. Both reset alive state, positions, directions, trails, bombs, blasts, pickups, upgrade levels, invulnerability, cooldowns, and buffered input.
 
 Participants are the connected seats at countdown creation, sorted by slot. For N players, spawn points are equally spaced on a circle centered in the arena with radius `0.28 * min(width, height)`. Player zero starts at angle `-pi/2`; each next player adds `2*pi/N`. Each heading is the clockwise tangent (`spawnAngle + pi/2`). This gives two players opposite spawns and evenly spaces three to five players.
 
@@ -199,7 +201,7 @@ These commands and `step` are the only game-state mutators. The periodic server 
 5. Remove each entire active trail segment that intersects any new blast rectangle. This intentionally creates a gap at least one tick-segment long. Mark a rider for explosion death if its candidate swept centerline, expanded by `RIDER_RADIUS`, intersects a new blast rectangle.
 6. Against the post-blast trail set, compute all remaining deaths without mutating players: boundary if the candidate center crosses the inset arena minus rider radius; trail if the swept center comes within `RIDER_RADIUS + TRAIL_WIDTH/2` of an active segment; rider if two candidate swept centerlines come within `2 * RIDER_RADIUS`. A player ignores only its own segments with `createdTick > tick - SELF_TRAIL_GRACE_TICKS`; endpoints otherwise count as collision. Any pairwise rider collision kills both. Explosion cause takes precedence, then wall, trail, rider for stable event reporting.
 7. Commit all deaths simultaneously. Commit candidate position and append the movement as one independent trail segment only for survivors. A rider killed during this tick creates no new segment. Existing trails of dead riders remain until their normal expiry or blast removal.
-8. During playing, update overtime, scoring, and phase once. One survivor wins immediately and receives one round win; zero survivors draw with no win. If more than one survives at `ROUND_DRAW_TICK` relative to `roundStartedTick`, the round is a draw. Reaching five wins transitions directly to `matchOver`; otherwise the result is `roundOver`.
+8. During playing, record first elimination ticks and update overtime, scoring, and phase once. Rank the participants captured at countdown, atomically update persistent placement totals before committing the phase, and expose the round placements in the resulting snapshot. One survivor wins immediately and receives one match-local round win; zero survivors draw with no win. If more than one survives at `ROUND_DRAW_TICK` relative to `roundStartedTick`, those survivors tie across the top occupied ranks and the round is a draw. Reaching five wins transitions directly to `matchOver`; otherwise the result is `roundOver`.
 
 Trail segments expire when `expiresAtTick <= tick`, so one created at T with expiry T+160 is active through T+159. Bomb cooldown starts on accepted placement; readiness is `bombReadyAtTick <= tick`. Bombs do not block riders. A player may therefore ride across any bomb before it explodes.
 
