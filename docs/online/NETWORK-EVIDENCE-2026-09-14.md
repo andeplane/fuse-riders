@@ -29,3 +29,30 @@ ONLINE_URL=http://localhost:8794/ BENCH_SECONDS=30 npx tsx scripts/online-networ
 The run requires the opt-in application diagnostics in the served build. The harness adds `benchmark=1`, records the served entry bundle and starting revision, and creates its own room per profile. It writes failures as well as successes to `artifacts/online-network-benchmark.json`.
 
 An earlier exploratory attempt failed because tsx/esbuild's serialized initialization function referenced an unavailable `__name` helper. That was a harness defect, fixed by making the browser initialization lexical environment self-contained. It was not counted as a game failure or successful benchmark. That attempt also overlapped another local smoke and is excluded from the final measurements above.
+
+## Follow-up: isolate rendering contention while retaining six RTC peers
+
+A separate 30-second direct-only run completed at 23:53:32 UTC using the identical served entry bundle. Starting checkout revision was `f035bde653ecfa28003c24d7cc900765c8ae23cf`; newer unbuilt source changes were not part of this served artifact. Command:
+
+```sh
+ONLINE_URL=http://localhost:8794/ BENCH_SECONDS=30 BENCH_PROFILE=direct BENCH_RENDER_SINGLE=1 npx tsx scripts/online-network-benchmark.ts
+```
+
+[Raw diagnostic report](network-single-view-2026-09-14.json.gz) preserves this run separately. All six RTC peers and host simulation remained active; only guest 1 rendered its arena. Every periodic sample confirmed the other five canvases were hidden with no initialized renderer, and guest 1 used visible Phaser WebGL. All narrow transport/tick assertions again passed.
+
+Guest 1's 1,827 animation frames had median 16.7 ms, p95 **17.2 ms**, p99 **19.4 ms**, maximum **30.1 ms**. Periodically sampled Phaser render duration ranged 0.1–0.7 ms, with automatic Phaser loop disabled. This strongly implicates simultaneous local rendering load in the earlier six-view frame failure. It does not replace that failure, certify distributed physical phones, or isolate exact CPU versus GPU contention: utilization was not measured. The old served bundle still showed the stale connection-status label.
+
+### Correction measurement follow-up
+
+Splitting preserved raw snapshots by phase exposed an instrumentation defect: countdown snapshots reported roughly 15-unit corrections because reconciliation replay advanced an inactive rider, although rendering bypassed inactive movement. This finding was sent for a focused regression/fix. Original raw aggregate measurements are retained above.
+
+Filtering **only playing snapshots where the local rider is alive**, and pooling the five player contexts (excluding display), gives:
+
+| Run/profile | Samples | p95 | p99 | Maximum |
+| --- | ---: | ---: | ---: | ---: |
+| Six views/direct | 358 | 0 | 0 | 2.093 |
+| Six views/regional | 339 | 0 | 30 | 60 |
+| Six views/poor | 270 | 0 | 15 | 300 |
+| Single view/direct | 639 | 0 | 1.049 | 2.098 |
+
+These are reconciliation values sampled on accepted snapshots, with many zero-correction samples, not hardware-response measurements. Poor-profile outliers remain real recorded presentation deviations and are not erased by the inactive-phase correction finding. Whether an outlier reflects loss/resync, a previously unknown obstacle or another transition requires causal traces; this run does not establish that distinction.

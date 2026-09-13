@@ -16,7 +16,8 @@ interface Injection {
 }
 declare global { interface Window { __networkBench: Injection } }
 /** Application-message impairment before the real SCTP send, deliberately NOT IP shaping. */
-function installImpairment({profile,seed,host}:{profile:Profile;seed:number;host:boolean}) {
+function installImpairment({profile,seed,host,renderView}:{profile:Profile;seed:number;host:boolean;renderView:boolean}) {
+  if(!renderView){const hide=()=>{for(const canvas of document.querySelectorAll('canvas'))if(!canvas.hidden)canvas.hidden=true;};new MutationObserver(hide).observe(document,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});hide();}
   const state:Injection={attempted:0,delivered:0,dropped:0,expired:0,reordered:0,bytes:0,queueBytes:0,maxQueueBytes:0,relayAttempts:0,blockedUntil:0,windows:{},active:false,frameMs:[],events:[],eventsTruncated:0};
   Object.assign(window,{__networkBench:state});
   window.addEventListener('fuse-benchmark',event=>{if(!state.active)return;const detail=(event as CustomEvent<unknown>).detail;if(state.events.length>=20000){state.eventsTruncated++;return;}state.events.push(detail);});
@@ -89,7 +90,7 @@ try {
     try{
       for(let i=0;i<6;i++){
         const context=await browser.newContext({viewport:i===5?{width:1280,height:720}:{width:844,height:390},isMobile:i!==5,hasTouch:i!==5});context.setDefaultTimeout(45000);contexts.push(context);
-        await context.addInitScript({content:`(() => { const __name = (fn) => fn; (${installImpairment.toString()})(${JSON.stringify({profile,seed:12345+i,host:i===0})}); })();`});
+        await context.addInitScript({content:`(() => { const __name = (fn) => fn; (${installImpairment.toString()})(${JSON.stringify({profile,seed:12345+i,host:i===0,renderView:process.env.BENCH_RENDER_SINGLE!=='1'||i===1})}); })();`});
         const page=await context.newPage();pages.push(page);page.on('pageerror',error=>errors.push(error.message));
       }
       const host=pages[0]!;await host.goto(base);await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();await host.waitForURL(/room=/);const hostBenchmarkUrl=new URL(host.url());hostBenchmarkUrl.searchParams.set('benchmark','1');await host.goto(hostBenchmarkUrl.href);
@@ -114,7 +115,7 @@ try {
           if(await control.isVisible()){const bounds=await control.boundingBox();if(bounds){await page.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);await page.mouse.down();}}
         }));
         await delay(160);await Promise.all(pages.slice(0,5).map(page=>page.mouse.up()));
-        const peers=await Promise.all(pages.map(page=>page.evaluate(()=>({at:performance.now(),metrics:document.querySelector<HTMLElement>('#app')?.dataset.metrics,status:document.querySelector('.online-header span')?.textContent,notice:document.querySelector('.online-notice')?.textContent,queueBytes:window.__networkBench.queueBytes}))));
+        const peers=await Promise.all(pages.map(page=>page.evaluate(()=>({at:performance.now(),metrics:document.querySelector<HTMLElement>('#app')?.dataset.metrics,renderer:document.querySelector<HTMLCanvasElement>('canvas')?.dataset.renderer,rendererMetrics:document.querySelector<HTMLCanvasElement>('canvas')?.dataset.rendererMetrics,canvasHidden:document.querySelector<HTMLCanvasElement>('canvas')?.hidden,status:document.querySelector('.online-header span')?.textContent,notice:document.querySelector('.online-notice')?.textContent,queueBytes:window.__networkBench.queueBytes}))));
         samples.push({elapsed,peers});await delay(340);
       }
       const injection=await Promise.all(pages.map(page=>page.evaluate(()=>window.__networkBench)));
@@ -131,6 +132,6 @@ try {
   }
 }catch(error){failed=error;}finally{await browser.close();}
 await mkdir('artifacts',{recursive:true});
-const report={date:new Date().toISOString(),revision:sourceRevision,entryAssets,durationSeconds:duration,method:'Six isolated Chromium contexts: five human-controller workloads plus display; real RTC with seeded application-message send impairment. Not OS wire shaping, packet-loss emulation, physical devices, or certification. Setup is unimpaired. Reliable ordered SCTP messages are deliberately dropped/reordered BEFORE SCTP, exercising application boundaries rather than reproducing TCP/SCTP loss recovery.',limits:['Frame samples are headless desktop animation frames, not phone GPU acceptance.','JSON payload bytes exclude SCTP/DTLS/IP overhead.','UI ack/correction values are sampled latest values, not event distributions.','Accepted snapshot diagnostics check monotonic tick per authority scope; shot identities and host action application are not exposed, so no claim of zero duplicate shots or complete outcome consistency.','Controls may die before the run ends; this is not yet a sustained five-active-rider soak.'],results};
+const report={date:new Date().toISOString(),revision:sourceRevision,renderMode:process.env.BENCH_RENDER_SINGLE==='1'?'only-guest-1-canvas; other five hidden via MutationObserver, all RTC and simulation remain active':'six-visible-canvases',entryAssets,durationSeconds:duration,method:'Six isolated Chromium contexts: five human-controller workloads plus display; real RTC with seeded application-message send impairment. Not OS wire shaping, packet-loss emulation, physical devices, or certification. Setup is unimpaired. Reliable ordered SCTP messages are deliberately dropped/reordered BEFORE SCTP, exercising application boundaries rather than reproducing TCP/SCTP loss recovery.',limits:['Frame samples are headless desktop animation frames, not phone GPU acceptance.','JSON payload bytes exclude SCTP/DTLS/IP overhead.','UI ack/correction values are sampled latest values, not event distributions.','Accepted snapshot diagnostics check monotonic tick per authority scope; shot identities and host action application are not exposed, so no claim of zero duplicate shots or complete outcome consistency.','Controls may die before the run ends; this is not yet a sustained five-active-rider soak.','Single-render mode is diagnostic isolation only and does not replace six-view or physical-device acceptance.'],results};
 await writeFile('artifacts/online-network-benchmark.json',JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify({report:'artifacts/online-network-benchmark.json',profiles:results.length,passed:!failed}));if(failed)throw failed;
