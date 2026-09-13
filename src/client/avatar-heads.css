@@ -20,3 +20,6 @@
 .avatar-dialog::backdrop { background: #020816bb; }
 .avatar-close { display: block; margin: 10px auto 0; padding: 8px 20px; color: white; background: #20385c; border: 1px solid #22d3ee; cursor: pointer; }
 button.identity-marker { background: #08132b; cursor: pointer; font-size: .7rem; font-weight: bold; }
+
+.seat-marker .avatar-portrait { width: 34px; height: 34px; }
+.score-card > .avatar-portrait { width: 28px; height: 28px; }

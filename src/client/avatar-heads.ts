@@ -15,6 +15,17 @@ export function drawAvatarHead(ctx: CanvasRenderingContext2D, id: AvatarId, x: n
   ctx.restore(); return true;
 }
 
+export function createAvatarPortrait(id: AvatarId): HTMLSpanElement {
+  const portrait = document.createElement('span');
+  portrait.className = 'avatar-portrait';
+  portrait.dataset.avatarId = id;
+  portrait.setAttribute('role', 'img');
+  portrait.setAttribute('aria-label', `${AVATARS.find(avatar => avatar.id === id)?.label ?? 'Robot'} avatar`);
+  const { column, row } = avatarCell(id);
+  portrait.style.backgroundPosition = `${column * 25}% ${row * 100}%`;
+  return portrait;
+}
+
 export function createAvatarPicker(storage: Pick<Storage, 'getItem' | 'setItem'>, onChange?: (id: AvatarId) => void): { element: HTMLElement; selected: () => AvatarId; sync: (id: AvatarId) => void } {
   const stored = storage.getItem('fuse-riders-avatar');
   let selected: AvatarId = isAvatarId(stored) ? stored : DEFAULT_AVATAR;

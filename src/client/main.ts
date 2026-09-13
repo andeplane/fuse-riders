@@ -1,5 +1,5 @@
 import { drawBombTargets } from './target-renderer.js';
-import { createAvatarPicker, drawAvatarHead } from './avatar-heads.js';
+import { createAvatarPicker, createAvatarPortrait, drawAvatarHead } from './avatar-heads.js';
 import { drawInkClouds } from './ink-renderer.js';
 import { ControllerPointerBindings } from './controller-pointers.js';
 import { createGameAudio } from './game-audio.js';
@@ -570,15 +570,18 @@ function startDisplay(): void {
   });
 
   function renderRoster(snapshot?: ViewSnapshot): void {
-    const signature = snapshot?.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.connected}`).join('|') ?? 'empty';
+    const signature = snapshot?.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.avatarId}:${player.connected}`).join('|') ?? 'empty';
     if (signature === rosterSignature) return;
     rosterSignature = signature;
     roster.replaceChildren();
     for (let slot = 0; slot < 5; slot += 1) {
       const player = snapshot?.players.find((candidate) => candidate.slot === slot);
       const seat = element('div', `seat ${player ? 'occupied' : ''}`);
-      const marker = element('span', 'seat-marker', player ? '➤' : `${slot + 1}`);
-      if (player) marker.style.setProperty('--player-color', escapeColor(player.color));
+      const marker = element('span', 'seat-marker', player ? '' : `${slot + 1}`);
+      if (player) {
+        marker.style.setProperty('--player-color', escapeColor(player.color));
+        marker.append(createAvatarPortrait(player.avatarId));
+      }
       const details = element('div', 'seat-details');
       details.append(element('strong', '', player?.name ?? 'OPEN SLOT'), element('small', '', player ? (player.connected ? 'READY' : 'RECONNECTING') : 'SCAN TO JOIN'));
       seat.append(marker, details);
@@ -587,7 +590,7 @@ function startDisplay(): void {
   }
 
   function renderScores(snapshot: ViewSnapshot): void {
-    const signature = snapshot.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.alive}:${player.roundWins}`).join('|');
+    const signature = snapshot.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.avatarId}:${player.alive}:${player.roundWins}`).join('|');
     if (signature === scoresSignature) return;
     scoresSignature = signature;
     scores.replaceChildren();
@@ -599,7 +602,7 @@ function startDisplay(): void {
       const details = element('span', 'score-details');
       const seatName = player.name.toUpperCase() === `P${player.slot + 1}` ? `P${player.slot + 1}` : `P${player.slot + 1} ${player.name}`;
       details.append(element('span', 'score-name', seatName), pips);
-      card.append(element('span', 'score-arrow', '➤'), details);
+      card.append(createAvatarPortrait(player.avatarId), details);
       scores.append(card);
     }
   }

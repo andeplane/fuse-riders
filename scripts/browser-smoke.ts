@@ -87,6 +87,8 @@ try {
   await waitFor(() => app.game.phase === 'playing', 'playing');
   await phones[0].getByRole('button', { name: 'Change avatar', exact: true }).click();
   await phones[0].getByRole('button', { name: 'Slime', exact: true }).click();
+  await host.locator('.score-card .avatar-portrait[data-avatar-id=slime]').waitFor();
+  await host.locator('.seat-marker .avatar-portrait[data-avatar-id=slime]').waitFor({ state: 'attached' });
   await waitFor(() => [...app.game.players.values()].find(p => p.slot === 0)!.avatarId === 'slime', 'live avatar selection reaches TV state');
   assert.equal(String(app.game.phase), 'playing');
   await host.locator('.announcement.hidden').waitFor({ state: 'attached' });
