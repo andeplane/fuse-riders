@@ -3,8 +3,7 @@ import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
 import { ControllerInputState } from '../client/controller-state.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
-import { LocalPrediction, interpolateWorld } from './prediction.js';
-import { renderedSnapshot, type SnapshotFrame } from '../client/render-snapshot.js';
+import { LocalPrediction, RemoteWorldBuffer } from './prediction.js';
 import { drawArena } from '../client/main.js';
 import { createAvatarPicker } from '../client/avatar-heads.js';
 import { defaultTheme, loadThemeSprites } from '../client/themes.js';
@@ -37,8 +36,10 @@ export async function startOnline():Promise<void>{
   const identityKey=`fuse-room-${code}`;const token=displayOnlyToken();
   function displayOnlyToken(){if(url.searchParams.has('display'))return secret();const token=read(identityKey)??secret();save(identityKey,token);return token;}
   let id='',isHost=false,joined=false,avatar:AvatarId|undefined,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
-  const prediction=new LocalPrediction(()=>performance.now());const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;const frames:SnapshotFrame[]=[];
+  const prediction=new LocalPrediction(()=>performance.now());const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;const worldBuffer=new RemoteWorldBuffer();
   let seq=0,lastRecap='';
+  const benchmark=url.searchParams.get('benchmark')==='1';let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
+  const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
   const displayOnly=url.searchParams.has('display');
   const header=node('header','','online-header');const title=node('strong',`FUSE RIDERS · ${code}`),status=node('span','Connecting…'),audioButton=node('button','♫ AUDIO'),menu=node('button','MENU');
   header.append(title,status,audioButton,menu);
@@ -57,9 +58,11 @@ export async function startOnline():Promise<void>{
     ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
     status:text=>{status.textContent=text;},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
-    state:(state,rules,ack,matchId)=>{
-      snapshot=state;renderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}`;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack);
-      frames.push({snapshot:state,matchId,round:state.round,receivedAt:performance.now()});if(frames.length>2)frames.shift();
+    clock:sample=>{prediction.observeClock(sample);},
+    state:(state,rules,ack,matchId,motion)=>{
+      snapshot=state;const nextRenderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;if(nextRenderScope!==renderScope)prediction.resetExternalScope();renderScope=nextRenderScope;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack,motion,renderScope);
+      worldBuffer.push(state,renderScope);
+      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y})),leaderboard:state.leaderboard,motionResults:motion?.results,correction:prediction.correction,ackMs:prediction.ackMs});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
       if(state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0)&&lastRecap!==String(state.phaseEndsAtTick)){
@@ -101,7 +104,7 @@ export async function startOnline():Promise<void>{
     }
     recalc();const apply=node('button','SAVE SETTINGS');apply.onclick=()=>{draft.mode=mode.value as RoomSettings['mode'];draft.match=format.value as RoomSettings['match'];draft.length=Number(length.value);if(runtime.command({type:'settings',settings:draft})){save(SETTINGS_KEY,JSON.stringify(draft));dialog.close();}};dialogBody.append(apply);dialog.showModal();
   };
-  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;inputAt=performance.now();prediction.input(message.seq,message.left,message.right);return runtime.command(message);}});
+  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);return scheduled?runtime.command({...message,...scheduled}):false;}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
@@ -113,6 +116,6 @@ export async function startOnline():Promise<void>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;
     app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),ackMs:prediction.ackMs,correction:prediction.correction,tick:snapshot?.tick??0});
   });},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}if(snapshot&&!canvas.hidden){presentation.render(prediction.render(interpolateWorld(frames.length>1?frames[0]!.snapshot:undefined,snapshot,(performance.now()-(frames.at(-1)?.receivedAt??performance.now()))/100),id),now,defaultTheme,sprites,renderScope);}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const buffered=worldBuffer.render(prediction.clock.estimate()?.tick);if(buffered&&!canvas.hidden){const predicted=prediction.render(buffered,id);presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   window.addEventListener('pagehide',event=>{runtime.stop();if(!event.persisted)presentation.destroy();});
 }

@@ -1,31 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LocalPrediction, interpolateWorld } from '../src/online/prediction.js';
+import { LocalPrediction, interpolateWorld, RemoteWorldBuffer, PredictionClock } from '../src/online/prediction.js';
+import type { AppliedMotionState } from '../src/online/prediction-contract.js';
 import { HostSession } from '../src/online/host-session.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
+import { advanceRiderPose } from '../src/shared/rider-motion.js';
+import { drunkHeadingOffset } from '../src/shared/drunk.js';
 function fixture(){const room=new HostSession('h',defaultRoomSettings(),{token:()=>crypto.randomUUID()});room.command('h',{type:'join',name:'Host'});room.command('p',{type:'join',name:'P'});room.command('h',{type:'action',action:'start'});for(let i=0;i<60;i++)room.advance();return {...room.snapshot(),tick:room.game.tick,round:1};}
-test('local steering responds on next frame without waiting for an acknowledgement',()=>{
-  let now=0;const predictor=new LocalPrediction(()=>now),state=fixture();predictor.accept(state,'h',-1);const original=state.players.find(p=>p.id==='h')!;
-  predictor.input(0,false,true);now=16;const first=predictor.render(state,'h').players.find(p=>p.id==='h')!;
-  assert.ok(first.angle>original.angle);assert.ok(Math.hypot(first.x-original.x,first.y-original.y)>0);
-  now=32;assert.ok(predictor.render(state,'h').players.find(p=>p.id==='h')!.angle>first.angle);
+function ledger(tick:number):AppliedMotionState{return {scope:{matchId:'match',round:1,controlEpoch:'c'},tick,appliedSeq:-1,appliedTick:tick,held:{left:false,right:false},results:[],motion:{seed:31,drunkStartedTick:0,drunkUntilTick:0,drunkHeadingOffset:0}};}
+function setup(){let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now);predictor.accept(state,'h',-1,motion,'authority');predictor.observeClock({scope:motion.scope,localSentAt:0,localReceivedAt:0,authorityTick:state.tick,paused:false});return {state,motion,predictor,time:(n:number)=>{now=n;}};}
+test('local steering responds next frame using a partial step which never changes fixed replay',()=>{
+ const {state,predictor,time}=setup(),original=state.players[0]!;assert.ok(predictor.input(0,false,true));time(16);const first=predictor.render(state,'h').players[0]!;assert.notEqual(first.angle,original.angle);
+ const expected=advanceRiderPose({...original,drunkHeadingOffset:0},{left:false,right:true},{distance:7.5,turn:.14,drunkHeadingOffset:0});
+ for(const hz of [30,60,120]){for(let n=0;n<200;n+=1000/hz){time(n);predictor.render(state,'h');}assert.deepEqual(predictor.predict(state.tick+1),expected);}
 });
-test('confirmed death overrides predictions immediately and reconnect acknowledgements discard old inputs',()=>{
-  let now=0;const predictor=new LocalPrediction(()=>now),state=fixture();predictor.accept(state,'h',-1);predictor.input(0,true,false);now=100;
-  const dead={...state,players:state.players.map(p=>({...p,alive:false}))};predictor.accept(dead,'h',0);assert.deepEqual(predictor.render(dead,'h'),dead);
-  assert.equal(predictor.ackMs,100);
+test('acknowledged held turn replays exactly with no pending events, including drunk offset',()=>{
+ const {state,motion,predictor}=setup();motion.held={left:true,right:false};motion.appliedSeq=4;motion.motion.drunkStartedTick=state.tick-10;motion.motion.drunkUntilTick=state.tick+80;motion.motion.drunkHeadingOffset=.1;
+ predictor.accept(state,'h',4,motion,'authority');let expected={...state.players[0]!,drunkHeadingOffset:.1};
+ for(let tick=state.tick+1;tick<=state.tick+4;tick++)expected={...expected,...advanceRiderPose(expected,motion.held,{distance:7.5,turn:.14,drunkHeadingOffset:drunkHeadingOffset(31,'h',tick,state.tick-10,state.tick+80)})};
+ const actual=predictor.predict(state.tick+4)!;assert.ok(Math.hypot(actual.x-expected.x,actual.y-expected.y)<1e-6);assert.equal(actual.angle,expected.angle);
 });
-test('remote interpolation never reverses a confirmed death or interpolates across a portal',()=>{
-  const a=fixture(),b=structuredClone(a);b.players[0]!.x+=100;b.players[0]!.alive=false;
-  assert.equal(interpolateWorld(a,b,.5).players[0]!.alive,false);
-  b.players[0]!.alive=true;b.players[0]!.portalCooldownUntilTick+=20;
-  assert.equal(interpolateWorld(a,b,.5).players[0]!.x,b.players[0]!.x);
-});
-
-test('a stalled connection cannot extrapolate the rider forever',()=>{
-  let now=0;const predictor=new LocalPrediction(()=>now),state=fixture();predictor.accept(state,'h',-1);
-  for(now=16;now<1000;now+=16)predictor.render(state,'h');
-  const frozen=predictor.render(state,'h').players[0]!;
-  now=10000;const later=predictor.render(state,'h').players[0]!;
-  assert.ok(Math.hypot(later.x-frozen.x,later.y-frozen.y)<.01);
-});
+test('fresh-input age neutralizes held controls at tick ten',()=>{const {state,motion,predictor}=setup();motion.held={left:true,right:false};motion.appliedTick=state.tick-9;predictor.accept(state,'h',0,motion,'authority');assert.equal(predictor.predict(state.tick+1)!.angle,state.players[0]!.angle);});
+test('press and release scheduled for same tick uses latest sample, received ack cannot retire either',()=>{const {state,predictor}=setup();predictor.input(0,true,false);predictor.input(1,false,false);predictor.accept(state,'h',1,ledger(state.tick),'authority');assert.equal(predictor.predict(state.tick+1)!.angle,state.players[0]!.angle);});
+test('mismatched snapshot and application tick rejected atomically',()=>{const {state,motion,predictor}=setup();const before=predictor.predict(state.tick+2);assert.equal(predictor.accept({...state,tick:state.tick+1},'h',4,motion,'authority'),false);assert.deepEqual(predictor.predict(state.tick+2),before);assert.equal(predictor.accept(state,'h',4,{...motion,results:[{seq:4,status:'applied',appliedTick:state.tick+1}]},'authority'),false);});
+test('applied result retires pending but continues authoritative held input',()=>{const {state,motion,predictor,time}=setup();predictor.input(0,true,false);time(100);const pose=predictor.predict(state.tick+2)!;const confirmed={...state,tick:state.tick+2,players:state.players.map(p=>p.id==='h'?{...p,...pose}:p)};predictor.accept(confirmed,'h',0,{...motion,tick:confirmed.tick,appliedSeq:0,appliedTick:state.tick+1,held:{left:true,right:false},results:[{seq:0,status:'applied',appliedTick:state.tick+1}]},'authority');assert.equal(predictor.ackMs,100);assert.notEqual(predictor.predict(confirmed.tick+1)!.angle,pose.angle);assert.ok(predictor.correction<1e-6);});
+test('death and portal reset local motion and epoch invalidates timing',()=>{const {state,motion,predictor,time}=setup();predictor.input(0,true,false);time(100);const dead={...state,players:state.players.map(p=>({...p,alive:false}))};predictor.accept(dead,'h',0,motion,'authority');assert.equal(predictor.render(state,'h').players[0]!.alive,false);const portal={...state,players:state.players.map(p=>({...p,x:800,portalCooldownUntilTick:99}))};predictor.accept(portal,'h',0,motion,'authority');assert.equal(predictor.predict(state.tick)!.x,800);predictor.accept(state,'h',0,motion,'new-authority');assert.equal(predictor.input(1,true,false),undefined);});
+test('clock retains conservative send sampled bounds and rejects pause stale and invalid RTT',()=>{let now=100;const c=new PredictionClock(()=>now),scope=ledger(1).scope;assert.equal(c.observe({scope,localSentAt:0,localReceivedAt:100,authorityTick:20,paused:false}),true);assert.deepEqual(c.estimate(),{lower:20,upper:22,tick:21});assert.equal(c.observe({scope,localSentAt:110,localReceivedAt:100,authorityTick:20,paused:false}),false);now=700;assert.equal(c.estimate(),undefined);assert.equal(c.observe({scope,localSentAt:700,localReceivedAt:700,authorityTick:30,paused:true}),false);assert.equal(c.estimate(),undefined);now=800;assert.ok(c.observe({scope,localSentAt:800,localReceivedAt:800,authorityTick:30,paused:false}));assert.equal(c.estimate()!.tick,30);});
+test('remote buffer uses coherent past state and fractional ticks without portal chords',()=>{const a=fixture(),b=structuredClone(a);b.tick+=2;b.players[0]!.x+=100;b.players[0]!.portalCooldownUntilTick+=20;const mid=interpolateWorld(a,b,.5);assert.equal(mid.tick,a.tick+1);assert.equal(mid.players[0]!.x,a.players[0]!.x);const buffer=new RemoteWorldBuffer();buffer.push(a,'a');buffer.push(b,'a');assert.equal(buffer.render(a.tick+3)!.tick,a.tick+1);assert.equal(buffer.render(a.tick+2)!.tick,a.tick+1);assert.equal(buffer.render(a.tick+100)!.tick,b.tick);buffer.push({...a,tick:1},'b');assert.equal(buffer.render(3)!.tick,1);});
+test('spectator clock advances fractional render ticks without a player seat and resets scope',()=>{let now=0;const clock=new PredictionClock(()=>now),scope=ledger(1).scope,a=fixture(),b={...a,tick:a.tick+2},buffer=new RemoteWorldBuffer();buffer.push(a,'a');buffer.push(b,'a');clock.observe({scope,localSentAt:0,localReceivedAt:0,authorityTick:b.tick,paused:false});assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick);now=25;assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick+.5);const predictor=new LocalPrediction(()=>now);predictor.observeClock({scope,localSentAt:25,localReceivedAt:25,authorityTick:b.tick,paused:false});predictor.resetExternalScope();assert.equal(predictor.clock.estimate(),undefined);});
+test('presentation connector is bounded and never mutates confirmed trails',()=>{const {state,predictor,time}=setup();const length=state.players[0]!.trail.length;predictor.input(1,false,true);time(100);const shown=predictor.render(state,'h').players[0]!;assert.equal(state.players[0]!.trail.length,length);assert.equal(shown.trail.length,length+1);const last=shown.trail.at(-1)!;assert.ok(Math.hypot(last.x2-last.x1,last.y2-last.y1)<=40);});

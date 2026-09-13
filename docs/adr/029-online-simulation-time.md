@@ -1,6 +1,8 @@
 # ADR 029: Simulation time, prediction and rendering
 
-Date: 2026-09-14. Status: proposed; numerical and fairness review required.
+Date: 2026-09-14. Status: accepted for bounded implementation; numerical, fairness and release acceptance remain pending.
+
+Independent design review: root and netcode_review reviewed the v2 protocol and typed prediction contract on 2026-09-14. Implementation must atomically pair snapshot T with ledger T, retain held-input freshness after acknowledgement, and use conservative send-sampled clock bounds [host tick, host tick + RTT / tick duration]. No midpoint estimate certifies input lead. Implementation review and measured acceptance remain release gates.
 
 ## Decision
 
@@ -23,3 +25,9 @@ Current arrival-based extrapolation is rejected: it has neither an applied-input
 Injected-clock replay covers straight/constant turn, both turns, press/release inside a tick, late acknowledgement, zero pending input, drift, 30/60/120 Hz render, drunk mode, portal, death, boundary and reset. Fixed-tick kernel results match authority to floating-point tolerance (1e-6 world units) when supplied the same world/inputs. Network-dependent correction budgets are ADR 032 gates, not a promise of exact prediction for unknown obstacles. Crossing-trail cases with unequal latency document host advantage and confirm one outcome. Irregular snapshot arrival preserves monotonic render time and discontinuities.
 
 Concrete proposed protocol amendment: [v2 contract](../online/PROTOCOL.md).
+
+## Reviewed implementation contract
+
+`prediction-contract.ts` is shared with the host scheduler. Snapshot and applied-motion ledger ticks must match exactly. Exact `resultAcks` arrays (maximum 128), rather than cumulative acknowledgement, account for future lower sequences. Pending plus retained results are bounded to 128; results expire after 100 ticks. Held steering neutralizes when `nextTick - appliedTick >= 10`. Steering supersession does not reject the separately ordered fire edge. Root and netcode_review independently approved this contract before implementation.
+
+The first remote buffer candidate uses fixed 100 ms delay and **zero extrapolation** (within the 100 ms maximum). It freezes on missing samples instead of inventing shell bounce paths. Adaptive delay remains a measured follow-up, and this candidate is not claimed to meet the nearby-TV latency budget without benchmark evidence.
