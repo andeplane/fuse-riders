@@ -1,3 +1,4 @@
+import { encodeCheckpoint, decodeCheckpoint } from './checkpoint.js';
 import { addPlayer, createGame, removePlayer, resetMatch, returnToLobby, setPlayerConnected, SLOT_COLORS, startMatch, startNextRound, step, toSnapshot, type GameState, type InputIntent } from '../shared/game.js';
 import { BombInputBuffer } from '../server/bomb-input.js';
 import { isAvatarId } from '../shared/avatars.js';
@@ -79,16 +80,14 @@ export class HostSession {
   disconnect(id:string):void {if(this.game.players.has(id))setPlayerConnected(this.game,id,false);const seat=this.seats.get(id);if(seat){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}}
   clear():void {for(const seat of this.seats.values()){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}}
   checkpoint():string {
-    return JSON.stringify({version:1,host:this.hostId,settings:this.settings,game:this.game,sequences:[...this.seats].map(([id,seat])=>[id,seat.seq])},(_key,value)=>value instanceof Map?{$map:[...value]}:value);
+    return encodeCheckpoint(this.hostId,this.game,this.settings,[...this.seats].filter(([id])=>this.game.players.has(id)).map(([id,seat])=>[id,seat.seq] as const));
   }
   restore(raw:string):boolean {
-    try {
-      const data=JSON.parse(raw,(_key,value)=>value&&typeof value==='object'&&Array.isArray(value.$map)?new Map(value.$map):value);
-      if(data.version!==1||data.host!==this.hostId||!parseRoomSettings(data.settings)||!(data.game?.players instanceof Map)||!(data.game?.bombs instanceof Map)||!Number.isSafeInteger(data.game.tick))return false;
-      this.game=data.game;this.settings=data.settings;this.seats.clear();
-      for(const [id,seq] of data.sequences)this.seats.set(id,{seq,tick:this.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer()});
-      this.clear();return true;
-    }catch{return false;}
+    const candidate=decodeCheckpoint(raw,this.hostId);if(!candidate)return false;
+    const seats=new Map<string,Seat>();
+    for(const [id,seq] of candidate.sequences)seats.set(id,{seq,tick:candidate.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer()});
+    this.game=candidate.game;this.settings=candidate.settings;this.seats=seats;
+    return true;
   }
   snapshot(){return toSnapshot(this.game);}
 }
