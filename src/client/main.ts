@@ -958,6 +958,7 @@ function startController(): void {
       : `PTS · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)}`;
     if (!player.connected) instruction.textContent = 'Reconnecting to your rider…';
     else if (snapshot.phase === 'lobby') instruction.textContent = 'You’re in. Look at the TV!';
+    else if (player.waitingForNextRound) instruction.textContent = snapshot.phase === 'matchOver' ? 'You’re in — joining when the next match starts.' : 'You’re in — joining next round automatically.';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
     else if (!player.alive) instruction.textContent = 'Wiped out! Watch the TV for the next round.';
     else if (snapshot.phase === 'playing') instruction.textContent = 'Hold to steer. Hold bomb to charge, release to launch!';

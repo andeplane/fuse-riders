@@ -12,7 +12,7 @@ npm run build
 PORT=3030 npm start
 ```
 
-Open the **printed host display URL** on the TV laptop. It includes a host token needed to start matches. Scan the display QR code on each phone, choose names, and press Start race once 2–5 players have joined. Use the printed LAN address, not `localhost`, on phones. Set `HOST_IP` if automatic network-interface selection chooses the wrong address.
+Open the **printed host display URL** on the TV laptop. It includes a host token needed to start matches. Scan the display QR code on each phone, choose names, and press Start race once 2–5 players have joined. Players can join during a round when a seat is free; they wait safely and enter the next round automatically (or the next match if the current match finishes). Use the printed LAN address, not `localhost`, on phones. Set `HOST_IP` if automatic network-interface selection chooses the wrong address.
 
 Production does not refresh automatically. To install changes, stop the server between matches, rebuild, and start it again. Open the newly printed host URL, refresh the phones, and rejoin; restarting clears the session scores. Keep the process running during play. For development with browser updates use `PORT=3030 npm run dev` instead. The default port without `PORT` is 3000.
 

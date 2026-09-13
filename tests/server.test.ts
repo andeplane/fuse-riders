@@ -117,7 +117,9 @@ test('admission rejects late/invalid joins, leave frees lobby seats and eliminat
     a.peer.send({ type: 'leave' }); await a.peer.take('snapshot', s => s.state.players.length === 0); assert.equal(f.app.game.players.size, 0);
     const b = await f.join('B'); await f.join('C'); const host = await f.host();
     host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown');
-    const late = await f.connect(); late.send({ type: 'join', name: 'Late' }); assert.equal((await late.take('error')).code, 'invalid_phase');
+    const late = await f.join('Late');
+    assert.equal(f.app.game.players.get(late.joined.playerId)!.alive, false);
+    late.peer.send({ type: 'leave' }); await late.peer.take('snapshot', s => s.state.players.some(p => p.id === late.joined.playerId && !p.connected));
     b.peer.send({ type: 'leave' }); await b.peer.take('snapshot', s => s.state.phase === 'countdown' && s.state.players.some(p => p.id === b.joined.playerId && !p.alive && !p.connected));
     f.app.advance(60); assert.equal(f.app.game.phase, 'roundOver');
     f.app.advance(60); assert.equal(f.app.game.players.size, 1); assert.equal(f.app.game.phase, 'roundOver');
@@ -256,5 +258,36 @@ test('display receives 20Hz world state while phones receive compact 10Hz update
     assert.ok(compact.state.players.every(p => p.trail.length === 0));
     assert.deepEqual(compact.state.bombs, []); assert.deepEqual(compact.state.blasts, []); assert.deepEqual(compact.state.pickups, []);
     assert.deepEqual(await a.peer.take('inputAck'), { type: 'inputAck', seq: 10, appliedTick: 62 });
+  } finally { await f.close(); }
+});
+
+for (const phase of ['countdown', 'playing'] as const) test(`late ${phase} joins wait safely, reconnect and enter next round automatically`, async () => {
+  const f = await fixture();
+  try {
+    const a = await f.join('A'); const b = await f.join('B'); const host = await f.host();
+    host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown');
+    if (phase === 'playing') f.app.advance(60);
+    const late = await f.join('Late'); const id = late.joined.playerId;
+    const waiting = await late.peer.take('snapshot', s => s.state.players.some(p => p.id === id && p.waitingForNextRound));
+    assert.equal(waiting.state.players.find(p => p.id === id)!.alive, false);
+    assert.equal(f.app.game.roundParticipants.has(id), false);
+    const resumed = await f.connect(); resumed.send({ type: 'join', name: 'Late', playerToken: late.joined.playerToken }); await resumed.take('joined');
+    resumed.send({ type: 'input', seq: 1, left: true, right: false, bomb: true, bombAction: 'press' });
+    resumed.send({ type: 'input', seq: 2, left: false, right: false, bomb: false, bombAction: 'release' });
+    await resumed.flush();
+    if (phase === 'countdown') f.app.advance(60); else f.app.advance(1);
+    assert.equal(f.app.game.players.get(id)!.alive, false);
+    assert.equal(f.app.game.bombs.size, 0);
+    eliminatePlayer(f.app.game, b.joined.playerId); f.app.advance(1);
+    assert.equal(f.app.game.phase, 'roundOver');
+    assert.equal(f.app.game.roundPlacements.some(p => p.playerId === id), false);
+    assert.equal(f.app.game.leaderboard.get(id)!.roundsPlayed, 0);
+    assert.equal(f.app.game.players.get(a.joined.playerId)!.roundWins, 1);
+    f.app.advance(60);
+    assert.equal(f.app.game.phase, 'countdown');
+    assert.equal(f.app.game.players.get(id)!.alive, true);
+    assert.equal(f.app.game.roundParticipants.has(id), true);
+    const entered = await resumed.take('snapshot', s => s.round === 2 && s.state.players.some(p => p.id === id && p.alive));
+    assert.equal(entered.state.players.find(p => p.id === id)!.waitingForNextRound, false);
   } finally { await f.close(); }
 });

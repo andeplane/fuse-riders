@@ -167,7 +167,6 @@ export async function createGameServer(options: ServerOptions = {}) {
           neutral(seat, true);
         } else {
           if (seats.size >= 5) { error(ws, 'full'); return; }
-          if (!['lobby', 'roundOver', 'matchOver'].includes(game.phase)) { error(ws, 'invalid_phase'); return; }
           const slot = COLORS.findIndex((_, i) => ![...seats.values()].some(s => s.slot === i));
           seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, bombInput: new BombInputBuffer(), leaving: false };
           addPlayer(game, { id: seat.id, name: message.name, slot, color: COLORS[slot], connected: true });

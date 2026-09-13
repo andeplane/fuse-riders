@@ -244,7 +244,6 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
 }
 
 export function addPlayer(state: GameState, identity: PlayerIdentity): void {
-  assertPhase(state, ['lobby', 'roundOver', 'matchOver'], 'addPlayer');
   if (state.players.size >= MAX_PLAYERS) throw new Error('game is full');
   if (state.players.has(identity.id)) throw new Error(`duplicate player id: ${identity.id}`);
   if (!Number.isInteger(identity.slot) || identity.slot < 0 || identity.slot >= MAX_PLAYERS) {
@@ -551,6 +550,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       y: player.y,
       angle: player.angle,
       alive: player.alive,
+      waitingForNextRound: state.phase !== 'lobby' && !state.roundParticipants.has(player.id),
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),

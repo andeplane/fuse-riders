@@ -47,7 +47,7 @@ The TV immediately renders authoritative state and may extrapolate a living ride
 
 ## Seat and controller recovery
 
-A fresh join claims the lowest free slot during `lobby`, `roundOver` or `matchOver`; two to five connected players are required to start. New joins during an active countdown/race are rejected. A valid saved token can reclaim its seat in any phase, carrying `nextInputSeq` forward. The new socket replaces the previous one, which receives close code 4001 and stops automatic retries. This avoids two tabs repeatedly stealing the same seat. An expired token returns the phone to an explicit join form instead of silently claiming a new player.
+A fresh join claims the lowest free slot in any phase; two to five connected players are required to start. During countdown or play, new riders wait inactive outside the current round participant set and enter automatically next round (ADR-022). A valid saved token can reclaim its seat in any phase, carrying `nextInputSeq` forward. The new socket replaces the previous one, which receives close code 4001 and stops automatic retries. This avoids two tabs repeatedly stealing the same seat. An expired token returns the phone to an explicit join form instead of silently claiming a new player.
 
 A disconnect or six-second watchdog timeout neutralizes steering and cancels pending bomb actions. The rider continues with neutral steering for that round. Seats remain reserved until the next round boundary, when disconnected or explicitly leaving players are pruned before the next countdown. Explicit leave during play eliminates the rider and keeps scoring participation intact.
 

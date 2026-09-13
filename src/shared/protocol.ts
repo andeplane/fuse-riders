@@ -27,7 +27,7 @@ export interface GameSnapshot {
   width: number; height: number; boundaryInset: number;
   players: ReadonlyArray<{
     id: PlayerId; name: string; slot: number; color: string; connected: boolean;
-    x: number; y: number; angle: number; alive: boolean; roundWins: number;
+    x: number; y: number; angle: number; alive: boolean; roundWins: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
     tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
