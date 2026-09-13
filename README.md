@@ -30,7 +30,7 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 | Triple Shot | Your next accepted release launches three bombs in a fan. |
 | Five Shot | Your next accepted release launches five bombs in a wider fan. Three times rarer than Triple Shot; collecting Triple preserves an armed Five Shot. |
 | Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
-| Portal | Creates two linked gates for ten seconds. Enter either to exit the other with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
+| Portal | Creates two linked portal walls for ten seconds, each up to one-third of the field height. Enter either to exit at the corresponding height with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
 
 Riders collide with walls, eight-second trails, other riders, and explosions. Bombs clear trail segments and chain nearby landed bombs. Upgrades reset each round. After 60 seconds the boundary shrinks and trims trails at its edge; at 90 seconds, remaining riders draw. Simultaneous final deaths also draw. The next round starts automatically after the three-second results pause when at least two players remain connected.
 
