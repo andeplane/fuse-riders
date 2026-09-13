@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, ServerMessage, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState, type ControllerControl } from './controller-state.js';
-import { drawDrunkAura, drawPickups, drawStarAura } from './pickup-renderer.js';
+import { drawDrunkAura, drawOrbitShield, drawPickups, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
@@ -328,24 +328,37 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     if (player.bombChargeStartedTick === undefined || !player.alive) continue;
     const chargeTicks = Math.max(0, snapshot.tick - player.bombChargeStartedTick);
     const distance = bombLaunchDistance(chargeTicks);
-    const targetX = clamp(player.x + Math.cos(player.angle) * distance, snapshot.boundaryInset + 20, width - snapshot.boundaryInset - 20);
-    const targetY = clamp(player.y + Math.sin(player.angle) * distance, snapshot.boundaryInset + 20, height - snapshot.boundaryInset - 20);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
-    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8; ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(targetX, targetY); ctx.stroke();
-    ctx.setLineDash([]); ctx.globalAlpha = .8; ctx.strokeRect(targetX - 10, targetY - 10, 20, 20); ctx.restore();
+    ctx.shadowColor = player.homingArmed ? '#91ff65' : ctx.strokeStyle; ctx.shadowBlur = player.homingArmed ? 13 : 8;
+    const angles = player.tripleShotArmed ? [player.angle - .16, player.angle, player.angle + .16] : [player.angle];
+    for (const angle of angles) {
+      const targetX = clamp(player.x + Math.cos(angle) * distance, snapshot.boundaryInset + 20, width - snapshot.boundaryInset - 20);
+      const targetY = clamp(player.y + Math.sin(angle) * distance, snapshot.boundaryInset + 20, height - snapshot.boundaryInset - 20);
+      ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(targetX, targetY); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = .8; ctx.strokeRect(targetX - 10, targetY - 10, 20, 20); ctx.setLineDash([8, 8]);
+    }
+    ctx.restore();
   }
 
   for (const bomb of snapshot.bombs) {
     const airborne = snapshot.tick < bomb.landsAtTick;
     const flightDuration = Math.max(1, bomb.landsAtTick - bomb.launchedTick);
     const flight = clamp((snapshot.tick - bomb.launchedTick) / flightDuration, 0, 1);
-    const drawX = bomb.launchX + (bomb.x - bomb.launchX) * flight;
-    const drawY = bomb.launchY + (bomb.y - bomb.launchY) * flight - Math.sin(flight * Math.PI) * 56;
+    const path = bomb.flightPath.length > 1 ? bomb.flightPath : [{ x: bomb.launchX, y: bomb.launchY, angle: 0 }, { x: bomb.x, y: bomb.y, angle: 0 }];
+    const pathPosition = flight * (path.length - 1); const pathIndex = Math.min(path.length - 2, Math.floor(pathPosition));
+    const pathMix = pathPosition - pathIndex; const pathStart = path[pathIndex]!; const pathEnd = path[pathIndex + 1]!;
+    const drawX = pathStart.x + (pathEnd.x - pathStart.x) * pathMix;
+    const drawY = pathStart.y + (pathEnd.y - pathStart.y) * pathMix - Math.sin(flight * Math.PI) * 56;
     const pulse = 1 + Math.sin(now / 90) * 0.08;
     const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / 40, 0, 1);
     if (airborne) {
       ctx.save(); ctx.globalAlpha = .36 + flight * .35; ctx.strokeStyle = '#ff73c5'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(bomb.x, bomb.y, 14 + flight * 5, 6 + flight * 2, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.globalAlpha = .26; ctx.strokeStyle = bomb.homingTargetId ? '#8dff72' : '#ff73c5'; ctx.setLineDash([5, 7]); ctx.beginPath();
+      path.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke(); ctx.restore();
+      if (bomb.homingTargetX !== undefined && bomb.homingTargetY !== undefined) {
+        ctx.save(); ctx.strokeStyle = '#8dff72'; ctx.globalAlpha = .7; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bomb.homingTargetX, bomb.homingTargetY, 15, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
     }
     ctx.save();
     ctx.translate(Math.round(drawX), Math.round(drawY));
@@ -425,6 +438,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     const color = escapeColor(player.color);
     if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);
     if (player.drunkUntilTick > snapshot.tick) drawDrunkAura(ctx, player, snapshot.tick, now);
+    drawOrbitShield(ctx, player, snapshot.tick, now);
     ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
     if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
     else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
@@ -466,10 +480,16 @@ function startDisplay(): void {
   const blastLegendImage = element('img'); blastLegendImage.alt = ''; blastLegendImage.src = '/themes/neon-pixel/pickup-blast.svg';
   const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = '/themes/neon-pixel/pickup-star.svg';
   const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = '/themes/neon-pixel/pickup-beer.svg';
+  const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = '/themes/neon-pixel/pickup-triple.svg';
+  const homingLegendImage = element('img'); homingLegendImage.alt = ''; homingLegendImage.src = '/themes/neon-pixel/pickup-homing.svg';
+  const shieldLegendImage = element('img'); shieldLegendImage.alt = ''; shieldLegendImage.src = '/themes/neon-pixel/pickup-orbitShield.svg';
   const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' longer explosions'));
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 2.5s invulnerable'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend); lobbyCopy.append(pickupLegend);
+  const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
+  const homingLegend = element('span'); homingLegend.append(homingLegendImage, element('b', '', 'HOMING'), document.createTextNode(' next launch seeks'));
+  const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
+  pickupLegend.append(blastLegend, starLegend, beerLegend, tripleLegend, homingLegend, shieldLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -537,6 +557,9 @@ function startDisplay(): void {
   blastLegendImage.src = `/themes/${activeTheme.id}/pickup-blast.svg`;
   starLegendImage.src = `/themes/${activeTheme.id}/pickup-star.svg`;
   beerLegendImage.src = `/themes/${activeTheme.id}/pickup-beer.svg`;
+  tripleLegendImage.src = `/themes/${activeTheme.id}/pickup-triple.svg`;
+  homingLegendImage.src = `/themes/${activeTheme.id}/pickup-homing.svg`;
+  shieldLegendImage.src = `/themes/${activeTheme.id}/pickup-orbitShield.svg`;
   void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
 
   themeSelect.addEventListener('change', () => {
@@ -545,6 +568,7 @@ function startDisplay(): void {
     activeTheme = next; activeSprites = {}; localStorage.setItem(THEME_KEY, next.id); applyThemeProperties(next);
     blastLegendImage.src = `/themes/${next.id}/pickup-blast.svg`; starLegendImage.src = `/themes/${next.id}/pickup-star.svg`;
     beerLegendImage.src = `/themes/${next.id}/pickup-beer.svg`;
+    tripleLegendImage.src = `/themes/${next.id}/pickup-triple.svg`; homingLegendImage.src = `/themes/${next.id}/pickup-homing.svg`; shieldLegendImage.src = `/themes/${next.id}/pickup-orbitShield.svg`;
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
 
@@ -603,7 +627,8 @@ function startDisplay(): void {
     const stats = [...(snapshot.matchStats ?? [])].sort((a, b) => a.matchPlacement - b.matchPlacement || a.slot - b.slot);
     const signature = stats.map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
       entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected, entry.invulnerableTicks,
-      entry.wallBounces, entry.earlyExits, entry.beerPickups, ...Object.values(entry.deathsByCause)].join(':')).join('|');
+      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.triplePickups, entry.homingPickups, entry.shieldPickups,
+      ...Object.values(entry.deathsByCause)].join(':')).join('|');
     if (signature === recapSignature) return;
     recapSignature = signature;
     podium.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
@@ -657,7 +682,7 @@ function startDisplay(): void {
       row.append(rider, element('strong', '', String(entry.roundWins)), element('span', '', durationText(entry.survivalTicks)),
         element('span', '', durationText(entry.longestSurvivalTicks)), element('span', '', `${Math.round(entry.distanceUnits)}u`),
         element('span', '', `${entry.bombsExploded}/${entry.bombsPlaced}`), element('span', '', String(entry.eliminations)),
-        element('span', '', `${entry.pickupsCollected} (${entry.blastPickups}+${entry.starPickups}+${entry.beerPickups})`), element('span', '', durationText(entry.invulnerableTicks)),
+        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} T${entry.triplePickups} H${entry.homingPickups} O${entry.shieldPickups}`), element('span', '', durationText(entry.invulnerableTicks)),
         element('span', 'death-counts', `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`));
       comparison.append(row);
     }
@@ -848,8 +873,11 @@ function startController(): void {
   const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
   const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
+  const triplePower = element('span', 'power-chip triple-power', 'TRIPLE · --');
+  const homingPower = element('span', 'power-chip homing-power', 'HOMING · --');
+  const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const sessionPoints = element('span', 'power-chip points-power', 'SESSION · 0 PTS');
-  powerStrip.append(blastPower, starPower, wobblePower, sessionPoints);
+  powerStrip.append(blastPower, starPower, wobblePower, triplePower, homingPower, shieldPower, sessionPoints);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -917,6 +945,9 @@ function startController(): void {
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const drunkTicks = player.drunkUntilTick - snapshot.tick;
     wobblePower.textContent = drunkTicks > 0 ? `WOBBLE · ${(drunkTicks / 20).toFixed(1)}s` : 'WOBBLE · --';
+    triplePower.textContent = player.tripleShotArmed ? 'TRIPLE · ARMED' : 'TRIPLE · --';
+    homingPower.textContent = player.homingArmed ? 'HOMING · ARMED' : 'HOMING · --';
+    shieldPower.textContent = player.shielded ? 'SHIELD · READY' : player.shieldGraceUntilTick > snapshot.tick ? 'SHIELD · SPENT' : 'SHIELD · --';
     const leaderboardEntry = (scored.leaderboard ?? []).find((entry) => entry.id === playerId);
     const placement = (scored.roundPlacements ?? []).find((entry) => entry.playerId === playerId);
     sessionPoints.textContent = placement && (snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver')

@@ -5,7 +5,9 @@ const TICK_HZ = 20;
 const PICKUP_FADE_TICKS = 2 * TICK_HZ;
 const imageCache = new Map<string, HTMLImageElement | null>();
 
-function pickupImage(theme: ThemeDefinition, type: 'blast' | 'star' | 'beer'): HTMLImageElement | null {
+type PickupType = GameSnapshot['pickups'][number]['type'];
+
+function pickupImage(theme: ThemeDefinition, type: PickupType): HTMLImageElement | null {
   const key = `${theme.id}:${type}`;
   if (imageCache.has(key)) return imageCache.get(key) ?? null;
   const image = new Image();
@@ -50,6 +52,17 @@ function fallbackBeer(ctx: CanvasRenderingContext2D, x: number, y: number, size:
   ctx.strokeRect(x + size * 0.18, y - size * 0.15, size * 0.2, size * 0.32);
 }
 
+function fallbackPowerup(ctx: CanvasRenderingContext2D, type: PickupType, x: number, y: number, size: number): void {
+  if (type === 'triple') {
+    ctx.fillStyle = '#ff55bd';
+    for (const offset of [-.24, 0, .24]) { ctx.beginPath(); ctx.arc(x + size * offset, y, size * .13, 0, Math.PI * 2); ctx.fill(); }
+  } else if (type === 'homing') {
+    ctx.strokeStyle = '#7dff6a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, size * .3, 0, Math.PI * 2); ctx.stroke(); ctx.fillRect(x - 2, y - 2, 4, 4);
+  } else {
+    ctx.strokeStyle = '#5cf4ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, size * .35, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
 function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, color: string): void {
   ctx.save();
   ctx.font = '6px monospace';
@@ -80,17 +93,33 @@ export function drawPickups(
     const image = pickupImage(theme, pickup.type);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : '#ffe45c';
+    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'homing' ? '#7dff6a' : pickup.type === 'orbitShield' ? '#5cf4ff' : pickup.type === 'triple' ? '#ff55bd' : '#ffe45c';
     ctx.shadowBlur = 5;
     if (image?.complete && image.naturalWidth > 0) ctx.drawImage(image, pickup.x - size / 2, pickup.y - size / 2, size, size);
     else if (pickup.type === 'blast') fallbackCross(ctx, pickup.x, pickup.y, size);
     else if (pickup.type === 'beer') fallbackBeer(ctx, pickup.x, pickup.y, size);
-    else fallbackStar(ctx, pickup.x, pickup.y, size);
+    else if (pickup.type === 'star') fallbackStar(ctx, pickup.x, pickup.y, size);
+    else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
-    const text = pickup.type === 'blast' ? 'BLAST+' : pickup.type === 'beer' ? 'BEER' : 'STAR';
-    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : '#fff04a';
+    const labels: Record<PickupType, string> = { blast: 'BLAST+', star: 'STAR', beer: 'BEER', triple: 'TRIPLE', homing: 'HOMING', orbitShield: 'SHIELD' };
+    const text = labels[pickup.type];
+    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'homing' ? '#9dff8e' : pickup.type === 'orbitShield' ? '#8ff8ff' : pickup.type === 'triple' ? '#ff8ed2' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);
   }
+}
+
+export function drawOrbitShield(ctx: CanvasRenderingContext2D, player: GameSnapshot['players'][number], tick: number, now: number): void {
+  if (!player.shielded && player.shieldGraceUntilTick <= tick) return;
+  ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(now / 430);
+  if (player.shielded) {
+    ctx.strokeStyle = '#69efff'; ctx.shadowColor = '#35dfff'; ctx.shadowBlur = 9; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#eaffff'; ctx.fillRect(22, -4, 8, 8); ctx.fillStyle = '#6aefff'; ctx.fillRect(24, -2, 4, 4);
+  } else {
+    ctx.fillStyle = '#a8faff'; ctx.shadowColor = '#6aefff'; ctx.shadowBlur = 8;
+    for (let index = 0; index < 8; index += 1) { const angle = index * Math.PI / 4; const radius = 19 + (index % 2) * 8; ctx.fillRect(Math.cos(angle) * radius - 2, Math.sin(angle) * radius - 2, 4, 4); }
+  }
+  ctx.restore();
 }
 
 /** Draws the authoritative drunk timer as a restrained amber/purple orbit. */

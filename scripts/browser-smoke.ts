@@ -31,6 +31,9 @@ try {
   await host.getByText('longer explosions', { exact: false }).waitFor();
   await host.getByText('2.5s invulnerable', { exact: false }).waitFor();
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
+  await host.getByText('next launch fires 3', { exact: false }).waitFor();
+  await host.getByText('next launch seeks', { exact: false }).waitFor();
+  await host.getByText('blocks one crash', { exact: false }).waitFor();
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
 
   // A fresh token delivered as a hash-only navigation must be consumed and re-authenticated.
@@ -91,6 +94,15 @@ try {
   app.advance(2); await phones[1].getByText(/WOBBLE · [0-9.]+s/).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_003), false, 'beer pickup consumed authoritatively');
   assert.equal(poweredRider.drunkUntilTick, 0, 'beer collector is immune to own pickup');
+  app.game.pickups.push({ id: 9_004, type: 'triple', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
+  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_004), false, 'triple pickup consumed authoritatively');
+  app.game.pickups.push({ id: 9_005, type: 'homing', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('HOMING · ARMED', { exact: true }).waitFor();
+  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_005), false, 'homing pickup consumed authoritatively');
+  app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
+  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');
   // Exercise theme changes during active gameplay: styling has no simulation writes.
   const beforeTheme = JSON.stringify([...app.game.players.values()]);
   await host.getByRole('combobox').selectOption('clean-neon');

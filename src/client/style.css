@@ -114,6 +114,7 @@ button { color: inherit; }
 .comparison-rider b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comparison-rider small { color: #7089af; font-size: .55rem; white-space: nowrap; }
 .death-counts { color: #ff9ab8; font-size: .62rem; white-space: nowrap; }
+.pickup-counts { color: #ffe582; font-size: .52rem; white-space: nowrap; }
 .recap-empty { place-self: center; color: #8da3c4; }
 
 .controller-page { min-height: 100dvh; overflow: hidden; touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
@@ -142,6 +143,9 @@ button { color: inherit; }
 .blast-power { color: #ffb33e; border-color: #713f2d; }
 .star-power { color: #ffe86b; border-color: #6e6533; }
 .wobble-power { color: #d49aff; border-color: #633b82; }
+.triple-power { color: #ff8ed2; border-color: #7b2f62; }
+.homing-power { color: #a3ff89; border-color: #3e7540; }
+.shield-power { color: #91f8ff; border-color: #2a7480; }
 .points-power { color: #8ff5ff; border-color: #255d75; }
 .control-pad { min-height: 0; display: grid; grid-template-columns: 1fr .72fr 1fr; gap: clamp(8px, 2vw, 16px); }
 .control-button { position: relative; overflow: hidden; border: 2px solid #2d81b7; background: linear-gradient(160deg, #09284a, #041125); font-size: clamp(3rem, 17vw, 7rem); font-weight: 900; min-height: 130px; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; box-shadow: inset 0 0 30px rgba(22, 191, 255, .08); }
