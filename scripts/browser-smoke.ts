@@ -29,7 +29,7 @@ try {
   assert.equal(new URL(host.url()).hash, '', 'host fragment removed from URL');
   await host.locator('.qr').waitFor();
   await host.getByText('larger explosions', { exact: false }).waitFor();
-  await host.getByText('2.5s invulnerable', { exact: false }).waitFor();
+  await host.getByText('5s invulnerable', { exact: false }).waitFor();
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
   await host.getByText('next launch fires 3', { exact: false }).waitFor();
   assert.equal(await host.getByText('next launch seeks', { exact: false }).count(), 0, 'retired power-up is absent from legend');
