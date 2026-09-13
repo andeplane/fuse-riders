@@ -1,3 +1,4 @@
+import { LinkHealth } from './link-health.js';
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
 export interface TransportCallbacks {
@@ -8,7 +9,7 @@ export interface TransportCallbacks {
   revoked?:()=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number> }
+interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number>;health:LinkHealth;restartAt:number;restarting:boolean }
 export class PeerTransport {
   id='';hostId='';connectionId='';sentBytes=0;
   grant?:AuthorityGrant;
@@ -18,6 +19,7 @@ export class PeerTransport {
   private nextProbe=0;
   private readyScope='';
   private timeInterval?:ReturnType<typeof setInterval>;
+  private healthInterval?:ReturnType<typeof setInterval>;
   private readonly visibility=()=>{this.authorityClock.invalidate();if(!document.hidden)this.sampleTime();};
   authorityPermitted():boolean{return !!this.grant&&(this.id!==this.hostId||this.grant.holder===this.connectionId)&&this.authorityClock.permits(this.grant);}
   private acceptGrant(raw:unknown):void {
@@ -44,6 +46,7 @@ export class PeerTransport {
   constructor(readonly code:string,readonly token:string,private callbacks:TransportCallbacks){}
   connect():void {
     this.authorityClock.invalidate();
+    if(!this.healthInterval)this.healthInterval=setInterval(()=>this.checkLinks(),200);
     if(!this.timeInterval){this.timeInterval=setInterval(()=>this.sampleTime(),2000);document.addEventListener('visibilitychange',this.visibility);}
     const url=new URL(apiUrl(`/api/rooms/${this.code}/ws`));url.protocol=url.protocol==='https:'?'wss:':'ws:';url.searchParams.set('token',this.token);
     const ws=new WebSocket(url);this.socket=ws;
@@ -79,7 +82,7 @@ export class PeerTransport {
             this.connections.delete(message.id);this.callbacks.peer(message.id,false);this.links.get(message.id)?.pc.close();this.links.delete(message.id);
           }
         }else if(message.type==='signal'&&this.connections.get(message.from)===message.connectionId)await this.signal(message.from,message.data);
-        else if(message.type==='relay'&&this.connections.get(message.from)===message.connectionId)this.receive(message.from,message.data);
+
       }catch(error){this.callbacks.status(`Connection recovery: ${error instanceof Error?error.message:'invalid frame'}`);}
     };
     ws.onclose=event=>{
@@ -97,24 +100,24 @@ export class PeerTransport {
   private link(id:string):Link {
     const existing=this.links.get(id);if(existing)return existing;
     const pc=new RTCPeerConnection({iceServers:this.servers});
-    const link:Link={pc,ice:[],seen:new Set()};this.links.set(id,link);
+    const link:Link={pc,ice:[],seen:new Set(),health:new LinkHealth(performance.now()),restartAt:performance.now()+8000,restarting:false};this.links.set(id,link);
     pc.onicecandidate=event=>{if(event.candidate)this.relay('signal',id,{candidate:event.candidate.toJSON()});};
     pc.ondatachannel=event=>this.channel(id,event.channel);
     pc.onconnectionstatechange=()=>{
       if(pc.connectionState==='connected')this.callbacks.status('Direct peer link connected');
-      if(pc.connectionState==='failed'||pc.connectionState==='disconnected')this.callbacks.status('Using secure relay · direct link recovering');
+      if(pc.connectionState==='failed'||pc.connectionState==='disconnected'){link.health.fail(performance.now());this.callbacks.status('Direct connection interrupted · retrying');}
     };
     return link;
   }
   private channel(id:string,channel:RTCDataChannel):void {
     const link=this.link(id);link.channel=channel;
-    channel.onmessage=event=>{try{this.receive(id,JSON.parse(event.data));}catch{}};
+    channel.onmessage=event=>{if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
     channel.onopen=()=>this.callbacks.status('Direct peer link connected');
-    channel.onerror=event=>{event.preventDefault();this.callbacks.status('Secure relay active');};
+    channel.onerror=event=>{event.preventDefault();this.callbacks.status('Direct connection failed · retrying');};
   }
-  private async offer(id:string):Promise<void>{
+  private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
-    const old=this.links.get(id);if(old?.channel?.readyState==='open')return;if(old){old.pc.close();this.links.delete(id);}
+    const old=this.links.get(id);if(!force&&old?.channel?.readyState==='open')return;if(old){old.pc.close();this.links.delete(id);}
     const link=this.link(id);this.channel(id,link.pc.createDataChannel('game'));
     await link.pc.setLocalDescription(await link.pc.createOffer());this.relay('signal',id,{description:link.pc.localDescription});
   }
@@ -126,11 +129,20 @@ export class PeerTransport {
       await link.pc.setRemoteDescription(data.description);
       for(const candidate of link.ice)await link.pc.addIceCandidate(candidate);link.ice=[];
       if(data.description.type==='offer'){await link.pc.setLocalDescription(await link.pc.createAnswer());this.relay('signal',id,{description:link.pc.localDescription});}
-    }else if(data.candidate){if(link.pc.remoteDescription)await link.pc.addIceCandidate(data.candidate);else link.ice.push(data.candidate);}
+    }else if(data.candidate){if(link.pc.remoteDescription)await link.pc.addIceCandidate(data.candidate);else if(link.ice.length<64)link.ice.push(data.candidate);}
   }
   private received=new Map<string,Set<number>>();
-  private receive(id:string,envelope:{id:number;data:unknown;incarnation:string;epoch:number;sender:string;receiver:string}):void {
+  private receive(id:string,envelope:{id:number;data:unknown;incarnation:string;epoch:number;sender:string;receiver:string},direct=false):void {
     if(!envelope||!Number.isSafeInteger(envelope.id)||!this.authorityPermitted()||envelope.incarnation!==this.grant?.incarnation||envelope.epoch!==this.grant?.epoch||envelope.sender!==this.connections.get(id)||(id===this.hostId&&envelope.sender!==this.grant?.holder)||envelope.receiver!==this.connectionId)return;
+    if(envelope.data&&typeof envelope.data==='object'){
+      const probe=envelope.data as {type?:string;probeId?:number};
+      if(probe.type==='linkProbe'||probe.type==='linkPong'){
+        if(!direct||!Number.isSafeInteger(probe.probeId))return;
+        if(probe.type==='linkPong')this.links.get(id)?.health.acknowledge(probe.probeId!,performance.now());
+        else this.sendDirectProbe(id,{type:'linkPong',probeId:probe.probeId!});
+        return;
+      }
+    }
     const seen=this.received.get(id)??new Set<number>();if(seen.has(envelope.id))return;
     seen.add(envelope.id);if(seen.size>1000)seen.delete(seen.values().next().value!);this.received.set(id,seen);
     this.callbacks.message(id,envelope.data);
@@ -138,12 +150,28 @@ export class PeerTransport {
   send(id:string,data:unknown):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
     const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const channel=this.links.get(id)?.channel;
-    if(!document.hidden&&!this.relayOnly&&channel?.readyState==='open'&&channel.bufferedAmount<64000){
+    if(!document.hidden&&!this.relayOnly&&channel?.readyState==='open'&&this.links.get(id)!.health.direct(performance.now())&&channel.bufferedAmount<64000){
       try{channel.send(JSON.stringify(envelope));return true;}catch{}
     }
-    return this.relay('relay',id,envelope);
+    return false;
   }
-  close():void{this.stopped=true;this.authorityClock.invalidate();clearInterval(this.timeInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
+  private sendDirectProbe(id:string,data:{type:string;probeId:number}):void {
+    const channel=this.links.get(id)?.channel;
+    if(!this.authorityPermitted()||channel?.readyState!=='open'||channel.bufferedAmount>4096)return;
+    try{channel.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));}catch{}
+  }
+  private checkLinks():void {
+    if(this.stopped||document.hidden||!this.authorityPermitted())return;
+    const now=performance.now();
+    for(const [id,link] of this.links){
+      this.sendDirectProbe(id,{type:'linkProbe',probeId:link.health.probe(now)});
+      if(!link.health.direct(now)&&this.id===this.hostId&&now>=link.restartAt&&!link.restarting){
+        link.restarting=true;
+        void this.offer(id,true).catch(()=>{link.restarting=false;link.restartAt=performance.now()+8000;});
+      }
+    }
+  }
+  close():void{this.stopped=true;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
   async stats():Promise<{direct:number;relayed:number;buffered:number}>{
     let direct=0,relayed=0,buffered=this.socket?.bufferedAmount??0;
     for(const link of this.links.values()){
