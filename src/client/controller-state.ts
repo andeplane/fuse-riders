@@ -29,7 +29,7 @@ export class ControllerInputState {
 
   pointerMove(pointerId: number, point: ControllerPoint): boolean {
     const changed = this.moveAim(pointerId, point);
-    return changed && this.now() - this.lastAimSentAt >= 50 ? this.send() : false;
+    return changed && this.now() - this.lastAimSentAt >= 16 ? this.send() : false;
   }
 
   private moveAim(pointerId: number, point?: ControllerPoint): boolean {

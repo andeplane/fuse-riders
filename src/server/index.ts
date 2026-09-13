@@ -141,7 +141,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       if (!message) { error(ws, 'invalid_message'); return; }
       const now = dependencies.now(); c.lastSeen = now;
       if (now - c.window >= 1000) { c.window = now; c.count = 0; }
-      if (++c.count > 40) { error(ws, 'invalid_message'); ws.close(1008, 'Rate limit'); return; }
+      if (++c.count > 100) { error(ws, 'invalid_message'); ws.close(1008, 'Rate limit'); return; }
       if (message.type === 'heartbeat') return;
       if (message.type === 'ping') { send(ws, { type: 'pong', id: message.id, sentAt: message.sentAt }); return; }
       if (message.type === 'hostAuth') {

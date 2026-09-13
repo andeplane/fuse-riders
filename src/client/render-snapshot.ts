@@ -41,6 +41,10 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
         x: player.x + (player.x - previous.x) * factor,
         y: player.y + (player.y - previous.y) * factor,
         angle: player.angle + delta * factor,
+        ...(player.bombTarget && previous.bombTarget ? { bombTarget: {
+          x: Math.max(newer.snapshot.boundaryInset + 20, Math.min(newer.snapshot.width - newer.snapshot.boundaryInset - 20, player.bombTarget.x + (player.bombTarget.x - previous.bombTarget.x) * factor)),
+          y: Math.max(newer.snapshot.boundaryInset + 20, Math.min(newer.snapshot.height - newer.snapshot.boundaryInset - 20, player.bombTarget.y + (player.bombTarget.y - previous.bombTarget.y) * factor)),
+        } } : {}),
       };
     }),
   };

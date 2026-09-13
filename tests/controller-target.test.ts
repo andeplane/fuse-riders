@@ -13,8 +13,8 @@ test('target trackpad uses relative motion, throttles packets and sends final re
   f.state.pointerDown(1, 'bomb', { x: 100, y: 100 });
   assert.deepEqual(f.messages.at(-1)!.aim, { x: .5, y: .5 });
   f.state.pointerMove(1, { x: 132, y: 118 });
-  assert.equal(f.messages.length, 1, 'move packets are capped at twenty per second');
-  f.advance(50); f.state.pointerMove(1, { x: 164, y: 136 });
+  assert.equal(f.messages.length, 1, 'move packets are throttled within a frame');
+  f.advance(16); f.state.pointerMove(1, { x: 164, y: 136 });
   assert.ok(Math.abs(f.messages.at(-1)!.aim!.x - .7) < 1e-8);
   f.state.pointerRelease(1, { x: 196, y: 154 });
   assert.equal(f.messages.at(-1)!.bombAction, 'release');

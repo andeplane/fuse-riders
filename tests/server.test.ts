@@ -193,7 +193,7 @@ test('typed injected clock drives heartbeat timeout and rate window without slee
     const a = await f.join('A'); const close = once(a.peer.socket, 'close'); f.elapse(6001); f.app.checkConnections(); await close;
     assert.equal(f.app.game.players.get(a.joined.playerId)!.connected, false);
     const peer = await f.connect();
-    for (let i = 0; i < 41; i++) peer.send({ type: 'heartbeat' });
+    for (let i = 0; i < 101; i++) peer.send({ type: 'heartbeat' });
     assert.equal((await peer.take('error')).code, 'invalid_message');
     f.elapse(60_001); f.app.checkConnections();
   } finally { await f.close(); }

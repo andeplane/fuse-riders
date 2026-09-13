@@ -147,3 +147,13 @@ test('snapshot acceptance rejects an older round in the active match', () => {
   assert.equal(stream.accept({ matchId: 'match', round: 1, tick: 101, state: snapshot() }), undefined);
   assert.ok(stream.accept({ matchId: 'match', round: 3, tick: 1, state: snapshot() }));
 });
+
+test('target preview projects for at most one tick and stays inside the arena', () => {
+  const frames = [playingFrame(10, 100, 100), playingFrame(11, 150, 107.5)];
+  frames[0]!.snapshot.players[0]!.bombTarget = { x: 1400, y: 100 };
+  frames[1]!.snapshot.players[0]!.bombTarget = { x: 1500, y: 60 };
+  assert.deepEqual(renderedSnapshot(frames, 175)!.players[0]!.bombTarget, { x: 1550, y: 40 });
+  assert.deepEqual(renderedSnapshot(frames, 9999)!.players[0]!.bombTarget, { x: 1560, y: 40 });
+  delete frames[1]!.snapshot.players[0]!.bombTarget;
+  assert.equal(renderedSnapshot(frames, 175)!.players[0]!.bombTarget, undefined);
+});
