@@ -13,17 +13,17 @@ class Button extends EventTarget implements PointerButton {
   hasPointerCapture(id: number): boolean { return this.captures.has(id); }
   releasePointerCapture(id: number): void { this.captures.delete(id); fire(this, 'lostpointercapture', id); }
 }
-function fire(target: EventTarget, type: string, pointerId: number, pointerType = 'touch', button = 0): void {
+function fire(target: EventTarget, type: string, pointerId: number, pointerType = 'touch', button = 0, buttons = 1): void {
   const event = new Event(type, { cancelable: true });
-  Object.assign(event, { pointerId, pointerType, button }); target.dispatchEvent(event);
+  Object.assign(event, { pointerId, pointerType, button, buttons, clientX: 50, clientY: 50 }); target.dispatchEvent(event);
 }
-function fixture() {
+function fixture(slide = false) {
   const messages: ControllerInputMessage[] = [];
   const state = new ControllerInputState({ send: message => { messages.push(message); return true; } });
   const left = new Button(); const right = new Button(); const bomb = new Button(); const terminal = new EventTarget();
-  let changes = 0;
-  const bindings = new ControllerPointerBindings(state, [[left, 'left'], [right, 'right'], [bomb, 'bomb']], terminal, () => { changes += 1; });
-  return { messages, state, left, right, bomb, terminal, bindings, changes: () => changes };
+  let changes = 0; let hovered: PointerButton | undefined;
+  const bindings = new ControllerPointerBindings(state, [[left, 'left'], [right, 'right'], [bomb, 'bomb']], terminal, () => { changes += 1; }, slide ? () => hovered : undefined);
+  return { messages, state, left, right, bomb, terminal, bindings, hover: (button?: PointerButton) => { hovered = button; }, changes: () => changes };
 }
 
 test('recycled pointer ownership cancels old steering and makes both buttons reusable', () => {
@@ -84,4 +84,28 @@ test('input model independently repairs pointer reassignment and preserves dupli
   f.state.pointerDown(1, 'right');
   assert.equal(f.messages.at(-2)!.bombAction, 'cancel');
   f.state.pointerRelease(1); assert.equal(f.state.hasHeld(), false);
+});
+
+test('held drag enters, switches and exits buttons without tapping; hovering does not press', () => {
+  const f = fixture(true); f.hover(f.left);
+  fire(f.terminal, 'pointermove', 1, 'mouse', 0, 0); assert.equal(f.state.hasHeld(), false);
+  fire(f.terminal, 'pointermove', 1); assert.equal(f.left.active, true);
+  f.hover(f.right); fire(f.terminal, 'pointermove', 1);
+  assert.equal(f.left.active, false); assert.equal(f.right.active, true);
+  f.hover(); fire(f.terminal, 'pointermove', 1); assert.equal(f.state.hasHeld(), false);
+  f.bomb.disabled = true; f.hover(f.bomb); fire(f.terminal, 'pointermove', 1); assert.equal(f.state.hasHeld(), false);
+});
+test('Target aim keeps its thumb while sliding across other controls', () => {
+  const f = fixture(true); f.state.configureTargetAim({ x: .5, y: .5 });
+  fire(f.bomb, 'pointerdown', 1); f.hover(f.left); fire(f.terminal, 'pointermove', 1);
+  assert.equal(f.bomb.active, true); assert.equal(f.left.active, false);
+  fire(f.terminal, 'pointerup', 1); assert.equal(f.messages.at(-1)!.bombAction, 'release');
+});
+
+test('cancelled or cleared contacts cannot slide-reactivate before lifting', () => {
+  const f = fixture(true); f.hover(f.left); fire(f.left, 'pointerdown', 1);
+  f.bindings.clear(); fire(f.terminal, 'pointermove', 1); assert.equal(f.state.hasHeld(), false);
+  fire(f.terminal, 'pointerup', 1); fire(f.terminal, 'pointermove', 1); assert.equal(f.left.active, true);
+  fire(f.terminal, 'pointercancel', 1); fire(f.terminal, 'pointermove', 1); assert.equal(f.state.hasHeld(), false);
+  fire(f.left, 'pointerdown', 1); assert.equal(f.left.active, true);
 });

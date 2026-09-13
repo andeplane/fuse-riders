@@ -111,6 +111,17 @@ try {
   await waitFor(() => [...app.game.players.values()].find(p => p.slot === 0)!.avatarId === 'slime', 'live avatar selection reaches TV state');
   assert.equal(String(app.game.phase), 'playing');
   await host.locator('.announcement.hidden').waitFor({ state: 'attached' });
+  const slideLeft = await phones[0].getByRole('button', { name: 'Turn left' }).boundingBox();
+  const slideRight = await phones[0].getByRole('button', { name: 'Turn right' }).boundingBox();
+  assert.ok(slideLeft && slideRight);
+  await phones[0].mouse.move(10, 10); await phones[0].mouse.down();
+  await phones[0].mouse.move(slideLeft.x + slideLeft.width / 2, slideLeft.y + slideLeft.height / 2);
+  await phones[0].locator('[data-control=left].active').waitFor();
+  await phones[0].mouse.move(slideRight.x + slideRight.width / 2, slideRight.y + slideRight.height / 2);
+  await phones[0].locator('[data-control=right].active').waitFor();
+  assert.equal(await phones[0].locator('[data-control=left].active').count(), 0);
+  await phones[0].mouse.move(10, 10); await phones[0].mouse.up();
+  assert.equal(await phones[0].locator('.control-button.active').count(), 0);
   await phones[0].screenshot({ path: 'artifacts/phone-portrait.png' });
   await phones[1].screenshot({ path: 'artifacts/phone-landscape.png' });
   for (const phone of phones) {

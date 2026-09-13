@@ -1104,7 +1104,10 @@ function startController(): void {
     window.setTimeout(() => { joinButton.disabled = false; }, 600);
   });
 
-  const pointerBindings = new ControllerPointerBindings(inputState, [[left, 'left'], [bomb, 'bomb'], [right, 'right']], window, updateResend);
+  const pointerBindings = new ControllerPointerBindings(inputState, [[left, 'left'], [bomb, 'bomb'], [right, 'right']], window, updateResend, (x, y) => {
+    const element = document.elementFromPoint(x, y);
+    return [left, bomb, right].find(button => element !== null && button.contains(element));
+  });
   leave.addEventListener('click', () => {
     hasLeft = true; clearControls(); socket.send({ type: 'leave' }); socket.close();
     localStorage.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = ''; latestSnapshot = undefined;

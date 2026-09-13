@@ -96,6 +96,7 @@ export class ControllerInputState {
   }
 
   resend(): boolean { return this.hasHeld() ? this.send() : false; }
+  isTargetAiming(pointerId: number): boolean { return this.aimPointer === pointerId && this.aim !== undefined; }
   hasHeld(): boolean { return this.held.left || this.held.right || this.held.bomb; }
   isHeld(control: ControllerControl): boolean { return this.held[control]; }
 
