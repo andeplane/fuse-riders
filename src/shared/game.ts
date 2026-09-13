@@ -441,6 +441,21 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   const causes = new Map<PlayerId, EliminationCause>();
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
+  // Sweep relative motion so a fast projectile cannot tunnel through a rider.
+  for (const bomb of state.bombs.values()) {
+    if (bomb.launchedTick >= state.tick || bomb.landsAtTick < state.tick) continue;
+    const index = Math.min(bomb.flightPath.length - 1, state.tick - bomb.launchedTick);
+    const from = bomb.flightPath[Math.max(0, index - 1)];
+    const to = bomb.flightPath[index];
+    if (!from || !to) continue;
+    for (const movement of movements.values()) {
+      if (movement.player.id === bomb.ownerId || isHazardImmune(movement.player, state.tick)) continue;
+      if (pointSegmentDistanceSquared(0, 0, from.x - movement.oldX, from.y - movement.oldY,
+        to.x - movement.x, to.y - movement.y) <= square(RIDER_RADIUS + 14)) {
+        markCause(causes, causeOwners, movement.player.id, 'explosion', bomb.ownerId);
+      }
+    }
+  }
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
       if (!isHazardImmune(movement.player, state.tick) && segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, blast.circle, RIDER_RADIUS)) {
@@ -930,7 +945,8 @@ function nextRandom(state: GameState): number {
 
 function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {
   const queue = [...state.bombs.values()]
-    .filter((bomb) => bomb.landsAtTick <= state.tick && bomb.explodeAtTick <= state.tick)
+    .filter((bomb) => bomb.landsAtTick <= state.tick && (bomb.explodeAtTick <= state.tick ||
+      state.blasts.some(blast => segmentIntersectsDisk(bomb.x, bomb.y, bomb.x, bomb.y, blast.circle))))
     .sort((a, b) => a.id - b.id)
     .map((bomb) => bomb.id);
   const queued = new Set(queue);

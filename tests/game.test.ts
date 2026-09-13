@@ -855,3 +855,36 @@ test('radial blast hits diagonal riders, clears diagonal trails and chains diago
   assert.equal(state.bombs.has(3), true, 'outside the disk despite being inside the square');
   assert.ok(distant.trail.every(t => t.x1 !== 560));
 });
+
+test('flying bombs hit moving opponents before detonation, respecting star and shield', () => {
+  for (const protection of ['none', 'star', 'shield'] as const) {
+    const state = gameWithPlayers(3); enterPlaying(state);
+    const victim = state.players.get('p1')!;
+    victim.x = 550; victim.y = 450; victim.angle = Math.PI / 2;
+    victim.invulnerableUntilTick = protection === 'star' ? state.tick + 20 : 0;
+    victim.shielded = protection === 'shield';
+    const owner = state.players.get('p0')!; owner.x = 500; owner.y = 450;
+    state.players.get('p2')!.x = 1200; state.players.get('p2')!.y = 700;
+    for (const player of state.players.values()) player.trail = [];
+    state.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 500, launchY: 450, x: 1100, y: 450,
+      placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + 6, explodeAtTick: state.tick + 40,
+      blastRange: 90, flightPath: Array.from({ length: 7 }, (_, i) => ({ x: 500 + i * 100, y: 450, angle: 0 })) });
+    step(state, new Map());
+    assert.equal(victim.alive, protection !== 'none');
+    assert.equal(owner.alive, true, 'owner is not struck by their own launch');
+    assert.equal(state.blasts.length, 0, 'impact damage precedes the explosion');
+    assert.equal(state.bombs.has(99), true, 'bomb keeps its fuse after the hit');
+    if (protection === 'shield') assert.equal(victim.shielded, false);
+  }
+});
+
+test('a bomb landing inside an active blast chains immediately', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  state.blasts.push({ bombId: 98, ownerId: 'p0', circle: { x: 800, y: 450, radius: 90 }, expiresAtTick: state.tick + 8 });
+  state.bombs.set(99, { id: 99, ownerId: 'p1', launchX: 800, launchY: 450, x: 800, y: 450,
+    placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + 1, explodeAtTick: state.tick + 40,
+    blastRange: 90, flightPath: fixedFlightPath(800, 450) });
+  step(state, new Map());
+  assert.equal(state.bombs.has(99), false);
+  assert.equal(state.blasts.filter(blast => blast.bombId === 99).length, 1);
+});

@@ -368,7 +368,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     const pathPosition = flight * (path.length - 1); const pathIndex = Math.min(path.length - 2, Math.floor(pathPosition));
     const pathMix = pathPosition - pathIndex; const pathStart = path[pathIndex]!; const pathEnd = path[pathIndex + 1]!;
     const drawX = pathStart.x + (pathEnd.x - pathStart.x) * pathMix;
-    const drawY = pathStart.y + (pathEnd.y - pathStart.y) * pathMix - Math.sin(flight * Math.PI) * 56;
+    const drawY = pathStart.y + (pathEnd.y - pathStart.y) * pathMix;
     const pulse = 1 + Math.sin(now / 90) * 0.08;
     const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / 40, 0, 1);
     if (airborne) {
