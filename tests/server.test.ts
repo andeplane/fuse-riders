@@ -12,7 +12,7 @@ test('controller snapshots strip the full match statistics table', () => {
     roundsDrawn: 0, matchPlacement: 1, survivalTicks: 100, longestSurvivalTicks: 25,
     distanceUnits: 750, bombsPlaced: 9, bombsExploded: 8, eliminations: 4,
     deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 3,
-    blastPickups: 2, starPickups: 1, beerPickups: 0, inkPickups: 0, triplePickups: 0, fivePickups: 0,
+    blastPickups: 2, starPickups: 1, beerPickups: 0, inkPickups: 0, triplePickups: 0, fivePickups: 0, targetPickups: 0,
     shieldPickups: 0, portalPickups: 0, portalTransits: 0, invulnerableTicks: 10, wallBounces: 2, earlyExits: 0,
   };
   const compact = controllerSnapshot({
@@ -289,5 +289,20 @@ for (const phase of ['countdown', 'playing'] as const) test(`late ${phase} joins
     assert.equal(f.app.game.roundParticipants.has(id), true);
     const entered = await resumed.take('snapshot', s => s.round === 2 && s.state.players.some(p => p.id === id && p.alive));
     assert.equal(entered.state.players.find(p => p.id === id)!.waitingForNextRound, false);
+  } finally { await f.close(); }
+});
+
+test('target release aim survives newer input packets through real socket transport', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host(); const a = await f.join('A'); await f.join('B');
+    host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', m => m.state.phase === 'countdown'); f.app.advance(60);
+    const player = f.app.game.players.get(a.joined.playerId)!; player.targetBombArmed = true;
+    a.peer.send({ type: 'input', seq: 0, left: false, right: false, bomb: true, bombAction: 'press', aim: { x: .1, y: .1 } });
+    a.peer.send({ type: 'input', seq: 1, left: false, right: false, bomb: false, bombAction: 'release', aim: { x: .2, y: .3 } });
+    a.peer.send({ type: 'input', seq: 2, left: false, right: false, bomb: true, bombAction: 'press', aim: { x: .9, y: .9 } });
+    await a.peer.flush(); f.app.advance();
+    const bomb = [...f.app.game.bombs.values()][0]!; assert.equal(bomb.x, f.app.game.width * .2); assert.equal(bomb.y, f.app.game.height * .3);
+    assert.equal(bomb.landsAtTick, f.app.game.tick); assert.equal(player.targetBombArmed, false);
   } finally { await f.close(); }
 });

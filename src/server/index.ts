@@ -189,8 +189,8 @@ export async function createGameServer(options: ServerOptions = {}) {
         if (message.seq <= seat.seq) { error(ws, 'stale'); return; }
         seat.seq = message.seq; seat.inputTick = game.tick;
         if (game.phase !== 'playing') { neutral(seat); return; }
-        seat.bombInput.accept(message.bomb, message.bombAction);
-        seat.intent = { left: message.left, right: message.right, bomb: message.bomb };
+        seat.bombInput.accept(message.bomb, message.bombAction, message.aim);
+        seat.intent = { left: message.left, right: message.right, bomb: message.bomb, ...(message.aim ? { aim: { ...message.aim } } : {}) };
       }
     });
   });
@@ -200,7 +200,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       const inputs = new Map<string, InputIntent>();
       for (const seat of seats.values()) {
         if (!seat.socket || game.tick - seat.inputTick >= 10) neutral(seat);
-        inputs.set(seat.id, { ...seat.intent, bombActions: seat.bombInput.drain() });
+        inputs.set(seat.id, { ...seat.intent, bombCommands: seat.bombInput.drainCommands() });
       }
       const result = step(game, inputs);
       for (const seat of seats.values()) if (seat.socket && seat.seq > seat.appliedSeq) {

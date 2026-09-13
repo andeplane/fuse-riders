@@ -1,14 +1,16 @@
-import type { BombAction } from '../shared/protocol.js';
+import type { AimPoint, BombAction, BombActionCommand } from '../shared/protocol.js';
 
 export const MAX_PENDING_BOMB_ACTIONS = 8;
 
 /** Preserves short taps while making input interruption discard pending launches. */
 export class BombInputBuffer {
-  private pending: BombAction[] = [];
+  private pending: BombActionCommand[] = [];
   private held = false;
+  private aim?: AimPoint;
   private needsRelease = false;
 
-  accept(held: boolean, action?: BombAction): void {
+  accept(held: boolean, action?: BombAction, aim?: AimPoint): void {
+    if (aim) this.aim = { ...aim };
     if (action === 'cancel') {
       this.cancel();
       this.needsRelease = false;
@@ -22,15 +24,19 @@ export class BombInputBuffer {
       this.enqueue('press');
     }
     this.held = held;
+    if (!held) this.aim = undefined;
   }
 
   cancel(requireRelease = false): void {
     this.needsRelease ||= requireRelease || this.held;
     this.held = false;
-    this.pending = ['cancel'];
+    this.pending = [{ action: 'cancel' }];
+    this.aim = undefined;
   }
 
-  drain(): BombAction[] {
+  drain(): BombAction[] { return this.drainCommands().map(command => command.action); }
+
+  drainCommands(): BombActionCommand[] {
     const actions = this.pending;
     this.pending = [];
     return actions;
@@ -38,6 +44,6 @@ export class BombInputBuffer {
 
   private enqueue(action: BombAction): void {
     if (this.pending.length >= MAX_PENDING_BOMB_ACTIONS) this.cancel(true);
-    else this.pending.push(action);
+    else this.pending.push({ action, ...(this.aim ? { aim: { ...this.aim } } : {}) });
   }
 }

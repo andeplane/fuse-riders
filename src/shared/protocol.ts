@@ -9,10 +9,12 @@ export type { FlightPoint } from './launch-modifiers.js';
 
 export type PlayerId = string;
 export type PlayerToken = string;
+export interface AimPoint { x: number; y: number }
+export interface BombActionCommand { action: BombAction; aim?: AimPoint }
 export type BombAction = 'press' | 'release' | 'cancel';
 export type ClientMessage =
   | { type: 'join'; name: string; playerToken?: PlayerToken }
-  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: BombAction }
+  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: BombAction; aim?: AimPoint }
   | { type: 'heartbeat' }
   | { type: 'ping'; id: number; sentAt: number }
   | { type: 'leave' }
@@ -30,7 +32,7 @@ export interface GameSnapshot {
     x: number; y: number; angle: number; alive: boolean; roundWins: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
-    tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
+    targetBombArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
@@ -39,7 +41,7 @@ export interface GameSnapshot {
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPair?: PortalPair;
-  pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
+  pickups: ReadonlyArray<{ id: number; type: 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;
@@ -78,8 +80,13 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         (v.playerToken !== undefined && !token(v.playerToken))) return null;
       return { type: 'join', name: v.name.trim(), ...(v.playerToken ? { playerToken: v.playerToken as string } : {}) };
     case 'input':
-      if (!keys('type', 'seq', 'left', 'right', 'bomb', 'bombAction') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
+      if (!keys('type', 'seq', 'left', 'right', 'bomb', 'bombAction', 'aim') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
         !['left', 'right', 'bomb'].every(k => typeof v[k] === 'boolean')) return null;
+      if (v.aim !== undefined) {
+        if (!v.aim || typeof v.aim !== 'object' || Array.isArray(v.aim)) return null;
+        const aim = v.aim as Record<string, unknown>;
+        if (Object.keys(aim).some(key => key !== 'x' && key !== 'y') || ![aim.x, aim.y].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1)) return null;
+      }
       if (v.bombAction !== undefined && !['press', 'release', 'cancel'].includes(v.bombAction as string)) return null;
       if ((v.bombAction === 'press' && v.bomb !== true) ||
         ((v.bombAction === 'release' || v.bombAction === 'cancel') && v.bomb !== false)) return null;

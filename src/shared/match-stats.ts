@@ -37,6 +37,7 @@ export interface MatchPlayerStats {
   inkPickups: number;
   triplePickups: number;
   fivePickups: number;
+  targetPickups: number;
 
   shieldPickups: number;
   portalPickups: number;
@@ -81,7 +82,7 @@ export function beginMatchParticipant(stats: MatchStatsState, identity: MatchPla
     starPickups: 0,
     beerPickups: 0, inkPickups: 0,
     triplePickups: 0,
-    fivePickups: 0,
+    fivePickups: 0, targetPickups: 0,
 
     shieldPickups: 0,
     portalPickups: 0,
@@ -120,11 +121,12 @@ export function recordBombExploded(stats: MatchStatsState, playerId: string): vo
 export function recordPickup(
   stats: MatchStatsState,
   playerId: string,
-  type: 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal',
+  type: 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal',
 ): void {
   const entry = requireEntry(stats, playerId);
   entry.pickupsCollected += 1;
-  if (type === 'blast') entry.blastPickups += 1;
+  if (type === 'target') entry.targetPickups += 1;
+  else if (type === 'blast') entry.blastPickups += 1;
   else if (type === 'star') entry.starPickups += 1;
   else if (type === 'ink') entry.inkPickups += 1;
   else if (type === 'beer') entry.beerPickups += 1;
@@ -203,7 +205,7 @@ export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsSt
       starPickups: entry.starPickups,
       beerPickups: entry.beerPickups,
       inkPickups: entry.inkPickups,
-      triplePickups: entry.triplePickups, fivePickups: entry.fivePickups,
+      triplePickups: entry.triplePickups, fivePickups: entry.fivePickups, targetPickups: entry.targetPickups,
 
       shieldPickups: entry.shieldPickups,
       portalPickups: entry.portalPickups,

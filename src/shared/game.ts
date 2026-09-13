@@ -3,6 +3,8 @@ import { pickupTypeForRoll } from './pickup-weights.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
 import { createPortalPair, findPortalTransit, fitPortalPair, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
+  AimPoint,
+  BombActionCommand,
   BlastCircle,
   BombAction,
   GameEvent,
@@ -96,7 +98,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 20;
 
-export type PickupType = 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
+export type PickupType = 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -111,6 +113,8 @@ export interface InputIntent {
   right: boolean;
   bomb: boolean;
   bombActions?: readonly BombAction[];
+  bombCommands?: readonly BombActionCommand[];
+  aim?: AimPoint;
 }
 
 export interface PlayerState extends Required<PlayerIdentity> {
@@ -121,6 +125,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   roundWins: number;
   bombReadyAtTick: number;
   bombChargeStartedTick?: number;
+  targetBombArmed: boolean;
+  bombTarget?: AimPoint;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
   drunkUntilTick: number; inkUntilTick: number;
@@ -264,7 +270,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     blastLevel: 0,
     invulnerableUntilTick: 0,
     drunkUntilTick: 0, inkUntilTick: 0,
-    tripleShotArmed: false, fiveShotArmed: false,
+    targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false,
 
     shielded: false,
     shieldGraceUntilTick: 0,
@@ -298,7 +304,7 @@ export function eliminatePlayer(state: GameState, playerId: PlayerId): void {
   if (state.phase !== 'countdown' && state.phase !== 'playing') return;
   if (!player.alive) return;
   player.alive = false;
-  player.bombChargeStartedTick = undefined;
+  player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
   recordElimination(state, playerId);
   if (state.roundParticipants.has(playerId)) recordEarlyExit(state.matchStats, playerId);
 }
@@ -498,7 +504,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const cause = causes.get(movement.player.id);
     if (cause) {
       movement.player.alive = false;
-      movement.player.bombChargeStartedTick = undefined;
+      movement.player.bombChargeStartedTick = undefined; movement.player.bombTarget = undefined;
       recordElimination(state, movement.player.id);
       recordDeath(state.matchStats, movement.player.id, cause, soleCreditedOwner(causeOwners, movement.player.id, cause));
       events.push({ type: 'playerEliminated', playerId: movement.player.id, cause });
@@ -525,7 +531,11 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movementList) {
-    if (movement.player.alive) applyBombActions(state, movement.player, inputs.get(movement.player.id)?.bombActions ?? [], events);
+    if (movement.player.alive) {
+      const input = inputs.get(movement.player.id);
+      applyBombActions(state, movement.player, input?.bombCommands ?? input?.bombActions?.map(action => ({ action, aim: input.aim })) ?? [], events);
+      if (movement.player.targetBombArmed && movement.player.bombChargeStartedTick !== undefined) movement.player.bombTarget = targetPoint(state, movement.player, input?.aim, movement.player.bombTarget);
+    }
   }
 
   resolveRound(state, events, elapsed);
@@ -558,7 +568,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
-      tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
+      targetBombArmed: player.targetBombArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
       portalCooldownUntilTick: player.portalCooldownUntilTick,
@@ -622,12 +632,13 @@ function prepareRound(state: GameState): void {
   for (const player of state.players.values()) {
     player.alive = false;
     player.trail = [];
-    player.bombChargeStartedTick = undefined;
+    player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     player.bombReadyAtTick = state.tick;
     player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
     player.drunkUntilTick = 0;
     player.inkUntilTick = 0;
+    player.targetBombArmed = false;
     player.tripleShotArmed = false; player.fiveShotArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
@@ -708,7 +719,9 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     consumed.add(pickup.id);
     events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
     recordPickup(state.matchStats, collector.id, pickup.type);
-    if (pickup.type === 'blast') {
+    if (pickup.type === 'target') {
+      collector.targetBombArmed = true;
+    } else if (pickup.type === 'blast') {
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
@@ -790,22 +803,32 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
   return true;
 }
 
-function applyBombActions(state: GameState, player: PlayerState, actions: readonly BombAction[], events: GameEvent[]): void {
-  for (const action of actions) {
+function targetPoint(state: GameState, player: PlayerState, aim?: AimPoint, previous?: AimPoint): AimPoint {
+  const x = aim ? aim.x * state.width : previous?.x ?? player.x + Math.cos(player.angle) * 100;
+  const y = aim ? aim.y * state.height : previous?.y ?? player.y + Math.sin(player.angle) * 100;
+  return { x: Math.max(state.boundaryInset + RIDER_RADIUS, Math.min(state.width - state.boundaryInset - RIDER_RADIUS, x)),
+    y: Math.max(state.boundaryInset + RIDER_RADIUS, Math.min(state.height - state.boundaryInset - RIDER_RADIUS, y)) };
+}
+
+function applyBombActions(state: GameState, player: PlayerState, actions: readonly BombActionCommand[], events: GameEvent[]): void {
+  for (const command of actions) {
+    const { action } = command;
     if (action === 'cancel') {
-      player.bombChargeStartedTick = undefined;
+      player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
       continue;
     }
     if (action === 'press') {
       const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
       if (player.bombChargeStartedTick === undefined && !ownsBomb && player.bombReadyAtTick <= state.tick) {
         player.bombChargeStartedTick = state.tick;
+        if (player.targetBombArmed) player.bombTarget = targetPoint(state, player, command.aim);
       }
       continue;
     }
 
+    const target = player.targetBombArmed ? targetPoint(state, player, command.aim, player.bombTarget) : undefined;
     const chargeStartedTick = player.bombChargeStartedTick;
-    player.bombChargeStartedTick = undefined;
+    player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     if (chargeStartedTick === undefined) continue;
     const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id);
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
@@ -816,10 +839,11 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       minY: state.boundaryInset + RIDER_RADIUS,
       maxY: state.height - state.boundaryInset - RIDER_RADIUS,
     };
-    const paths = player.tripleShotArmed || player.fiveShotArmed
+    const paths = target ? [[{ ...target, angle: player.angle }]] : player.tripleShotArmed || player.fiveShotArmed
       ? createVolleyFlightPaths(player, player.angle, distance, bounds, player.fiveShotArmed ? 5 : 3)
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
-    player.tripleShotArmed = false; player.fiveShotArmed = false;
+    if (target) player.targetBombArmed = false;
+    else { player.tripleShotArmed = false; player.fiveShotArmed = false; }
     for (const flightPath of paths) {
       const landing = flightPath[flightPath.length - 1]!;
       const bomb: BombState = {
@@ -831,7 +855,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         y: landing.y,
         placedTick: state.tick,
         launchedTick: state.tick,
-        landsAtTick: state.tick + BOMB_FLIGHT_TICKS,
+        landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
         explodeAtTick: state.tick + BOMB_FUSE_TICKS,
         blastRange: BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE,
         flightPath,

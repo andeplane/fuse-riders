@@ -39,3 +39,9 @@ test('untrusted message shapes, sizes, tokens and input sequences fail closed', 
   assert.equal(parseClientMessage(' '.repeat(2049)), null);
   assert.ok(parseClientMessage(JSON.stringify({ type: 'join', name: '😀'.repeat(18) })));
 });
+
+test('target aim accepts finite normalized coordinates only and rejects nested extras', () => {
+  const input = { type: 'input', seq: 1, left: false, right: false, bomb: true };
+  for (const aim of [{ x: 0, y: 1 }, { x: .5, y: .2 }]) assert.deepEqual(parseClientMessage(JSON.stringify({ ...input, aim })), { ...input, aim });
+  for (const aim of [null, [], 3, {}, { x: .5 }, { x: -.1, y: 0 }, { x: 0, y: 1.01 }, { x: '0', y: 0 }, { x: null, y: 0 }, { x: 0, y: 0, z: 0 }]) assert.equal(parseClientMessage(JSON.stringify({ ...input, aim })), null);
+});
