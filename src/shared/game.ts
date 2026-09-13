@@ -482,7 +482,10 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       createdTick: state.tick,
       expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
     });
-    applyBombActions(state, movement.player, inputs.get(movement.player.id)?.bombActions ?? [], events);
+  }
+  // Target every launch against the same committed tick, independent of player slot.
+  for (const movement of movementList) {
+    if (movement.player.alive) applyBombActions(state, movement.player, inputs.get(movement.player.id)?.bombActions ?? [], events);
   }
 
   resolveRound(state, events, elapsed);

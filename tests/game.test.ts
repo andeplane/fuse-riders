@@ -349,7 +349,7 @@ test('Triple Shot and Homing Spark compose into one deterministic three-bomb vol
   assert.equal(bombs.length, 3);
   assert.equal(result.events.filter((event) => event.type === 'bombPlaced').length, 3);
   assert.ok(bombs.every((bomb) => bomb.flightPath.length === 7 && bomb.homingTargetId === 'p1'));
-  assert.ok(bombs.every((bomb) => bomb.homingTargetX === 850 && bomb.homingTargetY === 600));
+  assert.ok(bombs.every((bomb) => bomb.homingTargetX === state.players.get('p1')!.x && bomb.homingTargetY === state.players.get('p1')!.y));
   assert.notEqual(bombs[0]!.flightPath[1]!.y, bombs[2]!.flightPath[1]!.y);
   assert.equal(owner.tripleShotArmed, false);
   assert.equal(owner.homingArmed, false);
