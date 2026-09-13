@@ -30,4 +30,9 @@ try{
   const displayContext=await browser.newContext();displayContext.setDefaultTimeout(30000);const display=await displayContext.newPage();await display.goto(url+'&display=1');await display.locator('.online-roster').getByText('Host',{exact:false}).waitFor();
   assert.equal(await display.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);assert.equal(await display.locator('.online-arena').isVisible(),true);
   console.log('Online smoke passed: room creation, guest join, host permissions, start, settings, reset, full phone view.');
+}catch(error){
+  for(const [index,context] of browser.contexts().entries())for(const page of context.pages()){
+    console.error(`ROOM DIAGNOSTIC ${index}`,await page.locator('body').innerText().catch(()=>'<page closed>'));
+  }
+  throw error;
 }finally{await browser.close();}
