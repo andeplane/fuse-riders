@@ -946,3 +946,36 @@ test('landing step never uses blast radius for contact damage', () => {
     assert.equal(state.blasts.length, 0);
   }
 });
+
+test('shell pickup replaces one shot, preserves other upgrades and expires without explosion', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  const owner = state.players.get('p0')!; owner.x = 500; owner.y = 450; owner.angle = 0;
+  state.pickups = [{ id: 999, type: 'shell', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
+  step(state, new Map()); assert.equal(owner.shellArmed, true);
+  owner.fiveShotArmed = true; owner.targetBombArmed = true;
+  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  assert.equal(state.bombs.size, 1);
+  const shell = [...state.bombs.values()][0]!;
+  assert.ok(shell.shell); assert.equal(shell.explodeAtTick - state.tick, 100);
+  assert.equal(owner.shellArmed, false); assert.equal(owner.fiveShotArmed, true); assert.equal(owner.targetBombArmed, true);
+  const snap = toSnapshot(state).bombs[0]!; assert.equal(snap.shell!.vx, 450);
+  snap.shell!.vx = -2; assert.equal(shell.shell!.vx, 450);
+  state.tick = shell.explodeAtTick - 1; step(state, new Map());
+  assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 0);
+});
+test('shell body hits once, shield absorbs it, and no blast radius is produced', () => {
+  for (const shield of [false, true]) {
+    const state = gameWithPlayers(3); enterPlaying(state);
+    Object.assign(state.players.get('p0')!, { x: 200, y: 200 });
+    Object.assign(state.players.get('p1')!, { x: 535, y: 450, angle: 0, shielded: shield });
+    Object.assign(state.players.get('p2')!, { x: 1200, y: 700 });
+    for (const player of state.players.values()) player.trail = [];
+    state.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 500, launchY: 450, x: 500, y: 450,
+      placedTick: state.tick, launchedTick: state.tick - 1, landsAtTick: state.tick + 100,
+      explodeAtTick: state.tick + 100, blastRange: 0, flightPath: [], shell: { vx: 450, vy: 0 } });
+    step(state, new Map());
+    assert.equal(state.players.get('p1')!.alive, shield); assert.equal(state.bombs.size, 0);
+    assert.equal(state.players.get('p1')!.shielded, false); assert.equal(state.blasts.length, 0);
+  }
+});

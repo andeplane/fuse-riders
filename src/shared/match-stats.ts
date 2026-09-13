@@ -121,7 +121,7 @@ export function recordBombExploded(stats: MatchStatsState, playerId: string): vo
 export function recordPickup(
   stats: MatchStatsState,
   playerId: string,
-  type: 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal',
+  type: 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal',
 ): void {
   const entry = requireEntry(stats, playerId);
   entry.pickupsCollected += 1;
@@ -133,7 +133,7 @@ export function recordPickup(
   else if (type === 'five') entry.fivePickups += 1;
   else if (type === 'triple') entry.triplePickups += 1;
   else if (type === 'orbitShield') entry.shieldPickups += 1;
-  else entry.portalPickups += 1;
+  else if (type === 'portal') entry.portalPickups += 1;
 }
 
 export function recordPortalTransit(stats: MatchStatsState, playerId: string): void {

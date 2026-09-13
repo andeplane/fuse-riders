@@ -338,7 +338,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   drawPortalPair(ctx, snapshot, snapshot.tick, now);
 
   for (const player of snapshot.players) {
-    if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed) continue;
+    if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed) continue;
     const chargeTicks = Math.max(0, snapshot.tick - player.bombChargeStartedTick);
     const distance = bombLaunchDistance(chargeTicks);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
@@ -354,6 +354,19 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   }
 
   for (const bomb of snapshot.bombs) {
+    if (bomb.shell) {
+      ctx.save(); ctx.translate(bomb.x, bomb.y); ctx.rotate(now / 100);
+      ctx.fillStyle = '#48dc55'; ctx.strokeStyle = '#dcffd1'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#14622f'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let edge = 0; edge <= 6; edge++) {
+        const angle = edge * Math.PI / 3;
+        if (edge === 0) ctx.moveTo(Math.cos(angle) * 7, Math.sin(angle) * 7);
+        else ctx.lineTo(Math.cos(angle) * 7, Math.sin(angle) * 7);
+      }
+      ctx.stroke(); ctx.restore(); continue;
+    }
     // Ground-space outline is the exact damage radius, even while the bomb flies.
     ctx.save();
     ctx.strokeStyle = '#aab9cc';
@@ -487,7 +500,8 @@ function startDisplay(): void {
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
+  const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = '/themes/neon-pixel/pickup-shell.svg'; shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces for 5s · next shot'));
+  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -975,7 +989,7 @@ function startController(): void {
     if (phaseChanged) clearControls(true, true);
     const player = snapshot.players.find((candidate) => candidate.id === playerId);
     if (!player) return;
-    inputState.configureTargetAim(player.targetBombArmed && player.alive ? {
+    inputState.configureTargetAim(player.targetBombArmed && !player.shellArmed && player.alive ? {
       x: clamp((player.x + Math.cos(player.angle) * 100) / snapshot.width, 0, 1),
       y: clamp((player.y + Math.sin(player.angle) * 100) / snapshot.height, 0, 1),
     } : undefined);
@@ -1007,7 +1021,7 @@ function startController(): void {
     else if (player.waitingForNextRound) instruction.textContent = snapshot.phase === 'matchOver' ? 'You’re in — joining when the next match starts.' : 'You’re in — joining next round automatically.';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
     else if (!player.alive) instruction.textContent = 'Wiped out! Watch the TV for the next round.';
-    else if (snapshot.phase === 'playing') instruction.textContent = player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to drop!' : 'Hold to steer. Hold bomb to charge, release to launch!';
+    else if (snapshot.phase === 'playing') instruction.textContent = player.shellArmed ? 'Release Fire to launch a bouncing shell. Watch the ricochets!' : player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to drop!' : 'Hold to steer. Hold bomb to charge, release to launch!';
     else if (snapshot.phase === 'matchOver') instruction.textContent = snapshot.matchWinnerId === playerId ? 'You rule the grid!' : 'Match complete.';
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
@@ -1018,7 +1032,7 @@ function startController(): void {
     bomb.style.setProperty('--charge', `${chargePercent}%`);
     bomb.classList.toggle('charging', charging);
     bomb.classList.toggle('target-armed', player.targetBombArmed);
-    bombLabel.textContent = player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO DROP' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
+    bombLabel.textContent = player.shellArmed && (ready || charging) ? (charging ? 'RELEASE TO FIRE SHELL' : 'GREEN SHELL · HOLD + RELEASE') : player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO DROP' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
   }
 
   socket = new SocketClient(

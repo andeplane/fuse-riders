@@ -53,7 +53,10 @@ function fallbackBeer(ctx: CanvasRenderingContext2D, x: number, y: number, size:
 }
 
 function fallbackPowerup(ctx: CanvasRenderingContext2D, type: PickupType, x: number, y: number, size: number): void {
-  if (type === 'target') {
+  if (type === 'shell') {
+    ctx.fillStyle = '#48dc55'; ctx.strokeStyle = '#dcffd1'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, size * .4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  } else if (type === 'target') {
     ctx.strokeStyle = '#75ffe0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, size * .32, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x - size / 2, y); ctx.lineTo(x + size / 2, y); ctx.moveTo(x, y - size / 2); ctx.lineTo(x, y + size / 2); ctx.stroke();
   } else if (type === 'ink') {
@@ -108,7 +111,7 @@ export function drawPickups(
     else if (pickup.type === 'star') fallbackStar(ctx, pickup.x, pickup.y, size);
     else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
-    const labels: Record<PickupType, string> = { blast: 'BLAST+', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' };
+    const labels: Record<PickupType, string> = { shell: 'SHELL', blast: 'BLAST+', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' };
     const text = labels[pickup.type];
     const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);

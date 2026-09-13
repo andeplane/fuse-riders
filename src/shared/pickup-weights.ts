@@ -1,7 +1,7 @@
 import type { PickupType } from './game.js';
 /** Five Shot remains three times rarer than Triple Shot. */
 export const PICKUP_WEIGHTS: ReadonlyArray<Readonly<{ type: PickupType; weight: number }>> = [
-  { type: 'blast', weight: 12 }, { type: 'star', weight: 3 }, { type: 'beer', weight: 3 }, { type: 'ink', weight: 3 },
+  { type: 'shell', weight: 1 }, { type: 'blast', weight: 12 }, { type: 'star', weight: 3 }, { type: 'beer', weight: 3 }, { type: 'ink', weight: 3 },
   { type: 'triple', weight: 6 }, { type: 'five', weight: 2 }, { type: 'target', weight: 2 },
   { type: 'orbitShield', weight: 3 }, { type: 'portal', weight: 3 },
 ];
