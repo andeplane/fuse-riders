@@ -32,7 +32,7 @@ try {
   await host.getByText('2.5s invulnerable', { exact: false }).waitFor();
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
   await host.getByText('next launch fires 3', { exact: false }).waitFor();
-  await host.getByText('next launch seeks', { exact: false }).waitFor();
+  assert.equal(await host.getByText('next launch seeks', { exact: false }).count(), 0, 'retired power-up is absent from legend');
   await host.getByText('blocks one crash', { exact: false }).waitFor();
   await host.getByText('opens linked gates', { exact: false }).waitFor();
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
