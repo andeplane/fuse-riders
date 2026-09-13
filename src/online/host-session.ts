@@ -78,5 +78,17 @@ export class HostSession {
   acknowledgements():Record<string,number>{return Object.fromEntries([...this.seats].map(([id,seat])=>[id,seat.seq]));}
   disconnect(id:string):void {if(this.game.players.has(id))setPlayerConnected(this.game,id,false);const seat=this.seats.get(id);if(seat){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}}
   clear():void {for(const seat of this.seats.values()){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}}
+  checkpoint():string {
+    return JSON.stringify({version:1,host:this.hostId,settings:this.settings,game:this.game,sequences:[...this.seats].map(([id,seat])=>[id,seat.seq])},(_key,value)=>value instanceof Map?{$map:[...value]}:value);
+  }
+  restore(raw:string):boolean {
+    try {
+      const data=JSON.parse(raw,(_key,value)=>value&&typeof value==='object'&&Array.isArray(value.$map)?new Map(value.$map):value);
+      if(data.version!==1||data.host!==this.hostId||!parseRoomSettings(data.settings)||!(data.game?.players instanceof Map)||!(data.game?.bombs instanceof Map)||!Number.isSafeInteger(data.game.tick))return false;
+      this.game=data.game;this.settings=data.settings;this.seats.clear();
+      for(const [id,seq] of data.sequences)this.seats.set(id,{seq,tick:this.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer()});
+      this.clear();return true;
+    }catch{return false;}
+  }
   snapshot(){return toSnapshot(this.game);}
 }
