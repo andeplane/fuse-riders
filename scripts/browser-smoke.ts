@@ -214,6 +214,12 @@ try {
   const matchId = app.game.matchId; await host.getByRole('button', { name: 'REMATCH' }).click();
   await waitFor(() => app.game.matchId !== matchId, 'new match scope'); app.advance(2);
   assert.equal(app.game.phase, 'countdown'); assert.ok([...app.game.players.values()].every(p => p.roundWins === 0));
+  await host.getByRole('button', { name: 'Main menu', exact: true }).click();
+  await waitFor(() => app.game.phase === 'lobby', 'return to main menu');
+  await host.getByRole('button', { name: 'START RACE', exact: true }).waitFor();
+  assert.deepEqual([...app.game.players.keys()], previousIds, 'menu preserves connected phone identities');
+  await host.getByRole('button', { name: 'START RACE', exact: true }).click();
+  await waitFor(() => app.game.phase === 'countdown', 'start again after menu');
   assert.equal(errors.length, 0, errors.join('\n'));
   console.log('Browser smoke passed: host token recovery, pickups, leaderboard, TV, five phones, controls, themes, reconnect and rematch.');
 } finally { await browser.close(); await app.close(); }

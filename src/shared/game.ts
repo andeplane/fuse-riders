@@ -331,6 +331,19 @@ export function startNextRound(state: GameState): void {
   prepareRound(state);
 }
 
+/** Aborts unfinished play without scoring and retains the party's session totals. */
+export function returnToLobby(state: GameState, newMatchId: string): void {
+  const fresh = createGame(newMatchId);
+  fresh.leaderboard = state.leaderboard;
+  for (const player of sortedPlayers(state)) {
+    if (player.connected) addPlayer(fresh, { id: player.id, name: player.name, slot: player.slot, color: player.color, connected: true });
+  }
+  Object.assign(state, fresh, {
+    phaseEndsAtTick: undefined, roundStartedTick: undefined, portalPair: undefined,
+    roundWinnerId: undefined, matchWinnerId: undefined,
+  });
+}
+
 export function resetMatch(state: GameState, newMatchId: string): void {
   assertPhase(state, ['matchOver'], 'resetMatch');
   if (!newMatchId) throw new Error('newMatchId is required');

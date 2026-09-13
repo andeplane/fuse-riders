@@ -9,7 +9,7 @@ import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
 import { parseClientMessage, type ErrorCode, type ServerMessage, type GameSnapshot } from '../shared/protocol.js';
 import {
-  createGame, addPlayer, removePlayer, startMatch, startNextRound, resetMatch,
+  createGame, addPlayer, removePlayer, startMatch, startNextRound, resetMatch, returnToLobby,
   setPlayerConnected, eliminatePlayer, step, toSnapshot, type InputIntent,
 } from '../shared/game.js';
 
@@ -111,7 +111,11 @@ export async function createGameServer(options: ServerOptions = {}) {
     }
   }
   function connectedCount() { return [...seats.values()].filter(s => s.socket && !s.leaving).length; }
-  function hostAction(ws: WebSocket, action: 'start' | 'nextRound' | 'rematch') {
+  function hostAction(ws: WebSocket, action: 'start' | 'nextRound' | 'rematch' | 'lobby') {
+    if (action === 'lobby') {
+      returnToLobby(game, dependencies.token());
+      pruneDisconnected(); clearInputs(); snapshot(); return;
+    }
     const required = { start: 'lobby', nextRound: 'roundOver', rematch: 'matchOver' };
     if (game.phase !== required[action]) { error(ws, 'invalid_phase'); return; }
     if (connectedCount() < 2) { error(ws, 'not_enough_players'); return; }

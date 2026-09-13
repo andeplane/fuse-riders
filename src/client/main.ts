@@ -440,6 +440,8 @@ function startDisplay(): void {
   const timer = element('div', 'timer');
   timer.append(element('span', 'eyebrow', 'ROUND'), element('strong', '', '--:--'));
   const connection = element('span', 'connection', 'CONNECTING');
+  const menuButton = element('button', 'leaderboard-toggle', 'MENU');
+  menuButton.type = 'button'; menuButton.setAttribute('aria-label', 'Main menu'); menuButton.title = 'End current game and return to main menu'; menuButton.disabled = true;
   const leaderboardButton = element('button', 'leaderboard-toggle hidden', '🏆 SESSION');
   leaderboardButton.type = 'button'; leaderboardButton.setAttribute('aria-expanded', 'false');
   const themeSelect = element('select', 'theme-select');
@@ -449,7 +451,7 @@ function startDisplay(): void {
   }
   const fullscreen = element('button', 'fullscreen fullscreen-toolbar', '⛶');
   fullscreen.type = 'button'; fullscreen.title = 'Fullscreen'; fullscreen.setAttribute('aria-label', 'Fullscreen');
-  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, fullscreen, connection);
+  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, fullscreen, menuButton, connection);
 
   const stage = element('section', 'stage');
   const canvas = element('canvas', 'arena');
@@ -695,6 +697,7 @@ function startDisplay(): void {
     renderRoster(snapshot);
     lobby.classList.toggle('hidden', snapshot.phase !== 'lobby');
     matchRecap.classList.toggle('hidden', snapshot.phase !== 'matchOver');
+    menuButton.disabled = !authenticated || snapshot.phase === 'lobby';
     recapAction.disabled = !authenticated || playerCount < 2;
     if (snapshot.phase === 'lobby') {
       action.textContent = 'START RACE'; action.dataset.action = 'start'; action.disabled = !authenticated || playerCount < 2;
@@ -784,6 +787,9 @@ function startDisplay(): void {
     socket.send({ type: 'hostAuth', token: hostToken });
   });
 
+  menuButton.addEventListener('click', () => {
+    if (authenticated && latest?.snapshot.phase !== 'lobby') socket.send({ type: 'hostAction', action: 'lobby' });
+  });
   action.addEventListener('click', () => {
     audio.unlock();
     const hostAction = action.dataset.action as 'start' | 'nextRound' | 'rematch' | undefined;

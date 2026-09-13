@@ -11,7 +11,7 @@ test('all semantic message variants validate without accepting extra fields', ()
     { type: 'input', seq: 8, left: false, right: false, bomb: false, bombAction: 'cancel' },
     { type: 'heartbeat' }, { type: 'leave' }, { type: 'hostAuth', token: 'b'.repeat(48) },
     { type: 'ping', id: 1, sentAt: 123.4 },
-    { type: 'hostAction', action: 'start' }, { type: 'hostAction', action: 'nextRound' }, { type: 'hostAction', action: 'rematch' },
+    { type: 'hostAction', action: 'start' }, { type: 'hostAction', action: 'nextRound' }, { type: 'hostAction', action: 'rematch' }, { type: 'hostAction', action: 'lobby' },
   ];
   for (const m of messages) {
     assert.ok(parseClientMessage(JSON.stringify(m)));

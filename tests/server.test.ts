@@ -306,3 +306,20 @@ test('target release aim survives newer input packets through real socket transp
     assert.equal(bomb.landsAtTick, f.app.game.tick); assert.equal(player.targetBombArmed, false);
   } finally { await f.close(); }
 });
+
+test('host can abort to lobby without losing phone seats or replaying buffered bomb releases', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host(); const a = await f.join('A'); const b = await f.join('B');
+    host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', m => m.state.phase === 'countdown'); f.app.advance(60);
+    a.peer.send({ type: 'hostAction', action: 'lobby' }); assert.equal((await a.peer.take('error')).code, 'unauthorized'); assert.equal(f.app.game.phase, 'playing');
+    a.peer.send({ type: 'input', seq: 0, left: false, right: false, bomb: true, bombAction: 'press' });
+    a.peer.send({ type: 'input', seq: 1, left: false, right: false, bomb: false, bombAction: 'release' }); await a.peer.flush();
+    const scope = f.app.game.matchId; host.send({ type: 'hostAction', action: 'lobby' }); await host.take('snapshot', m => m.state.phase === 'lobby' && m.matchId !== scope);
+    assert.deepEqual([...f.app.game.players.keys()], [a.joined.playerId, b.joined.playerId]);
+    host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', m => m.state.phase === 'countdown'); f.app.advance(62); assert.equal(f.app.game.bombs.size, 0);
+    const close = once(b.peer.socket, 'close'); b.peer.socket.terminate(); await close; await host.take('snapshot', m => m.state.players.some(p => p.id === b.joined.playerId && !p.connected));
+    host.send({ type: 'hostAction', action: 'lobby' }); await host.take('snapshot', m => m.state.phase === 'lobby' && m.state.players.length === 1);
+    assert.equal(f.app.game.players.has(a.joined.playerId), true);
+  } finally { await f.close(); }
+});
