@@ -162,7 +162,7 @@ export function drawPortalGrace(ctx: CanvasRenderingContext2D, player: GameSnaps
   ctx.restore();
 }
 
-/** Draws the authoritative drunk timer as a restrained amber/purple orbit. */
+/** Bright dizziness feedback; steering itself stays within the bounded sway. */
 export function drawDrunkAura(
   ctx: CanvasRenderingContext2D,
   player: GameSnapshot['players'][number],
@@ -171,22 +171,28 @@ export function drawDrunkAura(
 ): void {
   const remaining = player.drunkUntilTick - tick;
   if (remaining <= 0) return;
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  ctx.rotate(Math.sin(now / 170) * 0.18);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#b75cff'; ctx.shadowColor = '#ff9d20'; ctx.shadowBlur = 6;
-  ctx.beginPath(); ctx.ellipse(0, 0, 23, 16, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = '#ffb32c';
-  for (let index = 0; index < 3; index += 1) {
-    const angle = now / 310 + index * Math.PI * 2 / 3;
-    ctx.fillRect(Math.cos(angle) * 25 - 2, Math.sin(angle) * 18 - 2, 4, 4);
+  ctx.save(); ctx.translate(player.x, player.y - 12);
+  ctx.lineWidth = 3; ctx.strokeStyle = '#d89cff';
+  ctx.beginPath(); ctx.ellipse(0, 0, 34, 20, -.15, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#ffe24f'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(0, 0, 28, 16, .2, now / 200, now / 200 + Math.PI * 1.5); ctx.stroke();
+  for (let index = 0; index < 4; index += 1) {
+    const angle = now / 250 + index * Math.PI / 2;
+    const x = Math.cos(angle) * 36; const y = Math.sin(angle) * 21;
+    ctx.fillStyle = index % 2 ? '#fff4a0' : '#ffb32c';
+    ctx.beginPath();
+    for (let vertex = 0; vertex < 10; vertex += 1) {
+      const a = vertex * Math.PI / 5 - Math.PI / 2;
+      const radius = vertex % 2 ? 3 : 8;
+      const px = x + Math.cos(a) * radius; const py = y + Math.sin(a) * radius;
+      if (vertex === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
   }
   ctx.restore();
-  label(ctx, `WOBBLE ${(remaining / TICK_HZ).toFixed(1)}s`, player.x, player.y + 30, '#d89cff');
+  label(ctx, `DIZZY ${(remaining / TICK_HZ).toFixed(1)}s`, player.x, player.y + 35, '#fff078');
 }
 
-/** Draws a bounded visual aura; it does not modify gameplay geometry or hitboxes. */
 export function drawStarAura(
   ctx: CanvasRenderingContext2D,
   player: GameSnapshot['players'][number],
