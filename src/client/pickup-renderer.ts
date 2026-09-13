@@ -1,3 +1,4 @@
+import { assetUrl } from './asset-url.js';
 import type { GameSnapshot } from '../shared/protocol.js';
 import type { ThemeDefinition } from './themes.js';
 
@@ -14,7 +15,7 @@ function pickupImage(theme: ThemeDefinition, type: PickupType): HTMLImageElement
   image.decoding = 'async';
   image.addEventListener('error', () => imageCache.set(key, null), { once: true });
   image.addEventListener('load', () => imageCache.set(key, image), { once: true });
-  image.src = `/themes/${theme.id}/pickup-${type}.svg`;
+  image.src = assetUrl(`/themes/${theme.id}/pickup-${type}.svg`);
   imageCache.set(key, image);
   return image;
 }

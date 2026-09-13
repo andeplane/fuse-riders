@@ -1,3 +1,4 @@
+import { assetUrl } from './asset-url.js';
 export type ThemeId = 'neon-pixel' | 'clean-neon';
 export type SpriteName = 'rider' | 'bomb' | 'flame';
 
@@ -59,7 +60,7 @@ export async function loadThemeSprites(theme: ThemeDefinition): Promise<ThemeSpr
     await new Promise<void>((resolve, reject) => {
       image.addEventListener('load', () => resolve(), { once: true });
       image.addEventListener('error', () => reject(new Error(`Unable to load ${source}`)), { once: true });
-      image.src = source;
+      image.src = assetUrl(source);
     });
     return [name, image] as const;
   }).map((promise) => promise.catch(() => undefined)));
