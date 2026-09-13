@@ -4,7 +4,7 @@
 
 Fuse Riders is a TypeScript game for 2–5 friends, preserving a LAN TV/phone mode while building online rooms with shared-screen or individual-device play. Priorities are responsive controls, consistent game outcomes, low hosting cost and no always-running simulation server where practical.
 
-Online code is a prototype with known release blockers. Read `README.md`, `docs/online/ROADMAP.md`, the online ADRs in `docs/adr/` (028 onward), and both `docs/reviews/online-*.md` reports before changing its architecture. Distinguish proposed decisions from accepted decisions and review findings from completed fixes. Do not claim robust failover, prediction, permanent deployment or mobile acceptance based on positive-path smoke tests.
+Online code now includes Phaser presentation, AI riders, shared-kernel tick prediction, lease-fenced authority, validated checkpoints and a GCP signalling service. Deployment, sustained network and physical-phone qualification must still be verified. Read `README.md`, `docs/online/ROADMAP.md`, the online ADRs in `docs/adr/` (028 onward), and both `docs/reviews/online-*.md` reports before changing its architecture. Distinguish proposed decisions from accepted decisions and review findings from completed fixes. Do not claim robust failover, prediction, permanent deployment or mobile acceptance based on positive-path smoke tests.
 
 ## Ownership and changes
 
@@ -16,9 +16,11 @@ Online code is a prototype with known release blockers. Read `README.md`, `docs/
 
 ## Architecture boundaries
 
-`src/shared/` owns deterministic simulation and rule types. `src/server/` owns LAN authority. `src/online/` owns the browser-hosted room prototype, replication, prediction and transports. `worker/` owns public room creation/signalling/relay; it currently does not simulate the game. `src/client/` owns rendering, audio and pointer controls reused by both paths.
+`src/shared/` owns deterministic simulation and rule types. `src/server/` owns LAN authority. `src/online/` owns browser-hosted authority, replication, prediction and transports. `src/service/` owns the production-target Cloud Run room gateway with Firestore metadata/leases and Pub/Sub signalling. `worker/` is the local/legacy Cloudflare coordination adapter. Neither backend simulates or relays gameplay: direct WebRTC failure must produce an explicit retry state. `src/client/` owns Phaser presentation, Canvas fallback, audio and pointer controls reused by both paths.
 
-Keep authority explicit: clients can predict presentation, but shared collisions, pickups, scores and outcomes need one consistent authority. A successful transport send means queued data, not application acceptance. Design input/action age, sequence, epoch, acknowledgement, retry and cancellation semantics before changing delivery ordering. Validate data at Worker, RTC, checkpoint and storage boundaries; TypeScript types do not validate runtime input.
+`src/shared/rider-motion.ts` is the shared pure motion kernel. Preserve turn-then-move fixed-step equivalence and applied-tick ledger/snapshot atomicity. `src/shared/bot-controller.ts` emits ordinary authority inputs; bots get no privileged physics. Phaser may render supplied fractional snapshot time but must never run authoritative physics, game timers or an independent competing render loop. See `docs/PHASER.md`, ADRs 029/033/035/036 and `docs/online/PROTOCOL.md`.
+
+Keep authority explicit: clients can predict presentation, but shared collisions, pickups, scores and outcomes need one consistent authority. A successful transport send means queued data, not application acceptance. Design input/action age, sequence, epoch, acknowledgement, retry and cancellation semantics before changing delivery ordering. Validate data at service/Worker, RTC, checkpoint and storage boundaries; TypeScript types do not validate runtime input.
 
 Do not mix clocks or advance simulation from render frames. Prefer a shared pure movement kernel and injected tick/clock dependencies for prediction and authority. Scope state/actions/events to their lifecycle so old packets cannot affect a new room authority, match or round. Restore validated state atomically, leaving healthy state unchanged on rejection. Bound queues, parsers, retained history, resync attempts and resource usage.
 
@@ -48,7 +50,7 @@ Follow `docs/online/ROADMAP.md` and the reviewed ADRs for acceptance budgets. Pr
 
 Run sustained five-player plus display scenarios with latency, jitter, loss/reordering, constrained bandwidth, transport failure, host/guest reconnect and phone lifecycle cases. Current exploratory benchmark JSON is a baseline, not certification. Keep the LAN game available while online changes are qualified. Never run automated participants or disruptive network/restart tests against a user's occupied match.
 
-`npm run deploy` only builds and deploys; it is not a verification command. Test the release artifact in a preview, review compatibility with connected old clients/checkpoints and rollback behavior, then verify the actual destination. Document exact service names, public endpoints, deployment/version evidence, owner status, operational limits and cost assumptions. Temporary Cloudflare previews must stay labeled temporary until claim/ownership/expiry are verified. Do not enable paid services without user authorization.
+`npm run deploy` targets the legacy Cloudflare adapter, not the selected GCP/Pages production path. It only builds and deploys; it is not a verification command. Follow `docs/online/GCP-DEPLOY.md` for the guarded current-CI-head GCP release and Pages artifact flow. Test the release artifact in a preview, review compatibility with connected old clients/checkpoints and rollback behavior, then verify the actual destination. Document exact service names, public endpoints, deployment/version evidence, owner status, operational limits and cost assumptions. Temporary Cloudflare previews must stay labeled temporary until claim/ownership/expiry are verified. Do not enable paid services without user authorization.
 
 ## Documentation and secrets
 
