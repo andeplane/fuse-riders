@@ -69,6 +69,7 @@ export const TRAIL_LIFETIME_TICKS = 160;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
 export const BOMB_FUSE_TICKS = 40;
+export function bombFuseTicks(level = 0): number { return BOMB_FUSE_TICKS - Math.min(2, Math.max(0, level)) * 10; }
 export const BOMB_COOLDOWN_TICKS = 80;
 export const BOMB_BLAST_RANGE = 90;
 export const BLAST_VISIBLE_TICKS = 8;
@@ -105,7 +106,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export type PickupType = 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
+export type PickupType = 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -135,6 +136,7 @@ export interface PlayerState extends Required<PlayerIdentity> {
   bombChargeStartedTick?: number;
   gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean;
   bombTarget?: AimPoint;
+  fuseLevel?: number;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
   drunkUntilTick: number; inkUntilTick: number;
@@ -674,7 +676,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
-      blastLevel: player.blastLevel,
+      fuseLevel: player.fuseLevel ?? 0, blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
@@ -744,7 +746,7 @@ function prepareRound(state: GameState): void {
     player.trail = [];
     player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     player.bombReadyAtTick = state.tick;
-    player.blastLevel = 0;
+    player.fuseLevel = 0; player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
@@ -831,7 +833,9 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     consumed.add(pickup.id);
     events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
     recordPickup(state.matchStats, collector.id, pickup.type);
-    if (pickup.type === 'gun') {
+    if (pickup.type === 'stopwatch') {
+      collector.fuseLevel = Math.min(2, (collector.fuseLevel ?? 0) + 1);
+    } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
     } else if (pickup.type === 'shell') {
       collector.shellArmed = true;
@@ -988,7 +992,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         placedTick: state.tick,
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
-        explodeAtTick: target ? state.tick : state.tick + BOMB_FUSE_TICKS,
+        explodeAtTick: target ? state.tick : state.tick + bombFuseTicks(player.fuseLevel),
         blastRange: (BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE) * (target ? .7 : 1),
         flightPath,
       };

@@ -399,7 +399,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     const drawX = pathStart.x + (pathEnd.x - pathStart.x) * pathMix;
     const drawY = pathStart.y + (pathEnd.y - pathStart.y) * pathMix;
     const pulse = 1 + Math.sin(now / 90) * 0.08;
-    const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / 40, 0, 1);
+    const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / Math.max(1, bomb.explodeAtTick - bomb.launchedTick), 0, 1);
     if (airborne) {
       ctx.save(); ctx.globalAlpha = .36 + flight * .35; ctx.strokeStyle = '#ff73c5'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(bomb.x, bomb.y, 14 + flight * 5, 6 + flight * 2, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
@@ -519,7 +519,8 @@ function startDisplay(): void {
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
   const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = '/themes/neon-pixel/pickup-shell.svg'; shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces for 5s · next shot'));
   const gunLegend = element('span'); const gunImage = element('img'); gunImage.src = '/themes/neon-pixel/pickup-gun.svg'; gunImage.alt = ''; gunLegend.append(gunImage, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend, gunLegend); lobbyCopy.append(pickupLegend);
+  const watchLegend = element('span'); const watchImage = element('img'); watchImage.src = '/themes/neon-pixel/pickup-stopwatch.svg'; watchImage.alt = ''; watchLegend.append(watchImage, element('b', '', 'FUSE'), document.createTextNode(' your bombs: 2s → 1.5s → 1s'));
+  pickupLegend.append(blastLegend, starLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend, gunLegend, watchLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -931,6 +932,7 @@ function startController(): void {
   identity.append(identityMarker, identityCopy, stateBadge);
   const instruction = element('p', 'controller-instruction', 'Waiting for the host to start…');
   const powerStrip = element('div', 'power-strip');
+  const fusePower = element('span', 'power-chip', '⏱ FUSE · 2s');
   const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
   const inkPower = element('span', 'power-chip', 'INK · --');
@@ -939,7 +941,7 @@ function startController(): void {
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
+  powerStrip.append(fusePower, blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
@@ -1018,6 +1020,7 @@ function startController(): void {
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
+    fusePower.textContent = `⏱ FUSE · ${2 - Math.min(2, player.fuseLevel ?? 0) * .5}s`;
     blastPower.textContent = player.blastLevel > 0 ? `BLAST · +${player.blastLevel}` : 'BLAST · BASE';
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';

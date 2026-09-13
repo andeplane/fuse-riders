@@ -20,7 +20,7 @@ test('weighted table gives Five one third Triple probability with deterministic 
 test('Target probability is halved while other pickup ratios are preserved', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const weight = (type: string) => PICKUP_WEIGHTS.find(row => row.type === type)!.weight;
-  assert.ok(Math.abs((weight('target') / total) / (3536 / 28090) - .5) < .001);
+  assert.ok(Math.abs((weight('target') / (total - weight('stopwatch'))) / (3536 / 28090) - .5) < .001);
   assert.equal(weight('triple') / weight('five'), 3);
   assert.equal(weight('blast') / weight('star'), 4);
   assert.ok(Math.abs(weight('triple') / weight('star') - 270 / 78) < 1e-12);

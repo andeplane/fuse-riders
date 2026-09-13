@@ -226,6 +226,9 @@ try {
   assert.equal(app.game.bombs.size, 1); assert.equal([...app.game.bombs.values()][0]!.shell?.gun, true);
   app.advance(4); // Let the projectile separate from the rider for visual inspection.
   await host.screenshot({ path: 'artifacts/gun-projectile.png' }); app.game.bombs.clear();
+  app.game.pickups.push({ id: 9_011, type: 'stopwatch', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('⏱ FUSE · 1.5s', { exact: true }).waitFor();
+  assert.equal(poweredRider.fuseLevel, 1);
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');

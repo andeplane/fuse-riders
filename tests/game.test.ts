@@ -1019,3 +1019,37 @@ test('gun head hit consumes bullet without a blast; walls also consume it', () =
     assert.equal(state.players.get('p1')!.alive, wall);
   }
 });
+
+test('stopwatch caps at two levels, changes only future own bombs and resets next round', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  const owner = state.players.get('p0')!; Object.assign(owner, { x: 400, y: 450, angle: 0, trail: [] });
+  const other = state.players.get('p1')!; Object.assign(other, { x: 1000, y: 700, angle: 0, trail: [] });
+  const deadline = state.tick + 40;
+  state.bombs.set(99, { id: 99, ownerId: owner.id, x: 700, y: 200, launchX: 700, launchY: 200,
+    launchedTick: state.tick, placedTick: state.tick, landsAtTick: state.tick, explodeAtTick: deadline,
+    blastRange: 90, flightPath: fixedFlightPath(700, 200) });
+  for (let level = 1; level <= 3; level++) {
+    state.pickups = [{ id: 100 + level, type: 'stopwatch', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
+    step(state, new Map()); assert.equal(owner.fuseLevel, Math.min(level, 2));
+    assert.equal(state.bombs.get(99)!.explodeAtTick, deadline, 'existing fuse unchanged');
+  }
+  state.bombs.clear(); owner.tripleShotArmed = true;
+  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }], ['p1', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }], ['p1', { bomb: false, bombActions: ['release'] }]));
+  const bombs = [...state.bombs.values()];
+  assert.equal(bombs.filter(bomb => bomb.ownerId === owner.id).length, 3);
+  assert.ok(bombs.filter(bomb => bomb.ownerId === owner.id).every(bomb => bomb.explodeAtTick - bomb.launchedTick === 20));
+  assert.equal(bombs.find(bomb => bomb.ownerId === other.id)!.explodeAtTick - state.tick, 40);
+  assert.equal(toSnapshot(state).players.find(player => player.id === owner.id)!.fuseLevel, 2);
+  eliminatePlayer(state, 'p1'); eliminatePlayer(state, 'p2'); step(state, new Map());
+  state.tick = state.phaseEndsAtTick!; startNextRound(state); assert.equal(owner.fuseLevel, 0);
+});
+
+test('first stopwatch level produces a one-and-a-half second fuse', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  const owner = state.players.get('p0')!; owner.fuseLevel = 1;
+  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  const bomb = [...state.bombs.values()][0]!;
+  assert.equal(bomb.explodeAtTick - bomb.launchedTick, 30);
+});
