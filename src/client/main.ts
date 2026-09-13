@@ -356,8 +356,20 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
   for (const bomb of snapshot.bombs) {
     if (bomb.shell?.gun) {
       ctx.save(); ctx.translate(bomb.x, bomb.y); ctx.rotate(Math.atan2(bomb.shell.vy, bomb.shell.vx));
-      ctx.strokeStyle = '#b9fff8'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-13, 0); ctx.lineTo(4, 0); ctx.stroke();
-      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore(); continue;
+      // Chunky arcade cannon shot, with a readable silhouette at TV distance.
+      for (let puff = 3; puff >= 1; puff--) {
+        ctx.globalAlpha = .32 - puff * .06; ctx.fillStyle = '#c4dce9';
+        ctx.beginPath(); ctx.arc(-22 - puff * 12, Math.sin(now / 110 + puff) * 3, 4 + puff * 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1; ctx.fillStyle = '#121b2d'; ctx.strokeStyle = '#c5fff2'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(-18, -14); ctx.lineTo(2, -14);
+      ctx.bezierCurveTo(24, -14, 24, 14, 2, 14); ctx.lineTo(-18, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#66798b'; ctx.fillRect(-20, -13, 6, 26);
+      ctx.fillStyle = '#90a5b7'; ctx.fillRect(-10, -10, 16, 3);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(2, -5, 8, 9);
+      ctx.fillStyle = '#172233'; ctx.fillRect(7, -3, 3, 6);
+      ctx.strokeStyle = '#07101e'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(11, -4); ctx.stroke();
+      ctx.restore(); continue;
     }
     if (bomb.shell) {
       ctx.save(); ctx.translate(bomb.x, bomb.y); ctx.rotate(now / 100);
