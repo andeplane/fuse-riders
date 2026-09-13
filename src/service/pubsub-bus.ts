@@ -18,7 +18,7 @@ export class PubSubRoomBus implements RoomBus {
     this.stopping=false;const generation=++this.generation;
     const name=`${this.prefix}-${randomUUID()}`;
     const [subscription]=await this.topic.createSubscription(name,{
-      gaxOpts:{timeout:5000,retry:null},
+      gaxOpts:{timeout:15000,retry:null},
       filter:`attributes.destination = "${this.gatewayId}"`,enableMessageOrdering:true,
       expirationPolicy:{ttl:{seconds:86400}},messageRetentionDuration:{seconds:600},
       flowControl:{maxMessages:128,maxBytes:2_000_000,allowExcessMessages:false},

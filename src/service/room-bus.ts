@@ -6,7 +6,7 @@ export interface RoomBus {
   stop():Promise<void>;
 }
 export const BUS_FRAME_MAX_BYTES=40_000;
-export const BUS_FRAME_TTL_MS=2000;
+export const BUS_FRAME_TTL_MS=10_000;
 export function parseRoutedMessage(raw:unknown):RoutedMessage|undefined {
   if(!raw||typeof raw!=='object'||Array.isArray(raw))return;
   const m=raw as Record<string,unknown>;

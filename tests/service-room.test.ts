@@ -96,7 +96,7 @@ test('expired and duplicate bus packets never repeat SDP; old replacement source
   const f=fixture(),{hostConnection,guestConnection,guest}=await joined(f);f.aBus.delayed=true;
   await f.a.receive(hostConnection,signal(peerId(GUEST),guestConnection));const packet=f.aBus.published[0];
   await f.b.deliver(packet);await f.b.deliver(packet);assert.equal(guest.frames('signal').length,1);
-  await f.a.receive(hostConnection,signal(peerId(GUEST),guestConnection));f.advance(2001);await f.aBus.flush();assert.equal(guest.frames('signal').length,1);
+  await f.a.receive(hostConnection,signal(peerId(GUEST),guestConnection));f.advance(10_001);await f.aBus.flush();assert.equal(guest.frames('signal').length,1);
   const newHost=new Socket();await f.a.connect(CODE,HOST,newHost);await f.b.deliver({...packet,id:'old-source',expiresAt:100_000});assert.equal(guest.frames('signal').length,1);
 });
 
