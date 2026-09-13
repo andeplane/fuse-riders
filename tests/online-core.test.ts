@@ -41,7 +41,7 @@ test('world deltas reconstruct split, removed and appended trails and recover vi
 });
 
 test('fresh encoder after reconnection replaces old stream without accepting retired frames',()=>{
-  const room=session();const a=new WorldEncoder(),b=new WorldEncoder(),decoder=new WorldDecoder();
+  const room=session();const a=new WorldEncoder(1),b=new WorldEncoder(2),decoder=new WorldDecoder();
   const first=a.encode(room.snapshot(),'m',1,1,true);decoder.accept(first);decoder.accept(a.encode(room.snapshot(),'m',1,2));
   assert.ok(decoder.accept(b.encode(room.snapshot(),'m',1,3,true)));
   assert.equal(decoder.accept(first),undefined);
@@ -65,4 +65,30 @@ test('field patches update joins and clear optional charge state without repeati
   const update=encoder.encode(room.snapshot(),'m',1,3);
   assert.equal(JSON.stringify(update).includes('New guest'),false);
   assert.deepEqual(wire(update),JSON.parse(JSON.stringify(room.snapshot())));
+});
+
+test('delayed unseen old keyframe cannot roll a newer generation backward',()=>{
+  const room=session(),old=new WorldEncoder(1),current=new WorldEncoder(2),decoder=new WorldDecoder();
+  const late=old.encode(room.snapshot(),'m',1,60,true);
+  assert.equal(decoder.decode(current.encode(room.snapshot(),'m',1,62,true)).status,'accepted');
+  assert.equal(decoder.decode(late).status,'stale');
+  assert.equal(decoder.decode(current.encode(room.snapshot(),'m',1,64)).status,'accepted');
+});
+
+test('invalid higher generation and corrupt trail patches cannot mutate accepted baseline',()=>{
+  const room=session();room.command('host',{type:'join',name:'Host'});
+  const a=new WorldEncoder(1),b=new WorldEncoder(2),decoder=new WorldDecoder();
+  assert.ok(decoder.accept(a.encode(room.snapshot(),'m',1,1,true)));
+  const corrupt=b.encode(room.snapshot(),'m',1,2,true);
+  assert.equal(decoder.decode({...corrupt,state:{...room.snapshot(),players:[]},trails:[{player:'missing',add:[],remove:[]}]}).status,'invalid');
+  const next=a.encode(room.snapshot(),'m',1,3);
+  assert.deepEqual(decoder.accept(next),room.snapshot());
+  assert.equal(decoder.decode({...next,seq:next.seq+1,base:next.seq,trails:[{player:'host',add:[[1,0,0,0,0,4,2]],remove:[]}]}).status,'invalid');
+  assert.deepEqual(decoder.accept(a.encode(room.snapshot(),'m',1,4)),room.snapshot());
+});
+
+test('online return to lobby preserves transport simulation time',()=>{
+  const room=session();for(let i=0;i<10;i++)room.advance();
+  room.command('host',{type:'action',action:'lobby'});
+  assert.equal(room.game.tick,10);room.advance();assert.equal(room.game.tick,11);
 });

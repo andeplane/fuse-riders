@@ -1,9 +1,10 @@
+import { isGameSnapshot } from './checkpoint.js';
 import type { GameSnapshot, TrailSegment } from '../shared/protocol.js';
 type TrailTuple=[number,number,number,number,number,number,number];
 interface Patch { set:Record<string,unknown>;unset:string[] }
 interface WorldChanges { root:Patch;players:{id:string;patch:Patch}[];removed:string[] }
 export interface WorldFrame {
-  stream:string;seq:number;base:number;tick:number;round:number;matchId:string;
+  generation:number;stream:string;seq:number;base:number;tick:number;round:number;matchId:string;
   state?:GameSnapshot;changes?:WorldChanges;
   trails:{player:string;add:TrailTuple[];remove:number[]}[];
 }
@@ -21,6 +22,7 @@ function apply<T extends object>(before:T,patch:Patch):T {
 }
 /** Stable segment IDs and field patches avoid resending unchanged player metadata. */
 export class WorldEncoder {
+  constructor(readonly generation=1){if(!Number.isSafeInteger(generation)||generation<1)throw new Error('Invalid world generation');}
   private seq=0;
   private readonly stream=crypto.randomUUID();
   private nextId=1;
@@ -41,7 +43,7 @@ export class WorldEncoder {
     }).filter(change=>change.add.length||change.remove.length);
     for(const id of this.previous.keys())if(!state.players.some(player=>player.id===id))this.previous.delete(id);
     const compact={...state,players:state.players.map(player=>({...player,trail:[]}))};
-    const frame:WorldFrame={stream:this.stream,seq:++this.seq,base,tick,round,matchId,trails};
+    const frame:WorldFrame={generation:this.generation,stream:this.stream,seq:++this.seq,base,tick,round,matchId,trails};
     if(keyframe)frame.state=compact;
     else {
       const {players:oldPlayers,...oldRoot}=this.previousState!;
@@ -51,30 +53,51 @@ export class WorldEncoder {
     this.previousState=compact;return frame;
   }
 }
+export type DecodeResult = {status:'accepted';state:GameSnapshot}|{status:'stale'|'needsBaseline'|'invalid'};
 export class WorldDecoder {
-  private stream='';private retired=new Set<string>();private seq=0;
+  private generation=0;private stream='';private seq=0;private tick=-1;
   private state?:GameSnapshot;
   private trails=new Map<string,Map<number,TrailSegment>>();
-  accept(frame:WorldFrame):GameSnapshot|undefined {
-    if(frame.stream!==this.stream){if(frame.base!==0||this.retired.has(frame.stream))return;if(this.stream)this.retired.add(this.stream);this.stream=frame.stream;this.seq=0;}
-    if(frame.seq<=this.seq||(frame.base!==0&&frame.base!==this.seq))return;
-    if(frame.base===0){if(!frame.state)return;this.trails.clear();this.state=frame.state;}
-    else {
-      if(!this.state||!frame.changes)return;
-      const changes=frame.changes;const next=apply(this.state,changes.root);
-      const players=this.state.players.filter(player=>!changes.removed.includes(player.id)).map(player=>({...player}));
-      for(const {id,patch} of changes.players){const index=players.findIndex(player=>player.id===id);if(index>=0)players[index]=apply(players[index]!,patch);else players.push(patch.set as unknown as GameSnapshot['players'][number]);}
-      next.players=players.sort((a,b)=>a.slot-b.slot);this.state=next;
-    }
-    for(const change of frame.trails){
-      const trail=this.trails.get(change.player)??new Map<number,TrailSegment>();
-      for(const id of change.remove)trail.delete(id);
-      for(const [id,x1,y1,x2,y2,createdTick,expiresAtTick] of change.add)trail.set(id,{x1,y1,x2,y2,createdTick,expiresAtTick});
-      this.trails.set(change.player,trail);
-    }
-    for(const id of this.trails.keys())if(!this.state.players.some(player=>player.id===id))this.trails.delete(id);
-    this.seq=frame.seq;
-    return {...this.state,players:this.state.players.map(player=>({...player,trail:[...(this.trails.get(player.id)?.values()??[])]}))};
+  accept(frame:WorldFrame):GameSnapshot|undefined {const result=this.decode(frame);return result.status==='accepted'?result.state:undefined;}
+  decode(frame:WorldFrame):DecodeResult {
+    try {
+      if(!frame||![frame.generation,frame.seq,frame.base,frame.tick,frame.round].every(n=>Number.isSafeInteger(n)&&n>=0)||frame.generation<1||frame.seq<1||typeof frame.stream!=='string'||frame.stream.length>128||typeof frame.matchId!=='string'||frame.matchId.length>128)return {status:'invalid'};
+      if(frame.generation<this.generation||frame.tick<this.tick||(frame.generation===this.generation&&frame.seq<=this.seq))return {status:'stale'};
+      if(frame.generation===this.generation&&frame.stream!==this.stream)return {status:'invalid'};
+      if(frame.base!==0&&(frame.generation!==this.generation||frame.base!==this.seq))return {status:'needsBaseline'};
+      if(!Array.isArray(frame.trails)||frame.trails.length>5)return {status:'invalid'};
+      let state:GameSnapshot;
+      const trails=frame.base===0?new Map<string,Map<number,TrailSegment>>():new Map([...this.trails].map(([id,trail])=>[id,new Map(trail)]));
+      if(frame.base===0){if(!frame.state||!isGameSnapshot(frame.state))return {status:'invalid'};state=structuredClone(frame.state);}
+      else {
+        if(!this.state||!frame.changes)return {status:'invalid'};
+        const changes=frame.changes;
+        if(!Array.isArray(changes.players)||changes.players.length>5||!Array.isArray(changes.removed)||changes.removed.length>5)return {status:'invalid'};
+        state=apply(this.state,changes.root);
+        const players=this.state.players.filter(player=>!changes.removed.includes(player.id)).map(player=>({...player}));
+        for(const {id,patch} of changes.players){const index=players.findIndex(player=>player.id===id);if(index>=0)players[index]=apply(players[index]!,patch);else players.push(patch.set as unknown as GameSnapshot['players'][number]);}
+        state.players=players.sort((a,b)=>a.slot-b.slot);
+      }
+      const changed=new Set<string>();
+      for(const change of frame.trails){
+        if(changed.has(change.player)||!state.players.some(p=>p.id===change.player)||!Array.isArray(change.add)||change.add.length>1024||!Array.isArray(change.remove)||change.remove.length>1024)return {status:'invalid'};
+        changed.add(change.player);
+        const trail=trails.get(change.player)??new Map<number,TrailSegment>();
+        for(const id of change.remove){if(!Number.isSafeInteger(id)||id<1)return {status:'invalid'};trail.delete(id);}
+        for(const tuple of change.add){
+          if(!Array.isArray(tuple)||tuple.length!==7||!tuple.every(Number.isFinite))return {status:'invalid'};
+          const [id,x1,y1,x2,y2,createdTick,expiresAtTick]=tuple;
+          if(!Number.isSafeInteger(id)||id<1||trail.has(id))return {status:'invalid'};
+          trail.set(id,{x1,y1,x2,y2,createdTick,expiresAtTick});
+        }
+        if(trail.size>1024)return {status:'invalid'};trails.set(change.player,trail);
+      }
+      for(const id of trails.keys())if(!state.players.some(player=>player.id===id))trails.delete(id);
+      const candidate={...state,players:state.players.map(player=>({...player,trail:[...(trails.get(player.id)?.values()??[])]}))};
+      if(!isGameSnapshot(candidate))return {status:'invalid'};
+      this.generation=frame.generation;this.stream=frame.stream;this.seq=frame.seq;this.tick=frame.tick;this.state=state;this.trails=trails;
+      return {status:'accepted',state:candidate};
+    }catch{return {status:'invalid'};}
   }
-  reset():void{this.seq=0;this.stream='';this.retired.clear();this.trails.clear();this.state=undefined;}
+  reset():void{this.generation=0;this.seq=0;this.stream='';this.tick=-1;this.trails.clear();this.state=undefined;}
 }

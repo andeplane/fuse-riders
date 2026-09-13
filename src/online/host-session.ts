@@ -41,7 +41,7 @@ export class HostSession {
     if(command.type==='action') {
       if(peerId!==this.hostId)return 'Only the host can manage the room';
       try {
-        if(command.action==='lobby')returnToLobby(this.game,this.dependencies.token());
+        if(command.action==='lobby'){const tick=this.game.tick;returnToLobby(this.game,this.dependencies.token());this.game.tick=tick;}
         else if(command.action==='start'){this.game.settings=this.settings;startMatch(this.game);}
         else if(command.action==='rematch'){this.game.settings=this.settings;resetMatch(this.game,this.dependencies.token());}
         else return 'Unknown action';

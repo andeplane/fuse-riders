@@ -9,6 +9,8 @@ export class RoomRuntime {
   private session?:HostSession;
   private peers=new Set<string>();
   private encoders=new Map<string,WorldEncoder>();
+  private generations=new Map<string,number>();
+  private lastResync=0;
   private decoder=new WorldDecoder();
   private lastState=performance.now();
   private interval?:ReturnType<typeof setInterval>;
@@ -48,8 +50,9 @@ export class RoomRuntime {
     }
     if(id!==this.transport.hostId)return;
     if(data.type==='world'&&data.frame&&data.settings){
-      const snapshot=this.decoder.accept(data.frame);
-      if(!snapshot){this.transport.send(id,{type:'resync'});return;}
+      const result=this.decoder.decode(data.frame);
+      if(result.status!=='accepted'){if((result.status==='needsBaseline'||result.status==='invalid')&&performance.now()-this.lastResync>=500){this.lastResync=performance.now();this.transport.send(id,{type:'resync'});}return;}
+      const snapshot=result.state;
       this.lastState=performance.now();
     this.callbacks.state({...snapshot,tick:data.frame.tick,round:data.frame.round},data.settings,data.ack?.[this.transport.id]??-1,data.frame.matchId);
       if(data.paused)this.callbacks.status('Paused — host is in the background');
@@ -87,7 +90,7 @@ export class RoomRuntime {
     if(game.tick%20===0||paused)try{localStorage.setItem(`fuse-checkpoint-${this.code}`,session.checkpoint());}catch{}
     this.callbacks.state({...snapshot,tick:game.tick,round:game.round},session.settings,ack[this.transport.id]??-1,game.matchId);
     for(const id of this.peers){
-      let encoder=this.encoders.get(id);const fresh=!encoder;if(!encoder){encoder=new WorldEncoder();this.encoders.set(id,encoder);}
+      let encoder=this.encoders.get(id);const fresh=!encoder;if(!encoder){const generation=(this.generations.get(id)??0)+1;this.generations.set(id,generation);encoder=new WorldEncoder(generation);this.encoders.set(id,encoder);}
       const frame=encoder.encode(snapshot,game.matchId,game.round,game.tick,fresh||game.tick%300===0);
       if(!this.transport.send(id,{type:'world',frame,settings:session.settings,ack,paused}))this.encoders.delete(id);
     }

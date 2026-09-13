@@ -1,3 +1,4 @@
+import type { GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
@@ -25,29 +26,32 @@ const map = (keyGuard: Guard, valueGuard: Guard, max: number): Guard => v => v i
 const position = range(-1000, ARENA_WIDTH + 1000);
 const aim = shape({ x: range(0, 1), y: range(0, 1) });
 const trail: Guard = v => shape({ x1: position, y1: position, x2: position, y2: position, createdTick: integer, expiresAtTick: integer })(v) && record(v) && (v.expiresAtTick as number) > (v.createdTick as number);
-const player = shape({
+const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
   bombTarget: optional(aim), fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
   drunkStartedTick: integer, drunkHeadingOffset: range(-Math.PI, Math.PI), tripleShotArmed: boolean, fiveShotArmed: boolean,
   shielded: boolean, shieldGraceUntilTick: integer, portalCooldownUntilTick: integer, portalGraceUntilTick: integer, trail: array(trail, MAX_CHECKPOINT_TRAILS),
-} satisfies Record<keyof PlayerState, Guard>);
-const bomb = shape({
+} satisfies Record<keyof PlayerState, Guard>;
+const player = shape(playerFields);
+const bombFields = {
   id: integer, ownerId: text, launchX: position, launchY: position, x: position, y: position,
   launchedTick: integer, landsAtTick: integer, placedTick: integer, explodeAtTick: integer, blastRange: range(0, 1000),
   flightPath: array(shape({ x: position, y: position, angle: number }), 32),
   shell: optional(shape({ vx: range(-1000, 1000), vy: range(-1000, 1000), gun: optional(boolean) })),
-} satisfies Record<keyof BombState, Guard>);
+} satisfies Record<keyof BombState, Guard>;
+const bomb = shape(bombFields);
 const blast = shape({ bombId: integer, ownerId: text, circle: shape({ x: position, y: position, radius: range(0, 1000) }), expiresAtTick: integer } satisfies Record<keyof BlastState, Guard>);
 const pickup = shape({ id: integer, type: v => typeof v === 'string' && ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal'].includes(v), x: position, y: position, expiresAtTick: integer } satisfies Record<keyof PickupState, Guard>);
-const stats = shape({
+const statsFields = {
   playerId: text, name, slot: count(4), color: text, roundsPlayed: integer, roundWins: integer, roundsDrawn: integer,
   survivalTicks: integer, longestSurvivalTicks: integer, distanceUnits: range(0, Number.MAX_SAFE_INTEGER), bombsPlaced: integer, bombsExploded: integer, eliminations: integer,
   deathsByCause: shape({ wall: integer, trail: integer, explosion: integer, rider: integer }), pickupsCollected: integer,
   blastPickups: integer, starPickups: integer, beerPickups: integer, inkPickups: integer, triplePickups: integer, fivePickups: integer, targetPickups: integer,
   shieldPickups: integer, portalPickups: integer, portalTransits: integer, invulnerableTicks: integer, wallBounces: integer, earlyExits: integer, currentRoundSurvivalTicks: integer,
-} satisfies Record<keyof MatchPlayerStatsState, Guard>);
+} satisfies Record<keyof MatchPlayerStatsState, Guard>;
+const stats = shape(statsFields);
 const settings: Guard = v => parseRoomSettings(v) !== undefined;
 const gameShape = shape({
   settings, matchId: text, round: v => integer(v) && (v as number) > 0, tick: integer,
@@ -135,4 +139,30 @@ export function decodeCheckpoint(raw: string, host: string): RestoredCheckpoint 
     for (const player of game.players.values()) { player.connected = false; player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
     return { game, settings: parseRoomSettings(data.settings)!, sequences };
   } catch { return; }
+}
+
+/** The wire snapshot shares physics validation with checkpoints, without server-only fields. */
+const { drunkStartedTick: _drunkStart, drunkHeadingOffset: _drunkOffset, ...wirePlayerFields } = playerFields;
+const { placedTick: _placed, ...wireBombFields } = bombFields;
+const { currentRoundSurvivalTicks: _currentSurvival, ...wireStatsFields } = statsFields;
+const snapshotShape = shape({
+  phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v),
+  phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
+  width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),
+  players: array(shape({...wirePlayerFields, waitingForNextRound: optional(boolean)}), 5),
+  bombs: array(shape(wireBombFields), 256),
+  blasts: array(shape({bombId:integer,circle:shape({x:position,y:position,radius:range(0,1000)}),expiresAtTick:integer}),256),
+  pickups: array(pickup,6),
+  portalPair: optional(shape({id:text,gates:v=>Array.isArray(v)&&v.length===2&&v.every(shape({x:position,y:position,halfLength:range(.001,150)})),expiresAtTick:integer})),
+  leaderboard: array(shape({id:text,name,totalScoreUnits:integer,roundsPlayed:integer,roundWins:integer,matchWins:integer}),MAX_HISTORY),
+  roundPlacements: array(shape({playerId:text,name,place:range(1,5),scoreUnits:integer}),5),
+  matchStats: array(shape({...wireStatsFields,matchPlacement:integer} satisfies Record<keyof MatchPlayerStats,Guard>),MAX_HISTORY),
+  roundWinnerId:optional(text),matchWinnerId:optional(text),
+} satisfies Record<keyof GameSnapshot, Guard>);
+export function isGameSnapshot(value: unknown): value is GameSnapshot {
+  if (!snapshotShape(value)) return false;
+  const snapshot = value as GameSnapshot;
+  return new Set(snapshot.players.map(p=>p.id)).size===snapshot.players.length
+    && new Set(snapshot.players.map(p=>p.slot)).size===snapshot.players.length
+    && new Set(snapshot.bombs.map(b=>b.id)).size===snapshot.bombs.length;
 }
