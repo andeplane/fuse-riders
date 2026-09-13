@@ -35,6 +35,15 @@ try{
    results.push({backend:active.renderer,objects:active.objects,particles:active.particles,contextRestored:restored});
    arena.destroy();arena.destroy();canvas.remove();
   }
+  const {mountArenaPresentation}=await import(String('/src/client/phaser/presentation.ts')) as typeof import('../src/client/phaser/presentation.js');
+  let fallbackCanvas=document.createElement('canvas');fallbackCanvas.width=1600;fallbackCanvas.height=900;document.body.append(fallbackCanvas);
+  const presentation=mountArenaPresentation(fallbackCanvas,ctx=>{ctx.fillStyle='#00ff00';ctx.fillRect(0,0,1600,900);},replacement=>{fallbackCanvas=replacement;});
+  let raf=0;const render=()=>{presentation.render(visualFixture(40),performance.now(),themes['neon-pixel'],{},'fallback-test');raf=requestAnimationFrame(render);};render();
+  const until=async(predicate:()=>boolean)=>{const end=performance.now()+6000;while(!predicate()){if(performance.now()>end)throw Error('Presentation recovery timed out');await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}};
+  await until(()=>fallbackCanvas.dataset.renderer==='phaser-webgl');
+  const extension=fallbackCanvas.getContext('webgl')!.getExtension('WEBGL_lose_context');
+  if(extension){extension.loseContext();await until(()=>fallbackCanvas.dataset.renderer==='canvas-fallback');const pixel=fallbackCanvas.getContext('2d')!.getImageData(20,20,1,1).data;if(pixel[1]!==255||fallbackCanvas.style.opacity!=='1')throw Error('Fallback did not repaint visibly');}
+  cancelAnimationFrame(raf);presentation.destroy();fallbackCanvas.remove();
   return results;
  });
  assert.deepEqual(errors,[]);console.log(JSON.stringify({result,errors},null,2));

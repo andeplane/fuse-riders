@@ -8,15 +8,16 @@ export function mountArenaPresentation(initialCanvas: HTMLCanvasElement, legacyD
   render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, scope: string): void;
   destroy(): void;
 } {
-  let canvas=initialCanvas; let engine:PhaserArena|undefined; let context:CanvasRenderingContext2D|null=null; let disposed=false;let metricsAt=0;let restoreTimer:ReturnType<typeof setTimeout>|undefined;
+  let canvas=initialCanvas; let engine:PhaserArena|undefined; let context:CanvasRenderingContext2D|null=null; let disposed=false;let initialized=false;let metricsAt=0;let restoreTimer:ReturnType<typeof setTimeout>|undefined;
   const status=document.createElement('output');status.setAttribute('aria-live','polite');status.style.cssText='display:none;position:fixed;bottom:12px;left:12px;z-index:1000;padding:10px;background:#08152b;color:#ffe680;font:14px monospace';
   const legacy=new URLSearchParams(location.search).get('renderer')==='canvas';
   const fallback=()=>{
     clearTimeout(restoreTimer);status.style.display='none';engine?.destroy();engine=undefined;
     const replacement=canvas.cloneNode(false) as HTMLCanvasElement;
     canvas.replaceWith(replacement);canvas=replacement;replaced(canvas);
-    context=canvas.getContext('2d');canvas.dataset.renderer='canvas-fallback';
+    context=canvas.getContext('2d');canvas.dataset.renderer='canvas-fallback';canvas.dataset.rendererStatus='fallback';canvas.style.opacity='1';canvas.title='';
   };
+  const initialize=()=>{if(initialized||disposed)return;initialized=true;
   if(legacy){context=canvas.getContext('2d');canvas.dataset.renderer='canvas';}
   else void import('./arena.js').then(async module=>{
     if(disposed)return;
@@ -25,9 +26,10 @@ export function mountArenaPresentation(initialCanvas: HTMLCanvasElement, legacyD
     try { await Promise.race([engine.ready,new Promise<never>((_,reject)=>{timeout=setTimeout(()=>reject(new Error('Renderer startup timed out')),10000);})]); } finally { clearTimeout(timeout); }
     canvas.dataset.renderer=`phaser-${engine.metrics().renderer}`;
   }).catch(()=>{if(!disposed)fallback();});
+  };
   return {
     render(snapshot,now,theme,sprites,scope){
-      if(disposed)return;
+      if(disposed)return;initialize();
       if(engine){engine.render(snapshot,now,theme,scope);if(now-metricsAt>500){canvas.dataset.rendererMetrics=JSON.stringify(engine.metrics());metricsAt=now;}}
       else if(context){
         if(canvas.width!==snapshot.width||canvas.height!==snapshot.height){canvas.width=snapshot.width;canvas.height=snapshot.height;}

@@ -20,3 +20,14 @@ test('bomb flight sprite follows segmented path while damage radius stays at lan
  assert.deepEqual(bombPose(bomb,20),{x:100,y:100,flight:1});
  assert.equal(bomb.x,100); assert.equal(bomb.blastRange,90);
 });
+test('death transitions occur once and backward presentation resets cosmetic history',()=>{
+ const effects=new EffectTransitions(); const s=frame();const live={...s,players:s.players.map(p=>({...p,alive:true}))};
+ effects.accept(live,'room:a');const dead={...s,players:s.players.map(p=>({...p,alive:false}))};
+ assert.equal(effects.accept(dead,'room:a').deaths.length,1);assert.equal(effects.accept(dead,'room:a').deaths.length,0);
+ effects.accept(live,'room:a');assert.equal(effects.accept({...dead,tick:0},'room:a').deaths.length,0);
+});
+test('flight fallback clamps before launch and shells never use bomb arcs',()=>{
+ const bomb={id:1,ownerId:'p',launchX:10,launchY:20,x:100,y:100,launchedTick:5,landsAtTick:15,explodeAtTick:50,blastRange:90,flightPath:[]};
+ assert.deepEqual(bombPose(bomb,0),{x:10,y:20,flight:0});assert.deepEqual(bombPose(bomb,10),{x:55,y:60,flight:.5});
+ assert.deepEqual(bombPose({...bomb,shell:{vx:20,vy:30}},10),{x:100,y:100,flight:.5});
+});

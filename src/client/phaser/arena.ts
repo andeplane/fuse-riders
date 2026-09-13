@@ -61,7 +61,7 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
       game.destroy(false); // caller owns the DOM node
       if (game.isBooted) game.step(0, 0); // flush Phaser's deferred destruction without another RAF
     },
-    metrics: () => ({ renderer: game.renderer?.type === Phaser.WEBGL ? 'webgl' : 'canvas', objects: scene.children?.length ?? 0, particles: scene.particleCount(), renderMs, automaticLoopRunning: game.loop.running }),
+    metrics: () => ({ renderer: game.renderer?.type === Phaser.WEBGL ? 'webgl' : 'canvas', objects: scene.objectCount(), particles: scene.particleCount(), renderMs, automaticLoopRunning: game.loop.running }),
   };
 }
 
@@ -71,7 +71,7 @@ class ArenaScene extends Phaser.Scene {
   private dynamic!: Phaser.GameObjects.Graphics;
   private front!: Phaser.GameObjects.Graphics;
   private sparks!: Phaser.GameObjects.Particles.ParticleEmitter;
-  private worldMask!: Phaser.Display.Masks.GeometryMask;
+  private world!: Phaser.GameObjects.Layer;
   private maskShape!: Phaser.GameObjects.Graphics;
   private ink!: Phaser.Textures.CanvasTexture;
   private inkImage!: Phaser.GameObjects.Image;
@@ -111,27 +111,31 @@ class ArenaScene extends Phaser.Scene {
     this.dynamic = this.add.graphics().setDepth(2);
     this.front = this.add.graphics().setDepth(5);
     this.maskShape = this.make.graphics({ x: 0, y: 0 });
-    const mask = this.maskShape.createGeometryMask(); this.worldMask = mask; this.trails.setMask(mask); this.dynamic.setMask(mask);
-    this.sparks = this.add.particles(0,0,'spark', { emitting: false, lifespan: { min: 180, max: 650 }, speed: { min: 50, max: 260 }, scale: { start: 1.7, end: 0 }, alpha: { start: 1, end: 0 }, rotate: { min: 0, max: 90 }, blendMode: 'ADD', maxParticles: this.particleLimit + 1, maxAliveParticles: this.particleLimit }).setDepth(4).setMask(mask);
+    const mask = this.maskShape.createGeometryMask();
+    this.world = this.add.layer([this.trails,this.dynamic,this.front]).setDepth(1).setMask(mask);
+    this.sparks = this.add.particles(0,0,'spark', { emitting: false, lifespan: { min: 180, max: 650 }, speed: { min: 100, max: 420 }, scale: { start: 1.7, end: 0 }, alpha: { start: 1, end: 0 }, rotate: { min: 0, max: 90 }, blendMode: 'ADD', maxParticles: this.particleLimit + 1, maxAliveParticles: this.particleLimit }).setDepth(4);
+    this.world.add(this.sparks);
     // Phaser atLimit counts dead + alive; reserve below maxParticles while maxAlive is the hard rendering cap.
     this.sparks.reserve(this.particleLimit);
     this.ink = this.textures.createCanvas('ink-overlay',1600,900)!;
-    this.inkImage = this.add.image(0,0,'ink-overlay').setOrigin(0).setDepth(6).setVisible(false).setMask(mask);
+    this.inkImage = this.add.image(0,0,'ink-overlay').setOrigin(0).setDepth(6).setVisible(false);
+    this.world.add(this.inkImage);
     this.loaded();
   }
   resetEffects(): void { this.transitions.reset(); this.sparks?.killAll(); }
   invalidate(): void { this.trailKey = ''; this.floorKey = ''; }
+  objectCount(): number { return (this.children?.length ?? 0) + (this.world?.length ?? 0); }
   particleCount(): number { return this.sparks?.getAliveParticleCount() ?? 0; }
   private sprite(texture: string, x: number, y: number, size: number, rotation = 0, frame?: string): Phaser.GameObjects.Image {
     let image = this.images[this.imageIndex++];
-    if (!image) { image = this.add.image(0,0,'spark').setDepth(3); this.images.push(image); }
+    if (!image) { image = this.add.image(0,0,'spark').setDepth(3); this.images.push(image); this.world.add(image); }
     const fallback=texture.replace(/^clean-neon:/,'neon-pixel:');
     const key = this.textures.exists(texture) ? texture : this.textures.exists(fallback) ? fallback : 'spark';
-    return image.setMask(this.worldMask).setDepth(3).setBlendMode(Phaser.BlendModes.NORMAL).setVisible(true).setTexture(key, frame).setPosition(x,y).setDisplaySize(size,size).setRotation(rotation).setAlpha(1).clearTint();
+    return image.setDepth(3).setBlendMode(Phaser.BlendModes.NORMAL).setVisible(true).setTexture(key, frame).setPosition(x,y).setDisplaySize(size,size).setRotation(rotation).setAlpha(1).clearTint();
   }
   private label(text: string, x: number, y: number, tint: string, size = 11, depth = 5): void {
     let label = this.labels[this.labelIndex++];
-    if (!label) { label = this.add.text(0,0,'',{ fontFamily: 'monospace', fontSize: size, fontStyle: 'bold', stroke: '#020715', strokeThickness: 3 }).setOrigin(.5).setDepth(7); this.labels.push(label); }
+    if (!label) { label = this.add.text(0,0,'',{ fontFamily: 'monospace', fontSize: size, fontStyle: 'bold', stroke: '#020715', strokeThickness: 3 }).setOrigin(.5).setDepth(7); this.labels.push(label); this.world.add(label); }
     if (label.text !== text) label.setText(text);
     label.setDepth(depth).setVisible(true).setPosition(x,y);
     if(label.style.color!==tint)label.setColor(tint);
@@ -170,7 +174,7 @@ class ArenaScene extends Phaser.Scene {
       }
     }
     const events = this.transitions.accept(s,matchId);
-    for(const blast of events.explosions) { this.sparks.setParticleTint([0xffffff,0xffed8d,0xff9a22,0xff397e]); this.sparks.explode(Math.min(80,Math.round(blast.circle.radius*.5)),blast.circle.x,blast.circle.y); }
+    for(const blast of events.explosions) { this.sparks.setParticleTint([0xffffff,0xffed8d,0xff9a22,0xff397e]); for(let ray=0;ray<8;ray++){const a=ray*Math.PI/4;this.sparks.explode(Math.min(10,Math.ceil(blast.circle.radius/16)),blast.circle.x+Math.cos(a)*blast.circle.radius*.72,blast.circle.y+Math.sin(a)*blast.circle.radius*.72);} }
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(45,p.x,p.y); }
     for(const p of s.pickups) {
       const pulse=1+Math.sin(now/210+p.id)*.06;
@@ -236,6 +240,7 @@ class ArenaScene extends Phaser.Scene {
     while(this.labels.length>this.labelIndex+8) this.labels.pop()!.destroy();
     for(let i=this.imageIndex;i<this.images.length;i++) this.images[i]!.setVisible(false);
     for(let i=this.labelIndex;i<this.labels.length;i++) this.labels[i]!.setVisible(false);
+    this.world.depthSort();
   }
   private brick(x:number,y:number,w:number,h:number,tint:number): void {
     this.floor.fillStyle(tint).fillRect(x-w/2,y-h/2,w,h).lineStyle(1,0xb6a7ff,.65).strokeRect(x-w/2,y-h/2,w,h).fillStyle(0xffffff,.15).fillRect(x-w/2+2,y-h/2+2,w-4,2);
