@@ -317,7 +317,7 @@ function drawSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: n
   ctx.restore();
 }
 
-function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites): void {
+export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites): void {
   const { width, height } = snapshot;
   ctx.clearRect(0, 0, width, height);
   ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
@@ -1145,4 +1145,5 @@ function startController(): void {
 }
 
 if (location.pathname.startsWith('/controller')) startController();
-else startDisplay();
+else if (location.pathname.startsWith('/display')) startDisplay();
+else void import('../online/ui.js').then(module => module.startOnline());

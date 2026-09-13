@@ -1,0 +1,106 @@
+import { ControllerInputState } from '../client/controller-state.js';
+import { ControllerPointerBindings } from '../client/controller-pointers.js';
+import { LocalPrediction, interpolateWorld } from './prediction.js';
+import { renderedSnapshot, type SnapshotFrame } from '../client/render-snapshot.js';
+import { drawArena } from '../client/main.js';
+import { createAvatarPicker } from '../client/avatar-heads.js';
+import { defaultTheme, loadThemeSprites } from '../client/themes.js';
+import { createGameAudio } from '../client/game-audio.js';
+import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
+import type { PickupType } from '../shared/game.js';
+import type { ViewSnapshot } from '../client/snapshot-stream.js';
+import { RoomRuntime } from './runtime.js';
+import type { AvatarId } from '../shared/avatars.js';
+import QRCode from 'qrcode';
+import './online.css';
+const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
+const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
+const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
+const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
+const secret=()=>crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
+export async function startOnline():Promise<void>{
+  const app=document.querySelector<HTMLElement>('#app')!;app.className='online-app';
+  const url=new URL(location.href);const code=url.searchParams.get('room')?.toUpperCase();
+  if(!code){
+    const card=node('main','','online-home');card.append(node('h1','FUSE RIDERS'),node('p','Five riders. One arena. Anywhere.'));
+    const mode=node('select');for(const [value,label] of [['devices','Everyone plays on their device'],['shared','We share a TV / big screen']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=loadRoomSettings(localStorage).mode;
+    const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
+    const error=node('p');
+    create.onclick=async()=>{create.disabled=true;try{const response=await fetch('/api/rooms',{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=mode.value as RoomSettings['mode'];save(SETTINGS_KEY,JSON.stringify(settings));location.href=`/?room=${body.code}`;}catch(e){error.textContent=String(e);create.disabled=false;}};
+    join.onclick=()=>{const value=input.value.trim().toUpperCase();if(/^[A-Z0-9]{10}$/.test(value))location.href=`/?room=${value}`;else error.textContent='Enter the 10-character room code';};
+    card.append(mode,create,input,join,error);app.replaceChildren(card);return;
+  }
+  if(!/^[A-Z0-9]{10}$/.test(code)){app.textContent='Invalid room code';return;}
+  const identityKey=`fuse-room-${code}`;const token=displayOnlyToken();
+  function displayOnlyToken(){if(url.searchParams.has('display'))return secret();const token=read(identityKey)??secret();save(identityKey,token);return token;}
+  let id='',isHost=false,joined=false,avatar:AvatarId|undefined,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
+  const prediction=new LocalPrediction(()=>performance.now());const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;const frames:SnapshotFrame[]=[];
+  let seq=0,lastRecap='';
+  const displayOnly=url.searchParams.has('display');
+  const header=node('header','','online-header');const title=node('strong',`FUSE RIDERS · ${code}`),status=node('span','Connecting…'),audioButton=node('button','♫ AUDIO'),menu=node('button','MENU');
+  header.append(title,status,audioButton,menu);
+  const canvas=node('canvas','','online-arena');const context=canvas.getContext('2d')!;const sprites=await loadThemeSprites(defaultTheme);
+  const notice=node('div','','online-notice');
+  const joinPanel=node('form','','online-join');const name=node('input');name.placeholder='Your name';name.maxLength=20;const previousName=read('fuse-riders-player-name');name.value=previousName??'';
+  const joinButton=node('button','JOIN AS PLAYER');joinPanel.append(name,joinButton);joinButton.disabled=true;
+  const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);
+  const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','INVITE / TV');hostControls.append(start,reset,settingsButton,share);
+  const avatarButton=node('button','HEAD'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');fullscreen.onclick=()=>void document.documentElement.requestFullscreen?.();header.append(avatarButton,fullscreen);
+  const dialog=node('dialog');const close=node('button','CLOSE');close.onclick=()=>dialog.close();const dialogBody=node('div');dialog.append(dialogBody,close);
+  app.replaceChildren(header,canvas,notice,roster,joinPanel,controls,hostControls,dialog);
+  const audio=createGameAudio();audioButton.onclick=()=>{audio.unlock();dialogBody.replaceChildren(audio.controls);dialog.showModal();};
+  const runtime=new RoomRuntime(code,token,settings,{
+    ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
+    status:text=>{status.textContent=text;},
+    event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
+    state:(state,rules,ack,matchId)=>{
+      snapshot=state;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack);
+      frames.push({snapshot:state,matchId:code,round:state.round,receivedAt:performance.now()});if(frames.length>2)frames.shift();
+      audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
+      const player=state.players.find(player=>player.id===id);
+      if(state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0)&&lastRecap!==String(state.phaseEndsAtTick)){
+        lastRecap=String(state.phaseEndsAtTick);dialogBody.replaceChildren(node('h2','Match statistics'));
+        for(const stats of state.matchStats){const row=node('section');row.append(node('h3',stats.name));for(const [key,value] of Object.entries(stats)){if(typeof value==='number')row.append(node('p',`${key.replace(/([A-Z])/g,' $1')}: ${Number.isInteger(value)?value:value.toFixed(1)}`));}dialogBody.append(row);}dialog.showModal();
+      }
+      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
+      canvas.hidden=settings.mode==='shared'&&!displayOnly&&joined;
+      inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
+      if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
+      notice.textContent=state.phase==='lobby'?'Join your friends, then start the race':state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`:state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
+      roster.replaceChildren(...state.players.map(p=>{const entry=node('span',`${p.name} · ${p.roundWins} wins${p.connected?'':' · offline'}`);entry.style.color=p.color;return entry;}));
+      const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
+      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';
+    }
+  });
+  joinPanel.onsubmit=event=>{event.preventDefault();save('fuse-riders-player-name',name.value);runtime.command({type:'join',name:name.value,avatarId:avatar});};
+  start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
+  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p','Leave this room?'));const leave=node('button','LEAVE ROOM');leave.onclick=()=>{runtime.stop();location.href='/';};dialogBody.append(leave);dialog.showModal();};
+  avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(localStorage,chosen=>{avatar=chosen;if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
+  share.onclick=async()=>{const link=new URL(`/?room=${code}`,location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=`/?room=${code}&display=1`;tv.target='_blank';dialogBody.append(tv);dialog.showModal();};
+  settingsButton.onclick=()=>{
+    const draft=structuredClone(settings);dialogBody.replaceChildren(node('h2','Room settings'));
+    const mode=node('select');for(const [value,label] of [['devices','Full game on each device'],['shared','Shared TV + phone controls']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=draft.mode;
+    const format=node('select');for(const [value,label] of [['wins','First to N wins'],['rounds','Play N rounds']]){const option=node('option',label);option.value=value!;format.append(option);}format.value=draft.match;
+    const length=node('input');length.type='number';length.min='1';length.max='20';length.value=String(draft.length);length.setAttribute('aria-label','Match length');dialogBody.append(mode,format,length,node('p','Powerup weights: 0 disables. Changes apply next round; match length applies next match.'));
+    const percentages=new Map<string,HTMLElement>();
+    const recalc=()=>{const total=Object.values(draft.weights).reduce((a,b)=>a+(b??0),0);for(const [type,el] of percentages)el.textContent=`${total?((draft.weights[type as PickupType]??0)/total*100).toFixed(1):'0'}%`;};
+    for(const [type,label] of Object.entries(labels)){
+      const row=node('label',label);const input=node('input');input.type='number';input.min='0';input.max='10000';input.value=String(draft.weights[type as PickupType]??0);const percent=node('span');percentages.set(type,percent);input.oninput=()=>{draft.weights[type as PickupType]=Number(input.value);recalc();};row.append(input,percent);dialogBody.append(row);
+    }
+    recalc();const apply=node('button','SAVE SETTINGS');apply.onclick=()=>{draft.mode=mode.value as RoomSettings['mode'];draft.match=format.value as RoomSettings['match'];draft.length=Number(length.value);if(runtime.command({type:'settings',settings:draft})){save(SETTINGS_KEY,JSON.stringify(draft));dialog.close();}};dialogBody.append(apply);dialog.showModal();
+  };
+  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;inputAt=performance.now();prediction.input(message.seq,message.left,message.right);return runtime.command(message);}});
+  const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
+    const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
+  });
+  window.addEventListener('blur',()=>bindings.clear(true,true));
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)bindings.clear(true,true);});
+  setInterval(()=>{if(joined)inputState.resend();audio.director.update();},50);
+  runtime.start();
+  setInterval(()=>{void runtime.transport.stats().then(connection=>{
+    const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;
+    app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),ackMs:prediction.ackMs,correction:prediction.correction,tick:snapshot?.tick??0});
+  });},1000);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}if(snapshot&&!canvas.hidden){const width=canvas.clientWidth,height=canvas.clientHeight,dpr=Math.min(devicePixelRatio,2);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}context.setTransform(1,0,0,1,0,0);context.clearRect(0,0,canvas.width,canvas.height);const scale=Math.min(canvas.width/snapshot.width,canvas.height/snapshot.height);context.setTransform(scale,0,0,scale,(canvas.width-snapshot.width*scale)/2,(canvas.height-snapshot.height*scale)/2);drawArena(context,prediction.render(interpolateWorld(frames.length>1?frames[0]!.snapshot:undefined,snapshot,(performance.now()-(frames.at(-1)?.receivedAt??performance.now()))/100),id),performance.now(),defaultTheme,sprites);}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  window.addEventListener('pagehide',()=>runtime.stop());
+}

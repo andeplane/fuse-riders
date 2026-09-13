@@ -8,6 +8,8 @@ export default {
     const url=new URL(request.url);
     if(request.headers.get('Origin') && request.headers.get('Origin')!==url.origin)return json({error:'Origin denied'},403);
     if(url.pathname==='/api/rooms'&&request.method==='POST') {
+      const rate=env.ROOMS.get(env.ROOMS.idFromName(`rate:${await peerId(request.headers.get('CF-Connecting-IP')??'local')}`));
+      const allowance=await rate.fetch(new Request(`${url.origin}/create-limit`,{method:'POST'}));if(!allowance.ok)return allowance;
       const code=secret().slice(0,10).toUpperCase(),token=secret();
       const room=env.ROOMS.get(env.ROOMS.idFromName(code));
       const result=await room.fetch(new Request(`${url.origin}/initialize`,{method:'POST',body:JSON.stringify({token})}));
@@ -24,6 +26,11 @@ export class SignalRoom {
   constructor(private ctx:DurableObjectState,private env:Env){}
   async fetch(request:Request):Promise<Response>{
     const url=new URL(request.url);
+    if(url.pathname==='/create-limit'){
+      const hour=Math.floor(Date.now()/3600000);const previous=await this.ctx.storage.get<{hour:number;count:number}>('rate');
+      const count=previous?.hour===hour?previous.count+1:1;if(count>30)return json({error:'Room creation limit reached; try later'},429);
+      await this.ctx.storage.put('rate',{hour,count});await this.ctx.storage.setAlarm(Date.now()+3600000);return json({ok:true});
+    }
     if(url.pathname==='/initialize'){
       if(await this.ctx.storage.get('host'))return json({error:'Room exists'},409);
       const body=await request.json() as {token:string};

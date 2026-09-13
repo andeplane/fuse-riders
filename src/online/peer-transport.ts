@@ -6,7 +6,7 @@ export interface TransportCallbacks {
 }
 interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number> }
 export class PeerTransport {
-  id='';hostId='';
+  id='';hostId='';sentBytes=0;
   private socket?:WebSocket;
   private links=new Map<string,Link>();
   private seq=0;
@@ -47,7 +47,7 @@ export class PeerTransport {
   }
   private relay(type:string,to:string,data:unknown):boolean {
     if(this.socket?.readyState!==WebSocket.OPEN||this.socket.bufferedAmount>256000)return false;
-    this.socket.send(JSON.stringify({type,to,data}));return true;
+    try{this.socket.send(JSON.stringify({type,to,data}));return true;}catch{return false;}
   }
   private link(id:string):Link {
     const existing=this.links.get(id);if(existing)return existing;
@@ -65,6 +65,7 @@ export class PeerTransport {
     const link=this.link(id);link.channel=channel;
     channel.onmessage=event=>{try{this.receive(id,JSON.parse(event.data));}catch{}};
     channel.onopen=()=>this.callbacks.status('Direct peer link connected');
+    channel.onerror=event=>{event.preventDefault();this.callbacks.status('Secure relay active');};
   }
   private async offer(id:string):Promise<void>{
     if(this.relayOnly)return;
@@ -90,13 +91,14 @@ export class PeerTransport {
     this.callbacks.message(id,envelope.data);
   }
   send(id:string,data:unknown):boolean {
-    const envelope={id:++this.seq,data};const channel=this.links.get(id)?.channel;
-    if(!this.relayOnly&&channel?.readyState==='open'&&channel.bufferedAmount<64000){
+    if(this.stopped)return false;
+    const envelope={id:++this.seq,data};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const channel=this.links.get(id)?.channel;
+    if(!document.hidden&&!this.relayOnly&&channel?.readyState==='open'&&channel.bufferedAmount<64000){
       try{channel.send(JSON.stringify(envelope));return true;}catch{}
     }
     return this.relay('relay',id,envelope);
   }
-  close():void{this.stopped=true;clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();}
+  close():void{this.stopped=true;clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
   async stats():Promise<{direct:number;relayed:number;buffered:number}>{
     let direct=0,relayed=0,buffered=this.socket?.bufferedAmount??0;
     for(const link of this.links.values()){
