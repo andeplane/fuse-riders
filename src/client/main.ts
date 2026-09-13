@@ -691,7 +691,11 @@ function startDisplay(): void {
     recapAction.disabled = !authenticated || playerCount < 2;
     if (snapshot.phase === 'lobby') {
       action.textContent = 'START RACE'; action.dataset.action = 'start'; action.disabled = !authenticated || playerCount < 2;
-      lobbyFooter.querySelector('p')!.textContent = playerCount < 2 ? 'Waiting for at least 2 riders' : `${playerCount} riders ready`;
+      lobbyFooter.querySelector('p')!.textContent = !authenticated
+        ? !hostToken ? 'Open the current TV host link to enable Start race.'
+          : connection.textContent === 'HOST LINK EXPIRED' ? 'Host link expired — open the newest TV link to enable Start race.'
+            : 'Connecting to host — Start race will unlock shortly.'
+        : playerCount < 2 ? 'Waiting for at least 2 riders' : `${playerCount} riders ready`;
     } else if (snapshot.phase === 'countdown') {
       const remain = secondsRemaining(snapshot) ?? 0;
       announcement.className = 'announcement countdown';
@@ -737,10 +741,11 @@ function startDisplay(): void {
   const socket = new SocketClient(
     () => hostToken ? { type: 'hostAuth', token: hostToken } : undefined,
     (message) => {
-      if (message.type === 'hostAuthenticated') { authenticated = true; connection.textContent = 'HOST ONLINE'; connection.classList.add('online'); return; }
+      if (message.type === 'hostAuthenticated') { authenticated = true; connection.textContent = 'HOST ONLINE'; connection.classList.add('online'); if (latest) updateUi(latest.snapshot); return; }
       if (message.type === 'error') {
         if (message.code === 'unauthorized') { authenticated = false; connection.classList.remove('online'); connection.textContent = 'HOST LINK EXPIRED'; }
         else connection.textContent = message.code.replaceAll('_', ' ').toUpperCase();
+        if (latest) updateUi(latest.snapshot);
         return;
       }
       if (message.type === 'snapshot') {

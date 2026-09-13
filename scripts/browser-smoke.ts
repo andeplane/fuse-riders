@@ -47,7 +47,8 @@ try {
   // A fresh token delivered as a hash-only navigation must be consumed and re-authenticated.
   const recoveredHost = await browser.newPage({ viewport: { width: 1200, height: 800 } }); monitor(recoveredHost);
   await recoveredHost.goto(`${origin}/display#${'0'.repeat(64)}`);
-  await recoveredHost.getByText('HOST LINK EXPIRED', { exact: true }).waitFor();
+  await recoveredHost.getByText('Host link expired — open the newest TV link to enable Start race.', { exact: true }).waitFor();
+  assert.equal(await recoveredHost.getByRole('button', { name: 'START RACE', exact: true }).isEnabled(), false);
   await recoveredHost.evaluate((token) => { location.hash = token; }, app.hostToken);
   await recoveredHost.getByText('HOST ONLINE', { exact: true }).waitFor();
   assert.equal(new URL(recoveredHost.url()).hash, '', 'replacement host fragment removed from URL');
