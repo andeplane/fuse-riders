@@ -79,9 +79,9 @@ A seeded pickup attempt occurs every six playing seconds, with at most three act
 
 | Power-up | Authoritative effect |
 | --- | --- |
-| Blast | Raises radius by 75, up to two levels above the base radius of 150; each launched bomb captures its radius. |
+| Blast | Raises radius by 75, up to two levels above the base radius of 90; each launched bomb captures its radius. |
 | Star | Five seconds of hazard immunity; wall contact reflects/clamps the rider. Star contact defeats an ordinary rider; two immune riders survive. |
-| Beer | Four seconds of seeded angular noise on other living riders, up to 5 rad/s, interpolated between eight-tick knots. The collector is unaffected. |
+| Beer | Four seconds of bounded heading sway on other living riders, at most 15 degrees with a two-second cycle and no residual heading drift. The collector is unaffected. |
 | Triple Shot | Arms the next accepted release with three projectiles at offsets −0.22, 0 and +0.22 radians. |
 | Five Shot | Arms five projectiles at −0.44, −0.22, 0, +0.22 and +0.44 radians. The strongest armed volley wins. |
 | Orbit Shield | Absorbs all hazards on one otherwise fatal tick, then gives ten ticks of grace. A protected rider does not consume a stored shield unnecessarily. |

@@ -1,6 +1,6 @@
 # Fuse Riders
 
-Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and eight random powerups change the fight. Last rider alive wins the round; first to three round wins takes the match.
+Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and nine random powerups change the fight. Last rider alive wins the round; first to three round wins takes the match.
 
 ## Play tonight
 
@@ -12,7 +12,7 @@ npm run build
 PORT=3030 npm start
 ```
 
-Open the **printed host display URL** on the TV laptop. It includes a host token needed to start matches. Scan the display QR code on each phone, choose names, and press Start race once 2–5 players have joined. Players can join during a round when a seat is free; they wait safely and enter the next round automatically (or the next match if the current match finishes). Use the printed LAN address, not `localhost`, on phones. Set `HOST_IP` if automatic network-interface selection chooses the wrong address.
+Open the **printed host display URL** on the TV laptop. It includes a host token needed to start matches. Scan the display QR code on each phone, choose names and one of ten generated avatar heads, and press Start race once 2–5 players have joined. Players can join during a round when a seat is free; they wait safely and enter the next round automatically (or the next match if the current match finishes). Use the printed LAN address, not `localhost`, on phones. Set `HOST_IP` if automatic network-interface selection chooses the wrong address.
 
 Production does not refresh automatically. To install changes, stop the server between matches, rebuild, and start it again. Open the newly printed host URL, refresh the phones, and rejoin; restarting clears the session scores. Keep the process running during play. For development with browser updates use `PORT=3030 npm run dev` instead. The default port without `PORT` is 3000.
 
@@ -26,9 +26,10 @@ Drops begin about six seconds into each round and attempt to spawn every six sec
 | --- | --- |
 | Blast | Increases circular explosion radius by 75 units, up to two upgrades. |
 | Star | Protects against hazards for 5 seconds; walls bounce you back into play. |
-| Beer Worms | Makes the other living riders swerve violently for four seconds. You can still steer. |
+| Beer Worms | Adds a gentle sway for four seconds, bounded to 15° with a two-second cycle. Orbiting stars show who is dizzy. |
 | Ink | One second of dark clouds around other living riders; your nearby area stays clear. |
 | Triple Shot | Your next accepted release launches three bombs in a fan. |
+| Target Bomb | Hold Fire and slide your thumb like a trackpad to move a public TV target. Release to drop one normal-strength bomb there. Three times rarer than ordinary pickups; Triple/Five remain armed for a later launch. |
 | Five Shot | Your next accepted release launches five bombs in a wider fan. Three times rarer than Triple Shot; collecting Triple preserves an armed Five Shot. |
 | Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
 | Portal | Creates two linked portal walls for ten seconds, each up to one-third of the field height. Enter either to exit at the corresponding height with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
@@ -38,6 +39,8 @@ Riders collide with walls, eight-second trails, other riders, and explosions. Bo
 ## Audio
 
 The TV plays original synthesized chiptune music and arcade effects after you press Start race or enable audio. Open **♪ AUDIO** for separate music/effects volume and mute controls. Phones stay silent.
+
+The TV’s **MENU** button ends the current match and returns everyone to the lobby without disconnecting phones or clearing session scores. Fullscreen stays available in the top bar during play.
 
 ## Scores and stats
 

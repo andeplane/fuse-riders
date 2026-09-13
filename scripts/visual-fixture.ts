@@ -46,6 +46,9 @@ try {
   ];
   app.game.players.get('p4')!.invulnerableUntilTick = 1000;
   app.game.players.get('p0')!.shielded = true;
+  app.game.players.get('p0')!.targetBombArmed = true;
+  app.game.players.get('p0')!.bombChargeStartedTick = 942;
+  app.game.players.get('p0')!.bombTarget = { x: 1200, y: 650 };
   app.game.players.get('p1')!.drunkUntilTick = 1020;
   app.game.players.get('p3')!.inkUntilTick = 980;
   app.game.players.get('p2')!.fiveShotArmed = true;
