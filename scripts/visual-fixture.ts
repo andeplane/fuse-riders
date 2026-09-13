@@ -1,0 +1,50 @@
+// A controlled renderer fixture for comparing art direction. Not a gameplay test.
+import { chromium } from 'playwright';
+import { mkdir } from 'node:fs/promises';
+import { createGameServer } from '../src/server/index.js';
+import { addPlayer, type TrailSegment } from '../src/shared/game.js';
+
+const app = await createGameServer({ port: 0, hostname: '127.0.0.1', lanAddress: '127.0.0.1', manualTicks: true });
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+try {
+  const colors = ['#00d9ff', '#ff3aaf', '#b5ff36', '#ff963b', '#b76bff'];
+  for (let i = 0; i < 5; i++) addPlayer(app.game, { id: `p${i}`, name: `P${i + 1}`, slot: i, color: colors[i] });
+  app.game.phase = 'playing'; app.game.tick = 960; app.game.roundStartedTick = 0;
+  // Cubic Bézier chains place representative curved trails throughout the arena.
+  type Point = readonly [number, number];
+  const routes: Point[][] = [
+    [[490,340],[300,390],[110,330],[110,160],[110,50],[350,60],[320,190],[310,235],[260,250],[205,200]],
+    [[190,310],[70,350],[110,530],[250,550],[330,630],[430,610],[530,550]],
+    [[420,650],[610,600],[490,550],[460,470],[400,380],[540,300],[640,215]],
+    [[840,105],[930,40],[1080,80],[1060,155],[1040,255],[740,270],[820,165],[865,110],[960,165],[1010,155]],
+    [[840,450],[1050,335],[1130,445],[1080,550],[1100,650],[925,670],[870,585]],
+  ];
+  routes.forEach((points, index) => {
+    const player = app.game.players.get(`p${index}`)!;
+    const segments: TrailSegment[] = [];
+    let previous = points[0];
+    for (let i = 0; i + 3 < points.length; i += 3) {
+      const [a,b,c,d] = points.slice(i, i + 4);
+      for (let j = 1; j <= 60; j++) {
+        const t = j / 60; const s = 1 - t;
+        const current: Point = [s*s*s*a[0]+3*s*s*t*b[0]+3*s*t*t*c[0]+t*t*t*d[0],s*s*s*a[1]+3*s*s*t*b[1]+3*s*t*t*c[1]+t*t*t*d[1]];
+        segments.push({ x1: previous[0], y1: previous[1], x2: current[0], y2: current[1], createdTick: 900, expiresAtTick: 1040 });
+        previous = current;
+      }
+    }
+    player.trail = segments; player.x = previous[0]; player.y = previous[1];
+    const last = segments.at(-1)!; player.angle = Math.atan2(last.y2-last.y1,last.x2-last.x1); player.alive = true; player.roundWins = index % 4;
+  });
+  for (const [id,x,y] of [[1,405,145],[2,1040,355],[3,670,605]]) app.game.bombs.set(id,{id,ownerId:`p${id}`,x,y,placedTick:940,explodeAtTick:980+id*5});
+  app.game.blasts.push({ bombId: 5, rects: [{x:360,y:328,width:300,height:24},{x:498,y:190,width:24,height:300}], expiresAtTick:968 });
+  const page = await browser.newPage({ viewport: {width:1672,height:940} });
+  await page.goto(`http://127.0.0.1:${app.port}/display#${app.hostToken}`);
+  await page.getByText('HOST ONLINE',{exact:true}).waitFor();
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(300);
+  await mkdir('artifacts',{recursive:true});
+  await page.screenshot({path:'artifacts/neon-pixel-visual.png'});
+  await page.getByRole('combobox').selectOption('clean-neon'); await page.waitForTimeout(300);
+  await page.screenshot({path:'artifacts/clean-neon-visual.png'});
+  console.log('Saved controlled art comparison fixtures for both themes. These are renderer fixtures, not live match evidence.');
+} finally { await browser.close(); await app.close(); }
