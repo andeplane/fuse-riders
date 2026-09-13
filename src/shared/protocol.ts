@@ -1,6 +1,8 @@
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
+import type { MatchPlayerStats } from './match-stats.js';
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
+export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
 
 export type PlayerId = string;
 export type PlayerToken = string;
@@ -30,6 +32,7 @@ export interface GameSnapshot {
   pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
+  matchStats: ReadonlyArray<MatchPlayerStats>;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }

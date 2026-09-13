@@ -2,9 +2,25 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
-import { createGameServer, catchUpSteps } from '../src/server/index.js';
+import { createGameServer, catchUpSteps, controllerSnapshot } from '../src/server/index.js';
 import { eliminatePlayer } from '../src/shared/game.js';
-import type { ClientMessage, ServerMessage } from '../src/shared/protocol.js';
+import type { ClientMessage, MatchPlayerStats, ServerMessage } from '../src/shared/protocol.js';
+
+test('controller snapshots strip the full match statistics table', () => {
+  const matchStats: MatchPlayerStats = {
+    playerId: 'p0', name: 'Private recap', slot: 0, color: '#fff', roundsPlayed: 5, roundWins: 5,
+    roundsDrawn: 0, matchPlacement: 1, survivalTicks: 100, longestSurvivalTicks: 25,
+    distanceUnits: 750, bombsPlaced: 9, bombsExploded: 8, eliminations: 4,
+    deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 3,
+    blastPickups: 2, starPickups: 1, invulnerableTicks: 10, wallBounces: 2, earlyExits: 0,
+  };
+  const compact = controllerSnapshot({
+    phase: 'matchOver', width: 1600, height: 900, boundaryInset: 20,
+    players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [], matchStats: [matchStats],
+  });
+  assert.deepEqual(compact.matchStats, []);
+  assert.equal(JSON.stringify(compact).includes('Private recap'), false);
+});
 
 class Peer {
   messages: ServerMessage[] = [];

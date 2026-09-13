@@ -13,6 +13,18 @@ import {
   type RoundPlacement,
   type SessionLeaderboardEntry,
 } from './leaderboard.js';
+import {
+  beginMatchParticipant,
+  finalizeMatchStatsRound,
+  recordBombExploded,
+  recordBombPlaced,
+  recordDeath,
+  recordEarlyExit,
+  recordPickup,
+  recordSurvivalTick,
+  snapshotMatchStats,
+  type MatchStatsState,
+} from './match-stats.js';
 
 export type { BlastRect, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
@@ -106,6 +118,7 @@ export interface BombState {
 
 export interface BlastState {
   bombId: number;
+  ownerId: PlayerId;
   rects: BlastRect[];
   expiresAtTick: number;
 }
@@ -141,6 +154,7 @@ export interface GameState {
   roundParticipants: Map<PlayerId, RoundParticipant>;
   roundPlacements: RoundPlacement[];
   roundScored: boolean;
+  matchStats: MatchStatsState;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -192,6 +206,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     roundParticipants: new Map(),
     roundPlacements: [],
     roundScored: false,
+    matchStats: new Map(),
   };
 }
 
@@ -242,9 +257,11 @@ export function setPlayerConnected(state: GameState, playerId: PlayerId, connect
 
 export function eliminatePlayer(state: GameState, playerId: PlayerId): void {
   const player = requirePlayer(state, playerId);
+  if (state.phase !== 'countdown' && state.phase !== 'playing') return;
   if (!player.alive) return;
   player.alive = false;
   recordElimination(state, playerId);
+  if (state.roundParticipants.has(playerId)) recordEarlyExit(state.matchStats, playerId);
 }
 
 export function startMatch(state: GameState): void {
@@ -272,6 +289,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
   state.matchId = newMatchId;
   state.seed = hashSeed(newMatchId);
   state.randomState = state.seed;
+  state.matchStats = new Map();
   state.round = 1;
   for (const player of state.players.values()) player.roundWins = 0;
   prepareRound(state);
@@ -322,6 +340,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   collectPickups(state, movements);
 
+  const bounced = new Set<PlayerId>();
   for (const movement of movements.values()) {
     if (!isInvulnerable(movement.player, state.tick)) continue;
     const left = state.boundaryInset + RIDER_RADIUS;
@@ -334,6 +353,17 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     movement.y = Math.max(top, Math.min(bottom, movement.y));
     if (hitX) movement.angle = normalizeAngle(Math.PI - movement.angle);
     if (hitY) movement.angle = normalizeAngle(-movement.angle);
+    if (hitX || hitY) bounced.add(movement.player.id);
+  }
+
+  for (const movement of movements.values()) {
+    recordSurvivalTick(
+      state.matchStats,
+      movement.player.id,
+      Math.hypot(movement.x - movement.oldX, movement.y - movement.oldY),
+      isInvulnerable(movement.player, state.tick),
+      bounced.has(movement.player.id),
+    );
   }
 
   for (const movement of movements.values()) {
@@ -352,6 +382,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         blastRange: BOMB_BLAST_RANGE + movement.player.blastLevel * BLAST_LEVEL_RANGE,
       };
       state.bombs.set(bomb.id, bomb);
+      recordBombPlaced(state.matchStats, movement.player.id);
       movement.player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
       events.push({ type: 'bombPlaced', bombId: bomb.id, playerId: movement.player.id });
     }
@@ -368,11 +399,11 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   const causes = new Map<PlayerId, EliminationCause>();
+  const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
       if (!isInvulnerable(movement.player, state.tick) && blast.rects.some((rect) => sweptCircleIntersectsRect(movement, RIDER_RADIUS, rect))) {
-        markCause(causes, movement.player.id, 'explosion');
-        break;
+        markCause(causes, causeOwners, movement.player.id, 'explosion', blast.ownerId);
       }
     }
 
@@ -381,11 +412,11 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const top = state.boundaryInset + RIDER_RADIUS;
     const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
     if (!isInvulnerable(movement.player, state.tick) && (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom)) {
-      markCause(causes, movement.player.id, 'wall');
+      markCause(causes, causeOwners, movement.player.id, 'wall');
     }
 
-    trailCheck: for (const owner of state.players.values()) {
-      if (isInvulnerable(movement.player, state.tick)) break trailCheck;
+    for (const owner of state.players.values()) {
+      if (isInvulnerable(movement.player, state.tick)) break;
       for (const trail of owner.trail) {
         if (
           owner.id === movement.player.id &&
@@ -395,8 +426,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
           movement.oldX, movement.oldY, movement.x, movement.y,
           trail.x1, trail.y1, trail.x2, trail.y2,
         ) <= square(RIDER_RADIUS + TRAIL_WIDTH / 2) + EPSILON) {
-          markCause(causes, movement.player.id, 'trail');
-          break trailCheck;
+          markCause(causes, causeOwners, movement.player.id, 'trail', owner.id);
+          break;
         }
       }
     }
@@ -410,8 +441,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       if (segmentDistanceSquared(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y) <= square(2 * RIDER_RADIUS) + EPSILON) {
         const aInvulnerable = isInvulnerable(a.player, state.tick);
         const bInvulnerable = isInvulnerable(b.player, state.tick);
-        if (!aInvulnerable) markCause(causes, a.player.id, 'rider');
-        if (!bInvulnerable) markCause(causes, b.player.id, 'rider');
+        if (!aInvulnerable) markCause(causes, causeOwners, a.player.id, 'rider', b.player.id);
+        if (!bInvulnerable) markCause(causes, causeOwners, b.player.id, 'rider', a.player.id);
       }
     }
   }
@@ -421,6 +452,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     if (cause) {
       movement.player.alive = false;
       recordElimination(state, movement.player.id);
+      recordDeath(state.matchStats, movement.player.id, cause, soleCreditedOwner(causeOwners, movement.player.id, cause));
       events.push({ type: 'playerEliminated', playerId: movement.player.id, cause });
       continue;
     }
@@ -481,6 +513,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     pickups: state.pickups.map((pickup) => ({ ...pickup })),
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
+    matchStats: state.phase === 'matchOver' ? snapshotMatchStats(state.matchStats) : [],
     ...(state.roundWinnerId === undefined ? {} : { roundWinnerId: state.roundWinnerId }),
     ...(state.matchWinnerId === undefined ? {} : { matchWinnerId: state.matchWinnerId }),
   };
@@ -509,6 +542,7 @@ function prepareRound(state: GameState): void {
   }]));
   state.roundPlacements = [];
   state.roundScored = false;
+  for (const player of participants) beginMatchParticipant(state.matchStats, player);
 
   for (const player of state.players.values()) {
     player.alive = false;
@@ -580,6 +614,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     const collector = collectors[0]?.movement.player;
     if (!collector) continue;
     consumed.add(pickup.id);
+    recordPickup(state.matchStats, collector.id, pickup.type);
     if (pickup.type === 'blast') {
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else {
@@ -631,7 +666,8 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     if (!bomb) continue;
     exploded.add(id);
     const rects = createBlastRects(state, bomb);
-    result.push({ bombId: id, rects, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS });
+    result.push({ bombId: id, ownerId: bomb.ownerId, rects, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS });
+    recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: 'explosion', bombId: id });
 
     for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
@@ -707,6 +743,7 @@ function scoreRoundOnce(state: GameState, winnerId?: PlayerId, matchWinnerId?: P
   if (state.roundScored) return;
   const placements = rankRound([...state.roundParticipants.values()]);
   applyRoundScores(state.leaderboard, placements, winnerId, matchWinnerId);
+  finalizeMatchStatsRound(state.matchStats, [...state.roundParticipants.keys()], winnerId);
   state.roundPlacements = placements;
   state.roundScored = true;
 }
@@ -732,9 +769,32 @@ function sortedPlayers(state: GameState): PlayerState[] {
   return [...state.players.values()].sort((a, b) => a.slot - b.slot || a.id.localeCompare(b.id));
 }
 
-function markCause(causes: Map<PlayerId, EliminationCause>, playerId: PlayerId, cause: EliminationCause): void {
+function markCause(
+  causes: Map<PlayerId, EliminationCause>,
+  causeOwners: Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>,
+  playerId: PlayerId,
+  cause: EliminationCause,
+  ownerId?: PlayerId,
+): void {
   const current = causes.get(playerId);
   if (!current || CAUSE_PRIORITY[cause] > CAUSE_PRIORITY[current]) causes.set(playerId, cause);
+  if (ownerId === undefined) return;
+  let byCause = causeOwners.get(playerId);
+  if (!byCause) causeOwners.set(playerId, byCause = new Map());
+  let owners = byCause.get(cause);
+  if (!owners) byCause.set(cause, owners = new Set());
+  owners.add(ownerId);
+}
+
+function soleCreditedOwner(
+  causeOwners: ReadonlyMap<PlayerId, ReadonlyMap<EliminationCause, ReadonlySet<PlayerId>>>,
+  victimId: PlayerId,
+  cause: EliminationCause,
+): PlayerId | undefined {
+  const owners = causeOwners.get(victimId)?.get(cause);
+  if (!owners || owners.size !== 1) return undefined;
+  const ownerId = owners.values().next().value as PlayerId | undefined;
+  return ownerId === victimId ? undefined : ownerId;
 }
 
 function normalizeAngle(angle: number): number {

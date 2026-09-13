@@ -30,7 +30,7 @@ export interface ServerDependencies {
 export interface ServerOptions { port?: number; hostname?: string; lanAddress?: string; dev?: boolean; manualTicks?: boolean; buildDirectory?: string; dependencies?: Partial<ServerDependencies> }
 
 export function controllerSnapshot(state: GameSnapshot): GameSnapshot {
-  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [] };
+  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], matchStats: [] };
 }
 
 export function lanAddress() {

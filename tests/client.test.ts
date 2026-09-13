@@ -6,7 +6,7 @@ import { SnapshotStream } from '../src/client/snapshot-stream.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
-  return { phase: 'lobby', width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [] };
+  return { phase: 'lobby', width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [], matchStats: [] };
 }
 
 function playingFrame(tick: number, receivedAt: number, x: number, alive = true): SnapshotFrame {
