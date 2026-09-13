@@ -8,7 +8,7 @@ for (const phase of ['lobby', 'countdown', 'playing', 'roundOver', 'matchOver'] 
     startMatch(game); for (let i = 0; i < COUNTDOWN_TICKS; i++) step(game, new Map());
     game.phase = phase; game.round = 4; game.phaseEndsAtTick = 900; game.roundStartedTick = 100;
     game.roundWinnerId = 'p0'; game.matchWinnerId = 'p0'; game.players.get('p2')!.connected = false;
-    const player = game.players.get('p0')!; player.roundWins = 2; player.targetBombArmed = true; player.fiveShotArmed = true;
+    const player = game.players.get('p0')!; player.avatarId = 'dragon'; player.roundWins = 2; player.targetBombArmed = true; player.fiveShotArmed = true;
     player.bombChargeStartedTick = game.tick; player.bombTarget = { x: 1, y: 2 }; player.invulnerableUntilTick = 999; player.inkUntilTick = 999;
     game.pickups = [{ id: 1, type: 'star', x: 200, y: 300, expiresAtTick: 999 }];
     game.portalPair = { id: 'old', gates: [{ x: 200, y: 200, halfLength: 60 }, { x: 600, y: 600, halfLength: 60 }], expiresAtTick: 999 };
@@ -17,6 +17,7 @@ for (const phase of ['lobby', 'countdown', 'playing', 'roundOver', 'matchOver'] 
     returnToLobby(game, 'after');
     assert.equal(game.phase, 'lobby'); assert.equal(game.matchId, 'after'); assert.equal(game.tick, 0); assert.equal(game.round, 1);
     assert.deepEqual([...game.leaderboard], ledger); assert.deepEqual([...game.players.keys()], ['p0', 'p1']);
+    assert.equal(game.players.get('p0')!.avatarId, 'dragon');
     assert.equal(game.matchStats.size, 0); assert.equal(game.roundParticipants.size, 0); assert.equal(game.roundPlacements.length, 0);
     assert.equal(game.portalPair, undefined); assert.equal(game.roundWinnerId, undefined); assert.equal(game.matchWinnerId, undefined); assert.equal(game.roundStartedTick, undefined); assert.equal(game.phaseEndsAtTick, undefined);
     const snapshot = toSnapshot(game); assert.deepEqual(snapshot.bombs, []); assert.deepEqual(snapshot.blasts, []); assert.deepEqual(snapshot.pickups, []);
