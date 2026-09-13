@@ -9,6 +9,8 @@
     "src/client/render-snapshot.ts",
     "src/client/audio-director.ts",
     "src/online/host-session.ts",
+    "src/online/authority.ts",
+    "src/online/checkpoint.ts",
     "src/online/world-codec.ts",
     "src/online/prediction.ts"
   ],

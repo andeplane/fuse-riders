@@ -15,22 +15,26 @@ export class RoomRuntime {
   private lastTick=performance.now();
   private accumulator=0;
   private announced=false;
+  private recovering=false;
+  private lastPausedPublish=0;
   readonly transport:PeerTransport;
   constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks){
     this.transport=new PeerTransport(code,token,{
       welcome:(id,hostId)=>{
         if(id===hostId&&!this.session){
           this.session=new HostSession(id,settings,{token:()=>crypto.randomUUID()});
-          try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint)this.session.restore(checkpoint);}catch{}
+          try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.callbacks.status('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
         }
         this.decoder.reset();this.callbacks.ready(id,id===hostId);
         if(id!==hostId)this.transport.send(hostId,{type:'resync'});
       },
       peer:(id,online)=>{
-        if(online){this.peers.add(id);this.encoders.delete(id);if(id===this.transport.hostId&&!this.session){this.decoder.reset();this.callbacks.ready(this.transport.id,false);this.transport.send(id,{type:'resync'});}}
+        if(online){this.peers.add(id);this.encoders.delete(id);if(id===this.transport.hostId&&!this.session){this.decoder.reset();this.transport.send(id,{type:'resync'});}}
         else{this.peers.delete(id);this.encoders.delete(id);this.session?.disconnect(id);}
       },
       message:(id,data)=>this.receive(id,data),status:callbacks.status,
+      revoked:()=>{clearInterval(this.interval);this.session?.clear();this.session=undefined;this.callbacks.status('This host tab was replaced — use the newer tab');},
+      authorityChanged:()=>{this.decoder.reset();this.encoders.clear();this.session?.clear();this.accumulator=0;},
     });
   }
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
@@ -53,12 +57,18 @@ export class RoomRuntime {
     else if(data.type==='error')this.callbacks.status(data.error??'Room error');
   }
   command(command:RoomCommand):boolean {
+    if(!this.transport.authorityPermitted()){this.callbacks.status('Waiting for room authority — try again when connected');return false;}
     if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error)this.callbacks.status(error);return !error;}
     return this.transport.send(this.transport.hostId,{type:'command',command});
   }
   private tick():void {
     const now=performance.now(),elapsed=now-this.lastTick;this.lastTick=now;
+    if(!this.transport.authorityPermitted()){this.accumulator=0;this.session?.clear();this.callbacks.status('Paused — confirming room authority');return;}
     if(!this.session){if(now-this.lastState>2000)this.callbacks.status('Waiting for host — reconnecting');return;}
+    if(this.recovering){
+      if(this.session.game.phase==='lobby'||[...this.session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
+      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(true);this.lastPausedPublish=now;}this.callbacks.status('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
+    }
     this.accumulator+=Math.min(elapsed,100);
     if(document.hidden){
       if(!this.announced){this.publish(true);this.announced=true;}this.accumulator=0;this.session.clear();return;
