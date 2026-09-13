@@ -34,7 +34,7 @@ for(const profile of [{name:'LAN',oneWay:5,jitter:2,stall:0},{name:'regional',on
     const now=performance.now(); deadline=Math.max(deadline,now+Math.max(0,profile.oneWay+(random()*2-1)*profile.jitter)+(random()<profile.stall?200:0));
     const timer=setTimeout(()=>{timers.delete(timer);fn();},Math.max(0,deadline-now));timers.add(timer);
   };};
-  const peers=[];
+  const peers: Array<() => void>=[];
   try {
     for(let i=0;i<5;i++) {
       const ws=new WebSocket(`ws://127.0.0.1:${app.port}/ws`);sockets.push(ws);await once(ws,'open');
