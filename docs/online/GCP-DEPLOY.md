@@ -100,3 +100,36 @@ gcloud run services update-traffic VERIFIED_SERVICE \
 ```
 
 That command changes live traffic. Existing WebSockets can remain on old revisions until reconnect, which is why revision coexistence and lease fencing are mandatory. Pages rollback must also select a compatible previously verified artifact; do not rebuild an old source against new dependencies and call it the same artifact. The current Pages workflow intentionally publishes only current green `main`, so a normal source rollback is a reviewed revert commit followed by CI.
+
+## Verified resource inventory (2026-09-14, before first service deployment)
+
+Read-only provider inspection confirmed the following application-owned resources. The Cloud Run service did not yet exist at this inspection; this is provisioning evidence, not deployed acceptance.
+
+| Resource | Verified binding/configuration |
+| --- | --- |
+| `projects/andershaf-87/databases/fuse-riders` | Native Firestore, `europe-west1`; default database untouched |
+| `fuse-production-rooms.cleanupAt`, `fuse-production-creation-limits.cleanupAt` | Both TTL policies `ACTIVE` |
+| Runtime account | `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com` |
+| Runtime database grant | `roles/datastore.user`, condition `resource.name=="projects/andershaf-87/databases/fuse-riders"` |
+| `fuse-riders-signalling` topic | Runtime custom `fuseRidersTopic`: `pubsub.topics.attachSubscription`, `get`, `publish`, bound only to this topic |
+| Runtime subscriptions | Project custom `fuseRidersSignalling`: `pubsub.subscriptions.create`, `consume`, `get`, `delete` |
+| Build account | `fuse-riders-build@andershaf-87.iam.gserviceaccount.com` |
+| `europe-west1/fuse-riders` Artifact Registry | Build account `roles/artifactregistry.writer` on this repository |
+| `gs://andershaf-87-fuse-riders-build` | Build account `roles/storage.objectViewer` on source bucket |
+| Build logging | Build account `roles/logging.logWriter` at project level |
+
+**Subscription IAM residual scope:** the runtime's four subscription permissions currently apply project-wide. Topic attachment and publishing remain restricted to the game's topic, and the adapter creates names beginning `fuse-production-`, but code naming is not an IAM boundary for consuming/deleting other subscriptions. The official supported `resource.name` attribute table lists Pub/Sub Lite, not standard Pub/Sub; a speculative prefix condition was therefore not installed. See [supported resource attributes](https://docs.cloud.google.com/iam/docs/conditions-resource-attributes) and [Pub/Sub permission requirements](https://docs.cloud.google.com/pubsub/docs/access-control). Stronger isolation would use a separate GCP project, or separately provisioned subscription resource policies with a redesigned lifecycle. Record this remaining permission scope when assessing production risk; do not call the current role fully prefix-scoped. No unrelated project bindings were changed by this review.
+
+Use the verified values `ARTIFACT_REPOSITORY=fuse-riders`, `BUILD_SOURCE_BUCKET=andershaf-87-fuse-riders-build` and the dedicated accounts above with the deploy command. Runtime identity/database conditions still require the deployed smoke; the earlier local provider harness used user credentials and cannot verify them.
+
+## Public deployed gateway smoke
+
+After deploying the checked image, run:
+
+```sh
+CLOUD_RUN_ORIGIN=https://VERIFIED_SERVICE_ORIGIN npx tsx scripts/cloud-public-smoke.ts
+```
+
+The script uses public HTTP/WSS endpoints with `Origin: https://andeplane.github.io`. It creates exactly one fresh random room, checks health/readiness and CORS, creates host/guest connections, checks provider-backed admission, ICE metadata, bidirectional synthetic SDP, gameplay rejection, transactional lease renewal and host replacement. It closes every test socket and writes `artifacts/cloud-public-smoke.json`. Room tokens, raw URLs containing tokens and raw exception messages are never included in the report. It uses no CLI/ADC credentials, so real admission exercises the identity attached to the deployed service. Verify that identity's email separately from the Cloud Run revision configuration.
+
+There is no public room-delete or namespace-override endpoint. This test leaves its random room and rate-limit record for the already enabled TTL policies; it does not delete anything in a shared production namespace. A service URL cannot force two requests onto different instances, so this test does not prove inter-instance Pub/Sub delivery, real WebRTC negotiation, Pages paths or phone play. Run the separate two-process provider harness and real-browser Pages/network acceptance for those boundaries. Local regression command: `npx tsx --test tests/cloud-public-smoke.test.ts`.
