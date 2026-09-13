@@ -39,7 +39,7 @@ export class LocalPrediction {
     if(!changed&&state.tick<previous.state.tick)return false;
     const priorPlayer=previous?.state.players.find(p=>p.id===id);
     const reset=changed||!player.alive||player.portalCooldownUntilTick!==priorPlayer?.portalCooldownUntilTick;
-    const oldPose=!reset?this.predict(state.tick):undefined;
+    const oldPose=!reset&&previous?.state.phase==='playing'&&state.phase==='playing'?this.predict(state.tick):undefined;
     if(changed){this.pending=[];this.blocked=false;this.offset={x:0,y:0};if(previous)this.clock.reset();}
     const results=new Set(ledger.results.map(r=>r.seq));
     for(const input of this.pending)if(results.has(input.seq))this.ackMs=this.now()-input.at;
