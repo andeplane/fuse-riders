@@ -7,7 +7,10 @@
     "src/client/controller-pointers.ts",
     "src/client/snapshot-stream.ts",
     "src/client/render-snapshot.ts",
-    "src/client/audio-director.ts"
+    "src/client/audio-director.ts",
+    "src/online/host-session.ts",
+    "src/online/world-codec.ts",
+    "src/online/prediction.ts"
   ],
   "reporter": [
     "text",
