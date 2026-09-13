@@ -88,6 +88,13 @@ try {
   await phones[0].getByText('STAR · --', { exact: true }).waitFor();
   await phones[0].getByText('PTS · 0', { exact: true }).waitFor();
   await waitFor(() => app.game.players.size === 5, 'five controller seats');
+  const controllerColors: string[] = [];
+  for (let i = 0; i < phones.length; i++) {
+    const color = await phones[i]!.locator('.controller-shell').evaluate(el => (el as HTMLElement).style.getPropertyValue('--player-color'));
+    assert.equal(color, [...app.game.players.values()].find(player => player.slot === i)!.color);
+    controllerColors.push(await phones[i]!.locator('[data-control=left]').evaluate(el => getComputedStyle(el).backgroundImage));
+  }
+  assert.equal(new Set(controllerColors).size, 5, 'each phone has its own rider-colored controls');
   const startBounds = (await host.getByRole('button', { name: 'START RACE', exact: true }).boundingBox())!;
   await host.mouse.move(startBounds.x + startBounds.width / 2, startBounds.y + startBounds.height / 2);
   await host.mouse.down();

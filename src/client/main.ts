@@ -996,6 +996,7 @@ function startController(): void {
     targetPower.textContent = player.targetBombArmed ? 'TARGET · ARMED' : 'TARGET · --';
     const scored = snapshot as ScoredSnapshot;
     liveAvatarPicker.sync(player.avatarId);
+    root.style.setProperty('--player-color', escapeColor(player.color));
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
@@ -1046,6 +1047,7 @@ function startController(): void {
         hasLeft = false;
         playerId = message.playerId; playerToken = message.playerToken; inputState.setNextSequence(message.nextInputSeq);
         localStorage.setItem(PLAYER_TOKEN_KEY, playerToken); localStorage.setItem(PLAYER_NAME_KEY, name);
+        root.style.setProperty('--player-color', escapeColor(message.color));
         identityMarker.style.setProperty('--player-color', escapeColor(message.color));
         join.classList.add('hidden'); controls.classList.remove('hidden');
         socketPill.textContent = `P${message.slot + 1} ONLINE`; socketPill.classList.add('online');
