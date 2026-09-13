@@ -480,7 +480,7 @@ function startDisplay(): void {
   const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = '/themes/neon-pixel/pickup-portal.svg';
   const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 5s invulnerable'));
-  const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 1s'));
+  const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 3s'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
   const targetLegend = element('span'); targetLegend.append(targetLegendImage, element('b', '', 'TARGET'), document.createTextNode(' rare: slide Fire to aim'));
   const fiveLegend = element('span'); fiveLegend.append(fiveLegendImage, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));

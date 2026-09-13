@@ -101,7 +101,7 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
-export const INK_DURATION_TICKS = 20;
+export const INK_DURATION_TICKS = 60;
 
 export type PickupType = 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
 
