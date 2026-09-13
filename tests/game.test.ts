@@ -909,3 +909,23 @@ test('blast preview is harmless before the fuse, both in flight and after landin
     assert.equal(rider.alive, false, 'radius becomes lethal only when bomb detonates');
   }
 });
+
+test('projectile stops at first body contact, not at the preview center or riders behind it', () => {
+  const state = gameWithPlayers(4); enterPlaying(state);
+  for (const player of state.players.values()) { player.trail = []; player.angle = 0; }
+  Object.assign(state.players.get('p0')!, { x: 200, y: 200 });
+  Object.assign(state.players.get('p1')!, { x: 550, y: 450 });
+  Object.assign(state.players.get('p2')!, { x: 590, y: 450 });
+  Object.assign(state.players.get('p3')!, { x: 600, y: 500 });
+  state.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 500, launchY: 450, x: 600, y: 450,
+    placedTick: state.tick, launchedTick: state.tick, landsAtTick: state.tick + 6, explodeAtTick: state.tick + 40,
+    blastRange: 140, flightPath: [{ x: 500, y: 450, angle: 0 }, ...fixedFlightPath(600, 450)] });
+  step(state, new Map());
+  assert.equal(state.players.get('p1')!.alive, false);
+  assert.equal(state.players.get('p2')!.alive, true, 'rider behind first contact survives');
+  assert.equal(state.players.get('p3')!.alive, true, 'rider inside large radius survives');
+  const bomb = state.bombs.get(99)!;
+  assert.ok(bomb.x > 500 && bomb.x < 550);
+  assert.equal(bomb.landsAtTick, state.tick);
+  assert.equal(state.blasts.length, 0);
+});

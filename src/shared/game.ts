@@ -448,14 +448,29 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const from = bomb.flightPath[Math.max(0, index - 1)];
     const to = bomb.flightPath[index];
     if (!from || !to) continue;
+    let hit: Movement | undefined;
+    let hitTime = Infinity;
     for (const movement of movements.values()) {
       if (movement.player.id === bomb.ownerId || isHazardImmune(movement.player, state.tick)) continue;
-      if (pointSegmentDistanceSquared(0, 0, from.x - movement.oldX, from.y - movement.oldY,
-        to.x - movement.x, to.y - movement.y) <= square(RIDER_RADIUS + 14)) {
-        markCause(causes, causeOwners, movement.player.id, 'explosion', bomb.ownerId);
-      }
+      const px = from.x - movement.oldX; const py = from.y - movement.oldY;
+      const vx = to.x - movement.x - px; const vy = to.y - movement.y - py;
+      const radius = RIDER_RADIUS + 14; // Physical bomb body only, never blastRange.
+      const c = px * px + py * py - radius * radius;
+      const a = vx * vx + vy * vy; const b = 2 * (px * vx + py * vy);
+      const discriminant = b * b - 4 * a * c;
+      const contact = c <= 0 ? 0 : a > 0 && discriminant >= 0 ? (-b - Math.sqrt(discriminant)) / (2 * a) : Infinity;
+      if (contact >= 0 && contact <= 1 && contact < hitTime) { hit = movement; hitTime = contact; }
+    }
+    if (hit) {
+      markCause(causes, causeOwners, hit.player.id, 'explosion', bomb.ownerId);
+      // Stop where contact actually occurred, so the visible bomb identifies the hit.
+      bomb.x = from.x + (to.x - from.x) * hitTime;
+      bomb.y = from.y + (to.y - from.y) * hitTime;
+      bomb.landsAtTick = state.tick;
+      bomb.flightPath = [{ x: bomb.x, y: bomb.y, angle: to.angle }];
     }
   }
+
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
       if (!isHazardImmune(movement.player, state.tick) && segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, blast.circle, RIDER_RADIUS)) {
