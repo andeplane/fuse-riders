@@ -1,9 +1,10 @@
+import { ControllerPointerBindings } from './controller-pointers.js';
 import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, ServerMessage, TrailSegment } from '../shared/protocol.js';
-import { ControllerInputState, type ControllerControl } from './controller-state.js';
+import { ControllerInputState } from './controller-state.js';
 import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortalPair, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
@@ -904,9 +905,7 @@ function startController(): void {
     if (inputState.hasHeld()) resendTimer = window.setInterval(() => inputState.resend(), HELD_RESEND_MS);
   }
   function clearControls(send = true, force = false): void {
-    inputState.clear(send, force);
-    for (const button of pad.querySelectorAll('.active')) button.classList.remove('active');
-    updateResend();
+    pointerBindings.clear(send, force);
   }
   function updateFromSnapshot(snapshot: ViewSnapshot): void {
     const phaseChanged = latestSnapshot !== undefined && latestSnapshot.phase !== snapshot.phase;
@@ -1017,27 +1016,7 @@ function startController(): void {
     window.setTimeout(() => { joinButton.disabled = false; }, 600);
   });
 
-  for (const button of pad.querySelectorAll<HTMLButtonElement>('[data-control]')) {
-    button.addEventListener('contextmenu', (event) => event.preventDefault());
-    button.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      const control = button.dataset.control as ControllerControl;
-      button.setPointerCapture(event.pointerId); inputState.pointerDown(event.pointerId, control); button.classList.add('active'); updateResend();
-    });
-    const release = (event: PointerEvent) => {
-      event.preventDefault();
-      const control = button.dataset.control as ControllerControl;
-      inputState.pointerRelease(event.pointerId);
-      button.classList.toggle('active', inputState.isHeld(control)); updateResend();
-    };
-    const cancel = (event: PointerEvent) => {
-      event.preventDefault();
-      const control = button.dataset.control as ControllerControl;
-      inputState.pointerCancel(event.pointerId);
-      button.classList.toggle('active', inputState.isHeld(control)); updateResend();
-    };
-    button.addEventListener('pointerup', release); button.addEventListener('pointercancel', cancel); button.addEventListener('lostpointercapture', cancel);
-  }
+  const pointerBindings = new ControllerPointerBindings(inputState, [[left, 'left'], [bomb, 'bomb'], [right, 'right']], window, updateResend);
   leave.addEventListener('click', () => {
     hasLeft = true; clearControls(); socket.send({ type: 'leave' }); socket.close();
     localStorage.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = ''; latestSnapshot = undefined;

@@ -20,6 +20,8 @@ export class ControllerInputState {
   }
 
   pointerDown(pointerId: number, control: ControllerControl): boolean {
+    if (this.pointers.get(pointerId) === control) return false;
+    this.pointerCancel(pointerId);
     this.pointers.set(pointerId, control);
     if (this.held[control]) return false;
     this.held[control] = true;

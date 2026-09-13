@@ -82,6 +82,31 @@ try {
   assert.notEqual(rider.angle, initialAngle, 'phone steers authoritative rider');
   await phones[1].mouse.up(); await new Promise(r => setTimeout(r, 50));
   const releasedAngle = rider.angle; app.advance(2); assert.equal(rider.angle, releasedAngle, 'pointer release neutralizes');
+  // Real browser capture cleanup: interrupted contact must never trap the next press.
+  await left.evaluate(button => button.addEventListener('pointerdown', event => {
+    (button as HTMLElement).dataset.lastPointer = String((event as PointerEvent).pointerId);
+  }));
+  for (const interruption of ['blur', 'lostpointercapture', 'pointercancel'] as const) {
+    await phones[1].mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await phones[1].mouse.down();
+    await phones[1].mouse.move(box.x + box.width / 2 + 2, box.y + box.height / 2);
+    assert.equal(await left.evaluate(button => button.classList.contains('active')), true);
+    await left.evaluate((button, kind) => {
+      const id = Number((button as HTMLElement).dataset.lastPointer);
+      if (kind === 'blur') window.dispatchEvent(new Event('blur'));
+      else if (kind === 'lostpointercapture') button.releasePointerCapture(id);
+      else window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: id, bubbles: true }));
+    }, interruption);
+    // Pending lost-capture events are processed with the next pointer event.
+    await phones[1].mouse.move(box.x + box.width / 2 + 1, box.y + box.height / 2);
+    await left.locator('xpath=self::*[not(contains(@class, "active"))]').waitFor();
+    await phones[1].mouse.up();
+    await phones[1].mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await phones[1].mouse.down();
+    await phones[1].mouse.move(box.x + box.width / 2 + 2, box.y + box.height / 2);
+    assert.equal(await left.evaluate(button => button.classList.contains('active')), true, `${interruption}: next press works`);
+    await phones[1].mouse.up();
+  }
   const poweredRider = [...app.game.players.values()].find((player) => player.slot === 0)!;
   app.game.pickups.push({ id: 9_001, type: 'blast', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('BLAST · +1', { exact: true }).waitFor();

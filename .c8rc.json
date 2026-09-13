@@ -4,6 +4,7 @@
     "src/shared/**",
     "src/server/**",
     "src/client/controller-state.ts",
+    "src/client/controller-pointers.ts",
     "src/client/snapshot-stream.ts",
     "src/client/render-snapshot.ts"
   ],
