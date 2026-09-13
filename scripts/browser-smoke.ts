@@ -28,7 +28,7 @@ try {
   await host.getByText('HOST ONLINE', { exact: true }).waitFor();
   assert.equal(new URL(host.url()).hash, '', 'host fragment removed from URL');
   await host.locator('.qr').waitFor();
-  await host.getByText('longer explosions', { exact: false }).waitFor();
+  await host.getByText('larger explosions', { exact: false }).waitFor();
   await host.getByText('2.5s invulnerable', { exact: false }).waitFor();
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
   await host.getByText('next launch fires 3', { exact: false }).waitFor();
@@ -96,9 +96,11 @@ try {
   app.game.pickups.push({ id: 9_004, type: 'triple', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_004), false, 'triple pickup consumed authoritatively');
+  app.game.pickups.push({ id: 9_008, type: 'five', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('FIVE · ARMED', { exact: true }).waitFor();
   await phones[0].screenshot({ path: 'artifacts/phone-armed-portrait.png' });
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
-  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 3, 'Triple Shot release launches one three-bomb volley');
+  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 5, 'Five overrides Triple and releases five bombs');
   await phones[0].locator('.bomb.launching').waitFor();
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();

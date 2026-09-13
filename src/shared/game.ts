@@ -1,4 +1,5 @@
 import { clipTrailSegment } from './trail-clipping.js';
+import { pickupTypeForRoll } from './pickup-weights.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
 import { createPortalPair, findPortalTransit, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
@@ -65,7 +66,6 @@ export const SELF_TRAIL_GRACE_TICKS = 10;
 export const BOMB_FUSE_TICKS = 40;
 export const BOMB_COOLDOWN_TICKS = 80;
 export const BOMB_BLAST_RANGE = 150;
-export const BOMB_BLAST_HALF_WIDTH = 12;
 export const BLAST_VISIBLE_TICKS = 8;
 export const BLAST_LEVEL_RANGE = 75;
 
@@ -94,7 +94,7 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
-export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'orbitShield' | 'portal';
+export type PickupType = 'blast' | 'star' | 'beer' | 'triple' | 'five' | 'orbitShield' | 'portal';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -122,7 +122,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
   drunkUntilTick: number;
-  tripleShotArmed: boolean;
+  tripleShotArmed: boolean; fiveShotArmed: boolean;
+
   shielded: boolean;
   shieldGraceUntilTick: number;
   portalCooldownUntilTick: number;
@@ -262,7 +263,8 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     blastLevel: 0,
     invulnerableUntilTick: 0,
     drunkUntilTick: 0,
-    tripleShotArmed: false,
+    tripleShotArmed: false, fiveShotArmed: false,
+
     shielded: false,
     shieldGraceUntilTick: 0,
     portalCooldownUntilTick: 0,
@@ -552,7 +554,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
       drunkUntilTick: player.drunkUntilTick,
-      tripleShotArmed: player.tripleShotArmed,
+      tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
       portalCooldownUntilTick: player.portalCooldownUntilTick,
@@ -621,7 +623,7 @@ function prepareRound(state: GameState): void {
     player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
     player.drunkUntilTick = 0;
-    player.tripleShotArmed = false;
+    player.tripleShotArmed = false; player.fiveShotArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
     player.portalCooldownUntilTick = 0;
@@ -640,8 +642,7 @@ function prepareRound(state: GameState): void {
 function maybeSpawnPickup(state: GameState): void {
   if (state.pickups.length >= MAX_ACTIVE_PICKUPS) return;
   const typeRoll = nextRandom(state);
-  const pickupTypes: readonly PickupType[] = ['blast', 'star', 'beer', 'triple', 'orbitShield', 'portal'];
-  const type = pickupTypes[Math.min(pickupTypes.length - 1, Math.floor(typeRoll * pickupTypes.length))]!;
+  const type = pickupTypeForRoll(typeRoll);
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;
   const minimumY = state.boundaryInset + PICKUP_SPAWN_MARGIN;
@@ -711,6 +712,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
           player.drunkUntilTick = Math.max(player.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
         }
       }
+    } else if (pickup.type === 'five') {
+      collector.fiveShotArmed = true;
     } else if (pickup.type === 'triple') {
       collector.tripleShotArmed = true;
     } else if (pickup.type === 'orbitShield') {
@@ -803,10 +806,10 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       minY: state.boundaryInset + RIDER_RADIUS,
       maxY: state.height - state.boundaryInset - RIDER_RADIUS,
     };
-    const paths = player.tripleShotArmed
-      ? createVolleyFlightPaths(player, player.angle, distance, bounds)
+    const paths = player.tripleShotArmed || player.fiveShotArmed
+      ? createVolleyFlightPaths(player, player.angle, distance, bounds, player.fiveShotArmed ? 5 : 3)
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
-    player.tripleShotArmed = false;
+    player.tripleShotArmed = false; player.fiveShotArmed = false;
     for (const flightPath of paths) {
       const landing = flightPath[flightPath.length - 1]!;
       const bomb: BombState = {

@@ -101,6 +101,16 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Linked-gate icon for temporary safe transport."
+    },
+    "pickup-five": {
+      "file": "pickup-five.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Rare Five Shot: five magenta bombs in a gold frame."
     }
   }
 }

@@ -9,6 +9,7 @@ The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` sup
 | `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and blast art. |
 | `pickup-blast.svg`, `pickup-star.svg` | Larger explosions and invincibility. |
 | `pickup-beer.svg` | Opponent wobble. |
+| `pickup-five.svg` | Rare five-bomb fan; gold frame distinguishes it from Triple. |
 | `pickup-triple.svg` | Triple Shot. |
 | `pickup-orbitShield.svg`, `pickup-portal.svg` | Orbit Shield and Portal. |
 

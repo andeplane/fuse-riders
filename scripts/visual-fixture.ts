@@ -40,12 +40,13 @@ try {
   app.game.blasts.push({ bombId: 5, ownerId: 'p0', circle: { x: 510, y: 340, radius: 150 }, expiresAtTick:968 });
   app.game.pickups = [
     { id: 1, type: 'blast', x: 1250, y: 320, expiresAtTick: 1200 },
+    { id: 3, type: 'five', x: 1350, y: 420, expiresAtTick: 1200 },
     { id: 2, type: 'star', x: 1250, y: 520, expiresAtTick: 1200 },
   ];
   app.game.players.get('p4')!.invulnerableUntilTick = 1000;
   app.game.players.get('p0')!.shielded = true;
   app.game.players.get('p1')!.drunkUntilTick = 1020;
-  app.game.players.get('p2')!.tripleShotArmed = true;
+  app.game.players.get('p2')!.fiveShotArmed = true;
   app.game.players.get('p2')!.bombChargeStartedTick = 942;
   app.game.portalPair = { id: 'fixture-gates', gates: [{ x: 1300, y: 180 }, { x: 900, y: 760 }], expiresAtTick: 1150 };
   const flightPath = createVolleyFlightPaths({ x: 700, y: 700 }, 0, 300, { minX: 27, minY: 27, maxX: 1573, maxY: 873 })[1]!;

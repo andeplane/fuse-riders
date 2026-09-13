@@ -1,3 +1,4 @@
+import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
@@ -337,7 +338,7 @@ function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: n
     const distance = bombLaunchDistance(chargeTicks);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
-    const angles = player.tripleShotArmed ? [player.angle - .16, player.angle, player.angle + .16] : [player.angle];
+    const angles = player.tripleShotArmed || player.fiveShotArmed ? volleyAngles(player.angle, player.fiveShotArmed ? 5 : 3) : [player.angle];
     for (const angle of angles) {
       const targetX = clamp(player.x + Math.cos(angle) * distance, snapshot.boundaryInset + 20, width - snapshot.boundaryInset - 20);
       const targetY = clamp(player.y + Math.sin(angle) * distance, snapshot.boundaryInset + 20, height - snapshot.boundaryInset - 20);
@@ -453,15 +454,17 @@ function startDisplay(): void {
   const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = '/themes/neon-pixel/pickup-star.svg';
   const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = '/themes/neon-pixel/pickup-beer.svg';
   const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = '/themes/neon-pixel/pickup-triple.svg';
+  const fiveLegendImage = element('img'); fiveLegendImage.alt = ''; fiveLegendImage.src = '/themes/neon-pixel/pickup-five.svg';
   const shieldLegendImage = element('img'); shieldLegendImage.alt = ''; shieldLegendImage.src = '/themes/neon-pixel/pickup-orbitShield.svg';
   const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = '/themes/neon-pixel/pickup-portal.svg';
-  const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' longer explosions'));
+  const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 2.5s invulnerable'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
+  const fiveLegend = element('span'); fiveLegend.append(fiveLegendImage, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  pickupLegend.append(blastLegend, starLegend, beerLegend, tripleLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
+  pickupLegend.append(blastLegend, starLegend, beerLegend, tripleLegend, fiveLegend, shieldLegend, portalLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');
@@ -529,7 +532,8 @@ function startDisplay(): void {
   blastLegendImage.src = `/themes/${activeTheme.id}/pickup-blast.svg`;
   starLegendImage.src = `/themes/${activeTheme.id}/pickup-star.svg`;
   beerLegendImage.src = `/themes/${activeTheme.id}/pickup-beer.svg`;
-  tripleLegendImage.src = `/themes/${activeTheme.id}/pickup-triple.svg`;
+  tripleLegendImage.src = `/themes/${activeTheme.id}/pickup-triple.svg`; fiveLegendImage.src = `/themes/${activeTheme.id}/pickup-five.svg`;
+
   shieldLegendImage.src = `/themes/${activeTheme.id}/pickup-orbitShield.svg`;
   portalLegendImage.src = `/themes/${activeTheme.id}/pickup-portal.svg`;
   void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
@@ -540,7 +544,7 @@ function startDisplay(): void {
     activeTheme = next; activeSprites = {}; localStorage.setItem(THEME_KEY, next.id); applyThemeProperties(next);
     blastLegendImage.src = `/themes/${next.id}/pickup-blast.svg`; starLegendImage.src = `/themes/${next.id}/pickup-star.svg`;
     beerLegendImage.src = `/themes/${next.id}/pickup-beer.svg`;
-    tripleLegendImage.src = `/themes/${next.id}/pickup-triple.svg`; shieldLegendImage.src = `/themes/${next.id}/pickup-orbitShield.svg`;
+    tripleLegendImage.src = `/themes/${next.id}/pickup-triple.svg`; fiveLegendImage.src = `/themes/${next.id}/pickup-five.svg`;  shieldLegendImage.src = `/themes/${next.id}/pickup-orbitShield.svg`;
     portalLegendImage.src = `/themes/${next.id}/pickup-portal.svg`;
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
@@ -600,7 +604,7 @@ function startDisplay(): void {
     const stats = [...(snapshot.matchStats ?? [])].sort((a, b) => a.matchPlacement - b.matchPlacement || a.slot - b.slot);
     const signature = stats.map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
       entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected, entry.invulnerableTicks,
-      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.triplePickups, entry.shieldPickups, entry.portalPickups, entry.portalTransits,
+      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.triplePickups, entry.fivePickups,  entry.shieldPickups, entry.portalPickups, entry.portalTransits,
       ...Object.values(entry.deathsByCause)].join(':')).join('|');
     if (signature === recapSignature) return;
     recapSignature = signature;
@@ -655,7 +659,7 @@ function startDisplay(): void {
       row.append(rider, element('strong', '', String(entry.roundWins)), element('span', '', durationText(entry.survivalTicks)),
         element('span', '', durationText(entry.longestSurvivalTicks)), element('span', '', `${Math.round(entry.distanceUnits)}u`),
         element('span', '', `${entry.bombsExploded}/${entry.bombsPlaced}`), element('span', '', String(entry.eliminations)),
-        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} T${entry.triplePickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
+        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} T${entry.triplePickups} F${entry.fivePickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
         element('span', 'death-counts', `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`));
       comparison.append(row);
     }
@@ -919,7 +923,7 @@ function startController(): void {
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const drunkTicks = player.drunkUntilTick - snapshot.tick;
     wobblePower.textContent = drunkTicks > 0 ? `WOBBLE · ${(drunkTicks / 20).toFixed(1)}s` : 'WOBBLE · --';
-    triplePower.textContent = player.tripleShotArmed ? 'TRIPLE · ARMED' : 'TRIPLE · --';
+    triplePower.textContent = player.fiveShotArmed ? 'FIVE · ARMED' : player.tripleShotArmed ? 'TRIPLE · ARMED' : 'TRIPLE · --';
     shieldPower.textContent = player.shielded ? 'SHIELD · READY' : player.shieldGraceUntilTick > snapshot.tick ? 'SHIELD · SPENT' : 'SHIELD · --';
     const portalGraceTicks = player.portalGraceUntilTick - snapshot.tick;
     const portalCooldownTicks = player.portalCooldownUntilTick - snapshot.tick;

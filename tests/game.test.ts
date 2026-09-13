@@ -805,3 +805,48 @@ test('match-over recap is frozen and deeply detached from engine state', () => {
   after[0]!.deathsByCause.wall = 99;
   assert.notEqual(toSnapshot(state).matchStats[0]!.deathsByCause.wall, 99);
 });
+
+test('Five Shot survives Triple collection and cancellation, then launches five with one cooldown', () => {
+  const state = gameWithPlayers(); enterPlaying(state);
+  const player = state.players.get('p0')!;
+  player.x = 500; player.y = 450; player.angle = 0;
+  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
+  for (const type of ['five', 'triple'] as const) {
+    state.pickups = [{ id: 1, type, x: player.x + 2, y: player.y, expiresAtTick: state.tick + 50 }];
+    step(state, new Map());
+  }
+  assert.equal(toSnapshot(state).players[0]!.fiveShotArmed, true);
+  assert.equal(state.matchStats.get('p0')!.fivePickups, 1);
+  step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'cancel', 'release'] }]));
+  assert.equal(player.fiveShotArmed, true);
+  assert.equal(state.bombs.size, 0);
+  step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  const bombs = [...state.bombs.values()];
+  assert.equal(bombs.length, 5);
+  assert.deepEqual(bombs.map(b => b.flightPath[0]!.angle), [-.44, -.22, 0, .22, .44]);
+  assert.ok(bombs.every(b => b.landsAtTick === bombs[0]!.landsAtTick && b.explodeAtTick === bombs[0]!.explodeAtTick));
+  assert.equal(player.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
+  assert.equal(player.fiveShotArmed, false); assert.equal(player.tripleShotArmed, false);
+  player.fiveShotArmed = true;
+  step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  assert.equal(state.bombs.size, 5); assert.equal(player.fiveShotArmed, true);
+  eliminatePlayer(state, 'p1'); step(state, new Map()); state.tick = state.phaseEndsAtTick!; startNextRound(state);
+  assert.equal(player.fiveShotArmed, false);
+});
+
+test('radial blast hits diagonal riders, clears diagonal trails and chains diagonal bombs', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  const rider = state.players.get('p0')!; rider.x = 590; rider.y = 590; rider.angle = 0;
+  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 750;
+  const distant = state.players.get('p2')!; distant.x = 1000; distant.y = 300;
+  distant.trail = [{ x1: 560, y1: 560, x2: 580, y2: 580, createdTick: 0, expiresAtTick: 999 }];
+  for (const [id, x, y] of [[1, 500, 500], [2, 400, 400], [3, 350, 650]] as const) state.bombs.set(id, {
+    id, ownerId: 'p1', launchX: x, launchY: y, x, y, placedTick: 0, launchedTick: 0, landsAtTick: 0,
+    explodeAtTick: id === 1 ? state.tick + 1 : state.tick + 100, blastRange: 150, flightPath: fixedFlightPath(x, y),
+  });
+  const result = step(state, new Map());
+  assert.equal(rider.alive, false);
+  assert.deepEqual(result.events.filter(e => e.type === 'explosion').map(e => e.bombId), [1, 2]);
+  assert.equal(state.bombs.has(3), true, 'outside the disk despite being inside the square');
+  assert.ok(distant.trail.every(t => t.x1 !== 560));
+});
