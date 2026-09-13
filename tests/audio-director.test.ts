@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { CHIPTUNES, MUSIC_STEPS, musicStep } from '../src/client/music-score.ts';
 import { AudioDirector, type AudioChannel, type GameSynth, type SynthNote } from '../src/client/audio-director.ts';
 import { addPlayer, createGame, toSnapshot } from '../src/shared/game.ts';
 import { beginMatchParticipant } from '../src/shared/match-stats.ts';
@@ -72,4 +73,56 @@ test('older round snapshots cannot reset scope or stop music', async () => {
   f.game.round = 1; f.director.message(f.snapshot(90, 'roundOver'));
   f.director.message(f.event(91, { type: 'bombPlaced', bombId: 1, playerId: 'p' }));
   assert.equal(f.notes.length, 0); f.director.update(); assert.ok(f.notes.some(n => n.channel === 'music'));
+});
+
+
+test('six original scores have long arrangements, distinct melodies and bounded valid voices', () => {
+  assert.equal(CHIPTUNES.length, 6);
+  assert.equal(new Set(CHIPTUNES.map(track => track.title)).size, 6);
+  assert.equal(new Set(CHIPTUNES.map(track => JSON.stringify(track.hook))).size, 6);
+  for (const track of CHIPTUNES) {
+    assert.ok(MUSIC_STEPS * track.stepMs >= 55000);
+    const sections = new Set<string>();
+    for (let section = 0; section < 8; section++) {
+      const notes = Array.from({ length: 64 }, (_, beat) => musicStep(track, section * 64 + beat));
+      sections.add(JSON.stringify(notes));
+      for (const voices of notes) {
+        assert.ok(voices.length <= 4);
+        for (const note of voices) {
+          assert.ok(Number.isFinite(note.frequency) && note.frequency > 0);
+          assert.ok(note.duration > 0 && note.duration <= track.stepMs / 1000 * 1.4);
+          assert.ok(note.level > 0 && note.level <= .5);
+        }
+      }
+    }
+    assert.ok(sections.size >= 6, `${track.title} should have distinct arrangements`);
+    assert.deepEqual(musicStep(track, MUSIC_STEPS), musicStep(track, 0));
+  }
+});
+
+test('playlist completes an arrangement, rotates all six tunes and retains mute and volume', async () => {
+  const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(1));
+  f.director.setVolume('music', .17); f.director.setMuted('music', true);
+  assert.equal(f.director.trackTitle, CHIPTUNES[0]!.title);
+  for (let beat = 0; beat < MUSIC_STEPS; beat++) { f.setTime(beat * CHIPTUNES[0]!.stepMs); f.director.update(); }
+  assert.equal(f.director.trackTitle, CHIPTUNES[0]!.title);
+  f.setTime(MUSIC_STEPS * CHIPTUNES[0]!.stepMs); f.director.update();
+  assert.equal(f.director.trackTitle, CHIPTUNES[1]!.title);
+  for (let index = 2; index <= 6; index++) {
+    f.director.nextTrack(); assert.equal(f.director.trackTitle, CHIPTUNES[index % 6]!.title);
+    assert.equal(f.gains.get('music'), 0);
+  }
+  f.director.setMuted('music', false); assert.equal(f.gains.get('music'), .17);
+});
+
+test('new rounds advance playlist once; repeated snapshots and reconnects do not rewind it', async () => {
+  const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(1));
+  const first = f.director.trackTitle;
+  f.director.message(f.snapshot(2)); assert.equal(f.director.trackTitle, first);
+  f.director.message(f.snapshot(3, 'roundOver')); assert.equal(f.director.trackTitle, first);
+  f.game.round++; f.director.message(f.snapshot(4, 'countdown'));
+  assert.equal(f.director.trackTitle, CHIPTUNES[1]!.title);
+  f.director.message(f.snapshot(5)); assert.equal(f.director.trackTitle, CHIPTUNES[1]!.title);
+  f.director.disconnect(); f.director.message(f.snapshot(6)); assert.equal(f.director.trackTitle, CHIPTUNES[1]!.title);
+  f.game.round++; f.director.message(f.snapshot(7)); assert.equal(f.director.trackTitle, CHIPTUNES[2]!.title);
 });

@@ -44,6 +44,9 @@ export function createGameAudio(): { director: AudioDirector; controls: HTMLElem
   const enable = document.createElement('button'); enable.type = 'button'; enable.textContent = 'Enable TV audio'; panel.append(enable);
   const unlock = () => { void director.unlock().then(ok => { enable.textContent = ok ? 'TV audio enabled' : 'Retry TV audio'; enable.setAttribute('aria-pressed', String(ok)); }); };
   enable.addEventListener('click', unlock);
+  const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next tune (6 original tracks)';
+  next.addEventListener('click', () => director.nextTrack()); panel.append(next);
+  const musicInfo = document.createElement('small'); musicInfo.textContent = '64-bar arrangements · new tune each round'; panel.append(musicInfo);
   for (const channel of ['music', 'effects'] as const) {
     const label = channel === 'music' ? 'Music' : 'Effects';
     const row = document.createElement('label'); row.textContent = `${label} volume`;

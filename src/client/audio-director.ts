@@ -1,4 +1,5 @@
 import type { ServerMessage } from '../shared/protocol.js';
+import { CHIPTUNES, MUSIC_STEPS, musicStep } from './music-score.js';
 
 export type AudioChannel = 'music' | 'effects';
 export interface SynthNote { frequency: number; endFrequency?: number; duration: number; delay?: number; wave: 'square' | 'triangle' | 'sawtooth'; level: number }
@@ -8,13 +9,6 @@ export interface GameSynth {
   gain(channel: AudioChannel, value: number): void;
   stop(): void;
 }
-const midi = (note: number) => 440 * 2 ** ((note - 69) / 12);
-// Original 8-bar A-minor arcade motif, composed for Fuse Riders.
-const melody = [76, 0, 79, 81, 83, 81, 79, 76, 74, 0, 76, 79, 81, 79, 76, 74,
-  72, 76, 79, 0, 84, 83, 79, 76, 74, 77, 81, 0, 83, 81, 77, 74,
-  76, 79, 81, 84, 83, 0, 81, 79, 76, 74, 72, 0, 74, 76, 79, 83,
-  84, 83, 81, 79, 76, 79, 74, 77, 76, 0, 71, 74, 76, 0, 0, 0];
-const bass = [45, 43, 41, 43, 45, 43, 41, 40];
 export class AudioDirector {
   private unlocked = false;
   private scope = '';
@@ -26,6 +20,8 @@ export class AudioDirector {
   private playing = false;
   private nextBeat = 0;
   private beat = 0;
+  private trackIndex = 0;
+  private musicScope = '';
   private settings = { music: { muted: false, volume: .22 }, effects: { muted: false, volume: .45 } };
   constructor(private readonly synth: GameSynth, private readonly now: () => number) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
@@ -35,6 +31,8 @@ export class AudioDirector {
     this.nextBeat = this.now();
     return this.unlocked;
   }
+  get trackTitle(): string { return CHIPTUNES[this.trackIndex]!.title; }
+  nextTrack(): void { this.trackIndex = (this.trackIndex + 1) % CHIPTUNES.length; this.beat = 0; this.nextBeat = this.now(); }
   setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); }
   setVolume(channel: AudioChannel, value: number): void {
     this.settings[channel].volume = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
@@ -53,6 +51,10 @@ export class AudioDirector {
       } else if (message.tick < this.latestTick) return;
       this.latestTick = message.tick;
       this.playing = message.state.phase === 'playing' || message.state.phase === 'countdown';
+      if (this.playing && scope !== this.musicScope) {
+        if (this.musicScope) this.nextTrack();
+        this.musicScope = scope;
+      }
       return;
     }
     if (scope !== this.scope || message.tick <= this.baselineTick || message.tick < this.latestTick - 2) return;
@@ -65,13 +67,10 @@ export class AudioDirector {
     if (!this.unlocked || !this.playing) { this.nextBeat = this.now(); return; }
     const now = this.now();
     if (now < this.nextBeat) return;
-    this.nextBeat = now + 125; // No catch-up loop after backgrounding or a slow frame.
-    const index = this.beat++ % melody.length;
-    const note = melody[index]!;
-    if (note) this.synth.note('music', { frequency: midi(note), duration: .09, wave: 'square', level: .13 });
-    if (index % 2 === 0) this.synth.note('music', { frequency: midi(bass[Math.floor(index / 8)]!), duration: .18, wave: 'triangle', level: .4 });
-    if (index % 4 === 0) this.synth.note('music', { frequency: 135, endFrequency: 42, duration: .075, wave: 'triangle', level: .6 });
-    else if (index % 2 === 1) this.synth.note('music', { frequency: 1400, endFrequency: 500, duration: .025, wave: 'square', level: .04 });
+    if (this.beat >= MUSIC_STEPS) this.nextTrack();
+    const track = CHIPTUNES[this.trackIndex]!;
+    this.nextBeat = now + track.stepMs; // Never catch up after a slow/background frame.
+    for (const note of musicStep(track, this.beat++)) this.synth.note('music', note);
   }
   private cue(type: string): void {
     if (!this.unlocked) return;
