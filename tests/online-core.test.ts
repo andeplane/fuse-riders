@@ -46,3 +46,23 @@ test('fresh encoder after reconnection replaces old stream without accepting ret
   assert.ok(decoder.accept(b.encode(room.snapshot(),'m',1,3,true)));
   assert.equal(decoder.accept(first),undefined);
 });
+
+test('host checkpoint restores world and sequence numbers without replaying held fire',()=>{
+  const a=session();a.command('host',{type:'join',name:'Host'});a.command('p',{type:'join',name:'P'});a.command('host',{type:'action',action:'start'});
+  for(let i=0;i<60;i++)a.advance();a.command('p',{type:'input',seq:99,left:true,right:false,bomb:true,bombAction:'press'});a.advance();
+  const b=session();assert.equal(b.restore(a.checkpoint()),true);assert.equal(b.game.tick,a.game.tick);assert.equal(b.acknowledgements().p,99);
+  b.advance();assert.equal(b.game.players.get('p')!.bombChargeStartedTick,undefined);
+  assert.equal(b.restore('invalid'),false);
+});
+
+test('field patches update joins and clear optional charge state without repeating identity',()=>{
+  const room=session();room.command('host',{type:'join',name:'Host'});const encoder=new WorldEncoder(),decoder=new WorldDecoder();
+  const wire=(frame:ReturnType<WorldEncoder['encode']>)=>decoder.accept(JSON.parse(JSON.stringify(frame)));
+  wire(encoder.encode(room.snapshot(),'m',1,1,true));room.command('p',{type:'join',name:'New guest'});
+  room.game.players.get('host')!.bombChargeStartedTick=4;
+  assert.deepEqual(wire(encoder.encode(room.snapshot(),'m',1,2)),JSON.parse(JSON.stringify(room.snapshot())));
+  room.game.players.get('host')!.bombChargeStartedTick=undefined;
+  const update=encoder.encode(room.snapshot(),'m',1,3);
+  assert.equal(JSON.stringify(update).includes('New guest'),false);
+  assert.deepEqual(wire(update),JSON.parse(JSON.stringify(room.snapshot())));
+});

@@ -1,0 +1,8 @@
+{
+  "date": "2026-09-13T22:34:55.367Z",
+  "method": "5 invulnerable circling riders, 30 measured simulated seconds after 5s warmup; 10 Hz deltas with a keyframe every 15s; decoded world equals authoritative snapshot on every update.",
+  "fullAt10HzMbps": 8.661920533333333,
+  "deltaAt10HzMbps": 0.18763813333333332,
+  "reductionPercent": 97.8337583147842,
+  "encoderP95Ms": 0.7538330000000428
+}
