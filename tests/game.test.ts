@@ -4,14 +4,20 @@ import test from 'node:test';
 import {
   BOMB_COOLDOWN_TICKS,
   BOMB_FUSE_TICKS,
+  BOMB_BLAST_RANGE,
+  BLAST_LEVEL_RANGE,
   BLAST_VISIBLE_TICKS,
   COUNTDOWN_TICKS,
   INITIAL_BOUNDARY_INSET,
+  MAX_ACTIVE_PICKUPS,
   OVERTIME_INSET_PER_TICK,
   OVERTIME_START_TICK,
+  PICKUP_LIFETIME_TICKS,
+  PICKUP_SPAWN_INTERVAL_TICKS,
   ROUND_DRAW_TICK,
   SELF_TRAIL_GRACE_TICKS,
   SLOT_COLORS,
+  STAR_DURATION_TICKS,
   TRAIL_LIFETIME_TICKS,
   addPlayer,
   createGame,
@@ -29,8 +35,8 @@ import {
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 
-function gameWithPlayers(count = 2, matchId = 'match'): GameState {
-  const state = createGame(matchId);
+function gameWithPlayers(count = 2, matchId = 'match', seed?: number): GameState {
+  const state = createGame(matchId, seed);
   for (let slot = 0; slot < count; slot += 1) {
     addPlayer(state, {
       id: `p${slot}`,
@@ -129,6 +135,7 @@ test('a due blast removes an intersecting segment before trail collision', () =>
     y: 350,
     placedTick: state.tick - BOMB_FUSE_TICKS,
     explodeAtTick: state.tick + 1,
+    blastRange: 150,
   });
 
   const result = step(state, new Map());
@@ -222,6 +229,7 @@ test('bomb input is edge-triggered, capped at one live bomb, chained once, and o
     y: firstBomb.y,
     placedTick: state.tick,
     explodeAtTick: state.tick + 999,
+    blastRange: 150,
   });
   firstBomb.explodeAtTick = state.tick + 1;
   result = step(state, inputs(['p0', { bomb: false }]));
@@ -264,8 +272,8 @@ test('overtime inset updates before collision and a 90-second unresolved round d
 
   const timeout = gameWithPlayers();
   enterPlaying(timeout);
-  timeout.players.get('p0')!.x = 400; timeout.players.get('p0')!.y = 250;
-  timeout.players.get('p1')!.x = 800; timeout.players.get('p1')!.y = 450;
+  timeout.players.get('p0')!.x = 600; timeout.players.get('p0')!.y = 450;
+  timeout.players.get('p1')!.x = 1000; timeout.players.get('p1')!.y = 450;
   timeout.roundStartedTick = timeout.tick - ROUND_DRAW_TICK + 1;
   const result = step(timeout, new Map());
   assert.equal(timeout.phase, 'roundOver');
@@ -310,7 +318,7 @@ test('wall and explosion causes are authoritative, clipped, and blast visuals ex
   target.x = 30; target.y = 350; target.angle = 0;
   explosion.players.get('p1')!.x = 900;
   explosion.players.get('p1')!.y = 600;
-  explosion.bombs.set(10, { id: 10, ownerId: 'p1', x: 30, y: 350, placedTick: 0, explodeAtTick: explosion.tick + 1 });
+  explosion.bombs.set(10, { id: 10, ownerId: 'p1', x: 30, y: 350, placedTick: 0, explodeAtTick: explosion.tick + 1, blastRange: 150 });
   const blastResult = step(explosion, new Map());
   assert.ok(blastResult.events.some((event) => event.type === 'playerEliminated' && event.playerId === 'p0' && event.cause === 'explosion'));
   assert.equal(explosion.blasts[0]!.rects[0]!.x, explosion.boundaryInset, 'cross is clipped to the active boundary');
@@ -338,4 +346,106 @@ test('a finished match can replace every seat and start a clean rematch without 
   assert.equal(state.matchId, 'replacement-match');
   assert.deepEqual([...state.players.keys()].sort(), ['new-a', 'new-b']);
   assert.ok([...state.players.values()].every((player) => player.roundWins === 0 && player.alive));
+});
+
+test('the larger arena and seeded pickup schedule replay deterministically', () => {
+  const first = gameWithPlayers(2, 'seeded-a', 123456);
+  const second = gameWithPlayers(2, 'seeded-b', 123456);
+  assert.equal(first.width, 1600);
+  assert.equal(first.height, 900);
+  startMatch(first);
+  startMatch(second);
+  for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) {
+    step(first, new Map());
+    step(second, new Map());
+  }
+  assert.equal(first.nextPickupSpawnTick, first.tick + PICKUP_SPAWN_INTERVAL_TICKS);
+  first.nextPickupSpawnTick = first.tick + 1;
+  second.nextPickupSpawnTick = second.tick + 1;
+  step(first, new Map());
+  step(second, new Map());
+  assert.equal(first.pickups.length, 1);
+  assert.deepEqual(first.pickups, second.pickups);
+  assert.equal(first.randomState, second.randomState);
+});
+
+test('blast pickups cap at level two and affect bombs placed on the collection tick', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const player = state.players.get('p0')!;
+  player.x = 500; player.y = 450; player.angle = 0;
+  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
+  state.pickups = [
+    { id: 1, type: 'blast', x: 503, y: 450, expiresAtTick: state.tick + 100 },
+    { id: 2, type: 'blast', x: 506, y: 450, expiresAtTick: state.tick + 100 },
+    { id: 3, type: 'blast', x: 507, y: 450, expiresAtTick: state.tick + 100 },
+  ];
+  step(state, inputs(['p0', { bomb: true }]));
+  assert.equal(player.blastLevel, 2);
+  assert.equal(state.pickups.length, 0);
+  assert.equal([...state.bombs.values()][0]!.blastRange, BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE);
+});
+
+test('a star collected on the swept path rescues and reflects a wall hit, then expires sharply', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const player = state.players.get('p0')!;
+  const other = state.players.get('p1')!;
+  player.x = state.boundaryInset + 7.1; player.y = 450; player.angle = Math.PI;
+  other.x = 1200; other.y = 700;
+  state.pickups = [{ id: 1, type: 'star', x: player.x, y: player.y, expiresAtTick: state.tick + 100 }];
+  step(state, new Map());
+  assert.equal(player.alive, true);
+  assert.equal(player.x, state.boundaryInset + 7);
+  assert.ok(Math.abs(player.angle) < 1e-8);
+  assert.equal(player.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+
+  player.invulnerableUntilTick = state.tick + 1;
+  other.trail = [{ x1: player.x + 3, y1: 400, x2: player.x + 3, y2: 500, createdTick: 0, expiresAtTick: state.tick + 100 }];
+  step(state, new Map());
+  assert.equal(player.alive, false, 'the first unprotected sweep checks a trail containing the rider');
+});
+
+test('star head contact kills only a normal rider while two stars pass through', () => {
+  const asymmetric = gameWithPlayers();
+  enterPlaying(asymmetric);
+  const star = asymmetric.players.get('p0')!;
+  const normal = asymmetric.players.get('p1')!;
+  star.x = 500; star.y = 450; star.angle = 0; star.invulnerableUntilTick = asymmetric.tick + 2;
+  normal.x = 520; normal.y = 450; normal.angle = Math.PI;
+  step(asymmetric, new Map());
+  assert.equal(star.alive, true);
+  assert.equal(normal.alive, false);
+
+  const both = gameWithPlayers();
+  enterPlaying(both);
+  const first = both.players.get('p0')!;
+  const second = both.players.get('p1')!;
+  first.x = 500; first.y = 450; first.angle = 0; first.invulnerableUntilTick = both.tick + 2;
+  second.x = 520; second.y = 450; second.angle = Math.PI; second.invulnerableUntilTick = both.tick + 2;
+  step(both, new Map());
+  assert.equal(first.alive, true);
+  assert.equal(second.alive, true);
+});
+
+test('pickup expiry, active cap, and impossible safe interior stay bounded', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  state.pickups = Array.from({ length: MAX_ACTIVE_PICKUPS }, (_, index) => ({
+    id: index + 1,
+    type: 'blast' as const,
+    x: 700 + index * 40,
+    y: 450,
+    expiresAtTick: state.tick + (index === 0 ? 1 : PICKUP_LIFETIME_TICKS),
+  }));
+  state.nextPickupSpawnTick = state.tick + 1;
+  step(state, new Map());
+  assert.equal(state.pickups.length, 3, 'one expiry allows at most one scheduled replacement');
+
+  state.pickups = [];
+  state.width = 100;
+  state.height = 100;
+  state.nextPickupSpawnTick = state.tick + 1;
+  step(state, new Map());
+  assert.equal(state.pickups.length, 0, 'an empty safe rectangle skips instead of looping');
 });

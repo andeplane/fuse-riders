@@ -5,7 +5,7 @@ import { SnapshotStream } from '../src/client/snapshot-stream.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
-  return { phase: 'lobby', width: 1200, height: 700, boundaryInset: 20, players: [], bombs: [], blasts: [] };
+  return { phase: 'lobby', width: 1200, height: 700, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [] };
 }
 
 test('multitouch retains a control until its final pointer releases', () => {

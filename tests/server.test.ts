@@ -158,3 +158,25 @@ test('injected scheduler advances fixed ticks, caps catch-up, discards excess an
   } finally { await app.close(); }
   assert.equal(cancelled, 2); assert.equal(tasks.size, 0);
 });
+
+test('display receives 20Hz world state while phones receive compact 10Hz updates and measured input acknowledgments', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host(); const a = await f.join('A'); await f.join('B');
+    a.peer.send({ type: 'ping', id: 7, sentAt: 12.5 });
+    assert.deepEqual(await a.peer.take('pong'), { type: 'pong', id: 7, sentAt: 12.5 });
+    host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown');
+    f.app.advance(60); await host.take('snapshot', s => s.state.phase === 'playing'); await a.peer.flush();
+    host.messages.length = 0; a.peer.messages.length = 0;
+    f.app.advance();
+    const odd = await host.take('snapshot', s => s.tick === 61);
+    assert.ok(odd.state.players.some(p => p.trail.length > 0));
+    await a.peer.flush(); assert.equal(a.peer.messages.some(m => m.type === 'snapshot' && m.tick === 61), false);
+    a.peer.send({ type: 'input', seq: 10, left: true, right: false, bomb: false }); await a.peer.flush();
+    f.app.advance();
+    const compact = await a.peer.take('snapshot', s => s.tick === 62);
+    assert.ok(compact.state.players.every(p => p.trail.length === 0));
+    assert.deepEqual(compact.state.bombs, []); assert.deepEqual(compact.state.blasts, []); assert.deepEqual(compact.state.pickups, []);
+    assert.deepEqual(await a.peer.take('inputAck'), { type: 'inputAck', seq: 10, appliedTick: 62 });
+  } finally { await f.close(); }
+});

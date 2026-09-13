@@ -7,6 +7,7 @@ test('all semantic message variants validate without accepting extra fields', ()
     { type: 'join', name: ' Åse ' }, { type: 'join', name: 'P2', playerToken: 'a'.repeat(48) },
     { type: 'input', seq: 5, left: true, right: false, bomb: false },
     { type: 'heartbeat' }, { type: 'leave' }, { type: 'hostAuth', token: 'b'.repeat(48) },
+    { type: 'ping', id: 1, sentAt: 123.4 },
     { type: 'hostAction', action: 'start' }, { type: 'hostAction', action: 'nextRound' }, { type: 'hostAction', action: 'rematch' },
   ];
   for (const m of messages) {
@@ -21,6 +22,7 @@ test('untrusted message shapes, sizes, tokens and input sequences fail closed', 
     { type: 'join', name: '' }, { type: 'join', name: 5 }, { type: 'join', name: 'a'.repeat(19) },
     { type: 'join', name: 'bad\u0000' }, { type: 'join', name: 'OK', playerToken: 'invalid' },
     { type: 'hostAuth', token: 4 }, { type: 'hostAction', action: 'delete' },
+    { type: 'ping', id: -1, sentAt: 0 }, { type: 'ping', id: 1, sentAt: -1 }, { type: 'ping', id: 1, sentAt: null },
     ...[-1, 0.5, 2 ** 54, null, '1'].map(seq => ({ type: 'input', seq, left: false, right: false, bomb: false })),
     { type: 'input', seq: 1, left: 1, right: false, bomb: false },
     { type: 'input', seq: 1, left: false, right: false },

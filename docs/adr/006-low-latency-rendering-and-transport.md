@@ -9,7 +9,7 @@ The full trail fixture measured a 7.10 FPS median with 133.4 ms p95 frame time. 
 
 ## Decision
 
-Keep the authoritative simulation and gameplay rules unchanged. The host-authenticated display receives a complete snapshot at 20 Hz, serialized once per tick and reused for that broadcast. Joined controllers and unauthenticated spectators receive compact snapshots at 10 Hz: omit trails, bombs, and blasts while retaining player positions/angles/alive metadata, phase/timers, roster, scores, and cooldowns. Role-specific payloads are selected server-side and are validated by the shared protocol.
+Keep the authoritative simulation and gameplay rules unchanged. The host-authenticated display receives a complete snapshot at 20 Hz, serialized once per tick and reused for that broadcast. Joined controllers and unauthenticated spectators receive compact snapshots at 10 Hz: omit trails, bombs, blasts, and pickups while retaining player positions/angles/alive metadata, phase/timers, roster, scores, and cooldowns. Role-specific payloads are selected server-side and are validated by the shared protocol.
 
 Remove the display's fixed 100 ms buffer. Render the newest authoritative world state immediately, with bounded visual extrapolation of alive position and angle for at most 50 ms. Freeze the visual state when snapshots are stale. Extrapolation must never predict collisions, deaths, bombs, scores, phase transitions, or any other outcome.
 

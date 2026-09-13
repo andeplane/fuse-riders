@@ -1,6 +1,6 @@
 # Fuse Riders architecture
 
-This is the accepted implementation contract derived from ADR-001 through ADR-003 and the independent review in `docs/adr/review.md`.
+This is the accepted implementation contract derived from ADR-001 through ADR-005 and the independent reviews.
 
 ## Runtime and trust boundary
 
@@ -17,7 +17,7 @@ The server also prints `http://<lan-address>:<port>/display#<host-token>`. The f
 
 ## Constants
 
-All world geometry uses continuous coordinates in a 1200 by 700 arena. Slot colours in order are cyan, pink, lime, orange, and violet.
+All world geometry uses continuous coordinates in a 1600 by 900 arena. Slot colours in order are cyan, pink, lime, orange, and violet.
 
 ```ts
 export const TICK_HZ = 20;
@@ -38,6 +38,13 @@ export const BOMB_COOLDOWN_TICKS = 80;   // 4 seconds between accepted placement
 export const BOMB_BLAST_RANGE = 150;
 export const BOMB_BLAST_HALF_WIDTH = 12;
 export const BLAST_VISIBLE_TICKS = 8;
+export const BLAST_LEVEL_RANGE = 75;     // two collectible levels
+
+export const PICKUP_SPAWN_INTERVAL_TICKS = 120;
+export const PICKUP_LIFETIME_TICKS = 300;
+export const MAX_ACTIVE_PICKUPS = 3;
+export const PICKUP_SPAWN_ATTEMPTS = 24;
+export const STAR_DURATION_TICKS = 50;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
@@ -93,13 +100,18 @@ export interface GameSnapshot {
   players: ReadonlyArray<{
     id: PlayerId; name: string; slot: number; color: string; connected: boolean;
     x: number; y: number; angle: number; alive: boolean; roundWins: number;
-    bombReadyAtTick: number; trail: ReadonlyArray<TrailSegment>;
+    bombReadyAtTick: number; blastLevel: 0 | 1 | 2;
+    invulnerableUntilTick: number; trail: ReadonlyArray<TrailSegment>;
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; x: number; y: number; explodeAtTick: number;
+    blastRange: number;
   }>;
   blasts: ReadonlyArray<{
     bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number;
+  }>;
+  pickups: ReadonlyArray<{
+    id: number; type: 'blast' | 'star'; x: number; y: number; expiresAtTick: number;
   }>;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
@@ -157,7 +169,7 @@ playing --winner reaches five--> matchOver
 matchOver --rematch (2..5 connected seats)--> countdown of a new match
 ```
 
-Countdown and round-over timers are authoritative. Host `start` and `rematch` are valid only at their corresponding source phase. After the three-second round-over presentation, the server boundary automatically calls `startNextRound` when at least two connected seats remain; the engine remains in `roundOver` until that guarded server command runs. A new match gets a new `matchId`, resets all wins, and starts at round 1. A next round increments `round` and preserves wins. Both reset alive state, positions, directions, trails, bombs, blasts, cooldowns, and buffered input.
+Countdown and round-over timers are authoritative. Host `start` and `rematch` are valid only at their corresponding source phase. After the three-second round-over presentation, the server boundary automatically calls `startNextRound` when at least two connected seats remain; the engine remains in `roundOver` until that guarded server command runs. A new match gets a new `matchId`, resets all wins, and starts at round 1. A next round increments `round` and preserves wins. Both reset alive state, positions, directions, trails, bombs, blasts, pickups, upgrade levels, invulnerability, cooldowns, and buffered input.
 
 Participants are the connected seats at countdown creation, sorted by slot. For N players, spawn points are equally spaced on a circle centered in the arena with radius `0.28 * min(width, height)`. Player zero starts at angle `-pi/2`; each next player adds `2*pi/N`. Each heading is the clockwise tangent (`spawnAngle + pi/2`). This gives two players opposite spawns and evenly spaces three to five players.
 
@@ -180,10 +192,10 @@ These commands and `step` are the only game-state mutators. The periodic server 
 
 `step` increments the tick and then performs these phases exactly once:
 
-1. Expire trail segments and visible blasts whose expiry tick is less than or equal to the new tick. Advance phase timers. Countdown transitions automatically to playing at `phaseEndsAtTick`; round-over remains authoritative until the server's automatic next-round boundary invokes `startNextRound` after its end tick.
-2. For each alive player in slot order, apply bounded steering and compute a candidate swept movement from the old center to the new center. Do not mutate positions or trails yet.
-3. Accept bomb rising edges for players whose candidate exists and whose `bombReadyAtTick <= tick`. Place at the old center, set cooldown, and allow at most one un-exploded bomb owned by a player; otherwise ignore the edge.
-4. Resolve every bomb due at or before this tick. A blast is the union of a horizontal and vertical rectangle, each clipped to the current arena boundary: horizontal spans `x +/- BOMB_BLAST_RANGE`, has total thickness `2 * BOMB_BLAST_HALF_WIDTH`, and vertical is analogous. There are no solid obstacles. Any un-exploded bomb whose center lies in a blast is queued; a set guarantees each bomb explodes once. All bombs in the transitive chain use this tick. Add their clipped rectangles to `blasts` through `tick + BLAST_VISIBLE_TICKS`.
+1. Expire trail segments, visible blasts, and pickups whose expiry tick is less than or equal to the new tick. Advance phase timers. Countdown transitions automatically to playing at `phaseEndsAtTick`; round-over remains authoritative until the server's automatic next-round boundary invokes `startNextRound` after its end tick.
+2. Attempt the deterministic six-second pickup drop when due. For each alive player in slot order, apply bounded steering and compute a candidate swept movement from the old center to the new center. Do not mutate positions or trails yet.
+3. Resolve pickup collection by nearest swept-path distance then slot. Apply upgrades immediately; invulnerable wall hits reflect and clamp inside. Accept bomb rising edges for eligible players, capturing `150 + 75 * blastLevel` as the bomb's immutable range.
+4. Resolve every bomb due at or before this tick. A blast is the union of a horizontal and vertical rectangle, each clipped to the current arena boundary and extended by that bomb's captured range. There are no solid obstacles. Any un-exploded bomb whose center lies in a blast is queued; a set guarantees each bomb explodes once. All bombs in the transitive chain use this tick. Add their clipped rectangles to `blasts` through `tick + BLAST_VISIBLE_TICKS`.
 5. Remove each entire active trail segment that intersects any new blast rectangle. This intentionally creates a gap at least one tick-segment long. Mark a rider for explosion death if its candidate swept centerline, expanded by `RIDER_RADIUS`, intersects a new blast rectangle.
 6. Against the post-blast trail set, compute all remaining deaths without mutating players: boundary if the candidate center crosses the inset arena minus rider radius; trail if the swept center comes within `RIDER_RADIUS + TRAIL_WIDTH/2` of an active segment; rider if two candidate swept centerlines come within `2 * RIDER_RADIUS`. A player ignores only its own segments with `createdTick > tick - SELF_TRAIL_GRACE_TICKS`; endpoints otherwise count as collision. Any pairwise rider collision kills both. Explosion cause takes precedence, then wall, trail, rider for stable event reporting.
 7. Commit all deaths simultaneously. Commit candidate position and append the movement as one independent trail segment only for survivors. A rider killed during this tick creates no new segment. Existing trails of dead riders remain until their normal expiry or blast removal.

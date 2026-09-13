@@ -19,9 +19,11 @@ export interface GameSnapshot {
     id: PlayerId; name: string; slot: number; color: string; connected: boolean;
     x: number; y: number; angle: number; alive: boolean; roundWins: number;
     bombReadyAtTick: number; trail: ReadonlyArray<TrailSegment>;
+    blastLevel: number; invulnerableUntilTick: number;
   }>;
-  bombs: ReadonlyArray<{ id: number; ownerId: PlayerId; x: number; y: number; explodeAtTick: number }>;
+  bombs: ReadonlyArray<{ id: number; ownerId: PlayerId; x: number; y: number; explodeAtTick: number; blastRange: number }>;
   blasts: ReadonlyArray<{ bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number }>;
+  pickups: ReadonlyArray<{ id: number; type: 'blast' | 'star'; x: number; y: number; expiresAtTick: number }>;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }

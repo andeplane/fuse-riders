@@ -14,8 +14,8 @@ export const MAX_CATCH_UP_STEPS = 5;
 export const MAX_PLAYERS = 5;
 export const MIN_PLAYERS = 2;
 
-export const ARENA_WIDTH = 1200;
-export const ARENA_HEIGHT = 700;
+export const ARENA_WIDTH = 1600;
+export const ARENA_HEIGHT = 900;
 export const INITIAL_BOUNDARY_INSET = 20;
 export const SLOT_COLORS = ['#22d3ee', '#ff4fa3', '#a3e635', '#fb923c', '#a78bfa'] as const;
 
@@ -31,6 +31,18 @@ export const BOMB_COOLDOWN_TICKS = 80;
 export const BOMB_BLAST_RANGE = 150;
 export const BOMB_BLAST_HALF_WIDTH = 12;
 export const BLAST_VISIBLE_TICKS = 8;
+export const BLAST_LEVEL_RANGE = 75;
+
+export const PICKUP_SPAWN_INTERVAL_TICKS = 120;
+export const PICKUP_LIFETIME_TICKS = 300;
+export const MAX_ACTIVE_PICKUPS = 3;
+export const PICKUP_SPAWN_ATTEMPTS = 24;
+export const PICKUP_RADIUS = 14;
+export const PICKUP_SPAWN_MARGIN = 40;
+export const PICKUP_RIDER_BOMB_CLEARANCE = 80;
+export const PICKUP_TRAIL_CLEARANCE = 40;
+export const PICKUP_SEPARATION = 28;
+export const STAR_DURATION_TICKS = 50;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
@@ -45,6 +57,7 @@ export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
+export type PickupType = 'blast' | 'star';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -68,6 +81,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   roundWins: number;
   bombReadyAtTick: number;
   previousBombInput: boolean;
+  blastLevel: 0 | 1 | 2;
+  invulnerableUntilTick: number;
   trail: TrailSegment[];
 }
 
@@ -78,11 +93,20 @@ export interface BombState {
   y: number;
   placedTick: number;
   explodeAtTick: number;
+  blastRange: number;
 }
 
 export interface BlastState {
   bombId: number;
   rects: BlastRect[];
+  expiresAtTick: number;
+}
+
+export interface PickupState {
+  id: number;
+  type: PickupType;
+  x: number;
+  y: number;
   expiresAtTick: number;
 }
 
@@ -99,7 +123,12 @@ export interface GameState {
   players: Map<PlayerId, PlayerState>;
   bombs: Map<number, BombState>;
   blasts: BlastState[];
+  pickups: PickupState[];
   nextBombId: number;
+  nextPickupId: number;
+  nextPickupSpawnTick: number;
+  seed: number;
+  randomState: number;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -128,7 +157,7 @@ const CAUSE_PRIORITY: Record<EliminationCause, number> = {
   explosion: 3,
 };
 
-export function createGame(matchId: string): GameState {
+export function createGame(matchId: string, seed = hashSeed(matchId)): GameState {
   if (!matchId) throw new Error('matchId is required');
   return {
     matchId,
@@ -141,7 +170,12 @@ export function createGame(matchId: string): GameState {
     players: new Map(),
     bombs: new Map(),
     blasts: [],
+    pickups: [],
     nextBombId: 1,
+    nextPickupId: 1,
+    nextPickupSpawnTick: 0,
+    seed: normalizeSeed(seed),
+    randomState: normalizeSeed(seed),
   };
 }
 
@@ -165,6 +199,8 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     roundWins: 0,
     bombReadyAtTick: 0,
     previousBombInput: false,
+    blastLevel: 0,
+    invulnerableUntilTick: 0,
     trail: [],
   });
 }
@@ -205,6 +241,8 @@ export function resetMatch(state: GameState, newMatchId: string): void {
   if (!newMatchId) throw new Error('newMatchId is required');
   requireEnoughPlayers(state);
   state.matchId = newMatchId;
+  state.seed = hashSeed(newMatchId);
+  state.randomState = state.seed;
   state.round = 1;
   for (const player of state.players.values()) player.roundWins = 0;
   prepareRound(state);
@@ -218,11 +256,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     player.trail = player.trail.filter((segment) => segment.expiresAtTick > state.tick);
   }
   state.blasts = state.blasts.filter((blast) => blast.expiresAtTick > state.tick);
+  state.pickups = state.pickups.filter((pickup) => pickup.expiresAtTick > state.tick);
 
   if (state.phase === 'countdown' && state.phaseEndsAtTick !== undefined && state.tick >= state.phaseEndsAtTick) {
     state.phase = 'playing';
     state.phaseEndsAtTick = undefined;
     state.roundStartedTick = state.tick;
+    state.nextPickupSpawnTick = state.tick + PICKUP_SPAWN_INTERVAL_TICKS;
   }
 
   if (state.phase !== 'playing') return { snapshot: toSnapshot(state), events };
@@ -230,6 +270,11 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const elapsed = state.tick - (state.roundStartedTick ?? state.tick);
   state.boundaryInset = INITIAL_BOUNDARY_INSET +
     Math.max(0, elapsed - OVERTIME_START_TICK) * OVERTIME_INSET_PER_TICK;
+
+  if (state.tick >= state.nextPickupSpawnTick) {
+    state.nextPickupSpawnTick += PICKUP_SPAWN_INTERVAL_TICKS;
+    maybeSpawnPickup(state);
+  }
 
   const movements = new Map<PlayerId, Movement>();
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
@@ -246,6 +291,22 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     });
   }
 
+  collectPickups(state, movements);
+
+  for (const movement of movements.values()) {
+    if (!isInvulnerable(movement.player, state.tick)) continue;
+    const left = state.boundaryInset + RIDER_RADIUS;
+    const right = state.width - state.boundaryInset - RIDER_RADIUS;
+    const top = state.boundaryInset + RIDER_RADIUS;
+    const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
+    const hitX = movement.x < left || movement.x > right;
+    const hitY = movement.y < top || movement.y > bottom;
+    movement.x = Math.max(left, Math.min(right, movement.x));
+    movement.y = Math.max(top, Math.min(bottom, movement.y));
+    if (hitX) movement.angle = normalizeAngle(Math.PI - movement.angle);
+    if (hitY) movement.angle = normalizeAngle(-movement.angle);
+  }
+
   for (const movement of movements.values()) {
     const input = inputs.get(movement.player.id) ?? NEUTRAL_INPUT;
     const risingBomb = input.bomb && !movement.player.previousBombInput;
@@ -259,6 +320,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         y: movement.oldY,
         placedTick: state.tick,
         explodeAtTick: state.tick + BOMB_FUSE_TICKS,
+        blastRange: BOMB_BLAST_RANGE + movement.player.blastLevel * BLAST_LEVEL_RANGE,
       };
       state.bombs.set(bomb.id, bomb);
       movement.player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
@@ -279,7 +341,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const causes = new Map<PlayerId, EliminationCause>();
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
-      if (blast.rects.some((rect) => sweptCircleIntersectsRect(movement, RIDER_RADIUS, rect))) {
+      if (!isInvulnerable(movement.player, state.tick) && blast.rects.some((rect) => sweptCircleIntersectsRect(movement, RIDER_RADIUS, rect))) {
         markCause(causes, movement.player.id, 'explosion');
         break;
       }
@@ -289,11 +351,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const right = state.width - state.boundaryInset - RIDER_RADIUS;
     const top = state.boundaryInset + RIDER_RADIUS;
     const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
-    if (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom) {
+    if (!isInvulnerable(movement.player, state.tick) && (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom)) {
       markCause(causes, movement.player.id, 'wall');
     }
 
     trailCheck: for (const owner of state.players.values()) {
+      if (isInvulnerable(movement.player, state.tick)) break trailCheck;
       for (const trail of owner.trail) {
         if (
           owner.id === movement.player.id &&
@@ -316,8 +379,10 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       const a = movementList[first]!;
       const b = movementList[second]!;
       if (segmentDistanceSquared(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y) <= square(2 * RIDER_RADIUS) + EPSILON) {
-        markCause(causes, a.player.id, 'rider');
-        markCause(causes, b.player.id, 'rider');
+        const aInvulnerable = isInvulnerable(a.player, state.tick);
+        const bInvulnerable = isInvulnerable(b.player, state.tick);
+        if (!aInvulnerable) markCause(causes, a.player.id, 'rider');
+        if (!bInvulnerable) markCause(causes, b.player.id, 'rider');
       }
     }
   }
@@ -366,6 +431,8 @@ export function toSnapshot(state: GameState): GameSnapshot {
       alive: player.alive,
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
+      blastLevel: player.blastLevel,
+      invulnerableUntilTick: player.invulnerableUntilTick,
       trail: player.trail.map((segment) => ({ ...segment })),
     })),
     bombs: [...state.bombs.values()].sort((a, b) => a.id - b.id).map((bomb) => ({
@@ -374,12 +441,14 @@ export function toSnapshot(state: GameState): GameSnapshot {
       x: bomb.x,
       y: bomb.y,
       explodeAtTick: bomb.explodeAtTick,
+      blastRange: bomb.blastRange,
     })),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,
       rects: blast.rects.map((rect) => ({ ...rect })),
       expiresAtTick: blast.expiresAtTick,
     })),
+    pickups: state.pickups.map((pickup) => ({ ...pickup })),
     ...(state.roundWinnerId === undefined ? {} : { roundWinnerId: state.roundWinnerId }),
     ...(state.matchWinnerId === undefined ? {} : { matchWinnerId: state.matchWinnerId }),
   };
@@ -396,15 +465,20 @@ function prepareRound(state: GameState): void {
   state.boundaryInset = INITIAL_BOUNDARY_INSET;
   state.bombs.clear();
   state.blasts = [];
+  state.pickups = [];
   state.roundWinnerId = undefined;
   state.matchWinnerId = undefined;
   state.nextBombId = 1;
+  state.nextPickupId = 1;
+  state.nextPickupSpawnTick = 0;
 
   for (const player of state.players.values()) {
     player.alive = false;
     player.trail = [];
     player.previousBombInput = false;
     player.bombReadyAtTick = state.tick;
+    player.blastLevel = 0;
+    player.invulnerableUntilTick = 0;
   }
   const radius = 0.28 * Math.min(state.width, state.height);
   participants.forEach((player, index) => {
@@ -414,6 +488,93 @@ function prepareRound(state: GameState): void {
     player.angle = normalizeAngle(spawnAngle + Math.PI / 2);
     player.alive = true;
   });
+}
+
+function maybeSpawnPickup(state: GameState): void {
+  if (state.pickups.length >= MAX_ACTIVE_PICKUPS) return;
+  const type: PickupType = nextRandom(state) < 0.5 ? 'blast' : 'star';
+  const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
+  const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;
+  const minimumY = state.boundaryInset + PICKUP_SPAWN_MARGIN;
+  const maximumY = state.height - state.boundaryInset - PICKUP_SPAWN_MARGIN;
+  if (minimumX >= maximumX || minimumY >= maximumY) return;
+
+  for (let attempt = 0; attempt < PICKUP_SPAWN_ATTEMPTS; attempt += 1) {
+    const x = minimumX + nextRandom(state) * (maximumX - minimumX);
+    const y = minimumY + nextRandom(state) * (maximumY - minimumY);
+    if (!isSafePickupPosition(state, x, y)) continue;
+    state.pickups.push({
+      id: state.nextPickupId++,
+      type,
+      x,
+      y,
+      expiresAtTick: state.tick + PICKUP_LIFETIME_TICKS,
+    });
+    return;
+  }
+}
+
+function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
+  for (const player of state.players.values()) {
+    if (player.alive && square(player.x - x) + square(player.y - y) < square(PICKUP_RIDER_BOMB_CLEARANCE)) return false;
+    for (const trail of player.trail) {
+      if (pointSegmentDistanceSquared(x, y, trail.x1, trail.y1, trail.x2, trail.y2) < square(PICKUP_TRAIL_CLEARANCE)) return false;
+    }
+  }
+  for (const bomb of state.bombs.values()) {
+    if (square(bomb.x - x) + square(bomb.y - y) < square(PICKUP_RIDER_BOMB_CLEARANCE)) return false;
+  }
+  return state.pickups.every((pickup) =>
+    square(pickup.x - x) + square(pickup.y - y) >= square(PICKUP_SEPARATION),
+  );
+}
+
+function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movement>): void {
+  const consumed = new Set<number>();
+  for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
+    const collectors = [...movements.values()]
+      .map((movement) => ({
+        movement,
+        distance: pointSegmentDistanceSquared(pickup.x, pickup.y, movement.oldX, movement.oldY, movement.x, movement.y),
+      }))
+      .filter(({ distance }) => distance <= square(RIDER_RADIUS + PICKUP_RADIUS) + EPSILON)
+      .sort((a, b) => a.distance - b.distance || a.movement.player.slot - b.movement.player.slot);
+    const collector = collectors[0]?.movement.player;
+    if (!collector) continue;
+    consumed.add(pickup.id);
+    if (pickup.type === 'blast') {
+      collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
+    } else {
+      collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+    }
+  }
+  if (consumed.size > 0) state.pickups = state.pickups.filter((pickup) => !consumed.has(pickup.id));
+}
+
+function isInvulnerable(player: PlayerState, tick: number): boolean {
+  return player.invulnerableUntilTick > tick;
+}
+
+function hashSeed(value: string): number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return normalizeSeed(hash);
+}
+
+function normalizeSeed(seed: number): number {
+  const normalized = Number.isFinite(seed) ? seed >>> 0 : 0;
+  return normalized || 0x6d2b79f5;
+}
+
+function nextRandom(state: GameState): number {
+  state.randomState = (state.randomState + 0x6d2b79f5) >>> 0;
+  let value = state.randomState;
+  value = Math.imul(value ^ (value >>> 15), value | 1);
+  value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+  return ((value ^ (value >>> 14)) >>> 0) / 0x1_0000_0000;
 }
 
 function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {
@@ -453,14 +614,14 @@ function createBlastRects(state: GameState, bomb: BombState): BlastRect[] {
   const right = state.width - state.boundaryInset;
   const top = state.boundaryInset;
   const bottom = state.height - state.boundaryInset;
-  const horizontalLeft = Math.max(left, bomb.x - BOMB_BLAST_RANGE);
-  const horizontalRight = Math.min(right, bomb.x + BOMB_BLAST_RANGE);
+  const horizontalLeft = Math.max(left, bomb.x - bomb.blastRange);
+  const horizontalRight = Math.min(right, bomb.x + bomb.blastRange);
   const horizontalTop = Math.max(top, bomb.y - BOMB_BLAST_HALF_WIDTH);
   const horizontalBottom = Math.min(bottom, bomb.y + BOMB_BLAST_HALF_WIDTH);
   const verticalLeft = Math.max(left, bomb.x - BOMB_BLAST_HALF_WIDTH);
   const verticalRight = Math.min(right, bomb.x + BOMB_BLAST_HALF_WIDTH);
-  const verticalTop = Math.max(top, bomb.y - BOMB_BLAST_RANGE);
-  const verticalBottom = Math.min(bottom, bomb.y + BOMB_BLAST_RANGE);
+  const verticalTop = Math.max(top, bomb.y - bomb.blastRange);
+  const verticalBottom = Math.min(bottom, bomb.y + bomb.blastRange);
   return [
     rectFromEdges(horizontalLeft, horizontalTop, horizontalRight, horizontalBottom),
     rectFromEdges(verticalLeft, verticalTop, verticalRight, verticalBottom),
