@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CHIPTUNES, MUSIC_STEPS, musicStep } from '../src/client/music-score.ts';
+import { CHIPTUNES, MUSIC_STEPS, musicStep, musicStepDuration } from '../src/client/music-score.ts';
 import { AudioDirector, type AudioChannel, type GameSynth, type SynthNote } from '../src/client/audio-director.ts';
 import { addPlayer, createGame, toSnapshot } from '../src/shared/game.ts';
 import { beginMatchParticipant } from '../src/shared/match-stats.ts';
@@ -76,10 +76,10 @@ test('older round snapshots cannot reset scope or stop music', async () => {
 });
 
 
-test('six original scores have long arrangements, distinct melodies and bounded valid voices', () => {
-  assert.equal(CHIPTUNES.length, 6);
-  assert.equal(new Set(CHIPTUNES.map(track => track.title)).size, 6);
-  assert.equal(new Set(CHIPTUNES.map(track => JSON.stringify(track.hook))).size, 6);
+test('eight original scores have long arrangements, distinct melodies and bounded valid voices', () => {
+  assert.equal(CHIPTUNES.length, 8);
+  assert.equal(new Set(CHIPTUNES.map(track => track.title)).size, 8);
+  assert.equal(new Set(CHIPTUNES.map(track => JSON.stringify(track.hook))).size, 8);
   for (const track of CHIPTUNES) {
     assert.ok(MUSIC_STEPS * track.stepMs >= 55000);
     const sections = new Set<string>();
@@ -100,7 +100,7 @@ test('six original scores have long arrangements, distinct melodies and bounded 
   }
 });
 
-test('playlist completes an arrangement, rotates all six tunes and retains mute and volume', async () => {
+test('playlist completes an arrangement, rotates all eight tunes and retains mute and volume', async () => {
   const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(1));
   f.director.setVolume('music', .17); f.director.setMuted('music', true);
   assert.equal(f.director.trackTitle, CHIPTUNES[0]!.title);
@@ -108,8 +108,8 @@ test('playlist completes an arrangement, rotates all six tunes and retains mute 
   assert.equal(f.director.trackTitle, CHIPTUNES[0]!.title);
   f.setTime(MUSIC_STEPS * CHIPTUNES[0]!.stepMs); f.director.update();
   assert.equal(f.director.trackTitle, CHIPTUNES[1]!.title);
-  for (let index = 2; index <= 6; index++) {
-    f.director.nextTrack(); assert.equal(f.director.trackTitle, CHIPTUNES[index % 6]!.title);
+  for (let index = 2; index <= CHIPTUNES.length; index++) {
+    f.director.nextTrack(); assert.equal(f.director.trackTitle, CHIPTUNES[index % CHIPTUNES.length]!.title);
     assert.equal(f.gains.get('music'), 0);
   }
   f.director.setMuted('music', false); assert.equal(f.gains.get('music'), .17);
@@ -137,4 +137,38 @@ test('enabled audio plays in the lobby and intermissions and explicit enable con
   const count = f.notes.length;
   f.director.message(f.snapshot(2, 'roundOver')); f.setTime(1000); f.director.update(); f.setTime(1200); f.director.update();
   assert.ok(f.notes.length > count, 'intermission continues music');
+});
+
+
+test('two jazz tunes swing in tempo and use soft walking bass and seventh chords', () => {
+  const jazz = CHIPTUNES.filter(track => track.jazz);
+  assert.equal(jazz.length, 2);
+  for (const track of jazz) {
+    const long = musicStepDuration(track, 0); const short = musicStepDuration(track, 1);
+    assert.ok(long > short);
+    assert.equal(long + short, track.stepMs * 2);
+    const notes = musicStep(track, 65);
+    const root = track.roots[0]!;
+    const freq = (pitch: number) => 440 * 2 ** ((pitch - 69) / 12);
+    for (const interval of [track.jazz!.thirds[0]!, track.jazz!.sevenths[0]!]) {
+      assert.ok(notes.some(note => note.frequency === freq(root + 24 + interval) && note.wave === 'triangle'));
+    }
+    const bass = [64, 66, 68, 70].map(step => musicStep(track, step).find(note => note.level === .3)!);
+    assert.equal(new Set(bass.map(note => note.frequency)).size, 4);
+    assert.ok(bass.every(note => note.wave === 'triangle'));
+    assert.ok(notes.every(note => note.level <= .12));
+  }
+});
+
+test('director schedules swung offbeats without catch-up bursts', async () => {
+  const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(1));
+  for (let i = 0; i < 6; i++) f.director.nextTrack();
+  assert.equal(f.director.trackTitle, CHIPTUNES[6]!.title);
+  f.director.update(); const initial = f.notes.length;
+  const long = musicStepDuration(CHIPTUNES[6]!, 0);
+  f.setTime(long - 1); f.director.update(); assert.equal(f.notes.length, initial);
+  f.setTime(long); f.director.update(); const offbeat = f.notes.length; assert.ok(offbeat > initial);
+  f.setTime(CHIPTUNES[6]!.stepMs * 2 - 1); f.director.update(); assert.equal(f.notes.length, offbeat);
+  f.setTime(CHIPTUNES[6]!.stepMs * 2); f.director.update(); assert.ok(f.notes.length > offbeat);
+  const count = f.notes.length; f.setTime(999999); f.director.update(); assert.ok(f.notes.length <= count + 4);
 });

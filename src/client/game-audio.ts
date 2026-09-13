@@ -54,9 +54,9 @@ export function createGameAudio(): { director: AudioDirector; controls: HTMLElem
   enable.type = 'button'; enable.textContent = 'Enable TV audio'; panel.append(enable);
   const unlock = (confirm = false) => { void director.unlock(confirm).then(showState); };
   enable.addEventListener('click', () => unlock(true));
-  const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next tune (6 original tracks)';
+  const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next tune (8 original tracks)';
   next.addEventListener('click', () => director.nextTrack()); panel.append(next);
-  const musicInfo = document.createElement('small'); musicInfo.textContent = '64-bar arrangements · new tune each round'; panel.append(musicInfo);
+  const musicInfo = document.createElement('small'); musicInfo.textContent = '64-bar arrangements · arcade + swing jazz'; panel.append(musicInfo);
   for (const channel of ['music', 'effects'] as const) {
     const label = channel === 'music' ? 'Music' : 'Effects';
     const row = document.createElement('label'); row.textContent = `${label} volume`;

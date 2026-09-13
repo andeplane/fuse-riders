@@ -1,5 +1,5 @@
 import type { ServerMessage } from '../shared/protocol.js';
-import { CHIPTUNES, MUSIC_STEPS, musicStep } from './music-score.js';
+import { CHIPTUNES, MUSIC_STEPS, musicStep, musicStepDuration } from './music-score.js';
 
 export type AudioChannel = 'music' | 'effects';
 export interface SynthNote { frequency: number; endFrequency?: number; duration: number; delay?: number; wave: 'square' | 'triangle' | 'sawtooth'; level: number }
@@ -70,7 +70,7 @@ export class AudioDirector {
     if (now < this.nextBeat) return;
     if (this.beat >= MUSIC_STEPS) this.nextTrack();
     const track = CHIPTUNES[this.trackIndex]!;
-    this.nextBeat = now + track.stepMs; // Never catch up after a slow/background frame.
+    this.nextBeat = now + musicStepDuration(track, this.beat); // Never catch up after a slow/background frame.
     for (const note of musicStep(track, this.beat++)) this.synth.note('music', note);
   }
   private cue(type: string): void {
