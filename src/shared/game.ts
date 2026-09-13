@@ -1,3 +1,4 @@
+import { advanceRiderPose } from './rider-motion.js';
 import { roomPickup, type RoomSettings } from './room-settings.js';
 import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
 import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
@@ -413,17 +414,16 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const movements = new Map<PlayerId, Movement>();
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
-    const direction = Number(input.right) - Number(input.left);
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
-    const angle = normalizeAngle(player.angle - player.drunkHeadingOffset + direction * TURN_PER_TICK + offset);
-    player.drunkHeadingOffset = offset;
+    const pose = advanceRiderPose(player, input, {distance:MOVE_PER_TICK,turn:TURN_PER_TICK,drunkHeadingOffset:offset});
+    player.drunkHeadingOffset = pose.drunkHeadingOffset;
     movements.set(player.id, {
       player,
       oldX: player.x,
       oldY: player.y,
-      x: player.x + Math.cos(angle) * MOVE_PER_TICK,
-      y: player.y + Math.sin(angle) * MOVE_PER_TICK,
-      angle,
+      x: pose.x,
+      y: pose.y,
+      angle: pose.angle,
     });
   }
 
