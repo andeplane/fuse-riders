@@ -5,9 +5,13 @@ class WebAudioSynth implements GameSynth {
   private channels?: Record<AudioChannel, GainNode>;
   private levels = { music: .22, effects: .45 };
   private voices = new Set<OscillatorNode>();
+  constructor(private readonly stateChanged: (running: boolean) => void) {}
   async unlock(): Promise<boolean> {
     try {
-      this.context ??= new AudioContext();
+      if (!this.context || this.context.state === 'closed') {
+        this.context = new AudioContext(); this.channels = undefined;
+        this.context.onstatechange = () => this.stateChanged(this.context?.state === 'running');
+      }
       if (!this.channels) {
         this.channels = { music: this.context.createGain(), effects: this.context.createGain() };
         for (const channel of ['music', 'effects'] as const) {
@@ -37,13 +41,19 @@ class WebAudioSynth implements GameSynth {
 }
 
 export function createGameAudio(): { director: AudioDirector; controls: HTMLElement; unlock: () => void } {
-  const director = new AudioDirector(new WebAudioSynth(), () => performance.now());
+  const enable = document.createElement('button');
+  const showState = (ok: boolean) => {
+    const text = ok ? 'TV audio enabled · test sound' : 'Enable / resume TV audio';
+    if (enable.textContent !== text) enable.textContent = text;
+    enable.setAttribute('aria-pressed', String(ok));
+  };
+  const director = new AudioDirector(new WebAudioSynth(showState), () => performance.now());
   const controls = document.createElement('details'); controls.className = 'audio-controls';
   const summary = document.createElement('summary'); summary.textContent = '♪ AUDIO'; controls.append(summary);
   const panel = document.createElement('div'); panel.className = 'audio-panel'; controls.append(panel);
-  const enable = document.createElement('button'); enable.type = 'button'; enable.textContent = 'Enable TV audio'; panel.append(enable);
-  const unlock = () => { void director.unlock().then(ok => { enable.textContent = ok ? 'TV audio enabled' : 'Retry TV audio'; enable.setAttribute('aria-pressed', String(ok)); }); };
-  enable.addEventListener('click', unlock);
+  enable.type = 'button'; enable.textContent = 'Enable TV audio'; panel.append(enable);
+  const unlock = (confirm = false) => { void director.unlock(confirm).then(showState); };
+  enable.addEventListener('click', () => unlock(true));
   const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next tune (6 original tracks)';
   next.addEventListener('click', () => director.nextTrack()); panel.append(next);
   const musicInfo = document.createElement('small'); musicInfo.textContent = '64-bar arrangements · new tune each round'; panel.append(musicInfo);

@@ -26,9 +26,10 @@ export class AudioDirector {
   constructor(private readonly synth: GameSynth, private readonly now: () => number) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
   }
-  async unlock(): Promise<boolean> {
+  async unlock(confirm = false): Promise<boolean> {
     this.unlocked = await this.synth.unlock();
     this.nextBeat = this.now();
+    if (this.unlocked && confirm) this.synth.note('effects', { frequency: 660, endFrequency: 990, duration: .16, wave: 'triangle', level: .24 });
     return this.unlocked;
   }
   get trackTitle(): string { return CHIPTUNES[this.trackIndex]!.title; }
@@ -50,8 +51,8 @@ export class AudioDirector {
         this.scope = scope; this.baselineTick = message.tick; this.seen.clear();
       } else if (message.tick < this.latestTick) return;
       this.latestTick = message.tick;
-      this.playing = message.state.phase === 'playing' || message.state.phase === 'countdown';
-      if (this.playing && scope !== this.musicScope) {
+      this.playing = true; // Connected lobbies and intermissions also have music.
+      if ((message.state.phase === 'playing' || message.state.phase === 'countdown') && scope !== this.musicScope) {
         if (this.musicScope) this.nextTrack();
         this.musicScope = scope;
       }

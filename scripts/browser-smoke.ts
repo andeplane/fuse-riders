@@ -24,13 +24,25 @@ const waitFor = async (predicate: () => boolean, detail: string) => {
 try {
   await mkdir('artifacts', { recursive: true });
   const host = await browser.newPage({ viewport: { width: 1600, height: 960 } }); monitor(host);
+  await host.addInitScript(() => {
+    const create = AudioContext.prototype.createOscillator;
+    AudioContext.prototype.createOscillator = function () {
+      const oscillator = create.call(this); const start = oscillator.start.bind(oscillator);
+      oscillator.start = (when?: number) => {
+        document.documentElement.dataset.audioStarts = String(Number(document.documentElement.dataset.audioStarts ?? 0) + 1);
+        start(when);
+      };
+      return oscillator;
+    };
+  });
   await host.goto(`${origin}/display#${app.hostToken}`);
   await host.getByText('HOST ONLINE', { exact: true }).waitFor();
   assert.equal(new URL(host.url()).hash, '', 'host fragment removed from URL');
   await host.locator('.qr').waitFor();
   await host.locator('.audio-controls summary').click();
   await host.getByRole('button', { name: 'Enable TV audio', exact: true }).click();
-  await host.getByRole('button', { name: 'TV audio enabled', exact: true }).waitFor();
+  await host.getByRole('button', { name: 'TV audio enabled · test sound', exact: true }).waitFor();
+  await host.waitForFunction(() => Number(document.documentElement.dataset.audioStarts) > 4); // Lobby music, beyond the single confirmation tone.
   await host.getByRole('button', { name: 'Mute music', exact: true }).click();
   assert.equal(await host.getByRole('button', { name: 'Mute music', exact: true }).getAttribute('aria-pressed'), 'true');
   await host.getByLabel('Effects volume', { exact: true }).fill('20');

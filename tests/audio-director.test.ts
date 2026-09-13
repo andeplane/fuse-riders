@@ -31,7 +31,7 @@ test('original score loops with bounded scheduling and no background catch-up', 
   assert.ok(f.notes.length > 200); assert.ok(f.notes.every(n => n.channel === 'music' && Number.isFinite(n.note.frequency)));
   const count = f.notes.length; f.director.update(); assert.equal(f.notes.length, count);
   f.setTime(999999); f.director.update(); assert.ok(f.notes.length <= count + 3);
-  f.director.message(f.snapshot(11, 'roundOver')); const end = f.notes.length; f.setTime(9999999); f.director.update(); assert.equal(f.notes.length, end);
+  f.director.disconnect(); const end = f.notes.length; f.setTime(9999999); f.director.update(); assert.equal(f.notes.length, end);
 });
 test('authoritative effects coalesce volleys, reject stale events and baseline reconnects silently', async () => {
   const f = fixture(); await f.director.unlock();
@@ -125,4 +125,16 @@ test('new rounds advance playlist once; repeated snapshots and reconnects do not
   f.director.message(f.snapshot(5)); assert.equal(f.director.trackTitle, CHIPTUNES[1]!.title);
   f.director.disconnect(); f.director.message(f.snapshot(6)); assert.equal(f.director.trackTitle, CHIPTUNES[1]!.title);
   f.game.round++; f.director.message(f.snapshot(7)); assert.equal(f.director.trackTitle, CHIPTUNES[2]!.title);
+});
+
+test('enabled audio plays in the lobby and intermissions and explicit enable confirms output', async () => {
+  const f = fixture();
+  f.director.message(f.snapshot(1, 'lobby')); f.director.update();
+  assert.equal(f.notes.length, 0, 'gesture is still required');
+  await f.director.unlock(true);
+  assert.equal(f.notes.length, 1); assert.equal(f.notes[0]!.channel, 'effects');
+  f.director.update(); assert.ok(f.notes.some(note => note.channel === 'music'));
+  const count = f.notes.length;
+  f.director.message(f.snapshot(2, 'roundOver')); f.setTime(1000); f.director.update(); f.setTime(1200); f.director.update();
+  assert.ok(f.notes.length > count, 'intermission continues music');
 });
