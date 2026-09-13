@@ -1053,3 +1053,22 @@ test('first stopwatch level produces a one-and-a-half second fuse', () => {
   const bomb = [...state.bombs.values()][0]!;
   assert.equal(bomb.explodeAtTick - bomb.launchedTick, 30);
 });
+
+test('live shell bounces off a rider trail without damage or resetting its lifetime', () => {
+  const state = gameWithPlayers(3); enterPlaying(state);
+  Object.assign(state.players.get('p0')!, { x: 200, y: 200, trail: [] });
+  Object.assign(state.players.get('p1')!, { x: 1200, y: 700, trail: [] });
+  Object.assign(state.players.get('p2')!, { x: 1000, y: 300, trail: [] });
+  const tail = { x1: 536, y1: 300, x2: 536, y2: 600, createdTick: state.tick, expiresAtTick: state.tick + 150 };
+  state.players.get('p1')!.trail = [tail];
+  const expires = state.tick + 90;
+  state.bombs.set(99, { id: 99, ownerId: 'p0', x: 500, y: 450, launchX: 500, launchY: 450,
+    launchedTick: state.tick - 10, placedTick: state.tick - 10, landsAtTick: expires, explodeAtTick: expires,
+    blastRange: 0, flightPath: [], shell: { vx: 450, vy: 0 } });
+  step(state, new Map());
+  const shell = state.bombs.get(99)!;
+  assert.equal(shell.shell!.vx, -450); assert.ok(shell.x < 519);
+  assert.equal(shell.explodeAtTick, expires);
+  assert.deepEqual(state.players.get('p1')!.trail.find(segment => segment.x1 === 536), tail);
+  assert.equal(state.blasts.length, 0);
+});

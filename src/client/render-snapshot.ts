@@ -41,7 +41,8 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
       advanceShell(motion, { left: newer.snapshot.boundaryInset + SHELL_RADIUS,
         right: newer.snapshot.width - newer.snapshot.boundaryInset - SHELL_RADIUS,
         top: newer.snapshot.boundaryInset + SHELL_RADIUS,
-        bottom: newer.snapshot.height - newer.snapshot.boundaryInset - SHELL_RADIUS });
+        bottom: newer.snapshot.height - newer.snapshot.boundaryInset - SHELL_RADIUS },
+        newer.snapshot.players.flatMap(player => player.id === bomb.ownerId && newer.snapshot.tick - bomb.launchedTick < 6 ? [] : [...player.trail]));
       return { ...bomb, x: motion.x, y: motion.y };
     }),
     players: newer.snapshot.players.map((player) => {

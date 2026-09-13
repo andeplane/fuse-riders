@@ -458,7 +458,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const motion = { x: bomb.x, y: bomb.y, ...bomb.shell };
     shellPaths.set(bomb.id, advanceShell(motion, { left: state.boundaryInset + SHELL_RADIUS,
       right: state.width - state.boundaryInset - SHELL_RADIUS, top: state.boundaryInset + SHELL_RADIUS,
-      bottom: state.height - state.boundaryInset - SHELL_RADIUS }));
+      bottom: state.height - state.boundaryInset - SHELL_RADIUS },
+      [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6 ? [] : player.trail), TRAIL_WIDTH));
     bomb.x = motion.x; bomb.y = motion.y; bomb.shell = { vx: motion.vx, vy: motion.vy };
   }
   const newBlasts = resolveExplosions(state, events);
