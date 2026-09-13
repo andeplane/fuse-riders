@@ -1,3 +1,5 @@
+import { mountArenaPresentation } from '../client/phaser/presentation.js';
+import { apiUrl, appUrl } from './endpoints.js';
 import { ControllerInputState } from '../client/controller-state.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
 import { LocalPrediction, interpolateWorld } from './prediction.js';
@@ -26,8 +28,8 @@ export async function startOnline():Promise<void>{
     const mode=node('select');for(const [value,label] of [['devices','Everyone plays on their device'],['shared','We share a TV / big screen']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=loadRoomSettings(localStorage).mode;
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
     const error=node('p');
-    create.onclick=async()=>{create.disabled=true;try{const response=await fetch('/api/rooms',{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=mode.value as RoomSettings['mode'];save(SETTINGS_KEY,JSON.stringify(settings));location.href=`/?room=${body.code}`;}catch(e){error.textContent=String(e);create.disabled=false;}};
-    join.onclick=()=>{const value=input.value.trim().toUpperCase();if(/^[A-Z0-9]{10}$/.test(value))location.href=`/?room=${value}`;else error.textContent='Enter the 10-character room code';};
+    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=mode.value as RoomSettings['mode'];save(SETTINGS_KEY,JSON.stringify(settings));location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
+    join.onclick=()=>{const value=input.value.trim().toUpperCase();if(/^[A-Z0-9]{10}$/.test(value))location.href=appUrl(`?room=${value}`);else error.textContent='Enter the 10-character room code';};
     card.append(mode,create,input,join,error);app.replaceChildren(card);return;
   }
   if(!/^[A-Z0-9]{10}$/.test(code)){app.textContent='Invalid room code';return;}
@@ -39,7 +41,7 @@ export async function startOnline():Promise<void>{
   const displayOnly=url.searchParams.has('display');
   const header=node('header','','online-header');const title=node('strong',`FUSE RIDERS · ${code}`),status=node('span','Connecting…'),audioButton=node('button','♫ AUDIO'),menu=node('button','MENU');
   header.append(title,status,audioButton,menu);
-  const canvas=node('canvas','','online-arena');const context=canvas.getContext('2d')!;const sprites=await loadThemeSprites(defaultTheme);
+  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
   const notice=node('div','','online-notice');
   const joinPanel=node('form','','online-join');const name=node('input');name.placeholder='Your name';name.maxLength=20;const previousName=read('fuse-riders-player-name');name.value=previousName??'';
   const joinButton=node('button','JOIN AS PLAYER');joinPanel.append(name,joinButton);joinButton.disabled=true;
@@ -54,7 +56,7 @@ export async function startOnline():Promise<void>{
     status:text=>{status.textContent=text;},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     state:(state,rules,ack,matchId)=>{
-      snapshot=state;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack);
+      snapshot=state;renderScope=matchId;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack);
       frames.push({snapshot:state,matchId:code,round:state.round,receivedAt:performance.now()});if(frames.length>2)frames.shift();
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
@@ -74,9 +76,9 @@ export async function startOnline():Promise<void>{
   });
   joinPanel.onsubmit=event=>{event.preventDefault();save('fuse-riders-player-name',name.value);runtime.command({type:'join',name:name.value,avatarId:avatar});};
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
-  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p','Leave this room?'));const leave=node('button','LEAVE ROOM');leave.onclick=()=>{runtime.stop();location.href='/';};dialogBody.append(leave);dialog.showModal();};
+  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p','Leave this room?'));const leave=node('button','LEAVE ROOM');leave.onclick=()=>{runtime.stop();location.href=appUrl();};dialogBody.append(leave);dialog.showModal();};
   avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(localStorage,chosen=>{avatar=chosen;if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
-  share.onclick=async()=>{const link=new URL(`/?room=${code}`,location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=`/?room=${code}&display=1`;tv.target='_blank';dialogBody.append(tv);dialog.showModal();};
+  share.onclick=async()=>{const link=new URL(appUrl(`?room=${code}`),location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=appUrl(`?room=${code}&display=1`);tv.target='_blank';dialogBody.append(tv);dialog.showModal();};
   settingsButton.onclick=()=>{
     const draft=structuredClone(settings);dialogBody.replaceChildren(node('h2','Room settings'));
     const mode=node('select');for(const [value,label] of [['devices','Full game on each device'],['shared','Shared TV + phone controls']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=draft.mode;
@@ -101,6 +103,6 @@ export async function startOnline():Promise<void>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;
     app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),ackMs:prediction.ackMs,correction:prediction.correction,tick:snapshot?.tick??0});
   });},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}if(snapshot&&!canvas.hidden){const width=canvas.clientWidth,height=canvas.clientHeight,dpr=Math.min(devicePixelRatio,2);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}context.setTransform(1,0,0,1,0,0);context.clearRect(0,0,canvas.width,canvas.height);const scale=Math.min(canvas.width/snapshot.width,canvas.height/snapshot.height);context.setTransform(scale,0,0,scale,(canvas.width-snapshot.width*scale)/2,(canvas.height-snapshot.height*scale)/2);drawArena(context,prediction.render(interpolateWorld(frames.length>1?frames[0]!.snapshot:undefined,snapshot,(performance.now()-(frames.at(-1)?.receivedAt??performance.now()))/100),id),performance.now(),defaultTheme,sprites);}requestAnimationFrame(frame);}requestAnimationFrame(frame);
-  window.addEventListener('pagehide',()=>runtime.stop());
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}if(snapshot&&!canvas.hidden){presentation.render(prediction.render(interpolateWorld(frames.length>1?frames[0]!.snapshot:undefined,snapshot,(performance.now()-(frames.at(-1)?.receivedAt??performance.now()))/100),id),now,defaultTheme,sprites,renderScope);}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  window.addEventListener('pagehide',event=>{runtime.stop();if(!event.persisted)presentation.destroy();});
 }

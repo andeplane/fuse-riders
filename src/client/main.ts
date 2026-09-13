@@ -1,3 +1,5 @@
+import { mountArenaPresentation } from './phaser/presentation.js';
+import { assetUrl } from './asset-url.js';
 import { drawBombTargets } from './target-renderer.js';
 import { createAvatarPicker, createAvatarPortrait, drawAvatarHead } from './avatar-heads.js';
 import { drawInkClouds } from './ink-renderer.js';
@@ -492,22 +494,22 @@ function startDisplay(): void {
   topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, fullscreen, menuButton, connection);
 
   const stage = element('section', 'stage');
-  const canvas = element('canvas', 'arena');
+  let canvas = element('canvas', 'arena');
   canvas.width = 1200; canvas.height = 700;
   const lobby = element('div', 'lobby-overlay');
   const lobbyCard = element('div', 'lobby-card');
   const lobbyCopy = element('div', 'lobby-copy');
   lobbyCopy.append(element('p', 'kicker', 'PHONE PARTY // 2–5 RIDERS'), element('h1', '', 'Scan. Steer. Survive.'), element('p', 'lede', 'Open the controller, pick a name, then use your phone to carve neon trails and trigger chain reactions.'));
   const pickupLegend = element('div', 'pickup-legend');
-  const blastLegendImage = element('img'); blastLegendImage.alt = ''; blastLegendImage.src = '/themes/neon-pixel/pickup-blast.svg';
-  const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = '/themes/neon-pixel/pickup-star.svg';
-  const inkLegendImage = element('img'); inkLegendImage.alt = ''; inkLegendImage.src = '/themes/neon-pixel/pickup-ink.svg';
-  const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = '/themes/neon-pixel/pickup-beer.svg';
-  const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = '/themes/neon-pixel/pickup-triple.svg';
-  const targetLegendImage = element('img'); targetLegendImage.alt = ''; targetLegendImage.src = '/themes/neon-pixel/pickup-target.svg';
-  const fiveLegendImage = element('img'); fiveLegendImage.alt = ''; fiveLegendImage.src = '/themes/neon-pixel/pickup-five.svg';
-  const shieldLegendImage = element('img'); shieldLegendImage.alt = ''; shieldLegendImage.src = '/themes/neon-pixel/pickup-orbitShield.svg';
-  const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = '/themes/neon-pixel/pickup-portal.svg';
+  const blastLegendImage = element('img'); blastLegendImage.alt = ''; blastLegendImage.src = assetUrl('/themes/neon-pixel/pickup-blast.svg');
+  const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = assetUrl('/themes/neon-pixel/pickup-star.svg');
+  const inkLegendImage = element('img'); inkLegendImage.alt = ''; inkLegendImage.src = assetUrl('/themes/neon-pixel/pickup-ink.svg');
+  const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = assetUrl('/themes/neon-pixel/pickup-beer.svg');
+  const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = assetUrl('/themes/neon-pixel/pickup-triple.svg');
+  const targetLegendImage = element('img'); targetLegendImage.alt = ''; targetLegendImage.src = assetUrl('/themes/neon-pixel/pickup-target.svg');
+  const fiveLegendImage = element('img'); fiveLegendImage.alt = ''; fiveLegendImage.src = assetUrl('/themes/neon-pixel/pickup-five.svg');
+  const shieldLegendImage = element('img'); shieldLegendImage.alt = ''; shieldLegendImage.src = assetUrl('/themes/neon-pixel/pickup-orbitShield.svg');
+  const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = assetUrl('/themes/neon-pixel/pickup-portal.svg');
   const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
   const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 3s'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
@@ -516,9 +518,9 @@ function startDisplay(): void {
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
   const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = '/themes/neon-pixel/pickup-shell.svg'; shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces until hit · next shot'));
-  const gunLegend = element('span'); const gunImage = element('img'); gunImage.src = '/themes/neon-pixel/pickup-gun.svg'; gunImage.alt = ''; gunLegend.append(gunImage, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
-  const watchLegend = element('span'); const watchImage = element('img'); watchImage.src = '/themes/neon-pixel/pickup-stopwatch.svg'; watchImage.alt = ''; watchLegend.append(watchImage, element('b', '', 'FUSE'), document.createTextNode(' your bombs: 2s → 1.5s → 1s'));
+  const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = assetUrl('/themes/neon-pixel/pickup-shell.svg'); shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces until hit · next shot'));
+  const gunLegend = element('span'); const gunImage = element('img'); gunImage.src = assetUrl('/themes/neon-pixel/pickup-gun.svg'); gunImage.alt = ''; gunLegend.append(gunImage, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
+  const watchLegend = element('span'); const watchImage = element('img'); watchImage.src = assetUrl('/themes/neon-pixel/pickup-stopwatch.svg'); watchImage.alt = ''; watchLegend.append(watchImage, element('b', '', 'FUSE'), document.createTextNode(' your bombs: 2s → 1.5s → 1s'));
   pickupLegend.append(blastLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend, gunLegend, watchLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
@@ -871,7 +873,8 @@ function startDisplay(): void {
   renderRoster();
   socket.connect();
 
-  const ctx = canvas.getContext('2d');
+  const presentation = mountArenaPresentation(canvas, drawArena, replacement => { canvas = replacement; });
+  window.addEventListener('pagehide', event => { if (!event.persisted) presentation.destroy(); });
   let previousFrameAt = performance.now();
   let averageFrameMs = 16.7;
   let averageRenderMs = 0;
@@ -882,11 +885,7 @@ function startDisplay(): void {
     averageFrameMs = averageFrameMs * .94 + Math.min(250, now - previousFrameAt) * .06;
     previousFrameAt = now;
     const snapshot = renderedSnapshot(frames, now);
-    if (snapshot && (canvas.width !== snapshot.width || canvas.height !== snapshot.height)) {
-      canvas.width = snapshot.width; canvas.height = snapshot.height;
-    }
-    if (ctx && snapshot) drawArena(ctx, snapshot, now, activeTheme, activeSprites);
-    else if (ctx) drawIdleArena(ctx, canvas.width, canvas.height, now, activeTheme);
+    if (snapshot) presentation.render(snapshot, now, activeTheme, activeSprites, latest?.matchId ?? 'lan');
     averageRenderMs = averageRenderMs * .9 + (performance.now() - renderStartedAt) * .1;
     if (showPerformance && now - lastMetricsAt > 500) {
       const age = latest ? Math.max(0, now - latest.receivedAt) : 0;
