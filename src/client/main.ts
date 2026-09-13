@@ -495,7 +495,7 @@ function startDisplay(): void {
   const starLegend = element('span'); starLegend.append(starLegendImage, element('b', '', 'STAR'), document.createTextNode(' 5s invulnerable'));
   const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 3s'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
-  const targetLegend = element('span'); targetLegend.append(targetLegendImage, element('b', '', 'TARGET'), document.createTextNode(' rare: slide Fire to aim'));
+  const targetLegend = element('span'); targetLegend.append(targetLegendImage, element('b', '', 'TARGET'), document.createTextNode(' slide Fire · instant blast'));
   const fiveLegend = element('span'); fiveLegend.append(fiveLegendImage, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));
   const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
   const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
@@ -1022,7 +1022,7 @@ function startController(): void {
     else if (player.waitingForNextRound) instruction.textContent = snapshot.phase === 'matchOver' ? 'You’re in — joining when the next match starts.' : 'You’re in — joining next round automatically.';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
     else if (!player.alive) instruction.textContent = 'Wiped out! Watch the TV for the next round.';
-    else if (snapshot.phase === 'playing') instruction.textContent = player.shellArmed ? 'Release Fire to launch a bouncing shell. Watch the ricochets!' : player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to drop!' : 'Hold to steer. Hold bomb to charge, release to launch!';
+    else if (snapshot.phase === 'playing') instruction.textContent = player.shellArmed ? 'Release Fire to launch a bouncing shell. Watch the ricochets!' : player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to detonate!' : 'Hold to steer. Hold bomb to charge, release to launch!';
     else if (snapshot.phase === 'matchOver') instruction.textContent = snapshot.matchWinnerId === playerId ? 'You rule the grid!' : 'Match complete.';
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
@@ -1033,7 +1033,7 @@ function startController(): void {
     bomb.style.setProperty('--charge', `${chargePercent}%`);
     bomb.classList.toggle('charging', charging);
     bomb.classList.toggle('target-armed', player.targetBombArmed);
-    bombLabel.textContent = player.shellArmed && (ready || charging) ? (charging ? 'RELEASE TO FIRE SHELL' : 'GREEN SHELL · HOLD + RELEASE') : player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO DROP' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
+    bombLabel.textContent = player.shellArmed && (ready || charging) ? (charging ? 'RELEASE TO FIRE SHELL' : 'GREEN SHELL · HOLD + RELEASE') : player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO BLAST' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
   }
 
   socket = new SocketClient(

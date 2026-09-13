@@ -605,6 +605,23 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     }
   }
 
+  // Resolve released Target Bombs in this same tick, after every rider has launched.
+  const instantBlasts = resolveExplosions(state, events);
+  if (instantBlasts.length) {
+    for (const player of state.players.values()) {
+      player.trail = player.trail.filter(segment => !instantBlasts.some(blast =>
+        segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)));
+      if (!player.alive || isHazardImmune(player, state.tick)) continue;
+      const hits = instantBlasts.filter(blast => segmentIntersectsDisk(player.x, player.y, player.x, player.y, blast.circle, RIDER_RADIUS));
+      if (!hits.length) continue;
+      if (player.shielded) { player.shielded = false; player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS; continue; }
+      player.alive = false; player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
+      recordElimination(state, player.id);
+      const owners = new Set(hits.map(blast => blast.ownerId));
+      recordDeath(state.matchStats, player.id, 'explosion', owners.size === 1 ? hits[0]!.ownerId : undefined);
+      events.push({ type: 'playerEliminated', playerId: player.id, cause: 'explosion' });
+    }
+  }
   resolveRound(state, events, elapsed);
   return { snapshot: toSnapshot(state), events };
 }
@@ -940,7 +957,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         placedTick: state.tick,
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
-        explodeAtTick: state.tick + BOMB_FUSE_TICKS,
+        explodeAtTick: target ? state.tick : state.tick + BOMB_FUSE_TICKS,
         blastRange: BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE,
         flightPath,
       };

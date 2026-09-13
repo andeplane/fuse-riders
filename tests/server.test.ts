@@ -302,8 +302,8 @@ test('target release aim survives newer input packets through real socket transp
     a.peer.send({ type: 'input', seq: 1, left: false, right: false, bomb: false, bombAction: 'release', aim: { x: .2, y: .3 } });
     a.peer.send({ type: 'input', seq: 2, left: false, right: false, bomb: true, bombAction: 'press', aim: { x: .9, y: .9 } });
     await a.peer.flush(); f.app.advance();
-    const bomb = [...f.app.game.bombs.values()][0]!; assert.equal(bomb.x, f.app.game.width * .2); assert.equal(bomb.y, f.app.game.height * .3);
-    assert.equal(bomb.landsAtTick, f.app.game.tick); assert.equal(player.targetBombArmed, false);
+    const blast = f.app.game.blasts[0]!; assert.equal(blast.circle.x, f.app.game.width * .2); assert.equal(blast.circle.y, f.app.game.height * .3);
+    assert.equal(f.app.game.bombs.size, 0); assert.equal(player.targetBombArmed, false);
   } finally { await f.close(); }
 });
 

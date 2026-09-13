@@ -21,9 +21,9 @@ test('target collection arms one normal-strength bomb and preserves volley upgra
   const snapshot = toSnapshot(game); snapshot.players[0]!.bombTarget!.x = 10; assert.equal(player.bombTarget!.x, 400);
   input({ bomb: true, aim: { x: .75, y: .25 } }); assert.deepEqual(player.bombTarget, { x: 1200, y: 225 });
   input({ bombCommands: [{ action: 'release', aim: { x: .8, y: .2 } }] });
-  assert.equal(game.bombs.size, 1); const bomb = [...game.bombs.values()][0]!;
-  assert.equal(bomb.x, 1280); assert.equal(bomb.y, 180); assert.equal(bomb.landsAtTick, game.tick);
-  assert.equal(bomb.explodeAtTick, game.tick + BOMB_FUSE_TICKS); assert.equal(bomb.blastRange, BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE);
+  assert.equal(game.bombs.size, 0); const blast = game.blasts[0]!;
+  assert.equal(blast.circle.x, 1280); assert.equal(blast.circle.y, 180);
+  assert.equal(blast.circle.radius, BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE);
   assert.equal(player.bombReadyAtTick, game.tick + BOMB_COOLDOWN_TICKS); assert.equal(player.targetBombArmed, false); assert.equal(player.bombTarget, undefined);
   assert.equal(player.fiveShotArmed, true); assert.equal(player.tripleShotArmed, true);
 });
@@ -34,7 +34,7 @@ test('targeting requires pickup and clamps to the current safe field', () => {
   input({ bomb: true, bombActions: ['press'] }); assert.deepEqual(player.bombTarget, { x: player.x + 100, y: player.y });
   game.tick = game.roundStartedTick! + 1200 + 160;
   input({ bombCommands: [{ action: 'release', aim: { x: 0, y: 1 } }] });
-  const bomb = [...game.bombs.values()][0]!; assert.ok(game.boundaryInset >= 100); assert.equal(bomb.x, game.boundaryInset + RIDER_RADIUS); assert.equal(bomb.y, game.height - game.boundaryInset - RIDER_RADIUS);
+  const bomb = game.blasts[0]!.circle; assert.ok(game.boundaryInset >= 100); assert.equal(bomb.x, game.boundaryInset + RIDER_RADIUS); assert.equal(bomb.y, game.height - game.boundaryInset - RIDER_RADIUS);
 });
 test('cancel, rejected release and death clear preview without consuming; next round resets', () => {
   const { game, player, input } = fixture(); player.targetBombArmed = true;
@@ -48,5 +48,28 @@ test('queued release uses its own aim rather than a later packet in the same ser
   const { game, player, input } = fixture(); player.targetBombArmed = true;
   const buffer = new BombInputBuffer(); buffer.accept(true, 'press', { x: .1, y: .1 }); buffer.accept(false, 'release', { x: .2, y: .2 }); buffer.accept(true, 'press', { x: .9, y: .9 });
   input({ bomb: true, aim: { x: .9, y: .9 }, bombCommands: buffer.drainCommands() });
-  assert.equal([...game.bombs.values()][0]!.x, 320); assert.equal([...game.bombs.values()][0]!.y, 180);
+  assert.equal(game.blasts[0]!.circle.x, 320); assert.equal(game.blasts[0]!.circle.y, 180);
+});
+
+test('Target detonates on the release tick, with damage and protection resolved immediately', () => {
+  for (const protection of ['none', 'star', 'shield'] as const) {
+    const { game, player, input } = fixture(); player.targetBombArmed = true;
+    const victim = game.players.get('p1')!; victim.trail = []; victim.angle = 0;
+    if (protection === 'star') victim.invulnerableUntilTick = game.tick + 50;
+    if (protection === 'shield') victim.shielded = true;
+    const released = input({ bombCommands: [{ action: 'press', aim: { x: .75, y: 700 / 900 } }, { action: 'release', aim: { x: .75, y: 700 / 900 } }] });
+    assert.equal(game.bombs.size, 0);
+    assert.equal(victim.alive, protection !== 'none');
+    assert.equal(released.events.filter(event => event.type === 'explosion').length, 1);
+    if (protection === 'shield') assert.equal(victim.shielded, false);
+  }
+});
+test('instant Target blast chains nearby bombs in the same tick', () => {
+  const { game, player, input } = fixture(); player.targetBombArmed = true;
+  game.bombs.set(99, { id: 99, ownerId: 'p1', x: 800, y: 225, launchX: 800, launchY: 225,
+    launchedTick: 0, placedTick: 0, landsAtTick: 0, explodeAtTick: game.tick + 100,
+    blastRange: 90, flightPath: [{ x: 800, y: 225, angle: 0 }] });
+  const result = input({ bombCommands: [{ action: 'press' }, { action: 'release', aim: { x: .5, y: .25 } }] });
+  assert.equal(game.bombs.size, 0);
+  assert.equal(result.events.filter(event => event.type === 'explosion').length, 2);
 });
