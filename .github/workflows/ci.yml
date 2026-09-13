@@ -28,6 +28,8 @@ jobs:
         run: npm run test:browser
         env:
           BROWSER: webkit
+      - name: Small-phone avatar picker layout
+        run: npx tsx scripts/avatar-layout.ts
       - name: Save coverage and browser evidence
         if: always()
         uses: actions/upload-artifact@v4
