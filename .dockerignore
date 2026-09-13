@@ -1,0 +1,7 @@
+# An allowlist prevents credentials, local checkpoints and browser artifacts entering builds.
+**
+!Dockerfile.cloud
+!package.json
+!package-lock.json
+!src/
+!src/**

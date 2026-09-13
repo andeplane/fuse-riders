@@ -1,0 +1,109 @@
+name: Deploy Pages
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      revision: ${{ steps.revision.outputs.sha }}
+    steps:
+      - name: Require the successful CI revision to still be main
+        id: revision
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.workflow_run.head_sha;
+            const { data } = await github.rest.repos.getCommit({ ...context.repo, ref: 'main' });
+            if (data.sha !== sha) throw new Error('A newer main revision exists; await its CI.');
+            core.setOutput('sha', sha);
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.revision.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate public API configuration
+        env:
+          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
+        run: |
+          node --input-type=module <<'NODE'
+          const raw = process.env.VITE_API_ORIGIN;
+          if (!raw) throw new Error('Set repository variable VITE_API_ORIGIN to the verified Cloud Run HTTPS origin.');
+          const url = new URL(raw);
+          if (url.protocol !== 'https:' || url.origin !== raw) throw new Error('VITE_API_ORIGIN must be an exact HTTPS origin without a path.');
+          NODE
+      - run: npm ci
+      - name: Build the checked revision for its Pages path
+        env:
+          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
+        run: npm run build -- --base=/fuse-riders/
+      - name: Record exact frontend artifact contents
+        env:
+          RELEASE_REVISION: ${{ steps.revision.outputs.sha }}
+          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          mkdir -p artifacts
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          writeFileSync('dist/release.json', JSON.stringify({
+            gitRevision: process.env.RELEASE_REVISION,
+            verifiedCiRun: process.env.CI_RUN_ID,
+            apiOrigin: process.env.VITE_API_ORIGIN,
+            base: '/fuse-riders/',
+            builtAt: new Date().toISOString()
+          }, null, 2) + '\n');
+          NODE
+          find dist -type f -print0 | sort -z | xargs -0 sha256sum > artifacts/pages-files.sha256
+          sha256sum artifacts/pages-files.sha256 > artifacts/pages-manifest.sha256
+          cp dist/release.json artifacts/pages-release.json
+          cat artifacts/pages-manifest.sha256 >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pages-release-evidence-${{ steps.revision.outputs.sha }}
+          path: |
+            artifacts/pages-files.sha256
+            artifacts/pages-manifest.sha256
+            artifacts/pages-release.json
+          retention-days: 30
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Reject superseded revision before publication
+        uses: actions/github-script@v7
+        env:
+          RELEASE_REVISION: ${{ needs.build.outputs.revision }}
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCommit({ ...context.repo, ref: 'main' });
+            if (data.sha !== process.env.RELEASE_REVISION) throw new Error('Main changed while building; await the newer verified revision.');
+      - name: Deploy the previously uploaded artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
