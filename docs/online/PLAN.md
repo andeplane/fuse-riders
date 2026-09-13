@@ -1,5 +1,7 @@
 # Online Fuse Riders
 
+> Historical plan, not the current decision: see [ROADMAP.md](ROADMAP.md), proposed ADRs 028–032 and the independent reviews. The browser-hosted implementation remains a prototype with release blockers. This document preserves the original server-based proposal and baseline measurements; its implementation sequence and promises of host-independent continuation do not describe the selected proposal.
+
 Plan dated 2026-09-14. Public deployment is not implemented by this document. Keep the existing LAN game usable while implementing in separate atomic changes.
 
 ## Recommendation

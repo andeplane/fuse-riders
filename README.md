@@ -1,70 +1,114 @@
 # Fuse Riders
 
-Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and nine random powerups change the fight. Last rider alive wins the round; first to three round wins takes the match.
+A TypeScript party game for 2–5 players: steer neon riders, dodge their trails, and launch bombs and other projectiles. Play together around a TV with phones as controllers, or try the online room prototype with an arena on each device. The default match is first to three round wins.
 
-## Play tonight
+**Online play is being hardened and is not yet a qualified Internet release.** Independent reviews identified blocking problems in prediction, stale-message handling, duplicate host tabs, transport recovery, and checkpoint validation. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The existing LAN path remains available while these are addressed.
 
-Connect the host laptop to the TV over HDMI and put the phones on the same Wi-Fi. Requires Node.js 22.12 or newer.
+## Run a LAN game
+
+Requires Node.js **22.12 or newer** and npm. From a fresh checkout:
 
 ```sh
-npm install
+npm ci
 npm run build
 PORT=3030 npm start
 ```
 
-Open the **printed host display URL** on the TV laptop. It includes a host token needed to start matches. Scan the display QR code on each phone, choose names and one of ten generated avatar heads, and press Start race once 2–5 players have joined. Players can join during a round when a seat is free; they wait safely and enter the next round automatically (or the next match if the current match finishes). Use the printed LAN address, not `localhost`, on phones. Set `HOST_IP` if automatic network-interface selection chooses the wrong address.
+Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host display URL printed by the server**, then scan its QR code from each phone. The host URL contains a capability needed to start/reset matches; an ordinary `/display` URL does not grant those controls. Phones use `/controller`. Use the printed LAN IP on phones, not `localhost`. Set `HOST_IP` if automatic interface discovery selects the wrong network.
 
-Production does not refresh automatically. To install changes, stop the server between matches, rebuild, and start it again. Open the newly printed host URL, refresh the phones, and rejoin; restarting clears the session scores. Keep the process running during play. For development with browser updates use `PORT=3030 npm run dev` instead. The default port without `PORT` is 3000.
+`PORT=3030 npm run dev` runs the development server with Vite browser updates. Production uses the built `dist/` assets and does not automatically refresh. Rebuild and restart between matches, open the new printed host link, and refresh/rejoin phones. Restarting the Node process clears its in-memory game and session scores. The default port is 3000 when `PORT` is omitted.
 
-## Controls and powerups
+The new room-creation home page requires the Worker API. Use `/display` and `/controller` for LAN play; use the following command for online rooms.
 
-Hold left or right to steer. Hold **Fire**, then release to launch ahead: a tap fires 100 world units; holding for 1.2 seconds reaches 400. The TV and phone show charge/release feedback. Flight takes 0.3 seconds, the fuse lasts 2 seconds from release, and the cooldown is 4 seconds. Only one active bomb volley per rider is allowed. Base explosion radius is 90 world units.
-
-Drops begin about six seconds into each round and attempt to spawn every six seconds, with at most three on the field. They disappear after 15 seconds; crowded areas can delay safe placement.
-
-| Drop | Effect |
-| --- | --- |
-| Blast | Increases circular explosion radius by 75 units, up to two upgrades. |
-| Star | Protects against hazards for 5 seconds; walls bounce you back into play. |
-| Beer Worms | Adds a gentle sway for four seconds, bounded to 15° with a two-second cycle. Orbiting stars show who is dizzy. |
-| Ink | One second of dark clouds around other living riders; your nearby area stays clear. |
-| Triple Shot | Your next accepted release launches three bombs in a fan. |
-| Target Bomb | Hold Fire and slide your thumb like a trackpad to move a public TV target. Release to drop one normal-strength bomb there. Less common than ordinary pickups; Triple/Five remain armed for a later launch. |
-| Five Shot | Your next accepted release launches five bombs in a wider fan. Three times rarer than Triple Shot; collecting Triple preserves an armed Five Shot. |
-| Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
-| Portal | Creates two linked portal walls for ten seconds, each up to one-third of the field height. Enter either to exit at the corresponding height with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
-
-Riders collide with walls, eight-second trails, other riders, and explosions. Bombs clear trail segments and chain nearby landed bombs. Upgrades reset each round. After 60 seconds the boundary shrinks and trims trails at its edge; at 90 seconds, remaining riders draw. Simultaneous final deaths also draw. The next round starts automatically after the three-second results pause when at least two players remain connected.
-
-Tap **HEAD** on the phone controls to change avatar at any time, including during a match. The new head appears immediately on the TV.
-
-## Audio
-
-The TV plays original synthesized chiptune music and arcade effects after you press Start race or enable audio. Open **♪ AUDIO** for separate music/effects volume and mute controls. Phones stay silent.
-
-The TV’s **MENU** button ends the current match and returns everyone to the lobby without disconnecting phones or clearing session scores. Fullscreen stays available in the top bar during play.
-
-## Scores and stats
-
-Each round awards placement points of **5 / 3 / 2 / 1 / 0**. Ties split the average points for their occupied places. The leaderboard adds points across matches for the lifetime of the server process. At match end, the stats screen shows survival, distance, bombs launched/exploded, eliminations, deaths by cause, pickups by type, portal trips, wall bounces, and more. A rematch resets match statistics while keeping session points.
-
-If a phone briefly loses Wi-Fi or locks, reopen its controller: the saved player token reconnects to the same seat while that seat remains reserved. A disconnected rider continues straight until the round ends. The host token is shared authorization, not exclusive browser ownership.
-
-## Themes
-
-**Neon Pixel** follows the [chosen visual reference](docs/gameplay-concepts/06-neon-pixel-hybrid.png); **Clean Neon** is an alternate. Change the TV's Visual style selector at any time. Both share gameplay and player colors. Themes are registered in `src/client/themes.ts`; see [theme assets](docs/theme-assets.md) and [ADR-004](docs/adr/004-pluggable-visual-themes.md) for the extension contract.
-
-## Verification
+## Try online rooms locally
 
 ```sh
+npm run dev:online
+```
+
+Open **http://localhost:8787/**. Create a room, choose shared-screen or individual-device play, and share the invite link or QR code. The creator can join as a player on the same phone and use **START RACE**, **MAIN MENU**, and **ROOM SETTINGS**. **INVITE / TV** opens a separate display role for a shared screen. Use HTTPS for remote-device testing; local HTTP testing does not prove Internet connectivity.
+
+Room settings select first-to-N wins or a fixed number of rounds and adjust each powerup's relative weight. A weight of zero disables that drop; all zero means no random drops. Defaults and preferences are stored in the creator's browser under `fuse-riders-room-settings-v1`. Match format changes apply to the next match, and pickup-weight changes apply to the next round. Clearing browser storage loses saved preferences and room credentials.
+
+The creator's browser currently owns the simulation. Keep its tab in the foreground: a phone lock or background tab can pause everyone. Local checkpoints attempt refresh recovery, but safe restore, takeover, and bounded recovery are still review blockers. There is no automatic host migration, ranked anti-cheat authority, or guarantee of uninterrupted play through arbitrary network failure.
+
+## How to play
+
+Hold or slide a finger into left/right to steer. Hold **Fire** to charge a forward launch, then release. Target Bomb changes Fire into a thumb trackpad with a public aiming marker. Tap **HEAD** to change avatar, including during a round. Phone colors match riders. Joiners can enter during play when a seat is available and wait for the next round.
+
+Drops include blast upgrades, Beer, Ink, Triple/Five Shot, Target Bomb, Orbit Shield, portals, shells, gun projectiles, and shorter fuses. Star is excluded from default drops. Balance changes frequently: use [pickup weights](src/shared/pickup-weights.ts), [game rules](src/shared/game.ts), and [room settings](src/shared/room-settings.ts) as the source of truth rather than copying constants into documentation.
+
+The LAN TV provides audio controls, fullscreen, a main-menu reset, session scores, and end-of-match statistics. Music and effects need a browser user gesture. The online UI reuses the renderer, controller bindings, avatars and audio, but its full mobile parity is still part of release acceptance.
+
+## Architecture
+
+| Path | Simulation authority | Communication | Lifetime |
+| --- | --- | --- | --- |
+| LAN | Local Node process | WebSocket intents, snapshots and events | Process must run during play; restart resets state |
+| Online prototype | Creator's browser | Host-to-peer WebRTC star; Worker WebSocket signalling and application relay | Host must remain available; recovery is under review |
+
+```text
+LAN:     phones ── WebSocket ── Node simulation ── WebSocket ── TV
+
+Online:  player/display ── WebRTC ── host browser simulation
+                └── Worker + room Durable Object ──┘
+                    signalling / fallback relay
+```
+
+The shared deterministic simulation advances at 20 Hz. Online replication currently publishes at 10 Hz using field changes and trail deltas with periodic keyframes. Clients have a prediction/interpolation prototype; it is not yet deterministic replay on a fully specified authoritative timebase. WebRTC is transport, not a substitute for that protocol work. The current relay implementation also needs liveness-based switching and recovery tests.
+
+| Location | Responsibility |
+| --- | --- |
+| `src/shared/` | Deterministic rules, geometry, protocol types, scores, settings and weighted drops |
+| `src/server/` | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling |
+| `src/client/` | Arena rendering, themes, audio, avatars and phone pointer controls |
+| `src/online/host-session.ts` | Browser-hosted room commands and simulation wrapper |
+| `src/online/world-codec.ts` | Keyframes, field/trail deltas and reconstruction |
+| `src/online/peer-transport.ts` | WebRTC negotiation, signalling and relay selection |
+| `src/online/runtime.ts`, `prediction.ts`, `ui.ts` | Scheduling, client presentation and room UI |
+| `worker/index.ts` | Room creation, capabilities, signalling/relay and optional TURN credentials |
+| `wrangler.jsonc` | Worker assets and `ROOMS` SQLite Durable Object binding/migration |
+| `tests/`, `scripts/` | Deterministic tests, browser checks and benchmark runners |
+
+[AGENTS.md](AGENTS.md) defines engineering expectations. [Existing architecture notes](docs/architecture.md) describe the LAN implementation but contain historical balance details; source and later ADRs take precedence. Themes stay separate from gameplay and hitboxes; see [theme assets](docs/theme-assets.md) and the [chosen graphics reference](docs/gameplay-concepts/06-neon-pixel-hybrid.png).
+
+## Tests and evidence
+
+```sh
+npm run typecheck
+npm run typecheck:worker
 npm test
 npm run test:coverage
 npm run build
+npx playwright install chrome chromium webkit
 npm run test:browser
+BROWSER=webkit npm run test:browser
 ```
 
-Browser smoke uses installed Google Chrome. For WebKit, run `npx playwright install webkit`, then `BROWSER=webkit npm run test:browser`. Tests run isolated servers on ephemeral ports and never join the live match. [Verification evidence](docs/verification.md) distinguishes automated checks, controlled FPS measurements, and physical-device feedback.
+LAN browser smoke starts its own isolated server. It uses installed Chrome by default and WebKit with `BROWSER=webkit`. Online smoke uses bundled Chromium by default and needs Wrangler running in another terminal:
 
-The server advances a deterministic simulation at 20 Hz. Type-safe injected clocks, schedulers, token generators, input transports, and seeded randomness make timing and network boundaries testable.
+```sh
+mkdir -p artifacts
+npx tsx scripts/online-smoke.ts
+BROWSER=webkit npx tsx scripts/online-smoke.ts
+npx tsx scripts/benchmark-deltas.ts
+npx tsx scripts/online-network-benchmark.ts
+```
 
-GitHub Actions runs type checking, enforced coverage, a production build, and Chrome/WebKit browser smoke on pushes and pull requests.
+`ONLINE_URL=https://your-preview.example npx tsx scripts/online-smoke.ts` targets a preview and creates test rooms there. Never point tests at an occupied game. Benchmark scripts write reports under `docs/online/`; review regenerated evidence before committing it.
+
+Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser/Worker path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage, builds and browser checks; inspect the actual revision's result rather than treating this checklist as proof of passing CI.
+
+The delta benchmark asserts exact reconstruction for every measured update. The current browser network benchmark is exploratory: two desktop browser contexts with application-level RTC delay/jitter/stall injection. Its WSS profile is not delayed, it does not impose real IP packet loss or bandwidth caps, and next-rAF timing is not physical touch-to-photon latency. Five-player sustained impairment, recovery, mobile-device and WAN acceptance remain release gates in the roadmap.
+
+Tests should use typed injected clocks, schedulers, transports and seeded randomness. Keep simulation time independent of wall-clock time; exercise serialization and lifecycle boundaries with deterministic failures, not only happy paths. Review reports explain the missing invariants and required regressions.
+
+## Hosting and deployment status
+
+The online prototype uses **Cloudflare Workers static assets plus a hibernating SQLite Durable Object per room**, configured as Worker `fuse-riders` and binding `ROOMS`. It requires no provisioned always-running game simulation server. Direct peer traffic avoids application relay traffic; fallback still consumes service work and quotas. Optional TURN uses `TURN_KEY_ID` and `TURN_API_TOKEN` as Worker secrets. It is not configured merely by deploying the source.
+
+A temporary experimental preview was reported at **https://fuse-riders.vagabond-walk.workers.dev**. This is not a declared production endpoint: current reachability, account ownership, claim status and expiry must be verified before relying on it. No permanent production deployment, operating account, custom domain, or billing arrangement is certified by this README. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
+
+For an authenticated account, `npm run deploy` builds and invokes Wrangler. **That command does not run the release gates.** Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting to production. See [deployment details and cost assumptions](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, `.dev.vars`, Wrangler credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
+
+Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.
