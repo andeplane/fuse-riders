@@ -1,12 +1,10 @@
 # Fuse Riders
 
-Fuse Riders is a five-player neon arena game inspired by Bomberman and Achtung die Kurve. Each rider steers continuously, leaves a trail that fades after 8 seconds, and can drop a bomb with a 2-second fuse. Bombs blast in a cross, clear trail segments, and chain into nearby bombs. The last rider alive wins the round; first to five round wins takes the match.
+Fuse Riders is a TypeScript party game for 2–5 players, inspired by Bomberman and Achtung die Kurve. Phones steer the riders while everyone watches the arena on the TV. Trails fade, launched bombs cut escape routes, and seven random powerups change the fight. Last rider alive wins the round; first to five round wins takes the match.
 
 ## Play tonight
 
-The host laptop runs the server and connects to the TV over HDMI. Everyone joins the same Wi-Fi.
-
-Requires Node.js 22.12 or newer.
+Connect the host laptop to the TV over HDMI and put the phones on the same Wi-Fi. Requires Node.js 22.12 or newer.
 
 ```sh
 npm install
@@ -14,27 +12,37 @@ npm run build
 PORT=3030 npm start
 ```
 
-Open the printed display URL on the laptop/TV. The server detects the host's LAN address and prints a controller URL and host display URL; the display shows the QR code for phones. Set `HOST_IP` when automatic interface selection needs overriding. Players should scan the QR code, choose a name, and wait in the lobby until the host starts.
+Open the **printed host display URL** on the TV laptop. It includes a host token needed to start matches. Scan the display QR code on each phone, choose names, and press Start race once 2–5 players have joined. Use the printed LAN address, not `localhost`, on phones. Set `HOST_IP` if automatic network-interface selection chooses the wrong address.
 
-This runs a stable production server without automatic browser refresh. Keep the process running throughout the evening. For development with live browser updates, use `npm run dev` instead. The default port is 3000; `PORT` selects another port, and the printed URLs always include the actual port. Avoid using localhost on phones.
+Production does not refresh automatically. To install changes, stop the server between matches, rebuild, and start it again. Open the newly printed host URL, refresh the phones, and rejoin; restarting clears the session scores. Keep the process running during play. For development with browser updates use `PORT=3030 npm run dev` instead. The default port without `PORT` is 3000.
 
-The host starts a round once 2–5 players are connected. Use the phone controls to steer left/right and tap Bomb. The game runs for up to 60 seconds before overtime begins shrinking the boundary; at 90 seconds, multiple surviving riders draw. After the three-second round-over presentation, the server automatically starts the next round when at least two players remain connected. A match ends at five round wins, and the host can trigger an instant rematch.
+## Controls and powerups
 
-If a phone locks or briefly loses Wi-Fi, reopen the controller URL: its player token reconnects to the same seat. A disconnected rider continues straight until the round ends. The display and controllers recover from stale snapshots and input watchdog timeouts automatically.
+Hold left or right to steer. Hold **Fire**, then release to launch ahead: a tap fires 100 world units; holding for 1.2 seconds reaches 400. The TV and phone show charge/release feedback. Flight takes 0.3 seconds, the fuse lasts 2 seconds from release, and the cooldown is 4 seconds. Only one active bomb volley per rider is allowed.
+
+Drops begin about six seconds into each round and attempt to spawn every six seconds, with at most three on the field. They disappear after 15 seconds; crowded areas can delay safe placement.
+
+| Drop | Effect |
+| --- | --- |
+| Blast | Increases future explosion range by 75 units, up to two upgrades. |
+| Star | Protects against hazards for 2.5 seconds; walls bounce you back into play. |
+| Beer Worms | Makes the other living riders wobble for four seconds. You can still steer. |
+| Triple Shot | Your next accepted release launches three bombs in a fan. |
+| Homing Spark | Your next volley curves toward the nearest living opponent's position captured at release. Combines with Triple Shot. |
+| Orbit Shield | Absorbs one lethal collision, then briefly protects your escape. |
+| Portal | Creates two linked gates for ten seconds. Enter either to exit the other with your heading preserved, a short defensive grace, and a 0.75-second re-entry cooldown. Unsafe exits defer transport. |
+
+Riders collide with walls, eight-second trails, other riders, and explosions. Bombs clear trail segments and chain nearby landed bombs. Upgrades reset each round. After 60 seconds the boundary shrinks; at 90 seconds, remaining riders draw. Simultaneous final deaths also draw. The next round starts automatically after the three-second results pause when at least two players remain connected.
+
+## Scores and stats
+
+Each round awards placement points of **5 / 3 / 2 / 1 / 0**. Ties split the average points for their occupied places. The leaderboard adds points across matches for the lifetime of the server process. At match end, the stats screen shows survival, distance, bombs launched/exploded, eliminations, deaths by cause, pickups by type, portal trips, wall bounces, and more. A rematch resets match statistics while keeping session points.
+
+If a phone briefly loses Wi-Fi or locks, reopen its controller: the saved player token reconnects to the same seat while that seat remains reserved. A disconnected rider continues straight until the round ends. The host token is shared authorization, not exclusive browser ownership.
 
 ## Themes
 
-Neon Pixel is the default visual theme, with Clean Neon available as an alternate. Use the Visual style selector on the TV to switch at any time; both styles use the same gameplay and player colors. Theme assets and the renderer contract are documented in [`docs/theme-assets.md`](docs/theme-assets.md), and the decision record is [`ADR-004`](docs/adr/004-pluggable-visual-themes.md). New styles are registered in `src/client/themes.ts`, with matching assets in `public/themes/`.
-
-## Controls and rules
-
-- Steer left/right: hold the corresponding phone control.
-- Bomb: tap once; bombs have a 2-second fuse and a 4-second cooldown.
-- Trails last 8 seconds and can be cut by explosions.
-- Riders collide with walls, trails, other riders, and explosions.
-- Simultaneous final deaths produce a draw with no round win.
-
-The server is authoritative and advances the deterministic simulation at 20 Hz. Phones send input intents; the TV renders server snapshots. This keeps every screen in the room on the same result over the local network.
+**Neon Pixel** follows the [chosen visual reference](docs/gameplay-concepts/06-neon-pixel-hybrid.png); **Clean Neon** is an alternate. Change the TV's Visual style selector at any time. Both share gameplay and player colors. Themes are registered in `src/client/themes.ts`; see [theme assets](docs/theme-assets.md) and [ADR-004](docs/adr/004-pluggable-visual-themes.md) for the extension contract.
 
 ## Verification
 
@@ -45,6 +53,6 @@ npm run build
 npm run test:browser
 ```
 
-See [`docs/verification.md`](docs/verification.md) for the current evidence. Physical phones and the HDMI-connected TV have not been verified yet.
+Browser smoke uses installed Google Chrome. For WebKit, run `npx playwright install webkit`, then `BROWSER=webkit npm run test:browser`. Tests run isolated servers on ephemeral ports and never join the live match. [Verification evidence](docs/verification.md) distinguishes automated checks, controlled FPS measurements, and physical-device feedback.
 
-Browser smoke tests use locally installed Google Chrome. To run the same test in WebKit: `npx playwright install webkit`, then `BROWSER=webkit npm run test:browser`. Tests start isolated servers on ephemeral ports and never connect to your live match.
+The server advances a deterministic simulation at 20 Hz. Type-safe injected clocks, schedulers, token generators, input transports, and seeded randomness make timing and network boundaries testable.

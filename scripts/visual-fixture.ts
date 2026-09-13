@@ -3,6 +3,7 @@ import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { createGameServer } from '../src/server/index.js';
 import { addPlayer, type TrailSegment } from '../src/shared/game.js';
+import { createHomingFlightPath } from '../src/shared/launch-modifiers.js';
 
 const app = await createGameServer({ port: 0, hostname: '127.0.0.1', lanAddress: '127.0.0.1', manualTicks: true, buildDirectory: process.env.BUILD_DIRECTORY });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -42,6 +43,14 @@ try {
     { id: 2, type: 'star', x: 1250, y: 520, expiresAtTick: 1200 },
   ];
   app.game.players.get('p4')!.invulnerableUntilTick = 1000;
+  app.game.players.get('p0')!.shielded = true;
+  app.game.players.get('p1')!.drunkUntilTick = 1020;
+  app.game.players.get('p2')!.tripleShotArmed = true;
+  app.game.players.get('p2')!.bombChargeStartedTick = 942;
+  app.game.portalPair = { id: 'fixture-gates', gates: [{ x: 1300, y: 180 }, { x: 900, y: 760 }], expiresAtTick: 1150 };
+  const flightPath = createHomingFlightPath({ x: 700, y: 700, angle: 0 }, { x: 1100, y: 600 }, 300, { minX: 27, minY: 27, maxX: 1573, maxY: 873 });
+  const landing = flightPath.at(-1)!;
+  app.game.bombs.set(4, { id: 4, ownerId: 'p0', launchX: 700, launchY: 700, x: landing.x, y: landing.y, placedTick: 957, launchedTick: 957, landsAtTick: 963, explodeAtTick: 997, blastRange: 150, flightPath, homingTargetId: 'p3', homingTargetX: 1100, homingTargetY: 600 });
   const page = await browser.newPage({ viewport: {width:1672,height:940} });
   // tsx preserves nested function names with this helper when serializing evaluate callbacks.
   await page.addInitScript('globalThis.__name = (fn) => fn;');

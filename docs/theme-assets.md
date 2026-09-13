@@ -1,9 +1,17 @@
 # Theme assets
 
-The baseline visual direction follows `docs/gameplay-concepts/06-neon-pixel-hybrid.png`: dark navy arena, crisp pixel-like silhouettes, electric cyan/magenta/orange accents, and bright blast sparks. The asset set is intentionally small and engine-agnostic so Canvas can draw it with `Image` or replace it with procedural fallback shapes.
+The baseline follows the [neon/pixel gameplay reference](gameplay-concepts/06-neon-pixel-hybrid.png): a dark navy arena, crisp silhouettes, cyan/magenta/orange accents, and bright blast sparks. Assets live in `public/themes/`; both `neon-pixel` and `clean-neon` currently provide all ten SVG files below.
 
-Assets live under `public/themes/`. The runtime registry is `src/client/themes.ts`: each typed `ThemeDefinition` provides its palette, rendering settings and sprite paths. [`manifest.json`](../public/themes/manifest.json) documents the asset inventory and source geometry; it is not an automatic discovery mechanism. `neon-pixel` is the default; `clean-neon` is a smoother outline style.
+The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` supplies palette, rendering settings, and core sprite paths. [The manifest](../public/themes/manifest.json) records the asset inventory and source geometry; it does not discover themes automatically. Pickup artwork loads by theme ID and pickup type in `src/client/pickup-renderer.ts`.
 
-The rider arrow points right at base angle zero and is centered at `[16,16]`. The renderer recolors saturated outline pixels while retaining white highlights and dark interiors. Bombs preserve their dark body and use a procedural segmented fuse ring. Flame sprites are stamped within effects; the manifest also records their source-art base anchor. Pickup blast is a centered orange cross with a white-hot core; pickup star is a centered five-point yellow star with a white core. Both pickup sprites use `[16,16]` anchors. SVG viewboxes are 32×32 with transparent backgrounds. Sprites and effects never change the server's hitboxes.
+| Files | Purpose |
+| --- | --- |
+| `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and blast art. |
+| `pickup-blast.svg`, `pickup-star.svg` | Larger explosions and invincibility. |
+| `pickup-beer.svg` | Opponent wobble. |
+| `pickup-triple.svg`, `pickup-homing.svg` | Triple Shot and Homing Spark. |
+| `pickup-orbitShield.svg`, `pickup-portal.svg` | Orbit Shield and Portal. |
 
-To add a theme, extend `ThemeId` and the `themes` registry in `src/client/themes.ts`, supply the five sprite files (`rider.svg`, `bomb.svg`, `flame.svg`, `pickup-blast.svg`, and `pickup-star.svg`), and document them in the manifest. The selector is generated from this registry. `applyThemeProperties` supplies CSS custom properties; Canvas reads the same theme definition. Images are cached and have geometric fallbacks. No server or shared engine code imports visual assets.
+All sprites have transparent 32×32 SVG viewboxes. The rider points right at angle zero, centered at `[16,16]`. Recoloring preserves white highlights and dark interiors. Bombs keep a dark body with a procedural fuse ring. Pickup icons use `[16,16]` anchors; flame source art uses `[16,27]`. Charge indicators, bomb flight/release effects, shield orbits, and linked portal rings are rendered procedurally using the active palette. Art never changes server hitboxes.
+
+To add a style, extend `ThemeId` and the `themes` registry, supply all ten files in a matching `public/themes/<id>/` directory, and update the manifest. The TV selector comes from the registry. `applyThemeProperties` supplies CSS custom properties while Canvas reads the same definition. Images are cached and have geometric fallbacks. Shared simulation and server code never import visual assets.
