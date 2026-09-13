@@ -1106,7 +1106,7 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
   if (matchWinnerId !== undefined) {
     state.phase = 'matchOver';
-    state.phaseEndsAtTick = undefined;
+    state.phaseEndsAtTick = state.tick + 60;
     events.push({ type: 'matchEnded', winnerId: matchWinnerId });
     return;
   }

@@ -739,7 +739,8 @@ function startDisplay(): void {
     if (!leaderboardAllowed) { leaderboardDrawer.classList.add('hidden'); leaderboardButton.setAttribute('aria-expanded', 'false'); }
     renderRoster(snapshot);
     lobby.classList.toggle('hidden', snapshot.phase !== 'lobby');
-    matchRecap.classList.toggle('hidden', snapshot.phase !== 'matchOver');
+    const finalRoundPause = snapshot.phase === 'matchOver' && snapshot.phaseEndsAtTick !== undefined && snapshot.tick < snapshot.phaseEndsAtTick;
+    matchRecap.classList.toggle('hidden', snapshot.phase !== 'matchOver' || finalRoundPause);
     menuButton.disabled = !authenticated || snapshot.phase === 'lobby';
     recapAction.disabled = !authenticated || playerCount < 2;
     if (snapshot.phase === 'lobby') {
@@ -764,6 +765,10 @@ function startDisplay(): void {
         announcement.className = 'announcement overtime';
         announcement.textContent = 'OVERTIME // WALLS CLOSING';
       }
+    } else if (finalRoundPause) {
+      const winner = snapshot.players.find(player => player.id === snapshot.matchWinnerId);
+      announcement.className = 'announcement result';
+      announcement.replaceChildren(element('span', 'announcement-small', 'FINAL ROUND'), element('strong', '', winner ? `${winner.name} WINS!` : 'MATCH COMPLETE'));
     } else if (snapshot.phase === 'roundOver') {
       const winner = snapshot.players.find((player) => player.id === snapshot.roundWinnerId);
       announcement.className = 'announcement result';

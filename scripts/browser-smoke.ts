@@ -269,6 +269,9 @@ try {
     if (app.game.phase !== 'matchOver') app.advance(60);
   }
   assert.equal(app.game.phase, 'matchOver');
+  await host.getByText('FINAL ROUND', { exact: true }).waitFor();
+  assert.equal(await host.locator('.match-recap:not(.hidden)').count(), 0);
+  app.advance(60);
   await host.getByRole('button', { name: 'REMATCH' }).waitFor();
   await host.locator('.match-recap:not(.hidden)').waitFor();
   assert.equal(await host.locator('.comparison-row:not(.comparison-header)').count(), 5);
