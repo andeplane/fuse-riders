@@ -1,5 +1,5 @@
 import QRCode from 'qrcode';
-import type { ClientMessage, GameEvent, GameSnapshot, ServerMessage } from '../shared/protocol.js';
+import type { ClientMessage, GameEvent, GameSnapshot, ServerMessage, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState, type ControllerControl } from './controller-state.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
@@ -11,7 +11,6 @@ if (!app) throw new Error('Missing app root');
 
 const HEARTBEAT_MS = 2_000;
 const HELD_RESEND_MS = 100;
-const INTERPOLATION_DELAY_MS = 100;
 const TICK_MS = 50;
 const PLAYER_TOKEN_KEY = 'fuse-riders-player-token';
 const PLAYER_NAME_KEY = 'fuse-riders-player-name';
@@ -46,10 +45,12 @@ class SocketClient {
   reconnectTimer?: number;
   intentionallyClosed = false;
   retry = 0;
+  pingId = 0;
   constructor(
     private readonly authenticate: () => ClientMessage | undefined,
     private readonly onMessage: (message: ServerMessage) => void,
     private readonly onStatus: (connected: boolean, reason?: 'replaced') => void,
+    private readonly onRoundTrip?: (milliseconds: number) => void,
   ) {}
 
   connect(): void {
@@ -63,12 +64,17 @@ class SocketClient {
       this.onStatus(true);
       const auth = this.authenticate();
       if (auth) this.send(auth);
-      this.heartbeat = window.setInterval(() => this.send({ type: 'heartbeat' }), HEARTBEAT_MS);
+      this.heartbeat = window.setInterval(() => {
+        this.send({ type: 'heartbeat' });
+        this.send({ type: 'ping', id: this.pingId++, sentAt: performance.now() });
+      }, HEARTBEAT_MS);
     });
     socket.addEventListener('message', (event) => {
       if (socket !== this.socket || typeof event.data !== 'string') return;
       try {
-        this.onMessage(JSON.parse(event.data) as ServerMessage);
+        const message = JSON.parse(event.data) as ServerMessage;
+        if (message.type === 'pong') { this.onRoundTrip?.(performance.now() - message.sentAt); return; }
+        this.onMessage(message);
       } catch {
         // Ignore malformed server frames; the next complete snapshot repairs the view.
       }
@@ -129,20 +135,14 @@ function interpolateAngle(from: number, to: number, t: number): number {
   return from + delta * t;
 }
 
-function interpolatedSnapshot(frames: SnapshotFrame[], now: number): ViewSnapshot | undefined {
+function renderedSnapshot(frames: SnapshotFrame[], now: number): ViewSnapshot | undefined {
   if (!frames.length) return undefined;
-  const target = now - INTERPOLATION_DELAY_MS;
-  let newer = frames[frames.length - 1];
-  let older = newer;
-  for (let i = 1; i < frames.length; i += 1) {
-    if (frames[i].receivedAt >= target) {
-      older = frames[i - 1];
-      newer = frames[i];
-      break;
-    }
-  }
+  const newer = frames[frames.length - 1];
+  const older = frames.length > 1 ? frames[frames.length - 2] : newer;
   if (older === newer || older.matchId !== newer.matchId || older.round !== newer.round) return newer.snapshot;
-  const t = clamp((target - older.receivedAt) / Math.max(1, newer.receivedAt - older.receivedAt), 0, 1);
+  const sampleDuration = Math.max(1, newer.receivedAt - older.receivedAt);
+  const projectionDuration = clamp(now - newer.receivedAt, 0, TICK_MS);
+  const t = projectionDuration / sampleDuration;
   const oldById = new Map(older.snapshot.players.map((player) => [player.id, player]));
   return {
     ...newer.snapshot,
@@ -151,41 +151,61 @@ function interpolatedSnapshot(frames: SnapshotFrame[], now: number): ViewSnapsho
       if (!previous || !player.alive || !previous.alive) return player;
       return {
         ...player,
-        x: previous.x + (player.x - previous.x) * t,
-        y: previous.y + (player.y - previous.y) * t,
-        angle: interpolateAngle(previous.angle, player.angle, t),
+        x: player.x + (player.x - previous.x) * t,
+        y: player.y + (player.y - previous.y) * t,
+        angle: interpolateAngle(player.angle, player.angle + Math.atan2(Math.sin(player.angle - previous.angle), Math.cos(player.angle - previous.angle)), t),
       };
     }),
   };
 }
 
-function drawTrailLine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, color: string, width: number, theme: ThemeDefinition): void {
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.globalAlpha *= .45;
-  ctx.lineWidth = width * 1.7;
-  ctx.lineCap = theme.rendering.trailCap;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = width * theme.rendering.trailGlow * 1.35;
-  ctx.beginPath();
-  ctx.moveTo(Math.round(x1), Math.round(y1));
-  ctx.lineTo(Math.round(x2), Math.round(y2));
-  ctx.stroke();
-  ctx.globalAlpha = .95;
-  const dx = x2 - x1; const dy = y2 - y1; const length = Math.hypot(dx, dy);
-  if (theme.rendering.pixelated) {
+interface TrailBatch { path: Path2D; alpha: number; pixels: number[]; fragments: number[] }
+const trailBatchCache = new WeakMap<ReadonlyArray<TrailSegment>, TrailBatch[]>();
+
+function prepareTrailBatches(trail: ReadonlyArray<TrailSegment>, tick: number): TrailBatch[] {
+  const cached = trailBatchCache.get(trail);
+  if (cached) return cached;
+  const batches = Array.from({ length: 4 }, (_, index): TrailBatch => ({
+    path: new Path2D(), alpha: [.24, .48, .74, 1][index], pixels: [], fragments: [],
+  }));
+  for (const segment of trail) {
+    const life = clamp((segment.expiresAtTick - tick) / 40, .15, 1);
+    const batch = batches[Math.min(3, Math.floor(life * 4))];
+    const x1 = Math.round(segment.x1); const y1 = Math.round(segment.y1);
+    const x2 = Math.round(segment.x2); const y2 = Math.round(segment.y2);
+    batch.path.moveTo(x1, y1); batch.path.lineTo(x2, y2);
+    const dx = segment.x2 - segment.x1; const dy = segment.y2 - segment.y1; const length = Math.hypot(dx, dy);
     const count = Math.max(1, Math.ceil(length / 4));
     for (let index = 0; index <= count; index += 1) {
-      const t = index / count; const x = Math.round(x1 + dx * t); const y = Math.round(y1 + dy * t);
-      ctx.fillStyle = color; ctx.shadowBlur = 10; ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
-      ctx.fillStyle = '#efffff'; ctx.shadowBlur = 0; ctx.fillRect(x - 1, y - 1, 2, 2);
-      if ((index + Math.round(x1 + y1)) % 11 === 0) {
+      const t = index / count; const x = Math.round(segment.x1 + dx * t); const y = Math.round(segment.y1 + dy * t);
+      batch.pixels.push(x, y);
+      if ((index + Math.round(segment.x1 + segment.y1)) % 11 === 0) {
         const nx = length ? -dy / length : 0; const ny = length ? dx / length : 0;
-        ctx.globalAlpha = .42; ctx.fillStyle = color; ctx.fillRect(Math.round(x + nx * 5) - 1.5, Math.round(y + ny * 5) - 1.5, 3, 3); ctx.globalAlpha = .95;
+        batch.fragments.push(Math.round(x + nx * 5), Math.round(y + ny * 5));
       }
     }
-  } else {
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, width * .22); ctx.stroke();
+  }
+  trailBatchCache.set(trail, batches);
+  return batches;
+}
+
+function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<TrailSegment>, tick: number, alive: boolean, color: string, theme: ThemeDefinition): void {
+  const batches = prepareTrailBatches(trail, tick);
+  const aliveAlpha = alive ? 1 : .55;
+  ctx.save(); ctx.lineCap = theme.rendering.trailCap; ctx.lineJoin = theme.rendering.trailCap === 'round' ? 'round' : 'bevel';
+  for (const batch of batches) {
+    if (!batch.pixels.length) continue;
+    ctx.globalAlpha = batch.alpha * aliveAlpha * .5; ctx.strokeStyle = color; ctx.lineWidth = 10;
+    ctx.shadowColor = color; ctx.shadowBlur = 18; ctx.stroke(batch.path);
+    ctx.shadowBlur = 0; ctx.globalAlpha = batch.alpha * aliveAlpha; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.stroke(batch.path);
+    if (theme.rendering.pixelated) {
+      ctx.fillStyle = '#efffff';
+      for (let index = 0; index < batch.pixels.length; index += 2) ctx.fillRect(batch.pixels[index] - 1, batch.pixels[index + 1] - 1, 2, 2);
+      ctx.globalAlpha = batch.alpha * aliveAlpha * .42; ctx.fillStyle = color;
+      for (let index = 0; index < batch.fragments.length; index += 2) ctx.fillRect(batch.fragments[index] - 1, batch.fragments[index + 1] - 1, 3, 3);
+    } else {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke(batch.path);
+    }
   }
   ctx.restore();
 }
@@ -242,6 +262,25 @@ function drawBoundary(ctx: CanvasRenderingContext2D, width: number, height: numb
   ctx.restore();
 }
 
+let backgroundCache: { key: string; canvas: HTMLCanvasElement } | undefined;
+
+function arenaBackground(width: number, height: number, inset: number, theme: ThemeDefinition): HTMLCanvasElement {
+  const key = `${theme.id}:${width}:${height}:${inset}`;
+  if (backgroundCache?.key === key) return backgroundCache.canvas;
+  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+  const floor = ctx.createRadialGradient(width / 2, height / 2, 30, width / 2, height / 2, width * .7);
+  floor.addColorStop(0, theme.palette.floorCenter); floor.addColorStop(1, theme.palette.floorEdge);
+  ctx.fillStyle = floor; ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = theme.palette.grid; ctx.lineWidth = 1;
+  for (let x = 0; x <= width; x += theme.rendering.gridSize) { ctx.beginPath(); ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, height); ctx.stroke(); }
+  for (let y = 0; y <= height; y += theme.rendering.gridSize) { ctx.beginPath(); ctx.moveTo(0, y + .5); ctx.lineTo(width, y + .5); ctx.stroke(); }
+  drawBoundary(ctx, width, height, inset, theme);
+  backgroundCache = { key, canvas };
+  return canvas;
+}
+
 const tintedSpriteCache = new Map<string, HTMLCanvasElement>();
 
 function spriteSource(image: HTMLImageElement, size: number, tint?: string): CanvasImageSource {
@@ -285,28 +324,11 @@ function drawSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: n
 function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites): void {
   const { width, height } = snapshot;
   ctx.clearRect(0, 0, width, height);
-  const floor = ctx.createRadialGradient(width / 2, height / 2, 30, width / 2, height / 2, width * 0.7);
-  floor.addColorStop(0, theme.palette.floorCenter);
-  floor.addColorStop(1, theme.palette.floorEdge);
-  ctx.fillStyle = floor;
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.save();
-  ctx.strokeStyle = theme.palette.grid;
-  ctx.lineWidth = 1;
-  for (let x = 0; x <= width; x += theme.rendering.gridSize) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, height); ctx.stroke(); }
-  for (let y = 0; y <= height; y += theme.rendering.gridSize) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(width, y + 0.5); ctx.stroke(); }
-  ctx.restore();
-
-  drawBoundary(ctx, width, height, snapshot.boundaryInset, theme);
+  ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
 
   for (const player of snapshot.players) {
     const color = escapeColor(player.color);
-    for (const segment of player.trail) {
-      const life = clamp((segment.expiresAtTick - snapshot.tick) / 40, 0.15, 1);
-      ctx.globalAlpha = player.alive ? life : life * 0.55;
-      drawTrailLine(ctx, segment.x1, segment.y1, segment.x2, segment.y2, color, 6, theme);
-    }
+    drawPlayerTrail(ctx, player.trail, snapshot.tick, player.alive, color, theme);
   }
   ctx.globalAlpha = 1;
 
@@ -438,8 +460,9 @@ function startDisplay(): void {
   lobby.append(lobbyCard);
 
   const announcement = element('div', 'announcement hidden');
+  const performanceDisplay = element('output', 'perf-overlay hidden', 'FPS --  RENDER --ms');
   const roundBadge = element('div', 'round-badge', 'ROUND 1');
-  stage.append(canvas, lobby, roundBadge, announcement);
+  stage.append(canvas, lobby, roundBadge, announcement, performanceDisplay);
   root.append(topbar, stage);
   app.replaceChildren(root);
 
@@ -454,6 +477,10 @@ function startDisplay(): void {
   const frames: SnapshotFrame[] = [];
   const handledEvents = new Set<string>();
   let configControllerUrl = '';
+  let rosterSignature = '';
+  let scoresSignature = '';
+  let showPerformance = new URLSearchParams(location.search).get('perf') === '1';
+  performanceDisplay.classList.toggle('hidden', !showPerformance);
   const savedTheme = localStorage.getItem(THEME_KEY);
   let activeTheme = savedTheme && savedTheme in themes ? themes[savedTheme as ThemeId] : defaultTheme;
   let activeSprites: ThemeSprites = {};
@@ -469,6 +496,9 @@ function startDisplay(): void {
   });
 
   function renderRoster(snapshot?: ViewSnapshot): void {
+    const signature = snapshot?.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.connected}`).join('|') ?? 'empty';
+    if (signature === rosterSignature) return;
+    rosterSignature = signature;
     roster.replaceChildren();
     for (let slot = 0; slot < 5; slot += 1) {
       const player = snapshot?.players.find((candidate) => candidate.slot === slot);
@@ -483,6 +513,9 @@ function startDisplay(): void {
   }
 
   function renderScores(snapshot: ViewSnapshot): void {
+    const signature = snapshot.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.alive}:${player.roundWins}`).join('|');
+    if (signature === scoresSignature) return;
+    scoresSignature = signature;
     scores.replaceChildren();
     for (const player of [...snapshot.players].sort((a, b) => a.slot - b.slot)) {
       const card = element('div', `score-card ${player.alive ? '' : 'out'}`);
@@ -563,6 +596,7 @@ function startDisplay(): void {
       if (!connected) authenticated = false;
       connection.textContent = connected ? 'AUTHENTICATING' : 'RECONNECTING'; connection.classList.toggle('online', connected && authenticated);
     },
+    (milliseconds) => { transportRtt = milliseconds; },
   );
 
   action.addEventListener('click', () => {
@@ -570,6 +604,10 @@ function startDisplay(): void {
     if (hostAction) socket.send({ type: 'hostAction', action: hostAction });
   });
   fullscreen.addEventListener('click', () => document.documentElement.requestFullscreen?.());
+  window.addEventListener('keydown', (event) => {
+    if (event.key.toLowerCase() !== 'p' || event.repeat || event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    showPerformance = !showPerformance; performanceDisplay.classList.toggle('hidden', !showPerformance);
+  });
   fetch('/api/config').then((response) => response.json()).then((data: { controllerUrl?: unknown }) => {
     if (typeof data.controllerUrl !== 'string') throw new Error('Missing controller URL');
     configControllerUrl = data.controllerUrl;
@@ -580,10 +618,27 @@ function startDisplay(): void {
   socket.connect();
 
   const ctx = canvas.getContext('2d');
+  let previousFrameAt = performance.now();
+  let averageFrameMs = 16.7;
+  let averageRenderMs = 0;
+  let lastMetricsAt = 0;
+  let transportRtt: number | undefined;
   function frame(now: number): void {
-    const snapshot = interpolatedSnapshot(frames, now);
+    const renderStartedAt = performance.now();
+    averageFrameMs = averageFrameMs * .94 + Math.min(250, now - previousFrameAt) * .06;
+    previousFrameAt = now;
+    const snapshot = renderedSnapshot(frames, now);
+    if (snapshot && (canvas.width !== snapshot.width || canvas.height !== snapshot.height)) {
+      canvas.width = snapshot.width; canvas.height = snapshot.height;
+    }
     if (ctx && snapshot) drawArena(ctx, snapshot, now, activeTheme, activeSprites);
     else if (ctx) drawIdleArena(ctx, canvas.width, canvas.height, now, activeTheme);
+    averageRenderMs = averageRenderMs * .9 + (performance.now() - renderStartedAt) * .1;
+    if (showPerformance && now - lastMetricsAt > 500) {
+      const age = latest ? Math.max(0, now - latest.receivedAt) : 0;
+      performanceDisplay.value = `FPS ${Math.round(1000 / Math.max(1, averageFrameMs))}  RENDER ${averageRenderMs.toFixed(1)}ms  SNAP ${age.toFixed(0)}ms${transportRtt === undefined ? '' : `  RTT ${transportRtt.toFixed(0)}ms`}`;
+      lastMetricsAt = now;
+    }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
@@ -630,8 +685,11 @@ function startController(): void {
   const right = element('button', 'control-button steer', '↷'); right.dataset.control = 'right'; right.type = 'button'; right.setAttribute('aria-label', 'Turn right');
   pad.append(left, bomb, right);
   const leave = element('button', 'leave-button', 'LEAVE GAME'); leave.type = 'button';
+  const controllerPerformance = element('output', 'perf-overlay controller-perf hidden', 'RTT --ms  ACK --ms');
+  let showControllerPerformance = new URLSearchParams(location.search).get('perf') === '1';
+  controllerPerformance.classList.toggle('hidden', !showControllerPerformance);
   controls.append(identity, instruction, pad, leave);
-  root.append(header, join, controls);
+  root.append(header, join, controls, controllerPerformance);
   app.replaceChildren(root);
 
   let playerToken = localStorage.getItem(PLAYER_TOKEN_KEY) ?? '';
@@ -643,7 +701,20 @@ function startController(): void {
   let explicitJoinRequested = false;
   let hasLeft = false;
   let socket!: SocketClient;
-  const inputState = new ControllerInputState({ send: (message) => Boolean(playerId) && socket.send(message) });
+  const inputSentAt = new Map<number, number>();
+  let controllerRtt: number | undefined;
+  let inputAckMs: number | undefined;
+  function updateControllerDiagnostics(): void {
+    controllerPerformance.value = `RTT ${controllerRtt === undefined ? '--' : controllerRtt.toFixed(0)}ms  ACK ${inputAckMs === undefined ? '--' : inputAckMs.toFixed(0)}ms`;
+  }
+  const inputState = new ControllerInputState({ send: (message) => {
+    const sent = Boolean(playerId) && socket.send(message);
+    if (sent) {
+      inputSentAt.set(message.seq, performance.now());
+      if (inputSentAt.size > 60) inputSentAt.delete(inputSentAt.keys().next().value!);
+    }
+    return sent;
+  } });
 
   function status(text: string, error = false): void { joinStatus.textContent = text; joinStatus.classList.toggle('error', error); }
   function currentJoin(reconnectOnly = true): ClientMessage | undefined {
@@ -684,7 +755,10 @@ function startController(): void {
   socket = new SocketClient(
     () => currentJoin(!explicitJoinRequested),
     (message) => {
-      if (message.type === 'joined') {
+      if (message.type === 'inputAck') {
+        const sentAt = inputSentAt.get(message.seq);
+        if (sentAt !== undefined) { inputAckMs = performance.now() - sentAt; inputSentAt.delete(message.seq); updateControllerDiagnostics(); }
+      } else if (message.type === 'joined') {
         explicitJoinRequested = false;
         hasLeft = false;
         playerId = message.playerId; playerToken = message.playerToken; inputState.setNextSequence(message.nextInputSeq);
@@ -716,7 +790,14 @@ function startController(): void {
       if (reason === 'replaced') instruction.textContent = 'This rider moved to another controller.';
       if (!connected) clearControls(false);
     },
+    (milliseconds) => { controllerRtt = milliseconds; updateControllerDiagnostics(); },
   );
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key.toLowerCase() !== 'p' || event.repeat || event.target instanceof HTMLInputElement) return;
+    showControllerPerformance = !showControllerPerformance;
+    controllerPerformance.classList.toggle('hidden', !showControllerPerformance);
+  });
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

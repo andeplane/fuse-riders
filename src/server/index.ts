@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
-import { parseClientMessage, type ErrorCode, type ServerMessage } from '../shared/protocol.js';
+import { parseClientMessage, type ErrorCode, type ServerMessage, type GameSnapshot } from '../shared/protocol.js';
 import {
   createGame, addPlayer, removePlayer, startMatch, startNextRound, resetMatch,
   setPlayerConnected, eliminatePlayer, step, toSnapshot, type InputIntent,
@@ -18,7 +18,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const secret = () => randomBytes(24).toString('hex');
 interface Seat {
   id: string; token: string; slot: number; socket?: WebSocket;
-  seq: number; intent: InputIntent; inputTick: number; pendingBomb: boolean;
+  seq: number; appliedSeq: number; intent: InputIntent; inputTick: number; pendingBomb: boolean;
   lastBomb: boolean; deliveredBomb: boolean; leaving: boolean; bombNeedsRelease: boolean;
 }
 interface Connection { host: boolean; seat?: Seat; lastSeen: number; window: number; count: number }
@@ -27,7 +27,11 @@ export interface ServerDependencies {
   token: () => string;
   schedule: (callback: () => void, intervalMs: number) => () => void;
 }
-export interface ServerOptions { port?: number; hostname?: string; lanAddress?: string; dev?: boolean; manualTicks?: boolean; dependencies?: Partial<ServerDependencies> }
+export interface ServerOptions { port?: number; hostname?: string; lanAddress?: string; dev?: boolean; manualTicks?: boolean; buildDirectory?: string; dependencies?: Partial<ServerDependencies> }
+
+export function controllerSnapshot(state: GameSnapshot): GameSnapshot {
+  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [] };
+}
 
 export function lanAddress() {
   const ips = Object.values(networkInterfaces()).flat().filter(x => x && x.family === 'IPv4' && !x.internal).map(x => x!.address);
@@ -59,7 +63,7 @@ export async function createGameServer(options: ServerOptions = {}) {
     try {
       const urlPath = decodeURIComponent(new URL(req.url || '/', 'http://local').pathname);
       const isPage = ['/', '/display', '/controller'].includes(urlPath);
-      const dist = path.join(ROOT, 'dist');
+      const dist = path.resolve(options.buildDirectory ?? path.join(ROOT, 'dist'));
       const filename = path.resolve(dist, isPage ? 'index.html' : '.' + urlPath);
       if (!filename.startsWith(dist + path.sep) || !(await stat(filename)).isFile()) throw new Error('not found');
       const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png' };
@@ -71,9 +75,17 @@ export async function createGameServer(options: ServerOptions = {}) {
   function send(ws: WebSocket, message: ServerMessage) {
     if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 512_000) ws.send(JSON.stringify(message));
   }
-  function snapshot(ws?: WebSocket) {
+  function snapshot(ws?: WebSocket, displayOnly = false) {
     const message: ServerMessage = { type: 'snapshot', matchId: game.matchId, round: game.round, tick: game.tick, state: toSnapshot(game) };
-    if (ws) send(ws, message); else for (const client of connections.keys()) send(client, message);
+    let full: string | undefined; let compact: string | undefined;
+    const deliver = (client: WebSocket) => {
+      const host = connections.get(client)?.host;
+      if (displayOnly && !host) return;
+      if (client.readyState !== WebSocket.OPEN || client.bufferedAmount > 512_000) return;
+      const payload = host ? (full ??= JSON.stringify(message)) : (compact ??= JSON.stringify({ ...message, state: controllerSnapshot(message.state) }));
+      client.send(payload);
+    };
+    if (ws) deliver(ws); else for (const client of connections.keys()) deliver(client);
   }
   function error(ws: WebSocket, code: ErrorCode) { send(ws, { type: 'error', code }); }
   function neutral(seat: Seat, rearm = false) {
@@ -125,6 +137,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       if (now - c.window >= 1000) { c.window = now; c.count = 0; }
       if (++c.count > 40) { error(ws, 'invalid_message'); ws.close(1008, 'Rate limit'); return; }
       if (message.type === 'heartbeat') return;
+      if (message.type === 'ping') { send(ws, { type: 'pong', id: message.id, sentAt: message.sentAt }); return; }
       if (message.type === 'hostAuth') {
         if (c.seat || message.token.length !== hostToken.length || !timingSafeEqual(Buffer.from(message.token), Buffer.from(hostToken))) {
           error(ws, 'unauthorized'); return;
@@ -154,7 +167,7 @@ export async function createGameServer(options: ServerOptions = {}) {
           if (seats.size >= 5) { error(ws, 'full'); return; }
           if (!['lobby', 'roundOver', 'matchOver'].includes(game.phase)) { error(ws, 'invalid_phase'); return; }
           const slot = COLORS.findIndex((_, i) => ![...seats.values()].some(s => s.slot === i));
-          seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, pendingBomb: false, lastBomb: false, deliveredBomb: false, leaving: false, bombNeedsRelease: false };
+          seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, pendingBomb: false, lastBomb: false, deliveredBomb: false, leaving: false, bombNeedsRelease: false };
           addPlayer(game, { id: seat.id, name: message.name, slot, color: COLORS[slot], connected: true });
           seats.set(seat.id, seat);
         }
@@ -196,13 +209,17 @@ export async function createGameServer(options: ServerOptions = {}) {
         inputs.set(seat.id, { left: seat.intent.left, right: seat.intent.right, bomb });
       }
       const result = step(game, inputs);
+      for (const seat of seats.values()) if (seat.socket && seat.seq > seat.appliedSeq) {
+        seat.appliedSeq = seat.seq;
+        send(seat.socket, { type: 'inputAck', seq: seat.seq, appliedTick: game.tick });
+      }
       if (game.phase !== previousPhase) clearInputs();
       for (const event of result.events) for (const client of connections.keys()) send(client, { type: 'event', matchId: game.matchId, round: game.round, tick: game.tick, event });
       if (game.phase === 'roundOver' && game.phaseEndsAtTick !== undefined && game.tick >= game.phaseEndsAtTick) {
         pruneDisconnected();
         if (connectedCount() >= 2) { clearInputs(); startNextRound(game); }
       }
-      if (game.tick % 2 === 0 || game.phase !== previousPhase) snapshot();
+      snapshot(undefined, game.tick % 2 !== 0 && game.phase === previousPhase);
     }
   }
   let previousTime = dependencies.now();

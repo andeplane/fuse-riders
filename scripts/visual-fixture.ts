@@ -38,10 +38,28 @@ try {
   for (const [id,x,y] of [[1,405,145],[2,1040,355],[3,670,605]]) app.game.bombs.set(id,{id,ownerId:`p${id}`,x,y,placedTick:940,explodeAtTick:980+id*5});
   app.game.blasts.push({ bombId: 5, rects: [{x:360,y:328,width:300,height:24},{x:498,y:190,width:24,height:300}], expiresAtTick:968 });
   const page = await browser.newPage({ viewport: {width:1672,height:940} });
+  // tsx preserves nested function names with this helper when serializing evaluate callbacks.
+  await page.addInitScript('globalThis.__name = (fn) => fn;');
   await page.goto(`http://127.0.0.1:${app.port}/display#${app.hostToken}`);
   await page.getByText('HOST ONLINE',{exact:true}).waitFor();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
+  if (process.env.BENCHMARK === '1') {
+    const sample = await page.evaluate(async () => {
+      const intervals: number[] = [];
+      let previous = performance.now(); const start = previous;
+      await new Promise<void>(resolve => {
+        function measure(now: number) {
+          intervals.push(now - previous); previous = now;
+          if (now - start < 5000) requestAnimationFrame(measure); else resolve();
+        }
+        requestAnimationFrame(measure);
+      });
+      const sorted = intervals.slice(1).sort((a,b) => a-b);
+      return { frames: intervals.length, elapsedMs: previous-start, fps: intervals.length*1000/(previous-start), medianFrameMs: sorted[Math.floor(sorted.length*.5)], p95FrameMs: sorted[Math.floor(sorted.length*.95)] };
+    });
+    console.log('RENDER_BENCHMARK', JSON.stringify(sample));
+  }
   await mkdir('artifacts',{recursive:true});
   await page.screenshot({path:'artifacts/neon-pixel-visual.png'});
   await page.getByRole('combobox').selectOption('clean-neon'); await page.waitForTimeout(300);

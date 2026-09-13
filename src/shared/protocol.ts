@@ -4,6 +4,7 @@ export type ClientMessage =
   | { type: 'join'; name: string; playerToken?: PlayerToken }
   | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean }
   | { type: 'heartbeat' }
+  | { type: 'ping'; id: number; sentAt: number }
   | { type: 'leave' }
   | { type: 'hostAuth'; token: string }
   | { type: 'hostAction'; action: 'start' | 'nextRound' | 'rematch' };
@@ -34,6 +35,8 @@ export type ErrorCode = 'invalid_message' | 'full' | 'unauthorized' | 'stale' | 
 export type ServerMessage =
   | { type: 'joined'; playerId: PlayerId; playerToken: PlayerToken; slot: number; color: string; nextInputSeq: number }
   | { type: 'hostAuthenticated' }
+  | { type: 'pong'; id: number; sentAt: number }
+  | { type: 'inputAck'; seq: number; appliedTick: number }
   | { type: 'snapshot'; matchId: string; round: number; tick: number; state: GameSnapshot }
   | { type: 'event'; matchId: string; round: number; tick: number; event: GameEvent }
   | { type: 'error'; code: ErrorCode };
@@ -57,6 +60,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         !['left', 'right', 'bomb'].every(k => typeof v[k] === 'boolean')) return null;
       return v as Extract<ClientMessage, { type: 'input' }>;
     case 'heartbeat': case 'leave': return keys('type') ? v as ClientMessage : null;
+    case 'ping': return keys('type', 'id', 'sentAt') && Number.isSafeInteger(v.id) && (v.id as number) >= 0 && typeof v.sentAt === 'number' && Number.isFinite(v.sentAt) && v.sentAt >= 0 ? v as ClientMessage : null;
     case 'hostAuth': return keys('type', 'token') && token(v.token) ? v as ClientMessage : null;
     case 'hostAction': return keys('type', 'action') && ['start', 'nextRound', 'rematch'].includes(v.action as string) ? v as ClientMessage : null;
     default: return null;
