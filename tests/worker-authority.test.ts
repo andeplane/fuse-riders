@@ -81,15 +81,15 @@ test('Worker renews only an active exact grant from its current host, with authe
 test('Worker routes only current authenticated endpoints and includes source connection scope',async()=>{
   const f=await fixture(),host=await f.join(hostToken),oldGuest=await f.join(guestToken),other=await f.join('c'.repeat(64));
   const freshGuest=await f.join(guestToken),hostId=host.last('welcome')!.id,guestId=freshGuest.last('welcome')!.id;
-  const payload={type:'command',command:{type:'join',name:'Player'}};
-  const send=(socket:Socket,to:unknown,targetConnectionId?:unknown)=>f.room.webSocketMessage(socket,JSON.stringify({type:'relay',to,targetConnectionId,data:payload}));
-  await send(oldGuest,hostId);assert.equal(host.last('relay'),undefined);
-  await send(other,guestId);assert.equal(freshGuest.last('relay'),undefined,'guest-to-guest routing denied');
-  await send(host,guestId,oldGuest.last('welcome')!.connectionId);assert.equal(freshGuest.last('relay'),undefined,'old target scope denied');
+  const payload={description:{type:'offer',sdp:'fixture'}};
+  const send=(socket:Socket,to:unknown,targetConnectionId?:unknown)=>f.room.webSocketMessage(socket,JSON.stringify({type:'signal',to,targetConnectionId,data:payload}));
+  await send(oldGuest,hostId);assert.equal(host.last('signal'),undefined);
+  await send(other,guestId);assert.equal(freshGuest.last('signal'),undefined,'guest-to-guest routing denied');
+  await send(host,guestId,oldGuest.last('welcome')!.connectionId);assert.equal(freshGuest.last('signal'),undefined,'old target scope denied');
   await send(freshGuest,hostId,host.last('welcome')!.connectionId);
-  assert.deepEqual(host.last('relay'),{type:'relay',from:guestId,connectionId:freshGuest.last('welcome')!.connectionId,data:payload});
+  assert.deepEqual(host.last('signal'),{type:'signal',from:guestId,connectionId:freshGuest.last('welcome')!.connectionId,data:payload});
   await f.room.webSocketClose(oldGuest);
-  await send(host,guestId,freshGuest.last('welcome')!.connectionId);assert.ok(freshGuest.last('relay'));
+  await send(host,guestId,freshGuest.last('welcome')!.connectionId);assert.ok(freshGuest.last('signal'));
   await f.room.webSocketClose(freshGuest);
   assert.deepEqual(host.last('peer'),{type:'peer',id:guestId,connectionId:freshGuest.last('welcome')!.connectionId,online:false});
 });
@@ -122,4 +122,10 @@ test('Worker reserves creator capacity when invitees arrive before the host',asy
   assert.equal(denied.status,429);
   const host=await f.join(hostToken);assert.equal(grant(host).epoch,1);
   assert.equal(Object.keys((await f.storage.get<Record<string,string>>('connections'))!).length,6);
+});
+
+test('Worker rejects gameplay relay even between valid host and guest sockets',async()=>{
+  const f=await fixture(),host=await f.join(hostToken),guest=await f.join(guestToken);
+  await f.room.webSocketMessage(guest,JSON.stringify({type:'relay',to:host.last('welcome')!.id,data:{type:'command'}}));
+  assert.equal(host.last('relay'),undefined);
 });

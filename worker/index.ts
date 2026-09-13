@@ -156,7 +156,8 @@ export class SignalRoom {
       if(result.renewed)this.broadcast({type:'authority',grant:result.grant},result.members);
       return;
     }
-    if(!['signal','relay'].includes(String(message.type))||typeof message.to!=='string')return;
+    // Public gameplay is direct WebRTC only; WSS is coordination/signalling.
+    if(message.type!=='signal'||typeof message.to!=='string')return;
     const target=this.currentSockets(members).find(peer=>identity(peer)?.id===message.to);if(!target)return;
     const targetIdentity=identity(target)!;
     if(message.targetConnectionId!==undefined&&message.targetConnectionId!==targetIdentity.connectionId)return;
