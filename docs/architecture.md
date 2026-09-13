@@ -1,230 +1,119 @@
 # Fuse Riders architecture
 
-This is the accepted implementation contract derived from ADR-001 through ADR-005 and the independent reviews.
+The implementation follows the accepted ADRs in [docs/adr](adr/), including later decisions that supersede the original cross explosions, circular portals, and match length. Source modules are the authoritative type and constant definitions; this document describes their responsibilities and ordering rather than duplicating a partial protocol schema.
 
 ## Runtime and trust boundary
 
 ```text
-phone /controller -- validated intents --> Node HTTP + ws server -- complete snapshots --> /display -- HDMI --> TV
-        reconnect token <-------------- authoritative simulation ------------ events (effects only)
+phone /controller -- validated intents --> Node HTTP + WebSocket server
+                                              |
+                                     authoritative simulation
+                                              |
+                   TV /display <-- snapshots and transient events
 ```
 
-One Node process binds `0.0.0.0` on a configurable port, serves both browser surfaces, and owns the only mutable match. At startup it discovers and prints a private-LAN controller URL and a host display URL. `HOST_IP` may override interface detection when needed. The QR contains only `http://<lan-address>:<port>/controller`; this single-room household-LAN MVP has no lobby admission secret or matchmaking.
+One Node process serves both browser surfaces and owns the mutable room. It binds a configurable host/port and prints a private-LAN controller URL and a host display URL. `HOST_IP` overrides interface discovery. The QR contains only `/controller`; this household LAN game has no matchmaking or separate room-admission secret.
 
-The server also prints `http://<lan-address>:<port>/display#<host-token>`. The fragment is read by the display, removed from browser history with `history.replaceState`, and sent once in `hostAuth`; URL fragments are never included in HTTP requests. The server binds host capability to that authenticated WebSocket. Loading `/display` or sending a host-shaped message grants no authority. Host and player tokens never appear in QR payloads, snapshots, controller responses other than the owning player's initial `joined` response, or application logs.
+The host URL carries its capability in a fragment. The display captures it into session storage, removes the fragment from browser history, and authenticates each connection using `hostAuth`. A new valid fragment also updates authentication through `hashchange`. Several displays can authenticate with the same capability; there is no exclusive browser ownership. Merely opening `/display` grants no host control. Server restarts replace the host and player tokens, so a new host link is required afterward.
 
-`src/shared/game.ts` is a deterministic rules engine. `src/shared/protocol.ts` is the only wire contract and validates messages before dispatch. `src/server/index.ts` owns sockets, tokens, input buffers, the fixed-step loop, and broadcasting. `src/client/main.ts` selects display/controller mode; `src/client/style.css` owns responsive touch and TV presentation.
+Production tokens use 24 cryptographically random bytes. The owning controller receives its player token in `joined`; tokens are absent from gameplay snapshots and the public controller URL. The startup host link intentionally includes its host capability. Names are rendered with text APIs rather than HTML.
 
-## Constants
+## Modules and dependency injection
 
-All world geometry uses continuous coordinates in a 1600 by 900 arena. Slot colours in order are cyan, pink, lime, orange, and violet.
+| Module | Responsibility |
+| --- | --- |
+| `src/shared/game.ts` | Deterministic state, lifecycle commands, authoritative tick transaction and snapshots. |
+| `src/shared/protocol.ts` | Wire types and strict incoming message validation. |
+| `src/shared/bomb-launch.ts`, `launch-modifiers.ts`, `blast-geometry.ts` | Charge distance, volley trajectories and exact swept disk intersections. |
+| `src/shared/trail-clipping.ts`, `portal.ts`, `drunk.ts` | Independent geometry, portal placement/transit and seeded steering disturbance. |
+| `src/shared/pickup-weights.ts`, `leaderboard.ts`, `match-stats.ts` | Drop weights, persistent session scoring and current-match statistics. |
+| `src/server/index.ts`, `bomb-input.ts` | HTTP/WebSockets, authentication, seats, fixed scheduling and ordered bomb actions. |
+| `src/client/snapshot-stream.ts`, `render-snapshot.ts` | Forward snapshot acceptance and bounded visual projection. |
+| `src/client/controller-state.ts`, `controller-pointers.ts` | Typed input state and browser pointer/capture lifecycle. |
+| `src/client/main.ts`, `pickup-renderer.ts`, `themes.ts` | TV/controller presentation, effects and interchangeable visual themes. |
+| `src/client/viewport-lock.ts` | Controller gesture suppression and readable input sizing. |
 
-```ts
-export const TICK_HZ = 20;
-export const SNAPSHOT_HZ = 10;
-export const MAX_CATCH_UP_STEPS = 5;
-export const MAX_PLAYERS = 5;
-export const MIN_PLAYERS = 2;
+`ServerDependencies` injects `now`, `token`, and `schedule`; the scheduler returns its cancellation function. `createGameServer` also accepts `manualTicks` and `buildDirectory`, and exposes `advance`, `checkConnections`, and `close` for isolated verification. Tests use actual serialized WebSocket messages while controlling simulation and watchdog time.
 
-export const RIDER_SPEED = 150;          // world units per second
-export const RIDER_TURN_RATE = 2.8;      // radians per second
-export const RIDER_RADIUS = 7;
-export const TRAIL_WIDTH = 6;
-export const TRAIL_LIFETIME_TICKS = 160; // 8 seconds
-export const SELF_TRAIL_GRACE_TICKS = 10;
+`ControllerInputState` receives an `InputTransport` whose `send` returns success. `ControllerPointerBindings` receives typed button surfaces, a terminal event target, and a change callback. Geometry functions receive explicit inputs; portal placement additionally receives random and safety functions. Engine replay uses a seed and typed input maps, without patching browser globals or relying on real-time sleeps.
 
-export const BOMB_FUSE_TICKS = 40;       // 2 seconds
-export const BOMB_COOLDOWN_TICKS = 80;   // 4 seconds between accepted placements
-export const BOMB_MIN_LAUNCH_DISTANCE = 100;
-export const BOMB_MAX_LAUNCH_DISTANCE = 400;
-export const BOMB_MAX_CHARGE_TICKS = 24;
-export const BOMB_FLIGHT_TICKS = 6;
-export const BOMB_BLAST_RANGE = 150;
-export const BOMB_BLAST_HALF_WIDTH = 12;
-export const BLAST_VISIBLE_TICKS = 8;
-export const BLAST_LEVEL_RANGE = 75;     // two collectible levels
+## Simulation, transport and rendering cadence
 
-export const PICKUP_SPAWN_INTERVAL_TICKS = 120;
-export const PICKUP_LIFETIME_TICKS = 300;
-export const MAX_ACTIVE_PICKUPS = 3;
-export const PICKUP_SPAWN_ATTEMPTS = 24;
-export const STAR_DURATION_TICKS = 50;
-export const DRUNK_DURATION_TICKS = 80;
-export const SHIELD_GRACE_TICKS = 10;
+World coordinates are continuous in a 1600 × 900 arena. The authoritative simulation runs at 20 Hz. It permits at most five catch-up steps per scheduler callback and discards excess backlog rather than fast-forwarding a sleeping machine through an entire race.
 
-export const COUNTDOWN_TICKS = 60;
-export const ROUND_OVER_TICKS = 60;
-export const OVERTIME_START_TICK = 1200; // 60 seconds after round start
-export const OVERTIME_INSET_PER_TICK = 0.5;
-export const ROUND_DRAW_TICK = 1800;     // 90-second hard limit
+Authenticated displays receive full world snapshots at 20 Hz. Phones and unauthenticated sockets receive compact snapshots at 10 Hz, plus immediate lifecycle resyncs. Compact payloads retain player status, power-up timers, scores and phase, but empty trails, bombs, blasts, pickups and match statistics, and omit portal geometry. Serialization is shared across recipients of the same payload shape. Events describe transient feedback and never supply missing simulation state. Exact message unions, event variants and envelope fields are defined in `protocol.ts`.
 
-export const INPUT_RESEND_TICKS = 2;     // controller resends held state at 10 Hz
-export const INPUT_STALE_TICKS = 10;     // neutral after 500 ms without input
-export const HEARTBEAT_INTERVAL_MS = 2000;
-export const SOCKET_TIMEOUT_MS = 6000;
-```
+The TV immediately renders authoritative state and may extrapolate a living rider's position/angle for at most 50 ms. Velocity derives from simulation tick spacing, so bursty network delivery cannot amplify it. Projection does not cross match, round, phase, membership, death or portal-transit boundaries; stale state freezes. Bombs, trails, pickups, collisions and outcomes remain authoritative. Cached arena backgrounds and batched trail paths avoid per-segment expensive effects. Trail and blast drawing are clipped to the active field. Themes affect graphics and CSS variables, never hitboxes or rule timing.
 
-The loop uses a monotonic clock and advances at most five catch-up steps per callback. If more elapsed time remains, it discards the excess and restarts the accumulator from the current monotonic time. Simulation ticks never derive from render frames or client clocks. The host-authenticated display receives complete snapshots at 20 Hz, serialized once per tick. Joined controllers and unauthenticated spectators receive compact snapshots at 10 Hz without trails, bombs, blasts, or pickups, while retaining player metadata, cooldowns, phase, and scores. The display renders the newest authoritative state immediately and may visually extrapolate alive position/angle for at most 50 ms; it freezes when stale. Only visual position/angle are projected; phase, collisions, scores, bombs, trails, deaths, and pickups are never predicted.
+## Seat and controller recovery
 
-## Wire contract
+A fresh join claims the lowest free slot during `lobby`, `roundOver` or `matchOver`; two to five connected players are required to start. New joins during an active countdown/race are rejected. A valid saved token can reclaim its seat in any phase, carrying `nextInputSeq` forward. The new socket replaces the previous one, which receives close code 4001 and stops automatic retries. This avoids two tabs repeatedly stealing the same seat. An expired token returns the phone to an explicit join form instead of silently claiming a new player.
 
-```ts
-export type PlayerId = string;
-export type PlayerToken = string;
+A disconnect or six-second watchdog timeout neutralizes steering and cancels pending bomb actions. The rider continues with neutral steering for that round. Seats remain reserved until the next round boundary, when disconnected or explicitly leaving players are pruned before the next countdown. Explicit leave during play eliminates the rider and keeps scoring participation intact.
 
-export type ClientMessage =
-  | { type: 'join'; name: string; playerToken?: PlayerToken }
-  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean;
-      bombAction?: 'press' | 'release' | 'cancel' }
-  | { type: 'heartbeat' }
-  | { type: 'leave' }
-  | { type: 'hostAuth'; token: string }
-  | { type: 'hostAction'; action: 'start' | 'nextRound' | 'rematch' };
+Controllers send state on each change and resend held state every 100 ms. The server neutralizes input after ten simulation ticks without an update. Sequences reject stale input. The strict parser rejects unknown fields, invalid types, unsafe sequences and payloads over 2 KiB. The socket-wide rate limit is 40 messages/second; fresh-seat admission is limited to five attempts/minute/address.
 
-export type ServerMessage =
-  | { type: 'joined'; playerId: PlayerId; playerToken: PlayerToken; slot: number;
-      color: string; nextInputSeq: number }
-  | { type: 'hostAuthenticated' }
-  | { type: 'snapshot'; matchId: string; round: number; tick: number; state: GameSnapshot }
-  | { type: 'event'; matchId: string; round: number; tick: number; event: GameEvent }
-  | { type: 'error'; code: 'invalid_message' | 'full' | 'unauthorized' | 'stale' |
-      'invalid_phase' | 'not_enough_players' };
+Pointer capture ownership is separate from held-button state. Window-level pointer-up/cancel handling works even when capture fails, recycled pointer IDs cancel stale ownership, and lost capture never fires a bomb. Blur, hidden-page transitions, teardown, disconnection and phase changes clear controls and release captures. Reconnection starts with a forced neutral message so old held input cannot launch a bomb. Normal bomb release emits an explicit `release`; interruption emits `cancel`, and the bounded server action queue preserves rapid press/release pairs between ticks.
 
-export interface TrailSegment {
-  x1: number; y1: number; x2: number; y2: number;
-  createdTick: number; expiresAtTick: number;
-}
+The controller disables native pinch/double-click zoom gestures and overscroll, and keeps text inputs at least 16 px to prevent iOS focus zoom. The viewport and responsive layout keep controls usable in portrait and landscape. These protections do not change the TV's layout or game coordinates.
 
-export interface BlastRect {
-  x: number; y: number; width: number; height: number; // x/y are top-left
-}
-
-export interface GameSnapshot {
-  phase: 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
-  phaseEndsAtTick?: number;
-  roundStartedTick?: number;
-  width: number; height: number; boundaryInset: number;
-  players: ReadonlyArray<{
-    id: PlayerId; name: string; slot: number; color: string; connected: boolean;
-    x: number; y: number; angle: number; alive: boolean; roundWins: number;
-    bombReadyAtTick: number; bombChargeStartedTick?: number; blastLevel: 0 | 1 | 2;
-    invulnerableUntilTick: number; drunkUntilTick: number;
-    tripleShotArmed: boolean;
-    shielded: boolean; shieldGraceUntilTick: number;
-    trail: ReadonlyArray<TrailSegment>;
-  }>;
-  bombs: ReadonlyArray<{
-    id: number; ownerId: PlayerId; launchX: number; launchY: number;
-    x: number; y: number; launchedTick: number; landsAtTick: number;
-    explodeAtTick: number; blastRange: number;
-    flightPath: ReadonlyArray<{ x: number; y: number; angle: number }>;
-  }>;
-  blasts: ReadonlyArray<{
-    bombId: number; rects: ReadonlyArray<BlastRect>; expiresAtTick: number;
-  }>;
-  pickups: ReadonlyArray<{
-    id: number; type: 'blast' | 'star' | 'beer' | 'triple' | 'orbitShield';
-    x: number; y: number; expiresAtTick: number;
-  }>;
-  leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
-  roundPlacements: ReadonlyArray<RoundPlacement>;
-  matchStats: ReadonlyArray<MatchPlayerStats>; // complete only in matchOver display snapshots
-  roundWinnerId?: PlayerId;
-  matchWinnerId?: PlayerId;
-}
-
-export type GameEvent =
-  | { type: 'bombPlaced'; bombId: number; playerId: PlayerId }
-  | { type: 'explosion'; bombId: number }
-  | { type: 'playerEliminated'; playerId: PlayerId;
-      cause: 'wall' | 'trail' | 'explosion' | 'rider' }
-  | { type: 'roundEnded'; winnerId?: PlayerId }
-  | { type: 'matchEnded'; winnerId: PlayerId };
-```
-
-Snapshots contain every fact needed to reconstruct the current screen. Events only trigger transient sound, vibration, and particles; missing an event cannot change rendered gameplay state. Every envelope carries match, round, and tick scope. Clients discard messages from an older match/round, snapshots with a strictly older tick, and events already handled at that tick; equal-tick snapshots are accepted as replacements.
-
-Current-match statistics follow ADR-008. The engine records only authoritative simulation facts: alive playing ticks, collision-checked movement distance including the fatal tick, accepted bombs, actual explosions, consumed pickups, star-active ticks, wall bounces, final death causes, and unambiguous non-self eliminations. It finalizes round participation once alongside scoring, preserves the counters across rounds and departures, exposes the full table only at `matchOver`, and clears it on `resetMatch`. Compact controller snapshots always replace `matchStats` with an empty array. Session leaderboard totals remain independent and persist across rematches.
-
-Runtime validation rejects unknown discriminants or fields, non-booleans, non-integer or unsafe sequences, non-finite numbers, names longer than 18 Unicode code points, and messages larger than 2 KiB. Names are inserted with text APIs, never HTML. Only a joined socket may send input/leave; only the host-authenticated socket may send host actions. Input is rate-limited to 30 messages per second per socket and joins to five attempts per minute per address.
-
-## Server dependency boundaries
-
-`src/server/index.ts` receives a type-safe `ServerDependencies` object so tests can control time and connection checks without real timers:
-
-```ts
-export interface InputTransport { send(message: ServerMessage): void; }
-export interface ServerDependencies {
-  now: () => number;
-  token: () => string;
-  manualAdvance?: boolean;
-  checkConnections?: () => void;
-  inputTransport?: InputTransport;
-}
-```
-
-Production supplies real clock, token, connection-check, and transport implementations. Tests inject deterministic functions, manually advance the server, and collect messages through `InputTransport`.
-
-## Seat and socket lifecycle
-
-A join without `playerToken` may claim the lowest free slot in `lobby`, `roundOver`, or `matchOver`; a join during `countdown` or `playing` receives `invalid_phase`. `matchOver` is an inactive boundary where a new party may replace seats, but only authenticated `rematch` resets wins and starts a new match. The sixth occupied seat receives `full`. A new seat gets a cryptographically random 128-bit player token which remains valid until explicit leave, replacement after the reconnect grace described below, or server restart. `removePlayer` is also permitted at `matchOver` while preparing a rematch.
-
-A matching token reclaims the same seat in any phase and receives a complete snapshot plus `nextInputSeq = lastAcceptedSeq + 1`. If its old socket is still open, the server closes the old socket, neutralizes its input, and binds the seat to the new socket. A token can never claim another seat. Invalid tokens receive `unauthorized` and never fall through to new-seat admission.
-
-Socket close or a six-second heartbeat timeout marks the player disconnected and immediately sets left/right/bomb false. The rider continues straight while disconnected because neutral intent has no steering; the current round still treats it as alive. The seat is reserved through the current round and following `roundOver` interval. If it has not reconnected when the next countdown is requested, it is removed before participant validation. Explicit leave in `lobby`/`roundOver` frees the seat immediately. Explicit leave during `countdown`/`playing` marks the rider dead, neutralizes input, and reserves the seat until that round ends.
-
-Controllers send the full current input state whenever it changes and every two ticks while any control is held. Input sequences increase across reconnects using `nextInputSeq`. Non-increasing sequences are rejected as stale. If no input arrives for ten ticks, the server uses neutral intent. `pointerup`, `pointercancel`, `blur`, `visibilitychange`, page teardown, socket close, and watchdog timeout all clear every held control locally or authoritatively. Bomb presses are rising edges in accepted input, and reconnect always begins with bomb false, so an old press cannot place a bomb.
-
-## Match lifecycle and engine API
-
-Legal transitions are:
+## Match and score lifecycle
 
 ```text
-lobby --start (2..5 connected seats)--> countdown --> playing
-playing --one/zero alive or hard timeout--> roundOver
-roundOver --automatic after 3 seconds (2..5 connected seats, no winner at five)--> countdown
-playing --winner reaches five--> matchOver
-matchOver --rematch (2..5 connected seats)--> countdown of a new match
+lobby --start with 2..5 connected--> countdown --> playing
+playing --one/zero survivors or 90-second limit--> roundOver
+roundOver --3 seconds and enough connected players--> countdown
+playing --winner reaches three round wins--> matchOver
+matchOver --authenticated rematch--> countdown of a new match
 ```
 
-Countdown and round-over timers are authoritative. Host `start` and `rematch` are valid only at their corresponding source phase. After the three-second round-over presentation, the server boundary automatically calls `startNextRound` when at least two connected seats remain; the engine remains in `roundOver` until that guarded server command runs. A new match gets a new `matchId`, resets match-local wins, and starts at round 1. Session leaderboard totals persist for the server process lifetime. A next round increments `round` and preserves match wins. Both reset alive state, positions, directions, trails, bombs, blasts, pickups, upgrade levels, invulnerability, cooldowns, and buffered input.
+Countdown lasts three seconds. A round winner earns one match-local win; three wins end the match. A draw adds no win. The server initiates the next round after the three-second result interval when enough players remain; the engine otherwise stays at the inactive boundary.
 
-Participants are the connected seats at countdown creation, sorted by slot. For N players, spawn points are equally spaced on a circle centered in the arena with radius `0.28 * min(width, height)`. Player zero starts at angle `-pi/2`; each next player adds `2*pi/N`. Each heading is the clockwise tangent (`spawnAngle + pi/2`). This gives two players opposite spawns and evenly spaces three to five players.
+Participants are captured at countdown creation in slot order. Spawns are evenly spaced on a circle of radius `0.28 * min(width, height)`, with clockwise tangent headings. Round resets clear position, survival state, trails, bombs, active drops, portal walls, power-ups, charge, cooldowns and input. A rematch also resets current-match statistics and round wins while preserving the process-lifetime session leaderboard.
 
-The engine exports explicit command boundaries rather than a generic phase setter:
+Session placement awards are 5 / 3 / 2 / 1 / 0, using the occupied positions for two through five participants. Simultaneous eliminations and tied survivors split the average of their positions exactly using integer point units. Immutable round participation retains departures, and scoring commits once. Match statistics record authoritative survival ticks, actual travelled distance including fatal movement but excluding teleport distance, accepted/exploded bombs, collected upgrades, portal trips, wall bounces, final death causes and unambiguous non-self eliminations. The full statistics table appears only in match-over display snapshots; controller snapshots omit it.
 
-```ts
-export function createGame(matchId: string): GameState;
-export function addPlayer(state: GameState, player: PlayerIdentity): void; // lobby/roundOver/matchOver only
-export function removePlayer(state: GameState, playerId: PlayerId): void; // lobby/roundOver/matchOver
-export function startMatch(state: GameState): void;      // lobby -> countdown
-export function startNextRound(state: GameState): void;  // roundOver -> countdown
-export function resetMatch(state: GameState, newMatchId: string): void; // matchOver -> countdown
-export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent>): TickResult;
-export function toSnapshot(state: GameState): GameSnapshot;
-```
+## Power-ups and hazards
 
-These commands and `step` are the only game-state mutators. The periodic server loop calls only `step`; join and authenticated host handlers call the guarded commands.
+A seeded pickup attempt occurs every six playing seconds, with at most three active drops, 24 bounded placement attempts, and a 15-second lifetime. Locations respect walls, heads, bombs, trails and other drops. Collection uses swept movement, with nearest path distance then slot resolving contention. Failed portal-pair placement leaves the pickup available.
+
+| Power-up | Authoritative effect |
+| --- | --- |
+| Blast | Raises radius by 75, up to two levels above the base radius of 150; each launched bomb captures its radius. |
+| Star | Five seconds of hazard immunity; wall contact reflects/clamps the rider. Star contact defeats an ordinary rider; two immune riders survive. |
+| Beer | Four seconds of seeded angular noise on other living riders, up to 5 rad/s, interpolated between eight-tick knots. The collector is unaffected. |
+| Triple Shot | Arms the next accepted release with three projectiles at offsets −0.22, 0 and +0.22 radians. |
+| Five Shot | Arms five projectiles at −0.44, −0.22, 0, +0.22 and +0.44 radians. The strongest armed volley wins. |
+| Orbit Shield | Absorbs all hazards on one otherwise fatal tick, then gives ten ticks of grace. A protected rider does not consume a stored shield unnecessarily. |
+| Portal | Creates paired vertical walls for ten seconds, with swept entry and safe linked exits. |
+
+Five Shot has weight 1; every other available drop has weight 3. It is therefore one third as likely as Triple Shot. Homing has been removed from drops, player state, flight targeting, statistics and rendering.
+
+Holding the bomb button charges launch distance from 100 to 400 units over 24 ticks. Releasing fires ahead using the committed rider heading, with a six-tick flight. The fuse ends 40 ticks after launch and the shared cooldown lasts 80 ticks. A player cannot launch another volley while any owned bomb remains live. Cancellation or rejected release preserves armed volley upgrades; successful release consumes them. Flying bombs cannot explode or chain before landing.
+
+Explosions are disks, not crosses. Swept rider collision includes rider radius, trail clearing includes half the trail width, and chain reactions test bomb centers. Damage occurs only on the explosion tick; visuals persist for eight ticks. Entire intersecting trail segments are removed independently, making gaps without joining their neighbors. Star, shield and portal grace retain their distinct defenses.
+
+## Shrinking field and portal walls
+
+The initial inset is 20. After 60 playing seconds it increases by 0.5 per tick; the 90-second hard limit resolves remaining survivors as a draw. Existing trail centerlines are clipped to the current closed rectangle before pickup placement and collision. New movement segments are clipped too, including immune wall bounces. Clipping preserves lifetime and independent segment identity, removes fully exterior segments, and never reconnects portal gaps.
+
+Portal walls have an eight-unit thickness and initial length `min(300, playableHeight / 3)`. Seeded placement tries at most 24 candidates, requires 400 units of horizontal separation, and checks the entire wall corridor with conservatively overlapping safety disks. Each wall shrinks to the remaining safe field and at most one third of its current height. Reclaimed wall centers or unusable lengths remove the pair.
+
+Entry tests the rider's swept movement against the wall capsule, including rounded endpoints. The earliest fresh entry wins; remaining inside a wall does not retrigger it. Exit preserves proportional height along the linked wall and offsets to the outgoing side while keeping heading. Unsafe exits defer transport. Portal transit happens only after ordinary collisions and shield resolution, so it cannot skip an entry hazard. Accepted exits reserve space against other pending riders, trails, bombs, visible blasts and earlier accepted exits. Transit ends the old trail at entry and resumes a new segment after exit. A 15-tick cooldown survives pair replacement, and ten ticks of defensive grace protect both riders on contact without an offensive Star effect.
 
 ## Deterministic tick transaction
 
-`step` increments the tick and then performs these phases exactly once:
+`step` performs this ordering once per tick:
 
-1. Expire trail segments, visible blasts, and pickups whose expiry tick is less than or equal to the new tick. Advance phase timers. Countdown transitions automatically to playing at `phaseEndsAtTick`; round-over remains authoritative until the server's automatic next-round boundary invokes `startNextRound` after its end tick.
-2. Attempt the deterministic six-second pickup drop when due. For each alive player in slot order, apply bounded steering and compute a candidate swept movement from the old center to the new center. Do not mutate positions or trails yet.
-3. Resolve pickup collection by nearest swept-path distance then slot. Apply upgrades immediately; invulnerable wall hits reflect and clamp inside. Accept bomb rising edges for eligible players, capturing `150 + 75 * blastLevel` as the bomb's immutable range.
-4. Resolve every bomb due at or before this tick. A blast is the union of a horizontal and vertical rectangle, each clipped to the current arena boundary and extended by that bomb's captured range. There are no solid obstacles. Any un-exploded bomb whose center lies in a blast is queued; a set guarantees each bomb explodes once. All bombs in the transitive chain use this tick. Add their clipped rectangles to `blasts` through `tick + BLAST_VISIBLE_TICKS`.
-5. Remove each entire active trail segment that intersects any new blast rectangle. This intentionally creates a gap at least one tick-segment long. Mark a rider for explosion death if its candidate swept centerline, expanded by `RIDER_RADIUS`, intersects a new blast rectangle.
-6. Against the post-blast trail set, compute all remaining deaths without mutating players: boundary if the candidate center crosses the inset arena minus rider radius; trail if the swept center comes within `RIDER_RADIUS + TRAIL_WIDTH/2` of an active segment; rider if two candidate swept centerlines come within `2 * RIDER_RADIUS`. A player ignores only its own segments with `createdTick > tick - SELF_TRAIL_GRACE_TICKS`; endpoints otherwise count as collision. Any pairwise rider collision kills both. Explosion cause takes precedence, then wall, trail, rider for stable event reporting.
-7. Commit all deaths simultaneously. Commit candidate position and append the movement as one independent trail segment only for survivors. A rider killed during this tick creates no new segment. Existing trails of dead riders remain until their normal expiry or blast removal.
-8. During playing, record first elimination ticks and update overtime, scoring, and phase once. Rank the participants captured at countdown, atomically update persistent placement totals before committing the phase, and expose the round placements in the resulting snapshot. One survivor wins immediately and receives one match-local round win; zero survivors draw with no win. If more than one survives at `ROUND_DRAW_TICK` relative to `roundStartedTick`, those survivors tie across the top occupied ranks and the round is a draw. Reaching five wins transitions directly to `matchOver`; otherwise the result is `roundOver`.
+1. Increment tick, expire portal pairs/trails/blasts/drops, and transition completed countdowns. Return a snapshot immediately when the phase is not playing.
+2. Compute overtime inset; fit portal walls and clip existing trails to the field. Attempt a scheduled pickup spawn.
+3. Compute all living riders' swept movements from input and deterministic Beer noise. Resolve collection, then reflect/clamp riders already immune on wall contact.
+4. Resolve landed due bombs and all deterministic chain reactions, once per bomb. Remove trail segments intersecting the new disks.
+5. Determine explosion, boundary, trail and rider collision causes against the post-blast trail set. Ignore recent self-trail segments during their ten-tick grace. Portal contact grace is defensive for both riders. Stable reporting precedence is explosion, wall, trail, rider.
+6. Consume shields for otherwise fatal riders, clear that tick's causes, grant grace and reflect any wall hit. Find portal transits only for survivors, reserving accepted exits in stable order.
+7. Record actual travelled distance/survival and commit deaths, survivor positions, portal status and clipped new trail segments. Fatal movement adds no trail.
+8. Apply ordered bomb actions for living riders using committed positions/headings. Resolve round participation, placement points, round/match wins and phase exactly once, then produce the snapshot.
 
-Trail segments expire when `expiresAtTick <= tick`, so one created at T with expiry T+160 is active through T+159. Bomb cooldown starts on accepted placement; readiness is `bombReadyAtTick <= tick`. Bombs do not block riders. A player may therefore ride across any bomb before it explodes.
+## Verification boundaries
 
-The initial `boundaryInset` is 20 world units. At 60 seconds of playing, `boundaryInset` increases by 0.5 units each tick. The current tick's inset is used by both blast clipping and boundary collision. At 90 seconds, a round with multiple survivors is a draw. These rules replace heuristic no-progress detection.
-
-## Verification gate
-
-Implementation must include focused tests for deterministic replay; exact tick ordering; swept boundary, body, and trail collisions; self grace; simultaneous deaths; trail expiry; blast-created gaps without phantom segments; bomb cooldown/capacity and chain idempotence; first-to-five and draw transitions; fair two-to-five-player spawns; catch-up capping; five-seat admission and sixth rejection; reconnect and duplicate-token replacement; stale input; host authorization; secret omission; malformed messages; full snapshot resync; and controller touch cleanup.
-
-Portal pickup follows ADR-014: one seeded pair lasts 200 ticks; replacement preserves each rider's 15-tick transit cooldown. Placement checks gate radius plus rider clearance against heads, pending and existing trails, bomb flight and landing positions, and visible blasts. Failure leaves the pickup unconsumed. Transit occurs only after collision and shield resolution. It records travel to the entry point, ends that trail segment there, commits the linked exit without a joining segment, and preserves heading and charge intent. A ten-tick defensive grace protects the exiting rider without making rider contact offensive. Every accepted exit is checked against other pending positions and earlier accepted exits. Pair state and cooldown/grace reset each round; full snapshots clone gate geometry and compact controller snapshots omit it. Match statistics count portal pickups and successful transits.
+Behavioral tests cover deterministic replay, exact deadlines, swept geometry, simultaneous outcomes, charged input edges, volley precedence, weighted drops, full-wall safety, shrinking trails/portals, statistics and scoring. Transport tests exercise real WebSocket serialization with injected time/scheduling, seat replacement, stale input, host authorization, privacy and admission limits. Pointer tests cover terminal events, failed/lost capture, cancellation and recycled IDs. Browser smoke checks both surfaces with five controller contexts, gesture input, themes, reconnect and rematch. Controlled renderer fixtures support visual and frame-rate review; physical phone latency and TV speaker output require separate real-device observation.
