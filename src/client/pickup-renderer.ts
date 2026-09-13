@@ -148,7 +148,7 @@ export function drawPortalPair(ctx: CanvasRenderingContext2D, snapshot: GameSnap
     for (const y of [-gate.halfLength, gate.halfLength]) ctx.fillRect(-8, y - 4, 16, 8);
     ctx.lineWidth = 2; ctx.strokeStyle = colors[1 - index]; ctx.globalAlpha = .75;
     for (let y = -gate.halfLength + 20; y < gate.halfLength; y += 40) {
-      ctx.beginPath(); ctx.moveTo(-14, y - 5); ctx.lineTo(-9, y); ctx.lineTo(-14, y + 5);
+      ctx.beginPath(); ctx.moveTo(-9, y - 5); ctx.lineTo(-14, y); ctx.lineTo(-9, y + 5);
       ctx.moveTo(9, y - 5); ctx.lineTo(14, y); ctx.lineTo(9, y + 5); ctx.stroke();
     }
     ctx.restore();
