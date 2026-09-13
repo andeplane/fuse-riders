@@ -1,5 +1,4 @@
-import { isAuthorityGrant } from '../online/authority.js';
-import { RoomError, RoomStore, type RoomRecord, type Member } from './room-store.js';
+import { RoomError, RoomStore, isGrantIdentity, type RoomRecord, type Member } from './room-store.js';
 import { BUS_FRAME_TTL_MS, type RoomBus, type RoutedMessage } from './room-bus.js';
 export interface GatewaySocket {send(raw:string):void;close(code:number,reason:string):void;bufferedAmount:number}
 export interface GatewayDependencies {now:()=>number;id:()=>string;error:(kind:string,error:unknown)=>void}
@@ -19,6 +18,7 @@ export class RoomGateway {
   private serial<T>(operation:()=>Promise<T>):Promise<T>{const result=this.lifecycle.then(operation,operation);this.lifecycle=result.then(()=>{},()=>{});return result;}
   async connect(code:string,token:string,socket:GatewaySocket):Promise<string>{
     return this.serial(async()=>{
+      if(this.stateValue==='failed')await this.drain();
       if(this.stateValue!=='ready'){
         this.stateValue='starting';
         try{await this.bus.start(message=>this.deliver(message),error=>this.fail('bus',error));this.stateValue='ready';}
@@ -55,7 +55,7 @@ export class RoomGateway {
     if(!room||room.members[client.member.id]?.connectionId!==client.member.connectionId||room.members[client.member.id].expiresAt<=this.deps.now())throw new RoomError(409,'Connection replaced');
     if(m.type==='time'){
       if(!((typeof m.id==='string'&&m.id.length>0&&m.id.length<=64)||(Number.isSafeInteger(m.id)&&Number(m.id)>=0))||typeof m.sentAt!=='number'||!Number.isFinite(m.sentAt)||m.sentAt<0)return;
-      const current=await this.store.time(client.room,client.member,isAuthorityGrant(m.renew)?m.renew:undefined);
+      const current=await this.store.time(client.room,client.member,isGrantIdentity(m.renew)?m.renew:undefined);
       this.observe(client.room,current);
       this.send(client,{type:'time',id:m.id,sentAt:m.sentAt,serviceTime:this.deps.now(),grant:current.grant});return;
     }

@@ -42,20 +42,24 @@ export class PubSubRoomBus implements RoomBus {
   }
   async publish(message:RoutedMessage):Promise<void>{
     if(!this.subscription||this.stopping)throw new Error('Room bus is not ready');
+    const generation=this.generation;
     const data=Buffer.from(JSON.stringify(message)),key=`${message.incarnation}:${message.from.connectionId}:${message.to.connectionId}`;
     if(data.byteLength>BUS_FRAME_MAX_BYTES||this.pendingBytes+data.byteLength>2_000_000)throw new Error('Room bus backpressure limit');
     this.pendingBytes+=data.byteLength;
     const previous=this.edges.get(key)??Promise.resolve();
-    const work=previous.then(async()=>{await this.topic.publishMessage({data,attributes:{destination:message.destination},orderingKey:key});});
+    const work=previous.then(async()=>{if(this.stopping||generation!==this.generation)throw new Error('Signal generation closed');await this.topic.publishMessage({data,attributes:{destination:message.destination},orderingKey:key});});
     this.edges.set(key,work);
-    try{await work;}finally{this.pendingBytes-=data.byteLength;if(this.edges.get(key)===work)this.edges.delete(key);}
+    try{await work;}finally{if(generation===this.generation)this.pendingBytes-=data.byteLength;if(this.edges.get(key)===work)this.edges.delete(key);}
+  }
+  private async settleWithin(work:Promise<unknown>,milliseconds:number):Promise<void>{
+    await new Promise<void>(resolve=>{const timer=setTimeout(resolve,milliseconds);void work.finally(()=>{clearTimeout(timer);resolve();});});
   }
   async stop():Promise<void>{
     this.stopping=true;this.generation++;
     const subscription=this.subscription;this.subscription=undefined;
     if(!subscription)return;
-    await Promise.allSettled([...this.edges.values(),...this.receiving.values()]);
-    await subscription.close();
+    // Never let provider retries or a stalled metadata read prevent bounded reconnect/idle teardown.
+    await this.settleWithin(Promise.allSettled([...this.edges.values(),...this.receiving.values(),subscription.close()]),5000);
     await subscription.delete({timeout:5000,retry:null}).catch(error=>{if((error as {code?:number}).code!==5)throw error;});
     this.edges.clear();this.receiving.clear();this.pendingBytes=0;
   }

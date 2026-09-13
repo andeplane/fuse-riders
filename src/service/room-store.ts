@@ -73,3 +73,10 @@ export function parseRoomRecord(raw:unknown):RoomRecord|undefined {
   if(r.grant!==undefined&&(r.grant as AuthorityGrant).incarnation!==r.incarnation)return;
   return r as unknown as RoomRecord;
 }
+
+
+export function isGrantIdentity(raw:unknown):raw is GrantIdentity {
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+  const v=raw as Record<string,unknown>;
+  return ['incarnation','holder','grantId'].every(k=>typeof v[k]==='string'&&v[k].length>0&&v[k].length<=128)&&Number.isSafeInteger(v.epoch)&&Number(v.epoch)>0;
+}

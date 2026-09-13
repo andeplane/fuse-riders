@@ -127,3 +127,18 @@ test('runtime metadata and bus schemas reject corrupt scope and gameplay frames'
   assert.equal(parseRoutedMessage({}),undefined);assert.equal(parseRoutedMessage({id:'i',code:CODE,incarnation:'inc',destination:'b',expiresAt:99,from:{id:'a',connectionId:'ac',gatewayId:'a',host:true,expiresAt:99},to:{id:'b',connectionId:'bc',gatewayId:'b',host:false,expiresAt:99},wire:{type:'relay',from:'a',connectionId:'ac',data:{}}}),undefined);
   await assert.rejects(f.store.admit(CODE,'bad','a'),(error:unknown)=>error instanceof RoomError&&error.status===401);
 });
+
+test('v2 renewal accepts GrantIdentity without timestamps at the actual JSON boundary',async()=>{
+  const f=fixture(),{host,hostConnection}=await joined(f);const room=await f.store.get(CODE),grant=room.grant!;
+  const identity={incarnation:grant.incarnation,epoch:grant.epoch,holder:grant.holder,grantId:grant.grantId};
+  f.advance(3000);await f.a.receive(hostConnection,JSON.stringify({type:'time',id:1,sentAt:50,renew:identity}));
+  const renewed=host.frames('time')[0].grant;assert.ok(renewed&&typeof renewed==='object');assert.equal((renewed as {expiresAt:number}).expiresAt,grant.expiresAt+3000);
+});
+
+test('failed bus is drained before a queued new connection can mark it ready',async()=>{
+  const f=fixture(),{hostConnection}=await joined(f);
+  // Queue admission before failure enqueues its disconnect cleanup.
+  const joining=f.a.connect(CODE,'d'.repeat(64),new Socket());f.aBus.failed?.(new Error('receive stream failed'));
+  const connection=await joining;assert.equal(f.aBus.started,2);assert.ok(f.aBus.stopped>=1);assert.equal(f.a.state,'ready');
+  await f.a.disconnect(hostConnection);await f.a.disconnect(connection);await f.b.stop();
+});
