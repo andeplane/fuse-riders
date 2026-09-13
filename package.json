@@ -13,7 +13,10 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "tsx scripts/browser-smoke.ts",
-    "test:coverage": "c8 tsx --test tests/*.test.ts"
+    "test:coverage": "c8 tsx --test tests/*.test.ts",
+    "dev:online": "npm run build && wrangler dev --port 8787",
+    "deploy": "npm run build && wrangler deploy",
+    "typecheck:worker": "tsc -p worker/tsconfig.json"
   },
   "dependencies": {
     "@fontsource/press-start-2p": "^5.3.0",
@@ -21,6 +24,7 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260911.1",
     "@types/node": "^22.0.0",
     "@types/qrcode": "^1.5.5",
     "@types/ws": "^8.18.1",
@@ -28,6 +32,7 @@
     "playwright": "^1.55.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "vite": "^7.1.5"
+    "vite": "^7.1.5",
+    "wrangler": "^4.131.1"
   }
 }

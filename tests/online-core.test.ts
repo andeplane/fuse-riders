@@ -39,3 +39,10 @@ test('world deltas reconstruct split, removed and appended trails and recover vi
   assert.deepEqual(decoder.accept(encoder.encode(room.snapshot(),'m',1,5,true)),room.snapshot());
   player.trail=[];assert.deepEqual(decoder.accept(encoder.encode(room.snapshot(),'m',1,6)),room.snapshot());
 });
+
+test('fresh encoder after reconnection replaces old stream without accepting retired frames',()=>{
+  const room=session();const a=new WorldEncoder(),b=new WorldEncoder(),decoder=new WorldDecoder();
+  const first=a.encode(room.snapshot(),'m',1,1,true);decoder.accept(first);decoder.accept(a.encode(room.snapshot(),'m',1,2));
+  assert.ok(decoder.accept(b.encode(room.snapshot(),'m',1,3,true)));
+  assert.equal(decoder.accept(first),undefined);
+});

@@ -1,12 +1,13 @@
 import type { GameSnapshot, TrailSegment } from '../shared/protocol.js';
 export interface WorldFrame {
-  seq: number; base: number; tick: number; round: number; matchId: string;
+  stream: string; seq: number; base: number; tick: number; round: number; matchId: string;
   state: GameSnapshot;
   trails: { player: string; add: [number, TrailSegment][]; remove: number[] }[];
 }
 /** IDs describe complete immutable segments, including gun splits and clipped endpoints. */
 export class WorldEncoder {
   private seq = 0;
+  private readonly stream = crypto.randomUUID();
   private nextId = 1;
   private previous = new Map<string, Map<string,number>>();
   encode(state: GameSnapshot, matchId: string, round: number, tick: number, keyframe = false): WorldFrame {
@@ -23,13 +24,20 @@ export class WorldEncoder {
       return { player:player.id, add, remove:[...old].filter(([key])=>!next.has(key)).map(([,id])=>id) };
     });
     for(const id of this.previous.keys())if(!state.players.some(player=>player.id===id))this.previous.delete(id);
-    return {seq:++this.seq,base,tick,round,matchId,state:{...state,players:state.players.map(player=>({...player,trail:[]}))},trails};
+    return {stream:this.stream,seq:++this.seq,base,tick,round,matchId,state:{...state,players:state.players.map(player=>({...player,trail:[]}))},trails};
   }
 }
 export class WorldDecoder {
+  private stream = "";
+  private retired = new Set<string>();
   private seq = 0;
   private trails = new Map<string,Map<number,TrailSegment>>();
   accept(frame: WorldFrame): GameSnapshot | undefined {
+    if(frame.stream !== this.stream) {
+      if(frame.base !== 0 || this.retired.has(frame.stream))return;
+      if(this.stream)this.retired.add(this.stream);
+      this.stream=frame.stream;this.seq=0;
+    }
     if(frame.seq <= this.seq || (frame.base !== 0 && frame.base !== this.seq))return;
     if(frame.base===0)this.trails.clear();
     for(const change of frame.trails){
@@ -42,5 +50,5 @@ export class WorldDecoder {
     this.seq=frame.seq;
     return {...frame.state,players:frame.state.players.map(player=>({...player,trail:[...(this.trails.get(player.id)?.values()??[])]}))};
   }
-  reset(): void { this.seq=0;this.trails.clear(); }
+  reset(): void { this.seq=0;this.stream="";this.retired.clear();this.trails.clear(); }
 }
