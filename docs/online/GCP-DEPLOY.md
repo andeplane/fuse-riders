@@ -36,7 +36,7 @@ Application Default Credentials come from the attached Cloud Run service account
 
 For a new environment, first provision/verify the database, topic, Artifact Registry repository, build/runtime service accounts, required APIs, IAM, budgets and backend acceptance. The existing beta resources are listed in the dated inventory. The script deliberately does not enable APIs, create databases/topics/repositories, grant roles or modify other applications. Invoking it **does build and deploy** a public Cloud Run service; do not run it as a read-only check.
 
-Only a clean tracked checkout matching current pushed `main` with a successful latest `CI` push run for that exact commit is accepted. Source is exported with `git archive`, so local untracked files and credentials cannot leak into the Cloud Build source. The Docker context additionally uses an allowlist. Build uses the committed lockfile, records the commit label, resolves the pushed Artifact Registry digest and deploys that immutable digest. A failed build or superseded main revision stops publication.
+Only a clean tracked checkout whose `HEAD` equals current pushed `main` is accepted. By default the latest `CI` push run for that exact commit must have completed with `success`; the explicit local-verification override below is the only alternative. Source is exported with `git archive`, so local untracked files and credentials cannot leak into the Cloud Build source. The Docker context additionally uses an allowlist. Build uses the committed lockfile, records the commit label, resolves the pushed Artifact Registry digest and deploys that immutable digest. A failed build or superseded main revision stops publication.
 
 ```sh
 export GCP_REGION=europe-west1
@@ -53,7 +53,19 @@ export BUILD_SERVICE_ACCOUNT=YOUR_BUILD_ACCOUNT@andershaf-87.iam.gserviceaccount
 
 `ARTIFACT_LOCATION` defaults to the chosen GCP region; override it only to match the actual registry repository. No secrets appear in these variables. `gh` must access this repository's Actions metadata and `gcloud` must already be authenticated to the authorized project; the script never changes the active account automatically.
 
-The command writes `artifacts/cloud-release-<commit>.json` with source commit, Cloud Build ID, image digest, service URL, ready revision, prior revision and **smoke NOT YET VERIFIED**. Keep a reviewed, redacted release record after testing; generated artifacts are ignored by git. A successful `gcloud run deploy` does not close the network, phone, cross-instance or ownership gates.
+The command writes `artifacts/cloud-release-<commit>.json` with a `sourceVerification` block (`mode` `ci` or `local`, the observed CI result and, for local mode, the note), source commit, Cloud Build ID, image digest, service URL, ready revision, prior revision and **smoke NOT YET VERIFIED**. Keep a reviewed, redacted release record after testing; generated artifacts are ignored by git. A successful `gcloud run deploy` does not close the network, phone, cross-instance or ownership gates.
+
+### Explicit locally verified deployment
+
+When the user has explicitly accepted deploying before CI completes, set both override variables in addition to the environment above:
+
+```sh
+export LOCAL_VERIFIED_REVISION="$(git rev-parse HEAD)"   # must equal the current pushed main SHA
+export LOCAL_VERIFICATION_NOTE="360 tests, both typechecks, build, coverage; Chrome/WebKit menu, landscape, keyboard, shared QR and room flows inspected"
+./scripts/deploy-cloud.sh
+```
+
+The script rejects the override unless `LOCAL_VERIFIED_REVISION` is exactly the current pushed `main` SHA and `LOCAL_VERIFICATION_NOTE` is non-blank. It then permits only a CI run that is pending, absent, or already successful for that commit; a CI run that completed with failure, cancellation or any other conclusion still stops the deployment. The manifest records `sourceVerification.mode=local` with the note and the CI result observed at deploy time. The note is copied verbatim into the manifest, so it must not contain secrets. This path records the operator's local verification; it does not certify the revision, and the automatic successful-CI path remains the default. Record the later CI result against the same commit in the release inventory.
 
 For a local container check without cloud credentials/resources, build the image and provide emulator endpoints with isolated namespaces. Otherwise an ADC-enabled local container can mutate the configured real backend:
 
@@ -69,9 +81,9 @@ The image deliberately retains the lockfile's dev dependencies because `tsx` is 
 
 Set repository variable **`VITE_API_ORIGIN`** to the verified Cloud Run HTTPS origin, without a path or trailing slash. It is public configuration, not a secret. Choose GitHub Actions as the Pages source. The `github-pages` environment should permit only `main`.
 
-`.github/workflows/pages.yml` runs only after a successful `CI` push run on this repository's `main`, checks out that exact SHA and verifies it is still current before building and again before publishing. Pull requests and unchecked branches cannot deploy. It uses `npm run build -- --base=/fuse-riders/`, injects `VITE_API_ORIGIN`, uploads one Pages artifact, and deploys that same artifact without a rebuild. The application must use the injected API origin and preserve the Pages base path; gateway deployment alone cannot repair hardcoded `/api` URLs.
+`.github/workflows/pages.yml` runs automatically only after a successful `CI` push run on this repository's `main`, checks out that exact SHA and verifies it is still current before building and again before publishing. Pull requests and unchecked branches cannot deploy. It can also be dispatched manually from `main` with two required inputs: `revision`, the exact 40-character SHA that was verified locally, and `local_verification`, a non-blank description of the completed local checks (no secrets). The build job refuses a dispatch whose `revision` is not the current `main` head, and the deploy job re-checks that `main` has not moved before publishing. A manual dispatch does not wait for or consult the CI run for that commit. It uses `npm run build -- --base=/fuse-riders/`, injects `VITE_API_ORIGIN`, uploads one Pages artifact, and deploys that same artifact without a rebuild. The application must use the injected API origin and preserve the Pages base path; gateway deployment alone cannot repair hardcoded `/api` URLs.
 
-`release.json` in the static artifact identifies the source commit, verified CI run and backend origin. The workflow separately archives SHA-256 hashes of every built file plus a manifest digest in `pages-release-evidence-<commit>`. The hosted release metadata and workflow evidence let an operator identify the exact frontend being served. The deploy job alone has `pages:write` and `id-token:write`; repository checkout credentials are not persisted. [GitHub Pages workflow requirements](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+`release.json` in the static artifact identifies the source commit, backend origin and `sourceVerification.mode`. For automatic deployments the mode is `ci` and `verifiedCiRun` names the successful CI run; for manual dispatches the mode is `local`, `sourceVerification.note` carries the `local_verification` input verbatim and `verifiedCiRun` is `null`. Treat a `local` manifest as a locally verified deployment, not a CI-certified release. The workflow separately archives SHA-256 hashes of every built file plus a manifest digest in `pages-release-evidence-<commit>`. The hosted release metadata and workflow evidence let an operator identify the exact frontend being served. The deploy job alone has `pages:write` and `id-token:write`; repository checkout credentials are not persisted. [GitHub Pages workflow requirements](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 
 ## IAM separation
 
@@ -99,7 +111,7 @@ gcloud run services update-traffic VERIFIED_SERVICE \
   --to-revisions=VERIFIED_PREVIOUS_REVISION=100
 ```
 
-That command changes live traffic. Existing WebSockets can remain on old revisions until reconnect, which is why revision coexistence and lease fencing are mandatory. Pages rollback must also select a compatible previously verified artifact; do not rebuild an old source against new dependencies and call it the same artifact. The current Pages workflow intentionally publishes only current green `main`, so a normal source rollback is a reviewed revert commit followed by CI.
+That command changes live traffic. Existing WebSockets can remain on old revisions until reconnect, which is why revision coexistence and lease fencing are mandatory. Pages rollback must also select a compatible previously verified artifact; do not rebuild an old source against new dependencies and call it the same artifact. The current Pages workflow intentionally publishes only the current `main` head, either after green CI or through an explicit locally verified dispatch, so a normal source rollback is a reviewed revert commit followed by CI or a documented local verification.
 
 ## Verified resource inventory (2026-09-14, before first service deployment)
 
