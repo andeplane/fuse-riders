@@ -199,6 +199,39 @@ test('typed injected clock drives heartbeat timeout and rate window without slee
   } finally { await f.close(); }
 });
 
+test('a flood of malformed frames is counted against the rate limit and closes the socket with 1008', async () => {
+  const f = await fixture();
+  try {
+    const peer = await f.connect();
+    const closed = once(peer.socket, 'close');
+    // Every one of the 101 frames is malformed JSON; none should bypass the window/count bookkeeping.
+    for (let i = 0; i < 101; i++) peer.socket.send('{');
+    const [code] = await closed;
+    assert.equal(code, 1008);
+    // The first 100 frames each produced an 'invalid_message' reply from the parse failure; the 101st
+    // produced its 'invalid_message' reply from the rate-limit path itself, immediately before the close.
+    // No further replies can follow because the socket is now closed.
+    const invalidReplies = peer.messages.filter(m => m.type === 'error' && m.code === 'invalid_message').length;
+    assert.equal(invalidReplies, 101);
+  } finally { await f.close(); }
+});
+
+test('invalid frames do not refresh lastSeen so the idle watchdog still prunes a garbage-only client', async () => {
+  const f = await fixture();
+  try {
+    const peer = await f.connect();
+    f.elapse(5000);
+    peer.socket.send('{');
+    await peer.take('error', m => m.code === 'invalid_message');
+    const closed = once(peer.socket, 'close');
+    // If the malformed frame above had refreshed lastSeen, this elapsed time would not exceed the
+    // 6s idle window measured from the connection's lastSeen; the watchdog still prunes it.
+    f.elapse(1001);
+    f.app.checkConnections();
+    await closed;
+  } finally { await f.close(); }
+});
+
 test('bounded catch-up discards sleep-sized backlogs', () => {
   assert.equal(catchUpSteps(0), 0); assert.equal(catchUpSteps(49), 0);
   assert.equal(catchUpSteps(50), 1); assert.equal(catchUpSteps(249), 4);
