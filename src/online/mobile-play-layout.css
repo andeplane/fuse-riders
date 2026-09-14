@@ -1,7 +1,10 @@
 .mobile-tools-toggle,.mobile-rotate-gate,.mobile-control-hints{display:none}
 .online-app.mobile-play{position:fixed;inset:0;width:100dvw;height:100dvh;box-sizing:border-box;padding:0!important;gap:0;overflow:hidden;background:#030919}
 .mobile-play .online-arena{position:absolute;inset:0;width:100%!important;height:100%!important;min-height:0;border:0;object-fit:contain;flex:none}
-.mobile-play .online-header,.mobile-play .online-host,.mobile-play .online-roster,.mobile-play .online-notice,.mobile-play .online-join,.mobile-play>.shared-lobby{display:none!important}
+.mobile-play .online-header,.mobile-play .online-host,.mobile-play .online-roster,.mobile-play .online-join,.mobile-play>.shared-lobby{display:none!important}
+/* Phase notice (READY · 3, round winner, MATCH COMPLETE, lobby prompt) floats over the thirds in every phase; the roster and host actions live behind ☰ MENU. */
+.mobile-play .online-notice{position:absolute;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;min-height:0;max-width:60vw;padding:6px 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:clamp(12px,2.5vw,18px);background:#071428cc;border:1px solid #ffffff22;text-shadow:0 2px 4px #000}
+.mobile-play .online-notice:empty{display:none}
 .mobile-play .online-controls{display:grid;position:absolute;inset:0;width:100%;height:100%;min-height:0;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr;gap:0;z-index:10}
 .mobile-play .online-controls>button{grid-row:1!important;min-height:0;min-width:0;padding:0;border:0!important;border-radius:0;background:transparent!important;color:transparent!important;font-size:0;box-shadow:none;text-shadow:none;opacity:1;touch-action:none}
 .mobile-play .online-controls>button:nth-child(1){grid-column:1!important}.mobile-play .online-controls>button:nth-child(2){grid-column:2!important}.mobile-play .online-controls>button:nth-child(3){grid-column:3!important}
@@ -17,6 +20,7 @@
 .mobile-play.mobile-tools-open .online-header{display:flex!important;position:absolute;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));top:60px;max-height:calc(100dvh - 140px);overflow:auto;padding:12px;box-sizing:border-box;z-index:60;background:#061329f5;border:1px solid #42618a;gap:8px}
 .mobile-play.mobile-tools-open .online-host:not([hidden]){display:flex!important;position:absolute;bottom:max(8px,env(safe-area-inset-bottom));left:8px;right:8px;z-index:60;background:#061329f5;padding:8px;max-height:70px;overflow:auto}
 .mobile-play.mobile-tools-open .online-header button,.mobile-play.mobile-tools-open .online-host button{min-height:40px}
+.mobile-play.mobile-tools-open .online-roster:not([hidden]){display:flex!important;position:absolute;left:8px;right:8px;bottom:max(86px,calc(env(safe-area-inset-bottom) + 78px));z-index:60;flex-wrap:wrap;justify-content:center;gap:4px 12px;max-height:64px;overflow:auto;padding:8px;box-sizing:border-box;background:#061329f5;border:1px solid #42618a;font-size:12px}
 .mobile-play .game-dialog{max-height:calc(100dvh - 24px);z-index:100}
 /* Shared-TV phones remain visibly dedicated controllers after arena hints fade. */
 .mobile-play.controller-only .online-controls>button{background:color-mix(in srgb,var(--player-color) 22%,#061023)!important;border-right:1px solid var(--player-color)!important}

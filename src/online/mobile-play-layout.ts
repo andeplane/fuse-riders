@@ -19,6 +19,8 @@ export function installMobilePlayLayout(app:HTMLElement,clearControls:()=>void){
  compact.onclick=()=>{clearControls();const open=app.classList.toggle('mobile-tools-open');compact.setAttribute('aria-expanded',String(open));};
  const update=()=>{const previous=app.classList.contains('mobile-play'),blocked=app.classList.contains('mobile-portrait');const next=mobilePlayPolicy(state,navigator.maxTouchPoints>0||matchMedia('(pointer: coarse)').matches,innerWidth,innerHeight);if(previous!==next.active||blocked!==next.blocked){clearControls();closeTools();}app.classList.toggle('mobile-play',next.active);app.classList.toggle('mobile-portrait',next.blocked);};
  window.addEventListener('resize',update);window.visualViewport?.addEventListener('resize',update);
- app.querySelector('dialog')?.addEventListener('close',closeTools);
- return {update(next:MobilePlayState){state=next;update();},blocked:()=>app.classList.contains('mobile-portrait')||app.classList.contains('mobile-tools-open')};
+ // Closing a dialog returns to the live thirds mid-round; in lobby/results the roster and actions stay open.
+ app.querySelector('dialog')?.addEventListener('close',()=>{if(['countdown','playing'].includes(state.phase))closeTools();});
+ // A race start (countdown) closes the tools overlay so the thirds are live; other phase changes keep the roster readable.
+ return {update(next:MobilePlayState){if(next.phase==='countdown'&&state.phase!=='countdown')closeTools();state=next;update();},active:()=>app.classList.contains('mobile-play'),blocked:()=>app.classList.contains('mobile-portrait')||app.classList.contains('mobile-tools-open')};
 }

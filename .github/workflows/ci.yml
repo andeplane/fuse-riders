@@ -71,6 +71,10 @@ jobs:
         run: npx tsx scripts/mobile-landscape-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
+      - name: One controller presentation across phone phases
+        run: npx tsx scripts/mobile-phase-smoke.ts
+        env:
+          HOME_URL: http://localhost:8787/
       - name: Shared QR lobby and room termination regression
         run: npx tsx scripts/shared-room-smoke.ts
         env:

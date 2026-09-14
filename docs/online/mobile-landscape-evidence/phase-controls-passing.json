@@ -1,0 +1,182 @@
+[
+  {
+    "browser": "chrome",
+    "passed": true,
+    "controls": [
+      {
+        "tag": "BUTTON",
+        "className": "",
+        "label": "",
+        "x": 0,
+        "y": 0,
+        "width": 281,
+        "height": 390,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
+        "tag": "BUTTON",
+        "className": "",
+        "label": "",
+        "x": 281,
+        "y": 0,
+        "width": 281,
+        "height": 390,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
+        "tag": "BUTTON",
+        "className": "",
+        "label": "",
+        "x": 563,
+        "y": 0,
+        "width": 281,
+        "height": 390,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
+        "tag": "SPAN",
+        "className": "",
+        "label": "HOLD LEFT",
+        "x": 0,
+        "y": 170,
+        "width": 281,
+        "height": 50,
+        "display": "block",
+        "pointerEvents": "none"
+      },
+      {
+        "tag": "SPAN",
+        "className": "",
+        "label": "HOLD TO FIRE · RELEASE TO LAUNCH",
+        "x": 281,
+        "y": 158,
+        "width": 281,
+        "height": 74,
+        "display": "block",
+        "pointerEvents": "none"
+      },
+      {
+        "tag": "SPAN",
+        "className": "",
+        "label": "HOLD RIGHT",
+        "x": 563,
+        "y": 170,
+        "width": 281,
+        "height": 50,
+        "display": "block",
+        "pointerEvents": "none"
+      },
+      {
+        "tag": "BUTTON",
+        "className": "mobile-tools-toggle",
+        "label": "☰ MENU",
+        "x": 771,
+        "y": 8,
+        "width": 65,
+        "height": 40,
+        "display": "block",
+        "pointerEvents": "auto"
+      }
+    ],
+    "phases": [
+      "lobby",
+      "countdown",
+      "playing",
+      "matchOver"
+    ],
+    "errors": []
+  },
+  {
+    "browser": "webkit",
+    "passed": true,
+    "controls": [
+      {
+        "tag": "BUTTON",
+        "className": "",
+        "label": "",
+        "x": 0,
+        "y": 0,
+        "width": 281,
+        "height": 390,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
+        "tag": "BUTTON",
+        "className": "",
+        "label": "",
+        "x": 281,
+        "y": 0,
+        "width": 281,
+        "height": 390,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
+        "tag": "BUTTON",
+        "className": "",
+        "label": "",
+        "x": 563,
+        "y": 0,
+        "width": 281,
+        "height": 390,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
+        "tag": "SPAN",
+        "className": "",
+        "label": "HOLD LEFT",
+        "x": 0,
+        "y": 171,
+        "width": 281,
+        "height": 49,
+        "display": "block",
+        "pointerEvents": "none"
+      },
+      {
+        "tag": "SPAN",
+        "className": "",
+        "label": "HOLD TO FIRE · RELEASE TO LAUNCH",
+        "x": 281,
+        "y": 159,
+        "width": 281,
+        "height": 72,
+        "display": "block",
+        "pointerEvents": "none"
+      },
+      {
+        "tag": "SPAN",
+        "className": "",
+        "label": "HOLD RIGHT",
+        "x": 563,
+        "y": 171,
+        "width": 281,
+        "height": 49,
+        "display": "block",
+        "pointerEvents": "none"
+      },
+      {
+        "tag": "BUTTON",
+        "className": "mobile-tools-toggle",
+        "label": "☰ MENU",
+        "x": 770,
+        "y": 8,
+        "width": 66,
+        "height": 40,
+        "display": "block",
+        "pointerEvents": "auto"
+      }
+    ],
+    "phases": [
+      "lobby",
+      "countdown",
+      "playing",
+      "matchOver"
+    ],
+    "errors": []
+  }
+]
