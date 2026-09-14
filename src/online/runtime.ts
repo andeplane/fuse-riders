@@ -13,7 +13,7 @@ import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { RoomSettings } from '../shared/room-settings.js';
 import type { GameEvent } from '../shared/protocol.js';
 interface WorldEnvelope {type:'world';frame:WorldFrame;settings:RoomSettings;ack:Record<string,number>;paused:boolean;motion?:AppliedMotionState}
-interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void }
+export interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void }
 export class RoomRuntime {
   private session?:HostSession;
   private peers=new Set<string>();
