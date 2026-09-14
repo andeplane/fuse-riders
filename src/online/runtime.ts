@@ -21,7 +21,7 @@ export type OnlineInput = Omit<Extract<RoomCommand, { type: 'input' }>, 'scope' 
 type Management = Exclude<RoomCommand, { type: 'input' }>;
 interface PendingCommand { request: number; command: Management; expires: number; sent: number }
 interface Incoming { header: Preparation; needsPayload: boolean; at: number; buffer?: Uint8Array; received: number; candidate?: Uint8Array; ready: boolean; activated: boolean; lastAck: number }
-interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; needsPayload?: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean;nextPeer:number }
+interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; needsPayload?: boolean; offset: number; ready: boolean; applied: boolean; nextHeader: number; lastMeta: number; lastChunk: number }>; activating: boolean;nextPeer:number }
 
 export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'sendCheckpoint' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendPulse' | 'activatePulse' | 'deactivatePulse' | 'sendBound' | 'stats' | 'diagnostics'>;
 export interface RuntimeEnvironment {
@@ -182,7 +182,7 @@ export class RoomRuntime {
       const game = derived.state.game;
       const view = { ...toSnapshot(game), tick: game.tick, round: game.round };
       const header = referencePreparation({ type: 'directPrepare', revision: plan.revision, alias: plan.revision, bytes: payload.byteLength, hash: derived.hash, matchId: game.matchId, tick: game.tick, round: game.round, status: thinSnapshot(view), ...(game.phase === 'lobby' ? { lobby: catalog(game, plan.settings) } : {}), owners: ownersFor(game, plan) }, base, ops, plan);
-      this.outgoing = { header, payload, at: this.environment.now(), activating: false, nextPeer:0, peers: new Map(plan.members.map(m => [m.id, { header: false, offset: 0, ready: false, applied: false, lastMeta: -Infinity, lastChunk: -Infinity }])) };
+      this.outgoing = { header, payload, at: this.environment.now(), activating: false, nextPeer:0, peers: new Map(plan.members.map(m => [m.id, { header: false, offset: 0, ready: false, applied: false, nextHeader: -Infinity, lastMeta: -Infinity, lastChunk: -Infinity }])) };
       this.acceptPreparation(header);
       if (this.incoming?.needsPayload) { this.incoming.buffer = payload; this.incoming!.received = payload.length; this.finishPreparation(); }
     } catch (error) { this.lastFault = error instanceof Error ? error.message : 'Lifecycle preparation failed'; this.requireLobby(this.lastFault); const message = { type: 'directBaseUnavailable', revision: plan.revision }; if (this.transport.id === this.transport.hostId) { for (const member of plan.members) if (member.id !== this.transport.id) this.send(member.id, message); } else this.send(this.transport.hostId, message); }
@@ -396,7 +396,10 @@ export class RoomRuntime {
     if (outgoing) {
       if (now - outgoing.at > 5000 && [...outgoing.peers.values()].some(p => !p.applied)) { this.recover('Not every participant confirmed the lifecycle change'); return; }
       for (const [id, peer] of outgoing.peers) {
-        if (!peer.header && now - peer.lastMeta >= 100) { peer.lastMeta = now; this.send(id, outgoing.header); }
+        if (!peer.header && now >= peer.nextHeader) {
+          const queued = this.send(id, outgoing.header);
+          peer.nextHeader = now + (queued ? 500 : 100);
+        }
         if(this.stopped||this.recoveryRequired||this.outgoing!==outgoing||this.plan!==plan||!this.planCurrent(plan)||!this.transport.authorityPermitted())return;
       }
       const recipients=[...outgoing.peers];

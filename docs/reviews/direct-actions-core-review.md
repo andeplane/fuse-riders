@@ -496,3 +496,26 @@ Inspection confirms explicit world-discard boundaries now clear the rendered cac
 Approve the corrected ADR044 implementation within the reviewed scope. The final cache regression now uses a supported creator bot-add, explicitly verifies successful command acceptance and the changed published idle catalog, compares rendering against that catalog, then activates a TV without stale scene reuse. Independently reran that exact test: one passed, zero failed or skipped. Together with the preceding three independently passing correction regressions, this closes shell motion, rejected-admission atomicity, unqualified presentation freezing and cache lifecycle findings.
 
 No concrete source blocker remains in this bounded presentation review. Rendered response/correction measurements, complete checks and regional/extended qualification retain their separate evidence requirements; this approval does not infer those outcomes or authorize release.
+
+
+### ADR043 bounded implementation approval at 2024f5d
+
+Approve the inspected state-reuse implementation at `2024f5db2bbdc98fa154ecd62c0708991b28db87` within ADR043's scope. Reference and ACK validators enforce exact tuple/object fields, numeric/hash rules, operation bounds and encoded reference size. Header selection accounts for the largest complete recipient envelope with a maximum-width message ID. Local reuse and transferred fallback share base proof, canonical operation, neutralization, roundtrip, finalized-fence and resulting-header validation. Installed plan provenance remains separate from newly adopted plans; source/local connection or authority changes prevent reuse while unrelated membership changes do not. Duplicate headers preserve the chosen payload requirement, contradictory ACKs fail safely, and only acknowledged peers requiring payload receive paced chunks. No new correctness blocker was found.
+
+Independently ran `node --import tsx --test tests/direct-room-state.test.ts tests/direct-runtime.test.ts`: 49 passed, zero failed or skipped; completed output retained at `/private/tmp/adr043-independent-final.log`. Evidence includes serialized reference/ACK boundaries, largest-recipient envelope sizing, exact reuse/transfer output, altered proofs, newer finalized fences, scope changes, zero-chunk hits, selective fallback, retry and conflicting modes. The runtime rejection of an unoffered no-payload claim is additionally verified by source inspection; this disposition does not invent a dedicated runtime test for that branch.
+
+This closes the remaining bounded ADR043 implementation review. The current mobile application-impairment run, reported by the parent as failing a round-transition setup deadline without browser errors or overflow, remains a failed profile requiring separate diagnosis. A short passing local/regional fixture is not evidence of mobile, sustained or physical-device reliability, and implementation approval is not release authorization.
+
+
+### Bounded preparation-header retry pacing amendment
+
+Approve the proposed delivery refinement prompted by the mobile trace's repeated large unacknowledged headers. Send the first immutable preparation header immediately. After a successful reliable enqueue, retry no sooner than 500 ms; after a failed enqueue, retry after 100 ms. Track this per peer separately from activation retry timing. A validated header ACK stops repetition, while duplicate headers still return the same immutable payload requirement. Neither successful enqueue nor a retry is application acceptance or permission to reset five-second preparation/fifteen-second episode deadlines.
+
+Record the exact refinement in ADR043 before implementation. Regression evidence should withhold/delay ACKs, verify successful header enqueues remain at least 500 ms apart, verify 100 ms failed-enqueue retry, and retain independent readiness/activation behavior. This is a bounded metadata delivery policy, not approval to infer missing finality or change exact-base reuse. Its mobile impact remains to be measured; no source or test was changed by this design review.
+
+
+### Preparation-header retry refinement implementation approval
+
+Approve the inspected small runtime change. A distinct per-peer `nextHeader` deadline now permits the first send immediately, schedules 500 ms after successful enqueue and 100 ms after failure, and stops repeating on validated header acknowledgement. Activation retains its independent `lastMeta` timing, and original attempt/episode bounds are unchanged. The updated stale/malformed ACK test waits through the new retry interval without weakening rejection.
+
+Independently ran the new withheld-ACK regression alone: one passed, zero failed or skipped. It proves exact 100 ms failed-enqueue retry, 500 ms spacing while acknowledged delivery is absent, stopped header repetition after a valid ACK, and separate readiness until blocked chunks are released and activation succeeds. Completed output is retained at `/private/tmp/adr043-review-header-retry.log`. No findings remain in this bounded delivery refinement. Mobile-02's outcome remains separate; no browser or build was run by this reviewer.

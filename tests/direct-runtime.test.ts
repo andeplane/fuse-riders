@@ -257,6 +257,47 @@ test('header and header-ACK enqueue failures retry delivery without substituting
  room.checkpointBlocked.delete('p1');room.advance(1600);assert.equal(guest.runtime.replicationDiagnostics.barrier,false);assert.equal(guest.view?.phase,'countdown');
 });
 
+test('header retries distinguish failed enqueue from a queued header awaiting acknowledgement', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  guest.callbacks.authorityChanged?.();
+  const attempts: number[] = [];
+  let acknowledge = false;
+  room.accept((from, to, raw) => {
+    if (!raw || typeof raw !== 'object' || !('type' in raw)) return true;
+    if (from === 'p0' && to === 'p1' && raw.type === 'directPrepare') {
+      attempts.push(room.now());
+      return attempts.length > 1;
+    }
+    return !(from === 'p1' && to === 'p0' && raw.type === 'directHeader' && !acknowledge);
+  });
+  room.checkpointBlocked.add('p1');
+  creator.runtime.command({ type: 'action', action: 'start' });
+  for (let elapsed = 0; elapsed < 200 && attempts.length === 0; elapsed += 10) room.advance(10);
+  assert.equal(attempts.length, 1);
+  room.advance(90);
+  assert.equal(attempts.length, 1, 'failed enqueue waits 100 ms');
+  room.advance(10);
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[1] - attempts[0], 100);
+  room.advance(490);
+  assert.equal(attempts.length, 2, 'queued metadata must not flood a delayed acknowledgement');
+  room.advance(10);
+  assert.equal(attempts.length, 3);
+  assert.equal(attempts[2] - attempts[1], 500);
+  acknowledge = true;
+  room.advance(500);
+  assert.equal(attempts.length, 4);
+  assert.equal(attempts[3] - attempts[2], 500);
+  room.advance(600);
+  assert.equal(attempts.length, 4, 'validated acknowledgement ends header retries');
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, true, 'delivery is not readiness');
+  assert.equal(guest.view?.phase, 'lobby');
+  room.checkpointBlocked.delete('p1');
+  room.advance(1600);
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, false);
+  assert.equal(guest.view?.phase, 'countdown');
+});
+
 test('stale or malformed header acknowledgements cannot stop preparation delivery',()=>{
  const room=setup(),creator=room.members.get('p0')!,guest=room.members.get('p1')!;
   guest.callbacks.authorityChanged?.(); // Retain the fence, but require transfer after authority-scope invalidation.
@@ -265,8 +306,8 @@ test('stale or malformed header acknowledgements cannot stop preparation deliver
  const revision=guest.runtime.replicationDiagnostics.alias!;
  const headers=()=>room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length;
  creator.callbacks.message('p1',{type:'directHeader',revision:revision-1});creator.callbacks.message('p1',{type:'directHeader',revision,extra:true});
- const before=headers();room.advance(200);assert.ok(headers()>before);
- creator.callbacks.message('p1',{type:'directHeader',revision,needsPayload:true});const acknowledged=headers();room.advance(400);assert.equal(headers(),acknowledged);
+ const before=headers();room.advance(500);assert.ok(headers()>before);
+ creator.callbacks.message('p1',{type:'directHeader',revision,needsPayload:true});const acknowledged=headers();room.advance(600);assert.equal(headers(),acknowledged);
  assert.equal(guest.runtime.replicationDiagnostics.barrier,true);
 });
 

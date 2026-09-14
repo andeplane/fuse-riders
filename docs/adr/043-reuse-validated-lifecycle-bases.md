@@ -1,6 +1,6 @@
 # ADR043: Reuse validated local state at lifecycle transitions
 
-Date: 2026-09-14. Status: independently approved design; first implementation passes unit regressions and the regional browser fixture. Implementation review and remaining acceptance are pending. Extends ADR041/042 on `codex/deterministic-action-log`, tracking #82. No release authorization.
+Date: 2026-09-14. Status: independently approved design; first implementation passes unit regressions and the regional browser fixture. Implementation review at 2024f5d is approved; remaining acceptance is pending. Extends ADR041/042 on `codex/deterministic-action-log`, tracking #82. No release authorization.
 
 ## Problem and alternatives
 
@@ -31,6 +31,8 @@ Bump the direct rules identifier for the new closed protocol shapes; old peers f
 Header delivery, payload requirement, `directReady` and applied activation remain distinct. A duplicate identical preparation returns the same header acknowledgement without re-deriving or reallocating its candidate. Payload requirement is immutable within one peer/connection/preparation; conflicting acknowledgements cannot restart, skip or retarget an in-progress transfer. The source sends chunks only to acknowledged members requiring payload, preserves offsets on failed enqueue, and retains fair scheduling and aggregate budgets. Cache hits still bind the new alias and pass the scheduled-start/applied barrier.
 
 On a conflicting current-member payload-requirement ACK, reject it without changing the accepted mode, header delivery, offset, readiness or deadline, and fail that preparation explicitly through the existing synchronization/corruption path. Stale/foreign-scope ACKs remain harmless rejections. A full-view no-payload claim without an offered reference is invalid and cannot advance its barrier.
+
+Header delivery starts immediately. After a successful reliable enqueue, wait 500 ms before retrying the same immutable header; after a failed enqueue, retry after 100 ms. A validated header acknowledgement stops retries. Keep this per-peer deadline separate from activation retries and readiness: queued bytes are not application acceptance. This bounded pacing refinement was independently approved after the mobile-01 trace showed 21–23 repeated headers (73–80 KB) per five-peer setup attempt under constrained uplink.
 
 All existing five-second preparation and 15-second unsuccessful-episode bounds remain. Cache mismatch is a normal bounded fallback, not a corruption charge. Invalid resulting state, conflicting same-scope metadata or a false base proof retains the existing corruption/safe-failure handling. A peer that cannot complete fallback within the supported network budget fails visibly. No lossless host migration, durable replay storage or physical-phone qualification is implied.
 
