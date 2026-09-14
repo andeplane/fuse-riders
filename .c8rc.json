@@ -15,7 +15,9 @@
     "src/online/checkpoint.ts",
     "src/online/world-codec.ts",
     "src/online/prediction.ts",
-    "src/online/keyframe-delivery.ts"
+    "src/online/keyframe-delivery.ts",
+    "src/online/room-lifecycle.ts",
+    "src/online/response-measurement.ts"
   ],
   "reporter": [
     "text",
