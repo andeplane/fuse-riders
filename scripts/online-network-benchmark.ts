@@ -136,7 +136,7 @@ try {
       });
       result.acceptedSnapshotFreshness=freshness;
       assert.ok(freshness.slice(1).every(sample=>sample.ageMs!==null&&sample.ageMs>=0&&sample.ageMs<=2000),'Every guest and TV must accept a world snapshot within two seconds of test end');
-      if(profile.outageMs){assert.ok(freshness[1]!.firstPostOutageAt!==undefined,'Affected guest must accept a world snapshot after connectivity returns');assert.ok(freshness[1]!.progressedSinceOutage,'Affected guest accepted world must progress beyond pre-outage tick or scope');}
+      if(profile.outageMs){assert.ok(freshness[1]!.firstPostOutageAt!==undefined,'Affected guest must accept a world snapshot after connectivity returns');assert.ok(freshness[1]!.progressedSinceOutage,'Affected guest accepted world must progress beyond pre-outage tick or scope');assert.ok(freshness[1]!.firstPostOutageDelayMs!==null&&freshness[1]!.firstPostOutageDelayMs<=2000,'Affected guest must accept a world snapshot within two seconds after connectivity returns');}
       const finalMetrics=await Promise.all(pages.map(page=>page.evaluate(()=>JSON.parse(document.querySelector<HTMLElement>('#app')?.dataset.metrics??'{}') as {direct?:number})));
       result.finalMetrics=finalMetrics;assert.ok(finalMetrics.slice(1).every(m=>(m.direct??0)>=1),'Every guest and TV must regain a healthy direct link by end of run');
       result.applicationDiagnostics=injection.map(s=>({...inspectApplicationEvents(s.events),truncated:s.eventsTruncated}));
