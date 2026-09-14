@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomRuntime, type RuntimeEnvironment, type RuntimeTransport, type Callbacks } from '../src/online/runtime.js';
 import type { TransportCallbacks } from '../src/online/peer-transport.js';
+import { isPlan, isPreparation, type RoomPlan, type Preparation } from '../src/online/direct-room-state.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import type { ViewSnapshot } from '../src/client/snapshot-stream.js';
 import type { GameEvent } from '../src/shared/protocol.js';
@@ -14,7 +15,7 @@ function setup(shared = false) {
   const queue: { from: string; to: string; value: Uint8Array; fast: boolean }[] = [];
   const sends: { from: string; to: string; type: string; accepted: boolean }[] = [];
   let accept: (from: string, to: string, raw: unknown) => boolean = () => true;
-  const silent = new Set<string>(), unscheduled = new Set<string>();
+  const silent = new Set<string>(), unscheduled = new Set<string>(), checkpointBlocked = new Set<string>();
   function add(id: string, display = false, storage = new Map<string, string>()) {
     connections.set(id, `connection-${++nextId}`);
     const notices: string[] = [], events: GameEvent[] = [];
@@ -31,7 +32,7 @@ function setup(shared = false) {
       sentBytes: 0, fastSentBytes: 0, binarySentBytes: 0,
       connectionOf: peer => connections.get(peer), members: () => [...connections.keys()], authorityPermitted: () => true,
       connect: () => { callbacks.welcome(id, 'p0'); for (const peer of connections.keys()) if (peer !== id) callbacks.peer(peer, true); }, close: () => {},
-      send: (to, value) => send(to, value), sendFast: (to, bytes) => send(to, bytes, true), sendBound: (to, tuple) => send(to, tuple), bindFast: () => true, boundReady: () => true,
+      send: (to, value) => send(to, value), sendCheckpoint: (to, value) => !checkpointBlocked.has(to) && send(to, value), sendFast: (to, bytes) => send(to, bytes, true), sendBound: (to, tuple) => send(to, tuple), bindFast: () => true, boundReady: () => true,
       stats: async () => ({ direct: connections.size - 1, relayed: 0, buffered: 0, authority: { reason: 'permitted' } }),
       diagnostics: async () => ({ links: [], ice: { servers: 0, source: 'test' }, socket: 'open' }),
     };
@@ -58,7 +59,7 @@ function setup(shared = false) {
   for (const id of ids) add(id, id === 'tv');
   for (const member of members.values()) member.runtime.start();
   advance(1800);
-  return { members, sends, advance, silent, unscheduled, add, remove: (id: string) => { members.get(id)?.runtime.stop(); members.delete(id); connections.delete(id); for (const member of members.values()) member.callbacks.peer(id, false); }, accept: (fn: typeof accept) => { accept = fn; }, now: () => now };
+  return { members, sends, advance, silent, unscheduled, checkpointBlocked, add, remove: (id: string) => { members.get(id)?.runtime.stop(); members.delete(id); connections.delete(id); for (const member of members.values()) member.callbacks.peer(id, false); }, accept: (fn: typeof accept) => { accept = fn; }, now: () => now };
 }
 
 test('runtime activates direct simulators, starts a match and sends actions directly between guests', () => {
@@ -214,4 +215,93 @@ test('conflicting metadata for an installed preparation charges one corrupt reco
   assert.equal(guest.runtime.replicationDiagnostics.corruptRecoveryAttempts, 1);
   room.advance(2000); guest.callbacks.message('p0', conflicting); room.advance(10);
   assert.equal(guest.runtime.replicationDiagnostics.corruptRecoveryAttempts, 1);
+});
+
+
+test('checkpoint backpressure pauses preparation and resumes the same transfer after drain', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  room.checkpointBlocked.add('p1');
+  const sentBefore = room.sends.filter(m => m.to === 'p1' && m.type === 'directChunk').length;
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(1000);
+  assert.equal(room.sends.filter(m => m.to === 'p1' && m.type === 'directChunk').length, sentBefore);
+  assert.equal(guest.view?.phase, 'lobby');
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, true);
+  const alias = guest.runtime.replicationDiagnostics.alias;
+  room.checkpointBlocked.delete('p1'); room.advance(1600);
+  assert.ok(room.sends.filter(m => m.to === 'p1' && m.type === 'directChunk').length > sentBefore);
+  assert.equal(guest.runtime.replicationDiagnostics.alias, alias);
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, false);
+  assert.equal(guest.view?.phase, 'countdown');
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, false);
+});
+
+test('persistent checkpoint backpressure cannot extend the recovery deadline indefinitely', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  room.checkpointBlocked.add('p1');
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(22000);
+  assert.equal(creator.runtime.replicationDiagnostics.recoveryRequired, true);
+  assert.ok(creator.notices.some(s => s.includes('Synchronization could not restore play')));
+  assert.equal(guest.view?.phase, 'lobby');
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, true);
+  assert.ok(guest.notices.some(s => s.includes('Synchronization could not restore play')));
+});
+
+
+test('new creator plans cannot postpone an unfinished guest recovery episode indefinitely', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  let plan: RoomPlan | undefined, header: Preparation | undefined;
+  room.accept((from, to, raw) => {
+    if (from === 'p0' && to === 'p1') {
+      if (isPlan(raw)) plan = structuredClone(raw);
+      else if (plan && isPreparation(raw, plan)) header = structuredClone(raw);
+    }
+    return true;
+  });
+  room.checkpointBlocked.add('p1');
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(100);
+  assert.ok(plan); assert.ok(header);
+  room.accept((from, to) => !(from === 'p0' && to === 'p1'));
+  // Each authenticated replacement arrives before the previous preparation's five-second
+  // timeout. No candidate is ever installed, qualified or finalized.
+  for (let i = 1; i <= 5; i++) {
+    room.advance(4000);
+    const revision = plan.revision + i;
+    guest.callbacks.message('p0', { ...plan, revision });
+    guest.callbacks.message('p0', { ...header, revision, alias: revision });
+    room.advance(10);
+  }
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, true);
+  assert.ok(guest.notices.some(s => s.includes('Synchronization could not restore play')));
+  assert.equal(guest.view?.phase, 'lobby');
+});
+
+
+test('an accepted plan without a preparation header times out visibly', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  room.accept((from, to, raw) => !(from === 'p0' && to === 'p1' && raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directPrepare'));
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(22000);
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, true);
+  assert.ok(guest.notices.some(s => s.includes('Synchronization could not restore play')));
+  assert.equal(guest.view?.phase, 'lobby');
+});
+
+test('new plans without any headers cannot restart the guest availability deadline', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  let plan: RoomPlan | undefined;
+  room.accept((from, to, raw) => {
+    if (from === 'p0' && to === 'p1') {
+      if (isPlan(raw)) { plan = structuredClone(raw); return true; }
+      return false;
+    }
+    return true;
+  });
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(100);
+  assert.ok(plan);
+  room.accept((from, to) => !(from === 'p0' && to === 'p1'));
+  for (let i = 1; i <= 5; i++) {
+    room.advance(4000);
+    guest.callbacks.message('p0', { ...plan, revision: plan.revision + i }); room.advance(10);
+  }
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, true);
+  assert.equal(guest.view?.phase, 'lobby');
 });

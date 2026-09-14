@@ -35,7 +35,7 @@ Both existing online room browser smokes passed after the transport change, usin
 
 ## Remaining implementation
 
-Complete checkpoint backpressure gating, mixed-engine active gameplay, bot and automatic-round transitions, reconnect/partial-mesh behavior and LAN regressions. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
+Complete mixed-engine active gameplay, bot and automatic-round transitions, reconnect/partial-mesh behavior and LAN regressions. Checkpoint backpressure and bounded setup episodes now have the reviewed regressions described below. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
 
 Then measure real five-rider-plus-TV gameplay: every payload class in both directions, input-to-render/finality latency, corrections, replay/frame time and memory across declared impairment profiles and a sustained soak. Preserve LAN regressions. Wire overhead, WAN routing and physical-phone behavior remain separately unverified. Do not reuse the prototype's 29→12.7 KB/s measurement as the expected or measured direct-mesh result.
 
@@ -71,3 +71,12 @@ This is historical component evidence. The runtime cutover described above is ne
 ## Runtime source 850b057 evidence
 
 Committed runtime source `850b057` passed both typechecks, build and 552 tests with unchanged coverage thresholds (99.14% lines/statements, 93.89% branches, 98.78% functions). `RoomRuntime` is now included: 92.77% lines and 86.58% branches. Separate Chromium and WebKit room smokes passed five full simulators, start/settings/reset, guest/creator refresh, lightweight controllers and TV simulation; both enforce zero page errors. Build assets matched the post-commit rebuild. The [runtime manifest](direct-actions-evidence/runtime-cutover/manifest.json) retains source/build hashes, raw failures and current checks. This closes the initial room-flow checkpoint, not mixed-engine impairment, latency/bandwidth, checkpoint backpressure or sustained acceptance.
+
+
+## Checkpoint backpressure and setup episodes
+
+Checkpoint sends now wait for an open, undrained action channel with zero buffered bytes, while retaining the reliable lane's authority, membership, health and buffer gates. Alias binding is deliberately not required before bootstrap. A refused send retains its chunk offset; pacing and transfer bounds are unchanged.
+
+Independent review found that remotely replaced preparations could avoid starting a guest's overall unsuccessful recovery episode, and a missing preparation header had no local setup deadline. Setup deadlines now start at plan adoption; replacing a never-settled plan retains/starts the episode. Success is associated with the exact adopted plan only after applied activation, clock qualification and the existing finality condition. This closes repeated-plan and missing-header waits without treating previously healthy scopes frozen for management as unsuccessful.
+
+The full suite passed 558 tests with unchanged coverage thresholds (99.14% lines, 93.97% branches, 98.78% functions). All 22 focused gate/runtime tests also passed independent review. The local six-context Chromium/WebKit transport harness passed synthetic fast-buffer refusal/drain checks and the existing delivery, link rebuild and membership cases with zero browser/teardown errors. Synthetic bufferedAmount instrumentation verifies adapter behavior, not real network congestion. Full-match measurements and sustained runtime acceptance remain separate.

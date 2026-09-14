@@ -1,0 +1,36 @@
+{
+  "baseRevision": "8f27f67383c120ca77a2bc1a3f20f2e709738263",
+  "scope": "Checkpoint yielding to queued action bytes; preparation deadline includes missing headers; unsuccessful guest episodes survive remotely superseded uncompleted scopes. Native browser run uses synthetic bufferedAmount pressure, not network congestion. No deployment or full-runtime performance certification.",
+  "checks": {
+    "unitAndCoverage": {
+      "tests": 558,
+      "passed": 558,
+      "lines": 99.14,
+      "branches": 93.97,
+      "functions": 98.78
+    },
+    "independentFocusedTests": 22,
+    "typecheck": "passed",
+    "workerTypecheck": "passed",
+    "build": "passed",
+    "mixedBrowserMesh": "passed; zero errors including teardown"
+  },
+  "failures": "checkpoint-episode-before.log preserves the repeated-plan guest deadline regression before its correction. The initial persistent-pressure test assumed an earlier guest deadline; independent review identified and corrected the actual cross-alias accounting gap instead of retaining the extra grace.",
+  "sourceHashes": {
+    "src/online/runtime.ts": "889febe642ff412123a1eb10434f7f190411cefe73fd34b7b3941a6c508bfa1d",
+    "src/online/peer-transport.ts": "4b17212c3b6673eac0873caa1f026528b2663be2d31d2b27956919889ed8e84b",
+    "src/online/link-send-gate.ts": "ba9cf81f28ad83d301bfef8a14c333be068466474fb77d8435f48b92254a77a0",
+    "tests/direct-runtime.test.ts": "101bcc47ee65dc5d98b249fb67565d85b18eb871c552c1fc28ec4a9a157e3ef4",
+    "tests/link-send-gate.test.ts": "4f8f174605b0a84d0cd484e2ccd93c1837a575d576a21a729b402196e2b70223",
+    "scripts/direct-mesh-browser.ts": "d98b4220f13e4a4574097760755ad6d5167acd7fcc7476c9c8173f52d06c9311"
+  },
+  "artifacts": {
+    "checkpoint-coverage.log": "1882fb4a48b27e18245477846dc0b928b0cc9fe912912e5fdaa437cb36755bb4",
+    "checkpoint-typecheck.log": "374e896c0d6e11fcfe28c47b1144206a87ea04f5db4ea121f23c5a19fc33fd4d",
+    "checkpoint-unit.log": "31d768025dec13d2067596836741e3af928135f9d8d431d7470acbea4a83cab1",
+    "checkpoint-episode-before.log": "26483d91530f6b8ad68c5f4f796873c0094096af96d6f80cfe142e466ae0ca6c",
+    "checkpoint-mesh.log": "17038ab4e315d1a889b3a8d2b7d17e2cfc2d225f2fd0b7ceed8b6f3ece5c74c9",
+    "direct-mesh-browser.json": "4d9fafe6bfdbb2cf15aec1a4dd7dcc7df9bab4d1f277828b0c9465160415bbfc",
+    "checkpoint-build.log": "b9bac1d53d3e404873d57fc275c334999cb0c4b9ef4bdcb3c133542e88aaca0e"
+  }
+}

@@ -330,6 +330,11 @@ export class PeerTransport {
     seen.add(envelope.id);if(seen.size>1000)seen.delete(seen.values().next().value!);this.received.set(id,seen);
     this.callbacks.message(id,envelope.data);
   }
+  /** Bulk lifecycle data yields to queued action traffic, even before segment aliases bind. */
+  sendCheckpoint(id:string,data:unknown):boolean {
+    const link=this.links.get(id);
+    return !!link&&link.fastGate.permitsIdle(link.fast)&&this.send(id,data,true);
+  }
   send(id:string,data:unknown,binary=false):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
     const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};const encoded=binary?new Uint8Array(packMessage(envelope)):JSON.stringify(envelope);this.sentBytes+=typeof encoded==='string'?new TextEncoder().encode(encoded).byteLength:encoded.byteLength;const link=this.links.get(id);

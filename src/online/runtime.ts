@@ -22,7 +22,7 @@ interface PendingCommand { request: number; command: Management; expires: number
 interface Incoming { header: Preparation; at: number; buffer?: Uint8Array; received: number; candidate?: Uint8Array; ready: boolean; activated: boolean; lastAck: number }
 interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean }
 
-export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendBound' | 'stats' | 'diagnostics'>;
+export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'sendCheckpoint' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendBound' | 'stats' | 'diagnostics'>;
 export interface RuntimeEnvironment {
   now(): number;
   hidden(): boolean;
@@ -65,6 +65,8 @@ export class RoomRuntime {
   private lastFault?: string;
   private recoveries: number[] = [];
   private recoveryEpisodeAt?: number;
+  private attemptAt?: number;
+  private settledPlan?: RoomPlan;
   private chargedCorruption?: string;
   private lastRecovery = -Infinity;
   private lastHello = -Infinity;
@@ -138,6 +140,10 @@ export class RoomRuntime {
   }
   private adoptPlan(plan: RoomPlan): void {
     if (!this.planCurrent(plan) || plan.revision <= (this.plan?.revision ?? 0) || !plan.members.some(m => m.id === this.transport.id)) return;
+    // A remotely superseded attempt is still unsuccessful, including a plan whose
+    // source never sent its preparation header. Retain the episode across aliases.
+    if (this.plan?.coordinator && this.settledPlan !== this.plan) this.recoveryEpisodeAt ??= this.environment.now();
+    this.attemptAt = plan.coordinator ? this.environment.now() : undefined;
     this.freeze(); this.plan = structuredClone(plan); this.incoming = undefined; this.outgoing = undefined; this.applied.clear(); this.acceptedStatus = -1; this.statusKeys.clear(); this.recovering = false; this.recoveryRequired = false; this.recoveryRequest = undefined; this.faultPending = undefined; this.corruptionPending = false;
     this.lobby.settings = structuredClone(plan.settings);
     if (!plan.coordinator) {
@@ -342,8 +348,8 @@ export class RoomRuntime {
     }
     if (this.recoveryEpisodeAt !== undefined && now - this.recoveryEpisodeAt > 15000 && !this.recoveryRequired) this.requireLobby('Synchronization could not restore play — creator must choose MAIN MENU');
     const plan = this.plan; if (!plan || this.recoveryRequired) return;
+    if (this.attemptAt !== undefined && !this.incoming?.activated && now - this.attemptAt > 5000) { this.recover('Direct simulation setup timed out — retrying'); return; }
     if (this.incoming && !this.incoming.activated) {
-      if (now - this.incoming.at > 5000) { this.recover('Direct simulation setup timed out — retrying'); return; }
       const full = plan.members.find(m => m.id === this.transport.id)!.view;
       if ((!full || this.incoming.candidate) && this.bind()) this.incoming.ready = true;
       if (this.incoming.ready && now - this.incoming.lastAck >= 100) { this.incoming.lastAck = now; this.send(plan.source, { type: 'directReady', revision: plan.revision }); }
@@ -355,7 +361,7 @@ export class RoomRuntime {
         if (!peer.ready && now - peer.lastMeta >= 100) { peer.lastMeta = now; this.send(id, outgoing.header); }
         if (id !== this.transport.id && peer.header && plan.members.find(m => m.id === id)!.view && peer.offset < outgoing.payload.length && now - peer.lastChunk >= 50) {
           peer.lastChunk = now;
-          for (let count = 0; count < 2 && peer.offset < outgoing.payload.length; count++) { const data = outgoing.payload.slice(peer.offset, peer.offset + 12_000); if (!this.send(id, { type: 'directChunk', revision: plan.revision, offset: peer.offset, data })) break; peer.offset += data.length; }
+          for (let count = 0; count < 2 && peer.offset < outgoing.payload.length; count++) { const data = outgoing.payload.slice(peer.offset, peer.offset + 12_000); if (!this.transport.sendCheckpoint(id, { type: 'directChunk', revision: plan.revision, offset: peer.offset, data })) break; peer.offset += data.length; }
         }
       }
       if ([...outgoing.peers.values()].every(p => p.ready)) outgoing.activating = true;
@@ -365,7 +371,7 @@ export class RoomRuntime {
     if (!this.activationSafe() || this.recovering) return;
     this.segment?.tick();
     const segment = this.segment;
-    if (segment && !segment.faultReason && this.incoming?.activated && segment.clock.read().canOriginate && (plan.coordinator !== this.transport.id || plan.members.every(m => this.applied.has(m.id))) && (!segment.config.running || segment.finalizedTick > segment.config.baseTick)) this.recoveryEpisodeAt = undefined;
+    if (segment && !segment.faultReason && this.incoming?.activated && segment.clock.read().canOriginate && (plan.coordinator !== this.transport.id || plan.members.every(m => this.applied.has(m.id))) && (!segment.config.running || segment.finalizedTick > segment.config.baseTick)) { this.recoveryEpisodeAt = undefined; this.settledPlan = plan; }
     if (segment?.world && !segment.faultReason) {
       const clock = segment.clock.read();
       if (plan.coordinator === this.transport.id && clock.canOriginate && clock.tick !== this.lastBotTick) {

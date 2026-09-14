@@ -19,3 +19,14 @@ test('a closing signal recorded before the DOM readyState changes blocks gamepla
  assert.equal(gate.permits(channel,GAMEPLAY_BUFFER_LIMIT),false);assert.equal(gate.permits(channel,PROBE_BUFFER_LIMIT),false);assert.equal(gate.draining,true);
  gate.drain();assert.equal(gate.permits(channel,GAMEPLAY_BUFFER_LIMIT),false);
 });
+
+
+test('bulk transfer idle permission requires an open, fully drained, undrained action channel',()=>{
+ const gate=new LinkSendGate();
+ assert.equal(gate.permitsIdle(undefined),false);
+ for(const readyState of ['connecting','closing','closed'] as const)assert.equal(gate.permitsIdle({readyState,bufferedAmount:0}),false);
+ assert.equal(gate.permitsIdle(open(1)),false);
+ assert.equal(gate.permitsIdle(open(GAMEPLAY_BUFFER_LIMIT)),false);
+ assert.equal(gate.permitsIdle(open()),true);
+ gate.drain();assert.equal(gate.permitsIdle(open()),false);
+});

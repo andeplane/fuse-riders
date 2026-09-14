@@ -1,0 +1,2876 @@
+TAP version 13
+# Subtest: accepted host actions replay complete lifecycle, bots, timeout cancellation and resets
+ok 1 - accepted host actions replay complete lifecycle, bots, timeout cancellation and resets
+  ---
+  duration_ms: 3996.605333
+  ...
+# Subtest: replica game checkpoint preserves connected and charging state without host recovery sanitization
+ok 2 - replica game checkpoint preserves connected and charging state without host recovery sanitization
+  ---
+  duration_ms: 3.034917
+  ...
+# Subtest: steady held input records only changes; bomb edges never persist into later ticks
+ok 3 - steady held input records only changes; bomb edges never persist into later ticks
+  ---
+  duration_ms: 2.663667
+  ...
+# Subtest: MessagePack tuples and malformed operations are bounded
+ok 4 - MessagePack tuples and malformed operations are bounded
+  ---
+  duration_ms: 3.68475
+  ...
+# Subtest: real encoded sender/receiver: duplicate, dropped and reordered batches repair without divergent commit
+ok 5 - real encoded sender/receiver: duplicate, dropped and reordered batches repair without divergent commit
+  ---
+  duration_ms: 4.816
+  ...
+# Subtest: invalid transaction and repeated hash mismatch never replace healthy state; fresh baseline repairs
+ok 6 - invalid transaction and repeated hash mismatch never replace healthy state; fresh baseline repairs
+  ---
+  duration_ms: 1.837584
+  ...
+# Subtest: checkpoint chunk loss, reordering, corruption and timeout are bounded
+ok 7 - checkpoint chunk loss, reordering, corruption and timeout are bounded
+  ---
+  duration_ms: 3.257
+  ...
+# Subtest: decoder rejects nested allocation bombs before decoding and accepts ordinary envelopes
+ok 8 - decoder rejects nested allocation bombs before decoding and accepts ordinary envelopes
+  ---
+  duration_ms: 6.582917
+  ...
+# Subtest: checkpoint and action identity validation agree, including history bounds and legal slot reuse
+ok 9 - checkpoint and action identity validation agree, including history bounds and legal slot reuse
+  ---
+  duration_ms: 68.601125
+  ...
+# Subtest: newer checkpoint generations cannot erase same-tick accepted lifecycle operations
+ok 10 - newer checkpoint generations cannot erase same-tick accepted lifecycle operations
+  ---
+  duration_ms: 1.176333
+  ...
+# Subtest: hash comparison survives backpressure precisely on twentieth ticks
+ok 11 - hash comparison survives backpressure precisely on twentieth ticks
+  ---
+  duration_ms: 7.530791
+  ...
+# Subtest: missing middle checkpoint chunk times out, throttled pump recovers with a fresh generation
+ok 12 - missing middle checkpoint chunk times out, throttled pump recovers with a fresh generation
+  ---
+  duration_ms: 76.017542
+  ...
+# Subtest: signed-zero headings and arena-coordinate bomb targets survive checkpoint suffix replay
+ok 13 - signed-zero headings and arena-coordinate bomb targets survive checkpoint suffix replay
+  ---
+  duration_ms: 2.139083
+  ...
+# Subtest: host refuses a new historical identity before replay/checkpoint capacity is exceeded
+ok 14 - host refuses a new historical identity before replay/checkpoint capacity is exceeded
+  ---
+  duration_ms: 2.39375
+  ...
+# Subtest: signed-zero local aim is normalized before MessagePack checkpoint and action capture
+ok 15 - signed-zero local aim is normalized before MessagePack checkpoint and action capture
+  ---
+  duration_ms: 3.065291
+  ...
+# Subtest: MessagePack action changes carry full applied ticks across sparse input and bomb transitions
+ok 16 - MessagePack action changes carry full applied ticks across sparse input and bomb transitions
+  ---
+  duration_ms: 1.983917
+  ...
+# Subtest: absolute action ticks above uint16 replay independently of previous held timestamps
+ok 17 - absolute action ticks above uint16 replay independently of previous held timestamps
+  ---
+  duration_ms: 0.502042
+  ...
+# Subtest: action tick mismatch and legacy replay checkpoints preserve healthy receiver state
+ok 18 - action tick mismatch and legacy replay checkpoints preserve healthy receiver state
+  ---
+  duration_ms: 1.465125
+  ...
+# Subtest: assets resolve once under a Pages base and preserve external URLs
+ok 19 - assets resolve once under a Pages base and preserve external URLs
+  ---
+  duration_ms: 0.466708
+  ...
+# Subtest: audio requires gesture unlock, routes independent mute and volume, and tolerates refusal
+ok 20 - audio requires gesture unlock, routes independent mute and volume, and tolerates refusal
+  ---
+  duration_ms: 1.716541
+  ...
+# Subtest: original score loops with bounded scheduling and no background catch-up
+ok 21 - original score loops with bounded scheduling and no background catch-up
+  ---
+  duration_ms: 2.087083
+  ...
+# Subtest: authoritative effects coalesce volleys, reject stale events and baseline reconnects silently
+ok 22 - authoritative effects coalesce volleys, reject stale events and baseline reconnects silently
+  ---
+  duration_ms: 0.358583
+  ...
+# Subtest: pickup cues use authoritative collection events and reconnect baseline stays silent
+ok 23 - pickup cues use authoritative collection events and reconnect baseline stays silent
+  ---
+  duration_ms: 0.107542
+  ...
+# Subtest: engine emits collection once only after a real pickup is consumed
+ok 24 - engine emits collection once only after a real pickup is consumed
+  ---
+  duration_ms: 12.702166
+  ...
+# Subtest: older round snapshots cannot reset scope or stop music
+ok 25 - older round snapshots cannot reset scope or stop music
+  ---
+  duration_ms: 0.192125
+  ...
+# Subtest: eight original scores have long arrangements, distinct melodies and bounded valid voices
+ok 26 - eight original scores have long arrangements, distinct melodies and bounded valid voices
+  ---
+  duration_ms: 68.650542
+  ...
+# Subtest: playlist completes an arrangement, rotates all eight tunes and retains mute and volume
+ok 27 - playlist completes an arrangement, rotates all eight tunes and retains mute and volume
+  ---
+  duration_ms: 0.730667
+  ...
+# Subtest: new rounds advance playlist once; repeated snapshots and reconnects do not rewind it
+ok 28 - new rounds advance playlist once; repeated snapshots and reconnects do not rewind it
+  ---
+  duration_ms: 0.122792
+  ...
+# Subtest: enabled audio plays in the lobby and intermissions and explicit enable confirms output
+ok 29 - enabled audio plays in the lobby and intermissions and explicit enable confirms output
+  ---
+  duration_ms: 0.102084
+  ...
+# Subtest: two jazz tunes swing in tempo and use soft walking bass and seventh chords
+ok 30 - two jazz tunes swing in tempo and use soft walking bass and seventh chords
+  ---
+  duration_ms: 0.158417
+  ...
+# Subtest: director schedules swung offbeats without catch-up bursts
+ok 31 - director schedules swung offbeats without catch-up bursts
+  ---
+  duration_ms: 0.105334
+  ...
+# Subtest: gun launch plays a layered cannon cue
+ok 32 - gun launch plays a layered cannon cue
+  ---
+  duration_ms: 0.113583
+  ...
+# Subtest: a host stall over the clock threshold pauses advancing but keeps seat scopes; queued and old-scope inputs still apply
+ok 33 - a host stall over the clock threshold pauses advancing but keeps seat scopes; queued and old-scope inputs still apply
+  ---
+  duration_ms: 18.629125
+  ...
+# Subtest: a single time sample above the lease guard pauses for one sample period without rotating seat scopes
+ok 34 - a single time sample above the lease guard pauses for one sample period without rotating seat scopes
+  ---
+  duration_ms: 2.097291
+  ...
+# Subtest: continuous non-permission beyond the grace clears seats exactly once; a fresh certification re-arms it
+ok 35 - continuous non-permission beyond the grace clears seats exactly once; a fresh certification re-arms it
+  ---
+  duration_ms: 43.610584
+  ...
+# Subtest: a lease that actually lapses under a healthy clock stops advancing at once and clears seats after the grace
+ok 36 - a lease that actually lapses under a healthy clock stops advancing at once and clears seats after the grace
+  ---
+  duration_ms: 7.150542
+  ...
+# Subtest: AuthorityGrace fires once per outage, only after prior permission, and reset() scopes it to one authority
+ok 37 - AuthorityGrace fires once per outage, only after prior permission, and reset() scopes it to one authority
+  ---
+  duration_ms: 0.291208
+  ...
+# Subtest: authority recovery clears a stale pause once without overwriting subsequent command errors
+ok 38 - authority recovery clears a stale pause once without overwriting subsequent command errors
+  ---
+  duration_ms: 0.696667
+  ...
+# Subtest: a sustained pause announces itself once; further ticks preserve the notice on screen
+ok 39 - a sustained pause announces itself once; further ticks preserve the notice on screen
+  ---
+  duration_ms: 0.087583
+  ...
+# Subtest: initial permission produces confirmed status and sustained permission stays silent
+ok 40 - initial permission produces confirmed status and sustained permission stays silent
+  ---
+  duration_ms: 0.050458
+  ...
+# Subtest: ten distinct avatar ids address exactly ten atlas cells
+ok 41 - ten distinct avatar ids address exactly ten atlas cells
+  ---
+  duration_ms: 1.218625
+  ...
+# Subtest: default and selected heads appear in authoritative snapshots without changing slot color
+ok 42 - default and selected heads appear in authoritative snapshots without changing slot color
+  ---
+  duration_ms: 8.652125
+  ...
+# Subtest: live avatar messages only accept a known head and no player override
+ok 43 - live avatar messages only accept a known head and no player override
+  ---
+  duration_ms: 0.159209
+  ...
+# Subtest: disk uses radial distance rather than bounding square or cross
+ok 44 - disk uses radial distance rather than bounding square or cross
+  ---
+  duration_ms: 0.42975
+  ...
+# Subtest: swept disk detects crossing, tangent, radius padding and endpoint misses
+ok 45 - swept disk detects crossing, tangent, radius padding and endpoint misses
+  ---
+  duration_ms: 0.070625
+  ...
+# Subtest: ordered bomb edges survive a between-tick tap, while held resends do not repeat presses
+ok 46 - ordered bomb edges survive a between-tick tap, while held resends do not repeat presses
+  ---
+  duration_ms: 0.853167
+  ...
+# Subtest: interruption discards even a queued release and requires a neutral handshake
+ok 47 - interruption discards even a queued release and requires a neutral handshake
+  ---
+  duration_ms: 0.096917
+  ...
+# Subtest: overflow cancels the bounded queue and a later fresh press can recover
+ok 48 - overflow cancels the bounded queue and a later fresh press can recover
+  ---
+  duration_ms: 0.067041
+  ...
+# Subtest: target input preserves per-release aim despite later packets and caller mutation
+ok 49 - target input preserves per-release aim despite later packets and caller mutation
+  ---
+  duration_ms: 0.1095
+  ...
+# Subtest: maps charge ticks linearly between accepted minimum and maximum
+ok 50 - maps charge ticks linearly between accepted minimum and maximum
+  ---
+  duration_ms: 0.399958
+  ...
+# Subtest: projects along the release angle and clamps each coordinate to safe bounds
+ok 51 - projects along the release angle and clamps each coordinate to safe bounds
+  ---
+  duration_ms: 0.569
+  ...
+# Subtest: AI is deterministic, uses its injected random stream and never mutates the observed world
+ok 52 - AI is deterministic, uses its injected random stream and never mutates the observed world
+  ---
+  duration_ms: 9.889958
+  ...
+# Subtest: AI is neutral when absent, dead, disconnected or waiting for next round
+ok 53 - AI is neutral when absent, dead, disconnected or waiting for next round
+  ---
+  duration_ms: 0.539
+  ...
+# Subtest: AI turns away from imminent walls, trails and rider paths
+ok 54 - AI turns away from imminent walls, trails and rider paths
+  ---
+  duration_ms: 7.091292
+  ...
+# Subtest: AI considers expired and recent own trails, pickups, blasts, shells and drunk heading without changing physics
+ok 55 - AI considers expired and recent own trails, pickups, blasts, shells and drunk heading without changing physics
+  ---
+  duration_ms: 5.0205
+  ...
+# Subtest: AI presses, holds and releases ordinary bombs through the same charge/cooldown rules
+ok 56 - AI presses, holds and releases ordinary bombs through the same charge/cooldown rules
+  ---
+  duration_ms: 6.169
+  ...
+# Subtest: AI target/gun/shell shots use normal input actions and target aim is bounded
+ok 57 - AI target/gun/shell shots use normal input actions and target aim is bounded
+  ---
+  duration_ms: 4.163875
+  ...
+# Subtest: Host alone can manage AI, five shared slots are enforced, and a solo host can start
+ok 58 - Host alone can manage AI, five shared slots are enforced, and a solo host can start
+  ---
+  duration_ms: 0.970209
+  ...
+# Subtest: AI arriving during a match waits and appears in the next round without a timed click
+ok 59 - AI arriving during a match waits and appears in the next round without a timed click
+  ---
+  duration_ms: 67.431125
+  ...
+# Subtest: AI removal/reset frees its slot without converting humans or reusing old bot identity
+ok 60 - AI removal/reset frees its slot without converting humans or reusing old bot identity
+  ---
+  duration_ms: 0.28975
+  ...
+# Subtest: Checkpoint v3 restores only validated bot ownership and rejects malformed registries atomically
+ok 61 - Checkpoint v3 restores only validated bot ownership and rejects malformed registries atomically
+  ---
+  duration_ms: 3.501333
+  ...
+# Subtest: visual projection uses authoritative tick spacing during packet bursts
+ok 62 - visual projection uses authoritative tick spacing during packet bursts
+  ---
+  duration_ms: 0.650667
+  ...
+# Subtest: visual projection freezes after 50 ms and never projects death or non-playing phases
+ok 63 - visual projection freezes after 50 ms and never projects death or non-playing phases
+  ---
+  duration_ms: 0.089167
+  ...
+# Subtest: visual projection does not cross round, match, membership or timestamp boundaries
+ok 64 - visual projection does not cross round, match, membership or timestamp boundaries
+  ---
+  duration_ms: 0.090125
+  ...
+# Subtest: visual projection snaps a portal transit and resumes on the next ordinary movement pair
+ok 65 - visual projection snaps a portal transit and resumes on the next ordinary movement pair
+  ---
+  duration_ms: 0.07725
+  ...
+# Subtest: multitouch retains a control until its final pointer releases
+ok 66 - multitouch retains a control until its final pointer releases
+  ---
+  duration_ms: 0.554083
+  ...
+# Subtest: fast bomb tap and cancellation always send the falling edge
+ok 67 - fast bomb tap and cancellation always send the falling edge
+  ---
+  duration_ms: 0.105458
+  ...
+# Subtest: pointer cancellation never launches and lost capture after release is a no-op
+ok 68 - pointer cancellation never launches and lost capture after release is a no-op
+  ---
+  duration_ms: 0.083792
+  ...
+# Subtest: reconnect can force a neutral sample to rearm bomb edges
+ok 69 - reconnect can force a neutral sample to rearm bomb edges
+  ---
+  duration_ms: 0.060542
+  ...
+# Subtest: held-state resend advances sequence while idle resend stays silent
+ok 70 - held-state resend advances sequence while idle resend stays silent
+  ---
+  duration_ms: 0.14175
+  ...
+# Subtest: snapshot acceptance handles opaque match ids without lexicographic ordering
+ok 71 - snapshot acceptance handles opaque match ids without lexicographic ordering
+  ---
+  duration_ms: 0.1445
+  ...
+# Subtest: snapshot acceptance rejects an older round in the active match
+ok 72 - snapshot acceptance rejects an older round in the active match
+  ---
+  duration_ms: 0.050542
+  ...
+# Subtest: target preview projects for at most one tick and stays inside the arena
+ok 73 - target preview projects for at most one tick and stays inside the arena
+  ---
+  duration_ms: 0.103
+  ...
+# Subtest: shell visuals advance between server ticks and reflect off walls without changing authority
+ok 74 - shell visuals advance between server ticks and reflect off walls without changing authority
+  ---
+  duration_ms: 0.221084
+  ...
+# Subtest: public smoke exercises real gateway socket boundaries and emits no credentials
+ok 75 - public smoke exercises real gateway socket boundaries and emits no credentials
+  ---
+  duration_ms: 61.452291
+  ...
+# Subtest: public smoke stops on broken CORS and reports only a safe check label
+ok 76 - public smoke stops on broken CORS and reports only a safe check label
+  ---
+  duration_ms: 9.914625
+  ...
+# Subtest: public smoke rejects plaintext and credential-bearing production origins before requests
+ok 77 - public smoke rejects plaintext and credential-bearing production origins before requests
+  ---
+  duration_ms: 3023.340125
+  ...
+# Subtest: arrows share held state and Space emits exactly one press and release despite repeats
+ok 78 - arrows share held state and Space emits exactly one press and release despite repeats
+  ---
+  duration_ms: 2.110584
+  ...
+# Subtest: pointer ownership survives keyboard release and cancellation
+ok 79 - pointer ownership survives keyboard release and cancellation
+  ---
+  duration_ms: 0.1415
+  ...
+# Subtest: menu/focus/visibility cancellation never fires and repeat after reset cannot restart charge
+ok 80 - menu/focus/visibility cancellation never fires and repeat after reset cannot restart charge
+  ---
+  duration_ms: 0.201625
+  ...
+# Subtest: blocked and unrelated keys retain normal browser handling
+ok 81 - blocked and unrelated keys retain normal browser handling
+  ---
+  duration_ms: 0.176375
+  ...
+# Subtest: blocked new key clears previously held keys without releasing a bomb
+ok 82 - blocked new key clears previously held keys without releasing a bomb
+  ---
+  duration_ms: 0.135042
+  ...
+# Subtest: browser modifier shortcuts remain untouched while keyup releases an earlier plain hold
+ok 83 - browser modifier shortcuts remain untouched while keyup releases an earlier plain hold
+  ---
+  duration_ms: 0.247709
+  ...
+# Subtest: A and D aliases retain independent held ownership from arrow keys
+ok 84 - A and D aliases retain independent held ownership from arrow keys
+  ---
+  duration_ms: 0.168375
+  ...
+# Subtest: keyboard ArrowLeft/ArrowRight and Space share serialized steering and charge/release semantics
+ok 85 - keyboard ArrowLeft/ArrowRight and Space share serialized steering and charge/release semantics
+  ---
+  duration_ms: 1.263417
+  ...
+# Subtest: keyboard KeyA/KeyD and Space share serialized steering and charge/release semantics
+ok 86 - keyboard KeyA/KeyD and Space share serialized steering and charge/release semantics
+  ---
+  duration_ms: 0.11675
+  ...
+# Subtest: arrow and letter aliases keep steering until both keys are released
+ok 87 - arrow and letter aliases keep steering until both keys are released
+  ---
+  duration_ms: 0.43975
+  ...
+# Subtest: keyboard and pointer holds do not release each other
+ok 88 - keyboard and pointer holds do not release each other
+  ---
+  duration_ms: 0.318791
+  ...
+# Subtest: focus/lifecycle cancellation never fires or reactivates a held key on repeat
+ok 89 - focus/lifecycle cancellation never fires or reactivates a held key on repeat
+  ---
+  duration_ms: 0.200417
+  ...
+# Subtest: typing, disabled contexts and browser shortcuts are left alone, but keyup still releases
+ok 90 - typing, disabled contexts and browser shortcuts are left alone, but keyup still releases
+  ---
+  duration_ms: 0.451542
+  ...
+# Subtest: recycled pointer ownership cancels old steering and makes both buttons reusable
+ok 91 - recycled pointer ownership cancels old steering and makes both buttons reusable
+  ---
+  duration_ms: 0.395042
+  ...
+# Subtest: global release works if capture throws and leaves simultaneous touches intact
+ok 92 - global release works if capture throws and leaves simultaneous touches intact
+  ---
+  duration_ms: 0.265333
+  ...
+# Subtest: lost capture and clear cancel charge without accidental release, then recover immediately
+ok 93 - lost capture and clear cancel charge without accidental release, then recover immediately
+  ---
+  duration_ms: 0.291583
+  ...
+# Subtest: disabled buttons, unrelated capture loss, right clicks and duplicate terminal events do nothing
+ok 94 - disabled buttons, unrelated capture loss, right clicks and duplicate terminal events do nothing
+  ---
+  duration_ms: 0.220542
+  ...
+# Subtest: input model independently repairs pointer reassignment and preserves duplicate down
+ok 95 - input model independently repairs pointer reassignment and preserves duplicate down
+  ---
+  duration_ms: 0.167959
+  ...
+# Subtest: held drag enters, switches and exits buttons without tapping; hovering does not press
+ok 96 - held drag enters, switches and exits buttons without tapping; hovering does not press
+  ---
+  duration_ms: 0.390417
+  ...
+# Subtest: Target aim keeps its thumb while sliding across other controls
+ok 97 - Target aim keeps its thumb while sliding across other controls
+  ---
+  duration_ms: 0.61325
+  ...
+# Subtest: cancelled or cleared contacts cannot slide-reactivate before lifting
+ok 98 - cancelled or cleared contacts cannot slide-reactivate before lifting
+  ---
+  duration_ms: 0.2105
+  ...
+# Subtest: target trackpad uses relative motion, throttles packets and sends final release coordinates
+ok 99 - target trackpad uses relative motion, throttles packets and sends final release coordinates
+  ---
+  duration_ms: 0.955666
+  ...
+# Subtest: aim clamps the board and other fingers cannot move it; cancellation clears it
+ok 100 - aim clamps the board and other fingers cannot move it; cancellation clears it
+  ---
+  duration_ms: 0.134792
+  ...
+# Subtest: second Fire contact inherits aim without a jump, refresh does not reset active aim
+ok 101 - second Fire contact inherits aim without a jump, refresh does not reset active aim
+  ---
+  duration_ms: 0.080791
+  ...
+# Subtest: ordinary controls send no aim and invalid positions do not corrupt it
+ok 102 - ordinary controls send no aim and invalid positions do not corrupt it
+  ---
+  duration_ms: 0.074417
+  ...
+# Subtest: host intention waits for permission, latest wins, expires and cannot cross authority reset
+ok 103 - host intention waits for permission, latest wins, expires and cannot cross authority reset
+  ---
+  duration_ms: 0.735125
+  ...
+# Subtest: wire actions use full uint32 ticks and strict bounded MessagePack tuples
+ok 104 - wire actions use full uint32 ticks and strict bounded MessagePack tuples
+  ---
+  duration_ms: 1.8365
+  ...
+# Subtest: independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+ok 105 - independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+  ---
+  duration_ms: 0.38225
+  ...
+# Subtest: conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+ok 106 - conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+  ---
+  duration_ms: 0.34875
+  ...
+# Subtest: whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+ok 107 - whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+  ---
+  duration_ms: 83.68375
+  ...
+# Subtest: all same-tick press/release packet permutations yield exactly one identical shot
+ok 108 - all same-tick press/release packet permutations yield exactly one identical shot
+  ---
+  duration_ms: 67.945083
+  ...
+# Subtest: replacement press restarts charge; old release cannot fire the newer gesture
+ok 109 - replacement press restarts charge; old release cannot fire the newer gesture
+  ---
+  duration_ms: 3.802125
+  ...
+# Subtest: missing press never invents charge; cancel and aiming preserve per-action target order
+ok 110 - missing press never invents charge; cancel and aiming preserve per-action target order
+  ---
+  duration_ms: 11.226583
+  ...
+# Subtest: idle repair delivers a lost final release; receipt loss never duplicates shots
+ok 111 - idle repair delivers a lost final release; receipt loss never duplicates shots
+  ---
+  duration_ms: 5.150583
+  ...
+# Subtest: origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+ok 112 - origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+  ---
+  duration_ms: 20.105875
+  ...
+# Subtest: finality waits for cross-channel input gaps, then emits derived effects exactly once
+ok 113 - finality waits for cross-channel input gaps, then emits derived effects exactly once
+  ---
+  duration_ms: 13.496916
+  ...
+# Subtest: finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+ok 114 - finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+  ---
+  duration_ms: 22.201209
+  ...
+# Subtest: speculation pauses at its fixed bound and resumes after verified finality
+ok 115 - speculation pauses at its fixed bound and resumes after verified finality
+  ---
+  duration_ms: 50.735291
+  ...
+# Subtest: malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+ok 116 - malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+  ---
+  duration_ms: 5.993042
+  ...
+# Subtest: invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+ok 117 - invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+  ---
+  duration_ms: 7.759084
+  ...
+# Subtest: encoded history budget rejects growth atomically rather than discarding rollback dependencies
+ok 118 - encoded history budget rejects growth atomically rather than discarding rollback dependencies
+  ---
+  duration_ms: 4.525958
+  ...
+# Subtest: six independently advancing replicas converge through delayed/reordered delivery for five streams
+ok 119 - six independently advancing replicas converge through delayed/reordered delivery for five streams
+  ---
+  duration_ms: 5886.751042
+  ...
+# Subtest: new completeness cuts preserve older promises and already certified progress
+ok 120 - new completeness cuts preserve older promises and already certified progress
+  ---
+  duration_ms: 0.170875
+  ...
+# Subtest: watermark cuts, including empty periods, have a hard retention bound
+ok 121 - watermark cuts, including empty periods, have a hard retention bound
+  ---
+  duration_ms: 0.853
+  ...
+# Subtest: bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+ok 122 - bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+  ---
+  duration_ms: 1.293375
+  ...
+# Subtest: older complete finality advances while newer certificates still await input repair
+ok 123 - older complete finality advances while newer certificates still await input repair
+  ---
+  duration_ms: 23.9065
+  ...
+# Subtest: pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+ok 124 - pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+  ---
+  duration_ms: 9.937375
+  ...
+# Subtest: pending finality has a forty-tick bound and encoded-byte admission is atomic
+ok 125 - pending finality has a forty-tick bound and encoded-byte admission is atomic
+  ---
+  duration_ms: 9.657584
+  ...
+# Subtest: lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+ok 126 - lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+  ---
+  duration_ms: 0.508542
+  ...
+# Subtest: delivery exact cuts exclude future groups and cannot contradict retained actions
+ok 127 - delivery exact cuts exclude future groups and cannot contradict retained actions
+  ---
+  duration_ms: 0.10725
+  ...
+# Subtest: remote future staging derives from both clock uncertainties without extending the execution horizon
+ok 128 - remote future staging derives from both clock uncertainties without extending the execution horizon
+  ---
+  duration_ms: 13.567083
+  ...
+# Subtest: recovery distinguishes invalid action admission from verified finality disagreement
+ok 129 - recovery distinguishes invalid action admission from verified finality disagreement
+  ---
+  duration_ms: 3.655833
+  ...
+# Subtest: compact control admits only complete bounded clock and finality schemas
+ok 130 - compact control admits only complete bounded clock and finality schemas
+  ---
+  duration_ms: 1.596708
+  ...
+# Subtest: immutable roster permissions authorize disjoint action and receipt slot flows
+ok 131 - immutable roster permissions authorize disjoint action and receipt slot flows
+  ---
+  duration_ms: 0.60675
+  ...
+# Subtest: flow burst and refill are exact, and repeated binding never refills them
+ok 132 - flow burst and refill are exact, and repeated binding never refills them
+  ---
+  duration_ms: 0.414
+  ...
+# Subtest: five legitimate100Hz stream flows preserve their separate liveness allowance
+ok 133 - five legitimate100Hz stream flows preserve their separate liveness allowance
+  ---
+  duration_ms: 2.838125
+  ...
+# Subtest: liveness has a reserved burst even when all five flow bursts are used
+ok 134 - liveness has a reserved burst even when all five flow bursts are used
+  ---
+  duration_ms: 0.426
+  ...
+# Subtest: packet limits apply before parsing and the association budget survives alias changes
+ok 135 - packet limits apply before parsing and the association budget survives alias changes
+  ---
+  duration_ms: 0.388916
+  ...
+# Subtest: held controls emit only edges, with independent wire and UI sequence numbering
+ok 136 - held controls emit only edges, with independent wire and UI sequence numbering
+  ---
+  duration_ms: 1.236542
+  ...
+# Subtest: a local change group is atomic until the caller installs the candidate
+ok 137 - a local change group is atomic until the caller installs the candidate
+  ---
+  duration_ms: 1.525042
+  ...
+# Subtest: all subscriber candidates admit a full group before bytes, and failed enqueue retains it for repair
+ok 138 - all subscriber candidates admit a full group before bytes, and failed enqueue retains it for repair
+  ---
+  duration_ms: 0.536541
+  ...
+# Subtest: press replacement, missing press, release and neutral cancellation preserve gesture semantics
+ok 139 - press replacement, missing press, release and neutral cancellation preserve gesture semantics
+  ---
+  duration_ms: 0.166625
+  ...
+# Subtest: origin exact cuts cannot cover future actions or permit a later action before the cut
+ok 140 - origin exact cuts cannot cover future actions or permit a later action before the cut
+  ---
+  duration_ms: 0.21875
+  ...
+# Subtest: invalid local frames and exhausted ticks consume neither revisions nor actions
+ok 141 - invalid local frames and exhausted ticks consume neither revisions nor actions
+  ---
+  duration_ms: 0.219167
+  ...
+# Subtest: future start requires coordinator confirmation, and both clocks advance without gameplay packets
+ok 142 - future start requires coordinator confirmation, and both clocks advance without gameplay packets
+  ---
+  duration_ms: 0.563542
+  ...
+# Subtest: lowest RTT filtering tolerates valid asymmetric delay without a false four-tick fault
+ok 143 - lowest RTT filtering tolerates valid asymmetric delay without a false four-tick fault
+  ---
+  duration_ms: 0.101834
+  ...
+# Subtest: running clock slews in either direction at one tick per second and never moves backward
+ok 144 - running clock slews in either direction at one tick per second and never moves backward
+  ---
+  duration_ms: 0.155292
+  ...
+# Subtest: scope fences, expired and reordered replies cannot move time or refresh readiness
+ok 145 - scope fences, expired and reordered replies cannot move time or refresh readiness
+  ---
+  duration_ms: 0.137916
+  ...
+# Subtest: discrepancy and monotonic-clock faults stay latched, including on the coordinator
+ok 146 - discrepancy and monotonic-clock faults stay latched, including on the coordinator
+  ---
+  duration_ms: 0.131709
+  ...
+# Subtest: stale baseline recovery remains conservative, and a failed release cannot revive after a fresh sample
+ok 147 - stale baseline recovery remains conservative, and a failed release cannot revive after a fresh sample
+  ---
+  duration_ms: 0.130625
+  ...
+# Subtest: origin bounds unpublished tick frontiers and publishing a cut restores capacity atomically
+ok 148 - origin bounds unpublished tick frontiers and publishing a cut restores capacity atomically
+  ---
+  duration_ms: 0.434083
+  ...
+# Subtest: expiry cannot turn an uncertain idle clock into a qualified projection
+ok 149 - expiry cannot turn an uncertain idle clock into a qualified projection
+  ---
+  duration_ms: 0.142333
+  ...
+# Subtest: uncertainty admission persists even when no read occurs before samples expire
+ok 150 - uncertainty admission persists even when no read occurs before samples expire
+  ---
+  duration_ms: 0.06575
+  ...
+# Subtest: initial room preparation accepts tick-stamped snapshots and rejects unknown snapshot fields
+ok 151 - initial room preparation accepts tick-stamped snapshots and rejects unknown snapshot fields
+  ---
+  duration_ms: 7.880084
+  ...
+# Subtest: lifecycle changes reproduce validated management operations with neutral input state
+ok 152 - lifecycle changes reproduce validated management operations with neutral input state
+  ---
+  duration_ms: 23.128791
+  ...
+# Subtest: lifecycle checkpoint validation fences the actual old state and leaves healthy state untouched
+ok 153 - lifecycle checkpoint validation fences the actual old state and leaves healthy state untouched
+  ---
+  duration_ms: 9.803583
+  ...
+# Subtest: controller status contains no world geometry and cannot change stream ownership
+ok 154 - controller status contains no world geometry and cannot change stream ownership
+  ---
+  duration_ms: 4.257583
+  ...
+# Subtest: room catalogs and delegation validate identities and mode-specific simulator ownership
+ok 155 - room catalogs and delegation validate identities and mode-specific simulator ownership
+  ---
+  duration_ms: 2.661458
+  ...
+# Subtest: played lobby catalog reconstructs the exact nonzero-tick checkpoint and ordered historical scores
+ok 156 - played lobby catalog reconstructs the exact nonzero-tick checkpoint and ordered historical scores
+  ---
+  duration_ms: 2.288167
+  ...
+# Subtest: full-view preparation rejects a valid checkpoint paired with a different phase, round or status
+ok 157 - full-view preparation rejects a valid checkpoint paired with a different phase, round or status
+  ---
+  duration_ms: 14.649917
+  ...
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 158 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 338.6555
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 159 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 128.487333
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 160 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 137.768541
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 161 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 508.739542
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 162 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 49.388958
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 163 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 308.649042
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 164 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 73.871167
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 165 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 265.115625
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 166 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 587.571125
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 167 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 66.001542
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 168 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 330.09025
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 169 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 73.197334
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 170 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 139.582584
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 171 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 63.103167
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+ok 172 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 73.794
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 173 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 318.917291
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 174 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 255.472791
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 175 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 263.43925
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 176 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 245.332
+  ...
+# Subtest: six live segments independently advance and finalize continuous inputs under loss and reordering
+ok 177 - six live segments independently advance and finalize continuous inputs under loss and reordering
+  ---
+  duration_ms: 1557.394708
+  ...
+# Subtest: shared TV is the only simulator while five controller origins send directly to it
+ok 178 - shared TV is the only simulator while five controller origins send directly to it
+  ---
+  duration_ms: 33.617208
+  ...
+# Subtest: coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+ok 179 - coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+  ---
+  duration_ms: 113.469084
+  ...
+# Subtest: provisional eliminations cannot publish death or placements before verified finality
+ok 180 - provisional eliminations cannot publish death or placements before verified finality
+  ---
+  duration_ms: 2.7605
+  ...
+# Subtest: controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+ok 181 - controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+  ---
+  duration_ms: 7.291125
+  ...
+# Subtest: asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+ok 182 - asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+  ---
+  duration_ms: 543.029625
+  ...
+# Subtest: initial progress grace is bounded and replayed base cuts cannot postpone it
+ok 183 - initial progress grace is bounded and replayed base cuts cannot postpone it
+  ---
+  duration_ms: 131.825209
+  ...
+# Subtest: after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+ok 184 - after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+  ---
+  duration_ms: 57.246541
+  ...
+# Subtest: uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+ok 185 - uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+  ---
+  duration_ms: 2.042375
+  ...
+# Subtest: integrated sway remains within 15 degrees and leaves zero heading drift for many seeded effects
+ok 186 - integrated sway remains within 15 degrees and leaves zero heading drift for many seeded effects
+  ---
+  duration_ms: 13.147583
+  ...
+# Subtest: two-second cycle preserves phase during refresh and smooth onset/expiry
+ok 187 - two-second cycle preserves phase during refresh and smooth onset/expiry
+  ---
+  duration_ms: 0.145583
+  ...
+# Subtest: engine adds bounded sway to ordinary steering and restores intended heading at expiry
+ok 188 - engine adds bounded sway to ordinary steering and restores intended heading at expiry
+  ---
+  duration_ms: 10.9145
+  ...
+# Subtest: late refresh stays bounded and leaves no residual at the extended deadline
+ok 189 - late refresh stays bounded and leaves no residual at the extended deadline
+  ---
+  duration_ms: 0.15575
+  ...
+# Subtest: durationText rounds whole seconds before splitting minutes so 59.95s never renders as "60s"
+ok 190 - durationText rounds whole seconds before splitting minutes so 59.95s never renders as "60s"
+  ---
+  duration_ms: 0.393
+  ...
+# Subtest: spawns two through five players evenly on a circle with clockwise tangent headings
+ok 191 - spawns two through five players evenly on a circle with clockwise tangent headings
+  ---
+  duration_ms: 6.558709
+  ...
+# Subtest: replaying the same accepted inputs produces the same snapshots and events
+ok 192 - replaying the same accepted inputs produces the same snapshots and events
+  ---
+  duration_ms: 79.374041
+  ...
+# Subtest: trail segments remain active through T+159 and expire exactly at T+160
+ok 193 - trail segments remain active through T+159 and expire exactly at T+160
+  ---
+  duration_ms: 1.306458
+  ...
+# Subtest: a due blast removes an intersecting segment before trail collision
+ok 194 - a due blast removes an intersecting segment before trail collision
+  ---
+  duration_ms: 1.287084
+  ...
+# Subtest: swept movement collides with an old trail even when the endpoint has crossed it
+ok 195 - swept movement collides with an old trail even when the endpoint has crossed it
+  ---
+  duration_ms: 0.467375
+  ...
+# Subtest: recent self trail is ignored but becomes lethal at the exact grace boundary
+ok 196 - recent self trail is ignored but becomes lethal at the exact grace boundary
+  ---
+  duration_ms: 0.7555
+  ...
+# Subtest: head-on swept rider collision eliminates both and produces a draw
+ok 197 - head-on swept rider collision eliminates both and produces a draw
+  ---
+  duration_ms: 0.468625
+  ...
+# Subtest: bomb input charges, launches on release, caps one live bomb, chains once, and observes cooldown
+ok 198 - bomb input charges, launches on release, caps one live bomb, chains once, and observes cooldown
+  ---
+  duration_ms: 0.829833
+  ...
+# Subtest: quick bomb action bursts launch at minimum range and cancel paths never launch
+ok 199 - quick bomb action bursts launch at minimum range and cancel paths never launch
+  ---
+  duration_ms: 2.048542
+  ...
+# Subtest: charged launches cap and clamp to the active safe interior
+ok 200 - charged launches cap and clamp to the active safe interior
+  ---
+  duration_ms: 0.446083
+  ...
+# Subtest: a flying bomb cannot explode or chain-trigger before landing
+ok 201 - a flying bomb cannot explode or chain-trigger before landing
+  ---
+  duration_ms: 0.437375
+  ...
+# Subtest: Triple Shot releases one deterministic straight three-bomb volley
+ok 202 - Triple Shot releases one deterministic straight three-bomb volley
+  ---
+  duration_ms: 0.72275
+  ...
+# Subtest: invalid release and cancellation preserve launch modifiers
+ok 203 - invalid release and cancellation preserve launch modifiers
+  ---
+  duration_ms: 0.4035
+  ...
+# Subtest: round wins score once, first to three ends the match, and rematch resets wins and scope
+ok 204 - round wins score once, first to three ends the match, and rematch resets wins and scope
+  ---
+  duration_ms: 1.53075
+  ...
+# Subtest: overtime inset updates before collision and a 90-second unresolved round draws
+ok 205 - overtime inset updates before collision and a 90-second unresolved round draws
+  ---
+  duration_ms: 3.995125
+  ...
+# Subtest: lifecycle commands enforce phase, capacity, identity, and connected-player guards
+ok 206 - lifecycle commands enforce phase, capacity, identity, and connected-player guards
+  ---
+  duration_ms: 0.885125
+  ...
+# Subtest: wall and explosion causes are authoritative, clipped, and blast visuals expire exactly
+ok 207 - wall and explosion causes are authoritative, clipped, and blast visuals expire exactly
+  ---
+  duration_ms: 2.218125
+  ...
+# Subtest: a finished match can replace every seat and start a clean rematch without restarting the server
+ok 208 - a finished match can replace every seat and start a clean rematch without restarting the server
+  ---
+  duration_ms: 1.009042
+  ...
+# Subtest: the larger arena and seeded pickup schedule replay deterministically
+ok 209 - the larger arena and seeded pickup schedule replay deterministically
+  ---
+  duration_ms: 1.583458
+  ...
+# Subtest: blast pickups cap at level two and affect bombs placed on the collection tick
+ok 210 - blast pickups cap at level two and affect bombs placed on the collection tick
+  ---
+  duration_ms: 1.268833
+  ...
+# Subtest: a star collected on the swept path rescues and reflects a wall hit, then expires sharply
+ok 211 - a star collected on the swept path rescues and reflects a wall hit, then expires sharply
+  ---
+  duration_ms: 1.259291
+  ...
+# Subtest: star head contact kills only a normal rider while two stars pass through
+ok 212 - star head contact kills only a normal rider while two stars pass through
+  ---
+  duration_ms: 2.524542
+  ...
+# Subtest: pickup expiry, active cap, and impossible safe interior stay bounded
+ok 213 - pickup expiry, active cap, and impossible safe interior stay bounded
+  ---
+  duration_ms: 2.089833
+  ...
+# Subtest: beer pickup debuffs every other living rider, refreshes, and keeps the collector unchanged
+ok 214 - beer pickup debuffs every other living rider, refreshes, and keeps the collector unchanged
+  ---
+  duration_ms: 0.66275
+  ...
+# Subtest: drunk wobble expires at the strict tick boundary and resets between rounds
+ok 215 - drunk wobble expires at the strict tick boundary and resets between rounds
+  ---
+  duration_ms: 0.454833
+  ...
+# Subtest: modifier pickups arm one use, refresh without stacking, and reset between rounds
+ok 216 - modifier pickups arm one use, refresh without stacking, and reset between rounds
+  ---
+  duration_ms: 0.459708
+  ...
+# Subtest: orbit shields absorb a whole clustered hazard tick and grace protects until strict expiry
+ok 217 - orbit shields absorb a whole clustered hazard tick and grace protects until strict expiry
+  ---
+  duration_ms: 0.565208
+  ...
+# Subtest: two shields both break on contact while Star preserves its stored shield
+ok 218 - two shields both break on contact while Star preserves its stored shield
+  ---
+  duration_ms: 0.67825
+  ...
+# Subtest: shield break reflects an outward wall sweep and records the bounce
+ok 219 - shield break reflects an outward wall sweep and records the bounce
+  ---
+  duration_ms: 0.366541
+  ...
+# Subtest: countdown leave is stamped, scored once, and a later join receives no prior-round award
+ok 220 - countdown leave is stamped, scored once, and a later join receives no prior-round award
+  ---
+  duration_ms: 0.45725
+  ...
+# Subtest: overlapping blast owners receive no speculative elimination credit
+ok 221 - overlapping blast owners receive no speculative elimination credit
+  ---
+  duration_ms: 1.080125
+  ...
+# Subtest: match-over recap is frozen and deeply detached from engine state
+ok 222 - match-over recap is frozen and deeply detached from engine state
+  ---
+  duration_ms: 0.495708
+  ...
+# Subtest: Five Shot survives Triple collection and cancellation, then launches five with one cooldown
+ok 223 - Five Shot survives Triple collection and cancellation, then launches five with one cooldown
+  ---
+  duration_ms: 0.657917
+  ...
+# Subtest: radial blast hits diagonal riders, clears diagonal trails and chains diagonal bombs
+ok 224 - radial blast hits diagonal riders, clears diagonal trails and chains diagonal bombs
+  ---
+  duration_ms: 0.588167
+  ...
+# Subtest: bomb landing hits a rider before detonation, respecting star and shield
+ok 225 - bomb landing hits a rider before detonation, respecting star and shield
+  ---
+  duration_ms: 1.7585
+  ...
+# Subtest: a bomb landing inside an active blast chains immediately
+ok 226 - a bomb landing inside an active blast chains immediately
+  ---
+  duration_ms: 2.129541
+  ...
+# Subtest: blast preview is harmless before the fuse, both in flight and after landing
+ok 227 - blast preview is harmless before the fuse, both in flight and after landing
+  ---
+  duration_ms: 3.122458
+  ...
+# Subtest: bomb skips riders along flight and only snipes at its landing position
+ok 228 - bomb skips riders along flight and only snipes at its landing position
+  ---
+  duration_ms: 0.84975
+  ...
+# Subtest: landing step never uses blast radius for contact damage
+ok 229 - landing step never uses blast radius for contact damage
+  ---
+  duration_ms: 7.104833
+  ...
+# Subtest: shell persists beyond five seconds and permits another shot after cooldown
+ok 230 - shell persists beyond five seconds and permits another shot after cooldown
+  ---
+  duration_ms: 1.106167
+  ...
+# Subtest: shell body hits once, shield absorbs it, and no blast radius is produced
+ok 231 - shell body hits once, shield absorbs it, and no blast radius is produced
+  ---
+  duration_ms: 0.961417
+  ...
+# Subtest: Gun pickup fires one bullet at twice rider speed and cuts a traversable trail gap
+ok 232 - Gun pickup fires one bullet at twice rider speed and cuts a traversable trail gap
+  ---
+  duration_ms: 2.003417
+  ...
+# Subtest: gun head and wall impacts explode
+ok 233 - gun head and wall impacts explode
+  ---
+  duration_ms: 1.067916
+  ...
+# Subtest: stopwatch caps at two levels, changes only future own bombs and resets next round
+ok 234 - stopwatch caps at two levels, changes only future own bombs and resets next round
+  ---
+  duration_ms: 1.510792
+  ...
+# Subtest: first stopwatch level produces a one-and-a-half second fuse
+ok 235 - first stopwatch level produces a one-and-a-half second fuse
+  ---
+  duration_ms: 8.546916
+  ...
+# Subtest: live shell bounces off a rider trail without damage or resetting its lifetime
+ok 236 - live shell bounces off a rider trail without damage or resetting its lifetime
+  ---
+  duration_ms: 0.613667
+  ...
+# Subtest: gun explodes against the trail directly behind a rider and kills the rider
+ok 237 - gun explodes against the trail directly behind a rider and kills the rider
+  ---
+  duration_ms: 0.5235
+  ...
+# Subtest: a blast clears trails whether it came from a landed bomb or a gun projectile hitting a rider
+ok 238 - a blast clears trails whether it came from a landed bomb or a gun projectile hitting a rider
+  ---
+  duration_ms: 3.127959
+  ...
+# Subtest: a fixed-rounds match ends on the standings leader even when another rider wins the final round
+ok 239 - a fixed-rounds match ends on the standings leader even when another rider wins the final round
+  ---
+  duration_ms: 1.252
+  ...
+# Subtest: a drawn final round still awards the fixed-rounds match to the standings leader
+ok 240 - a drawn final round still awards the fixed-rounds match to the standings leader
+  ---
+  duration_ms: 1.810209
+  ...
+# Subtest: a fixed-rounds leader who also wins the final round is credited exactly once
+ok 241 - a fixed-rounds leader who also wins the final round is credited exactly once
+  ---
+  duration_ms: 0.917833
+  ...
+# Subtest: a fixed-rounds match tied at the final round ends without a match winner
+ok 242 - a fixed-rounds match tied at the final round ends without a match winner
+  ---
+  duration_ms: 0.797083
+  ...
+# Subtest: gun speed is twice rider speed with a bounded nearby steering correction
+ok 243 - gun speed is twice rider speed with a bounded nearby steering correction
+  ---
+  duration_ms: 1.091792
+  ...
+# Subtest: gun holes split trails precisely, keeping expiry metadata and distant trails
+ok 244 - gun holes split trails precisely, keeping expiry metadata and distant trails
+  ---
+  duration_ms: 0.148875
+  ...
+# Subtest: defaults carry two STUN providers and no TURN
+ok 245 - defaults carry two STUN providers and no TURN
+  ---
+  duration_ms: 0.756416
+  ...
+# Subtest: service ICE lists are validated at the client boundary and fall back to defaults
+ok 246 - service ICE lists are validated at the client boundary and fall back to defaults
+  ---
+  duration_ms: 0.249625
+  ...
+# Subtest: peer connections wait for the ICE fetch instead of negotiating with the initial list (issue \#27)
+ok 247 - peer connections wait for the ICE fetch instead of negotiating with the initial list (issue \#27)
+  ---
+  duration_ms: 0.27
+  ...
+# Subtest: a failed ICE fetch yields the STUN defaults, never an empty list
+ok 248 - a failed ICE fetch yields the STUN defaults, never an empty list
+  ---
+  duration_ms: 0.190167
+  ...
+# Subtest: a hung ICE fetch falls back to the STUN defaults when the abort bound fires, even if the fetch ignores the signal
+ok 249 - a hung ICE fetch falls back to the STUN defaults when the abort bound fires, even if the fetch ignores the signal
+  ---
+  duration_ms: 0.161834
+  ...
+# Subtest: candidate types are read from the candidate line without keeping addresses
+ok 250 - candidate types are read from the candidate line without keeping addresses
+  ---
+  duration_ms: 0.460542
+  ...
+# Subtest: ufrag and fingerprint readers tolerate missing lines
+ok 251 - ufrag and fingerprint readers tolerate missing lines
+  ---
+  duration_ms: 0.484167
+  ...
+# Subtest: restart offers keep the DTLS certificate; a recreated connection does not
+ok 252 - restart offers keep the DTLS certificate; a recreated connection does not
+  ---
+  duration_ms: 0.068584
+  ...
+# Subtest: candidates are scoped to the ICE generation named by their ufrag
+ok 253 - candidates are scoped to the ICE generation named by their ufrag
+  ---
+  duration_ms: 0.109333
+  ...
+# Subtest: Ink affects only other living riders, refreshes three seconds and snapshots without changing steering
+ok 254 - Ink affects only other living riders, refreshes three seconds and snapshots without changing steering
+  ---
+  duration_ms: 32.761958
+  ...
+# Subtest: Ink clears at the next round
+ok 255 - Ink clears at the next round
+  ---
+  duration_ms: 3.396417
+  ...
+# Subtest: join survives authority setup and failed delivery until roster confirmation
+ok 256 - join survives authority setup and failed delivery until roster confirmation
+  ---
+  duration_ms: 0.739792
+  ...
+# Subtest: lost baseline retries identical full envelope on bounded clock, not dependent deltas
+ok 257 - lost baseline retries identical full envelope on bounded clock, not dependent deltas
+  ---
+  duration_ms: 1.212
+  ...
+# Subtest: lost ACK can acknowledge exact previously accepted duplicate without applying it twice
+ok 258 - lost ACK can acknowledge exact previously accepted duplicate without applying it twice
+  ---
+  duration_ms: 0.481042
+  ...
+# Subtest: old generation stream sequence match and round ACKs cannot retire current baseline
+ok 259 - old generation stream sequence match and round ACKs cannot retire current baseline
+  ---
+  duration_ms: 0.132291
+  ...
+# Subtest: five-second expiry bounds retained baseline and repeated poll/resync cannot flood retries
+ok 260 - five-second expiry bounds retained baseline and repeated poll/resync cannot flood retries
+  ---
+  duration_ms: 2.195959
+  ...
+# Subtest: baseline is accepted before any dependent delta; ACK loss does not corrupt next decode
+ok 261 - baseline is accepted before any dependent delta; ACK loss does not corrupt next decode
+  ---
+  duration_ms: 0.65
+  ...
+# Subtest: creates a deterministic straight triple fan with seven points per bomb
+ok 262 - creates a deterministic straight triple fan with seven points per bomb
+  ---
+  duration_ms: 1.137042
+  ...
+# Subtest: all fan paths clamp to safe bounds
+ok 263 - all fan paths clamp to safe bounds
+  ---
+  duration_ms: 0.128292
+  ...
+# Subtest: rejects invalid geometry
+ok 264 - rejects invalid geometry
+  ---
+  duration_ms: 0.157125
+  ...
+# Subtest: awards five-player placement points
+ok 265 - awards five-player placement points
+  ---
+  duration_ms: 0.857167
+  ...
+# Subtest: two participants use winner five and runner-up three
+ok 266 - two participants use winner five and runner-up three
+  ---
+  duration_ms: 0.081292
+  ...
+# Subtest: averages simultaneous elimination places exactly
+ok 267 - averages simultaneous elimination places exactly
+  ---
+  duration_ms: 0.118167
+  ...
+# Subtest: does not mutate participants and rejects invalid groups
+ok 268 - does not mutate participants and rejects invalid groups
+  ---
+  duration_ms: 0.181459
+  ...
+# Subtest: survivors share the top occupied ranks at timeout and points remain conserved
+ok 269 - survivors share the top occupied ranks at timeout and points remain conserved
+  ---
+  duration_ms: 0.089833
+  ...
+# Subtest: score application validates the complete result before mutating totals
+ok 270 - score application validates the complete result before mutating totals
+  ---
+  duration_ms: 0.147333
+  ...
+# Subtest: accumulates repeated matches and preserves departures
+ok 271 - accumulates repeated matches and preserves departures
+  ---
+  duration_ms: 0.080333
+  ...
+# Subtest: returns copies in score order with deterministic tie break
+ok 272 - returns copies in score order with deterministic tie break
+  ---
+  duration_ms: 6.306542
+  ...
+# Subtest: legendSrc routes pickup legend icons through assetUrl so they work under a Pages base path
+ok 273 - legendSrc routes pickup legend icons through assetUrl so they work under a Pages base path
+  ---
+  duration_ms: 0.459334
+  ...
+# Subtest: queued retired-channel pongs cannot certify a new RTC link whose probe IDs restarted
+ok 274 - queued retired-channel pongs cannot certify a new RTC link whose probe IDs restarted
+  ---
+  duration_ms: 0.478333
+  ...
+# Subtest: a replaced channel on the same live link cannot update state or expose stale errors
+ok 275 - a replaced channel on the same live link cannot update state or expose stale errors
+  ---
+  duration_ms: 0.063166
+  ...
+# Subtest: retired peer callbacks cannot replace the current data channel even with identical service identity
+ok 276 - retired peer callbacks cannot replace the current data channel even with identical service identity
+  ---
+  duration_ms: 0.0615
+  ...
+# Subtest: the reason names the first missing step in the direct-link pipeline
+ok 277 - the reason names the first missing step in the direct-link pipeline
+  ---
+  duration_ms: 1.14125
+  ...
+# Subtest: the panel text is redacted and complete
+ok 278 - the panel text is redacted and complete
+  ---
+  duration_ms: 0.283792
+  ...
+# Subtest: restarts are due every interval and stop after the bounded budget
+ok 279 - restarts are due every interval and stop after the bounded budget
+  ---
+  duration_ms: 0.442542
+  ...
+# Subtest: fresh health restores the budget and retires the attempt in flight
+ok 280 - fresh health restores the budget and retires the attempt in flight
+  ---
+  duration_ms: 0.10575
+  ...
+# Subtest: idle health checks every 200 ms do not retire anything
+ok 281 - idle health checks every 200 ms do not retire anything
+  ---
+  duration_ms: 0.058
+  ...
+# Subtest: only the newest attempt can complete
+ok 282 - only the newest attempt can complete
+  ---
+  duration_ms: 0.048625
+  ...
+# Subtest: healthy open channel under the buffer limit is permitted for gameplay and probes
+ok 283 - healthy open channel under the buffer limit is permitted for gameplay and probes
+  ---
+  duration_ms: 1.9195
+  ...
+# Subtest: a closing signal recorded before the DOM readyState changes blocks gameplay and probe sends
+ok 284 - a closing signal recorded before the DOM readyState changes blocks gameplay and probe sends
+  ---
+  duration_ms: 0.09675
+  ...
+# Subtest: bulk transfer idle permission requires an open, fully drained, undrained action channel
+ok 285 - bulk transfer idle permission requires an open, fully drained, undrained action channel
+  ---
+  duration_ms: 0.077833
+  ...
+# Subtest: solo starts one human and four AI without browser services, ready only on start
+ok 286 - solo starts one human and four AI without browser services, ready only on start
+  ---
+  duration_ms: 10.0485
+  ...
+# Subtest: fixed ticks publish the ordinary game and matching zero-RTT motion clock
+ok 287 - fixed ticks publish the ordinary game and matching zero-RTT motion clock
+  ---
+  duration_ms: 20.440875
+  ...
+# Subtest: visibility suspension clears held controls and old scope, with no hidden catch-up
+ok 288 - visibility suspension clears held controls and old scope, with no hidden catch-up
+  ---
+  duration_ms: 8.600875
+  ...
+# Subtest: lobby settings and rematch use ordinary commands, stop disposes callbacks
+ok 289 - lobby settings and rematch use ordinary commands, stop disposes callbacks
+  ---
+  duration_ms: 1.348792
+  ...
+# Subtest: fire edges stamped from a stalled wall-clock estimate are admitted for the next authority tick (\#43)
+ok 290 - fire edges stamped from a stalled wall-clock estimate are admitted for the next authority tick (\#43)
+  ---
+  duration_ms: 18.805333
+  ...
+# Subtest: a hold resend that estimated an earlier tick cannot skip the solo press (\#43)
+ok 291 - a hold resend that estimated an earlier tick cannot skip the solo press (\#43)
+  ---
+  duration_ms: 8.927083
+  ...
+# Subtest: distances render as whole arena units and durations reuse the shared formatter
+ok 292 - distances render as whole arena units and durations reuse the shared formatter
+  ---
+  duration_ms: 0.438292
+  ...
+# Subtest: empty statistics produce an empty recap with no placeholder awards or totals
+ok 293 - empty statistics produce an empty recap with no placeholder awards or totals
+  ---
+  duration_ms: 0.526708
+  ...
+# Subtest: a single rider stands alone as champion, wins every non-zero award and fills the table
+ok 294 - a single rider stands alone as champion, wins every non-zero award and fills the table
+  ---
+  duration_ms: 0.400167
+  ...
+# Subtest: podium centres champions, keeps side places in seat order and excludes placements beyond third
+ok 295 - podium centres champions, keeps side places in seat order and excludes placements beyond third
+  ---
+  duration_ms: 0.108
+  ...
+# Subtest: a tied first place shows every champion in the centre and no second place
+ok 296 - a tied first place shows every champion in the centre and no second place
+  ---
+  duration_ms: 0.105334
+  ...
+# Subtest: a match where nobody won any round places everyone on the podium as champions
+ok 297 - a match where nobody won any round places everyone on the podium as champions
+  ---
+  duration_ms: 0.0875
+  ...
+# Subtest: awards share ties by joining names in placement order and skip counters nobody raised
+ok 298 - awards share ties by joining names in placement order and skip counters nobody raised
+  ---
+  duration_ms: 0.112834
+  ...
+# Subtest: all-zero statistics yield no awards while the podium and table still render
+ok 299 - all-zero statistics yield no awards while the podium and table still render
+  ---
+  duration_ms: 0.078958
+  ...
+# Subtest: singular award details read naturally
+ok 300 - singular award details read naturally
+  ---
+  duration_ms: 0.077209
+  ...
+# Subtest: comparison rows order by placement then seat and format every recorded counter
+ok 301 - comparison rows order by placement then seat and format every recorded counter
+  ---
+  duration_ms: 0.097417
+  ...
+# Subtest: match totals sum the recorded counters across riders
+ok 302 - match totals sum the recorded counters across riders
+  ---
+  duration_ms: 0.080917
+  ...
+# Subtest: the signature changes with any rendered figure and is order independent
+ok 303 - the signature changes with any rendered figure and is order independent
+  ---
+  duration_ms: 0.098583
+  ...
+# Subtest: recap ignores riders with an unset placement rather than inventing a podium slot
+ok 304 - recap ignores riders with an unset placement rather than inventing a podium slot
+  ---
+  duration_ms: 0.063208
+  ...
+# Subtest: records authoritative actions and returns detached snapshots
+ok 305 - records authoritative actions and returns detached snapshots
+  ---
+  duration_ms: 1.062791
+  ...
+# Subtest: tracks round draws, longest survival and competition-ranked win ties
+ok 306 - tracks round draws, longest survival and competition-ranked win ties
+  ---
+  duration_ms: 0.139209
+  ...
+# Subtest: validates references, distances and round membership
+ok 307 - validates references, distances and round membership
+  ---
+  duration_ms: 0.330292
+  ...
+# Subtest: never credits self deaths and updates an existing participant identity
+ok 308 - never credits self deaths and updates an existing participant identity
+  ---
+  duration_ms: 0.072458
+  ...
+# Subtest: a joined phone is the same landscape controller in every phase (\#13)
+ok 309 - a joined phone is the same landscape controller in every phase (\#13)
+  ---
+  duration_ms: 0.798625
+  ...
+# Subtest: unjoined, display-only, desktop and mouse views keep the normal layout
+ok 310 - unjoined, display-only, desktop and mouse views keep the normal layout
+  ---
+  duration_ms: 0.119
+  ...
+# Subtest: an ended room is not joined play on any phone size or phase
+ok 311 - an ended room is not joined play on any phone size or phase
+  ---
+  duration_ms: 0.233375
+  ...
+# Subtest: one validated nearby probe qualifies immediately; high RTT restores conservative delay
+ok 312 - one validated nearby probe qualifies immediately; high RTT restores conservative delay
+  ---
+  duration_ms: 0.654042
+  ...
+# Subtest: stale, paused and explicit reset lose qualification; rejected samples do not extend freshness
+ok 313 - stale, paused and explicit reset lose qualification; rejected samples do not extend freshness
+  ---
+  duration_ms: 0.132375
+  ...
+# Subtest: regional60ms never qualifies and a fresh scope is independently classified
+ok 314 - regional60ms never qualifies and a fresh scope is independently classified
+  ---
+  duration_ms: 0.075875
+  ...
+# Subtest: half-tick presentation never rewinds or extrapolates; missing clock remains newest only
+ok 315 - half-tick presentation never rewinds or extrapolates; missing clock remains newest only
+  ---
+  duration_ms: 0.559708
+  ...
+# Subtest: clock discontinuity clears the old clock even when observed before rendering
+ok 316 - clock discontinuity clears the old clock even when observed before rendering
+  ---
+  duration_ms: 0.092959
+  ...
+# Subtest: rejected excessive RTT cancels fast classification and exact40ms boundary qualifies
+ok 317 - rejected excessive RTT cancels fast classification and exact40ms boundary qualifies
+  ---
+  duration_ms: 0.057334
+  ...
+# Subtest: clock diagnostics are read-only and cannot refresh a sample or mutate its scope
+ok 318 - clock diagnostics are read-only and cannot refresh a sample or mutate its scope
+  ---
+  duration_ms: 0.067875
+  ...
+# Subtest: empty and invalid clock observations cannot enable fast presentation
+ok 319 - empty and invalid clock observations cannot enable fast presentation
+  ---
+  duration_ms: 0.051834
+  ...
+# Subtest: replacement reservation fences partitions and rejects delayed old renewals
+ok 320 - replacement reservation fences partitions and rejects delayed old renewals
+  ---
+  duration_ms: 0.843125
+  ...
+# Subtest: clock uncertainty prevents overlapping old and new authorization
+ok 321 - clock uncertainty prevents overlapping old and new authorization
+  ---
+  duration_ms: 0.219625
+  ...
+# Subtest: clock stops after suspension or stale samples, resuming only after fresh sample
+ok 322 - clock stops after suspension or stale samples, resuming only after fresh sample
+  ---
+  duration_ms: 0.093125
+  ...
+# Subtest: clock rejects bad samples and conservative intervals crossing lease boundaries
+ok 323 - clock rejects bad samples and conservative intervals crossing lease boundaries
+  ---
+  duration_ms: 0.091666
+  ...
+# Subtest: grant boundary validation rejects malformed values and exhausted epochs
+ok 324 - grant boundary validation rejects malformed values and exhausted epochs
+  ---
+  duration_ms: 0.285625
+  ...
+# Subtest: checkpoint restore is atomic on the malformed sequences regression
+ok 325 - checkpoint restore is atomic on the malformed sequences regression
+  ---
+  duration_ms: 12.112333
+  ...
+# Subtest: checkpoint restores exact physics, pending preferences and neutral disconnected identities
+ok 326 - checkpoint restores exact physics, pending preferences and neutral disconnected identities
+  ---
+  duration_ms: 4.052917
+  ...
+# Subtest: checkpoint rejects missing required game maps and nested fields
+ok 327 - checkpoint rejects missing required game maps and nested fields
+  ---
+  duration_ms: 24.403791
+  ...
+# Subtest: checkpoint rejects schema incompatibility, foreign host and unsafe shape extensions
+ok 328 - checkpoint rejects schema incompatibility, foreign host and unsafe shape extensions
+  ---
+  duration_ms: 9.333792
+  ...
+# Subtest: checkpoint rejects invalid sequences, duplicate map keys and cross references
+ok 329 - checkpoint rejects invalid sequences, duplicate map keys and cross references
+  ---
+  duration_ms: 10.377542
+  ...
+# Subtest: checkpoint rejects nonfinite values, excessive bytes/depth and oversized nested trails
+ok 330 - checkpoint rejects nonfinite values, excessive bytes/depth and oversized nested trails
+  ---
+  duration_ms: 10.118417
+  ...
+# Subtest: real countdown, playing and round transitions produce restorable bounded checkpoints
+ok 331 - real countdown, playing and round transitions produce restorable bounded checkpoints
+  ---
+  duration_ms: 264.211625
+  ...
+# Subtest: checkpoint validates bombs, shell lifetime sentinel, pickups and portal geometry
+ok 332 - checkpoint validates bombs, shell lifetime sentinel, pickups and portal geometry
+  ---
+  duration_ms: 2.822083
+  ...
+# Subtest: checkpoint rejects oversized history, malformed maps and missing participant statistics
+ok 333 - checkpoint rejects oversized history, malformed maps and missing participant statistics
+  ---
+  duration_ms: 9.213459
+  ...
+# Subtest: room settings reject malformed values, restore safe defaults and allow all drops off
+ok 334 - room settings reject malformed values, restore safe defaults and allow all drops off
+  ---
+  duration_ms: 0.931
+  ...
+# Subtest: rooms isolate players and only the host can start or change rules
+ok 335 - rooms isolate players and only the host can start or change rules
+  ---
+  duration_ms: 7.6195
+  ...
+# Subtest: fixed one-round rooms finish after one round
+ok 336 - fixed one-round rooms finish after one round
+  ---
+  duration_ms: 2.426459
+  ...
+# Subtest: world deltas reconstruct split, removed and appended trails and recover via keyframe
+ok 337 - world deltas reconstruct split, removed and appended trails and recover via keyframe
+  ---
+  duration_ms: 1.170417
+  ...
+# Subtest: fresh encoder after reconnection replaces old stream without accepting retired frames
+ok 338 - fresh encoder after reconnection replaces old stream without accepting retired frames
+  ---
+  duration_ms: 0.174042
+  ...
+# Subtest: host checkpoint restores world and sequence numbers without replaying held fire
+ok 339 - host checkpoint restores world and sequence numbers without replaying held fire
+  ---
+  duration_ms: 3.339667
+  ...
+# Subtest: field patches update joins and clear optional charge state without repeating identity
+ok 340 - field patches update joins and clear optional charge state without repeating identity
+  ---
+  duration_ms: 2.393125
+  ...
+# Subtest: delayed unseen old keyframe cannot roll a newer generation backward
+ok 341 - delayed unseen old keyframe cannot roll a newer generation backward
+  ---
+  duration_ms: 0.172667
+  ...
+# Subtest: invalid higher generation and corrupt trail patches cannot mutate accepted baseline
+ok 342 - invalid higher generation and corrupt trail patches cannot mutate accepted baseline
+  ---
+  duration_ms: 0.42475
+  ...
+# Subtest: online return to lobby preserves transport simulation time
+ok 343 - online return to lobby preserves transport simulation time
+  ---
+  duration_ms: 0.155542
+  ...
+# Subtest: guests that vanish in the lobby free their seats and the removal replicates to guests
+ok 344 - guests that vanish in the lobby free their seats and the removal replicates to guests
+  ---
+  duration_ms: 0.477167
+  ...
+# Subtest: a guest lost mid-round keeps its seat until the match ends, then a newcomer reclaims it
+ok 345 - a guest lost mid-round keeps its seat until the match ends, then a newcomer reclaims it
+  ---
+  duration_ms: 1.317709
+  ...
+# Subtest: a rematch drops the riders that were lost during the finished match
+ok 346 - a rematch drops the riders that were lost during the finished match
+  ---
+  duration_ms: 1.634542
+  ...
+# Subtest: a whole round of chained deltas stays exact without any periodic re-baseline
+ok 347 - a whole round of chained deltas stays exact without any periodic re-baseline
+  ---
+  duration_ms: 179.267625
+  ...
+# Subtest: Pages invites preserve project path while API requests use configured backend
+ok 348 - Pages invites preserve project path while API requests use configured backend
+  ---
+  duration_ms: 0.493708
+  ...
+# Subtest: local origin default and endpoint boundaries are explicit
+ok 349 - local origin default and endpoint boundaries are explicit
+  ---
+  duration_ms: 0.283333
+  ...
+# Subtest: failed press plus fresh held resends cannot invent charge or fire on release
+ok 350 - failed press plus fresh held resends cannot invent charge or fire on release
+  ---
+  duration_ms: 17.412834
+  ...
+# Subtest: lost final release without other held controls cancels within ten ticks and is never retried
+ok 351 - lost final release without other held controls cancels within ten ticks and is never retried
+  ---
+  duration_ms: 1.844334
+  ...
+# Subtest: steering heartbeat after lost release carries bomb false and safely cancels instead of firing
+ok 352 - steering heartbeat after lost release carries bomb false and safely cancels instead of firing
+  ---
+  duration_ms: 0.811
+  ...
+# Subtest: ordered-but-delayed release expires rather than replaying after network recovery
+ok 353 - ordered-but-delayed release expires rather than replaying after network recovery
+  ---
+  duration_ms: 1.9555
+  ...
+# Subtest: first fresh press after countdown and explicit lobby reset fires without a neutral packet
+ok 354 - first fresh press after countdown and explicit lobby reset fires without a neutral packet
+  ---
+  duration_ms: 10.898667
+  ...
+# Subtest: idle watchdog without a held gesture does not block the first fresh shot
+ok 355 - idle watchdog without a held gesture does not block the first fresh shot
+  ---
+  duration_ms: 2.964791
+  ...
+# Subtest: new scope rejects old held/release packets but accepts a fresh press
+ok 356 - new scope rejects old held/release packets but accepts a fresh press
+  ---
+  duration_ms: 0.768208
+  ...
+# Subtest: watchdog still suppresses interrupted held gestures until an actual release
+ok 357 - watchdog still suppresses interrupted held gestures until an actual release
+  ---
+  duration_ms: 1.639541
+  ...
+# Subtest: receipt is not application: future steering waits and reports exact application tick
+ok 358 - receipt is not application: future steering waits and reports exact application tick
+  ---
+  duration_ms: 10.324583
+  ...
+# Subtest: same-tick newest movement wins while all outcomes are acknowledged
+ok 359 - same-tick newest movement wins while all outcomes are acknowledged
+  ---
+  duration_ms: 0.809542
+  ...
+# Subtest: older future slot cannot undo newer applied movement and exact result acknowledgements preserve pending input
+ok 360 - older future slot cannot undo newer applied movement and exact result acknowledgements preserve pending input
+  ---
+  duration_ms: 1.784417
+  ...
+# Subtest: held acknowledged steering continues then expires at ten ticks without fresh application
+ok 361 - held acknowledged steering continues then expires at ten ticks without fresh application
+  ---
+  duration_ms: 1.594417
+  ...
+# Subtest: same-tick press/release survives steering supersession, duplicates cannot launch twice
+ok 362 - same-tick press/release survives steering supersession, duplicates cannot launch twice
+  ---
+  duration_ms: 0.982459
+  ...
+# Subtest: a press stamped later than the following hold sample is still processed first in sequence order (\#43)
+ok 363 - a press stamped later than the following hold sample is still processed first in sequence order (\#43)
+  ---
+  duration_ms: 0.705625
+  ...
+# Subtest: old-scope release cannot cancel current charge; expired current release cancels without firing
+ok 364 - old-scope release cannot cancel current charge; expired current release cancels without firing
+  ---
+  duration_ms: 0.7595
+  ...
+# Subtest: disconnect, match changes and restore create fresh neutral scope while preserving received highwater
+ok 365 - disconnect, match changes and restore create fresh neutral scope while preserving received highwater
+  ---
+  duration_ms: 1.923
+  ...
+# Subtest: queue and result history are bounded and overflow forces explicit neutral resync
+ok 366 - queue and result history are bounded and overflow forces explicit neutral resync
+  ---
+  duration_ms: 0.942334
+  ...
+# Subtest: malformed timing and aim cannot apply motion or keep an invalid release charging
+ok 367 - malformed timing and aim cannot apply motion or keep an invalid release charging
+  ---
+  duration_ms: 0.559083
+  ...
+# Subtest: queued release is discarded on disconnect and cannot fire into a rejoined control scope
+ok 368 - queued release is discarded on disconnect and cannot fire into a rejoined control scope
+  ---
+  duration_ms: 0.658458
+  ...
+# Subtest: direct-only path resumes on two fresh acknowledgements without relay quarantine
+ok 369 - direct-only path resumes on two fresh acknowledgements without relay quarantine
+  ---
+  duration_ms: 1.048083
+  ...
+# Subtest: three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+ok 370 - three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+  ---
+  duration_ms: 0.451375
+  ...
+# Subtest: restart requires eight continuously unhealthy seconds, reset by recovered health
+ok 371 - restart requires eight continuously unhealthy seconds, reset by recovered health
+  ---
+  duration_ms: 0.14375
+  ...
+# Subtest: expired duplicate and pre-failure probes cannot keep blackholed path healthy
+ok 372 - expired duplicate and pre-failure probes cannot keep blackholed path healthy
+  ---
+  duration_ms: 0.721375
+  ...
+# Subtest: effects do not replay on repeated snapshots or across authority/match reset
+ok 373 - effects do not replay on repeated snapshots or across authority/match reset
+  ---
+  duration_ms: 0.763208
+  ...
+# Subtest: bomb flight sprite follows segmented path while damage radius stays at landing point
+ok 374 - bomb flight sprite follows segmented path while damage radius stays at landing point
+  ---
+  duration_ms: 0.455792
+  ...
+# Subtest: death transitions occur once and backward presentation resets cosmetic history
+ok 375 - death transitions occur once and backward presentation resets cosmetic history
+  ---
+  duration_ms: 0.101208
+  ...
+# Subtest: flight fallback clamps before launch and shells never use bomb arcs
+ok 376 - flight fallback clamps before launch and shells never use bomb arcs
+  ---
+  duration_ms: 0.071334
+  ...
+# Subtest: a continuous bend is one stroke with the exact supplied vertices
+ok 377 - a continuous bend is one stroke with the exact supplied vertices
+  ---
+  duration_ms: 0.795125
+  ...
+# Subtest: portal jumps, deleted ticks and clipped segments remain separate strokes
+ok 378 - portal jumps, deleted ticks and clipped segments remain separate strokes
+  ---
+  duration_ms: 0.107958
+  ...
+# Subtest: history survives fractional motion, a changing predicted tip and equivalent deserialized snapshots
+ok 379 - history survives fractional motion, a changing predicted tip and equivalent deserialized snapshots
+  ---
+  duration_ms: 0.506709
+  ...
+# Subtest: history refreshes for trail holes, clipping, expiry, death, identity, scope and reset
+ok 380 - history refreshes for trail holes, clipping, expiry, death, identity, scope and reset
+  ---
+  duration_ms: 0.133125
+  ...
+# Subtest: a fresh trail follows the interpolated head by at most one simulation step
+ok 381 - a fresh trail follows the interpolated head by at most one simulation step
+  ---
+  duration_ms: 0.139667
+  ...
+# Subtest: head interpolation never extends a stale, destroyed, teleported or dead trail
+ok 382 - head interpolation never extends a stale, destroyed, teleported or dead trail
+  ---
+  duration_ms: 0.102125
+  ...
+# Subtest: arena backing follows displayed size and screen density without changing world aspect
+ok 383 - arena backing follows displayed size and screen density without changing world aspect
+  ---
+  duration_ms: 0.756791
+  ...
+# Subtest: arena backing bounds oversized displays and survives hidden or unavailable density
+ok 384 - arena backing bounds oversized displays and survives hidden or unavailable density
+  ---
+  duration_ms: 0.076458
+  ...
+# Subtest: weighted table gives Five one third Triple probability with deterministic intervals
+ok 385 - weighted table gives Five one third Triple probability with deterministic intervals
+  ---
+  duration_ms: 11.935583
+  ...
+# Subtest: Star is removed while remaining relative weights are preserved
+ok 386 - Star is removed while remaining relative weights are preserved
+  ---
+  duration_ms: 0.146583
+  ...
+# Subtest: powerup pacing ramps every twenty seconds and stays bounded in overtime
+ok 387 - powerup pacing ramps every twenty seconds and stays bounded in overtime
+  ---
+  duration_ms: 0.4215
+  ...
+# Subtest: portal transits survivors, breaks trail, preserves heading/charge, counts actual movement
+ok 388 - portal transits survivors, breaks trail, preserves heading/charge, counts actual movement
+  ---
+  duration_ms: 11.984541
+  ...
+# Subtest: entry collision is resolved before transit, and shield remains independent
+ok 389 - entry collision is resolved before transit, and shield remains independent
+  ---
+  duration_ms: 4.28725
+  ...
+# Subtest: unsafe exit defers teleport for rider, pending trail, trail, bomb and blast hazards
+ok 390 - unsafe exit defers teleport for rider, pending trail, trail, bomb and blast hazards
+  ---
+  duration_ms: 6.046458
+  ...
+# Subtest: portal grace is defensive for both riders, protects trails/walls and does not consume shield
+ok 391 - portal grace is defensive for both riders, protects trails/walls and does not consume shield
+  ---
+  duration_ms: 0.632084
+  ...
+# Subtest: portal expiry, snapshot copying, compact geometry omission and round reset
+ok 392 - portal expiry, snapshot copying, compact geometry omission and round reset
+  ---
+  duration_ms: 0.793334
+  ...
+# Subtest: portal pickup creates deterministic pair, records stats, replaces pair without clearing cooldown
+ok 393 - portal pickup creates deterministic pair, records stats, replaces pair without clearing cooldown
+  ---
+  duration_ms: 7.4655
+  ...
+# Subtest: impossible placement leaves pickup and old pair unconsumed
+ok 394 - impossible placement leaves pickup and old pair unconsumed
+  ---
+  duration_ms: 0.828542
+  ...
+# Subtest: reverse transit respects cooldown at its exact deadline after replacement
+ok 395 - reverse transit respects cooldown at its exact deadline after replacement
+  ---
+  duration_ms: 0.71725
+  ...
+# Subtest: portal defensive grace expires exactly at the authoritative tick
+ok 396 - portal defensive grace expires exactly at the authoritative tick
+  ---
+  duration_ms: 1.982917
+  ...
+# Subtest: concurrent riders preserve separate entry heights at the linked wall
+ok 397 - concurrent riders preserve separate entry heights at the linked wall
+  ---
+  duration_ms: 0.808875
+  ...
+# Subtest: wall placement remains useful on an occupied five-rider field across seeds
+ok 398 - wall placement remains useful on an occupied five-rider field across seeds
+  ---
+  duration_ms: 77.168959
+  ...
+# Subtest: authoritative overtime shrinks portal wall length and removes reclaimed walls from snapshots
+ok 399 - authoritative overtime shrinks portal wall length and removes reclaimed walls from snapshots
+  ---
+  duration_ms: 0.5035
+  ...
+# Subtest: compressed linked wall reserves an exit for the first rider rather than overlapping arrivals
+ok 400 - compressed linked wall reserves an exit for the first rider rather than overlapping arrivals
+  ---
+  duration_ms: 0.508333
+  ...
+# Subtest: placement sizes walls to one third of field, caps at 300 and reserves full corridor
+ok 401 - placement sizes walls to one third of field, caps at 300 and reserves full corridor
+  ---
+  duration_ms: 0.831666
+  ...
+# Subtest: placement remains bounded for unsafe or insufficiently separated sites
+ok 402 - placement remains bounded for unsafe or insufficiently separated sites
+  ---
+  duration_ms: 0.576833
+  ...
+# Subtest: full wall safety catches a hazard between sampled center and endpoints
+ok 403 - full wall safety catches a hazard between sampled center and endpoints
+  ---
+  duration_ms: 0.24925
+  ...
+# Subtest: swept wall entry preserves heading and relative linked height
+ok 404 - swept wall entry preserves heading and relative linked height
+  ---
+  duration_ms: 1.714542
+  ...
+# Subtest: both directions and earliest intersected wall work
+ok 405 - both directions and earliest intersected wall work
+  ---
+  duration_ms: 0.10925
+  ...
+# Subtest: rounded endpoints detect vertical and tangent contact without phantom end extensions
+ok 406 - rounded endpoints detect vertical and tangent contact without phantom end extensions
+  ---
+  duration_ms: 0.2745
+  ...
+# Subtest: cooldown, expiry, inside, stationary, moving away and short movement do not retrigger
+ok 407 - cooldown, expiry, inside, stationary, moving away and short movement do not retrigger
+  ---
+  duration_ms: 0.317667
+  ...
+# Subtest: unsafe and out-of-field exits defer transit and safety receives actual offset exit
+ok 408 - unsafe and out-of-field exits defer transit and safety receives actual offset exit
+  ---
+  duration_ms: 0.365042
+  ...
+# Subtest: shrinking trims walls and removes pairs whose centerline or usable ends are reclaimed
+ok 409 - shrinking trims walls and removes pairs whose centerline or usable ends are reclaimed
+  ---
+  duration_ms: 0.421292
+  ...
+# Subtest: motion ledger boundary rejects malformed, unbounded and contradictory tick data
+ok 410 - motion ledger boundary rejects malformed, unbounded and contradictory tick data
+  ---
+  duration_ms: 0.508292
+  ...
+# Subtest: local steering responds next frame using a partial step which never changes fixed replay
+ok 411 - local steering responds next frame using a partial step which never changes fixed replay
+  ---
+  duration_ms: 14.203542
+  ...
+# Subtest: acknowledged held turn replays exactly with no pending events, including drunk offset
+ok 412 - acknowledged held turn replays exactly with no pending events, including drunk offset
+  ---
+  duration_ms: 0.9165
+  ...
+# Subtest: fresh-input age neutralizes held controls at tick ten
+ok 413 - fresh-input age neutralizes held controls at tick ten
+  ---
+  duration_ms: 1.413583
+  ...
+# Subtest: press and release scheduled for same tick uses latest sample, received ack cannot retire either
+ok 414 - press and release scheduled for same tick uses latest sample, received ack cannot retire either
+  ---
+  duration_ms: 0.623
+  ...
+# Subtest: mismatched snapshot and application tick rejected atomically
+ok 415 - mismatched snapshot and application tick rejected atomically
+  ---
+  duration_ms: 0.763083
+  ...
+# Subtest: applied result retires pending but continues authoritative held input
+ok 416 - applied result retires pending but continues authoritative held input
+  ---
+  duration_ms: 0.607208
+  ...
+# Subtest: death and portal reset local motion and epoch invalidates timing
+ok 417 - death and portal reset local motion and epoch invalidates timing
+  ---
+  duration_ms: 0.598583
+  ...
+# Subtest: clock retains conservative send sampled bounds and rejects pause stale and invalid RTT
+ok 418 - clock retains conservative send sampled bounds and rejects pause stale and invalid RTT
+  ---
+  duration_ms: 0.079625
+  ...
+# Subtest: remote buffer uses coherent past state and fractional ticks without portal chords
+ok 419 - remote buffer uses coherent past state and fractional ticks without portal chords
+  ---
+  duration_ms: 0.77925
+  ...
+# Subtest: spectator clock advances fractional render ticks without a player seat and resets scope
+ok 420 - spectator clock advances fractional render ticks without a player seat and resets scope
+  ---
+  duration_ms: 0.542792
+  ...
+# Subtest: presentation connector is bounded and never mutates confirmed trails
+ok 421 - presentation connector is bounded and never mutates confirmed trails
+  ---
+  duration_ms: 1.340541
+  ...
+# Subtest: inactive snapshots do not invent movement correction or smoothing offsets
+ok 422 - inactive snapshots do not invent movement correction or smoothing offsets
+  ---
+  duration_ms: 4.865291
+  ...
+# Subtest: slow round trip or lagging snapshot never rejects input locally; host admission and the four-tick lead cap bound it (\#15)
+ok 423 - slow round trip or lagging snapshot never rejects input locally; host admission and the four-tick lead cap bound it (\#15)
+  ---
+  duration_ms: 0.622
+  ...
+# Subtest: transport-refused and stale inputs never count toward the bound; overflow drops the backlog instead of blocking (\#20)
+ok 424 - transport-refused and stale inputs never count toward the bound; overflow drops the backlog instead of blocking (\#20)
+  ---
+  duration_ms: 1.750916
+  ...
+# Subtest: overflow first drops inputs behind the host window and only clears a fully fresh backlog (\#15 follow-up)
+ok 425 - overflow first drops inputs behind the host window and only clears a fully fresh backlog (\#15 follow-up)
+  ---
+  duration_ms: 0.789
+  ...
+# Subtest: a lost clock limits the preview but never the send (\#65)
+ok 426 - a lost clock limits the preview but never the send (\#65)
+  ---
+  duration_ms: 0.582292
+  ...
+# Subtest: all semantic message variants validate without accepting extra fields
+ok 427 - all semantic message variants validate without accepting extra fields
+  ---
+  duration_ms: 1.116625
+  ...
+# Subtest: untrusted message shapes, sizes, tokens and input sequences fail closed
+ok 428 - untrusted message shapes, sizes, tokens and input sequences fail closed
+  ---
+  duration_ms: 0.214584
+  ...
+# Subtest: target aim accepts finite normalized coordinates only and rejects nested extras
+ok 429 - target aim accepts finite normalized coordinates only and rejects nested extras
+  ---
+  duration_ms: 0.159958
+  ...
+# Subtest: serialized recipient acknowledgement preserves own zero and negative sequences without other seats
+ok 430 - serialized recipient acknowledgement preserves own zero and negative sequences without other seats
+  ---
+  duration_ms: 0.769375
+  ...
+# Subtest: recipient ack envelopes preserve complete keyframe retry and unchanged world decoding
+ok 431 - recipient ack envelopes preserve complete keyframe retry and unchanged world decoding
+  ---
+  duration_ms: 1.009459
+  ...
+# Subtest: candidates before the remote description are buffered, bounded at 64 and flushed in order
+ok 432 - candidates before the remote description are buffered, bounded at 64 and flushed in order
+  ---
+  duration_ms: 1.710792
+  ...
+# Subtest: candidates arriving while a description is being applied wait, then apply; later ones apply directly
+ok 433 - candidates arriving while a description is being applied wait, then apply; later ones apply directly
+  ---
+  duration_ms: 0.187334
+  ...
+# Subtest: answer-side candidates that arrive after the local answer are applied against the remote description
+ok 434 - answer-side candidates that arrive after the local answer are applied against the remote description
+  ---
+  duration_ms: 0.107708
+  ...
+# Subtest: a restart offer changes the ufrag: old-generation candidates never poison it and new ones wait for it
+ok 435 - a restart offer changes the ufrag: old-generation candidates never poison it and new ones wait for it
+  ---
+  duration_ms: 0.108166
+  ...
+# Subtest: browser rejection of a candidate is counted, not thrown into the signalling loop
+ok 436 - browser rejection of a candidate is counted, not thrown into the signalling loop
+  ---
+  duration_ms: 0.099291
+  ...
+# Subtest: only actual changed heading counts, unchanged animation frames do not
+ok 437 - only actual changed heading counts, unchanged animation frames do not
+  ---
+  duration_ms: 0.717458
+  ...
+# Subtest: clock-aligned render frames detect wrapped positive heading and reject the wrong direction
+ok 438 - clock-aligned render frames detect wrapped positive heading and reject the wrong direction
+  ---
+  duration_ms: 0.12075
+  ...
+# Subtest: death, round transition, intoxication and live powerups invalidate the measurement
+ok 439 - death, round transition, intoxication and live powerups invalidate the measurement
+  ---
+  duration_ms: 0.112041
+  ...
+# Subtest: turning, short, stale and missing baselines are rejected without cherry-picking
+ok 440 - turning, short, stale and missing baselines are rejected without cherry-picking
+  ---
+  duration_ms: 0.07125
+  ...
+# Subtest: unchanged heading times out and incomplete capture is separately rejected
+ok 441 - unchanged heading times out and incomplete capture is separately rejected
+  ---
+  duration_ms: 0.068833
+  ...
+# Subtest: one degree metric remains later than the first tiny numerical departure
+ok 442 - one degree metric remains later than the first tiny numerical departure
+  ---
+  duration_ms: 0.063
+  ...
+# Subtest: render continuity separates repeated authoritative ticks from animation cadence and attempt gaps
+ok 443 - render continuity separates repeated authoritative ticks from animation cadence and attempt gaps
+  ---
+  duration_ms: 2.532791
+  ...
+# Subtest: return to lobby from lobby clears match state without inventing session points
+ok 444 - return to lobby from lobby clears match state without inventing session points
+  ---
+  duration_ms: 13.334834
+  ...
+# Subtest: return to lobby from countdown clears match state without inventing session points
+ok 445 - return to lobby from countdown clears match state without inventing session points
+  ---
+  duration_ms: 1.836042
+  ...
+# Subtest: return to lobby from playing clears match state without inventing session points
+ok 446 - return to lobby from playing clears match state without inventing session points
+  ---
+  duration_ms: 0.571375
+  ...
+# Subtest: return to lobby from roundOver clears match state without inventing session points
+ok 447 - return to lobby from roundOver clears match state without inventing session points
+  ---
+  duration_ms: 0.549917
+  ...
+# Subtest: return to lobby from matchOver clears match state without inventing session points
+ok 448 - return to lobby from matchOver clears match state without inventing session points
+  ---
+  duration_ms: 0.624042
+  ...
+# Subtest: empty party can return to lobby and invalid scope is rejected before mutation
+ok 449 - empty party can return to lobby and invalid scope is rejected before mutation
+  ---
+  duration_ms: 0.161292
+  ...
+# Subtest: pure rider kernel exactly matches authoritative turns including drunk offsets
+ok 450 - pure rider kernel exactly matches authoritative turns including drunk offsets
+  ---
+  duration_ms: 21.285167
+  ...
+# Subtest: opposite controls cancel steering and pure motion leaves input pose unchanged
+ok 451 - opposite controls cancel steering and pure motion leaves input pose unchanged
+  ---
+  duration_ms: 0.086584
+  ...
+# Subtest: short codes map the full67600 space and reject biased random tail
+ok 452 - short codes map the full67600 space and reject biased random tail
+  ---
+  duration_ms: 0.623458
+  ...
+# Subtest: new and temporary legacy room identities validate without making codes secrets
+ok 453 - new and temporary legacy room identities validate without making codes secrets
+  ---
+  duration_ms: 0.121666
+  ...
+# Subtest: collision reservation is bounded and never masks noncollision failure
+ok 454 - collision reservation is bounded and never masks noncollision failure
+  ---
+  duration_ms: 0.526209
+  ...
+# Subtest: ordinary initial show is inert and permanent departure disposes the room
+ok 455 - ordinary initial show is inert and permanent departure disposes the room
+  ---
+  duration_ms: 0.803292
+  ...
+# Subtest: BFCache restoration reloads stopped room exactly once instead of reviving its transport
+ok 456 - BFCache restoration reloads stopped room exactly once instead of reviving its transport
+  ---
+  duration_ms: 0.079292
+  ...
+# Subtest: expired room stops before clearing runtime and never retries a reused public code
+ok 457 - expired room stops before clearing runtime and never retries a reused public code
+  ---
+  duration_ms: 0.735667
+  ...
+# Subtest: temporary network failure retries while replaced host is terminal separately
+ok 458 - temporary network failure retries while replaced host is terminal separately
+  ---
+  duration_ms: 0.084375
+  ...
+# Subtest: safeStorage falls back to an in-memory store when the underlying storage throws on access
+ok 459 - safeStorage falls back to an in-memory store when the underlying storage throws on access
+  ---
+  duration_ms: 0.491792
+  ...
+# Subtest: safeStorage does not evaluate the storage accessor until a get/set/remove call is made
+ok 460 - safeStorage does not evaluate the storage accessor until a get/set/remove call is made
+  ---
+  duration_ms: 0.079583
+  ...
+# Subtest: safeStorage passes through to real storage when it works
+ok 461 - safeStorage passes through to real storage when it works
+  ---
+  duration_ms: 0.090375
+  ...
+# Subtest: createMemoryStorage never throws and reports missing keys as null
+ok 462 - createMemoryStorage never throws and reports missing keys as null
+  ---
+  duration_ms: 0.047625
+  ...
+# Subtest: LAN AI management is authorized, shares seats, follows normal rounds and can be removed
+ok 463 - LAN AI management is authorized, shares seats, follows normal rounds and can be removed
+  ---
+  duration_ms: 33.113084
+  ...
+# Subtest: LAN bot protocol rejects missing IDs, human IDs and unexpected action data
+ok 464 - LAN bot protocol rejects missing IDs, human IDs and unexpected action data
+  ---
+  duration_ms: 0.465084
+  ...
+# Subtest: a reconnect cancels prior charge and accepts a fresh explicit press-release pair
+ok 465 - a reconnect cancels prior charge and accepts a fresh explicit press-release pair
+  ---
+  duration_ms: 96.830083
+  ...
+# Subtest: match rematch resets scope and wins, then round-over automatically starts the next round
+ok 466 - match rematch resets scope and wins, then round-over automatically starts the next round
+  ---
+  duration_ms: 47.389417
+  ...
+# Subtest: controller snapshots strip the full match statistics table
+ok 467 - controller snapshots strip the full match statistics table
+  ---
+  duration_ms: 0.813917
+  ...
+# Subtest: five seats, sixth denial, full public snapshots and private host control
+ok 468 - five seats, sixth denial, full public snapshots and private host control
+  ---
+  duration_ms: 74.435375
+  ...
+# Subtest: reconnect replaces the same seat, sequences continue, stale input becomes neutral, rapid bomb taps survive
+ok 469 - reconnect replaces the same seat, sequences continue, stale input becomes neutral, rapid bomb taps survive
+  ---
+  duration_ms: 16.710209
+  ...
+# Subtest: admission rejects late/invalid joins, leave frees lobby seats and eliminates during play
+ok 470 - admission rejects late/invalid joins, leave frees lobby seats and eliminates during play
+  ---
+  duration_ms: 21.0135
+  ...
+# Subtest: charge holds use authoritative ticks and launch only on explicit release
+ok 471 - charge holds use authoritative ticks and launch only on explicit release
+  ---
+  duration_ms: 12.347917
+  ...
+# Subtest: cancel, stale input, and socket replacement discard charges and queued releases
+ok 472 - cancel, stale input, and socket replacement discard charges and queued releases
+  ---
+  duration_ms: 13.967666
+  ...
+# Subtest: typed injected clock drives heartbeat timeout and rate window without sleeping
+ok 473 - typed injected clock drives heartbeat timeout and rate window without sleeping
+  ---
+  duration_ms: 4.403541
+  ...
+# Subtest: a flood of malformed frames is counted against the rate limit and closes the socket with 1008
+ok 474 - a flood of malformed frames is counted against the rate limit and closes the socket with 1008
+  ---
+  duration_ms: 4.482875
+  ...
+# Subtest: invalid frames do not refresh lastSeen so the idle watchdog still prunes a garbage-only client
+ok 475 - invalid frames do not refresh lastSeen so the idle watchdog still prunes a garbage-only client
+  ---
+  duration_ms: 1.022708
+  ...
+# Subtest: bounded catch-up discards sleep-sized backlogs
+ok 476 - bounded catch-up discards sleep-sized backlogs
+  ---
+  duration_ms: 0.071417
+  ...
+# Subtest: a finished match can accept fresh phones after every original player leaves
+ok 477 - a finished match can accept fresh phones after every original player leaves
+  ---
+  duration_ms: 14.682416
+  ...
+# Subtest: injected scheduler advances fixed ticks, caps catch-up, discards excess and cancels on close
+ok 478 - injected scheduler advances fixed ticks, caps catch-up, discards excess and cancels on close
+  ---
+  duration_ms: 0.461584
+  ...
+# Subtest: display receives 20Hz world state while phones receive compact 10Hz updates and measured input acknowledgments
+ok 479 - display receives 20Hz world state while phones receive compact 10Hz updates and measured input acknowledgments
+  ---
+  duration_ms: 10.0365
+  ...
+# Subtest: late countdown joins wait safely, reconnect and enter next round automatically
+ok 480 - late countdown joins wait safely, reconnect and enter next round automatically
+  ---
+  duration_ms: 20.078208
+  ...
+# Subtest: late playing joins wait safely, reconnect and enter next round automatically
+ok 481 - late playing joins wait safely, reconnect and enter next round automatically
+  ---
+  duration_ms: 11.189875
+  ...
+# Subtest: target release aim survives newer input packets through real socket transport
+ok 482 - target release aim survives newer input packets through real socket transport
+  ---
+  duration_ms: 8.393208
+  ...
+# Subtest: host can abort to lobby without losing phone seats or replaying buffered bomb releases
+ok 483 - host can abort to lobby without losing phone seats or replaying buffered bomb releases
+  ---
+  duration_ms: 13.28525
+  ...
+# Subtest: serialized avatar joins assign an allowed head and reconnect preserves server identity
+ok 484 - serialized avatar joins assign an allowed head and reconnect preserves server identity
+  ---
+  duration_ms: 2.342875
+  ...
+# Subtest: a joined controller can change only its own avatar during play without altering gameplay
+ok 485 - a joined controller can change only its own avatar during play without altering gameplay
+  ---
+  duration_ms: 9.32925
+  ...
+# Subtest: phones that vanish in the lobby release their seats for newcomers and for the next start
+ok 486 - phones that vanish in the lobby release their seats for newcomers and for the next start
+  ---
+  duration_ms: 5.674875
+  ...
+# Subtest: a full lobby reclaims a vanished seat for a newcomer without any host action
+ok 487 - a full lobby reclaims a vanished seat for a newcomer without any host action
+  ---
+  duration_ms: 4.700209
+  ...
+# Subtest: a phone that vanishes mid-round keeps its seat for reconnection and never yields it to a newcomer
+ok 488 - a phone that vanishes mid-round keeps its seat for reconnection and never yields it to a newcomer
+  ---
+  duration_ms: 11.009708
+  ...
+# Subtest: actual service exposes Cloud Run safe health aliases without requiring provider operations
+ok 489 - actual service exposes Cloud Run safe health aliases without requiring provider operations
+  ---
+  duration_ms: 781.811625
+  ...
+# Subtest: service transaction retries keep one logical connection/grant and fenced replacement
+ok 490 - service transaction retries keep one logical connection/grant and fenced replacement
+  ---
+  duration_ms: 1.764958
+  ...
+# Subtest: service reserves creator slot and atomically bounds concurrent admission
+ok 491 - service reserves creator slot and atomically bounds concurrent admission
+  ---
+  duration_ms: 1.331
+  ...
+# Subtest: two gateways advertise actual remote members and route only signalling
+ok 492 - two gateways advertise actual remote members and route only signalling
+  ---
+  duration_ms: 1.82175
+  ...
+# Subtest: mesh signalling permits guest pairs while rejecting foreign room and replaced target scopes
+ok 493 - mesh signalling permits guest pairs while rejecting foreign room and replaced target scopes
+  ---
+  duration_ms: 0.967541
+  ...
+# Subtest: guest mesh signals retain source replacement and cross-room membership fences
+ok 494 - guest mesh signals retain source replacement and cross-room membership fences
+  ---
+  duration_ms: 1.575458
+  ...
+# Subtest: fast bus after delayed metadata emits new source membership before SDP
+ok 495 - fast bus after delayed metadata emits new source membership before SDP
+  ---
+  duration_ms: 1.00975
+  ...
+# Subtest: expired and duplicate bus packets never repeat SDP; old replacement source is rejected
+ok 496 - expired and duplicate bus packets never repeat SDP; old replacement source is rejected
+  ---
+  duration_ms: 0.912958
+  ...
+# Subtest: time renewals preserve exact authority and stale close cannot revoke replacement
+ok 497 - time renewals preserve exact authority and stale close cannot revoke replacement
+  ---
+  duration_ms: 0.585792
+  ...
+# Subtest: idle teardown and immediate rejoin serialize a new subscription before admission
+ok 498 - idle teardown and immediate rejoin serialize a new subscription before admission
+  ---
+  duration_ms: 0.325875
+  ...
+# Subtest: bus failure and slow receiver fail explicitly without keeping hidden relay queues
+ok 499 - bus failure and slow receiver fail explicitly without keeping hidden relay queues
+  ---
+  duration_ms: 1.396792
+  ...
+# Subtest: runtime metadata and bus schemas reject corrupt scope and gameplay frames
+ok 500 - runtime metadata and bus schemas reject corrupt scope and gameplay frames
+  ---
+  duration_ms: 0.3665
+  ...
+# Subtest: v2 renewal accepts GrantIdentity without timestamps at the actual JSON boundary
+ok 501 - v2 renewal accepts GrantIdentity without timestamps at the actual JSON boundary
+  ---
+  duration_ms: 0.296667
+  ...
+# Subtest: failed bus is drained before a queued new connection can mark it ready
+ok 502 - failed bus is drained before a queued new connection can mark it ready
+  ---
+  duration_ms: 0.379458
+  ...
+# Subtest: short-code transactional collisions preserve the live room and retry only bounded conflicts
+ok 503 - short-code transactional collisions preserve the live room and retry only bounded conflicts
+  ---
+  duration_ms: 0.775875
+  ...
+# Subtest: guest keepalives never extend host-session lifetime and exact expiry rejects admission
+ok 504 - guest keepalives never extend host-session lifetime and exact expiry rejects admission
+  ---
+  duration_ms: 0.259084
+  ...
+# Subtest: only the current host extends reconnect grace and replacement close cannot shorten it
+ok 505 - only the current host extends reconnect grace and replacement close cannot shorten it
+  ---
+  duration_ms: 0.182625
+  ...
+# Subtest: host end is authorized, immediate and cannot end a reused code with an old capability
+ok 506 - host end is authorized, immediate and cannot end a reused code with an old capability
+  ---
+  duration_ms: 0.532333
+  ...
+# Subtest: cached signalling refuses expired rooms before asynchronous TTL deletion
+ok 507 - cached signalling refuses expired rooms before asynchronous TTL deletion
+  ---
+  duration_ms: 0.489
+  ...
+# Subtest: gateway expiry timer closes silent sockets without depending on TTL deletion or traffic
+ok 508 - gateway expiry timer closes silent sockets without depending on TTL deletion or traffic
+  ---
+  duration_ms: 18.858417
+  ...
+# Subtest: delayed old-incarnation heartbeat or read cannot roll back a reused room view
+ok 509 - delayed old-incarnation heartbeat or read cannot roll back a reused room view
+  ---
+  duration_ms: 3.420458
+  ...
+# Subtest: delayed old admission cannot replace a newly observed room incarnation
+ok 510 - delayed old admission cannot replace a newly observed room incarnation
+  ---
+  duration_ms: 0.671542
+  ...
+# Subtest: cancelled metadata watch callbacks cannot mutate a recreated room view
+ok 511 - cancelled metadata watch callbacks cannot mutate a recreated room view
+  ---
+  duration_ms: 0.399459
+  ...
+# Subtest: direct new admission rotates an active old watch before its delayed callbacks arrive
+ok 512 - direct new admission rotates an active old watch before its delayed callbacks arrive
+  ---
+  duration_ms: 0.628083
+  ...
+# Subtest: shell reflects remaining travel and exposes the true collision path
+ok 513 - shell reflects remaining travel and exposes the true collision path
+  ---
+  duration_ms: 0.83275
+  ...
+# Subtest: corners reflect both axes and shrinking bounds clamp safely
+ok 514 - corners reflect both axes and shrinking bounds clamp safely
+  ---
+  duration_ms: 0.092
+  ...
+# Subtest: shell ricochets off a tail without crossing it and keeps its speed
+ok 515 - shell ricochets off a tail without crossing it and keeps its speed
+  ---
+  duration_ms: 0.243542
+  ...
+# Subtest: diagonal tails and exposed endpoints reflect instead of tunnelling
+ok 516 - diagonal tails and exposed endpoints reflect instead of tunnelling
+  ---
+  duration_ms: 0.098916
+  ...
+# Subtest: failure notice classifies only press/release gestures, never neutral or held heartbeats
+ok 517 - failure notice classifies only press/release gestures, never neutral or held heartbeats
+  ---
+  duration_ms: 0.543209
+  ...
+# Subtest: shot notice persists three seconds independently and another failure restarts the deadline
+ok 518 - shot notice persists three seconds independently and another failure restarts the deadline
+  ---
+  duration_ms: 0.104792
+  ...
+# Subtest: every candidate shape Chrome and Safari emit passes the signalling boundary
+ok 519 - every candidate shape Chrome and Safari emit passes the signalling boundary
+  ---
+  duration_ms: 0.459208
+  ...
+# Subtest: descriptions from localDescription.toJSON() pass; anything else is rejected
+ok 520 - descriptions from localDescription.toJSON() pass; anything else is rejected
+  ---
+  duration_ms: 0.212708
+  ...
+# Subtest: connect() while the previous socket is still CONNECTING closes it instead of orphaning it
+ok 521 - connect() while the previous socket is still CONNECTING closes it instead of orphaning it
+  ---
+  duration_ms: 1.008125
+  ...
+# Subtest: connect() with no prior socket does not attempt to close anything
+ok 522 - connect() with no prior socket does not attempt to close anything
+  ---
+  duration_ms: 0.117541
+  ...
+# Subtest: a real disconnect on the current socket reports status and reconnects
+ok 523 - a real disconnect on the current socket reports status and reconnects
+  ---
+  duration_ms: 0.103875
+  ...
+# Subtest: send() only transmits once the current socket reports OPEN, and close() is idempotent-safe
+ok 524 - send() only transmits once the current socket reports OPEN, and close() is idempotent-safe
+  ---
+  duration_ms: 0.100167
+  ...
+# Subtest: an inbound pong reports round-trip time instead of reaching onMessage
+ok 525 - an inbound pong reports round-trip time instead of reaching onMessage
+  ---
+  duration_ms: 0.556375
+  ...
+# Subtest: a host error reply survives 200 ms of ticks and world frames, then the connection status returns
+ok 526 - a host error reply survives 200 ms of ticks and world frames, then the connection status returns
+  ---
+  duration_ms: 0.90225
+  ...
+# Subtest: unchanged recurring status is emitted once however many ticks and frames restate it
+ok 527 - unchanged recurring status is emitted once however many ticks and frames restate it
+  ---
+  duration_ms: 0.195584
+  ...
+# Subtest: the recurring status that returns after a notice is the latest one, not the one it replaced
+ok 528 - the recurring status that returns after a notice is the latest one, not the one it replaced
+  ---
+  duration_ms: 0.143209
+  ...
+# Subtest: a join error survives the 500 ms join retry cadence without restating itself
+ok 529 - a join error survives the 500 ms join retry cadence without restating itself
+  ---
+  duration_ms: 0.192208
+  ...
+# Subtest: a later notice replaces a live notice and extends the hold
+ok 530 - a later notice replaces a live notice and extends the hold
+  ---
+  duration_ms: 0.186125
+  ...
+# Subtest: a notice raised before any connection status is never replaced by a silent refresh
+ok 531 - a notice raised before any connection status is never replaced by a silent refresh
+  ---
+  duration_ms: 0.117208
+  ...
+# Subtest: a rejected input frame flashes without holding the line or hiding a real error
+ok 532 - a rejected input frame flashes without holding the line or hiding a real error
+  ---
+  duration_ms: 0.183625
+  ...
+# Subtest: a terminal notice is never overwritten by recurring status or by later notices
+ok 533 - a terminal notice is never overwritten by recurring status or by later notices
+  ---
+  duration_ms: 0.156375
+  ...
+# Subtest: target collection arms one normal-strength bomb and preserves volley upgrades
+ok 534 - target collection arms one normal-strength bomb and preserves volley upgrades
+  ---
+  duration_ms: 10.46575
+  ...
+# Subtest: targeting requires pickup and clamps to the current safe field
+ok 535 - targeting requires pickup and clamps to the current safe field
+  ---
+  duration_ms: 1.496709
+  ...
+# Subtest: cancel, rejected release and death clear preview without consuming; next round resets
+ok 536 - cancel, rejected release and death clear preview without consuming; next round resets
+  ---
+  duration_ms: 1.304959
+  ...
+# Subtest: queued release uses its own aim rather than a later packet in the same server tick
+ok 537 - queued release uses its own aim rather than a later packet in the same server tick
+  ---
+  duration_ms: 0.545667
+  ...
+# Subtest: Target detonates on the release tick, with damage and protection resolved immediately
+ok 538 - Target detonates on the release tick, with damage and protection resolved immediately
+  ---
+  duration_ms: 1.550833
+  ...
+# Subtest: instant Target blast chains nearby bombs in the same tick
+ok 539 - instant Target blast chains nearby bombs in the same tick
+  ---
+  duration_ms: 0.536625
+  ...
+# Subtest: host clock replies are bound, single-use, bounded and invalidated at recovery
+ok 540 - host clock replies are bound, single-use, bounded and invalidated at recovery
+  ---
+  duration_ms: 0.477208
+  ...
+# Subtest: trail clipping preserves contained geometry identity and timestamps
+ok 541 - trail clipping preserves contained geometry identity and timestamps
+  ---
+  duration_ms: 0.473417
+  ...
+# Subtest: trail clipping trims crossings on every edge in both directions
+ok 542 - trail clipping trims crossings on every edge in both directions
+  ---
+  duration_ms: 0.453917
+  ...
+# Subtest: trail clipping keeps closed tangent edges and corner contacts
+ok 543 - trail clipping keeps closed tangent edges and corner contacts
+  ---
+  duration_ms: 0.072041
+  ...
+# Subtest: trail clipping removes exterior points, parallel lines and disjoint diagonal segments
+ok 544 - trail clipping removes exterior points, parallel lines and disjoint diagonal segments
+  ---
+  duration_ms: 0.062292
+  ...
+# Subtest: overtime trims dead and living trails before collision and snapshot, retaining disconnected pieces
+ok 545 - overtime trims dead and living trails before collision and snapshot, retaining disconnected pieces
+  ---
+  duration_ms: 10.148375
+  ...
+# Subtest: star, shield and portal grace bounce trails cannot start outside the newly closed field
+ok 546 - star, shield and portal grace bounce trails cannot start outside the newly closed field
+  ---
+  duration_ms: 1.905167
+  ...
+# Subtest: overtime clipping preserves portal entry and exit discontinuity
+ok 547 - overtime clipping preserves portal entry and exit discontinuity
+  ---
+  duration_ms: 1.010916
+  ...
+# Subtest: Worker persists an incarnation and allocates authority to the current host connection only
+ok 548 - Worker persists an incarnation and allocates authority to the current host connection only
+  ---
+  duration_ms: 16.511958
+  ...
+# Subtest: Worker fences host replacement and delayed close without overlapping lease validity
+ok 549 - Worker fences host replacement and delayed close without overlapping lease validity
+  ---
+  duration_ms: 1.59675
+  ...
+# Subtest: Worker renews only an active exact grant from its current host, with authenticated clock echo
+ok 550 - Worker renews only an active exact grant from its current host, with authenticated clock echo
+  ---
+  duration_ms: 1.1585
+  ...
+# Subtest: Worker routes only current authenticated endpoints and includes source connection scope
+ok 551 - Worker routes only current authenticated endpoints and includes source connection scope
+  ---
+  duration_ms: 2.018958
+  ...
+# Subtest: Worker serializes simultaneous host reservations and retains fencing through hibernation state
+ok 552 - Worker serializes simultaneous host reservations and retains fencing through hibernation state
+  ---
+  duration_ms: 0.812833
+  ...
+# Subtest: Worker rejects malformed clock requests and bounds six active memberships while permitting replacement
+ok 553 - Worker rejects malformed clock requests and bounds six active memberships while permitting replacement
+  ---
+  duration_ms: 1.883959
+  ...
+# Subtest: Worker reserves creator capacity when invitees arrive before the host
+ok 554 - Worker reserves creator capacity when invitees arrive before the host
+  ---
+  duration_ms: 3.032458
+  ...
+# Subtest: Worker rejects gameplay relay even between valid host and guest sockets
+ok 555 - Worker rejects gameplay relay even between valid host and guest sockets
+  ---
+  duration_ms: 1.031917
+  ...
+# Subtest: Worker expires at90seconds without host heartbeat even while guests keep sending
+ok 556 - Worker expires at90seconds without host heartbeat even while guests keep sending
+  ---
+  duration_ms: 1.321542
+  ...
+# Subtest: Worker end requires host capability and code reuse clears prior authority
+ok 557 - Worker end requires host capability and code reuse clears prior authority
+  ---
+  duration_ms: 1.191292
+  ...
+# Subtest: Worker current host heartbeats extend deadline while stale closes do not
+ok 558 - Worker current host heartbeats extend deadline while stale closes do not
+  ---
+  duration_ms: 1.196917
+  ...
+1..558
+# tests 558
+# suites 0
+# pass 558
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6689.421125
+--------------------------|---------|----------|---------|---------|--------------------------------
+File                      | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s              
+--------------------------|---------|----------|---------|---------|--------------------------------
+All files                 |   99.14 |    93.97 |   98.78 |   99.14 |                                
+ client                   |     100 |    97.94 |    98.3 |     100 |                                
+  audio-director.ts       |     100 |    98.38 |     100 |     100 | 77                             
+  controller-keyboard.ts  |     100 |      100 |     100 |     100 |                                
+  controller-pointers.ts  |     100 |    98.48 |   91.66 |     100 | 56                             
+  controller-state.ts     |     100 |    98.95 |     100 |     100 | 81                             
+  render-snapshot.ts      |     100 |       90 |     100 |     100 | 37-45                          
+  snapshot-stream.ts      |     100 |      100 |     100 |     100 |                                
+ online                   |   98.67 |    92.04 |   98.27 |   98.67 |                                
+  action-replication.ts   |     100 |    89.94 |     100 |     100 | ...135,142,153,159,162,164-166 
+  authority-grace.ts      |     100 |      100 |     100 |     100 |                                
+  authority-status.ts     |     100 |      100 |     100 |     100 |                                
+  authority.ts            |     100 |      100 |     100 |     100 |                                
+  checkpoint.ts           |     100 |     91.7 |     100 |     100 | ...112,114,117-119,121,137,141 
+  direct-clock.ts         |     100 |    97.75 |     100 |     100 | 65,80                          
+  direct-control.ts       |     100 |      100 |     100 |     100 |                                
+  direct-ingress.ts       |     100 |      100 |     100 |     100 |                                
+  direct-origin.ts        |     100 |    95.58 |     100 |     100 | 53,57,69                       
+  direct-room-state.ts    |     100 |    95.08 |     100 |     100 | 38,48,63,71,84,98              
+  direct-segment.ts       |     100 |    87.97 |   94.11 |     100 | ...131,143,149,154-155,158,167 
+  direct-stream.ts        |     100 |    99.35 |     100 |     100 | 42                             
+  host-session.ts         |   99.49 |    89.79 |     100 |   99.49 | 41                             
+  ice-config.ts           |     100 |    97.36 |     100 |     100 | 13                             
+  ice-signal.ts           |     100 |       92 |     100 |     100 | 9,18                           
+  keyframe-delivery.ts    |     100 |      100 |     100 |     100 |                                
+  link-callback.ts        |     100 |      100 |     100 |     100 |                                
+  link-diagnostics.ts     |     100 |       84 |     100 |     100 | 16,20,33,39-42                 
+  link-health.ts          |     100 |      100 |     100 |     100 |                                
+  link-restart.ts         |     100 |      100 |     100 |     100 |                                
+  link-send-gate.ts       |     100 |      100 |     100 |     100 |                                
+  local-runtime.ts        |     100 |    89.58 |     100 |     100 | 33,54,61,71-73                 
+  mobile-play-policy.ts   |     100 |      100 |     100 |     100 |                                
+  prediction-clock.ts     |     100 |    98.03 |     100 |     100 | 37                             
+  prediction.ts           |    97.6 |    87.61 |     100 |    97.6 | 105-107                        
+  recipient-ack.ts        |     100 |      100 |     100 |     100 |                                
+  remote-signal.ts        |   95.34 |    94.73 |     100 |   95.34 | 36-37                          
+  response-measurement.ts |     100 |    98.52 |     100 |     100 | 25                             
+  rollback-world.ts       |     100 |    90.65 |     100 |     100 | ...152,157,186,194-196,203,215 
+  room-lifecycle.ts       |     100 |      100 |     100 |     100 |                                
+  room-socket-close.ts    |     100 |      100 |     100 |     100 |                                
+  runtime.ts              |   92.87 |    87.52 |    87.5 |   92.87 | ...382,386-390,404-406,422-433 
+  status-notices.ts       |     100 |      100 |     100 |     100 |                                
+  world-codec.ts          |     100 |     86.4 |      90 |     100 | ...64,66,68,71-75,86,88-95,100 
+ server                   |    98.2 |     92.2 |     100 |    98.2 |                                
+  bomb-input.ts           |     100 |      100 |     100 |     100 |                                
+  index.ts                |    97.9 |    90.95 |     100 |    97.9 | 60,74,283-286                  
+ service                  |     100 |      100 |     100 |     100 |                                
+  signal.ts               |     100 |      100 |     100 |     100 |                                
+ shared                   |   99.59 |    96.84 |     100 |   99.59 |                                
+  action-log.ts           |     100 |    96.03 |     100 |     100 | 40,44,75-76,113                
+  avatars.ts              |     100 |      100 |     100 |     100 |                                
+  blast-geometry.ts       |     100 |      100 |     100 |     100 |                                
+  bomb-launch.ts          |     100 |      100 |     100 |     100 |                                
+  bot-controller.ts       |     100 |      100 |     100 |     100 |                                
+  deterministic-math.ts   |     100 |      100 |     100 |     100 |                                
+  direct-input.ts         |     100 |      100 |     100 |     100 |                                
+  drunk.ts                |     100 |      100 |     100 |     100 |                                
+  duration-text.ts        |     100 |      100 |     100 |     100 |                                
+  game.ts                 |   99.44 |    95.83 |     100 |   99.44 | 342-343,730-731,1154-1156      
+  gun.ts                  |     100 |    88.23 |     100 |     100 | 26,31                          
+  launch-modifiers.ts     |     100 |      100 |     100 |     100 |                                
+  leaderboard.ts          |   96.63 |    94.33 |     100 |   96.63 | 46-47,89-90                    
+  match-recap.ts          |     100 |    95.71 |     100 |     100 | 23,83,86                       
+  match-stats.ts          |     100 |    98.36 |     100 |     100 | 181                            
+  pickup-weights.ts       |     100 |       90 |     100 |     100 | 16                             
+  portal.ts               |     100 |      100 |     100 |     100 |                                
+  protocol.ts             |     100 |      100 |     100 |     100 |                                
+  rider-motion.ts         |     100 |      100 |     100 |     100 |                                
+  room-code.ts            |     100 |      100 |     100 |     100 |                                
+  room-settings.ts        |     100 |    92.85 |     100 |     100 | 27                             
+  shell.ts                |     100 |    93.47 |     100 |     100 | 15,47-50                       
+  trail-clipping.ts       |     100 |      100 |     100 |     100 |                                
+--------------------------|---------|----------|---------|---------|--------------------------------

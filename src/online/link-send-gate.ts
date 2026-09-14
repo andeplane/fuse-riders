@@ -11,6 +11,10 @@ export class LinkSendGate {
   /** Monotonic: nothing revives a drained link; a replacement link gets a new gate. */
   drain():void { this.drained=true; }
   get draining():boolean { return this.drained; }
+  /** Bulk transfers must wait until the action lane has completely drained. */
+  permitsIdle(channel:SendChannelFacts|undefined):boolean {
+    return this.permits(channel,1)&&channel!.bufferedAmount===0;
+  }
   /** A permitted send means queued in the browser, never applied by the peer. */
   permits(channel:SendChannelFacts|undefined,bufferLimit:number):boolean {
     return !this.draining&&channel?.readyState==='open'&&channel.bufferedAmount<bufferLimit;

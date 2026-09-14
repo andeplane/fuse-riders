@@ -26,6 +26,9 @@ globalThis.startMesh=(code,token)=>{
  const OriginalPeer=RTCPeerConnection;
  globalThis.RTCPeerConnection=class extends OriginalPeer {constructor(...args){super(...args);this.addEventListener('datachannel',event=>track(event.channel,this));}};
  RTCPeerConnection.prototype.createDataChannel=function(...args){const channel=originalCreate.apply(this,args);channels.push(channel);track(channel,this);return channel;};
+ // Synthetic buffer pressure tests the native adapter's gate, not actual SCTP congestion.
+ let fastBuffered=false;const buffered=Object.getOwnPropertyDescriptor(RTCDataChannel.prototype,'bufferedAmount');
+ Object.defineProperty(RTCDataChannel.prototype,'bufferedAmount',{...buffered,get(){return fastBuffered&&this.label==='actions'?1:buffered.get.call(this);}});
  let dropFast=false;const originalSend=RTCDataChannel.prototype.send;
  RTCDataChannel.prototype.send=function(data){if(dropFast&&this.label==='actions')return;record({event:'send',label:this.label,state:this.readyState,buffered:this.bufferedAmount,bytes:typeof data==='string'?data.length:data.byteLength,stack:new Error().stack});return originalSend.call(this,data);};
  let blockCoordinator=false;
@@ -41,6 +44,12 @@ globalThis.startMesh=(code,token)=>{
   snapshot:async()=>({id:transport.id,host:transport.hostId,peers:[...peers],bound:[...bound],got,controls,errors,statuses,membershipTrail,stats:await transport.stats(),diagnostics:await transport.diagnostics()}),
   ready:(count=5)=>bound.size===count&&[...peers].every(id=>transport.fastReady(id)&&transport.boundReady(id)),
   members:()=>[...peers],
+  checkpoint:to=>{
+   fastBuffered=true;
+   const blocked=transport.sendCheckpoint(to,{type:'checkpointFixture',data:new Uint8Array(12000)});
+   fastBuffered=false;
+   return {blocked,resumed:transport.sendCheckpoint(to,{type:'checkpointFixture',data:new Uint8Array(12000)})};
+  },
   blackhole:value=>{dropFast=value;},
   received:()=>got.length,
   controlCount:()=>controls.length,
@@ -83,6 +92,11 @@ try {
   const ready = await Promise.all(pages.map(snapshot)); samples.push(ready);
   assert.ok(ready.every(m => m.stats.direct === 5 && m.stats.relayed === 0));
   console.log('Six peers established fifteen direct links with both channel types.');
+  for(let source=0;source<6;source++) {
+    const result=await pages[source].evaluate(to=>(globalThis as unknown as {mesh:{checkpoint(to:string):{blocked:boolean;resumed:boolean}}}).mesh.checkpoint(to),ready[(source+1)%6].id);
+    assert.deepEqual(result,{blocked:false,resumed:true},'Checkpoint waits for action buffer drain');
+  }
+  console.log('Chromium and WebKit checkpoint sends yield to synthetic fast-buffer pressure and resume after drain.');
   for (let source = 0; source < 6; source++) for (let target = 0; target < 6; target++) if (source !== target) {
     const sent = await pages[source].evaluate(to => (globalThis as unknown as { mesh: { send(to: string, sequence: number): boolean } }).mesh.send(to, 1), ready[target].id);
     assert.ok(sent, `Peer ${source} sends directly to peer ${target}`);
