@@ -1,0 +1,49 @@
+{
+  "date": "2026-09-14T00:38:32.952Z",
+  "origin": "https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app",
+  "passed": true,
+  "checks": [
+    {
+      "name": "health and readiness",
+      "milliseconds": 452
+    },
+    {
+      "name": "CORS denies foreign origin and supports Pages preflight",
+      "milliseconds": 150
+    },
+    {
+      "name": "anonymous room creation backed by deployed database identity",
+      "milliseconds": 728
+    },
+    {
+      "name": "host WSS admission creates provider subscription and authority",
+      "milliseconds": 5871
+    },
+    {
+      "name": "guest admission and membership notification",
+      "milliseconds": 227
+    },
+    {
+      "name": "joined identity ICE endpoint",
+      "milliseconds": 377
+    },
+    {
+      "name": "bounded SDP round trip rejects gameplay-shaped signalling",
+      "milliseconds": 147
+    },
+    {
+      "name": "gameplay relay rejected explicitly",
+      "milliseconds": 71
+    },
+    {
+      "name": "identity-only transactional authority renewal",
+      "milliseconds": 124
+    },
+    {
+      "name": "host replacement advances fenced authority and closes old socket",
+      "milliseconds": 268
+    }
+  ],
+  "limits": "Public HTTPS/WSS and synthetic SDP only. Proves provider-backed room transactions and subscription creation with the deployed identity, not its exact email, cross-instance PubSub routing, real RTC, Pages or physical phones.",
+  "cleanup": "All test sockets closed. No public room deletion/namespace override exists; one random room and creation-limit record remain until configured Firestore TTL cleanup. No existing room is used."
+}

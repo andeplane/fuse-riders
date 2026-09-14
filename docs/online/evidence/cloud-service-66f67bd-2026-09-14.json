@@ -1,0 +1,19 @@
+{
+  "spec": {
+    "template": {
+      "spec": {
+        "serviceAccountName": "fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com"
+      }
+    }
+  },
+  "status": {
+    "latestReadyRevisionName": "fuse-riders-gateway-00003-qf7",
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100,
+        "revisionName": "fuse-riders-gateway-00003-qf7"
+      }
+    ]
+  }
+}
