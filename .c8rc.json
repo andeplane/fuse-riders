@@ -24,7 +24,13 @@
     "src/online/prediction-clock.ts",
     "src/online/local-runtime.ts",
     "src/online/mobile-play-policy.ts",
-    "src/online/room-socket-close.ts"
+    "src/online/room-socket-close.ts",
+    "src/online/ice-config.ts",
+    "src/online/ice-signal.ts",
+    "src/online/remote-signal.ts",
+    "src/online/link-restart.ts",
+    "src/online/link-diagnostics.ts",
+    "src/service/signal.ts"
   ],
   "reporter": [
     "text",

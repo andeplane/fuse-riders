@@ -1,5 +1,7 @@
 import { generateRoomCode, reserveRoomCode, ROOM_RECONNECT_GRACE_MS } from '../src/shared/room-code.js';
 import { reserveAuthority, renewAuthority, type AuthorityGrant, type GrantIdentity } from '../src/online/authority.js';
+import { DEFAULT_ICE_SERVERS } from '../src/online/ice-config.js';
+import { validSignal } from '../src/service/signal.js';
 
 export interface RoomSocket {
   send(data:string):void;
@@ -106,9 +108,9 @@ export class SignalRoom {
     if(url.pathname.endsWith('/ice')){
       const members=await this.ctx.storage.get<Membership>('connections')??{};
       if(!this.currentSockets(members).some(ws=>identity(ws)?.id===id))return json({error:'Join the room first'},403);
-      if(!this.env.TURN_KEY_ID||!this.env.TURN_API_TOKEN)return json({iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],relayConfigured:false});
+      if(!this.env.TURN_KEY_ID||!this.env.TURN_API_TOKEN)return json({iceServers:DEFAULT_ICE_SERVERS,relayConfigured:false});
       const response=await this.dependencies.fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${this.env.TURN_KEY_ID}/credentials/generate-ice-servers`,{method:'POST',headers:{Authorization:`Bearer ${this.env.TURN_API_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({ttl:3600})});
-      if(!response.ok)return json({iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],relayConfigured:false});
+      if(!response.ok)return json({iceServers:DEFAULT_ICE_SERVERS,relayConfigured:false});
       const body=await response.json() as {iceServers:unknown};return json({iceServers:body.iceServers,relayConfigured:true});
     }
     if(request.headers.get('Upgrade')!=='websocket')return json({error:'WebSocket required'},426);
@@ -167,7 +169,7 @@ export class SignalRoom {
       return;
     }
     // Public gameplay is direct WebRTC only; WSS is coordination/signalling.
-    if(message.type!=='signal'||typeof message.to!=='string')return;
+    if(message.type!=='signal'||typeof message.to!=='string'||!validSignal(message.data))return;
     const target=this.currentSockets(members).find(peer=>identity(peer)?.id===message.to);if(!target)return;
     const targetIdentity=identity(target)!;
     if(message.targetConnectionId!==undefined&&message.targetConnectionId!==targetIdentity.connectionId)return;

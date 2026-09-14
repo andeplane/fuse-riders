@@ -7,6 +7,7 @@ import { RoomStore, RoomError, digest, peerId, validCode, validToken } from './r
 import { FirestoreRoomDatabase } from './firestore-store.js';
 import { PubSubRoomBus } from './pubsub-bus.js';
 import { RoomGateway } from './gateway.js';
+import { DEFAULT_ICE_SERVERS } from '../online/ice-config.js';
 
 import type { AuthClient } from 'google-auth-library';
 import { pathToFileURL } from 'node:url';
@@ -45,7 +46,7 @@ const server=createServer(async(req,res)=>{
     const end=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/end$/);
     if(end&&req.method==='POST'){await store.end(end[1]!,req.headers.authorization?.replace(/^Bearer /,'')??'');json({ok:true});return;}
     const match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/ice$/);
-    if(match){const token=url.searchParams.get('token')??'';if(!validToken(token)){json({error:'Invalid identity'},401);return;}const room=await store.get(match[1]);if(!room.members[peerId(token)]||room.members[peerId(token)].expiresAt<=Date.now()){json({error:'Join the room first'},403);return;}json({iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],relayConfigured:false});return;}
+    if(match){const token=url.searchParams.get('token')??'';if(!validToken(token)){json({error:'Invalid identity'},401);return;}const room=await store.get(match[1]);if(!room.members[peerId(token)]||room.members[peerId(token)].expiresAt<=Date.now()){json({error:'Join the room first'},403);return;}json({iceServers:DEFAULT_ICE_SERVERS,relayConfigured:false});return;}
     json({error:'Not found'},404);
   }catch(error){console.error(JSON.stringify({kind:'http-operation',errorType:error instanceof Error?error.name:'unknown',code:(error as {code?:unknown})?.code}));json({error:error instanceof RoomError?error.message:'Room service unavailable'},error instanceof RoomError?error.status:503);}
 });
