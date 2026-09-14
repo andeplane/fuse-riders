@@ -6,7 +6,7 @@ The target is a complete replacement of the online host-star path: input origins
 
 ## Runtime cutover checkpoint
 
-The branch now replaces the old online snapshot/accepted-action selection with `DirectSegment` in `RoomRuntime`; replication query flags are removed from the UI. Full views render their local world with immediate fractional cosmetic motion, while solo and LAN retain their existing paths. Shared mode delegates simulation to the TV and keeps the creator's room-management lease. The controller creator retains only an ordered lobby catalog/status; it cannot silently initialize a lost active TV simulation.
+The branch now replaces the old online snapshot/accepted-action selection with `DirectSegment` in `RoomRuntime`; replication query flags are removed from the UI. Full views now render a short adaptive history of their local world, with immediate fractional cosmetic motion for their own rider, while solo and LAN retain their existing paths. Shared mode delegates simulation to the TV and keeps the creator's room-management lease. The controller creator retains only an ordered lobby catalog/status; it cannot silently initialize a lost active TV simulation.
 
 Lifecycle preparation transfers the actual finalized base plus deterministic management operations. Views validate both that base and every derived header field before activation. A future-start applied barrier gates the coordinator clock. Prepared UI/cache state is published only at activation. Lobby catalogs preserve tick, seed, raw player/leaderboard ordering and selected settings; returning to lobby explicitly applies pending settings. Ownership validation compares slot mappings independently of roster presentation order. New connections reset management deduplication. Recovery retries/deadlines, untimestampable releases, unavailable TV bases and late activation after timeout have runtime regressions using injected clocks, scheduling, storage and serialized transport.
 
@@ -35,7 +35,7 @@ Both existing online room browser smokes passed after the transport change, usin
 
 ## Remaining implementation
 
-Qualify the integrated [ADR042](../adr/042-event-driven-coordination.md) runtime under sustained impairment and measure input, rollback and rendering behavior. Local cutover evidence is recorded below; adaptive remote presentation remains proposed.
+Qualify the integrated [ADR042](../adr/042-event-driven-coordination.md) runtime under sustained impairment and measure input, rollback and rendering behavior. Local cutover evidence is recorded below; adaptive remote presentation is implemented in ADR044 below.
 
 Complete mixed-engine impairment, bot gameplay, reconnect/partial-mesh behavior and LAN regressions. The scripted mixed-engine full-match run below covers ordinary automatic round transitions. Checkpoint backpressure and bounded setup episodes now have the reviewed regressions described below. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
 
@@ -159,4 +159,17 @@ The unchanged regional profile now passes: `regional-07`, 47.207 seconds, five s
 
 The same source also passes the unshaped local mixed-browser match (`reuse-local-01`, 36.136 seconds), with matching outcomes and no recovery/browser errors.
 
-See the [candidate evidence](direct-actions-evidence/lifecycle-reuse/manifest.json). Adaptive remote presentation remains unfinished. Implementation review, sustained impairment and physical-device qualification remain; this candidate is not deployed.
+See the [candidate evidence](direct-actions-evidence/lifecycle-reuse/manifest.json). Adaptive remote presentation was unfinished at that checkpoint; ADR044 below supersedes this status. Implementation review, sustained impairment and physical-device qualification remain; this candidate is not deployed.
+
+
+## Adaptive remote presentation
+
+The independently reviewed [ADR044](../adr/044-adaptive-direct-presentation.md) implementation renders the remote world 50–100 ms behind its fractional simulation clock, while local steering keeps its immediate cosmetic response. Each simulator retains four exact geometry frames inside its existing encoded-history byte budget. Rollback rebuilds the affected frames atomically, finality trimming preserves the recent history, and rendering never executes physics. Controllers retain no world/history. Per-origin recent p95 admission lateness selects the delay; duplicates and idle heartbeats cannot dilute adverse evidence. Delay changes are paced and playback never moves backward.
+
+Interpolation preserves discrete geometry, materializes real partial trail segments, and holds portal/death/phase transitions and bouncing shells until the next exact tick. Confirmed outcomes overlay the scene after interpolation. Local geometry is an explicit cosmetic overlay, including its trail extension for both Canvas and Phaser. An unqualified clock freezes the full last rendered scene; idle/fresh-lobby and new-simulator boundaries retire that cache. Review also found and fixed an existing rollback admission bug: a valid late action exposing a corrupt pending certificate must not install its state/history before returning rejection.
+
+The actual Phaser response benchmark passes a 60-second local run with 18 eligible trusted-pointer trials: local p95/max 16.9 ms (33 ms limit), TV p95/max 79.8 ms (100 ms limit), no response timeouts or browser errors. The secondary one-degree TV response p95 is 80.5 ms. During playing, main-thread render-submission CPU p95 is 0.6 ms on both views; frame interval p95 is 17.1 ms on the landscape 844×390 actor and 18.4 ms on the 1280×720 TV. Maximum retained encoded presentation history is 68,906 bytes per world in this run. Observed same-tick remote corrections are zero in this unshaped local workload; this does not establish zero WAN corrections. The first attempt failed obsolete lobby selectors; the next met latency limits but supplied only eight of the required ten eligible trials. Both failures are retained.
+
+All 628 unit/regression tests pass with coverage 99.50% lines/statements, 94.17% branches and 99.07% functions; thresholds unchanged and the new presentation module is included. Build, Worker typecheck and WebKit LAN display/five-controller smoke pass. [Evidence](direct-actions-evidence/adaptive-presentation/manifest.json) records source/build hashes, raw response frames and remaining qualification. These browser results are desktop measurements, not physical touch-to-photon or mobile-network certification. No deployment.
+
+The same presentation source also passes the three-round mixed Chromium/WebKit regional transport fixture (`presentation-regional-01`, 35.996 seconds, 40±20 ms delay, 2% fast loss, 512 kbps sender budget), with all six finalized outcomes agreeing and no recovery/browser errors. This fixture does not render; rendered response is the separate Phaser measurement above.

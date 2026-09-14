@@ -297,3 +297,15 @@ test('an enqueued but lost certificate pulse cannot cancel reliable finality ret
   assert.equal(lost[5][3][3],85); // The fast send returned true, but no receiver delivered it.
   now=1250;segment.tick();assert.equal(certificates.length,2);assert.equal(certificates[1].at,1250);assert.equal(certificates[1].tuple[3],85);
 });
+
+test('presentation samples newly executable remote actions once, including a repaired sequence gap', () => {
+  const room = setup(); room.advance(400); const peer = room.peers.get('p0')!, tick = peer.clock.read().tick;
+  const second = [1, 7, 1, [[2, tick + 2, 0, 0]], null];
+  peer.receiveFast('p1', packMessage(second)); assert.equal(peer.presentation.diagnostics.samples, 0);
+  const first = [1, 7, 1, [[1, tick + 1, 0, 1]], null];
+  peer.receiveFast('p1', packMessage(first)); assert.equal(peer.presentation.diagnostics.samples, 2);
+  peer.receiveFast('p1', packMessage(second)); peer.receiveFast('p1', packMessage(first));
+  peer.receiveFast('p2', packMessage(first)); peer.receiveFast('p1', new Uint8Array([0xc1]));
+  assert.equal(peer.presentation.diagnostics.samples, 2); assert.equal(peer.faultReason, undefined);
+  assert.equal(room.peers.get('tv')!.presentation.diagnostics.samples, 0);
+});

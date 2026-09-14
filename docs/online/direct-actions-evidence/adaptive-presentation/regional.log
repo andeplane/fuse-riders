@@ -1,0 +1,243 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC; regional profile, seed 12345.
+{"elapsed":4.527,"phase":"countdown","round":1,"tick":53,"diagnostics":{"mode":"direct","presentation":{"delayMs":75,"correctionDistance":0,"samples":0},"presentationBytes":10788,"coordinator":"01f8dc2e388740932241c739","alias":5,"simulator":true,"replicaTick":53,"finalizedTick":48,"finalizedHash":"72598bfbcdeee887","retainedRecords":0,"rollbackCount":0,"fastSentBytes":3331,"binarySentBytes":105051,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.552,"phase":"roundOver","round":1,"tick":153,"diagnostics":{"mode":"direct","presentation":{"delayMs":75,"correctionDistance":0,"samples":24},"presentationBytes":84620,"coordinator":"01f8dc2e388740932241c739","alias":5,"simulator":true,"replicaTick":153,"finalizedTick":136,"finalizedHash":"d94f92fc1b3905c0","retainedRecords":0,"rollbackCount":20,"fastSentBytes":6844,"binarySentBytes":111011,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.569,"phase":"countdown","round":2,"tick":200,"diagnostics":{"mode":"direct","presentation":{"delayMs":75,"correctionDistance":0,"samples":0},"presentationBytes":2709,"coordinator":"01f8dc2e388740932241c739","alias":6,"simulator":true,"replicaTick":200,"finalizedTick":200,"finalizedHash":"962157c36df30507","retainedRecords":0,"rollbackCount":0,"fastSentBytes":9404,"binarySentBytes":179416,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":19.567,"phase":"playing","round":2,"tick":297,"diagnostics":{"mode":"direct","presentation":{"delayMs":75,"correctionDistance":0,"samples":11},"presentationBytes":75670,"coordinator":"01f8dc2e388740932241c739","alias":6,"simulator":true,"replicaTick":297,"finalizedTick":285,"finalizedHash":"9a2e0b2dcf788c41","retainedRecords":1,"rollbackCount":4,"fastSentBytes":12351,"binarySentBytes":182920,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":24.619,"phase":"roundOver","round":2,"tick":396,"diagnostics":{"mode":"direct","presentation":{"delayMs":75,"correctionDistance":0,"samples":33},"presentationBytes":118220,"coordinator":"01f8dc2e388740932241c739","alias":6,"simulator":true,"replicaTick":396,"finalizedTick":385,"finalizedHash":"6013da874781dadb","retainedRecords":0,"rollbackCount":16,"fastSentBytes":16115,"binarySentBytes":188936,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":29.602,"phase":"countdown","round":3,"tick":440,"diagnostics":{"mode":"direct","presentation":{"delayMs":75,"correctionDistance":0,"samples":0},"presentationBytes":10868,"coordinator":"01f8dc2e388740932241c739","alias":7,"simulator":true,"replicaTick":440,"finalizedTick":421,"finalizedHash":"0f4408dfddf24ef3","retainedRecords":0,"rollbackCount":0,"fastSentBytes":18647,"binarySentBytes":256697,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":34.616,"phase":"playing","round":3,"tick":540,"diagnostics":{"mode":"direct","presentation":{"delayMs":75,"correctionDistance":0,"samples":18},"presentationBytes":89684,"coordinator":"01f8dc2e388740932241c739","alias":7,"simulator":true,"replicaTick":540,"finalizedTick":533,"finalizedHash":"b0fd91f5bdbb3111","retainedRecords":0,"rollbackCount":11,"fastSentBytes":21975,"binarySentBytes":261138,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{
+  "passed": true,
+  "seconds": 35.996,
+  "totals": [
+    {
+      "index": 0,
+      "actionArrivalAgeTicks": {
+        "count": 83,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 647,
+        "p50": 7,
+        "p95": 21,
+        "p99": 23,
+        "max": 23
+      },
+      "network": {
+        "attempted": 1979,
+        "delivered": 1947,
+        "fastDropped": 32,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 11592,
+        "maxQueuedBytes": 14851,
+        "maxQueuedPackets": 25,
+        "maxScheduledDelayMs": 231.18953113816679,
+        "maxResidenceMs": 233.30000019073486
+      },
+      "engine": "chromium",
+      "rtcUpload": 249396,
+      "rtcDownload": 53101,
+      "signallingUpload": 5725,
+      "signallingDownload": 15085,
+      "rtcUploadBytesPerSecond": 6928.43649294366,
+      "rtcDownloadBytesPerSecond": 1475.1916879653295
+    },
+    {
+      "index": 1,
+      "actionArrivalAgeTicks": {
+        "count": 80,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 2
+      },
+      "speculationTicks": {
+        "count": 627,
+        "p50": 8,
+        "p95": 22,
+        "p99": 24,
+        "max": 26
+      },
+      "network": {
+        "attempted": 1290,
+        "delivered": 1258,
+        "fastDropped": 32,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1087,
+        "maxQueuedBytes": 1505,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 76.32941400632262,
+        "maxResidenceMs": 82
+      },
+      "engine": "webkit",
+      "rtcUpload": 34617,
+      "rtcDownload": 65963,
+      "signallingUpload": 1355,
+      "signallingDownload": 14711,
+      "rtcUploadBytesPerSecond": 961.6901877986443,
+      "rtcDownloadBytesPerSecond": 1832.5091676852983
+    },
+    {
+      "index": 2,
+      "actionArrivalAgeTicks": {
+        "count": 83,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 695,
+        "p50": 9,
+        "p95": 23,
+        "p99": 25,
+        "max": 26
+      },
+      "network": {
+        "attempted": 1285,
+        "delivered": 1268,
+        "fastDropped": 17,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1085,
+        "maxQueuedBytes": 1715,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 71.6505569871515,
+        "maxResidenceMs": 74.5
+      },
+      "engine": "chromium",
+      "rtcUpload": 44990,
+      "rtcDownload": 75514,
+      "signallingUpload": 1740,
+      "signallingDownload": 15096,
+      "rtcUploadBytesPerSecond": 1249.8610956772975,
+      "rtcDownloadBytesPerSecond": 2097.8442049116566
+    },
+    {
+      "index": 3,
+      "actionArrivalAgeTicks": {
+        "count": 88,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 645,
+        "p50": 9,
+        "p95": 22,
+        "p99": 25,
+        "max": 29
+      },
+      "network": {
+        "attempted": 1215,
+        "delivered": 1189,
+        "fastDropped": 26,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1296,
+        "maxQueuedBytes": 1718,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 75.99289804883301,
+        "maxResidenceMs": 77
+      },
+      "engine": "webkit",
+      "rtcUpload": 35321,
+      "rtcDownload": 90478,
+      "signallingUpload": 1355,
+      "signallingDownload": 14711,
+      "rtcUploadBytesPerSecond": 981.2479164351594,
+      "rtcDownloadBytesPerSecond": 2513.557061895766
+    },
+    {
+      "index": 4,
+      "actionArrivalAgeTicks": {
+        "count": 86,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 679,
+        "p50": 9,
+        "p95": 23,
+        "p99": 25,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1266,
+        "delivered": 1250,
+        "fastDropped": 16,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1296,
+        "maxQueuedBytes": 1512,
+        "maxQueuedPackets": 13,
+        "maxScheduledDelayMs": 73.24543993733823,
+        "maxResidenceMs": 78.19999980926514
+      },
+      "engine": "chromium",
+      "rtcUpload": 39090,
+      "rtcDownload": 87481,
+      "signallingUpload": 1742,
+      "signallingDownload": 15098,
+      "rtcUploadBytesPerSecond": 1085.953994888321,
+      "rtcDownloadBytesPerSecond": 2430.297810867874
+    },
+    {
+      "index": 5,
+      "actionArrivalAgeTicks": {
+        "count": 105,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 640,
+        "p50": 8,
+        "p95": 22,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 833,
+        "delivered": 822,
+        "fastDropped": 11,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1301,
+        "maxQueuedBytes": 1708,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 73.37294195406139,
+        "maxResidenceMs": 80
+      },
+      "engine": "webkit",
+      "rtcUpload": 28219,
+      "rtcDownload": 59096,
+      "signallingUpload": 1355,
+      "signallingDownload": 14711,
+      "rtcUploadBytesPerSecond": 783.9482164684964,
+      "rtcDownloadBytesPerSecond": 1641.7379708856538
+    }
+  ],
+  "errors": []
+}

@@ -357,8 +357,10 @@ test('pending certificates normalize prefix order and reject conflicts without b
   for (let slot = 0; slot < 4; slot++) guest.receive(slot, packet(slot, [], [75, 0]), 75);
   const rejected = guest.receive(4, packet(4, [], [75, 0]), 75);
   assert.equal(rejected.status, 'invalid'); assert.deepEqual(rejected.events, []); assert.equal(guest.finalizedTick, 65);
-  // Rejection clears the bad proposal, so an explicit retry of a correct certificate can recover.
-  assert.equal(guest.finalize(late).status, 'accepted'); assert.equal(guest.finalizedTick, 75);
+  // Rejection clears the bad proposal without accepting the packet that exposed it.
+  assert.equal(guest.streamProgress().find(s => s.slot === 4)!.watermark[0], 65);
+  assert.equal(guest.finalize(late).status, 'waiting');
+  assert.equal(guest.receive(4, packet(4, [], [75, 0]), 75).status, 'accepted'); assert.equal(guest.finalizedTick, 75);
   assert.equal(guest.finalize(early).status, 'stale'); assert.deepEqual(guest.finalize(late).events, []);
 });
 
@@ -462,4 +464,37 @@ test('combined progress rejects late conflicts atomically, including pending fin
   assert.equal(world.pendingFinalizedTick,70); assert.equal(next.world.pendingFinalizedTick,undefined);
   assert.equal(replayHash(world.state),replayHash(next.world.state));
   next.world.advance(71);assert.equal(world.state.game.tick,70);
+});
+
+test('presentation history is exact after rollback, survives finality pruning and stays bounded', () => {
+  const state = fixture(), onTime = setup(state), late = setup(state);
+  const actions: DirectAction[] = [[1, 67, 0, 1], [2, 69, 0, 0]];
+  assert.equal(onTime.receive(0, packet(0, actions), 72).status, 'accepted');
+  advance(onTime, 72); advance(late, 72);
+  const previous = structuredClone(late.presentationFrames());
+  const replay = late.receive(0, packet(0, actions), 72); assert.equal(replay.status, 'accepted'); assert.ok(replay.rollbackTicks);
+  assert.deepEqual(late.presentationFrames(), onTime.presentationFrames());
+  assert.notDeepEqual(late.presentationFrames(), previous);
+  assert.deepEqual(late.presentationFrames().map(f => f.tick), [69, 70, 71, 72]);
+  const before = structuredClone(late.presentationFrames());
+  assert.equal(late.receive(0, packet(0, [[2, 69, 0, 2]]), 72).status, 'invalid');
+  assert.deepEqual(late.presentationFrames(), before);
+  const certificate = certify(late, 72, [2, 0, 0, 0, 0]);
+  assert.deepEqual(late.presentationFrames(), before, 'temporary finality replay cannot alter installed frames');
+  assert.equal(late.finalize(certificate).status, 'accepted');
+  assert.deepEqual(late.presentationFrames(), before, 'finality retains recent presentation even before its replay fence');
+  advance(late, 80); assert.deepEqual(late.presentationFrames().map(f => f.tick), [77, 78, 79, 80]);
+  assert.ok(late.presentationBytes > 0 && late.presentationBytes < late.retainedBytes);
+});
+
+test('a late action exposing a corrupt pending finality cannot mutate simulation or presentation history', () => {
+  const world = setup(); advance(world, 69);
+  for (let slot = 1; slot < 5; slot++) assert.equal(world.receive(slot, packet(slot, [], [69, 0]), 69).status, 'accepted');
+  const pending: Finality = [1, 7, 'final', 69, [[0, 1], [1, 0], [2, 0], [3, 0], [4, 0]], '0'.repeat(16)];
+  assert.equal(world.finalize(unpackMessage(packMessage(pending))).status, 'waiting');
+  const before = structuredClone(world.presentationFrames()), state = replayHash(world.state), progress = world.streamProgress();
+  const rejected = world.receive(0, packet(0, [[1, 66, 0, 1]], [69, 1]), 69);
+  assert.equal(rejected.status, 'invalid'); assert.equal(rejected.corrupt, true);
+  assert.deepEqual(world.presentationFrames(), before); assert.equal(replayHash(world.state), state); assert.deepEqual(world.streamProgress(), progress);
+  assert.equal(world.pendingFinalizedTick, undefined, 'discard the corrupt certificate without keeping a poison retry');
 });

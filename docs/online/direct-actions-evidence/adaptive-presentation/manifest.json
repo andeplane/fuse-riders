@@ -1,0 +1,198 @@
+{
+  "date": "2026-09-14",
+  "baseRevision": "fb90142ac96e6084157a1b739cca83e582bf1fd3",
+  "scope": "ADR044 adaptive remote presentation and reviewed rejection/cache/interpolation fixes. No deployment.",
+  "sourceSha256": {
+    ".c8rc.json": "fc1191a31f6320c0fadbee2fabdc2739cbeb679a784f72fbf88c31d322f1c7eb",
+    "src/online/direct-presentation.ts": "1badb45e4efdb0714a90afb314b4993d679604cdd0ee0cdbcd741884756bf8e8",
+    "src/online/rollback-world.ts": "608c4430b274222dedf17133f96ac5f0a8a65f2ad0933c03299577ea9a4c7e8c",
+    "src/online/direct-segment.ts": "e58f32c45d779cffdf425fe2f93bf4ee210b3e16f43e818c46e3d44d703690d7",
+    "src/online/runtime.ts": "daa76d5b8bd4366e70848068c7cdb6eb6346b7e0c1ff9deab24c310b226c977e",
+    "src/online/ui.ts": "2072ee5aadc24743e45408579176b1c6f6c691d037a6c72b42922bc7dbcde922",
+    "scripts/benchmark-response.ts": "eec7392aa94cf63905c9c5f4b024cb039e2ee7749a9494f96a56d735c43f6c89",
+    "tests/direct-actions.test.ts": "0d68befa7dfe4779d7ba4f9a7a891945011d51b7caa21d9448a06071fcdf5502",
+    "tests/direct-presentation.test.ts": "47d0b4fe4711e2f602c48b678b773049802e9457bcf10bcf8ba472a138ea5e0b",
+    "tests/direct-runtime.test.ts": "ae066dbdde8828ee9d0b0a04648764523ab65b8643cc88260be653406d053de9",
+    "tests/direct-segment.test.ts": "9a8c03efef2c090e6d1f15faed722b1a8fc4bd617342c267af835441f8e0315a",
+    "tests/direct-room-state.test.ts": "9555aef8bae1d3b37a37c079762bf0b716d3e20b0c1363b9f41ca3385312b5f0"
+  },
+  "distJavaScriptSha256": {
+    "dist/assets/ui-BGeiccK2.js": "e11654b4d35a693443259fe0d244b3f59dfa47e20d59e0a3622e46d3c7b85648",
+    "dist/assets/index-DLan8X1T.js": "d3d07cea14e648eb4b7803e956cbf5539ca5821594edaa86027d28e1af78ee50",
+    "dist/assets/arena-Cz441wax.js": "7b93fbe6cedc2d7e65fde46dc5a1ad470871a94e2e4e0ffe55747c0754a2b4d9"
+  },
+  "checks": {
+    "tests": "628 passed; coverage99.50%lines/statements,94.17%branches,99.07%functions. Thresholds unchanged.",
+    "build": "Passed, includes TypeScript check; existing chunk-size advisory.",
+    "worker": "Passed",
+    "lan": "WebKit LAN display, five controllers, controls, themes, reconnect, rematch passed.",
+    "independentReview": "ADR044 design and implementation approved; all reported findings closed in docs/reviews/direct-actions-core-review.md."
+  },
+  "response": {
+    "passed": true,
+    "method": "Trusted DOM pointer to first actual submitted Phaser heading departure >=0.0001 rad; secondary >=1 degree. Two visible renderers: guest844x390 landscape with touch capability and TV1280x720; host renderer hidden. Same machine performance.timeOrigin clocks, direct RTC without impairment. Not physical touch-to-photon, scanout, phone hardware, or WAN qualification.",
+    "durationSeconds": 60,
+    "minimumEligible": 10,
+    "summaries": {
+      "local": {
+        "count": 18,
+        "p50": 16.300048828125,
+        "p95": 16.89990234375,
+        "p99": 16.89990234375,
+        "max": 16.89990234375,
+        "rejected": 26,
+        "timeouts": 0,
+        "reasons": [
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline"
+        ],
+        "candidateLimitMs": 33,
+        "passed": true,
+        "oneDegree": {
+          "count": 18,
+          "p50": 16.300048828125,
+          "p95": 16.89990234375,
+          "p99": 16.89990234375,
+          "max": 16.89990234375,
+          "rejected": 26,
+          "timeouts": 0
+        }
+      },
+      "tv": {
+        "count": 18,
+        "p50": 46.699951171875,
+        "p95": 79.800048828125,
+        "p99": 79.800048828125,
+        "max": 79.800048828125,
+        "rejected": 26,
+        "timeouts": 0,
+        "reasons": [
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline",
+          "confounded-or-turning-baseline"
+        ],
+        "candidateLimitMs": 100,
+        "passed": true,
+        "oneDegree": {
+          "count": 18,
+          "p50": 46.699951171875,
+          "p95": 80.5,
+          "p99": 80.5,
+          "max": 80.5,
+          "rejected": 26,
+          "timeouts": 0
+        }
+      }
+    },
+    "renderers": [
+      {
+        "renderer": "phaser-webgl",
+        "hidden": true,
+        "timeOrigin": 1789415471208.4
+      },
+      {
+        "renderer": "phaser-webgl",
+        "hidden": false,
+        "timeOrigin": 1789415471459.4
+      },
+      {
+        "renderer": "phaser-webgl",
+        "hidden": false,
+        "timeOrigin": 1789415472354.4
+      }
+    ]
+  },
+  "runInterpretation": {
+    "response-01": "Failed before gameplay: old roster selector waited on hidden DOM. Historical fixture had not followed restored lobby UI.",
+    "response-02": "Failed only minimum eligible count:8required10. No response timeout/browser errors; p95local18.4ms/TV81.3ms. Retained as failure.",
+    "response-03": "Passed60-second run,18eligibletrials, unchanged33mslocal/100msTVlimits. Source identity includes final cache fix."
+  },
+  "limits": [
+    "Local desktop Chromium/WebGL; actual submitted presentation, not scanout or touch-to-photon.",
+    "Frame/correction/CPU samples retained in raw response frames. Zero corrections in unshaped local workload is not zero WAN correction evidence.",
+    "Native regional fixture exercises simulation and transport, not rendered latency.",
+    "Sustained impairment and physical-device qualification remain; no deployment."
+  ],
+  "commands": [
+    "npm run test:coverage",
+    "npm run build",
+    "npm run typecheck:worker",
+    "BROWSER=webkit node --import tsx scripts/browser-smoke.ts",
+    "ONLINE_URL=http://localhost:8812/ BENCH_SECONDS=60 node --import tsx scripts/benchmark-response.ts",
+    "ONLINE_URL=http://localhost:8812/ TRAFFIC_PROFILE=regional TRAFFIC_RUN=presentation-regional-01 node --import tsx scripts/direct-traffic-browser.ts"
+  ],
+  "regional": {
+    "passed": true,
+    "run": "presentation-regional-01",
+    "seconds": 35.996,
+    "profile": {
+      "name": "regional",
+      "delayMs": 40,
+      "jitterMs": 20,
+      "fastLoss": 0.02,
+      "kilobitsPerSecond": 512
+    },
+    "bundleSha256": "819191e1c96fb2596b0827067b83d898698eedc63ab272692f5e7df18e862583",
+    "method": "Real RoomRuntime and PeerTransport, five scripted human origins plus display, six simulators alternating Chromium/WebKit. Three-round default-pickup match; window starts before start command and includes countdowns, automatic round transitions and match completion. Native accepted-send and delivered-message application bytes classified for every RTC/WS payload. Excludes room-join bootstrap, HTTP requests/handshakes, SCTP/DTLS/IP headers, retransmission wire cost and rendering. Local native RTC with the declared application impairment profile. This workload is not matched to the historical five-bot serializer benchmark.",
+    "impairmentMethod": "Seeded application-send queue enabled after room join. Delay/jitter and a shared aggregate sender bandwidth budget apply to both lanes. Reliable messages preserve per-channel ordering and are not dropped. Fast messages can drop/reorder. This does not model IP packets or SCTP retransmission. Synthetic unsent serialization bytes are included in native bufferedAmount; propagation-delayed entries stay memory-bounded but no longer count as unsent. Fast drops happen before serialization and consume no shaped bandwidth. Impairment continues through teardown to preserve FIFO; native byte counters use the declared start/end window, while queue stats include the short collection tail. Queued bytes at window end and cancelled bytes at stop are reported. Fixture queue bounds are 2048 messages and 512 KiB, overflow fails the run. First-arrival age uses the receiver simulation tick before application, deduplicated per alias/slot/sequence; it is not input-to-render latency. Samples are bounded and truncation fails the run."
+  },
+  "evidenceSha256": {
+    "coverage.log": "4fc6c99b3ab0f85a7383d6bcf4bcdac192b0c599769d3a2602f68a240fc967a0",
+    "lan.log": "0e83c3eb4e88b559fb68e091c1134441897c4d457a8df3b93fb813e0f83956fb",
+    "response-03.json.gz": "9a90aa4b2df550757f0b2817306ff7077a11a22363e97c51201cb713f85e2b5f",
+    "response-02.json.gz": "e2d40e331105b87295ece39ec8e83dc87756dceab86bce5f3dcc7ad3042c4d97",
+    "worker.log": "0102f73cb93b40d17dc8b71ee627cccfba5d38485df9ea6c25581b26319dc89e",
+    "regional.json.gz": "d526f338666c5db983032a8caa699cb94f461b7859fbf6795c575252ed627139",
+    "response-01.json.gz": "c04e3023ab37e54b36d8cb338b8dfaf567d9ec3af956c7adce23f7ddd4f102fa",
+    "cache-regression.log": "7b2c764ce34daa20fab0c751ede9dbbdd68a3a8851d7b3b9b6d528ff29220bab",
+    "regional.log": "4b4e304101ec8d4de8e99e5b59e2592e59f9912092b25969f951ef2935b68a0a",
+    "build.log": "7b3b113f26b22653cdd4cee5c1efdfdc2cac546fa03c5b5494e6a4f4b31b06d6"
+  }
+}

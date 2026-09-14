@@ -170,3 +170,23 @@ test('a reference cannot bypass a newer finalized fence on fallback', () => {
   assert.equal(prepareWorld(payload, header, plan, fence), undefined);
   assert.ok(prepareWorld(payload, header, plan, world));
 });
+
+test('reference admission counts MessagePack containers and the largest complete recipient envelope', () => {
+  const { world, plan, header } = prepared(false);
+  const plain = { ...header }; delete plain.reference;
+  const tooLarge = Array.from({ length: 64 }, () => [3, 'p'.repeat(128), true] as [3, string, boolean]);
+  assert.equal(referencePreparation(plain, world, tooLarge, plan).reference, undefined);
+  const reference = header.reference!;
+  // Legal Unicode identifiers have different character and encoded byte lengths.
+  const scoped = { ...plan, members: plan.members.map((m, i) => ({ ...m, connection: i ? '界'.repeat(128) : m.connection })) };
+  const encoded = (candidate: Preparation, receiver: string) => packMessage({ id: Number.MAX_SAFE_INTEGER, data: candidate, incarnation: scoped.incarnation, epoch: scoped.epoch, sender: scoped.members[0].connection, receiver }).byteLength;
+  let boundary: Preparation | undefined;
+  for (let n = 1; n <= 128; n++) {
+    const entries = Array.from({ length: n }, (_, i) => ({ ...plain.status.leaderboard[0], id: `historical-${i}`, name: '界'.repeat(20) }));
+    const candidate = { ...plain, status: { ...plain.status, leaderboard: entries }, lobby: { ...plain.lobby!, leaderboard: entries } };
+    if (encoded({ ...candidate, reference }, scoped.members[0].connection) <= 12000 && encoded({ ...candidate, reference }, scoped.members[1].connection) > 12000) { boundary = candidate; break; }
+  }
+  assert.ok(boundary); assert.ok(isPreparation(boundary, scoped));
+  assert.equal(referencePreparation(boundary, world, [], scoped).reference, undefined);
+  assert.ok(referencePreparation(plain, world, [], scoped).reference);
+});

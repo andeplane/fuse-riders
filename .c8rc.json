@@ -18,6 +18,7 @@
     "src/online/direct-control.ts",
     "src/online/direct-ingress.ts",
     "src/online/direct-segment.ts",
+    "src/online/direct-presentation.ts",
     "src/online/direct-room-state.ts",
     "src/online/runtime.ts",
     "src/online/rollback-world.ts",

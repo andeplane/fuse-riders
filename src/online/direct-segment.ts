@@ -1,3 +1,4 @@
+import { DirectPresentation } from './direct-presentation.js';
 import { toSnapshot } from '../shared/game.js';
 import { uint32 } from '../shared/direct-input.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
@@ -47,6 +48,7 @@ export class DirectSegment {
   private finality?: Finality;
   private pendingFinality = new Map<string, { message: Finality; attempted: number }>();
   private finalView?: ViewSnapshot;
+  readonly presentation = new DirectPresentation();
   private stopped?: string;
   private readonly initialAt: number;
   rollbackCount = 0;
@@ -199,6 +201,7 @@ export class DirectSegment {
       const before = this.world.streamProgress().find(s => s.slot === packet[2])!.contiguous;
       const outcome = this.world.receive(packet[2], bytes, reading.tick);
       if (!this.result(outcome)) return;
+      this.presentation.observe(packet[2], outcome.admittedTicks ?? [], reading.fractionalTick);
       const after = this.world.streamProgress().find(s => s.slot === packet[2])!.contiguous;
       if (outcome.receipt && (packet[3].length || after > before)) this.ports.fast(peer, outcome.receipt);
       if (packet[4]) this.recordProgress(packet[2], packet[4][0]);
@@ -309,8 +312,13 @@ export class DirectSegment {
   /** Current geometry with finalized score/outcome fields; rollback never replays committed notices/audio. */
   snapshot(): ViewSnapshot | undefined {
     if (!this.world || !this.finalView) return;
-    const game = this.world.state.game, view = toSnapshot(game), final = this.finalView;
-    return { ...view, tick: game.tick, round: game.round, phase: final.phase, phaseEndsAtTick: final.phaseEndsAtTick, roundWinnerId: final.roundWinnerId, matchWinnerId: final.matchWinnerId,
+    const game = this.world.state.game;
+    return this.present({ ...toSnapshot(game), tick: game.tick, round: game.round });
+  }
+  /** Finalized outcomes overlay geometry only after interpolation. */
+  present(view: ViewSnapshot): ViewSnapshot {
+    const final = this.finalView!;
+    return { ...view, phase: final.phase, phaseEndsAtTick: final.phaseEndsAtTick, roundWinnerId: final.roundWinnerId, matchWinnerId: final.matchWinnerId,
       leaderboard: final.leaderboard, roundPlacements: final.roundPlacements, matchStats: final.matchStats, players: view.players.map(p => { const outcome = final.players.find(f => f.id === p.id)!; return { ...p, alive: outcome.alive, roundWins: outcome.roundWins }; }) };
   }
 }

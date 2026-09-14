@@ -79,6 +79,7 @@ export class RoomRuntime {
   private statusRevision = 0;
   private acceptedStatus = -1;
   private view?: ViewSnapshot;
+  private rendered?: ViewSnapshot;
   private matchId = '';
   private lastBotTick = -1;
   private readonly bots = new BotController();
@@ -117,7 +118,7 @@ export class RoomRuntime {
       terminated: text => this.terminal(text),
     });
   }
-  get replicationDiagnostics() { return { mode: 'direct', coordinator: this.plan?.coordinator, alias: this.plan?.revision, simulator: !!this.segment?.world, replicaTick: this.segment?.world?.state.game.tick ?? null, finalizedTick: this.segment?.finalizedTick, finalizedHash: this.segment?.world?.finalizedHash, retainedRecords: this.segment?.retainedRecords ?? 0, rollbackCount: this.segment?.rollbackCount ?? 0, fastSentBytes: this.transport.fastSentBytes, binarySentBytes: this.transport.binarySentBytes, recoveryRequired: this.recoveryRequired, corruptRecoveryAttempts: this.recoveries.filter(at => this.environment.now() - at < 30000).length, lastFault: this.lastFault, barrier: !!this.incoming && !this.incoming.activated, fault: this.segment?.faultReason ?? this.faultPending }; }
+  get replicationDiagnostics() { return { mode: 'direct', presentation: this.segment?.presentation.diagnostics, presentationBytes: this.segment?.world?.presentationBytes ?? 0, coordinator: this.plan?.coordinator, alias: this.plan?.revision, simulator: !!this.segment?.world, replicaTick: this.segment?.world?.state.game.tick ?? null, finalizedTick: this.segment?.finalizedTick, finalizedHash: this.segment?.world?.finalizedHash, retainedRecords: this.segment?.retainedRecords ?? 0, rollbackCount: this.segment?.rollbackCount ?? 0, fastSentBytes: this.transport.fastSentBytes, binarySentBytes: this.transport.binarySentBytes, recoveryRequired: this.recoveryRequired, corruptRecoveryAttempts: this.recoveries.filter(at => this.environment.now() - at < 30000).length, lastFault: this.lastFault, barrier: !!this.incoming && !this.incoming.activated, fault: this.segment?.faultReason ?? this.faultPending }; }
   start(): void { this.transport.connect(); this.cancelSchedule = this.environment.schedule(() => this.tick()); }
   private terminal(text: string): void { this.freeze(); this.stopped = true; this.cancelSchedule?.(); this.status.terminal(text); }
   private freeze(): void { if (this.segment) for (const peer of this.segment.config.members) if (peer !== this.transport.id) this.transport.deactivatePulse(peer, this.segment.config.alias); this.segment?.stop(); this.localInput = undefined; this.startAt = undefined; this.lastBotTick = -1; this.callbacks.controlsReset?.(); }
@@ -162,7 +163,7 @@ export class RoomRuntime {
     if (!plan.coordinator) {
       // Waiting for a display is an explicit idle lobby, not an unfinished simulation attempt.
       this.recoveryEpisodeAt = undefined; this.pendingPlan = undefined;
-      this.segment = undefined; this.segmentPlan = undefined; this.change = undefined; this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish();
+      this.segment = undefined; this.rendered = undefined; this.segmentPlan = undefined; this.change = undefined; this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish();
       if (this.transport.id === this.transport.hostId) this.broadcastLobby();
       this.status.recurring('Open TV view to start · phones are controllers'); return;
     }
@@ -224,6 +225,7 @@ export class RoomRuntime {
         now: () => this.environment.now(), pulse: (peer, bytes) => this.transport.sendPulse(peer, bytes), fast: (peer, bytes) => this.transport.sendFast(peer, bytes), reliable: (peer, tuple) => this.transport.sendBound(peer, tuple),
         events: events => this.events(events), fault: (reason, corrupt) => { this.faultPending = reason; this.corruptionPending = !!corrupt; },
       });
+      this.rendered = undefined;
       this.segmentPlan = structuredClone(plan);
       for (const member of plan.members) if (member.id !== this.transport.id && !this.transport.activatePulse(member.id, plan.revision)) { this.faultPending = 'Direct heartbeat activation failed — synchronizing'; return; }
       incoming.activated = true; this.view = this.segment.snapshot() ?? incoming.header.status; this.matchId = incoming.header.matchId; if (incoming.header.lobby) this.lobby = structuredClone(incoming.header.lobby); incoming.candidate = undefined; this.change = undefined; this.pendingPlan = undefined;
@@ -311,7 +313,7 @@ export class RoomRuntime {
       if (ok) this.localInput = command; else if (command.bombAction === 'release') this.callbacks.shotFailed?.(); return ok;
     }
     if (this.recoveryRequired && this.transport.id === this.transport.hostId && command.type === 'action' && command.action === 'lobby') {
-      this.lobby.matchId = this.environment.randomId(); this.lobby.seed = createGame(this.lobby.matchId).seed; this.recoveryRequired = false; this.recoveryEpisodeAt = undefined; this.segment = undefined; this.plan = undefined; this.view = catalogView(this.lobby); this.issuePlan(this.lobby.settings, true); return true;
+      this.lobby.matchId = this.environment.randomId(); this.lobby.seed = createGame(this.lobby.matchId).seed; this.recoveryRequired = false; this.recoveryEpisodeAt = undefined; this.segment = undefined; this.rendered = undefined; this.plan = undefined; this.view = catalogView(this.lobby); this.issuePlan(this.lobby.settings, true); return true;
     }
     this.localCommand = { request: ++this.requestCounter, command: structuredClone(command), expires: this.environment.now() + 5000, sent: -Infinity }; return true;
   }
@@ -463,17 +465,26 @@ export class RoomRuntime {
     try { this.environment.storage.setItem(`fuse-direct-room-${this.code}`, JSON.stringify({ catalog: this.lobby, status: thinSnapshot(this.view) })); } catch { /* Cache is best effort, not durable failover. */ }
   }
   renderSnapshot(): ViewSnapshot | undefined {
-    if (!this.activationSafe() || !this.view || !this.segment?.world || this.segment.faultReason) return this.view;
+    if (!this.segment?.world) return this.view;
+    if (!this.activationSafe() || !this.view || !this.segment?.world || this.segment.faultReason) return this.rendered ?? this.view;
     const segment = this.segment, world = segment.world!, reading = segment.clock.read();
+    if (!reading.canAdvance) return this.rendered ?? this.view;
     const fraction = this.view.phase === 'playing' && reading.canAdvance ? Math.max(0, Math.min(1, reading.fractionalTick - world.state.game.tick)) : 0;
-    return { ...this.view, tick: world.state.game.tick + fraction, players: this.view.players.map(p => {
-      const sim = world.state.game.players.get(p.id); if (!sim?.alive || !fraction) return p;
+    const buffered = segment.presentation.render(world.presentationFrames(), reading.fractionalTick, this.environment.now());
+    const view = buffered ? segment.present(buffered) : this.view;
+    this.rendered = { ...view, players: view.players.map(remote => {
+      if (remote.id !== this.transport.id) return remote;
+      const sim = world.state.game.players.get(remote.id)!;
+      const p = { ...remote, x: sim.x, y: sim.y, angle: sim.angle, trail: sim.trail };
+      if (!sim.alive || !fraction) return p;
       const held = world.state.held.get(p.slot), local = p.id === this.transport.id ? this.localInput : undefined;
       const controls = local ?? { left: !!((held?.flags ?? 0) & 1), right: !!((held?.flags ?? 0) & 2) };
       const nextOffset = drunkHeadingOffset(world.state.game.seed, p.id, world.state.game.tick + 1, sim.drunkStartedTick, sim.drunkUntilTick);
       const pose = advanceRiderPose({ x: p.x, y: p.y, angle: p.angle, drunkHeadingOffset: sim.drunkHeadingOffset }, controls, { distance: RIDER_SPEED / 20 * fraction, turn: RIDER_TURN_RATE / 20 * fraction, drunkHeadingOffset: sim.drunkHeadingOffset + (nextOffset - sim.drunkHeadingOffset) * fraction });
-      return { ...p, x: pose.x, y: pose.y, angle: pose.angle };
+      const trail = [...p.trail, { x1: p.x, y1: p.y, x2: pose.x, y2: pose.y, createdTick: world.state.game.tick, expiresAtTick: world.state.game.tick + 4 }];
+      return { ...remote, x: pose.x, y: pose.y, angle: pose.angle, trail };
     }) };
+    return this.rendered;
   }
   stop(): void { this.save(); this.freeze(); this.stopped = true; this.cancelSchedule?.(); this.transport.close(); }
 }

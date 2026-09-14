@@ -1,0 +1,195 @@
+TAP version 13
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 1 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 126.331416
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 2 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 42.613375
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 3 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 51.332416
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 4 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 156.24675
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 5 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 23.847042
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 6 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 141.141667
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 7 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 45.35425
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 8 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 141.572209
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 9 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 293.12275
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 10 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 40.004042
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 11 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 196.579958
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 12 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 45.438417
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 13 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 87.703416
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 14 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 39.543583
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+ok 15 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 38.417084
+  ...
+# Subtest: header and header-ACK enqueue failures retry delivery without substituting for readiness
+ok 16 - header and header-ACK enqueue failures retry delivery without substituting for readiness
+  ---
+  duration_ms: 46.087666
+  ...
+# Subtest: stale or malformed header acknowledgements cannot stop preparation delivery
+ok 17 - stale or malformed header acknowledgements cannot stop preparation delivery
+  ---
+  duration_ms: 26.183625
+  ...
+# Subtest: checkpoint chunks alternate eligible recipients with one successful enqueue per scheduler tick
+ok 18 - checkpoint chunks alternate eligible recipients with one successful enqueue per scheduler tick
+  ---
+  duration_ms: 27.58225
+  ...
+# Subtest: synchronous authority replacement during a chunk send retires the old transfer immediately
+ok 19 - synchronous authority replacement during a chunk send retires the old transfer immediately
+  ---
+  duration_ms: 20.2305
+  ...
+# Subtest: synchronous end during a header send stops other recipient sends in the same tick
+ok 20 - synchronous end during a header send stops other recipient sends in the same tick
+  ---
+  duration_ms: 20.839334
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 21 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 158.199417
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 22 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 155.801792
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 23 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 155.4245
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 24 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 153.466958
+  ...
+# Subtest: settled room metadata stops repeating until a lifecycle change
+ok 25 - settled room metadata stops repeating until a lifecycle change
+  ---
+  duration_ms: 53.601
+  ...
+# Subtest: a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+ok 26 - a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+  ---
+  duration_ms: 43.491125
+  ...
+# Subtest: stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+ok 27 - stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+  ---
+  duration_ms: 33.982167
+  ...
+# Subtest: only an identical current plan duplicate receives another delivery acknowledgement
+ok 28 - only an identical current plan duplicate receives another delivery acknowledgement
+  ---
+  duration_ms: 34.281083
+  ...
+# Subtest: delegated setup request retries do not resend an already acknowledged room plan
+ok 29 - delegated setup request retries do not resend an already acknowledged room plan
+  ---
+  duration_ms: 20.58775
+  ...
+# Subtest: an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+ok 30 - an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+  ---
+  duration_ms: 166.454625
+  ...
+# Subtest: freezing a runtime deactivates its installed alias before another preparation
+ok 31 - freezing a runtime deactivates its installed alias before another preparation
+  ---
+  duration_ms: 35.933
+  ...
+# Subtest: exact lifecycle bases activate without checkpoint chunks even when the bulk lane is blocked
+ok 32 - exact lifecycle bases activate without checkpoint chunks even when the bulk lane is blocked
+  ---
+  duration_ms: 67.37125
+  ...
+# Subtest: only a peer without an eligible base downloads the lifecycle payload
+ok 33 - only a peer without an eligible base downloads the lifecycle payload
+  ---
+  duration_ms: 66.944292
+  ...
+# Subtest: a conflicting payload ACK fails the current preparation without accepting a new transfer mode
+ok 34 - a conflicting payload ACK fails the current preparation without accepting a new transfer mode
+  ---
+  duration_ms: 23.829584
+  ...
+# Subtest: delayed remote rendering preserves immediate local steering without advancing simulation or sending packets
+ok 35 - delayed remote rendering preserves immediate local steering without advancing simulation or sending packets
+  ---
+  duration_ms: 67.194125
+  ...
+# Subtest: an unqualified clock freezes the complete last rendered scene including the local overlay
+ok 36 - an unqualified clock freezes the complete last rendered scene including the local overlay
+  ---
+  duration_ms: 91.595292
+  ...
+# Subtest: discarding the simulator retires cached rendering and idle catalogs stay current before TV activation
+ok 37 - discarding the simulator retires cached rendering and idle catalogs stay current before TV activation
+  ---
+  duration_ms: 137.094041
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 37
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3240.223292

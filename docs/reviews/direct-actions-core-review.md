@@ -457,3 +457,42 @@ The proposed acceptance list otherwise covers the key observable boundaries. Add
 Approve the amended ADR043 for implementation. It now defines the exact four-element, 4,096-byte encoded reference and three-key boolean payload ACK; retains original world/plan provenance and current local/source connection checks without invalidating unrelated peers; validates fallback base and operations against the offered reference; preserves ahead/equal-hash finalized fences; and fixes one immutable header using worst-case recipient envelope size. Conflicting current-scope payload requirements fail the preparation without changing admitted transfer mode or progress. These amendments close all preceding design findings.
 
 Implementation must retain shared derivation/output validation, controller lightweight behavior, selective bounded fallback, and unchanged ready/applied/timeout semantics, with the listed serialized and native regressions. This approves the architecture for development only. The existing rules-3 local/UI evidence and regional failures do not qualify the proposed rules-4 implementation; resulting source review and regional acceptance remain outstanding. No code or tests changed during this design review.
+
+
+### ADR044 adaptive presentation design review
+
+Approve the amended ADR044 for implementation. Initial inspection found two concrete pitfalls: existing `interpolateWorld` publishes the newer frame immediately across phase/round changes, and temporary rollback/finality reconstruction could accidentally mutate or discard the installed four-frame history. The amended contract now holds the older raw frame until the discontinuity boundary, uses a direct-specific presentation path, preserves unaffected history while rebuilding the replay suffix, and isolates temporary replay maps and mutable game fields.
+
+The final amendment also makes lateness sampling occur only from newly contiguous actions after complete world admission using one captured clock reading, overlays finalized outcomes after raw interpolation, and supplies the local trail extension explicitly for both Canvas and Phaser. That avoids relying on `trailTip`'s current-tick condition when the overall scene uses a delayed tick. History remains bounded inside the existing byte ceiling, aliases reset presentation state, and rendering neither runs physics nor publishes committed effects. No remaining design blocker was found within this short-history scope.
+
+Implementation review must verify the listed replay, sampling, discontinuity, local-preview and lifecycle regressions. The specified rendering fixture remains necessary to evaluate response and corrections; neither this design review nor existing simulation-only traffic results establish rendered performance. LAN/solo interpolation and the existing simulation/finality contracts remain unchanged. No production code, tests or browser runs were performed during this design review.
+
+
+### ADR044 first implementation review
+
+The four-frame history reconstructs through independent candidate maps, retains pre-checkpoint frames appropriately, counts encoded frame bytes, and survives finality trimming. Newly contiguous remote actions supply samples once, including buffered records released by gap repair; raw interpolation precedes finalized outcome overlay. Three concrete corrections remain before implementation approval:
+
+1. `renderSnapshot` still calls adaptive presentation when the clock cannot advance. Only local fractional preview is disabled, so unqualified clocks can move remote playback through retained history or change the delay. Preserve the last presented scene, including its local overlay, while frozen/unqualified/faulted. Test repeated renders across qualification loss and recovery without simulation/network side effects.
+2. Shell interpolation inherits an insufficient equal-velocity test. A shared `advanceShell` reproduction starting x=100, vx=450 within bounds 95..105 traverses 100→105→95→102.5 in one tick and ends with vx=450. The current direct interpolator draws x=101.25 at half tick, while the actual bounced path is x=98.75. Require compatible shell type/velocity and displacement consistent with straight elapsed motion, otherwise hold the older pose until the next tick. Keep LAN interpolation unchanged.
+3. Pending-certificate rejection can mutate installed history. Independent public world API reproduction: validated tick-60 base, advance64, certify the other origin through64, queue a waiting bad-hash finality64 requiring origin0 sequence1, then admit origin0 late turn `[1,61,0,1]` with cut `[64,1]`. `receive` returns invalid/corrupt, but history changes because streams/replay candidate install before `tryFinality` rejects. Compose the admission/finality work atomically or restore the prior candidate/streams on rejection, retaining bounded corruption handling; test this path explicitly. This is an existing simulation-admission weakness newly covered by ADR044's atomic presentation contract.
+
+These findings are limited to the approved presentation scope. Two small deterministic public-API reproductions were run; no browser or broad test suite was run during concurrent rendered measurement. Source implementation approval remains pending their corrections.
+
+
+### ADR044 correction inspection
+
+The shell fix now restricts interpolation to velocity/type-compatible straight displacement, holding the earlier shell pose for the reproduced multiple-bounce case. Admission and advancement restore prior simulation/history candidates when pending finality rejects or overflows. The modified finality regression correctly asserts that a rejected progress cut was not installed, then retries it before expecting valid finality; this strengthens atomicity while preserving recovery coverage. These two corrections are sound by inspection.
+
+Caching the full rendered scene fixes continued playback under an unqualified clock, but introduces one scope reset issue: the cache is cleared only by segment activation. Explicit coordinator-null shared lobbies and fresh-lobby recovery can replace the public catalog while leaving no simulator to activate, and `renderSnapshot` then prefers the previous game's cached scene indefinitely. Clear/rescope this cache at explicit world-discard/idle/fresh-lobby boundaries while retaining it during a same-scope freeze. Add a rendered playing→shared-without-TV→catalog-update→TV-join regression. Approval of the completed freeze correction remains pending that lifecycle fix. No concurrent browser or full test run was performed during the parent's response measurement.
+
+
+### ADR044 final cache reset verification
+
+Inspection confirms explicit world-discard boundaries now clear the rendered cache, and no-world/controller rendering returns the current catalog directly. A narrow independent run of the four correction regressions passed shell bounce compatibility, pending-finality history atomicity and unqualified-scene freezing, but the new idle-catalog scenario failed its rename expectation (`p1` rather than `Renamed rider`). The cache source fix appears sound; verify that the chosen catalog mutation is actually accepted and updates the public view before asserting its rendering. Output is retained locally at `/private/tmp/adr044-review-corrections.log`. Final test-evidence disposition remains pending that corrected scenario, with no additional source blocker identified.
+
+
+### ADR044 bounded implementation approval
+
+Approve the corrected ADR044 implementation within the reviewed scope. The final cache regression now uses a supported creator bot-add, explicitly verifies successful command acceptance and the changed published idle catalog, compares rendering against that catalog, then activates a TV without stale scene reuse. Independently reran that exact test: one passed, zero failed or skipped. Together with the preceding three independently passing correction regressions, this closes shell motion, rejected-admission atomicity, unqualified presentation freezing and cache lifecycle findings.
+
+No concrete source blocker remains in this bounded presentation review. Rendered response/correction measurements, complete checks and regional/extended qualification retain their separate evidence requirements; this approval does not infer those outcomes or authorize release.

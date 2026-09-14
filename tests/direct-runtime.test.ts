@@ -519,3 +519,47 @@ test('a conflicting payload ACK fails the current preparation without accepting 
   assert.equal(room.sends.filter(m => m.type === 'directChunk').length, before);
   assert.match(creator.runtime.replicationDiagnostics.lastFault ?? '', /Conflicting checkpoint requirement/);
 });
+
+test('delayed remote rendering preserves immediate local steering without advancing simulation or sending packets', () => {
+  const room = setup(), creator = room.members.get('p0')!;
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4300);
+  let before = creator.runtime.renderSnapshot()!;
+  for (let i = 0; i < 5 && before.players[0].x === creator.view!.players[0].x; i++) { room.advance(10); before = creator.runtime.renderSnapshot()!; }
+  assert.equal(before.phase, 'playing');
+  assert.ok(before.tick < creator.runtime.replicationDiagnostics.replicaTick!);
+  assert.equal(creator.runtime.command({ type: 'input', seq: 1, left: true, right: false, bomb: false }), true);
+  const tick = creator.runtime.replicationDiagnostics.replicaTick, sent = room.sends.length;
+  const after = creator.runtime.renderSnapshot()!;
+  assert.notEqual(after.players.find(p => p.id === 'p0')!.angle, before.players.find(p => p.id === 'p0')!.angle);
+  assert.deepEqual(after.players.find(p => p.id === 'p1'), before.players.find(p => p.id === 'p1'));
+  const local = after.players.find(p => p.id === 'p0')!;
+  assert.equal(local.trail.at(-1)!.x2, local.x); assert.equal(local.trail.at(-1)!.y2, local.y);
+  assert.equal(creator.runtime.replicationDiagnostics.replicaTick, tick); assert.equal(room.sends.length, sent);
+  assert.ok(creator.runtime.replicationDiagnostics.presentationBytes > 0);
+});
+
+test('an unqualified clock freezes the complete last rendered scene including the local overlay', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4320);
+  const before = structuredClone(guest.runtime.renderSnapshot());
+  room.unscheduled.add('p1'); room.silent.add('p1'); room.advance(1100);
+  assert.deepEqual(guest.runtime.renderSnapshot(), before);
+  room.advance(100); assert.deepEqual(guest.runtime.renderSnapshot(), before);
+});
+
+test('discarding the simulator retires cached rendering and idle catalogs stay current before TV activation', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4320);
+  assert.equal(creator.runtime.renderSnapshot()!.phase, 'playing');
+  creator.runtime.command({ type: 'action', action: 'lobby' }); room.advance(1800);
+  assert.equal(creator.runtime.renderSnapshot()!.phase, 'lobby');
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), mode: 'shared' } }); room.advance(1800);
+  assert.equal(creator.runtime.replicationDiagnostics.simulator, false);
+  assert.deepEqual(creator.runtime.renderSnapshot(), creator.view);
+  assert.equal(creator.runtime.command({ type: 'bot', action: 'add' }), true); room.advance(1000);
+  assert.equal(creator.view!.players.length, 4, 'the management operation changed the idle catalog');
+  assert.deepEqual(creator.runtime.renderSnapshot(), creator.view);
+  const tv = room.add('tv', true); for (const [id, member] of room.members) if (id !== 'tv') member.callbacks.peer('tv', true); tv.runtime.start(); room.advance(2000);
+  assert.equal(tv.runtime.replicationDiagnostics.simulator, true); assert.equal(tv.runtime.renderSnapshot()!.phase, 'lobby');
+  assert.deepEqual(creator.runtime.renderSnapshot(), creator.view);
+});
