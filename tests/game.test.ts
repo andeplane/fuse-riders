@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { POINT_UNIT } from '../src/shared/leaderboard.ts';
+import { defaultRoomSettings } from '../src/shared/room-settings.ts';
 import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from '../src/shared/drunk.ts';
 import {
   BOMB_FLIGHT_TICKS,
@@ -413,6 +414,43 @@ test('round wins score once, first to three ends the match, and rematch resets w
   step(state, new Map());
   assert.equal(state.leaderboard.get('p0')!.roundsPlayed, 4);
   assert.equal(state.leaderboard.get('p0')!.totalScoreUnits, 20 * POINT_UNIT);
+});
+
+function fixedRoundsGame(length: number): GameState {
+  const state = gameWithPlayers();
+  state.settings = { ...defaultRoomSettings(), match: 'rounds', length };
+  enterPlaying(state);
+  return state;
+}
+
+function finishRound(state: GameState, ...losers: string[]): void {
+  for (const loser of losers) eliminatePlayer(state, loser);
+  step(state, new Map());
+  if (state.phase !== 'roundOver') return;
+  state.tick = state.phaseEndsAtTick!;
+  startNextRound(state);
+  for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+}
+
+test('fixed-rounds match ends on the final round even when the standings leader loses it', () => {
+  const state = fixedRoundsGame(3);
+  finishRound(state, 'p1'); finishRound(state, 'p1'); finishRound(state, 'p0');
+  assert.equal(state.phase, 'matchOver');
+  assert.equal(state.matchWinnerId, 'p0');
+  assert.equal(state.roundWinnerId, 'p1');
+  assert.equal(state.leaderboard.get('p0')!.matchWins, 1);
+  assert.deepEqual([state.leaderboard.get('p1')!.roundWins, state.leaderboard.get('p1')!.matchWins], [1, 0]);
+  assert.doesNotThrow(() => step(state, new Map()));
+});
+
+test('fixed-rounds match with a drawn final round crowns the standings leader', () => {
+  const state = fixedRoundsGame(2);
+  finishRound(state, 'p1'); finishRound(state, 'p0', 'p1');
+  assert.equal(state.phase, 'matchOver');
+  assert.equal(state.matchWinnerId, 'p0');
+  assert.equal(state.roundWinnerId, undefined);
+  assert.equal(state.leaderboard.get('p0')!.matchWins, 1);
+  assert.equal(state.leaderboard.get('p0')!.roundWins, 1);
 });
 
 test('overtime inset updates before collision and a 90-second unresolved round draws', () => {

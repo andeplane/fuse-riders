@@ -1132,7 +1132,12 @@ function recordElimination(state: GameState, playerId: PlayerId): void {
 function scoreRoundOnce(state: GameState, winnerId?: PlayerId, matchWinnerId?: PlayerId): void {
   if (state.roundScored) return;
   const placements = rankRound([...state.roundParticipants.values()]);
-  applyRoundScores(state.leaderboard, placements, winnerId, matchWinnerId);
+  // Fixed-round standings can crown a match winner who did not win this round; credit that win separately.
+  applyRoundScores(state.leaderboard, placements, winnerId, matchWinnerId === winnerId ? matchWinnerId : undefined);
+  if (matchWinnerId !== undefined && matchWinnerId !== winnerId) {
+    const entry = state.leaderboard.get(matchWinnerId);
+    if (entry) entry.matchWins += 1;
+  }
   finalizeMatchStatsRound(state.matchStats, [...state.roundParticipants.keys()], winnerId);
   state.roundPlacements = placements;
   state.roundScored = true;
