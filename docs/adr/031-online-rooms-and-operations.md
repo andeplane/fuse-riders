@@ -1,6 +1,10 @@
 # ADR 031: Room boundaries and operations
 
-Date: 2026-09-14. Status: proposed; service ownership and capacity not yet accepted.
+Date: 2026-09-14. Status: **historical proposal; Cloudflare hosting and gameplay-relay recommendations superseded for the current deployment**.
+
+Read [ADR 034](034-gcp-pages-deployment.md) for the reviewed GitHub Pages / Cloud Run / Firestore / signalling-only Pub/Sub topology and [ADR 035](035-direct-gameplay-only.md) for the accepted direct-only gameplay and failure policy. No gameplay WSS/Pub/Sub relay or provisioned TURN is part of the current service. The fallback, relay-capacity and Durable Object passages below are preserved as proposal history, not current deployment instructions or acceptance requirements. Current resources and verified deployment identity are in [GCP inventory](../online/GCP-INVENTORY.md); unresolved qualification is tracked in the [completion audit](../reviews/online-completion-audit.md).
+
+The capability, room-isolation, bounded-resource and explicit-validation principles remain relevant, but implementation evidence must be checked against the current service and protocol; this historical document does not prove them completed.
 
 ## Decision
 

@@ -1,6 +1,10 @@
 # ADR 032: Network and release acceptance
 
-Date: 2026-09-14. Status: proposed measurable gates; no current report proves release readiness.
+Date: 2026-09-14. Status: **proposed measurable gates, only partially evidenced; not blanket release acceptance**.
+
+Read [ADR 035](035-direct-gameplay-only.md) for the accepted direct-only policy and its reviewed recovery amendments, and [ADR 034](034-gcp-pages-deployment.md) for the current GCP/Pages deployment. These supersede the historical fallback/relay requirements below: game traffic has no WSS/Pub/Sub fallback, so direct unavailability must fail visibly and recover on a working direct path. The post-outage two-second world-recovery check remains in the browser harness. This supersession does not waive responsiveness, consistency, bounded resources or poor-network measurement.
+
+The numeric budgets below remain proposals; neither this status note nor deployment promotes them all to accepted/passed gates. Consult the [completion audit](../reviews/online-completion-audit.md) and [recorded network evidence](../online/NETWORK-EVIDENCE-2026-09-14.md) for completed checks, failures and unverified physical-device/real-network requirements. Historical alternatives remain below for traceability.
 
 ## Decision
 
