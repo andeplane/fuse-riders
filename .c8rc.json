@@ -11,6 +11,8 @@
     "src/client/audio-director.ts",
     "src/online/host-session.ts",
     "src/online/action-replication.ts",
+    "src/online/direct-stream.ts",
+    "src/online/rollback-world.ts",
     "src/online/authority.ts",
     "src/online/authority-status.ts",
     "src/online/status-notices.ts",

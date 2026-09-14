@@ -1,0 +1,301 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { addPlayer, createGame, SLOT_COLORS, startMatch, step } from '../src/shared/game.js';
+import { canonical, replayHash } from '../src/shared/action-log.js';
+import { defaultRoomSettings } from '../src/shared/room-settings.js';
+import { DIRECT_RULES, isDirectAction, stepDirect, type DirectAction, type DirectState } from '../src/shared/direct-input.js';
+import { packMessage, unpackMessage } from '../src/online/action-replication.js';
+import { decodeDirectPacket, DirectDelivery, DirectStream, FAST_PACKET_BYTES, type DirectPacket, type Watermark } from '../src/online/direct-stream.js';
+import { packBootstrap, RollbackWorld, ROLLBACK_TICKS, type Finality } from '../src/online/rollback-world.js';
+
+function fixture(seed = 123): DirectState {
+  const game = createGame('direct-test', seed);
+  game.settings = defaultRoomSettings();
+  for (let slot = 0; slot < 5; slot++) addPlayer(game, { id: `p${slot}`, name: `Player ${slot}`, slot, color: SLOT_COLORS[slot] });
+  startMatch(game);
+  for (let i = 0; i < 65; i++) step(game, new Map());
+  return { game, held: new Map(), gestures: new Map() };
+}
+function setup(state = fixture(), segment = 7): RollbackWorld {
+  const world = RollbackWorld.open(packBootstrap(segment, state, [...state.game.players.values()].map(p => [p.slot, 0])), segment);
+  assert.ok(world); return world;
+}
+function packet(slot: number, actions: DirectAction[], watermark: Watermark | null = null, segment = 7): Uint8Array {
+  return packMessage([1, segment, slot, actions, watermark] satisfies DirectPacket);
+}
+function advance(world: RollbackWorld, tick: number): void {
+  while (world.state.game.tick < tick) {
+    const before = world.state.game.tick;
+    const outcome = world.advance(tick);
+    assert.equal(outcome.status, 'accepted'); assert.ok(world.state.game.tick > before);
+  }
+}
+function certify(world: RollbackWorld, tick: number, prefixes = [0, 0, 0, 0, 0]): Finality {
+  for (let slot = 0; slot < 5; slot++) assert.equal(world.receive(slot, packet(slot, [], [tick, prefixes[slot]]), tick).status, 'accepted');
+  const finality = world.proposeFinality(tick); assert.ok(finality); return finality;
+}
+
+test('wire actions use full uint32 ticks and strict bounded MessagePack tuples', () => {
+  const small: DirectAction = [1, 120, 0, 1], late: DirectAction = [100, 72_000, 0, 0];
+  assert.equal(packMessage(small).byteLength, 5);
+  assert.equal(packMessage(late).byteLength, 9);
+  assert.deepEqual(decodeDirectPacket(packet(0, [late]))?.[3], [late]);
+  for (const invalid of [null, {}, [], [0, 1, 0, 1], [1, -1, 0, 0], [1, 2 ** 32, 0, 0], [1, 2, 0, 4], [1, 2, 1, 0], [1, 2, 2, 1], [1, 2, 2, 1, [-0, 0]], [1, 2, 4, [0, 2]], [1, 2, 99, 0], [1, 2, 3, 1, 0]]) assert.equal(isDirectAction(invalid), false);
+  for (const bad of [new Uint8Array(513), new Uint8Array([0xdd, 0xff, 0xff, 0xff, 0xff]), packMessage([1, 7, 5, [], null]), packMessage([1, 7, 0, Array(5).fill(small), null]), packMessage([2, 7, 0, [], null]), packMessage([1, 0, 0, [], null])]) assert.equal(decodeDirectPacket(bad), undefined);
+});
+
+test('independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks', () => {
+  let stream = new DirectStream({ sequence: 0, tick: 65, gesture: 0 });
+  let received = stream.receive([[3, 70, 0, 0]], [72, 3], 80);
+  assert.equal(received.status, 'accepted'); if (received.status !== 'accepted') return;
+  stream = received.stream; assert.equal(stream.contiguous, 0); assert.equal(stream.completeThrough(72), false);
+  received = stream.receive([[1, 66, 0, 1], [2, 68, 0, 2]], [68, 2], 80);
+  assert.equal(received.status, 'accepted'); if (received.status !== 'accepted') return;
+  stream = received.stream;
+  assert.deepEqual(received.added.map(a => a[0]), [1, 2, 3]); assert.equal(stream.contiguous, 3);
+  assert.equal(stream.completeThrough(72), true); assert.equal(stream.prefixAt(69), 2);
+  assert.deepEqual(stream.at(70), [[3, 70, 0, 0]]);
+});
+
+test('conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults', () => {
+  const base = new DirectStream({ sequence: 0, tick: 65, gesture: 0 });
+  const seeded = base.receive([[1, 66, 1, 1], [2, 68, 2, 1, null]], [68, 2], 80);
+  assert.equal(seeded.status, 'accepted'); if (seeded.status !== 'accepted') return;
+  const stream = seeded.stream, before = canonical(stream);
+  for (const [actions, mark] of [
+    [[[1, 66, 0, 2]], null], [[[3, 68, 0, 0]], null], [[[3, 70, 1, 1]], null],
+    [[], [69, 1]], [[], [67, 3]], [[], [68, 3]], [[], [100, 2]],
+    [[[4, 69, 0, 0], [3, 70, 0, 1]], null],
+  ] as [DirectAction[], Watermark | null][]) {
+    assert.equal(stream.receive(actions, mark, 80).status, 'invalid'); assert.equal(canonical(stream), before);
+  }
+  assert.equal(stream.receive([[257, 70, 0, 1]], null, 80).status, 'overflow');
+  assert.equal(stream.receive([[3, 81, 0, 1]], null, 80).status, 'invalid');
+});
+
+test('whole world advances with no action packets, then bounded rollback exactly reconstructs late actions', () => {
+  const state = fixture(), expected = setup(state), delayed = setup(state);
+  const actions: DirectAction[] = [[1, 66, 0, 1], [2, 70, 1, 1], [3, 74, 2, 1, null], [4, 77, 0, 0]];
+  assert.equal(expected.receive(0, packet(0, actions), 77).status, 'accepted');
+  advance(expected, 80); advance(delayed, 80);
+  assert.notEqual(replayHash(expected.state), replayHash(delayed.state));
+  const correction = delayed.receive(0, packet(0, [...actions].reverse()), 80);
+  assert.equal(correction.status, 'accepted'); assert.equal(correction.rollbackTicks, 15);
+  assert.equal(canonical(delayed.state), canonical(expected.state));
+  assert.ok(expected.state.game.bombs.size > 0);
+  const duplicate = delayed.receive(0, packet(0, actions), 80);
+  assert.equal(duplicate.rollbackTicks, 0); assert.equal(canonical(delayed.state), canonical(expected.state));
+});
+
+test('all same-tick press/release packet permutations yield exactly one identical shot', () => {
+  const actions: DirectAction[] = [[1, 66, 1, 1], [2, 66, 2, 1, [0.5, 0.25]], [3, 66, 0, 2]];
+  const permutations = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+  const worlds = permutations.map(order => {
+    const world = setup(); advance(world, 67);
+    for (const i of order) assert.equal(world.receive(0, packet(0, [actions[i]]), 67).status, 'accepted');
+    assert.equal(world.state.game.nextBombId, 2); return canonical(world.state);
+  });
+  assert.ok(worlds.every(s => s === worlds[0]));
+});
+
+test('replacement press restarts charge; old release cannot fire the newer gesture', () => {
+  const world = setup();
+  assert.equal(world.receive(0, packet(0, [[1, 66, 1, 1], [2, 67, 1, 2], [3, 68, 2, 1, null]]), 68).status, 'accepted');
+  advance(world, 68);
+  assert.equal(world.state.game.players.get('p0')!.bombChargeStartedTick, 67);
+  assert.equal(world.state.game.bombs.size, 0);
+  assert.equal(world.receive(0, packet(0, [[4, 70, 2, 2, null]]), 70).status, 'accepted');
+  advance(world, 70); assert.equal(world.state.game.nextBombId, 2);
+  assert.equal(world.state.game.players.get('p0')!.bombChargeStartedTick, undefined);
+});
+
+test('missing press never invents charge; cancel and aiming preserve per-action target order', () => {
+  const world = setup();
+  world.receive(0, packet(0, [[1, 66, 2, 1, null], [2, 67, 3, 1]]), 67); advance(world, 67);
+  assert.equal(world.state.game.nextBombId, 1);
+  const state = fixture(); state.game.players.get('p0')!.targetBombArmed = true;
+  stepDirect(state, new Map([[0, [[1, 66, 4, [0.1, 0.1]], [2, 66, 1, 1], [3, 66, 3, 1], [4, 66, 1, 2], [5, 66, 4, [0.9, 0.9]]]]]));
+  assert.equal(state.gestures.get(0)!.active, 2); assert.deepEqual(state.held.get(0)!.aim, [0.9, 0.9]);
+  assert.throws(() => stepDirect(state, new Map([[0, [[6, 67, 1, 2]]]])), /Reused gesture/);
+  assert.throws(() => stepDirect(fixture(), new Map([[0, [[2, 66, 0, 1], [1, 66, 0, 0]]]])), /Invalid direct/);
+});
+
+test('idle repair delivers a lost final release; receipt loss never duplicates shots', () => {
+  const world = setup(), delivery = new DirectDelivery(7, 0, 65);
+  let wire: Uint8Array[] = [];
+  const send = (bytes: Uint8Array) => { wire.push(bytes); return true; };
+  delivery.enqueue([1, 66, 1, 1], 0, send);
+  const press = world.receive(0, wire.shift()!, 66); assert.ok(press.receipt); delivery.acknowledge(press.receipt);
+  advance(world, 67);
+  delivery.enqueue([2, 68, 2, 1, null], 100, send); wire = []; // The last new action is lost.
+  advance(world, 70); assert.equal(world.state.game.bombs.size, 0);
+  delivery.pump(149, send); assert.equal(wire.length, 0);
+  delivery.pump(150, send); assert.equal(wire.length, 1);
+  const release = world.receive(0, wire.shift()!, 70); assert.equal(release.rollbackTicks, 3);
+  assert.equal(world.state.game.nextBombId, 2);
+  delivery.pump(200, send); const repeated = world.receive(0, wire.shift()!, 70);
+  assert.equal(world.state.game.nextBombId, 2); assert.equal(repeated.rollbackTicks, 0);
+  assert.ok(repeated.receipt); assert.equal(delivery.acknowledge(repeated.receipt), true); assert.equal(delivery.retainedRecords, 0);
+  delivery.pump(249, send); assert.equal(wire.length, 0);
+  delivery.pump(300, send); assert.deepEqual(decodeDirectPacket(wire[0])?.[3], []);
+});
+
+test('origin immediately sends newest plus old gap records; backpressure repair is paced and bounded', () => {
+  const delivery = new DirectDelivery(7, 0, 65), wire: Uint8Array[] = [];
+  const send = (bytes: Uint8Array) => { wire.push(bytes); return false; };
+  for (let seq = 1; seq <= 6; seq++) assert.equal(delivery.enqueue([seq, 66 + seq, 0, seq % 4], seq, send), true);
+  assert.deepEqual(decodeDirectPacket(wire[5])?.[3].map(a => a[0]), [6, 1, 2, 3]);
+  for (let now = 7; now < 56; now++) delivery.pump(now, send);
+  assert.equal(wire.length, 6); delivery.pump(56, send); assert.equal(wire.length, 7);
+  assert.ok(wire.every(bytes => bytes.byteLength <= FAST_PACKET_BYTES));
+  assert.equal(delivery.advanceWatermark(80), true);
+  assert.equal(delivery.enqueue([7, 80, 0, 0], 90, send), false);
+  assert.equal(delivery.advanceWatermark(79), false);
+  for (const invalid of [new Uint8Array(513), new Uint8Array([0xc1]), packMessage([1, 8, 0, 6]), packMessage([1, 7, 1, 6]), packMessage([1, 7, 0, 7])]) assert.equal(delivery.acknowledge(invalid), false);
+  assert.equal(delivery.acknowledge(packMessage([1, 7, 0, 3])), true);
+  assert.equal(delivery.acknowledge(packMessage([1, 7, 0, 2])), false);
+  assert.throws(() => new DirectDelivery(0, 0, 65));
+  const full = new DirectDelivery(7, 0, 65);
+  for (let seq = 1; seq <= 256; seq++) assert.equal(full.enqueue([seq, 66, 0, seq % 4], 0, () => true), true);
+  assert.equal(full.enqueue([257, 66, 0, 0], 1, () => true), false); assert.equal(full.retainedRecords, 256);
+});
+
+test('finality waits for cross-channel input gaps, then emits derived effects exactly once', () => {
+  const coordinator = setup(), guest = setup();
+  const actions: DirectAction[] = [[1, 66, 1, 1], [2, 68, 2, 1, null]];
+  coordinator.receive(0, packet(0, actions), 70); advance(coordinator, 70); advance(guest, 70);
+  const finality = certify(coordinator, 70, [2, 0, 0, 0, 0]);
+  assert.equal(guest.finalize(finality).status, 'waiting'); assert.equal(guest.pendingFinalizedTick, 70);
+  for (let slot = 1; slot < 5; slot++) guest.receive(slot, packet(slot, [], [70, 0]), 70);
+  assert.equal(guest.receive(0, packet(0, [actions[1]], [70, 2]), 70).status, 'accepted');
+  assert.equal(guest.finalizedTick, 65);
+  const repaired = guest.receive(0, packet(0, [actions[0]]), 70);
+  assert.equal(repaired.status, 'accepted'); assert.equal(guest.finalizedTick, 70);
+  const committed = coordinator.finalize(finality);
+  assert.deepEqual(repaired.events, committed.events); assert.ok(repaired.events.length > 0);
+  assert.equal(new Set(repaired.events.map(e => e.id)).size, repaired.events.length);
+  assert.equal(guest.finalize(finality).status, 'stale'); assert.deepEqual(guest.finalize(finality).events, []);
+  assert.equal(guest.retainedRecords, 0);
+  assert.equal(guest.receive(0, packet(0, actions), 70).rollbackTicks, 0);
+  assert.equal(guest.receive(0, packet(0, [[3, 69, 0, 1]]), 70).status, 'invalid');
+});
+
+test('finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay', () => {
+  const world = setup();
+  const actions: DirectAction[] = [[1, 66, 0, 1], [2, 74, 0, 0]];
+  world.receive(0, packet(0, actions, [75, 2]), 75); advance(world, 75);
+  for (let slot = 1; slot < 5; slot++) world.receive(slot, packet(slot, [], [75, 0]), 75);
+  const at70 = world.proposeFinality(70)!; assert.deepEqual(at70[4][0], [0, 1]);
+  assert.equal(world.finalize(at70).status, 'accepted'); assert.equal(world.retainedRecords, 1);
+  const restored = RollbackWorld.open(world.bootstrap(), 7)!; assert.ok(restored);
+  assert.equal(restored.state.game.tick, 70);
+  assert.equal(restored.receive(0, packet(0, [actions[1]], [75, 2]), 75).status, 'accepted');
+  advance(restored, 75); assert.equal(canonical(restored.state), canonical(world.state));
+});
+
+test('speculation pauses at its fixed bound and resumes after verified finality', () => {
+  const world = setup();
+  advance(world, 65 + ROLLBACK_TICKS);
+  assert.equal(world.advance(65 + ROLLBACK_TICKS + 1).status, 'paused');
+  assert.equal(world.state.game.tick, 105);
+  const finality = certify(world, 105); assert.equal(world.finalize(finality).status, 'accepted');
+  advance(world, 110); assert.equal(world.state.game.tick, 110);
+  assert.equal(world.advance(109).status, 'invalid');
+});
+
+test('malformed/future/wrong-owner/stale-segment messages do not alter healthy world', () => {
+  const world = setup(), before = canonical(world.state), size = world.retainedBytes;
+  assert.equal(world.receive(1, packet(0, [[1, 66, 0, 1]]), 66).status, 'invalid');
+  assert.equal(world.receive(0, packet(0, [[1, 66, 0, 1]], null, 6), 66).status, 'stale');
+  assert.equal(world.receive(0, packet(0, [[1, 80, 0, 1]]), 66).status, 'invalid');
+  assert.equal(world.receive(0, packet(0, [[257, 66, 0, 1]]), 66).status, 'overflow');
+  assert.equal(world.receive(0, new Uint8Array([0xc1]), 66).status, 'invalid');
+  assert.equal(world.receive(0, packet(0, []), NaN).status, 'invalid');
+  assert.equal(canonical(world.state), before); assert.equal(world.retainedBytes, size);
+  assert.equal(world.finalize([1, 7, 'final', 66, [], '0'.repeat(16)]).status, 'invalid');
+  advance(world, 70); const finality = certify(world, 70), healthy = canonical(world.state);
+  assert.equal(world.finalize([...finality.slice(0, 5), '0'.repeat(16)]).status, 'invalid');
+  assert.equal(world.finalizedTick, 65); assert.equal(canonical(world.state), healthy);
+  assert.equal(world.finalize(finality).status, 'accepted');
+});
+
+test('invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica', () => {
+  const good = setup().bootstrap();
+  for (const bytes of [new Uint8Array(2_000_001), new Uint8Array([0xc1]), packMessage([])]) assert.equal(RollbackWorld.open(bytes, 7), undefined);
+  assert.equal(RollbackWorld.open(good, 8), undefined); assert.equal(RollbackWorld.open(good, 7, 0), undefined);
+  const wire = unpackMessage(good) as unknown[];
+  for (const [index, value] of [[1, `${DIRECT_RULES}-old`], [3, packMessage(['{}', [], []])], [4, [[0, 0], [0, 0], [2, 0], [3, 0], [4, 0]]], [5, '0'.repeat(16)]] as [number, unknown][]) {
+    const bad = [...wire]; bad[index] = value; assert.equal(RollbackWorld.open(packMessage(bad), 7), undefined);
+  }
+  assert.throws(() => packBootstrap(0, fixture(), []));
+});
+
+test('encoded history budget rejects growth atomically rather than discarding rollback dependencies', () => {
+  const state = fixture(), bytes = packBootstrap(7, state, [0, 1, 2, 3, 4].map(slot => [slot, 0]));
+  const initial = setup(state).retainedBytes;
+  const world = RollbackWorld.open(bytes, 7, initial + 100)!; assert.ok(world);
+  const before = canonical(world.state);
+  assert.equal(world.advance(70).status, 'overflow'); assert.equal(canonical(world.state), before);
+  assert.equal(world.retainedBytes, initial);
+});
+
+test('six independently advancing replicas converge through delayed/reordered delivery for five streams', () => {
+  for (const seed of [17, 42, 901]) {
+    const worlds = Array.from({ length: 6 }, () => setup(fixture(seed)));
+    const sequences = [0, 0, 0, 0, 0];
+    for (let block = 0; block < 12; block++) {
+      const end = 75 + block * 10, messages: { slot: number; bytes: Uint8Array }[] = [];
+      for (let slot = 0; slot < 5; slot++) {
+        const action: DirectAction = [++sequences[slot], end - 8 + ((seed + slot) % 3), 0, (block + slot) % 4];
+        messages.push({ slot, bytes: packet(slot, [action], [end, sequences[slot]]) });
+      }
+      for (const world of worlds) advance(world, end);
+      for (let peer = 0; peer < worlds.length; peer++) {
+        const order = [...messages.slice(peer % 5), ...messages.slice(0, peer % 5)];
+        if (peer % 2) order.reverse();
+        for (const { slot, bytes } of order) {
+          assert.equal(worlds[peer].receive(slot, bytes, end).status, 'accepted');
+          if ((slot + seed + peer) % 3 === 0) assert.equal(worlds[peer].receive(slot, bytes, end).rollbackTicks, 0);
+        }
+      }
+      const finality = worlds[0].proposeFinality(end)!; assert.ok(finality);
+      for (const world of worlds) {
+        assert.equal(world.finalize(unpackMessage(packMessage(finality))).status, 'accepted');
+        assert.equal(canonical(world.state), canonical(worlds[0].state));
+        assert.equal(world.retainedRecords, 0);
+      }
+    }
+  }
+});
+
+test('new completeness cuts preserve older promises and already certified progress', () => {
+  const base = new DirectStream({ sequence: 0, tick: 0, gesture: 0 });
+  const first = base.receive([], [5, 1], 20); assert.equal(first.status, 'accepted'); if (first.status !== 'accepted') return;
+  const second = first.stream.receive([], [10, 2], 20); assert.equal(second.status, 'accepted'); if (second.status !== 'accepted') return;
+  assert.equal(second.stream.receive([[1, 3, 0, 1], [2, 4, 0, 0]], null, 20).status, 'invalid');
+  const complete = first.stream.receive([[1, 3, 0, 1]], null, 20); assert.equal(complete.status, 'accepted'); if (complete.status !== 'accepted') return;
+  assert.equal(complete.stream.completeThrough(5), true);
+  const futureGap = complete.stream.receive([], [10, 2], 20); assert.equal(futureGap.status, 'accepted'); if (futureGap.status !== 'accepted') return;
+  assert.equal(futureGap.stream.completeThrough(5), true); assert.equal(futureGap.stream.completeThrough(10), false);
+  const newestFirst = base.receive([[1, 3, 0, 1], [2, 4, 0, 0]], [10, 2], 20); assert.equal(newestFirst.status, 'accepted'); if (newestFirst.status !== 'accepted') return;
+  assert.equal(newestFirst.stream.receive([], [5, 1], 20).status, 'invalid');
+});
+
+test('watermark cuts, including empty periods, have a hard retention bound', () => {
+  let stream = new DirectStream({ sequence: 0, tick: 0, gesture: 0 });
+  for (let tick = 1; tick < 64; tick++) {
+    const r = stream.receive([], [tick, 0], 100); assert.equal(r.status, 'accepted'); if (r.status === 'accepted') stream = r.stream;
+  }
+  assert.equal(stream.receive([], [64, 0], 100).status, 'overflow');
+  const trimmed = stream.trim(60, 0);
+  assert.equal(trimmed.receive([], [64, 0], 100).status, 'accepted');
+  assert.equal(trimmed.receive([], [5, 0], 100).status, 'accepted');
+  assert.equal(trimmed.receive([], [5, 1], 100).status, 'invalid');
+});
+
+test('bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes', () => {
+  const state = fixture();
+  state.held.set(0, { at: 65, flags: 4, aim: null }); state.gestures.set(0, { active: 1, latest: 2 });
+  const bytes = packBootstrap(7, state, [0, 1, 2, 3, 4].map(slot => [slot, 0]));
+  assert.equal(RollbackWorld.open(bytes, 7), undefined);
+});
