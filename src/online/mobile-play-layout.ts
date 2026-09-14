@@ -22,7 +22,7 @@ export function installMobilePlayLayout(app:HTMLElement,clearControls:()=>void){
  // Closing a dialog returns to the live thirds mid-round; in lobby/results the roster and actions stay open.
  app.querySelector('dialog')?.addEventListener('close',()=>{if(['countdown','playing'].includes(state.phase))closeTools();});
  // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
- // entering lobby/matchOver as host opens the overlay so START RACE / REMATCH / MAIN MENU are in view instead of hidden behind ☰ MENU.
- const enter=()=>{if(['countdown','playing'].includes(state.phase)){closeTools();hints.remove();app.append(hints);}else if(state.host&&['lobby','matchOver'].includes(state.phase))openTools();};
+ // entering lobby/matchOver opens the overlay so the waiting notice, roster, HEAD and (for the host) START RACE are in view instead of a blank third-screen.
+ const enter=()=>{if(['countdown','playing'].includes(state.phase)){closeTools();hints.remove();app.append(hints);}else if(['lobby','matchOver'].includes(state.phase))openTools();};
  return {update(next:MobilePlayState){const entered=next.phase!==state.phase||!app.classList.contains('mobile-play');state=next;update();if(entered&&app.classList.contains('mobile-play'))enter();},active:()=>app.classList.contains('mobile-play'),blocked:()=>app.classList.contains('mobile-portrait')||app.classList.contains('mobile-tools-open')};
 }

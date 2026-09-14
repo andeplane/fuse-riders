@@ -113,3 +113,6 @@
   .match-recap-report .award-card{padding:7px}.match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.match-recap-report .comparison-row{min-height:44px}
   .online-app .recap-dialog .dialog-bar{padding:6px 12px}.online-app .recap-dialog .dialog-bar button{min-height:38px;font-size:14px}
 }
+.room-boot{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;color:#b6cce3}.room-boot-title{font:12px/1 'Press Start 2P',monospace;letter-spacing:3px;color:#00d9ff}.room-boot-note{font-size:13px;animation:room-boot-pulse 1.4s ease-in-out infinite}@keyframes room-boot-pulse{50%{opacity:.35}}
+.online-app.booting .online-arena,.online-app.booting .online-scoreboard,.online-app.booting .online-join,.online-app.booting .online-footer,.online-app.booting .online-header>span{display:none}
+.online-header>span{max-height:2.8em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
