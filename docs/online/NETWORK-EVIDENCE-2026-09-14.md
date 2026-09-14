@@ -164,16 +164,16 @@ Edges are local trace ordinals, not asserted player identities. These are applic
 
 ## ADR 037: 20 Hz regional and poor profiles
 
-Both exclusive 30-second profiles passed the unchanged freshness, recovery, queue, monotonicity and error assertions. Raw reports: [regional20Hz](network-regional-20hz-2026-09-14.json.gz), [poor20Hz](network-poor-20hz-2026-09-14.json.gz). Checkout was `630f5584b6acdcc1332573496f59496364d1d85f`; served implementation built at `e1dcc6f` was `/assets/index-CADTdQmF.js`, SHA-256 `957dbf7e43782d09767df1102c338a07e7469e48e4f1298b7f40889f45b10703`. Same profiles/seeds and single-render isolation as above. This does not reverse the separately preserved nearby-TV response failure after ADR037.
+Both exclusive 30-second profiles passed the unchanged freshness, recovery, queue, monotonicity and error assertions. Raw reports: [regional 20 Hz](network-regional-20hz-2026-09-14.json.gz), [poor 20 Hz](network-poor-20hz-2026-09-14.json.gz). Checkout was `630f5584b6acdcc1332573496f59496364d1d85f`; served implementation built at `e1dcc6f` was `/assets/index-CADTdQmF.js`, SHA-256 `957dbf7e43782d09767df1102c338a07e7469e48e4f1298b7f40889f45b10703`. Same profiles/seeds and single-render isolation as above. This does not reverse the separately preserved nearby-TV response failure after ADR 037.
 
-Regional host playing snapshots had 311 same-scope successive increments, all exactly **one tick**, confirming every-tick publication in that observed window. All remote playing snapshots selected **two-tick delay**: regional counts269/281/268/250/292 and poor67/95/96/113/112; none selected one tick. Host zero-RTT samples selected one tick305/314 regional and294/303 poor. Thus nearby classification did not incorrectly shorten the impaired remote buffer.
+Regional host playing snapshots had 311 same-scope successive increments, all exactly **one tick**, confirming every-tick publication in that observed window. All remote playing snapshots selected **two-tick delay**: regional counts 269/281/268/250/292 and poor 67/95/96/113/112; none selected one tick. Host zero-RTT samples selected one tick 305/314 regional and 294/303 poor. Thus nearby classification did not incorrectly shorten the impaired remote buffer.
 
 | Profile | Visible frame p95 / p99 / max ms | Final remote accepted-world ages ms | Post-blackout world ms | Maximum injection queue bytes |
 | --- | --- | --- | ---: | ---: |
 | Regional | 17.1 / 18.2 / 26.4 | 2.9–54.2 | No blackout | 201435 |
 | Poor | 16.9 / 17.2 / 21.0 | 469.4–1319.6 | 1418.5 | 261863 |
 
-Poor-profile queue occupancy approached its262144-byte cap and corrections remain substantial. Passing safe recovery does not establish smooth play under this adversarial pre-SCTP loss/reorder profile.
+Poor-profile queue occupancy approached its 262,144-byte cap and corrections remain substantial. Passing safe recovery does not establish smooth play under this adversarial pre-SCTP loss/reorder profile.
 
 Alive-and-playing local correction samples (nonzero means >1e-6):
 
@@ -190,9 +190,9 @@ Alive-and-playing local correction samples (nonzero means >1e-6):
 | poor/guest 3 | 96 | 28 | 37.500 | 60.000 | 75.000 |
 | poor/guest 4 | 85 | 15 | 29.634 | 37.500 | 45.000 |
 
-Regional guest p95 values remain below the seven-unit rider radius; max corrections reach75units. Poor guest p95 values29.6–45units and maximum135units are reported without applying the80ms regional target to a different profile or hiding tails.
+Regional guest p95 values remain below the seven-unit rider radius; max corrections reach 75 units. Poor guest p95 values 29.6–45 units and maximum 135 units are reported without applying the 80 ms regional target to a different profile or hiding tails.
 
-Delivered host JSON payload, using untruncated traces and complete one-second windows (30regional,29poor; zero windows included, partial boundaries excluded):
+Delivered host JSON payload, using untruncated traces and complete one-second windows (30 regional, 29 poor; zero windows included, partial boundaries excluded):
 
 | Profile/destination | Average Mbps | p95 one-second Mbps |
 | --- | ---: | ---: |
@@ -209,4 +209,4 @@ Delivered host JSON payload, using untruncated traces and complete one-second wi
 | poor/edge 4 | 0.350 | 0.617 |
 | poor/edge 5 | 0.310 | 0.567 |
 
-All per-edge averages/p95 windows remained below the proposed0.5/1Mbps payload limits in these short runs. Host aggregate regional average increased from1.067Mbps in the prior10Hz run to1.809Mbps here; these independently randomized rounds are not an identical simulation replay, so the ratio is observational rather than an isolated encoding-cost estimate. No SCTP/DTLS/IP overhead is included. The regional result protects the conservative buffering/traffic contract; it does not prove that the nearby one-tick policy activated on the TV response benchmark or that its latency target passed.
+All per-edge averages/p95 windows remained below the proposed 0.5/1 Mbps payload limits in these short runs. Host aggregate regional average increased from 1.067 Mbps in the prior 10 Hz run to 1.809 Mbps here; these independently randomized rounds are not an identical simulation replay, so the ratio is observational rather than an isolated encoding-cost estimate. No SCTP/DTLS/IP overhead is included. The regional result protects the conservative buffering/traffic contract; it does not prove that the nearby one-tick policy activated on the TV response benchmark or that its latency target passed.
