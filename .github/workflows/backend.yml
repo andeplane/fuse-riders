@@ -1,0 +1,61 @@
+name: Deploy backend
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  group: cloud-run-gateway
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Verified beta resources; see docs/online/GCP-DEPLOY.md. None of these are secrets.
+      GCP_REGION: europe-west1
+      FIRESTORE_DATABASE_ID: fuse-riders
+      ROOM_COLLECTION_PREFIX: fuse-production
+      PUBSUB_TOPIC: fuse-riders-signalling
+      ALLOWED_ORIGINS: https://andeplane.github.io
+      CLOUD_RUN_SERVICE: fuse-riders-gateway
+      ARTIFACT_REPOSITORY: fuse-riders
+      BUILD_SOURCE_BUCKET: andershaf-87-fuse-riders-build
+      RUNTIME_SERVICE_ACCOUNT: fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com
+      BUILD_SERVICE_ACCOUNT: fuse-riders-build@andershaf-87.iam.gserviceaccount.com
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Keyless federation: no service-account key is stored in this repository.
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/867594018708/locations/global/workloadIdentityPools/github/providers/fuse-riders
+          service_account: fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      # The script re-checks that this revision is still main and that its CI run passed,
+      # builds the committed source and deploys the resulting immutable digest.
+      - run: ./scripts/deploy-cloud.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cloud-release-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
+          path: artifacts/cloud-release-*.json
+          if-no-files-found: ignore
+          retention-days: 30
