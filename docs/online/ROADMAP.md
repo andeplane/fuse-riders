@@ -35,4 +35,5 @@ Public product checks, the 30-minute source-66f67bd soak, mobile-sized Phaser be
 - [Phaser architecture, browser lifecycle checks and desktop frame benchmarks](../PHASER.md).
 - [AI behavior, browser checks and bounded controller benchmark](AI-RIDERS.md).
 - [Network harness method and limitations](NETWORK-HARNESS.md). Inspect generated report revision and assertions; historical exploratory JSON does not certify the final release.
+- [Real-device test plan](DEVICE-TEST-PLAN.md) for physical phones on real Wi-Fi/cellular: the manual steps, capture list and pass/fail criteria for the physical-phone confirmation still owed under #4, #5, #12, #13, #14 and #15.
 - [GCP inventory](GCP-INVENTORY.md), [deployment procedure](GCP-DEPLOY.md), and [provider evidence](GCP-PROVIDER-EVIDENCE.md). These records, not an ephemeral LAN address or old preview URL, establish deployment status.
