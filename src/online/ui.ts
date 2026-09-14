@@ -23,6 +23,7 @@ import { RoomRuntime } from './runtime.js';
 import type { AvatarId } from '../shared/avatars.js';
 import QRCode from 'qrcode';
 import './online.css';
+import { installMobilePlayLayout } from './mobile-play-layout.js';
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
 const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
@@ -109,11 +110,12 @@ export async function startOnline():Promise<void>{
         lastRecap=String(state.phaseEndsAtTick);dialogBody.replaceChildren(node('h2','Match statistics'));
         for(const stats of state.matchStats){const row=node('section');row.append(node('h3',stats.name));for(const [key,value] of Object.entries(stats)){if(typeof value==='number')row.append(node('p',`${key.replace(/([A-Z])/g,' $1')}: ${Number.isInteger(value)?value:value.toFixed(1)}`));}dialogBody.append(row);}dialog.showModal();
       }
-      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
+      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);mobileLayout.update({joined,phase:state.phase,displayOnly});joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
       sharedLobby.hidden=solo||state.phase!=='lobby'||(settings.mode==='shared'&&joined&&!displayOnly);app.classList.toggle('room-waiting',!sharedLobby.hidden);
       lobbyCount.textContent=`${state.players.filter(p=>p.connected).length} riders ready`;lobbyEmpty.hidden=state.players.length>0;
       for(const [playerId,row] of lobbyEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();lobbyEntries.delete(playerId);}
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
+      roster.hidden=!sharedLobby.hidden;
       const controlsParent=sharedLobby.hidden?app:lobbyFooter;if(hostControls.parentElement!==controlsParent){if(controlsParent===app)app.insertBefore(hostControls,dialog);else lobbyFooter.append(hostControls);}
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined;app.classList.toggle('controller-only',controllerOnly);
       canvas.hidden=!sharedLobby.hidden||controllerOnly;
@@ -125,6 +127,7 @@ export async function startOnline():Promise<void>{
         let row=rosterEntries.get(p.id);
         if(!row){const entry=node('span'),label=node('span'),remove=node('button','×');entry.append(label,remove);remove.onclick=()=>runtime.command({type:'bot',action:'remove',id:p.id});row={entry,label,remove};rosterEntries.set(p.id,row);roster.append(entry);}
         const label=`${p.name} · ${p.roundWins} wins${p.waitingForNextRound?' · next round':p.connected?'':' · offline'}`;if(row.label.textContent!==label)row.label.textContent=label;row.entry.style.color=p.color;
+        const removeParent=sharedLobby.hidden?row.entry:lobbyEntries.get(p.id)!.entry;if(row.remove.parentElement!==removeParent)removeParent.append(row.remove);
         row.remove.hidden=!isHost||!p.id.startsWith(BOT_ID_PREFIX);row.remove.disabled=!['lobby','roundOver','matchOver'].includes(state.phase);row.remove.setAttribute('aria-label',`Remove ${p.name}`);row.remove.title=row.remove.disabled?'Remove AI between rounds or return to menu':'Remove AI rider';
       }
       addAI.disabled=state.players.length>=5;
@@ -148,10 +151,11 @@ export async function startOnline():Promise<void>{
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
-  const keyboard=new ControllerKeyboardBindings(inputState,()=>joined&&!dialog.open&&!document.hidden&&!leftButton.disabled&&!Boolean(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')),()=>{for(const [button,control] of [[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']] as const)button.classList.toggle('active',inputState.isHeld(control));});
+  const keyboard=new ControllerKeyboardBindings(inputState,()=>joined&&!mobileLayout.blocked()&&!dialog.open&&!document.hidden&&!leftButton.disabled&&!Boolean(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')),()=>{for(const [button,control] of [[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']] as const)button.classList.toggle('active',inputState.isHeld(control));});
   window.addEventListener('keydown',event=>keyboard.down(event));
   window.addEventListener('keyup',event=>keyboard.up(event));
   const clearControls=()=>{keyboard.clear();bindings.clear(true,true);};
+  const mobileLayout=installMobilePlayLayout(app,clearControls);
   window.addEventListener('blur',clearControls);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clearControls();});
   dialog.addEventListener('focusin',clearControls);

@@ -29,8 +29,9 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    await page.getByRole('button',{name:/PLAY BACKGROUND/}).click();await page.waitForFunction(t=>document.querySelector('canvas')?.getAttribute('data-attract-tick')!==t,paused);
    await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:/PLAY BACKGROUND/}).waitFor();await frames(page);const reduced=await page.locator('canvas').getAttribute('data-attract-tick');await frames(page);assert.equal(await page.locator('canvas').getAttribute('data-attract-tick'),reduced);
    await page.screenshot({path:`artifacts/home-${tag}.png`});
-   await page.getByRole('link',{name:/PLAY SOLO/}).click();await page.locator('.online-roster').getByText('You',{exact:false}).waitFor();assert.equal(await page.locator('.online-roster>span').count(),5);assert.equal(await page.getByRole('button',{name:/Remove AI/}).count(),4);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);
+   await page.getByRole('link',{name:/PLAY SOLO/}).click();await page.locator('.online-roster').getByText('You',{exact:false}).waitFor({state:'attached'});assert.equal(await page.locator('.online-roster>span').count(),5);assert.equal(await page.getByRole('button',{name:/Remove AI/,includeHidden:true}).count(),4);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);
    // Avoid spontaneous end-of-match recaps while reviewing modal layouts.
+   if(await page.locator('.mobile-tools-toggle').isVisible())await page.locator('.mobile-tools-toggle').click();
    await page.getByRole('button',{name:'MAIN MENU',exact:true}).click();
    for(const name of ['ROOM SETTINGS','♫ AUDIO','HEAD','MENU']){
     await page.getByRole('button',{name,exact:true}).click();const dialog=page.getByRole('dialog');await dialog.waitFor({state:'visible'});await inside(page,dialog);assert.ok(await page.locator('.dialog-body').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'dialog body horizontal overflow');

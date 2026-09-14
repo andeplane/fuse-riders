@@ -1,0 +1,5 @@
+# Landscape phone gameplay
+
+Reviewed scope: joined phone gameplay uses a portrait rotate gate, full viewport landscape arena with `object-fit: contain`, and three equal screen-width hit areas. Solo/device views fade the instruction overlay after three seconds while hit areas remain active. Shared-TV controllers retain player-color panels and persistent instructions with no duplicate arena. The compact menu remains accessible in portrait and landscape; opening tools or rotating cancels held input, without pausing shared simulation. Fullscreen/orientation APIs are attempted only from the explicit button gesture and may be unsupported.
+
+`mobile-landscape-smoke.ts` exercises real Chromium/WebKit browser interaction: exact thirds geometry, contain sizing, faded instructions, rotation cancellation, and portrait menu/head/reset access. The initial WebKit failure is retained: its mobile context reports zero maxTouchPoints despite coarse primary pointer. Detection now accepts either capability; the corrected run passes both engines. These are desktop mobile-browser contexts, not a claim of physical iOS fullscreen/orientation-lock support.

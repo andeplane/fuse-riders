@@ -1,0 +1,182 @@
+[
+  {
+    "browser": "chrome",
+    "passed": true,
+    "shortCodePattern": true,
+    "hostQr": true,
+    "tvQr": true,
+    "startReset": true,
+    "endedWithoutReconnect": true,
+    "controlBounds": [
+      {
+        "viewport": {
+          "width": 320,
+          "height": 568
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 141,
+            "width": 147,
+            "height": 204.5
+          },
+          {
+            "x": 8,
+            "y": 355.5,
+            "width": 304,
+            "height": 204.5
+          },
+          {
+            "x": 165,
+            "y": 141,
+            "width": 147,
+            "height": 204.5
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 141,
+            "width": 182,
+            "height": 342.5
+          },
+          {
+            "x": 8,
+            "y": 493.5,
+            "width": 374,
+            "height": 342.5
+          },
+          {
+            "x": 200,
+            "y": 141,
+            "width": 182,
+            "height": 342.5
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 844,
+          "height": 390
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 105,
+            "width": 244.84375,
+            "height": 277
+          },
+          {
+            "x": 262.84375,
+            "y": 105,
+            "width": 318.296875,
+            "height": 277
+          },
+          {
+            "x": 591.140625,
+            "y": 105,
+            "width": 244.859375,
+            "height": 277
+          }
+        ]
+      }
+    ],
+    "inputApplied": true
+  },
+  {
+    "browser": "webkit",
+    "passed": true,
+    "shortCodePattern": true,
+    "hostQr": true,
+    "tvQr": true,
+    "startReset": true,
+    "endedWithoutReconnect": true,
+    "controlBounds": [
+      {
+        "viewport": {
+          "width": 320,
+          "height": 568
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 141,
+            "width": 147,
+            "height": 204.5
+          },
+          {
+            "x": 8,
+            "y": 355.5,
+            "width": 304,
+            "height": 204.5
+          },
+          {
+            "x": 165,
+            "y": 141,
+            "width": 147,
+            "height": 204.5
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 141,
+            "width": 182,
+            "height": 342.5
+          },
+          {
+            "x": 8,
+            "y": 493.5,
+            "width": 374,
+            "height": 342.5
+          },
+          {
+            "x": 200,
+            "y": 141,
+            "width": 182,
+            "height": 342.5
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 844,
+          "height": 390
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 105,
+            "width": 244.84375,
+            "height": 277
+          },
+          {
+            "x": 262.84375,
+            "y": 105,
+            "width": 318.296875,
+            "height": 277
+          },
+          {
+            "x": 591.140625,
+            "y": 105,
+            "width": 244.859375,
+            "height": 277
+          }
+        ]
+      }
+    ],
+    "inputApplied": true
+  }
+]
