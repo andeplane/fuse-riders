@@ -19,7 +19,8 @@
     "src/online/recipient-ack.ts",
     "src/online/room-lifecycle.ts",
     "src/online/response-measurement.ts",
-    "src/online/prediction-clock.ts"
+    "src/online/prediction-clock.ts",
+    "src/online/local-runtime.ts"
   ],
   "reporter": [
     "text",

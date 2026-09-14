@@ -2,7 +2,7 @@
 
 ## [Play it now →](https://andeplane.github.io/fuse-riders/)
 
-**Online beta.** Create a room, share its invite, and add friends or AI riders. Keep the host tab in the foreground. Gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
+**Play solo or with friends.** Choose **PLAY SOLO** for an immediate local game against four AI riders, or create a room and share its invite. Solo uses no room service or WebRTC; refreshing starts a fresh run. Keep the host tab in the foreground. Gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
 A TypeScript party game for 2–5 players: steer neon riders, dodge their trails, and launch bombs and other projectiles. Play together around a TV with phones as controllers, or create an online room with an arena on each device. Add AI riders when fewer friends are available. The default match is first to three round wins.
 
