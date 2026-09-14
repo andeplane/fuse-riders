@@ -1,6 +1,7 @@
 import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
+import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT } from './link-send-gate.js';
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
 export interface TransportCallbacks {
@@ -12,7 +13,7 @@ export interface TransportCallbacks {
   ended?:()=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number>;health:LinkHealth;restartAt:number;restarting:boolean }
+interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number>;health:LinkHealth;gate:LinkSendGate;restartAt:number;restarting:boolean }
 export class PeerTransport {
   id='';hostId='';connectionId='';sentBytes=0;
   grant?:AuthorityGrant;
@@ -81,7 +82,10 @@ export class PeerTransport {
             this.connections.set(message.id,message.connectionId);
             if(previous!==message.connectionId){this.links.get(message.id)?.pc.close();this.links.delete(message.id);this.received.delete(message.id);}
             this.callbacks.peer(message.id,true);if(this.id===this.hostId)await this.offer(message.id);
-          }else if(this.connections.get(message.id)===message.connectionId&&this.links.get(message.id)?.channel?.readyState!=='open'){
+          }else if(this.connections.get(message.id)===message.connectionId){
+            // The service retired this connection; the RTC channel may still report "open" (WebKit lags), so stop sending first.
+            this.links.get(message.id)?.gate.drainFrom('offline',performance.now());
+            if(this.links.get(message.id)?.channel?.readyState==='open')return;
             this.connections.delete(message.id);this.callbacks.peer(message.id,false);this.links.get(message.id)?.pc.close();this.links.delete(message.id);
           }
         }else if(message.type==='signal'&&this.connections.get(message.from)===message.connectionId)await this.signal(message.from,message.data);
@@ -101,13 +105,19 @@ export class PeerTransport {
   private link(id:string):Link {
     const existing=this.links.get(id);if(existing)return existing;
     const pc=new RTCPeerConnection({iceServers:this.servers});
-    const link:Link={pc,ice:[],seen:new Set(),health:new LinkHealth(performance.now()),restartAt:performance.now()+8000,restarting:false};this.links.set(id,link);
+    const link:Link={pc,ice:[],seen:new Set(),health:new LinkHealth(performance.now()),gate:new LinkSendGate(),restartAt:performance.now()+8000,restarting:false};this.links.set(id,link);
     pc.onicecandidate=event=>{if(!isCurrentLinkCallback(this.links.get(id),link))return;if(event.candidate)this.relay('signal',id,{candidate:event.candidate.toJSON()});};
     pc.ondatachannel=event=>{if(!isCurrentLinkCallback(this.links.get(id),link)){event.channel.close();return;}this.channel(id,event.channel);};
     pc.onconnectionstatechange=()=>{
       if(!isCurrentLinkCallback(this.links.get(id),link))return;
       if(pc.connectionState==='connected')this.callbacks.status('Direct peer link connected');
+      // "disconnected" may recover through fresh probes (ADR035); only terminal states drain the link.
+      if(pc.connectionState==='failed'||pc.connectionState==='closed')link.gate.drainFrom(pc.connectionState,performance.now());
       if(pc.connectionState==='failed'||pc.connectionState==='disconnected'){link.health.fail(performance.now());this.callbacks.status('Direct connection interrupted · retrying');}
+    };
+    pc.oniceconnectionstatechange=()=>{
+      if(!isCurrentLinkCallback(this.links.get(id),link))return;
+      if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='closed')link.gate.drainFrom(pc.iceConnectionState,performance.now());
     };
     return link;
   }
@@ -115,7 +125,9 @@ export class PeerTransport {
     const link=this.link(id);link.channel=channel;
     channel.onmessage=event=>{if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
     channel.onopen=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))this.callbacks.status('Direct peer link connected');};
-    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;this.callbacks.status('Direct connection failed · retrying');};
+    channel.onclosing=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drainFrom('closing',performance.now());};
+    channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drainFrom('closed',performance.now());};
+    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;link.gate.drainFrom('error',performance.now());this.callbacks.status('Direct connection failed · retrying');};
   }
   private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
@@ -152,16 +164,16 @@ export class PeerTransport {
   }
   send(id:string,data:unknown):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
-    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const channel=this.links.get(id)?.channel;
-    if(!document.hidden&&!this.relayOnly&&channel?.readyState==='open'&&this.links.get(id)!.health.direct(performance.now())&&channel.bufferedAmount<64000){
-      try{channel.send(JSON.stringify(envelope));return true;}catch{}
+    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const link=this.links.get(id);
+    if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
+      try{link.channel!.send(JSON.stringify(envelope));return true;}catch{}
     }
     return false;
   }
   private sendDirectProbe(id:string,data:{type:string;probeId:number}):void {
-    const channel=this.links.get(id)?.channel;
-    if(!this.authorityPermitted()||channel?.readyState!=='open'||channel.bufferedAmount>4096)return;
-    try{channel.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));}catch{}
+    const link=this.links.get(id);
+    if(!this.authorityPermitted()||!link?.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return;
+    try{link.channel!.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));}catch{}
   }
   private checkLinks():void {
     if(this.stopped||document.hidden||!this.authorityPermitted())return;
