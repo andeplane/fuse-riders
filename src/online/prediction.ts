@@ -30,6 +30,8 @@ export class LocalPrediction {
     const input={seq,left,right,intendedTick,scope:{...base.ledger.scope},resultAcks:base.ledger.results.map(result=>result.seq)};
     this.pending.push({...input,at:this.now()});return input;
   }
+  /** The transport refused the input, so the host will never retire it. */
+  discard(seq:number):void {this.pending=this.pending.filter(input=>input.seq!==seq);}
   /** ack is retained only for wire compatibility; receive sequence never retires input. */
   accept(state:ViewSnapshot,id:string,_ack:number,ledger?:AppliedMotionState,authorityScope=''):boolean {
     const player=state.players.find(p=>p.id===id);
@@ -43,7 +45,8 @@ export class LocalPrediction {
     if(changed){this.pending=[];this.blocked=false;this.offset={x:0,y:0};if(previous)this.clock.reset();}
     const results=new Set(ledger.results.map(r=>r.seq));
     for(const input of this.pending)if(results.has(input.seq))this.ackMs=this.now()-input.at;
-    this.pending=this.pending.filter(input=>!results.has(input.seq));
+    this.pending=this.pending.filter(input=>!results.has(input.seq)&&input.intendedTick>=state.tick-100);
+    if(this.pending.length<128)this.blocked=false;
     const pose={x:player.x,y:player.y,angle:player.angle,drunkHeadingOffset:ledger.motion.drunkHeadingOffset};
     this.correction=oldPose?Math.hypot(oldPose.x-pose.x,oldPose.y-pose.y):0;
     this.base={state,id,ledger,pose};this.authorityScope=authorityScope;

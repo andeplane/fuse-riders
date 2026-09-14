@@ -151,7 +151,7 @@ export async function startOnline():Promise<void>{
     showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>dialog.close());
     dialog.showModal();
   };
-  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);if(!scheduled){if(isShotTransition(message)){shotFailure.show();updateShotNotice();}return false;}return runtime.command({...message,...scheduled});}});
+  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);if(!scheduled){if(isShotTransition(message)){shotFailure.show();updateShotNotice();}return false;}const sent=runtime.command({...message,...scheduled});if(!sent)prediction.discard(message.seq);return sent;}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
