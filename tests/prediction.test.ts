@@ -17,7 +17,7 @@ test('local charge preview shares the fractional rider clock rather than delayed
  const original=structuredClone(charging),buffered={...charging,tick:state.tick-2};
  time(25);const shown=predictor.render(buffered,'h'),local=shown.players.find(p=>p.id==='h')!;
  assert.equal(local.presentationTick,state.tick+.5);
- assert.equal(bombPreviewDistance(local.presentationTick!-local.bombChargeStartedTick!),106.25);
+ assert.equal(bombPreviewDistance(local.presentationTick!-local.bombChargeStartedTick!),118.75);
  assert.equal(shown.tick,buffered.tick,'other world effects retain buffered time');
  assert.equal(shown.players.find(p=>p.id==='p')!.presentationTick,undefined,'remote riders keep world interpolation');
  time(300);assert.equal(predictor.render(buffered,'h').players[0]!.presentationTick,state.tick+4,'existing prediction cap');

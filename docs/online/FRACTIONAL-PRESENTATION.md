@@ -6,6 +6,8 @@ The charge marker previously called the authoritative `bombLaunchDistance`, whic
 
 Both Phaser and the original Canvas renderer now use [`bombPreviewDistance`](../../src/client/bomb-preview.ts), interpolating between the two adjacent authoritative distances. At whole ticks the distances agree exactly. The shared simulation and release calculation are unchanged.
 
+Subsequent balance tuning in [issue #86](https://github.com/andeplane/fuse-riders/issues/86) makes full-charge time configurable, defaulting to eight ticks (0.4 seconds). The shared distance advances 37.5 units per tick at that default. Both renderers use the active snapshot's `bombChargeTicks`, with this same interpolation keeping the marker smooth between ticks; pending room preferences do not change an active preview.
+
 [`ViewPlayer.presentationTick`](../../src/client/snapshot-stream.ts) is optional presentation metadata created locally after receiving a snapshot; it is absent from the wire protocol and authoritative game state. Its current consumer is the charge marker:
 
 - Online local riders use the same fractional tick as their predicted pose, with the existing four-tick lead cap. A lost clock freezes the pose and its presentation tick together. Confirmed charge start, release/cancellation, death and lifecycle boundaries remain authoritative.

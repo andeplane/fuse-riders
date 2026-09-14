@@ -67,7 +67,8 @@ export class BotController {
     const bearing=Math.atan2(nearest.y-player.y,nearest.x-player.x);
     const aimed=player.targetBombArmed&&!player.gunArmed&&!player.shellArmed;
     const aim=aimed?{x:Math.max(0,Math.min(1,nearest.x/game.width)),y:Math.max(0,Math.min(1,nearest.y/game.height))}:undefined;
-    const wantedCharge=aimed||player.gunArmed||player.shellArmed?1:Math.max(1,Math.min(BOMB_MAX_CHARGE_TICKS,Math.round((distance-BOMB_MIN_LAUNCH_DISTANCE)/(BOMB_MAX_LAUNCH_DISTANCE-BOMB_MIN_LAUNCH_DISTANCE)*BOMB_MAX_CHARGE_TICKS)));
+    const maxChargeTicks=game.settings?.bombChargeTicks??BOMB_MAX_CHARGE_TICKS;
+    const wantedCharge=aimed||player.gunArmed||player.shellArmed?1:Math.max(1,Math.min(maxChargeTicks,Math.round((distance-BOMB_MIN_LAUNCH_DISTANCE)/(BOMB_MAX_LAUNCH_DISTANCE-BOMB_MIN_LAUNCH_DISTANCE)*maxChargeTicks)));
     if(player.bombChargeStartedTick!==undefined){
       const release=game.tick-player.bombChargeStartedTick>=wantedCharge;
       return{...intent,bomb:!release,...(aim?{aim}:{}),...(release?{bombCommands:[{action:'release',...(aim?{aim}:{})}]}:{})};

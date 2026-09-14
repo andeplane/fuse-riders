@@ -76,6 +76,16 @@ test('AI target/gun/shell shots use normal input actions and target aim is bound
   }
 });
 
+test('AI holds longer for a distant bomb when the room uses a slower aim time',()=>{
+  const game=fixture(),bot=new BotController(),player=game.players.get('bot:1')!;
+  game.players.get('human')!.x=800;
+  player.bombChargeStartedTick=game.tick-8;
+  game.settings={...defaultRoomSettings(),bombChargeTicks:24};
+  assert.equal(bot.input(game,player.id).bombCommands,undefined,'eight ticks is still charging at the slower pace');
+  game.settings={...game.settings,bombChargeTicks:8};
+  assert.equal(bot.input(game,player.id).bombCommands?.[0]?.action,'release','eight ticks reaches full distance at the fast pace');
+});
+
 test('Host alone can manage AI, five shared slots are enforced, and a solo host can start',()=>{
   const session=room();session.command('host',{type:'join',name:'Host'});
   assert.match(session.command('guest',aiCommand)!,/host/);
