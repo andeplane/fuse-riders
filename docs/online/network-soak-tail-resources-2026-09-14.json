@@ -1,0 +1,1348 @@
+{
+  "method": "Late-run ps subtree rooted at benchmark process. Aggregate RSS can count shared pages repeatedly; not JS heap or whole-run leak evidence. Brief separate coverage test around 00:54:53–00:54:59 UTC plus overhead overlapped. No other browser workload.",
+  "samples": [
+    {
+      "atEpochMs": 1789347115574,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 142656,
+          "cpuTime": "0:32.82"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16112,
+          "cpuTime": "0:00.41"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92288,
+          "cpuTime": "0:24.58"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 188656,
+          "cpuTime": "175:03.52"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51568,
+          "cpuTime": "0:26.02"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 230864,
+          "cpuTime": "1:17.90"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 278880,
+          "cpuTime": "2:17.40"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 147424,
+          "cpuTime": "0:45.55"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 148720,
+          "cpuTime": "0:41.26"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 149936,
+          "cpuTime": "0:41.90"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 133168,
+          "cpuTime": "0:32.03"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 44864,
+          "cpuTime": "0:07.48"
+        }
+      ],
+      "sumRssKiB": 1625136
+    },
+    {
+      "atEpochMs": 1789347145629,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 142944,
+          "cpuTime": "0:33.51"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 15952,
+          "cpuTime": "0:00.42"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92432,
+          "cpuTime": "0:25.14"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190784,
+          "cpuTime": "178:50.22"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51440,
+          "cpuTime": "0:26.61"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 230816,
+          "cpuTime": "1:19.71"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 285440,
+          "cpuTime": "2:20.50"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 147776,
+          "cpuTime": "0:46.59"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 148896,
+          "cpuTime": "0:42.21"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 150256,
+          "cpuTime": "0:42.86"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 135376,
+          "cpuTime": "0:32.76"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 44752,
+          "cpuTime": "0:07.65"
+        }
+      ],
+      "sumRssKiB": 1636864
+    },
+    {
+      "atEpochMs": 1789347175682,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 143376,
+          "cpuTime": "0:34.18"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 15952,
+          "cpuTime": "0:00.43"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 93584,
+          "cpuTime": "0:25.69"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190640,
+          "cpuTime": "182:43.18"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51456,
+          "cpuTime": "0:27.21"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 233440,
+          "cpuTime": "1:21.48"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 306720,
+          "cpuTime": "2:23.62"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 148432,
+          "cpuTime": "0:47.64"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 147968,
+          "cpuTime": "0:43.21"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 150368,
+          "cpuTime": "0:43.82"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 132224,
+          "cpuTime": "0:33.51"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 44912,
+          "cpuTime": "0:07.82"
+        }
+      ],
+      "sumRssKiB": 1659072
+    },
+    {
+      "atEpochMs": 1789347205730,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 145984,
+          "cpuTime": "0:34.89"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16064,
+          "cpuTime": "0:00.44"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92704,
+          "cpuTime": "0:26.24"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190752,
+          "cpuTime": "186:36.21"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51408,
+          "cpuTime": "0:27.81"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 231520,
+          "cpuTime": "1:23.27"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 307488,
+          "cpuTime": "2:26.65"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 148640,
+          "cpuTime": "0:48.74"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 149856,
+          "cpuTime": "0:44.19"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 150464,
+          "cpuTime": "0:44.75"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 137104,
+          "cpuTime": "0:34.24"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45072,
+          "cpuTime": "0:07.99"
+        }
+      ],
+      "sumRssKiB": 1667056
+    },
+    {
+      "atEpochMs": 1789347235782,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 146320,
+          "cpuTime": "0:35.57"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16096,
+          "cpuTime": "0:00.45"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 93472,
+          "cpuTime": "0:26.79"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190048,
+          "cpuTime": "190:25.07"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51472,
+          "cpuTime": "0:28.41"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 231344,
+          "cpuTime": "1:25.06"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 307024,
+          "cpuTime": "2:29.72"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 149200,
+          "cpuTime": "0:49.77"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 149488,
+          "cpuTime": "0:45.14"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 151312,
+          "cpuTime": "0:45.71"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 137616,
+          "cpuTime": "0:34.99"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45104,
+          "cpuTime": "0:08.16"
+        }
+      ],
+      "sumRssKiB": 1668496
+    },
+    {
+      "atEpochMs": 1789347265822,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 146640,
+          "cpuTime": "0:36.26"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16080,
+          "cpuTime": "0:00.46"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 91824,
+          "cpuTime": "0:27.36"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190912,
+          "cpuTime": "194:15.07"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51488,
+          "cpuTime": "0:29.00"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 229232,
+          "cpuTime": "1:26.81"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 280128,
+          "cpuTime": "2:32.74"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 147536,
+          "cpuTime": "0:50.83"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 150416,
+          "cpuTime": "0:46.10"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 150656,
+          "cpuTime": "0:46.67"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 135632,
+          "cpuTime": "0:35.71"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45136,
+          "cpuTime": "0:08.33"
+        }
+      ],
+      "sumRssKiB": 1635680
+    },
+    {
+      "atEpochMs": 1789347295876,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 147152,
+          "cpuTime": "0:36.96"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16080,
+          "cpuTime": "0:00.47"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92768,
+          "cpuTime": "0:27.92"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190928,
+          "cpuTime": "198:06.54"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51568,
+          "cpuTime": "0:29.60"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 231392,
+          "cpuTime": "1:28.60"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 280624,
+          "cpuTime": "2:35.79"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 149296,
+          "cpuTime": "0:51.86"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 150704,
+          "cpuTime": "0:47.06"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 149984,
+          "cpuTime": "0:47.61"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 137136,
+          "cpuTime": "0:36.45"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45136,
+          "cpuTime": "0:08.50"
+        }
+      ],
+      "sumRssKiB": 1642768
+    },
+    {
+      "atEpochMs": 1789347325922,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 147312,
+          "cpuTime": "0:37.64"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16160,
+          "cpuTime": "0:00.48"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92800,
+          "cpuTime": "0:28.47"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190208,
+          "cpuTime": "201:57.29"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51584,
+          "cpuTime": "0:30.19"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 231808,
+          "cpuTime": "1:30.42"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 280096,
+          "cpuTime": "2:38.86"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 150000,
+          "cpuTime": "0:52.85"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 150048,
+          "cpuTime": "0:47.96"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 152256,
+          "cpuTime": "0:48.55"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 135680,
+          "cpuTime": "0:37.20"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45040,
+          "cpuTime": "0:08.66"
+        }
+      ],
+      "sumRssKiB": 1642992
+    },
+    {
+      "atEpochMs": 1789347355969,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 147584,
+          "cpuTime": "0:38.27"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16176,
+          "cpuTime": "0:00.49"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 93024,
+          "cpuTime": "0:29.03"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 191088,
+          "cpuTime": "205:51.55"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51600,
+          "cpuTime": "0:30.77"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 233328,
+          "cpuTime": "1:32.15"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 280096,
+          "cpuTime": "2:41.96"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 148560,
+          "cpuTime": "0:53.86"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 151376,
+          "cpuTime": "0:48.88"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 150992,
+          "cpuTime": "0:49.50"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 137152,
+          "cpuTime": "0:37.94"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45120,
+          "cpuTime": "0:08.83"
+        }
+      ],
+      "sumRssKiB": 1646096
+    },
+    {
+      "atEpochMs": 1789347386020,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 125184,
+          "cpuTime": "0:39.21"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16176,
+          "cpuTime": "0:00.50"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 93440,
+          "cpuTime": "0:29.59"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 190272,
+          "cpuTime": "209:46.71"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51632,
+          "cpuTime": "0:31.33"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 233472,
+          "cpuTime": "1:33.89"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 279184,
+          "cpuTime": "2:45.04"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 150208,
+          "cpuTime": "0:54.85"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 152432,
+          "cpuTime": "0:49.75"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 151392,
+          "cpuTime": "0:50.46"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 136976,
+          "cpuTime": "0:38.68"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45120,
+          "cpuTime": "0:08.99"
+        }
+      ],
+      "sumRssKiB": 1625488
+    },
+    {
+      "atEpochMs": 1789347416060,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 145216,
+          "cpuTime": "0:39.98"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16208,
+          "cpuTime": "0:00.51"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 94176,
+          "cpuTime": "0:30.15"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 191024,
+          "cpuTime": "213:40.46"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51728,
+          "cpuTime": "0:31.88"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 234880,
+          "cpuTime": "1:35.62"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 280192,
+          "cpuTime": "2:48.12"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 150048,
+          "cpuTime": "0:55.84"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 152880,
+          "cpuTime": "0:50.64"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 151760,
+          "cpuTime": "0:51.40"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 138336,
+          "cpuTime": "0:39.40"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45072,
+          "cpuTime": "0:09.15"
+        }
+      ],
+      "sumRssKiB": 1651520
+    },
+    {
+      "atEpochMs": 1789347446110,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 149232,
+          "cpuTime": "0:40.73"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16208,
+          "cpuTime": "0:00.52"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92032,
+          "cpuTime": "0:30.70"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 191008,
+          "cpuTime": "217:31.68"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51680,
+          "cpuTime": "0:32.45"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 230736,
+          "cpuTime": "1:37.32"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 280544,
+          "cpuTime": "2:51.19"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 149904,
+          "cpuTime": "0:56.89"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 150368,
+          "cpuTime": "0:51.57"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 151488,
+          "cpuTime": "0:52.36"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 139584,
+          "cpuTime": "0:40.13"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45152,
+          "cpuTime": "0:09.32"
+        }
+      ],
+      "sumRssKiB": 1647936
+    },
+    {
+      "atEpochMs": 1789347476158,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 149568,
+          "cpuTime": "0:41.44"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16224,
+          "cpuTime": "0:00.52"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92784,
+          "cpuTime": "0:31.26"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 191152,
+          "cpuTime": "221:28.94"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51712,
+          "cpuTime": "0:33.02"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 233392,
+          "cpuTime": "1:39.06"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 281504,
+          "cpuTime": "2:54.26"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 150096,
+          "cpuTime": "0:57.90"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 151424,
+          "cpuTime": "0:52.48"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 152784,
+          "cpuTime": "0:53.30"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 138480,
+          "cpuTime": "0:40.86"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45136,
+          "cpuTime": "0:09.48"
+        }
+      ],
+      "sumRssKiB": 1654256
+    },
+    {
+      "atEpochMs": 1789347506205,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 149936,
+          "cpuTime": "0:42.17"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16224,
+          "cpuTime": "0:00.53"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 93440,
+          "cpuTime": "0:31.81"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 191264,
+          "cpuTime": "225:25.97"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51744,
+          "cpuTime": "0:33.58"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 234768,
+          "cpuTime": "1:40.76"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 281520,
+          "cpuTime": "2:57.28"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 150896,
+          "cpuTime": "0:58.92"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 152304,
+          "cpuTime": "0:53.39"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 153136,
+          "cpuTime": "0:54.24"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 138672,
+          "cpuTime": "0:41.61"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45168,
+          "cpuTime": "0:09.64"
+        }
+      ],
+      "sumRssKiB": 1659072
+    },
+    {
+      "atEpochMs": 1789347536261,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 149680,
+          "cpuTime": "0:42.86"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16224,
+          "cpuTime": "0:00.54"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 92720,
+          "cpuTime": "0:32.36"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 191136,
+          "cpuTime": "229:24.19"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51728,
+          "cpuTime": "0:34.13"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 196544,
+          "cpuTime": "1:42.56"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 277280,
+          "cpuTime": "3:00.35"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 149360,
+          "cpuTime": "0:59.94"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 152896,
+          "cpuTime": "0:54.32"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 152800,
+          "cpuTime": "0:55.22"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 138400,
+          "cpuTime": "0:42.35"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45152,
+          "cpuTime": "0:09.81"
+        }
+      ],
+      "sumRssKiB": 1613920
+    },
+    {
+      "atEpochMs": 1789347566310,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 149200,
+          "cpuTime": "0:43.54"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 16192,
+          "cpuTime": "0:00.55"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 93120,
+          "cpuTime": "0:32.91"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 191008,
+          "cpuTime": "233:20.51"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 51360,
+          "cpuTime": "0:34.72"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 192784,
+          "cpuTime": "1:44.37"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 277472,
+          "cpuTime": "3:03.38"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 151344,
+          "cpuTime": "1:00.98"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 152160,
+          "cpuTime": "0:55.25"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 153344,
+          "cpuTime": "0:56.22"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 136816,
+          "cpuTime": "0:43.07"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 45056,
+          "cpuTime": "0:09.97"
+        }
+      ],
+      "sumRssKiB": 1609856
+    },
+    {
+      "atEpochMs": 1789347596364,
+      "rootPid": 72647,
+      "processes": [
+        {
+          "pid": 72647,
+          "ppid": 72643,
+          "rssKiB": 1578704,
+          "cpuTime": "1:12.63"
+        },
+        {
+          "pid": 72648,
+          "ppid": 72647,
+          "rssKiB": 15088,
+          "cpuTime": "0:00.56"
+        },
+        {
+          "pid": 72669,
+          "ppid": 72647,
+          "rssKiB": 154240,
+          "cpuTime": "0:35.57"
+        },
+        {
+          "pid": 72670,
+          "ppid": 72669,
+          "rssKiB": 178256,
+          "cpuTime": "236:45.72"
+        },
+        {
+          "pid": 72671,
+          "ppid": 72669,
+          "rssKiB": 49504,
+          "cpuTime": "0:35.20"
+        },
+        {
+          "pid": 72673,
+          "ppid": 72669,
+          "rssKiB": 1067424,
+          "cpuTime": "1:49.75"
+        },
+        {
+          "pid": 72698,
+          "ppid": 72669,
+          "rssKiB": 591072,
+          "cpuTime": "3:07.69"
+        },
+        {
+          "pid": 72699,
+          "ppid": 72669,
+          "rssKiB": 752560,
+          "cpuTime": "1:04.44"
+        },
+        {
+          "pid": 72700,
+          "ppid": 72669,
+          "rssKiB": 634032,
+          "cpuTime": "0:58.82"
+        },
+        {
+          "pid": 72707,
+          "ppid": 72669,
+          "rssKiB": 616192,
+          "cpuTime": "0:59.62"
+        },
+        {
+          "pid": 72713,
+          "ppid": 72669,
+          "rssKiB": 583360,
+          "cpuTime": "0:46.18"
+        },
+        {
+          "pid": 72727,
+          "ppid": 72669,
+          "rssKiB": 44304,
+          "cpuTime": "0:10.15"
+        }
+      ],
+      "sumRssKiB": 6264736
+    }
+  ]
+}

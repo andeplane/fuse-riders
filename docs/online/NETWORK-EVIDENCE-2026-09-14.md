@@ -113,3 +113,51 @@ The affected guest accepted a progressing world **1,459.5 ms** after the three-s
 The visible guest recorded 1,832 animation-frame intervals: p50 **16.7 ms**, p95 **17.7 ms**, p99 **19.8 ms**, maximum **26.1 ms**. This is one desktop WebGL view with the other five renderers hidden, not physical-phone or six-view rendering acceptance. A preceding exploratory ACK-fixed run also passed but overlapped a possible public-check window; its frame measurements are not used here.
 
 This validates the narrow recovery regression in one seeded application-message impairment run. It does not certify real SCTP packet-loss behavior, a sustained five-alive game, shot deduplication, all correction budgets or every random round. The earlier failed traces remain preserved. The reviewed implementation received full validation: 299 tests passed; coverage was 99.45% lines/statements, 93.64% branches and 99.27% functions, with the new keyframe-delivery module at 100% under its focused tests. Build and typecheck passed.
+
+## Thirty-minute repeated-match runtime soak
+
+The local direct profile completed **1,800 seconds and passed** the unchanged application assertions, with five controller contexts plus TV, one visible guest renderer, and **three completed-match UI restarts**. [Raw soak report](network-soak-direct-2026-09-14.json.gz) records source `66f67bd0fb1f751f0d2a8a9f2ec8b0a9bc4d32d5` and served `/assets/index-B6L8AYyc.js`, SHA-256 `3e1feda6b9eac49a4bb0b2b873dd363389aecae6ded710c13244e9302fbf63b3`. This includes the reviewed retired-RTC-callback guards. There were no other browser workloads; a separate coverage command briefly used CPU around **00:54:52–00:54:59 UTC** during the soak. No measurements were removed for that overlap.
+
+Each context accepted 18,005 snapshots; whole-run counters recorded zero accepted-tick regressions, with no browser errors or gameplay relay attempts. Final remote accepted-world ages were **79.6–91.0 ms** and the largest injection queue was **229,462 bytes**. The visible guest recorded 107,921 frame intervals: p50 **16.7 ms**, p95 **17.4 ms**, p99 **18.4 ms**, maximum **86.7 ms**. The run exercised lobby, countdown, playing, round-over and match-over phases through real UI controls. Eliminated riders waited for later rounds. It does not prove uninterrupted five-alive play or that target aiming, gun impacts, persistent shells and shrinking-field extremes were all exercised.
+
+Delivered JSON payload traffic, using complete recorded one-second windows and excluding each sender's first/last partial windows, was:
+
+| Sender | Average Mbps | p95 one-second Mbps |
+| --- | ---: | ---: |
+| Host, all five outgoing edges combined | 0.994 | 1.640 |
+| Guest 1 uplink | 0.0352 | 0.0613 |
+| Guest 2 uplink | 0.0368 | 0.0646 |
+| Guest 3 uplink | 0.0361 | 0.0643 |
+| Guest 4 uplink | 0.0368 | 0.0646 |
+| TV uplink | 0.0215 | 0.0240 |
+
+These exclude SCTP/DTLS/IP overhead and are delivered, not attempted bytes. Whole-run per-view downlink is **unavailable** because bounded per-edge packet traces retain only the first 12,000 sends; host aggregate must not be divided by five as proof of each view's traffic. Recent raw guest-1 hook events evicted 18,000 earlier events; whole-run snapshot/regression counters were preserved separately. Packet omissions are explicit in the report.
+
+[Late-run resource samples](network-soak-tail-resources-2026-09-14.json) cover only **00:51:55–00:59:56 UTC**, every 30 seconds, for the benchmark process and its descendants. Combined RSS was **1.535–1.591 GiB** until the final sample, which reached **5.975 GiB** while the benchmark runner alone reached 1.506 GiB. This coincides with collecting the approximately 365 MB uncompressed report, suggesting harness serialization overhead; it is not evidence that normal game memory grew to that size. The aggregate can double-count shared pages and is not JavaScript heap. Cumulative process CPU increased 3,915 seconds over 481 wall seconds across the process tree, so this headless test is not low-CPU certification. The data is tail-only, not a full-run leak test. Future long-run collection should stream or reduce duplicated raw-event extraction before claiming a low-footprint harness.
+
+## Regional 80 ms RTT profile
+
+The following exclusive 30-second run also **passed** the unchanged assertions. [Raw regional report](network-regional-2026-09-14.json.gz) records checkout `d715642ebd4d0cc63c5e5639a0adee6c3f4ab05d`, but the served asset was still the exact **66f67bd bundle/hash above**; later source changes were not bundled into this test. Profile: nominal 40 ms each-way delay, 10 ms jitter, 1% application-message loss, 1% application reordering, 2 Mbps guest send budget, seed 12345 plus context index. This is pre-SCTP adversarial injection, not measured WAN RTT or IP loss.
+
+Alive-player correction samples only include accepted snapshots where phase is playing and the local rider is alive. Rider radius is 7 units. Every guest's p95 was below that proposed radius budget in this run; large tails remain visible:
+
+| Local player | Samples | Nonzero corrections (>1e-6) | p95 units | p99 units | Maximum units |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Host | 99 | 0 | 0 | 0 | 0 |
+| Guest 1 | 102 | 23 | 2.098 | 3.141 | 27.923 |
+| Guest 2 | 128 | 25 | 2.093 | 2.098 | 15.856 |
+| Guest 3 | 139 | 31 | 2.098 | 15.541 | 30.000 |
+| Guest 4 | 128 | 31 | 3.141 | 30.000 | 31.928 |
+
+The visible guest's frame p95/p99/max were **17.1/17.4/21.7 ms**. Final remote snapshot ages were **31.9–59.5 ms**. Complete, untruncated delivered host packet traces yield these downlink figures over **29 complete one-second windows**, excluding partial boundary windows and including zero-byte windows:
+
+| Host destination edge | Average Mbps | p95 one-second Mbps |
+| --- | ---: | ---: |
+| Edge 1 | 0.229 | 0.449 |
+| Edge 2 | 0.214 | 0.312 |
+| Edge 3 | 0.222 | 0.406 |
+| Edge 4 | 0.220 | 0.427 |
+| Edge 5 | 0.182 | 0.272 |
+| Host total | 1.067 | 1.660 |
+
+Edges are local trace ordinals, not asserted player identities. These are application payload figures; all five per-view averages and p95 windows satisfy the proposed payload budgets in this **short regional** run, but wire overhead and sustained per-view downlink are still unmeasured. This evidence complements the soak and earlier negative reports; it does not close physical-phone, real packet-loss, true changed-pose response or full outcome-consistency acceptance.
