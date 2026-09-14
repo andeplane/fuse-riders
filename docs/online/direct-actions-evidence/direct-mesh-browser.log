@@ -1,0 +1,12 @@
+Six peers established fifteen direct links with both channel types.
+Compact liveness restored fast delivery after a three-second send blackhole in 328 ms.
+Remote stale aliases ignored; closing the action channel drains sends and rebuilds the required link.
+Peer replace while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+Peer remove while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+Peer replace while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+Peer remove while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+Peer replace while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+Peer remove while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+Peer replace while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+Peer remove while another peer awaits ICE preserves current membership and restores fifteen healthy links.
+All thirty directions delivered compact actions; twenty guest directions delivered with coordinator application traffic blocked. Stale alias send rejected.

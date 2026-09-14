@@ -1,0 +1,1610 @@
+{
+  "revision": "4646754a05a8b4dfe209f445ba0a2fb8e28199d4",
+  "dirty": true,
+  "method": "Local Worker, actual PeerTransport, six mixed Chromium/WebKit contexts, fifteen direct links, unordered maxRetransmits=0 action channel. Coordinator application callbacks/handshake pump blocked for the second guest traffic phase; transport lease and liveness probes remain. Browser channel instrumentation injects stale aliases and a channel close; an ICE HTTP request is held while another membership reconnects. This validates transport, not integrated gameplay, IP packet loss, finality horizon or physical-phone latency.",
+  "samples": [
+    [
+      {
+        "id": "18d3011c5205f042694465fc",
+        "host": "18d3011c5205f042694465fc",
+        "peers": [
+          "a0363c8caabc0b1db70600ff",
+          "02f7b5892bfdbf8bee949b1f",
+          "f8270aa14e493f95611bfe8c",
+          "fd31b027768aa74311970f4b",
+          "cc86587d0db6e8789245e277"
+        ],
+        "bound": [
+          "02f7b5892bfdbf8bee949b1f",
+          "a0363c8caabc0b1db70600ff",
+          "f8270aa14e493f95611bfe8c",
+          "cc86587d0db6e8789245e277"
+        ],
+        "got": [],
+        "errors": [],
+        "statuses": [
+          "Room authority confirmed",
+          "Connected · checking room authority",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected"
+        ],
+        "stats": {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 6.799999713897705
+          }
+        },
+        "diagnostics": {
+          "links": [
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30460.5,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30407.599999904633,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30243.5,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30187.800000190735,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 4,
+                "srflx": 4
+              },
+              "remote": {
+                "host": 4,
+                "srflx": 2
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 4,
+                "candidates": 6,
+                "applied": 6,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 4,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 4,
+                "candidatesOut": 8,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 3,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": false,
+              "ageMs": 30010.900000095367,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            }
+          ],
+          "ice": {
+            "servers": 2,
+            "source": "service"
+          },
+          "socket": "open"
+        }
+      },
+      {
+        "id": "a0363c8caabc0b1db70600ff",
+        "host": "18d3011c5205f042694465fc",
+        "peers": [
+          "18d3011c5205f042694465fc",
+          "02f7b5892bfdbf8bee949b1f",
+          "f8270aa14e493f95611bfe8c",
+          "fd31b027768aa74311970f4b",
+          "cc86587d0db6e8789245e277"
+        ],
+        "bound": [
+          "18d3011c5205f042694465fc",
+          "02f7b5892bfdbf8bee949b1f",
+          "fd31b027768aa74311970f4b",
+          "f8270aa14e493f95611bfe8c"
+        ],
+        "got": [],
+        "errors": [],
+        "statuses": [
+          "Room authority confirmed",
+          "Connected · checking room authority",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected"
+        ],
+        "stats": {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4
+          }
+        },
+        "diagnostics": {
+          "links": [
+            {
+              "peer": "host",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30430,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30405,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30237,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30173,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30005,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            }
+          ],
+          "ice": {
+            "servers": 2,
+            "source": "service"
+          },
+          "socket": "open"
+        }
+      },
+      {
+        "id": "02f7b5892bfdbf8bee949b1f",
+        "host": "18d3011c5205f042694465fc",
+        "peers": [
+          "a0363c8caabc0b1db70600ff",
+          "18d3011c5205f042694465fc",
+          "f8270aa14e493f95611bfe8c",
+          "fd31b027768aa74311970f4b",
+          "cc86587d0db6e8789245e277"
+        ],
+        "bound": [
+          "18d3011c5205f042694465fc",
+          "a0363c8caabc0b1db70600ff",
+          "f8270aa14e493f95611bfe8c",
+          "fd31b027768aa74311970f4b",
+          "cc86587d0db6e8789245e277"
+        ],
+        "got": [],
+        "errors": [],
+        "statuses": [
+          "Room authority confirmed",
+          "Connected · checking room authority",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected"
+        ],
+        "stats": {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          }
+        },
+        "diagnostics": {
+          "links": [
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30412.800000190735,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "host",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30411.300000190735,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30243.5,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30187.700000286102,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30010.700000286102,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            }
+          ],
+          "ice": {
+            "servers": 2,
+            "source": "service"
+          },
+          "socket": "open"
+        }
+      },
+      {
+        "id": "f8270aa14e493f95611bfe8c",
+        "host": "18d3011c5205f042694465fc",
+        "peers": [
+          "02f7b5892bfdbf8bee949b1f",
+          "a0363c8caabc0b1db70600ff",
+          "18d3011c5205f042694465fc",
+          "fd31b027768aa74311970f4b",
+          "cc86587d0db6e8789245e277"
+        ],
+        "bound": [
+          "18d3011c5205f042694465fc",
+          "a0363c8caabc0b1db70600ff",
+          "02f7b5892bfdbf8bee949b1f",
+          "fd31b027768aa74311970f4b",
+          "cc86587d0db6e8789245e277"
+        ],
+        "got": [],
+        "errors": [],
+        "statuses": [
+          "Room authority confirmed",
+          "Connected · checking room authority",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected"
+        ],
+        "stats": {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          }
+        },
+        "diagnostics": {
+          "links": [
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30223,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "host",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30223,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30223,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30173,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 29963,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            }
+          ],
+          "ice": {
+            "servers": 2,
+            "source": "service"
+          },
+          "socket": "open"
+        }
+      },
+      {
+        "id": "fd31b027768aa74311970f4b",
+        "host": "18d3011c5205f042694465fc",
+        "peers": [
+          "f8270aa14e493f95611bfe8c",
+          "02f7b5892bfdbf8bee949b1f",
+          "a0363c8caabc0b1db70600ff",
+          "18d3011c5205f042694465fc",
+          "cc86587d0db6e8789245e277"
+        ],
+        "bound": [
+          "18d3011c5205f042694465fc",
+          "a0363c8caabc0b1db70600ff",
+          "f8270aa14e493f95611bfe8c",
+          "02f7b5892bfdbf8bee949b1f",
+          "cc86587d0db6e8789245e277"
+        ],
+        "got": [],
+        "errors": [],
+        "statuses": [
+          "Room authority confirmed",
+          "Connected · checking room authority",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected"
+        ],
+        "stats": {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.9000000953674316
+          }
+        },
+        "diagnostics": {
+          "links": [
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30175.700000286102,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "host",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": false,
+              "ageMs": 30175.300000190735,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30174.5,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 30172,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 29985.400000095367,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            }
+          ],
+          "ice": {
+            "servers": 2,
+            "source": "service"
+          },
+          "socket": "open"
+        }
+      },
+      {
+        "id": "cc86587d0db6e8789245e277",
+        "host": "18d3011c5205f042694465fc",
+        "peers": [
+          "fd31b027768aa74311970f4b",
+          "f8270aa14e493f95611bfe8c",
+          "02f7b5892bfdbf8bee949b1f",
+          "a0363c8caabc0b1db70600ff",
+          "18d3011c5205f042694465fc"
+        ],
+        "bound": [
+          "a0363c8caabc0b1db70600ff",
+          "f8270aa14e493f95611bfe8c",
+          "02f7b5892bfdbf8bee949b1f",
+          "fd31b027768aa74311970f4b"
+        ],
+        "got": [],
+        "errors": [],
+        "statuses": [
+          "Room authority confirmed",
+          "Connected · checking room authority",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected",
+          "Direct peer link connected"
+        ],
+        "stats": {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 9
+          }
+        },
+        "diagnostics": {
+          "links": [
+            {
+              "peer": "host",
+              "local": {
+                "host": 4,
+                "srflx": 2
+              },
+              "remote": {
+                "host": 4,
+                "srflx": 4
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 4,
+                "candidates": 8,
+                "applied": 8,
+                "buffered": 4,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 4,
+                "answersOut": 4,
+                "answersIn": 0,
+                "candidatesOut": 6,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 29987,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 29987,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 0,
+                "offersIn": 1,
+                "answersOut": 1,
+                "answersIn": 0,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": false,
+              "ageMs": 29986,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1,
+                "srflx": 1
+              },
+              "remote": {
+                "host": 1,
+                "srflx": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 2,
+                "applied": 2,
+                "buffered": 0,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 2,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 29986,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            },
+            {
+              "peer": "guest",
+              "local": {
+                "host": 1
+              },
+              "remote": {
+                "host": 1
+              },
+              "gathering": "complete",
+              "ice": "connected",
+              "connection": "connected",
+              "signaling": "stable",
+              "channel": "open",
+              "sctp": "connected",
+              "signalling": {
+                "descriptions": 1,
+                "candidates": 1,
+                "applied": 1,
+                "buffered": 1,
+                "rejected": 0,
+                "dropped": 0,
+                "offersOut": 1,
+                "offersIn": 0,
+                "answersOut": 0,
+                "answersIn": 1,
+                "candidatesOut": 1,
+                "relayFailed": 0
+              },
+              "restarts": {
+                "attempts": 0,
+                "max": 4,
+                "exhausted": false
+              },
+              "healthy": true,
+              "ageMs": 29984,
+              "selected": {
+                "local": "host",
+                "remote": "host",
+                "protocol": "udp"
+              },
+              "dtls": "connected"
+            }
+          ],
+          "ice": {
+            "servers": 2,
+            "source": "service"
+          },
+          "socket": "open"
+        }
+      }
+    ]
+  ],
+  "errors": []
+}

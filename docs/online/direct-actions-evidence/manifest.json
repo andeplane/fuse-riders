@@ -1,0 +1,35 @@
+{
+  "revision": "afc5196fb7216da67fd00501301254143d88a5c3",
+  "scope": "Component and local-browser evidence only; gameplay runtime integration and release are pending. Historical failures retain their own dirty source metadata, not this clean revision.",
+  "unitNote": "506 tests and enforced coverage passed with identical production and unit-test sources before the final harness-only bookkeeping commit. Both typechecks passed after that correction. Build and both dedicated browser reports are from the clean revision named here. Existing online Canvas smokes have identical PeerTransport production sources.",
+  "sourceSha256": {
+    "src/shared/direct-input.ts": "82e75f0653f23821ee89fba23adb7cfe81e7a36dca6a6b23a415fd062d618bf5",
+    "src/online/direct-stream.ts": "d3f6499fe01a252fa856f1abd9d2cc8e07a7d1f697049a619e065f3dbd652379",
+    "src/online/rollback-world.ts": "4db89d4b045434c3bf89f42c99ca5d0cecfb8bd127fab5fc2d26dd94439f78b3",
+    "src/online/direct-origin.ts": "10bd4cc2841dfaed0357625ec21da32a09b3ca36b382c3d65c8ddbb9fd4edcde",
+    "src/online/direct-clock.ts": "54b349d91d8f07b34339895df606f31f26a40376da8b875d10a5db2c977aebb7",
+    "src/online/peer-transport.ts": "f6ee688c81773cb9673424709e1e29d7055104eb51e14d045ff0899ece638984",
+    "src/service/gateway.ts": "9b2e5a107bbbba5c5875502bc89d226e484cf56acd6d41b265b49433d3b3bdc2",
+    "worker/index.ts": "940bbda64cf6bbd03286239a4cc03011bfc92b3806a192564d5bf039b81b769f",
+    "tests/direct-origin-clock.test.ts": "10716fce16e17eeae5b30672db5f851e06e5c6fcb202595152696f4967afa71c",
+    "tests/direct-actions.test.ts": "e39aa43c7678570d8a2b7c654f4d90bb6c20ca0286ca2d5890b57777165b1360",
+    "scripts/direct-mesh-browser.ts": "1d958b585deef23910addf0981c71265ea2fb89ad24378a77145fce530d01745",
+    "scripts/direct-replay-browser.ts": "e9ab9c770d6f8f5275b8aa1c73f7fa7a2be3752568596a1c698fcb04fa971bf9"
+  },
+  "evidenceSha256": {
+    "direct-replay-browser.json": "2d3569065a6dda2011115b553978412526ca89adc546d9fd22ea64c6a61d622a",
+    "direct-replay-browser.log": "ce3f64c21f2128567edb0f3054b3331d162b10d2391f278bbcc3d511bac6b52f",
+    "direct-mesh-browser.json": "e2bb509b9ae11dc176bd82ccabea43c0893edfa18601ec7d4f0d6129c45d0207",
+    "direct-mesh-browser.log": "ffb4db564450d70dc935f233132162bf92b23fe215869c4808200e7218ae1be0",
+    "direct-current-coverage.log": "3e87fc1ae210b42b7ce6160eb8bd4d63e2e72aca1f25a9c1ad36234cf9250468",
+    "direct-current-build.log": "2474ebaab291e223b44b0abb2e328aab9650389214f153ff6a268894549b8bfa",
+    "direct-default-chromium.log": "f62be5383d0a9d860806e0315601535fe98fcab0745a20c9d592a5ca70593744",
+    "direct-default-webkit.log": "f62be5383d0a9d860806e0315601535fe98fcab0745a20c9d592a5ca70593744",
+    "direct-mesh-browser-asymmetric-binding-failure.json": "9fc8a0c856638e2c119fc4c151fd0e8b7d49d42d44dd7209b899b55e7922a1f0",
+    "direct-mesh-browser-native-send-failure.json": "4d88f9580c9e9536589d8fb420609b6acd664b20dba729a0c586d4fecb18a15e",
+    "direct-mesh-browser-held-roster-failure.json": "548af117ee9d044aed960fe7bd06d7de7c91e7dd12edf5d6080f3a9beb25e6da",
+    "direct-mesh-browser-premature-readiness.json": "19c27a3c0b4324d0e6d259ed0851be765a1b0d7e5d9cb13cc5d50640494b3289",
+    "direct-mesh-browser-readiness-timeout.json": "35e813d0944fca528c6a5a5cf6554e6c7327c2afc3d230c548b5d9e499ae88aa",
+    "direct-mesh-browser-synthetic-origin-failure.json": "f7cecdecb5394af5d2504332ba462f29bc7564be1b02a883659ed5955f3f2742"
+  }
+}

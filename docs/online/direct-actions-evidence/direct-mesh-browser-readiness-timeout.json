@@ -1,0 +1,7 @@
+{
+  "revision": "4646754a05a8b4dfe209f445ba0a2fb8e28199d4",
+  "dirty": true,
+  "method": "Local Worker, actual PeerTransport, six mixed Chromium/WebKit contexts, fifteen direct links, unordered maxRetransmits=0 action channel. Coordinator application callbacks/handshake pump blocked for the second guest traffic phase; transport lease and liveness probes remain. This validates transport, not integrated gameplay, packet loss, finality horizon or physical-phone latency.",
+  "samples": [],
+  "errors": []
+}

@@ -1,0 +1,115 @@
+{
+  "revision": "4646754a05a8b4dfe209f445ba0a2fb8e28199d4",
+  "dirty": true,
+  "method": "Local Worker, actual PeerTransport, six mixed Chromium/WebKit contexts, fifteen direct links, unordered maxRetransmits=0 action channel. Coordinator application callbacks/handshake pump blocked for the second guest traffic phase; transport lease and liveness probes remain. This validates transport, not integrated gameplay, packet loss, finality horizon or physical-phone latency.",
+  "samples": [
+    [
+      {
+        "id": "",
+        "host": "",
+        "peers": [],
+        "bound": [],
+        "got": [],
+        "errors": [],
+        "stats": {
+          "direct": 0,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "invalidated"
+          }
+        }
+      },
+      {
+        "id": "595eed66e0ca8ab18ee4f5f4",
+        "host": "c47af8ccd12734486406cd20",
+        "peers": [
+          "f554787fb694ead21901bd35",
+          "17c1df4b0139a379ca12aeeb"
+        ],
+        "bound": [],
+        "got": [],
+        "errors": [],
+        "stats": {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "sampled",
+            "roundTripMs": 2
+          }
+        }
+      },
+      {
+        "id": "",
+        "host": "",
+        "peers": [],
+        "bound": [],
+        "got": [],
+        "errors": [],
+        "stats": {
+          "direct": 0,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "invalidated"
+          }
+        }
+      },
+      {
+        "id": "f554787fb694ead21901bd35",
+        "host": "c47af8ccd12734486406cd20",
+        "peers": [
+          "595eed66e0ca8ab18ee4f5f4",
+          "17c1df4b0139a379ca12aeeb"
+        ],
+        "bound": [],
+        "got": [],
+        "errors": [],
+        "stats": {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "sampled",
+            "roundTripMs": 2
+          }
+        }
+      },
+      {
+        "id": "",
+        "host": "",
+        "peers": [],
+        "bound": [],
+        "got": [],
+        "errors": [],
+        "stats": {
+          "direct": 0,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "invalidated"
+          }
+        }
+      },
+      {
+        "id": "17c1df4b0139a379ca12aeeb",
+        "host": "c47af8ccd12734486406cd20",
+        "peers": [],
+        "bound": [],
+        "got": [],
+        "errors": [],
+        "stats": {
+          "direct": 0,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "sampled",
+            "roundTripMs": 1
+          }
+        }
+      }
+    ]
+  ],
+  "errors": []
+}
