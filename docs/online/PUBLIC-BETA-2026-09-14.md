@@ -22,7 +22,7 @@ The expanded public check exercised a phone-sized host creating and joining a ro
 - [AI riders](AI-RIDERS.md): ordinary input/physics, five combined human/AI slots, mid-race additions join next round; deterministic tests and browser scoring checks passed.
 - [Phaser benchmarks](../PHASER.md): desktop and mobile-sized views measured with production backing resolution. Mobile-sized frame p95 was 16.7 ms in Chrome and 18 ms in WebKit; physical hardware remains unverified.
 - [Network evidence](NETWORK-EVIDENCE-2026-09-14.md): a 30-minute soak passed its documented scope at source `66f67bd`. Later 20 Hz regional and poor profiles passed recovery/freshness checks, but poor-network correction tails remain large. Application-message impairment is not OS-level packet loss.
-- [Actual response benchmark](RESPONSE-BENCHMARK.md): local heading response p95 is about 30 ms. TV response remains around 160 ms, above the proposed 100 ms target; the measured qualification failure is under correction in ADR037. This known gap is not waived by calling the release a beta.
+- [Actual response benchmark](RESPONSE-BENCHMARK.md): the reviewed nearby-buffer candidate passes the predeclared 180-second run and combined 240-second batch: local p95 27.6 ms, TV p95 88.2 ms. Earlier failures remain in the report. The longer run observed 3.41% repeated TV ticks, with hold p95 34 ms and maximum 51.2 ms. Final candidate publication and public-browser checks are pending.
 
 Physical touch-to-photon, background/lock and network-transition behavior are not established by phone-sized browser tests. Each linked report identifies its tested artifact; newer commits and running CI are not evidence of a completed test.
 
