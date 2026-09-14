@@ -1,0 +1,35 @@
+TAP version 13
+# Subtest: transient pulse activation failure on p0 retains the frozen world and retries the same prepared match
+ok 1 - transient pulse activation failure on p0 retains the frozen world and retries the same prepared match
+  ---
+  duration_ms: 137.119417
+  ...
+# Subtest: transient pulse activation failure on p1 retains the frozen world and retries the same prepared match
+ok 2 - transient pulse activation failure on p1 retains the frozen world and retries the same prepared match
+  ---
+  duration_ms: 94.487958
+  ...
+# Subtest: permanently unavailable pulse activation retains the bounded setup and recovery deadlines
+ok 3 - permanently unavailable pulse activation retains the bounded setup and recovery deadlines
+  ---
+  duration_ms: 111.294916
+  ...
+# Subtest: authority replacement during pulse activation cannot publish or acknowledge the retired preparation
+ok 4 - authority replacement during pulse activation cannot publish or acknowledge the retired preparation
+  ---
+  duration_ms: 27.909667
+  ...
+# Subtest: an activation callback cannot install a prepared world after setup expiry before the scheduler runs
+ok 5 - an activation callback cannot install a prepared world after setup expiry before the scheduler runs
+  ---
+  duration_ms: 30.53675
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 570.990459

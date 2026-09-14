@@ -1,0 +1,36 @@
+{
+  "status": "Activation retry fix independently approved; 652 tests/coverage, build and Worker typecheck pass; new sustained browser run pending. No deployment.",
+  "baseRevision": "e5a9be72bd4299149427a58f6a719051d771f40b",
+  "sourceHashes": {
+    "src/online/runtime.ts": "c0bb2f5309c57d7e47f5e1fcc1c762754e026871e50bf360948099a89611fb49",
+    "tests/direct-runtime.test.ts": "08c801e70fefb53e6e0404a82fc6c6e4dcf964ff3ae8483ddbb3d0c16108fbc9",
+    "src/online/peer-transport.ts": "93d20bdd28d1f8714805746e7db1e1b65517f95dfc99e5e4e579a1fd5065eebe",
+    "src/online/link-health.ts": "93564d167b40d86ed9ab10bf97abab70bbb6d894e729de05610bd552dfee2a72",
+    "scripts/direct-traffic-browser.ts": "db18ae48aa3585f39a54d94b057df7e5e3a0bc3d53792440ac3ec97bfb93b5ca",
+    "scripts/fixtures/direct-traffic-fixture.ts": "91a27459dd2e53368ddc284c2f6e4aede8936008e0846015c0d2e42d9333e8de"
+  },
+  "files": {
+    "direct-traffic-sustained-mobile-02-match-005.json.gz": "5dcbd8b1d26296b0c22e07a850bd7834fd13f35a5848823726150988a9b35c99",
+    "direct-traffic-sustained-mobile-02-match-004.json.gz": "c0537fa01dfb9730458e5faa480729f187d77492c3c7ff0e9b99bacd19abd6a1",
+    "direct-traffic-sustained-mobile-02-match-006.json.gz": "20c2de4a03a24a8001fa8243b1a544e41fc412cf110d77697657c722afaddf61",
+    "direct-traffic-sustained-mobile-02-match-002.json.gz": "0fea1cdfbe5ab2f63c79d076a9ae549ddbef41555ffa2faf02dbd36dce8d1bd6",
+    "direct-traffic-sustained-mobile-02.json": "f99b1c98a55cbd0f67afca0c2ca177ac05deffc5299fad8c890847e71b3087af",
+    "direct-traffic-sustained-mobile-02-match-003.json.gz": "bf16749d78af60822777a7649ee30bc3575ff661ce55ee60d8995295110b77b9",
+    "direct-traffic-sustained-mobile-02-match-001.json.gz": "aded94c2a475cbbf9bf21b8979724dfda1dc3865e75cf24a41622bd79fd93480",
+    "direct-activation-before.log": "3fb702aefe39b892d0766387a6331e9ca1940ba38b1866b37f1088935a448803",
+    "direct-activation-regressions.log": "00f951462cb7b89f404918d0ba627ea4b8d31d073fff9feb245345a576932a6e",
+    "direct-activation-independent-final.log": "48fb7b9734d3a59a5d6c860f8e428877919d070b4e0ad16b3f0f89b6fd6c9fa4",
+    "direct-activation-coverage.log": "a5ed6caf10f93792cd42bb622b18d4a69caa7754adc347993d44ea3a463728f7",
+    "direct-activation-build.log": "7818b0f85f256c3f23e601a59369da802d0b2175e6074647647659118aac7c96",
+    "direct-activation-worker.log": "0102f73cb93b40d17dc8b71ee627cccfba5d38485df9ea6c25581b26319dc89e"
+  },
+  "priorFailure": {
+    "run": "sustained-mobile-02",
+    "revision": "e5a9be7",
+    "completedMatches": 6,
+    "elapsedSeconds": 193.24,
+    "result": "Five clean matches; sixth included a peer activation failure and automatic resynchronization, correctly rejected by the hidden-recovery assertion.",
+    "limits": "Native mixed Chromium/WebKit with application impairment; no Phaser rendering, physical phones or wire-byte measurement."
+  },
+  "regressions": "Five tests: transient coordinator/follower readiness, permanent failure deadlines, authority replacement, expired callback before scheduler. Each failed against the old behavior where applicable; initial three failures retained."
+}

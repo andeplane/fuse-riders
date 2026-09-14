@@ -16,6 +16,7 @@ function setup(shared = false) {
   const queue: { from: string; to: string; value: Uint8Array; fast: boolean }[] = [];
   const sends: { from: string; to: string; type: string; accepted: boolean }[] = [];
   let accept: (from: string, to: string, raw: unknown) => boolean = () => true;
+  let activate: (from: string, to: string, alias: number) => boolean = () => true;
   const silent = new Set<string>(), unscheduled = new Set<string>(), checkpointBlocked = new Set<string>();
   function add(id: string, display = false, storage = new Map<string, string>()) {
     connections.set(id, `connection-${++nextId}`);
@@ -33,7 +34,7 @@ function setup(shared = false) {
       sentBytes: 0, fastSentBytes: 0, binarySentBytes: 0,
       connectionOf: peer => connections.get(peer), members: () => [...connections.keys()], authorityPermitted: () => true,
       connect: () => { callbacks.welcome(id, 'p0'); for (const peer of connections.keys()) if (peer !== id) callbacks.peer(peer, true); }, close: () => {},
-      send: (to, value) => send(to, value), sendCheckpoint: (to, value) => !checkpointBlocked.has(to) && send(to, value), sendFast: (to, bytes) => send(to, bytes, true), sendPulse: (to, bytes) => send(to, bytes, true), activatePulse: (to, alias) => { sends.push({from:id,to,type:`activate:${alias}`,accepted:true});return true;}, deactivatePulse: (to, alias) => { sends.push({from:id,to,type:`deactivate:${alias}`,accepted:true});}, sendBound: (to, tuple) => send(to, tuple), bindFast: () => true, boundReady: () => true,
+      send: (to, value) => send(to, value), sendCheckpoint: (to, value) => !checkpointBlocked.has(to) && send(to, value), sendFast: (to, bytes) => send(to, bytes, true), sendPulse: (to, bytes) => send(to, bytes, true), activatePulse: (to, alias) => { const accepted = activate(id, to, alias); sends.push({from:id,to,type:`activate:${alias}`,accepted});return accepted;}, deactivatePulse: (to, alias) => { sends.push({from:id,to,type:`deactivate:${alias}`,accepted:true});}, sendBound: (to, tuple) => send(to, tuple), bindFast: () => true, boundReady: () => true,
       stats: async () => ({ direct: connections.size - 1, relayed: 0, buffered: 0, authority: { reason: 'permitted' } }),
       diagnostics: async () => ({ links: [], ice: { servers: 0, source: 'test' }, socket: 'open' }),
     };
@@ -60,7 +61,7 @@ function setup(shared = false) {
   for (const id of ids) add(id, id === 'tv');
   for (const member of members.values()) member.runtime.start();
   advance(1800);
-  return { members, sends, advance, silent, unscheduled, checkpointBlocked, add, remove: (id: string) => { members.get(id)?.runtime.stop(); members.delete(id); connections.delete(id); for (const member of members.values()) member.callbacks.peer(id, false); }, accept: (fn: typeof accept) => { accept = fn; }, now: () => now };
+  return { jumpClock: (ms: number) => { now += ms; }, activation: (fn: typeof activate) => { activate = fn; }, members, sends, advance, silent, unscheduled, checkpointBlocked, add, remove: (id: string) => { members.get(id)?.runtime.stop(); members.delete(id); connections.delete(id); for (const member of members.values()) member.callbacks.peer(id, false); }, accept: (fn: typeof accept) => { accept = fn; }, now: () => now };
 }
 
 test('runtime activates direct simulators, starts a match and sends actions directly between guests', () => {
@@ -723,4 +724,69 @@ test('a paused controller keeps its published scene despite queued old-segment s
   assert.deepEqual(creator.view, frozen);
   assert.deepEqual(creator.runtime.renderSnapshot(), frozenRender);
   assert.equal(creator.runtime.replicationDiagnostics.lastFault, undefined);
+});
+
+
+for (const delayed of ['p0', 'p1']) test(`transient pulse activation failure on ${delayed} retains the frozen world and retries the same prepared match`, () => {
+  const room = setup(), guest = room.members.get(delayed)!;
+  const before = structuredClone(guest.view);
+  let available = false;
+  room.activation((from, to) => from !== delayed || to !== 'p2' || available);
+  room.members.get('p0')!.runtime.command({ type: 'action', action: 'start' });
+  room.advance(250);
+  const alias = guest.runtime.replicationDiagnostics.alias!;
+  assert.ok(room.sends.some(s => s.from === delayed && s.type === `activate:${alias}` && !s.accepted), 'activation lost readiness after preparation');
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, true);
+  assert.equal(guest.runtime.replicationDiagnostics.fault, 'Segment replaced', 'old world remains stopped until every pulse binding activates');
+  assert.equal(guest.runtime.replicationDiagnostics.lastFault, undefined);
+  assert.deepEqual(guest.view, before, 'failed activation cannot publish a partial new match');
+  available = true; room.advance(4300);
+  for (const member of room.members.values()) {
+    assert.equal(member.runtime.replicationDiagnostics.alias, alias, 'same preparation survives the transient lapse');
+    assert.equal(member.runtime.replicationDiagnostics.lastFault, undefined);
+    assert.equal(member.runtime.replicationDiagnostics.barrier, false);
+    assert.equal(member.view?.phase, 'playing');
+  }
+});
+
+test('permanently unavailable pulse activation retains the bounded setup and recovery deadlines', () => {
+  const room = setup(), creator = room.members.get('p0')!;
+  room.activation(from => from !== 'p0');
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4500);
+  assert.equal(creator.runtime.replicationDiagnostics.barrier, true);
+  assert.equal(creator.runtime.replicationDiagnostics.lastFault, undefined, 'activation retries do not restart setup');
+  room.advance(1500);
+  assert.ok(creator.notices.some(s => /setup timed out|confirmed the lifecycle/.test(s)), 'original setup deadline still expires');
+  room.advance(16000);
+  assert.equal(creator.runtime.replicationDiagnostics.recoveryRequired, true, 'repeated setup cannot extend the unsuccessful episode');
+});
+
+test('authority replacement during pulse activation cannot publish or acknowledge the retired preparation', () => {
+  const room = setup(), guest = room.members.get('p1')!;
+  const before = structuredClone(guest.view); let replaced = false;
+  room.activation(from => {
+    if (from === 'p1' && !replaced) { replaced = true; guest.callbacks.authorityChanged?.(); }
+    return true;
+  });
+  room.members.get('p0')!.runtime.command({ type: 'action', action: 'start' }); room.advance(200);
+  assert.equal(replaced, true);
+  assert.equal(guest.runtime.replicationDiagnostics.alias, undefined);
+  assert.deepEqual(guest.view, before);
+  assert.equal(guest.runtime.replicationDiagnostics.fault, 'Segment replaced');
+});
+
+
+test('an activation callback cannot install a prepared world after setup expiry before the scheduler runs', () => {
+  const room = setup(), creator = room.members.get('p0')!;
+  room.activation(from => from !== 'p0');
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(250);
+  const revision = creator.runtime.replicationDiagnostics.alias!, before = structuredClone(creator.view);
+  const attempts = room.sends.filter(s => s.from === 'p0' && s.type === `activate:${revision}`).length;
+  room.activation(() => true); room.jumpClock(5100);
+  creator.callbacks.message('p0', { type: 'directActivate', revision });
+  assert.equal(room.sends.filter(s => s.from === 'p0' && s.type === `activate:${revision}`).length, attempts, 'expired setup cannot activate any binding');
+  assert.equal(creator.runtime.replicationDiagnostics.barrier, true);
+  assert.deepEqual(creator.view, before);
+  creator.tick?.();
+  assert.ok(creator.notices.some(s => s.includes('setup timed out')), 'scheduler takes the existing bounded recovery path');
 });

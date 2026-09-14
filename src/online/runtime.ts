@@ -237,8 +237,21 @@ export class RoomRuntime {
   }
   private activate(): void {
     const plan = this.plan!, incoming = this.incoming!;
-    if (!incoming.ready) return;
+    if (!incoming.ready || !this.activationSafe()) return;
     if (!incoming.activated) {
+      const previous = this.segment;
+      const current = () => this.plan === plan && this.incoming === incoming && this.segment === previous
+        && !this.stopped && !this.recovering && !this.recoveryRequired && !this.faultPending
+        && this.planCurrent(plan) && this.transport.authorityPermitted()
+        && (this.attemptAt === undefined || this.environment.now() - this.attemptAt <= 5000);
+      if (!current()) return;
+      // Ready receipts are historical evidence: health/backpressure may lapse
+      // before activation. Keep the prepared world intact for the existing retry.
+      for (const member of plan.members) if (member.id !== this.transport.id) {
+        const activated = this.transport.activatePulse(member.id, plan.revision);
+        if (!current() || !activated) return;
+      }
+      if (!current()) return;
       const now = this.environment.now(); this.startAt = plan.coordinator === this.transport.id ? now + 800 : undefined;
       this.segment = new DirectSegment({ alias: plan.revision, id: this.transport.id, coordinator: plan.coordinator!, baseTick: incoming.header.tick, running: incoming.header.status.phase !== 'lobby', members: plan.members.map(m => m.id), views: plan.members.filter(m => m.view).map(m => m.id), owners: incoming.header.owners, bootstrap: incoming.candidate, startAt: this.startAt }, {
         now: () => this.environment.now(), pulse: (peer, bytes) => this.transport.sendPulse(peer, bytes), fast: (peer, bytes) => this.transport.sendFast(peer, bytes), reliable: (peer, tuple) => this.transport.sendBound(peer, tuple),
@@ -246,7 +259,6 @@ export class RoomRuntime {
       });
       this.rendered = undefined; this.controlsRound = incoming.header.round;
       this.segmentPlan = structuredClone(plan);
-      for (const member of plan.members) if (member.id !== this.transport.id && !this.transport.activatePulse(member.id, plan.revision)) { this.faultPending = 'Direct heartbeat activation failed — synchronizing'; return; }
       incoming.activated = true; this.view = this.segment.snapshot() ?? incoming.header.status; this.matchId = incoming.header.matchId; if (incoming.header.lobby) this.lobby = structuredClone(incoming.header.lobby); incoming.candidate = undefined; this.change = undefined; this.pendingPlan = undefined;
       this.lastPublish = ''; this.publish(); this.lastBotTick = -1; this.applied.add(this.transport.id);
       this.status.recurring('Connected · direct action simulation'); this.save();

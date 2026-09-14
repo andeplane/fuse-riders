@@ -1,0 +1,4 @@
+
+> fuse-riders@1.0.0 typecheck:worker
+> tsc -p worker/tsconfig.json
+
