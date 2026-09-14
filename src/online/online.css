@@ -14,8 +14,8 @@
   .online-controls{min-height:44px;grid-template-columns:80px 180px 80px;gap:6px}
   .online-controls button{font-size:12px;padding:4px 8px}
   .online-controls button::after{display:block;font-size:10px;opacity:.75;margin-top:3px;content:attr(aria-keyshortcuts)}
-  .online-controls button[aria-keyshortcuts=ArrowLeft]::after{content:'← KEY'}
-  .online-controls button[aria-keyshortcuts=ArrowRight]::after{content:'→ KEY'}
+  .online-controls button[aria-keyshortcuts~=ArrowLeft]::after{content:'← / A'}
+  .online-controls button[aria-keyshortcuts~=ArrowRight]::after{content:'→ / D'}
   .online-controls button[aria-keyshortcuts=Space]::after{content:'SPACE'}
   .online-host button{font-size:12px;min-height:36px;padding:4px 8px}
 }

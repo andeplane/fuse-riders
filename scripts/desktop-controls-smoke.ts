@@ -9,13 +9,13 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   const base = process.env.ONLINE_URL ?? 'http://127.0.0.1:5179/';
   await page.goto(`${base}?solo=1`);
-  const left = page.locator('[aria-keyshortcuts="ArrowLeft"]');
-  const right = page.locator('[aria-keyshortcuts="ArrowRight"]');
+  const left = page.locator('[aria-keyshortcuts~="ArrowLeft"]');
+  const right = page.locator('[aria-keyshortcuts~="ArrowRight"]');
   const fire = page.locator('[aria-keyshortcuts="Space"]');
   await left.waitFor({ state: 'visible' });
   // Lobby gives deterministic time for hold/cancel checks without AI round changes.
   await page.getByRole('button', { name: 'MAIN MENU', exact: true }).click();
-  for (const [code, button] of [['ArrowLeft', left], ['ArrowRight', right], ['Space', fire]] as const) {
+  for (const [code, button] of [['ArrowLeft', left], ['ArrowRight', right], ['KeyA', left], ['KeyD', right], ['Space', fire]] as const) {
     await page.keyboard.down(code);
     assert.match(await button.getAttribute('class') ?? '', /active/);
     await page.keyboard.up(code);
