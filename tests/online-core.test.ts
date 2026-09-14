@@ -143,3 +143,16 @@ test('a rematch drops the riders that were lost during the finished match',()=>{
   assert.equal(room.game.phase,'countdown');
   assert.deepEqual([...room.game.players.keys()].sort(),['b','host']);
 });
+
+test('a whole round of chained deltas stays exact without any periodic re-baseline',()=>{
+  const room=session();for(const id of ['host','b'])room.command(id,{type:'join',name:id});
+  room.command('host',{type:'action',action:'start'});
+  const encoder=new WorldEncoder(),decoder=new WorldDecoder();let keyframes=0;
+  for(let tick=1;tick<=400;tick++){
+    room.advance();
+    const frame=encoder.encode(room.snapshot(),'m',1,tick);
+    if(frame.base===0)keyframes++;
+    assert.deepEqual(decoder.accept(JSON.parse(JSON.stringify(frame))),room.snapshot(),`tick ${tick} diverged`);
+  }
+  assert.equal(keyframes,1,'only a fresh encoder keyframes; a periodic re-baseline stalls every peer for a receipt round trip');
+});
