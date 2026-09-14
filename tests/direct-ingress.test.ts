@@ -66,3 +66,15 @@ test('packet limits apply before parsing and the association budget survives ali
   assert.equal(ingress.bind(9, { actions: [], receipts: [] }, NaN), false);
   assert.throws(() => new DirectIngress(-1));
 });
+
+
+test('one aggregate consumes one reserved token after every nested slot is authorized',()=>{
+ const ingress=new DirectIngress(0);ingress.bind(7,{actions:[0,1,2],receipts:[3,4]},0);
+ for(let i=0;i<50;i++){
+  assert.equal(ingress.heartbeat([[0,70,0],[3,70,0]],[],0),'unauthorized');
+  assert.equal(ingress.heartbeat([],[[0,0]],0),'unauthorized');
+ }
+ for(let i=0;i<40;i++)assert.equal(ingress.heartbeat([[0,70,0],[1,70,0],[2,70,0]],[[3,0],[4,0]],0),'accepted');
+ assert.equal(ingress.heartbeat([],[],0),'limited');
+ assert.equal(ingress.heartbeat([],[],50),'accepted');assert.equal(ingress.heartbeat([],[],50),'limited');
+});

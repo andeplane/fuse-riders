@@ -31,7 +31,13 @@ export class DirectTickClock {
   private pending = new Map<number, number>();
   private samples: Sample[] = [];
   private fault?: 'clock-jump' | 'discrepancy' | 'exhausted';
-  private constructor(readonly segment: number, readonly baseTick: number, private readonly now: () => number, private readonly leader: boolean, startAt?: number) {
+  private constructor(readonly segment: number, readonly baseTick: number, private readonly now: () => number, private readonly leader: boolean, startAt?: number, source?: DirectTickClock) {
+    if (source) {
+      this.lastObserved = source.lastObserved; this.value = source.value; this.started = source.started;
+      this.uncertaintyTicks = source.uncertaintyTicks; this.lastValid = source.lastValid; this.nextId = source.nextId; this.lastAccepted = source.lastAccepted;
+      this.pending = new Map(source.pending); this.samples = [...source.samples]; this.fault = source.fault;
+      return;
+    }
     const at = now();
     if (!uint32(segment) || segment === 0 || !uint32(baseTick) || !Number.isFinite(at) || at < 0) throw new Error('Invalid clock scope');
     this.lastObserved = at;
@@ -93,6 +99,11 @@ export class DirectTickClock {
     this.observe();
     if (!this.leader || this.fault || !Array.isArray(raw) || raw.length !== 4 || raw[0] !== DIRECT_VERSION || raw[1] !== this.segment || raw[2] !== 'clock' || !uint32(raw[3]) || !raw[3]) return;
     return [DIRECT_VERSION, this.segment, 'time', raw[3], this.value!];
+  }
+  /** A combined message can reject its other fields without consuming this clock sample. */
+  prepare(raw: unknown): { clock: DirectTickClock; status: 'accepted' | 'invalid' | 'stale' | 'fault' } {
+    const clock = new DirectTickClock(this.segment, this.baseTick, this.now, this.leader, undefined, this);
+    return { clock, status: clock.accept(raw) };
   }
   accept(raw: unknown): 'accepted' | 'invalid' | 'stale' | 'fault' {
     const at = this.observe();

@@ -1,0 +1,430 @@
+TAP version 13
+# Subtest: wire actions use full uint32 ticks and strict bounded MessagePack tuples
+ok 1 - wire actions use full uint32 ticks and strict bounded MessagePack tuples
+  ---
+  duration_ms: 1.732125
+  ...
+# Subtest: independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+ok 2 - independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+  ---
+  duration_ms: 0.368458
+  ...
+# Subtest: conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+ok 3 - conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+  ---
+  duration_ms: 0.533416
+  ...
+# Subtest: whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+ok 4 - whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+  ---
+  duration_ms: 27.371917
+  ...
+# Subtest: all same-tick press/release packet permutations yield exactly one identical shot
+ok 5 - all same-tick press/release packet permutations yield exactly one identical shot
+  ---
+  duration_ms: 18.902417
+  ...
+# Subtest: replacement press restarts charge; old release cannot fire the newer gesture
+ok 6 - replacement press restarts charge; old release cannot fire the newer gesture
+  ---
+  duration_ms: 2.460791
+  ...
+# Subtest: missing press never invents charge; cancel and aiming preserve per-action target order
+ok 7 - missing press never invents charge; cancel and aiming preserve per-action target order
+  ---
+  duration_ms: 3.79675
+  ...
+# Subtest: idle repair delivers a lost final release; receipt loss never duplicates shots
+not ok 8 - idle repair delivers a lost final release; receipt loss never duplicates shots
+  ---
+  duration_ms: 3.209916
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-actions.test.ts:1:6886'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'byteLength')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    decodeDirectPacket (/private/tmp/fuse-riders-action-log/src/online/direct-stream.ts:14:13)
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-actions.test.ts:140:46)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+ok 9 - origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+  ---
+  duration_ms: 3.855083
+  ...
+# Subtest: finality waits for cross-channel input gaps, then emits derived effects exactly once
+ok 10 - finality waits for cross-channel input gaps, then emits derived effects exactly once
+  ---
+  duration_ms: 8.29375
+  ...
+# Subtest: finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+ok 11 - finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+  ---
+  duration_ms: 6.503125
+  ...
+# Subtest: speculation pauses at its fixed bound and resumes after verified finality
+ok 12 - speculation pauses at its fixed bound and resumes after verified finality
+  ---
+  duration_ms: 12.185
+  ...
+# Subtest: malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+ok 13 - malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+  ---
+  duration_ms: 4.19075
+  ...
+# Subtest: invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+ok 14 - invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+  ---
+  duration_ms: 2.962375
+  ...
+# Subtest: encoded history budget rejects growth atomically rather than discarding rollback dependencies
+ok 15 - encoded history budget rejects growth atomically rather than discarding rollback dependencies
+  ---
+  duration_ms: 3.095291
+  ...
+# Subtest: six independently advancing replicas converge through delayed/reordered delivery for five streams
+ok 16 - six independently advancing replicas converge through delayed/reordered delivery for five streams
+  ---
+  duration_ms: 2371.10825
+  ...
+# Subtest: new completeness cuts preserve older promises and already certified progress
+ok 17 - new completeness cuts preserve older promises and already certified progress
+  ---
+  duration_ms: 0.151917
+  ...
+# Subtest: watermark cuts, including empty periods, have a hard retention bound
+ok 18 - watermark cuts, including empty periods, have a hard retention bound
+  ---
+  duration_ms: 0.76225
+  ...
+# Subtest: bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+ok 19 - bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+  ---
+  duration_ms: 0.986417
+  ...
+# Subtest: older complete finality advances while newer certificates still await input repair
+ok 20 - older complete finality advances while newer certificates still await input repair
+  ---
+  duration_ms: 12.593916
+  ...
+# Subtest: pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+ok 21 - pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+  ---
+  duration_ms: 5.982542
+  ...
+# Subtest: pending finality has a forty-tick bound and encoded-byte admission is atomic
+ok 22 - pending finality has a forty-tick bound and encoded-byte admission is atomic
+  ---
+  duration_ms: 5.325292
+  ...
+# Subtest: lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+ok 23 - lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+  ---
+  duration_ms: 0.479917
+  ...
+# Subtest: delivery exact cuts exclude future groups and cannot contradict retained actions
+ok 24 - delivery exact cuts exclude future groups and cannot contradict retained actions
+  ---
+  duration_ms: 0.089375
+  ...
+# Subtest: remote future staging derives from both clock uncertainties without extending the execution horizon
+ok 25 - remote future staging derives from both clock uncertainties without extending the execution horizon
+  ---
+  duration_ms: 7.335458
+  ...
+# Subtest: recovery distinguishes invalid action admission from verified finality disagreement
+ok 26 - recovery distinguishes invalid action admission from verified finality disagreement
+  ---
+  duration_ms: 2.421125
+  ...
+# Subtest: compact control admits only complete bounded clock and finality schemas
+ok 27 - compact control admits only complete bounded clock and finality schemas
+  ---
+  duration_ms: 1.5755
+  ...
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 28 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 128.281542
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 29 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 47.405167
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 30 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 55.350583
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 31 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 153.706875
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 32 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 24.586417
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 33 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 150.355375
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 34 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 48.615041
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 35 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 146.775041
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 36 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 271.171959
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 37 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 40.412125
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 38 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 208.678125
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 39 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 46.086375
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 40 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 90.902458
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 41 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 40.853666
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+ok 42 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 39.923042
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 43 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 178.604166
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 44 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 159.005625
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 45 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 158.35125
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 46 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 154.26625
+  ...
+# Subtest: settled room metadata stops repeating until a lifecycle change
+ok 47 - settled room metadata stops repeating until a lifecycle change
+  ---
+  duration_ms: 55.97725
+  ...
+# Subtest: a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+ok 48 - a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+  ---
+  duration_ms: 45.359
+  ...
+# Subtest: stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+not ok 49 - stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+  ---
+  duration_ms: 28.595834
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:1:19508'
+  failureType: 'testCodeFailure'
+  error: '1 paced retries'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:352:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: only an identical current plan duplicate receives another delivery acknowledgement
+ok 50 - only an identical current plan duplicate receives another delivery acknowledgement
+  ---
+  duration_ms: 35.7835
+  ...
+# Subtest: delegated setup request retries do not resend an already acknowledged room plan
+ok 51 - delegated setup request retries do not resend an already acknowledged room plan
+  ---
+  duration_ms: 22.64375
+  ...
+# Subtest: an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+ok 52 - an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+  ---
+  duration_ms: 171.996875
+  ...
+# Subtest: six live segments independently advance and finalize continuous inputs under loss and reordering
+not ok 53 - six live segments independently advance and finalize continuous inputs under loss and reordering
+  ---
+  duration_ms: 585.973334
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:1:3523'
+  failureType: 'testCodeFailure'
+  error: '[{"id":"p0","final":113,"tick":119,"progress":[{"slot":0,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":1,"contiguous":243,"watermark":[115,243],"cuts":[[113,241],[115,243]]},{"slot":2,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":3,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":4,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]}],"retained":0},{"id":"p1","final":105,"tick":119,"progress":[{"slot":0,"contiguous":0,"watermark":[113,0],"cuts":[[105,0],[111,0],[113,0]]},{"slot":1,"contiguous":243,"watermark":[115,243],"cuts":[[105,197],[106,203],[107,208],[108,214],[109,219],[110,225],[111,230],[112,236],[113,241],[115,243]]},{"slot":2,"contiguous":0,"watermark":[116,0],"cuts":[[105,0],[113,0],[116,0]]},{"slot":3,"contiguous":0,"watermark":[116,0],"cuts":[[105,0],[113,0],[116,0]]},{"slot":4,"contiguous":0,"watermark":[111,0],"cuts":[[105,0],[111,0]]}],"retained":0},{"id":"p2","final":105,"tick":118,"progress":[{"slot":0,"contiguous":0,"watermark":[111,0],"cuts":[[105,0],[111,0]]},{"slot":1,"contiguous":243,"watermark":[115,243],"cuts":[[105,197],[106,203],[107,208],[108,214],[109,219],[110,225],[111,230],[112,236],[113,241],[115,243]]},{"slot":2,"contiguous":0,"watermark":[116,0],"cuts":[[105,0],[110,0],[113,0],[116,0]]},{"slot":3,"contiguous":0,"watermark":[113,0],"cuts":[[105,0],[106,0],[113,0]]},{"slot":4,"contiguous":0,"watermark":[113,0],"cuts":[[105,0],[111,0],[113,0]]}],"retained":0},{"id":"p3","final":113,"tick":119,"progress":[{"slot":0,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":1,"contiguous":243,"watermark":[115,243],"cuts":[[113,241],[115,243]]},{"slot":2,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":3,"contiguous":0,"watermark":[116,0],"cuts":[[113,0],[115,0],[116,0]]},{"slot":4,"contiguous":0,"watermark":[115,0],"cuts":[[113,0],[115,0]]}],"retained":0},{"id":"p4","final":113,"tick":119,"progress":[{"slot":0,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":1,"contiguous":243,"watermark":[115,243],"cuts":[[113,241],[115,243]]},{"slot":2,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":3,"contiguous":0,"watermark":[115,0],"cuts":[[113,0],[115,0]]},{"slot":4,"contiguous":0,"watermark":[115,0],"cuts":[[113,0],[115,0]]}],"retained":0},{"id":"tv","final":113,"tick":119,"progress":[{"slot":0,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":1,"contiguous":243,"watermark":[113,241],"cuts":[[113,241]]},{"slot":2,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":3,"contiguous":0,"watermark":[113,0],"cuts":[[113,0]]},{"slot":4,"contiguous":0,"watermark":[115,0],"cuts":[[113,0],[115,0]]}],"retained":0}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:69:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.start (node:internal/test_runner/test:877:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: shared TV is the only simulator while five controller origins send directly to it
+not ok 54 - shared TV is the only simulator while five controller origins send directly to it
+  ---
+  duration_ms: 14.89425
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:1:4810'
+  failureType: 'testCodeFailure'
+  error: '{"final":74,"progress":[{"slot":0,"contiguous":0,"watermark":[74,0],"cuts":[[74,0]]},{"slot":1,"contiguous":0,"watermark":[74,0],"cuts":[[74,0]]},{"slot":2,"contiguous":4,"watermark":[74,4],"cuts":[[74,4]]},{"slot":3,"contiguous":0,"watermark":[74,0],"cuts":[[74,0]]},{"slot":4,"contiguous":0,"watermark":[74,0],"cuts":[[74,0]]}]}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:94:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+ok 55 - coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+  ---
+  duration_ms: 143.970166
+  ...
+# Subtest: provisional eliminations cannot publish death or placements before verified finality
+ok 56 - provisional eliminations cannot publish death or placements before verified finality
+  ---
+  duration_ms: 2.14425
+  ...
+# Subtest: controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+ok 57 - controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+  ---
+  duration_ms: 4.9965
+  ...
+# Subtest: asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+ok 58 - asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+  ---
+  duration_ms: 265.116
+  ...
+# Subtest: initial progress grace is bounded and replayed base cuts cannot postpone it
+ok 59 - initial progress grace is bounded and replayed base cuts cannot postpone it
+  ---
+  duration_ms: 79.315958
+  ...
+# Subtest: after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+not ok 60 - after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+  ---
+  duration_ms: 37.459708
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:1:9953'
+  failureType: 'testCodeFailure'
+  error: 'The "string" argument must be of type string. Received type undefined (undefined)'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:180:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+not ok 61 - uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+  ---
+  duration_ms: 1.308458
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:1:10503'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-segment.test.ts:194:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: direct-only path resumes on two fresh acknowledgements without relay quarantine
+ok 62 - direct-only path resumes on two fresh acknowledgements without relay quarantine
+  ---
+  duration_ms: 0.409209
+  ...
+# Subtest: three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+ok 63 - three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+  ---
+  duration_ms: 0.17175
+  ...
+# Subtest: restart requires eight continuously unhealthy seconds, reset by recovered health
+ok 64 - restart requires eight continuously unhealthy seconds, reset by recovered health
+  ---
+  duration_ms: 0.082917
+  ...
+# Subtest: expired duplicate and pre-failure probes cannot keep blackholed path healthy
+ok 65 - expired duplicate and pre-failure probes cannot keep blackholed path healthy
+  ---
+  duration_ms: 0.270792
+  ...
+1..65
+# tests 65
+# suites 0
+# pass 59
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2725.724292

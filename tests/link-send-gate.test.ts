@@ -1,7 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT, type SendChannelFacts } from '../src/online/link-send-gate.js';
+import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT, permitsFastControl, type SendChannelFacts } from '../src/online/link-send-gate.js';
 const open=(bufferedAmount=0):SendChannelFacts=>({readyState:'open',bufferedAmount});
+
+test('deferred fast health replies recheck visibility and both lanes without depending on reliable backlog',()=>{
+ for(const change of ['hidden','stopped','reliable-close','fast-close','reliable-drain','fast-drain'] as const){
+  const fast=open(),reliable=open(GAMEPLAY_BUFFER_LIMIT),fastGate=new LinkSendGate(),reliableGate=new LinkSendGate();
+  let hidden=false,stopped=false,sends=0;
+  const reply=()=>{if(permitsFastControl(stopped,hidden,fast,fastGate,reliable,reliableGate))sends++;};
+  reply();assert.equal(sends,1);
+  if(change==='hidden')hidden=true;
+  else if(change==='stopped')stopped=true;
+  else if(change==='reliable-close')reliable.readyState='closing';
+  else if(change==='fast-close')fast.readyState='closed';
+  else if(change==='reliable-drain')reliableGate.drain();
+  else fastGate.drain();
+  reply();assert.equal(sends,1,change);
+ }
+ assert.equal(permitsFastControl(false,false,open(),new LinkSendGate(),undefined,new LinkSendGate()),false);
+ assert.equal(permitsFastControl(false,false,open(PROBE_BUFFER_LIMIT),new LinkSendGate(),open(),new LinkSendGate()),false);
+});
 
 test('healthy open channel under the buffer limit is permitted for gameplay and probes',()=>{
  const gate=new LinkSendGate();

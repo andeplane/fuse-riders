@@ -1,0 +1,210 @@
+TAP version 13
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 1 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 121.3315
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 2 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 41.564583
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 3 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 51.17
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 4 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 139.583416
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 5 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 21.366125
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 6 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 135.886083
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 7 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 45.477375
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 8 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 132.603
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 9 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 245.492333
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 10 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 37.351
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 11 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 192.967958
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 12 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 42.925375
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 13 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 87.876958
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 14 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 38.195667
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+ok 15 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 38.010375
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 16 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 169.825458
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 17 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 154.184625
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 18 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 151.239917
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 19 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 148.759666
+  ...
+# Subtest: settled room metadata stops repeating until a lifecycle change
+ok 20 - settled room metadata stops repeating until a lifecycle change
+  ---
+  duration_ms: 52.239417
+  ...
+# Subtest: a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+ok 21 - a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+  ---
+  duration_ms: 41.754
+  ...
+# Subtest: stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+ok 22 - stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+  ---
+  duration_ms: 33.09425
+  ...
+# Subtest: only an identical current plan duplicate receives another delivery acknowledgement
+ok 23 - only an identical current plan duplicate receives another delivery acknowledgement
+  ---
+  duration_ms: 32.652375
+  ...
+# Subtest: delegated setup request retries do not resend an already acknowledged room plan
+ok 24 - delegated setup request retries do not resend an already acknowledged room plan
+  ---
+  duration_ms: 21.76075
+  ...
+# Subtest: an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+ok 25 - an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+  ---
+  duration_ms: 166.791084
+  ...
+# Subtest: freezing a runtime deactivates its installed alias before another preparation
+not ok 26 - freezing a runtime deactivates its installed alias before another preparation
+  ---
+  duration_ms: 175.08675
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:1:23412'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      creator.callbacks.message('p1', { type: 'directHello', rules: DIRECT_RULES, display: false })
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:407:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: queued retired-channel pongs cannot certify a new RTC link whose probe IDs restarted
+ok 27 - queued retired-channel pongs cannot certify a new RTC link whose probe IDs restarted
+  ---
+  duration_ms: 0.414
+  ...
+# Subtest: a replaced channel on the same live link cannot update state or expose stale errors
+ok 28 - a replaced channel on the same live link cannot update state or expose stale errors
+  ---
+  duration_ms: 0.052
+  ...
+# Subtest: retired peer callbacks cannot replace the current data channel even with identical service identity
+ok 29 - retired peer callbacks cannot replace the current data channel even with identical service identity
+  ---
+  duration_ms: 0.051584
+  ...
+# Subtest: pulse proof is scoped to the captured active binding and two live undrained channels
+ok 30 - pulse proof is scoped to the captured active binding and two live undrained channels
+  ---
+  duration_ms: 0.087167
+  ...
+# Subtest: direct-only path resumes on two fresh acknowledgements without relay quarantine
+ok 31 - direct-only path resumes on two fresh acknowledgements without relay quarantine
+  ---
+  duration_ms: 0.41
+  ...
+# Subtest: three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+ok 32 - three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+  ---
+  duration_ms: 0.179792
+  ...
+# Subtest: restart requires eight continuously unhealthy seconds, reset by recovered health
+ok 33 - restart requires eight continuously unhealthy seconds, reset by recovered health
+  ---
+  duration_ms: 0.082083
+  ...
+# Subtest: expired duplicate and pre-failure probes cannot keep blackholed path healthy
+ok 34 - expired duplicate and pre-failure probes cannot keep blackholed path healthy
+  ---
+  duration_ms: 0.290458
+  ...
+# Subtest: pulse mode preserves fresh acknowledgement time and never revives expired evidence
+ok 35 - pulse mode preserves fresh acknowledgement time and never revives expired evidence
+  ---
+  duration_ms: 0.073208
+  ...
+# Subtest: pause is irreversible within an alias and late application proof cannot reactivate it
+ok 36 - pause is irreversible within an alias and late application proof cannot reactivate it
+  ---
+  duration_ms: 0.085166
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 35
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2739.770583

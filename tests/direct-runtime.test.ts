@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { DIRECT_RULES } from '../src/shared/direct-input.js';
 import { RoomRuntime, type RuntimeEnvironment, type RuntimeTransport, type Callbacks } from '../src/online/runtime.js';
 import type { TransportCallbacks } from '../src/online/peer-transport.js';
 import { isPlan, isPreparation, type RoomPlan, type Preparation } from '../src/online/direct-room-state.js';
@@ -32,7 +33,7 @@ function setup(shared = false) {
       sentBytes: 0, fastSentBytes: 0, binarySentBytes: 0,
       connectionOf: peer => connections.get(peer), members: () => [...connections.keys()], authorityPermitted: () => true,
       connect: () => { callbacks.welcome(id, 'p0'); for (const peer of connections.keys()) if (peer !== id) callbacks.peer(peer, true); }, close: () => {},
-      send: (to, value) => send(to, value), sendCheckpoint: (to, value) => !checkpointBlocked.has(to) && send(to, value), sendFast: (to, bytes) => send(to, bytes, true), sendBound: (to, tuple) => send(to, tuple), bindFast: () => true, boundReady: () => true,
+      send: (to, value) => send(to, value), sendCheckpoint: (to, value) => !checkpointBlocked.has(to) && send(to, value), sendFast: (to, bytes) => send(to, bytes, true), sendPulse: (to, bytes) => send(to, bytes, true), activatePulse: (to, alias) => { sends.push({from:id,to,type:`activate:${alias}`,accepted:true});return true;}, deactivatePulse: (to, alias) => { sends.push({from:id,to,type:`deactivate:${alias}`,accepted:true});}, sendBound: (to, tuple) => send(to, tuple), bindFast: () => true, boundReady: () => true,
       stats: async () => ({ direct: connections.size - 1, relayed: 0, buffered: 0, authority: { reason: 'permitted' } }),
       diagnostics: async () => ({ links: [], ice: { servers: 0, source: 'test' }, socket: 'open' }),
     };
@@ -346,7 +347,7 @@ test('stale and foreign acknowledgements cannot stop paced plan delivery, even w
   creator.callbacks.message('foreign', { type: 'directPlanAck', revision });
   room.sends.length = 0;
   for (let i = 0; i < 60; i++) {
-    creator.callbacks.message('p1', { type: 'directHello', rules: 'fuse-direct-1', display: false }); room.advance(10);
+    creator.callbacks.message('p1', { type: 'directHello', rules: DIRECT_RULES, display: false }); room.advance(10);
   }
   const retries = room.sends.filter(m => m.to === 'p1' && m.type === 'directPlan');
   assert.ok(retries.length >= 2 && retries.length <= 3, `${retries.length} paced retries`);
@@ -396,4 +397,14 @@ test('an intentionally idle shared lobby does not keep a previous simulation rec
   const tv = room.add('tv', true); for (const [id, member] of room.members) if (id !== 'tv') member.callbacks.peer('tv', true); tv.runtime.start(); room.advance(2000);
   assert.equal(tv.runtime.replicationDiagnostics.simulator, true);
   for (const member of room.members.values()) assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+});
+
+
+test('freezing a runtime deactivates its installed alias before another preparation',()=>{
+  const room=setup(),creator=room.members.get('p0')!;
+  const alias=creator.runtime.replicationDiagnostics.alias!;room.sends.length=0;
+  creator.runtime.command({type:'settings',settings:{...defaultRoomSettings(),length:2}});room.advance(10);
+  assert.ok(room.sends.some(m=>m.from==='p0'&&m.type===`deactivate:${alias}`));
+  room.advance(2000);assert.equal(creator.runtime.replicationDiagnostics.barrier,false);
+  assert.ok(room.sends.some(m=>m.from==='p0'&&m.type.startsWith('activate:')&&m.type!==`activate:${alias}`));
 });

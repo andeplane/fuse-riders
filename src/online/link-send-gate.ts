@@ -6,6 +6,10 @@
 export interface SendChannelFacts { readyState:RTCDataChannelState;bufferedAmount:number }
 export const GAMEPLAY_BUFFER_LIMIT=64000;
 export const PROBE_BUFFER_LIMIT=4096;
+/** Re-evaluate at send time, including deferred replies. Reliable backlog must not block fast health evidence. */
+export function permitsFastControl(stopped:boolean,hidden:boolean,fast:SendChannelFacts|undefined,fastGate:LinkSendGate,reliable:SendChannelFacts|undefined,reliableGate:LinkSendGate):boolean {
+  return !stopped&&!hidden&&reliable?.readyState==='open'&&!reliableGate.draining&&fastGate.permits(fast,PROBE_BUFFER_LIMIT);
+}
 export class LinkSendGate {
   private drained=false;
   /** Monotonic: nothing revives a drained link; a replacement link gets a new gate. */

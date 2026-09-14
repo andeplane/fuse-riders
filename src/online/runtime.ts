@@ -22,7 +22,7 @@ interface PendingCommand { request: number; command: Management; expires: number
 interface Incoming { header: Preparation; at: number; buffer?: Uint8Array; received: number; candidate?: Uint8Array; ready: boolean; activated: boolean; lastAck: number }
 interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean }
 
-export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'sendCheckpoint' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendBound' | 'stats' | 'diagnostics'>;
+export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'sendCheckpoint' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendPulse' | 'activatePulse' | 'deactivatePulse' | 'sendBound' | 'stats' | 'diagnostics'>;
 export interface RuntimeEnvironment {
   now(): number;
   hidden(): boolean;
@@ -107,7 +107,7 @@ export class RoomRuntime {
         this.lastHello = -Infinity;
       },
       linkReset: id => { if (this.segment && this.plan?.members.some(m => m.id === id)) this.faultPending = 'Direct link replaced — synchronizing'; },
-      message: (id, data) => this.receive(id, data), fast: (id, bytes) => { if (this.activationSafe()) this.segment?.receiveFast(id, bytes); },
+      message: (id, data) => this.receive(id, data), fast: (id, bytes) => { if (this.activationSafe()) return this.segment?.receiveFast(id, bytes); },
       status: text => { if (!this.recoveryRequired) this.status.recurring(text); },
       authorityChanged: () => { this.freeze(); this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planDelivery.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
       ended: () => { this.stop(); callbacks.ended?.(); },
@@ -118,7 +118,7 @@ export class RoomRuntime {
   get replicationDiagnostics() { return { mode: 'direct', coordinator: this.plan?.coordinator, alias: this.plan?.revision, simulator: !!this.segment?.world, replicaTick: this.segment?.world?.state.game.tick ?? null, finalizedTick: this.segment?.finalizedTick, finalizedHash: this.segment?.world?.finalizedHash, retainedRecords: this.segment?.retainedRecords ?? 0, rollbackCount: this.segment?.rollbackCount ?? 0, fastSentBytes: this.transport.fastSentBytes, binarySentBytes: this.transport.binarySentBytes, recoveryRequired: this.recoveryRequired, corruptRecoveryAttempts: this.recoveries.filter(at => this.environment.now() - at < 30000).length, lastFault: this.lastFault, barrier: !!this.incoming && !this.incoming.activated, fault: this.segment?.faultReason ?? this.faultPending }; }
   start(): void { this.transport.connect(); this.cancelSchedule = this.environment.schedule(() => this.tick()); }
   private terminal(text: string): void { this.freeze(); this.stopped = true; this.cancelSchedule?.(); this.status.terminal(text); }
-  private freeze(): void { this.segment?.stop(); this.localInput = undefined; this.startAt = undefined; this.lastBotTick = -1; this.callbacks.controlsReset?.(); }
+  private freeze(): void { if (this.segment) for (const peer of this.segment.config.members) if (peer !== this.transport.id) this.transport.deactivatePulse(peer, this.segment.config.alias); this.segment?.stop(); this.localInput = undefined; this.startAt = undefined; this.lastBotTick = -1; this.callbacks.controlsReset?.(); }
   private send(id: string, data: unknown): boolean { if (id === this.transport.id) { this.receive(id, data); return true; } return this.transport.send(id, data, true); }
   private planCurrent(plan: RoomPlan): boolean {
     return plan.incarnation === this.transport.grant?.incarnation && plan.epoch === this.transport.grant?.epoch && plan.members.every(m => m.connection === this.transport.connectionOf(m.id));
@@ -216,9 +216,10 @@ export class RoomRuntime {
     if (!incoming.activated) {
       const now = this.environment.now(); this.startAt = plan.coordinator === this.transport.id ? now + 800 : undefined;
       this.segment = new DirectSegment({ alias: plan.revision, id: this.transport.id, coordinator: plan.coordinator!, baseTick: incoming.header.tick, running: incoming.header.status.phase !== 'lobby', members: plan.members.map(m => m.id), views: plan.members.filter(m => m.view).map(m => m.id), owners: incoming.header.owners, bootstrap: incoming.candidate, startAt: this.startAt }, {
-        now: () => this.environment.now(), fast: (peer, bytes) => this.transport.sendFast(peer, bytes), reliable: (peer, tuple) => this.transport.sendBound(peer, tuple),
+        now: () => this.environment.now(), pulse: (peer, bytes) => this.transport.sendPulse(peer, bytes), fast: (peer, bytes) => this.transport.sendFast(peer, bytes), reliable: (peer, tuple) => this.transport.sendBound(peer, tuple),
         events: events => this.events(events), fault: (reason, corrupt) => { this.faultPending = reason; this.corruptionPending = !!corrupt; },
       });
+      for (const member of plan.members) if (member.id !== this.transport.id && !this.transport.activatePulse(member.id, plan.revision)) { this.faultPending = 'Direct heartbeat activation failed — synchronizing'; return; }
       incoming.activated = true; this.view = this.segment.snapshot() ?? incoming.header.status; this.matchId = incoming.header.matchId; if (incoming.header.lobby) this.lobby = structuredClone(incoming.header.lobby); incoming.candidate = undefined; this.change = undefined; this.pendingPlan = undefined;
       this.lastPublish = ''; this.publish(); this.lastBotTick = -1; this.applied.add(this.transport.id);
       this.status.recurring('Connected · direct action simulation'); this.save();

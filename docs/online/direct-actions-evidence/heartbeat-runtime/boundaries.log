@@ -1,0 +1,85 @@
+TAP version 13
+# Subtest: queued retired-channel pongs cannot certify a new RTC link whose probe IDs restarted
+ok 1 - queued retired-channel pongs cannot certify a new RTC link whose probe IDs restarted
+  ---
+  duration_ms: 0.354041
+  ...
+# Subtest: a replaced channel on the same live link cannot update state or expose stale errors
+ok 2 - a replaced channel on the same live link cannot update state or expose stale errors
+  ---
+  duration_ms: 0.045292
+  ...
+# Subtest: retired peer callbacks cannot replace the current data channel even with identical service identity
+ok 3 - retired peer callbacks cannot replace the current data channel even with identical service identity
+  ---
+  duration_ms: 0.045416
+  ...
+# Subtest: pulse proof is scoped to the captured active binding and two live undrained channels
+ok 4 - pulse proof is scoped to the captured active binding and two live undrained channels
+  ---
+  duration_ms: 0.081
+  ...
+# Subtest: deferred fast health replies recheck visibility and both lanes without depending on reliable backlog
+ok 5 - deferred fast health replies recheck visibility and both lanes without depending on reliable backlog
+  ---
+  duration_ms: 0.406792
+  ...
+# Subtest: healthy open channel under the buffer limit is permitted for gameplay and probes
+ok 6 - healthy open channel under the buffer limit is permitted for gameplay and probes
+  ---
+  duration_ms: 0.057625
+  ...
+# Subtest: a closing signal recorded before the DOM readyState changes blocks gameplay and probe sends
+ok 7 - a closing signal recorded before the DOM readyState changes blocks gameplay and probe sends
+  ---
+  duration_ms: 0.039375
+  ...
+# Subtest: bulk transfer idle permission requires an open, fully drained, undrained action channel
+ok 8 - bulk transfer idle permission requires an open, fully drained, undrained action channel
+  ---
+  duration_ms: 0.050083
+  ...
+# Subtest: paused old-alias endpoint restores outbound health before acknowledging a new checkpoint header
+ok 9 - paused old-alias endpoint restores outbound health before acknowledging a new checkpoint header
+  ---
+  duration_ms: 1.097917
+  ...
+# Subtest: direct-only path resumes on two fresh acknowledgements without relay quarantine
+ok 10 - direct-only path resumes on two fresh acknowledgements without relay quarantine
+  ---
+  duration_ms: 0.098209
+  ...
+# Subtest: three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+ok 11 - three-second blackhole after long healthy uptime retains channel and recovers on fresh probes
+  ---
+  duration_ms: 0.101416
+  ...
+# Subtest: restart requires eight continuously unhealthy seconds, reset by recovered health
+ok 12 - restart requires eight continuously unhealthy seconds, reset by recovered health
+  ---
+  duration_ms: 0.0495
+  ...
+# Subtest: expired duplicate and pre-failure probes cannot keep blackholed path healthy
+ok 13 - expired duplicate and pre-failure probes cannot keep blackholed path healthy
+  ---
+  duration_ms: 0.172959
+  ...
+# Subtest: pulse mode preserves fresh acknowledgement time and never revives expired evidence
+ok 14 - pulse mode preserves fresh acknowledgement time and never revives expired evidence
+  ---
+  duration_ms: 0.047958
+  ...
+# Subtest: pause is irreversible within an alias and late application proof cannot reactivate it
+ok 15 - pause is irreversible within an alias and late application proof cannot reactivate it
+  ---
+  duration_ms: 0.088709
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 232.855584

@@ -302,3 +302,15 @@ test('drift during an asymmetric clock exchange remains inside the reported inte
   assert.ok(Math.abs(actualRemoteTick - reading.fractionalTick) <= reading.uncertaintyTicks + 1e-10);
   assert.equal(reading.reason, 'uncertain'); assert.equal(reading.canOriginate, false);
 });
+
+
+test('a prepared clock reply cannot consume the live nonce until its whole aggregate is adopted', () => {
+  let now=0;const original=DirectTickClock.follower(7,100,()=>now),probe=original.request(7)!;
+  now=100;const prepared=original.prepare([1,7,'time',probe[3],101]);
+  assert.equal(prepared.status,'accepted');assert.equal(prepared.clock.outstandingProbes,0);
+  assert.equal(original.outstandingProbes,1);assert.equal(original.read().reason,'sampling');
+  assert.equal(original.accept([1,7,'time',probe[3],101]),'accepted');
+  assert.deepEqual(original.read(),prepared.clock.read());
+  const again=original.request(8)!;const rejected=original.prepare([1,7,'time',again[3],999]);
+  assert.equal(rejected.status,'fault');assert.equal(original.read().reason,'ready');assert.equal(original.outstandingProbes,1);
+});

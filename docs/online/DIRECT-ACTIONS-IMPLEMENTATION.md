@@ -35,7 +35,7 @@ Both existing online room browser smokes passed after the transport change, usin
 
 ## Remaining implementation
 
-Wire the reviewed [ADR042](../adr/042-event-driven-coordination.md) heartbeat foundation into segment, finality/demand and transport orchestration, removing the separate steady bookkeeping loops. The standalone component is implemented; actual gameplay has not switched its cadence yet.
+Qualify the integrated [ADR042](../adr/042-event-driven-coordination.md) runtime under sustained impairment and measure input, rollback and rendering behavior. Local cutover evidence is recorded below; adaptive remote presentation remains proposed.
 
 Complete mixed-engine impairment, bot gameplay, reconnect/partial-mesh behavior and LAN regressions. The scripted mixed-engine full-match run below covers ordinary automatic round transitions. Checkpoint backpressure and bounded setup episodes now have the reviewed regressions described below. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
 
@@ -118,4 +118,17 @@ The first post-optimization WebKit UI flow failed during creator-refresh/shared-
 
 The reviewed standalone heartbeat component has exact bounded MessagePack tuples, pair election, fresh retry IDs, two-way acknowledgement evidence, nonce/role checks and callback-stop fences. Its real-clock integration test runs ten seconds with 22 messages total (11 request/reply exchanges) and no separate clock probes. This is deterministic component evidence, not measured runtime traffic. Clock samples now retain 2.5-second freshness with conservative 500 ppm drift uncertainty across both RTT and sample age; the five-tick uncertainty and 40-tick world cap remain. The full suite passed 581 tests at the final production source, and the final heartbeat test file passed 15 tests after one additional integration case. Both typechecks and build passed. See the [foundation manifest](direct-actions-evidence/heartbeat-foundation/manifest.json) and independent review.
 
-Runtime heartbeat adoption, atomic combined-body installation, demand/finality orchestration, probe-mode transition and protocol-rules cutover remain to implement and qualify. Current gameplay still sends separate 100 ms progress, 200 ms transport probes and 500 ms qualified clock probes. No new browser bandwidth result is claimed by this foundation checkpoint.
+At that historical foundation checkpoint, runtime heartbeat adoption and gameplay cadence cutover remained pending. The integration below supersedes that status.
+
+
+## Event-driven heartbeat runtime
+
+The branch now uses `fuse-direct-2`: combined heartbeat bodies install authorized cuts, receipts, clock samples and finality atomically. Quiet empty action queues have no send timer. Real actions retain immediate delivery and bounded 50 ms unacknowledged repair; outcomes, phase changes and endangered rollback headroom request prompt confirmation. Reliable finality is retained until reliable enqueue succeeds, even if an unreliable pulse carrying the same certificate was queued. Old piggyback receipts cannot invalidate fresh clock/cut evidence.
+
+A ten-second deterministic quiet fixture with five origins and six worlds records exactly 300 heartbeat packets (15 pairs × request/reply × ten seconds), 50 reliable certificates, and no separate action, cut, receipt or clock packets. Application upload is 611 B/s for the coordinator, 101 B/s per other player and 79 B/s for the display. This fixture establishes cadence, not native network performance.
+
+The native `heartbeat-01` match failed at its first automatic round transition. The coordinator had installed the new alias while a guest still needed link health to acknowledge its checkpoint header; the guest's old-alias probes were ignored, preventing checkpoint delivery. Paused endpoints now also exchange the existing authenticated association-scoped bootstrap probes, independent of prior alias confirmation. The review and regressions preserve health, authority, pacing and episode bounds. Deferred health replies also recheck page visibility and both channel lifecycles. A shared-screen lobby waiting for its TV can retain bootstrap checks indefinitely; active healthy segments use the quiet heartbeat schedule.
+
+The fixed `heartbeat-02` native run completed all three rounds in a 37.188-second measurement window. Five scripted human origins plus display, alternating Chromium/WebKit, agreed on finalized outcomes with no reconnect, recovery or browser/teardown errors. Actual RTC application traffic including setup and round transitions was 18.96 KB/s coordinator upload, 0.745–0.766 KB/s upload and 4.23–4.35 KB/s download per other player, and 0.617 KB/s upload / 4.24 KB/s download for the display. Checkpoint and preparation traffic still dominates total match bytes. These randomized matches and the historical serializer benchmark are not a matched reduction experiment. Wire cost, rendering and real mobile networks are excluded.
+
+Both typechecks, build and 597 tests passed, with unchanged coverage thresholds: 99.19% lines/statements, 94.07% branches and 98.88% functions. Focused transport boundaries passed independent review. See the [cutover manifest](direct-actions-evidence/heartbeat-runtime/manifest.json) for exact source/bundle hashes, failures and completed browser checks. Sustained impairment, latency/resource distributions, adaptive presentation and release qualification remain open.

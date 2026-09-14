@@ -28,6 +28,8 @@ export interface TrafficWindow {
 function classify(raw: unknown): string {
   if (Array.isArray(raw)) {
     if (typeof raw[2] === 'number') {
+      if (raw[2] === 10 || raw[2] === 11) return 'heartbeat';
+      if (raw[2] === 12) return 'pause';
       if (raw[2] === 8 || raw[2] === 9) return 'liveness';
       return raw.length === 4 ? 'receipt' : Array.isArray(raw[3]) && raw[3].length ? 'actions' : 'progress';
     }

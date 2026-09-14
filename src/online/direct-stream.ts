@@ -153,6 +153,14 @@ export class DirectDelivery {
       || (this.lastTick <= cut[0] && cut[1] !== this.lastSequence) || this.pending.some(a => a[0] <= cut[1] ? a[1] > cut[0] : a[1] <= cut[0])) return false;
     this.watermark = [...cut]; return true;
   }
+  /** Unordered aggregate receipts may trail an already accepted standalone receipt. */
+  prepareReceipt(sequence: number): DirectDelivery | undefined {
+    if (!uint32(sequence) || sequence > this.lastSequence) return;
+    const next = this.prepare([]); if (!next) return;
+    next.acknowledged = Math.max(this.acknowledged, sequence);
+    next.pending = next.pending.filter(a => a[0] > next.acknowledged);
+    return next;
+  }
   acknowledge(bytes: Uint8Array): boolean {
     if (bytes.byteLength > FAST_PACKET_BYTES) return false;
     try {
@@ -162,10 +170,10 @@ export class DirectDelivery {
     } catch { return false; }
   }
   pump(now: number, send: (bytes: Uint8Array) => boolean): void {
-    if (now - this.lastSent >= (this.pending.length ? 50 : 100)) this.transmit(now, send);
+    if (this.pending.length && now - this.lastSent >= 50) this.transmit(now, send);
   }
   /** A newly published exact cut should not wait for a separately phased idle-retry timer. */
-  flush(now: number, send: (bytes: Uint8Array) => boolean): void { this.transmit(now, send); }
+  flush(now: number, send: (bytes: Uint8Array) => boolean): boolean { return this.transmit(now, send); }
   /** Keep the earliest gap covered while lost receipts cannot starve the rest of the retained suffix. */
   private selectRepair(newest: readonly DirectAction[]): DirectAction[] {
     const records = [...newest], earliest = this.pending[0];
@@ -175,12 +183,12 @@ export class DirectDelivery {
     for (const action of rotated.slice(0, 4 - records.length)) { records.push(action); this.repairAfter = action[0]; }
     return records;
   }
-  private transmit(now: number, send: (bytes: Uint8Array) => boolean, newest?: DirectAction): void {
+  private transmit(now: number, send: (bytes: Uint8Array) => boolean, newest?: DirectAction): boolean {
     const records = this.selectRepair(newest ? [newest] : []);
     const packet: DirectPacket = [DIRECT_VERSION, this.segment, this.slot, records, this.watermark];
     // Max four fixed-schema records fit 512 bytes, including float64 aim and uint32 IDs.
     const bytes = packMessage(packet);
     this.lastSent = now; // A failed enqueue still consumes this repair pacing opportunity.
-    send(bytes);
+    return send(bytes);
   }
 }

@@ -20,7 +20,7 @@ export interface WorldResult {
   corrupt?: true;
   receipt?: Uint8Array;
 }
-interface Candidate { state: DirectState; snapshots: Map<number, Uint8Array>; events: Map<number, GameEvent[]> }
+interface Candidate { state: DirectState; snapshots: Map<number, Uint8Array>; events: Map<number, GameEvent[]>; phaseChanges: Set<number> }
 const result = (status: WorldResult['status'], corrupt = false): WorldResult => ({ status, events: [], rollbackTicks: 0, ...(corrupt ? { corrupt: true as const } : {}) });
 
 function packState(state: DirectState): Uint8Array {
@@ -74,9 +74,14 @@ export class RollbackWorld {
   private finalTick: number;
   private finalHash: string;
   private finalPrefixes: StreamPrefixes;
-  private constructor(readonly segment: number, state: DirectState, prefixes: StreamPrefixes, private readonly byteLimit: number) {
+  private constructor(readonly segment: number, state: DirectState, prefixes: StreamPrefixes, private readonly byteLimit: number, source?: RollbackWorld) {
+    if (source) {
+      this.finalTick = source.finalTick; this.finalHash = source.finalHash; this.finalPrefixes = source.finalPrefixes;
+      this.candidate = source.candidate; this.streams = new Map(source.streams); this.pendingFinality = new Map(source.pendingFinality);
+      return;
+    }
     this.finalTick = state.game.tick; this.finalHash = replayHash(state); this.finalPrefixes = structuredClone(prefixes);
-    this.candidate = { state, snapshots: new Map([[state.game.tick, packState(state)]]), events: new Map() };
+    this.candidate = { state, snapshots: new Map([[state.game.tick, packState(state)]]), events: new Map(), phaseChanges: new Set() };
     for (const [slot, sequence] of prefixes) this.streams.set(slot, new DirectStream({ sequence, tick: state.game.tick, gesture: state.gestures.get(slot)?.latest ?? 0 }));
   }
   static open(bytes: Uint8Array, expectedSegment: number, byteLimit = ROLLBACK_BYTES): RollbackWorld | undefined {
@@ -104,6 +109,31 @@ export class RollbackWorld {
   get retainedRecords(): number { return [...this.streams.values()].reduce((sum, s) => sum + s.records.size, 0); }
   get pendingFinalizedTick(): number | undefined { return this.pendingFinality.size ? Math.max(...this.pendingFinality.keys()) : undefined; }
 
+  get pendingEventTick(): number | undefined { return this.candidate.events.size ? Math.min(...this.candidate.events.keys()) : undefined; }
+
+  get pendingConfirmationTick(): number | undefined {
+    const ticks = [...this.candidate.events.keys(), ...this.candidate.phaseChanges];
+    return ticks.length ? Math.min(...ticks) : undefined;
+  }
+
+  /** Validate all heartbeat progress and finality on a candidate, including already-pending certificates. */
+  prepareProgress(cuts: readonly (readonly [number, number, number])[], finality: unknown, localTargetTick: number): { outcome: WorldResult; world?: RollbackWorld } {
+    if (!Array.isArray(cuts) || cuts.length > 5 || !uint32(localTargetTick) || cuts.some(c => !Array.isArray(c) || c.length !== 3 || !c.every(uint32) || !this.streams.has(c[0])) || new Set(cuts.map(c => c[0])).size !== cuts.length) return { outcome: result('invalid') };
+    const world = new RollbackWorld(this.segment, this.candidate.state, this.finalPrefixes, this.byteLimit, this);
+    const outcome = result('accepted');
+    for (const [slot, tick, sequence] of cuts) {
+      const received = world.receive(slot, packMessage([DIRECT_VERSION, this.segment, slot, [], [tick, sequence]]), localTargetTick);
+      if (received.status === 'invalid' || received.status === 'overflow') return { outcome: received };
+      outcome.events.push(...received.events);
+    }
+    if (finality !== null) {
+      const committed = world.finalize(finality);
+      if (committed.status === 'invalid' || committed.status === 'overflow') return { outcome: committed };
+      outcome.events.push(...committed.events);
+    }
+    return { outcome, world };
+  }
+
   receive(ownerSlot: number, bytes: Uint8Array, localTargetTick: number): WorldResult {
     const packet = decodeDirectPacket(bytes);
     if (!packet || packet[2] !== ownerSlot || !this.streams.has(ownerSlot) || !uint32(localTargetTick)) return result('invalid');
@@ -129,7 +159,7 @@ export class RollbackWorld {
   advance(targetTick: number): WorldResult {
     if (!uint32(targetTick) || targetTick < this.state.game.tick) return result('invalid');
     const stop = Math.min(targetTick, this.finalTick + ROLLBACK_TICKS, this.state.game.tick + 8);
-    const candidate = this.simulate({ state: structuredClone(this.candidate.state), snapshots: new Map(this.candidate.snapshots), events: new Map(this.candidate.events) }, this.streams, stop);
+    const candidate = this.simulate({ state: structuredClone(this.candidate.state), snapshots: new Map(this.candidate.snapshots), events: new Map(this.candidate.events), phaseChanges: new Set(this.candidate.phaseChanges) }, this.streams, stop);
     if (this.measure(candidate, this.streams) > this.byteLimit) return result('overflow');
     this.candidate = candidate;
     const committed = this.tryFinality();
@@ -181,7 +211,7 @@ export class RollbackWorld {
     const snapshots = new Map([...this.candidate.snapshots].filter(([at]) => at > tick)); snapshots.set(tick, packState(state));
     const pendingEvents = new Map([...this.candidate.events].filter(([at]) => at > tick));
     const streams = new Map([...this.streams].map(([slot, stream]) => [slot, stream.trim(tick, state.gestures.get(slot)?.latest ?? 0)]));
-    const candidate = { state: this.candidate.state, snapshots, events: pendingEvents };
+    const candidate = { state: this.candidate.state, snapshots, events: pendingEvents, phaseChanges: new Set([...this.candidate.phaseChanges].filter(at => at > tick)) };
     const pending = new Map([...this.pendingFinality].filter(([at])=>at>tick));
     if (this.measure(candidate, streams, pending) > this.byteLimit) return result('overflow');
     this.finalTick = tick; this.finalHash = hash; this.finalPrefixes = structuredClone(prefixes); this.pendingFinality = pending;
@@ -194,7 +224,7 @@ export class RollbackWorld {
     if (!bytes) return;
     const state = readState(bytes);
     if (!state) return;
-    return { state, snapshots: new Map([...this.candidate.snapshots].filter(([t]) => t <= at)), events: new Map([...this.candidate.events].filter(([t]) => t <= at)) };
+    return { state, snapshots: new Map([...this.candidate.snapshots].filter(([t]) => t <= at)), events: new Map([...this.candidate.events].filter(([t]) => t <= at)), phaseChanges: new Set([...this.candidate.phaseChanges].filter(t => t <= at)) };
   }
   private stateAt(tick: number): DirectState | undefined {
     const exact = this.candidate.snapshots.get(tick);
@@ -205,8 +235,10 @@ export class RollbackWorld {
   private simulate(candidate: Candidate, streams: ReadonlyMap<number, DirectStream>, target: number): Candidate {
     while (candidate.state.game.tick < target) {
       const tick = candidate.state.game.tick + 1;
+      const phase = candidate.state.game.phase;
       const events = stepDirect(candidate.state, new Map([...streams].map(([slot, s]) => [slot, s.at(tick)])));
       if (events.length) candidate.events.set(tick, events);
+      if (candidate.state.game.phase !== phase) candidate.phaseChanges.add(tick);
       if (tick % SNAPSHOT_INTERVAL === 0) candidate.snapshots.set(tick, packState(candidate.state));
     }
     return candidate;
@@ -216,6 +248,6 @@ export class RollbackWorld {
     return [...candidate.snapshots.values()].reduce((sum, bytes) => sum + bytes.byteLength, 0)
       + [...streams.values()].reduce((sum, stream) => sum + packMessage([...stream.records.values()]).byteLength, 0)
       + [...streams.values()].reduce((sum, stream) => sum + packMessage([...stream.cuts]).byteLength, 0)
-      + packMessage([...candidate.events]).byteLength + packMessage([...pending.values()]).byteLength;
+      + packMessage([...candidate.events]).byteLength + packMessage([...candidate.phaseChanges]).byteLength + packMessage([...pending.values()]).byteLength;
   }
 }

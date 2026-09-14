@@ -33,6 +33,11 @@ export class DirectIngress {
     this.flows = new Map<number, { kind: FlowKind; bucket: Bucket }>([...permissions.actions.map(slot => [slot, { kind: 'action', bucket: new Bucket(140, 280, now) }] as const), ...permissions.receipts.map(slot => [slot, { kind: 'receipt', bucket: new Bucket(140, 280, now) }] as const)]);
     this.binding = { alias, key }; return true;
   }
+  /** One reserved control allowance for the whole pulse; each nested flow still needs ownership. */
+  heartbeat(cuts: readonly (readonly [number, number, number])[], receipts: readonly (readonly [number, number])[], now: number): 'accepted' | 'unauthorized' | 'limited' {
+    if (cuts.some(([slot]) => this.flows.get(slot)?.kind !== 'action') || receipts.some(([slot]) => this.flows.get(slot)?.kind !== 'receipt')) return 'unauthorized';
+    return this.flow('probe', 0, now);
+  }
   /** Called before packet parsing, including wrong-scope/unauthorized traffic. */
   packet(bytes: number, now: number): boolean { return Number.isInteger(bytes) && bytes >= 0 && bytes <= FAST_PACKET_BYTES && this.total.take(now); }
   flow(kind: FlowKind | 'probe', slot: number, now: number): 'accepted' | 'unauthorized' | 'limited' {

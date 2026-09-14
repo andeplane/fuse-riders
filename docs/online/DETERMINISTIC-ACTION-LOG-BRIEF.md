@@ -15,7 +15,15 @@ Transmit the causes of gameplay: steering changes, charge/release actions, joins
 
 ## Event-driven sends
 
-Simulation ticks do not schedule network packets. Send real input changes immediately, repair unacknowledged actions briefly, then combine clock, liveness, receipts and stream completeness into approximately one heartbeat request/reply per peer pair each second. Outcomes and endangered rollback headroom demand prompt confirmation rather than waiting for the next heartbeat. [ADR042](../adr/042-event-driven-coordination.md) specifies the exact bounds. Its heartbeat/clock foundation is implemented and reviewed; gameplay integration is still pending, so the branch currently retains separate periodic bookkeeping loops.
+Simulation ticks do not schedule network packets. Send real input changes immediately, repair unacknowledged actions briefly, then combine clock, liveness, receipts and stream completeness into approximately one heartbeat request/reply per peer pair each second. Outcomes and endangered rollback headroom demand prompt confirmation rather than waiting for the next heartbeat. [ADR042](../adr/042-event-driven-coordination.md) specifies the exact bounds. The reviewed runtime integration now implements this schedule. Quiet six-world tests and a local mixed-browser full match pass; sustained impairment and physical-device qualification remain. Bootstrap and paused transitions temporarily use faster connection checks.
+
+## Responsiveness, redundancy and proposed presentation buffer
+
+Optimize for responsive, reliable play on mobile connections, rather than minimum possible bytes. Extra bounded action redundancy and useful coordination traffic are desirable when they reduce missed releases, rollback or recovery delay. The one-second quiet heartbeat is an initial operating profile, not a universal packet ceiling or a reason to sacrifice playability.
+
+Proposed presentation follow-up, pending design review and measurement: retain immediate local-rider response while rendering a coherent remote world from a short history of locally reconstructed states. Start by evaluating 50–100 ms behind the shared simulation clock. Adapt from a recent high percentile of action-arrival lateness plus clock/interpolation margin, increasing promptly and reducing gradually; neither an average nor an all-time maximum is a suitable sole signal. This requires no snapshot stream on the network and does not change deterministic collision ticks. Exceptions still need correction when actions arrive outside the buffer.
+
+Evaluate trail/collision clarity before adopting split presentation times: a rider shown at the current tick can collide with a remote trail section absent from an older rendered world. Related remote geometry, projectiles and effects need a consistent presentation time, and the visible result must not imply a different collision rule. The present renderer projects fractional motion but does not implement this adaptive history buffer. Preserve the existing simulation, rollback and committed-effect invariants while measuring smoothness, correction tails, local response, and collision presentation together.
 
 ## Device roles and direct delivery
 

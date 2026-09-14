@@ -137,7 +137,7 @@ test('idle repair delivers a lost final release; receipt loss never duplicates s
   assert.equal(world.state.game.nextBombId, 2); assert.equal(repeated.rollbackTicks, 0);
   assert.ok(repeated.receipt); assert.equal(delivery.acknowledge(repeated.receipt), true); assert.equal(delivery.retainedRecords, 0);
   delivery.pump(249, send); assert.equal(wire.length, 0);
-  delivery.pump(300, send); assert.deepEqual(decodeDirectPacket(wire[0])?.[3], []);
+  delivery.pump(300, send); delivery.pump(10000, send); assert.equal(wire.length, 0, 'acknowledged queues have no idle send timer');
 });
 
 test('origin immediately sends newest plus old gap records; backpressure repair is paced and bounded', () => {
@@ -419,4 +419,28 @@ test('recovery distinguishes invalid action admission from verified finality dis
   const corrupt = world.finalize([...finality.slice(0, 5), '0'.repeat(16)]);
   assert.equal(corrupt.status, 'invalid'); assert.equal(corrupt.corrupt, true);
   assert.equal(world.finalize(finality).status, 'accepted');
+});
+
+
+test('combined progress rejects late conflicts atomically, including pending finality and events', () => {
+  const world = setup(); advance(world, 70);
+  const certificate = certify(setup(), 65);
+  const reference = setup(); advance(reference, 70); const future = certify(reference, 70);
+  assert.equal(world.finalize(future).status, 'waiting');
+  const before = { hash: replayHash(world.state), tick: world.finalizedTick, progress: world.streamProgress(), pending: world.pendingFinalizedTick, event: world.pendingEventTick, bytes: world.retainedBytes };
+  for (const [cuts, finality] of [
+    [[[0,70,0],[1,65,1]], null],
+    [[[0,70,0],[0,71,0]], null],
+    [[[0,70,0]], [1,7,'final',65,certificate[4],'f'.repeat(16)]],
+    [[[0,70,0]], [1,7,'final',70,future[4],'f'.repeat(16)]],
+  ] as [[number,number,number][], unknown][]) {
+    const prepared = world.prepareProgress(cuts, finality, 70);
+    assert.equal(prepared.outcome.status, 'invalid'); assert.equal(prepared.world, undefined);
+    assert.deepEqual({ hash: replayHash(world.state), tick: world.finalizedTick, progress: world.streamProgress(), pending: world.pendingFinalizedTick, event: world.pendingEventTick, bytes: world.retainedBytes }, before);
+  }
+  const next = world.prepareProgress(Array.from({length:5},(_,slot)=>[slot,70,0]), future, 70);
+  assert.ok(next.world); assert.equal(next.world.finalizedTick, 70); assert.equal(world.finalizedTick,65);
+  assert.equal(world.pendingFinalizedTick,70); assert.equal(next.world.pendingFinalizedTick,undefined);
+  assert.equal(replayHash(world.state),replayHash(next.world.state));
+  next.world.advance(71);assert.equal(world.state.game.tick,70);
 });

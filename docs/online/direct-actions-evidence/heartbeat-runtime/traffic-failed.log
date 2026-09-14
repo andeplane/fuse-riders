@@ -1,0 +1,88 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC.
+{"elapsed":4.509,"phase":"playing","round":1,"tick":69,"diagnostics":{"mode":"direct","coordinator":"820ea7f693304cc85b4f9d62","alias":5,"simulator":true,"replicaTick":69,"finalizedTick":65,"finalizedHash":"f6a1dda4a1d37fb8","retainedRecords":0,"rollbackCount":0,"fastSentBytes":3517,"binarySentBytes":132134,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.507,"phase":"playing","round":1,"tick":169,"diagnostics":{"mode":"direct","coordinator":"820ea7f693304cc85b4f9d62","alias":5,"simulator":true,"replicaTick":169,"finalizedTick":160,"finalizedHash":"5d9dbe00f168336c","retainedRecords":0,"rollbackCount":0,"fastSentBytes":6752,"binarySentBytes":135045,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.51,"phase":"roundOver","round":1,"tick":269,"diagnostics":{"mode":"direct","coordinator":"820ea7f693304cc85b4f9d62","alias":6,"simulator":true,"replicaTick":261,"finalizedTick":260,"finalizedHash":"499bf63ba1c3aac7","retainedRecords":0,"rollbackCount":0,"fastSentBytes":8630,"binarySentBytes":152309,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":true,"fault":"Segment replaced"}}
+{"elapsed":19.513,"phase":"roundOver","round":1,"tick":369,"diagnostics":{"mode":"direct","coordinator":"820ea7f693304cc85b4f9d62","alias":7,"simulator":true,"replicaTick":261,"finalizedTick":260,"finalizedHash":"499bf63ba1c3aac7","retainedRecords":0,"rollbackCount":0,"fastSentBytes":9255,"binarySentBytes":971221,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{"elapsed":24.513,"phase":"roundOver","round":1,"tick":469,"diagnostics":{"mode":"direct","coordinator":"820ea7f693304cc85b4f9d62","alias":8,"simulator":true,"replicaTick":261,"finalizedTick":260,"finalizedHash":"499bf63ba1c3aac7","retainedRecords":0,"rollbackCount":0,"fastSentBytes":9880,"binarySentBytes":1795601,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{"elapsed":29.515,"phase":"roundOver","round":1,"tick":569,"diagnostics":{"mode":"direct","coordinator":"820ea7f693304cc85b4f9d62","alias":9,"simulator":true,"replicaTick":261,"finalizedTick":260,"finalizedHash":"499bf63ba1c3aac7","retainedRecords":0,"rollbackCount":0,"fastSentBytes":10505,"binarySentBytes":2629816,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{
+  "passed": false,
+  "totals": [
+    {
+      "index": 0,
+      "engine": "chromium",
+      "rtcUpload": 3434329,
+      "rtcDownload": 119069,
+      "signallingUpload": 13384,
+      "signallingDownload": 22152,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 1,
+      "engine": "webkit",
+      "rtcUpload": 31243,
+      "rtcDownload": 692931,
+      "signallingUpload": 3929,
+      "signallingDownload": 16515,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 2,
+      "engine": "chromium",
+      "rtcUpload": 31462,
+      "rtcDownload": 696126,
+      "signallingUpload": 4313,
+      "signallingDownload": 16903,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 3,
+      "engine": "webkit",
+      "rtcUpload": 31573,
+      "rtcDownload": 696117,
+      "signallingUpload": 1277,
+      "signallingDownload": 13891,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 4,
+      "engine": "chromium",
+      "rtcUpload": 31569,
+      "rtcDownload": 693115,
+      "signallingUpload": 4269,
+      "signallingDownload": 16863,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 5,
+      "engine": "webkit",
+      "rtcUpload": 29746,
+      "rtcDownload": 692564,
+      "signallingUpload": 1277,
+      "signallingDownload": 13891,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    }
+  ],
+  "failure": "Error: page.waitForFunction: Error: Game required recovery\n    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)\n    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)\n    at next (eval at evaluate (:311:30), <anonymous>:29:33)",
+  "errors": []
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Error: Game required recovery
+    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)
+    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)
+    at next (eval at evaluate (:311:30), <anonymous>:29:33)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:38:46)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:38:29) {
+  log: []
+}
+
+Node.js v22.14.0

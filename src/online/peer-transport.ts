@@ -4,9 +4,10 @@ import { DirectIngress, type FastPermissions } from './direct-ingress.js';
 import { BOUND_CONTROL_BYTES, isBoundControl } from './direct-control.js';
 import { uint32 } from '../shared/direct-input.js';
 import { handleRoomSocketClose } from './room-socket-close.js';
-import { isCurrentLinkCallback } from './link-callback.js';
-import { LinkHealth } from './link-health.js';
-import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT } from './link-send-gate.js';
+import { isCurrentLinkCallback, isCurrentPulseCallback } from './link-callback.js';
+import { decodeHeartbeat, isHeartbeat, type HeartbeatResult } from './direct-heartbeat.js';
+import { LinkHealth, LinkPulseMode } from './link-health.js';
+import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT, permitsFastControl } from './link-send-gate.js';
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from './ice-config.js';
@@ -18,7 +19,7 @@ export interface TransportCallbacks {
   welcome:(id:string,hostId:string)=>void;
   peer:(id:string,online:boolean)=>void;
   message:(id:string,data:unknown)=>void;
-  fast?:(id:string,data:Uint8Array)=>void;
+  fast?:(id:string,data:Uint8Array)=>HeartbeatResult|void;
   /** A new RTC association needs a fresh reliable capability/segment handshake. */
   linkReset?:(id:string)=>void;
   status:(status:string)=>void;
@@ -28,7 +29,7 @@ export interface TransportCallbacks {
   terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;epoch:number;incarnation:string;sender:string;receiver:string};ingress:DirectIngress;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
+interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;pulse:LinkPulseMode;epoch:number;incarnation:string;sender:string;receiver:string};ingress:DirectIngress;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 export interface PeerTransportOptions { mesh?:boolean }
 const RESTART_ATTEMPTS=4;
 export class PeerTransport {
@@ -208,7 +209,8 @@ export class PeerTransport {
     const previous=link.fastBinding;
     if(previous&&segment<=previous.segment)return segment===previous.segment&&this.fastBound(id,link)&&link.ingress.bind(segment,permissions,performance.now());
     if(!link.ingress.bind(segment,permissions,performance.now()))return false;
-    link.fastBinding={segment,remoteConfirmed:false,epoch:grant.epoch,incarnation:grant.incarnation,sender,receiver:this.connectionId};return true;
+    link.health.setPulseMode(false,performance.now());
+    link.fastBinding={segment,remoteConfirmed:false,pulse:new LinkPulseMode(),epoch:grant.epoch,incarnation:grant.incarnation,sender,receiver:this.connectionId};return true;
   }
   private fastBound(id:string,link:Link):boolean {
     const binding=link.fastBinding;
@@ -218,8 +220,9 @@ export class PeerTransport {
     if(bytes.byteLength>FAST_PACKET_BYTES)return;
     try {
       const packet=decodeDirectPacket(bytes);if(packet)return packet[1];
+      const pulse=decodeHeartbeat(bytes);if(pulse)return pulse[1];
       const v=unpackMessage(bytes);
-      if(Array.isArray(v)&&v.length===4&&v[0]===DIRECT_VERSION&&uint32(v[1])&&v[1]>0&&uint32(v[2])&&(v[2]<5||v[2]===8||v[2]===9)&&uint32(v[3]))return v[1];
+      if(Array.isArray(v)&&v.length===4&&v[0]===DIRECT_VERSION&&uint32(v[1])&&v[1]>0&&uint32(v[2])&&(v[2]<5||v[2]===8||v[2]===9||v[2]===12)&&uint32(v[3]))return v[1];
     }catch{}
   }
   private fastChannel(id:string,link:Link,channel:RTCDataChannel):void {
@@ -234,20 +237,42 @@ export class PeerTransport {
       const bytes=new Uint8Array(event.data);
       if(!this.fastBound(id,link)||this.fastSegment(bytes)!==link.fastBinding!.segment)return;
       const control=unpackMessage(bytes) as unknown[];
-      const admission=link.ingress.flow(control.length===5?'action':control[2]===8||control[2]===9?'probe':'receipt',control[2] as number,now);
+      const admission=isHeartbeat(control)?link.ingress.heartbeat(control[5][0],control[5][1],now):link.ingress.flow(control.length===5?'action':control[2]===8||control[2]===9||control[2]===12?'probe':'receipt',control[2] as number,now);
       if(admission==='unauthorized')return;
       if(admission==='limited'){drain();channel.close();this.callbacks.status('Direct action flow exceeded its rate limit — retrying');return;}
-      if(control.length===4&&(control[2]===8||control[2]===9)){
+      if(control.length===4&&(control[2]===8||control[2]===9||control[2]===12)){
         link.fastBinding!.remoteConfirmed=true;
+        if(control[2]===12){link.fastBinding!.pulse.pauseRemote();link.health.setPulseMode(false,now);}
         const segment=control[1] as number,probeId=control[3] as number;
         if(control[2]===9)link.health.acknowledge(probeId,now);
         else this.defer(()=>{if(current())this.sendFastProbe(id,9,probeId,segment);});
         return;
       }
-      this.callbacks.fast?.(id,bytes);
+      const binding=link.fastBinding!,activated=binding.pulse.activated;
+      if(isHeartbeat(control)&&binding.pulse.paused)return;
+      const proof=this.callbacks.fast?.(id,bytes);
+      if(isHeartbeat(control)&&proof?.status==='accepted'&&isCurrentPulseCallback(this.links.get(id),link,channel,binding,activated)&&this.fastBound(id,link)){
+        if(!binding.pulse.accept())return;link.health.setPulseMode(true,performance.now());
+        if(proof.acknowledged)link.health.acknowledgePulse(performance.now());
+      }
     };
     channel.onclosing=channel.onclose=()=>{if(current())drain();};
     channel.onerror=event=>{event.preventDefault();if(current()){drain();this.callbacks.status('Direct action link interrupted — retrying');}};
+  }
+  activatePulse(id:string,segment:number):boolean {
+    const link=this.links.get(id);
+    if(!link||!this.boundReady(id)||link.fastBinding!.segment!==segment)return false;
+    return link.fastBinding!.pulse.activate();
+  }
+  deactivatePulse(id:string,segment:number):void {
+    const link=this.links.get(id);
+    if(!link||!this.fastBound(id,link)||link.fastBinding!.segment!==segment)return;
+    link.fastBinding!.pulse.pauseLocal();link.health.setPulseMode(false,performance.now());
+  }
+  sendPulse(id:string,bytes:Uint8Array):boolean {
+    const link=this.links.get(id),pulse=decodeHeartbeat(bytes);
+    if(!link||!pulse||!this.fastBound(id,link)||!link.fastBinding!.pulse.activated||pulse[1]!==link.fastBinding!.segment||!permitsFastControl(this.stopped,document.hidden,link.fast,link.fastGate,link.channel,link.gate))return false;
+    try{link.fast!.send(new Uint8Array(bytes));this.fastSentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
   sendFast(id:string,bytes:Uint8Array):boolean {
     const link=this.links.get(id);
@@ -343,27 +368,27 @@ export class PeerTransport {
     }
     return false;
   }
-  private sendFastProbe(id:string,kind:8|9,probeId:number,segment:number):boolean {
+  private sendFastProbe(id:string,kind:8|9|12,probeId:number,segment:number):boolean {
     const link=this.links.get(id);
-    if(!link||!this.fastBound(id,link)||link.fastBinding!.segment!==segment||!link.fastGate.permits(link.fast,PROBE_BUFFER_LIMIT))return false;
+    if(!link||!this.fastBound(id,link)||link.fastBinding!.segment!==segment||!permitsFastControl(this.stopped,document.hidden,link.fast,link.fastGate,link.channel,link.gate))return false;
     const bytes=packMessage([DIRECT_VERSION,segment,kind,probeId]);
     try{link.fast!.send(new Uint8Array(bytes));this.fastSentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
   private sendDirectProbe(id:string,data:{type:string;probeId:number},allowFast=true):void {
     const link=this.links.get(id);
     if(allowFast&&link&&this.fastBound(id,link)&&link.fast?.readyState==='open'){
-      this.sendFastProbe(id,8,data.probeId,link.fastBinding!.segment);
-      // Local alias installation does not prove the remote completed its handshake.
-      if(link.fastBinding!.remoteConfirmed)return;
+      this.sendFastProbe(id,link.fastBinding!.pulse.locallyPaused?12:8,data.probeId,link.fastBinding!.segment);
+      // During pause the remote may have moved to a new alias before our header ACK can be sent.
+      if(!link.fastBinding!.pulse.needsAssociationProbe(link.fastBinding!.remoteConfirmed))return;
     }
-    if(!this.authorityPermitted()||!link?.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return;
+    if(this.stopped||document.hidden||!this.authorityPermitted()||!link?.gate.permits(link.channel,PROBE_BUFFER_LIMIT)||link.fastGate.draining)return;
     try{const encoded=JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)});link.channel!.send(encoded);this.sentBytes+=new TextEncoder().encode(encoded).byteLength;}catch{}
   }
   private checkLinks():void {
     if(this.stopped||document.hidden||!this.authorityPermitted())return;
     const now=performance.now();
     for(const [id,link] of this.links){
-      this.sendDirectProbe(id,{type:'linkProbe',probeId:link.health.probe(now)});
+      if(!link.fastBinding?.pulse.active)this.sendDirectProbe(id,{type:'linkProbe',probeId:link.health.probe(now)});
       if(link.health.direct(now)){link.restart.healthy(now);continue;}
       // A down socket cannot carry the restart offer; do not burn the budget on it.
       if(!link.health.shouldRestart(now)||!this.initiates(id)||this.socket?.readyState!==WebSocket.OPEN||!link.restart.due(now))continue;
