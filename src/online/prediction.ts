@@ -20,7 +20,7 @@ export class LocalPrediction {
   constructor(private readonly now:()=>number){this.clock=new PredictionClock(now);}
   resetExternalScope():void {this.base=undefined;this.pending=[];this.shown=undefined;this.offset={x:0,y:0};this.clock.reset();}
   observeClock(sample:TickClockSample):boolean{return this.clock.observe(sample);}
-  /** Read-only opt-in measurement data for the input probe. */
+  /** Opt-in measurement data for the input probe; reads the scoped clock (refreshing its freshness), so call only alongside input(). */
   diagnostics():{baseTick?:number;pending:number;estimate?:TickEstimate}{return {baseTick:this.base?.state.tick,pending:this.pending.length,estimate:this.base?this.clock.estimate(this.base.ledger.scope):undefined};}
   /** Only the host's admission window decides; a slow clock or lagging snapshot limits the local preview, never the send. */
   input(seq:number,left:boolean,right:boolean):ScheduledMotionInput|undefined {
