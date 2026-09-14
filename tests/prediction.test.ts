@@ -84,4 +84,9 @@ test('a lost clock limits the preview but never the send (#65)',()=>{
  assert.deepEqual(scheduled.scope,motion.scope);
  const rider=(snapshot:ReturnType<typeof fixture>)=>snapshot.players.find(player=>player.id==='h')!;
  assert.equal(predictor.render(fresh,'h').players.find(player=>player.id==='h')!.angle,rider(fresh).angle,'no invented preview motion without a clock');
+ // Outside play a cleared clock is the host's own paused report, so nothing is scheduled against it.
+ for(const phase of ['lobby','countdown','roundOver','matchOver'] as const){
+  const idle=new LocalPrediction(()=>now);idle.accept({...fresh,phase},'h',-1,{...motion,tick:fresh.tick},'authority');
+  assert.equal(idle.input(1,true,false),undefined,phase);
+ }
 });

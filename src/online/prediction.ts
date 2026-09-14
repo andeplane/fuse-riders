@@ -27,6 +27,9 @@ export class LocalPrediction {
     const base=this.base;
     if(!base)return undefined;
     const estimate=this.clock.estimate(base.ledger.scope);
+    // Outside play the host reports paused, which legitimately clears the clock; scheduling against it would only spam the
+    // authority with input it cannot use and churn scope-expired replies across every phase boundary.
+    if(!estimate&&base.state.phase!=='playing')return undefined;
     // Overflow: first drop what the host can no longer apply; a full window of unreported input is stale as a whole.
     if(this.pending.length>=128){this.pending=this.pending.filter(input=>input.intendedTick>=base.state.tick-4);if(this.pending.length>=128)this.pending=[];}
     // A lost clock must limit the preview, not the send (#65): an aged authoritative tick still lands inside the host's admission window while snapshots arrive, and only the host decides.
