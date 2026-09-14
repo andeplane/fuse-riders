@@ -34,3 +34,7 @@ The follow-up diagnostic capture adds the exact selected delay to every submitte
 ## Diagnostic result: nearby policy never qualified
 
 The60second `e473a10` diagnostic run (2026-09-14 01:20:47UTC) retained38attempts:18validperview,20confounded,0timeouts,0browsererrors. [Complete raw frames and clock observations](evidence/response-e473a10.json) show localp95=29.5ms andTVp95=161.8ms, stillFAIL. Every eligible TVbaseline and changed frame useddelay2 withnearbycount0. The57accepted TVclockprobes measuredRTT23.3–33.2ms; guest60accepted probes measured23.4–48.2ms. No guest/TVprobe met20ms. HostRTT0qualified normally. This establishes why the faster nearby buffer did not activate on the same-machine fixture; it does not justify changing the gate without a reviewed amendment and fresh stability/response evidence. The diagnostic rawJSON is compacted without deleting samples.
+
+##40ms qualification trial: improved, still above target
+
+The02a982f run completed01:27:11UTC with38attempts,18valid,20confounded,0timeouts/errors. [Full evidence](evidence/response-02a982f.json) shows localp95=25.8ms andTVp50=87.8ms/p95=136.6ms. FourTVtrials remaineddelay2 duringqualification (112.9–136.6ms);13alreadyqualifieddelay1trials ranged60.5–114.7ms, including two above100ms; one2→1transition measured90.2ms. Those two qualified tails show continuously advancing rendered ticks, not a frozen buffer. Startup qualification explains the worst cases, but reducing startup alone cannot meet the unchanged target. No trial was excluded to improve the result.
