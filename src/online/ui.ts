@@ -79,7 +79,7 @@ export async function startOnline():Promise<void>{
   let roomEnded=false;
   const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…'),audioButton=node('button','♫ AUDIO'),results=node('button','RESULTS'),menu=node('button','MENU');
   title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,results,menu);
-  const booting=node('div','','room-boot'),bootNote=node('p','Warming up the arena…','room-boot-note');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'),bootNote);
+  const booting=node('div','','room-boot'),bootNote=node('p','Warming up the arena…','room-boot-note');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'),bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt=performance.now();const bootTick=()=>{bootNote.textContent=connectHint(status.textContent??'',performance.now()-bootAt);};
   const bootPoll=setInterval(bootTick,1000);

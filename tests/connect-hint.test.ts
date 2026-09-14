@@ -8,3 +8,8 @@ test('connect hint escalates from progress to the network advice', () => {
   assert.match(connectHint('Connecting…', 21000), /different network/);
   assert.match(connectHint('ICE failed — likely symmetric NAT/CGNAT on one side', 1000), /different network/);
 });
+
+test('a status that already says what to do wins over the network guess', () => {
+  for (const status of ['Game protocol changed — reload this page', 'This host tab was replaced — use the newer tab', 'Saved game is incompatible or damaged — a fresh lobby is ready'])
+    assert.equal(connectHint(status, 60000), status);
+});
