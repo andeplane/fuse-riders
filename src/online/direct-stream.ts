@@ -110,6 +110,7 @@ export class DirectDelivery {
   private lastTick: number;
   private watermark: Watermark;
   private lastSent = -Infinity;
+  private repairAfter = 0;
   constructor(readonly segment: number, readonly slot: number, initialTick: number) {
     if (!uint32(segment) || segment === 0 || !uint32(slot) || slot > 4 || !uint32(initialTick)) throw new Error('Invalid delivery scope');
     this.lastTick = initialTick; this.watermark = [initialTick, 0];
@@ -120,7 +121,7 @@ export class DirectDelivery {
     if (actions.length > 3 || this.pending.length + actions.length > STREAM_RECORD_LIMIT) return;
     const next = new DirectDelivery(this.segment, this.slot, this.watermark[0]);
     next.pending = [...this.pending]; next.acknowledged = this.acknowledged; next.lastSequence = this.lastSequence;
-    next.lastTick = this.lastTick; next.watermark = [...this.watermark]; next.lastSent = this.lastSent;
+    next.lastTick = this.lastTick; next.watermark = [...this.watermark]; next.lastSent = this.lastSent; next.repairAfter = this.repairAfter;
     for (const action of actions) {
       if (!isDirectAction(action) || action[0] !== next.lastSequence + 1 || action[1] < next.lastTick || action[1] <= next.watermark[0]) return;
       next.pending.push(structuredClone(action)); next.lastSequence = action[0]; next.lastTick = action[1];
@@ -132,7 +133,7 @@ export class DirectDelivery {
     if (!actions.length) return;
     const selected = actions.map(a => this.pending.find(p => p[0] === a[0]));
     if (actions.length > 3 || selected.some(a => !a)) return;
-    const records = [...selected as DirectAction[], ...this.pending.filter(p => !actions.some(a => a[0] === p[0])).slice(0, 4 - actions.length)];
+    const records = this.selectRepair(selected as DirectAction[]);
     this.lastSent = now;
     send(packMessage([DIRECT_VERSION, this.segment, this.slot, records, this.watermark] satisfies DirectPacket));
   }
@@ -144,7 +145,13 @@ export class DirectDelivery {
   }
   advanceWatermark(tick: number): boolean {
     if (!uint32(tick) || tick < this.lastTick || tick < this.watermark[0]) return false;
-    this.watermark = [tick, this.lastSequence]; return true;
+    return this.advanceCut([tick, this.lastSequence]);
+  }
+  /** The origin certifies the exact prefix through this tick, even while later actions are queued. */
+  advanceCut(cut: Watermark): boolean {
+    if (!isWatermark(cut) || cut[0] < this.watermark[0] || cut[1] < this.watermark[1] || cut[1] > this.lastSequence || (cut[0] === this.watermark[0] && cut[1] !== this.watermark[1])
+      || (this.lastTick <= cut[0] && cut[1] !== this.lastSequence) || this.pending.some(a => a[0] <= cut[1] ? a[1] > cut[0] : a[1] <= cut[0])) return false;
+    this.watermark = [...cut]; return true;
   }
   acknowledge(bytes: Uint8Array): boolean {
     if (bytes.byteLength > FAST_PACKET_BYTES) return false;
@@ -157,8 +164,19 @@ export class DirectDelivery {
   pump(now: number, send: (bytes: Uint8Array) => boolean): void {
     if (now - this.lastSent >= (this.pending.length ? 50 : 100)) this.transmit(now, send);
   }
+  /** A newly published exact cut should not wait for a separately phased idle-retry timer. */
+  flush(now: number, send: (bytes: Uint8Array) => boolean): void { this.transmit(now, send); }
+  /** Keep the earliest gap covered while lost receipts cannot starve the rest of the retained suffix. */
+  private selectRepair(newest: readonly DirectAction[]): DirectAction[] {
+    const records = [...newest], earliest = this.pending[0];
+    if (earliest && !records.some(a => a[0] === earliest[0])) records.push(earliest);
+    const available = this.pending.filter(a => !records.some(selected => selected[0] === a[0]));
+    const rotated = [...available.filter(a => a[0] > this.repairAfter), ...available.filter(a => a[0] <= this.repairAfter)];
+    for (const action of rotated.slice(0, 4 - records.length)) { records.push(action); this.repairAfter = action[0]; }
+    return records;
+  }
   private transmit(now: number, send: (bytes: Uint8Array) => boolean, newest?: DirectAction): void {
-    const records = newest ? [newest, ...this.pending.filter(a => a[0] !== newest[0]).slice(0, 3)] : this.pending.slice(0, 4);
+    const records = this.selectRepair(newest ? [newest] : []);
     const packet: DirectPacket = [DIRECT_VERSION, this.segment, this.slot, records, this.watermark];
     // Max four fixed-schema records fit 512 bytes, including float64 aim and uint32 IDs.
     const bytes = packMessage(packet);

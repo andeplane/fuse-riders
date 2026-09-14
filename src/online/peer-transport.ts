@@ -1,5 +1,7 @@
 import { packMessage, unpackMessage } from './action-replication.js';
 import { FAST_PACKET_BYTES, decodeDirectPacket, DIRECT_VERSION } from './direct-stream.js';
+import { DirectIngress, type FastPermissions } from './direct-ingress.js';
+import { BOUND_CONTROL_BYTES, isBoundControl } from './direct-control.js';
 import { uint32 } from '../shared/direct-input.js';
 import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
@@ -26,7 +28,7 @@ export interface TransportCallbacks {
   terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;epoch:number;incarnation:string;sender:string;receiver:string};fastTokens:number;fastAt:number;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
+interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;epoch:number;incarnation:string;sender:string;receiver:string};ingress:DirectIngress;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 export interface PeerTransportOptions { mesh?:boolean }
 const RESTART_ATTEMPTS=4;
 export class PeerTransport {
@@ -36,6 +38,8 @@ export class PeerTransport {
   grant?:AuthorityGrant;
   private authorityClock=new AuthorityClock(()=>performance.now());
   private connections=new Map<string,string>();
+  connectionOf(id:string):string|undefined { return id===this.id?this.connectionId||undefined:this.connections.get(id); }
+  members():string[] { return this.id?[this.id,...this.connections.keys()]:[]; }
   private probes=new Map<number,number>();
   private nextProbe=0;
   private readyScope='';
@@ -145,7 +149,7 @@ export class PeerTransport {
     const concurrent=this.links.get(id);if(concurrent)return concurrent;
     const pc=new RTCPeerConnection({iceServers});
     const now=performance.now();
-    const link:Link={pc,fastGate:new LinkSendGate(),fastTokens:200,fastAt:now,remote:new RemoteSignal(pc),health:new LinkHealth(now),gate:new LinkSendGate(),restart:restart??new LinkRestartPolicy(now,RESTART_ATTEMPTS),createdAt:now,local:{},remoteTypes:{},counts:{offersOut:0,offersIn:0,answersOut:0,answersIn:0,candidatesOut:0,relayFailed:0}};this.links.set(id,link);
+    const link:Link={pc,fastGate:new LinkSendGate(),ingress:new DirectIngress(now),remote:new RemoteSignal(pc),health:new LinkHealth(now),gate:new LinkSendGate(),restart:restart??new LinkRestartPolicy(now,RESTART_ATTEMPTS),createdAt:now,local:{},remoteTypes:{},counts:{offersOut:0,offersIn:0,answersOut:0,answersIn:0,candidatesOut:0,relayFailed:0}};this.links.set(id,link);
     this.callbacks.linkReset?.(id);
     pc.onicecandidate=event=>{
       if(!isCurrentLinkCallback(this.links.get(id),link)||!event.candidate)return;
@@ -174,7 +178,13 @@ export class PeerTransport {
     channel.onmessage=event=>{
       if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;
       try{
-        if(event.data instanceof ArrayBuffer){if(event.data.byteLength>200000){channel.close();return;}this.receive(id,unpackMessage(new Uint8Array(event.data)) as Parameters<PeerTransport['receive']>[1],true);}
+        if(event.data instanceof ArrayBuffer){
+          if(event.data.byteLength>200000){channel.close();return;}
+          const decoded=unpackMessage(new Uint8Array(event.data));
+          if(Array.isArray(decoded)) {
+            if(event.data.byteLength<=BOUND_CONTROL_BYTES&&isBoundControl(decoded)&&this.fastBound(id,link)&&link.fastBinding!.remoteConfirmed&&!link.gate.draining&&!link.fastGate.draining&&decoded[1]===link.fastBinding!.segment)this.callbacks.message(id,decoded);
+          }else this.receive(id,decoded as Parameters<PeerTransport['receive']>[1],true);
+        }
         else if(typeof event.data==='string'&&event.data.length<=200000)this.receive(id,JSON.parse(event.data),true);
         else channel.close();
       }catch{}
@@ -186,11 +196,12 @@ export class PeerTransport {
     channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;drain();this.callbacks.status('Direct connection failed · retrying');};
   }
   /** Compact aliases are installed only by a validated reliable bootstrap/handshake. */
-  bindFast(id:string,segment:number):boolean {
+  bindFast(id:string,segment:number,permissions:FastPermissions):boolean {
     const link=this.links.get(id),grant=this.grant,sender=this.connections.get(id);
     if(!this.options.mesh||!link||!grant||!sender||!this.authorityPermitted()||!uint32(segment)||segment===0)return false;
     const previous=link.fastBinding;
-    if(previous&&segment<=previous.segment)return segment===previous.segment&&this.fastBound(id,link);
+    if(previous&&segment<=previous.segment)return segment===previous.segment&&this.fastBound(id,link)&&link.ingress.bind(segment,permissions,performance.now());
+    if(!link.ingress.bind(segment,permissions,performance.now()))return false;
     link.fastBinding={segment,remoteConfirmed:false,epoch:grant.epoch,incarnation:grant.incarnation,sender,receiver:this.connectionId};return true;
   }
   private fastBound(id:string,link:Link):boolean {
@@ -212,12 +223,14 @@ export class PeerTransport {
     const drain=()=>{link.fastGate.drain();link.gate.drain();};
     channel.onmessage=event=>{
       if(!current())return;
-      const now=performance.now();link.fastTokens=Math.min(200,link.fastTokens+Math.max(0,now-link.fastAt)*.1);link.fastAt=now;
-      if(--link.fastTokens<0){drain();channel.close();this.callbacks.status('Direct action stream exceeded its rate limit');return;}
-      if(!(event.data instanceof ArrayBuffer)||event.data.byteLength>FAST_PACKET_BYTES){drain();channel.close();return;}
+      const now=performance.now();
+      if(!(event.data instanceof ArrayBuffer)||!link.ingress.packet(event.data.byteLength,now)){drain();channel.close();this.callbacks.status('Direct action link exceeded its size/rate limit — retrying');return;}
       const bytes=new Uint8Array(event.data);
       if(!this.fastBound(id,link)||this.fastSegment(bytes)!==link.fastBinding!.segment)return;
       const control=unpackMessage(bytes) as unknown[];
+      const admission=link.ingress.flow(control.length===5?'action':control[2]===8||control[2]===9?'probe':'receipt',control[2] as number,now);
+      if(admission==='unauthorized')return;
+      if(admission==='limited'){drain();channel.close();this.callbacks.status('Direct action flow exceeded its rate limit — retrying');return;}
       if(control.length===4&&(control[2]===8||control[2]===9)){
         link.fastBinding!.remoteConfirmed=true;
         const segment=control[1] as number,probeId=control[3] as number;
@@ -238,6 +251,17 @@ export class PeerTransport {
   fastReady(id:string):boolean {
     const link=this.links.get(id);
     return !this.stopped&&!document.hidden&&!!link&&this.fastBound(id,link)&&link.fastGate.permits(link.fast,16_000)&&link.health.direct(performance.now());
+  }
+  /** Compact ordered control has the same alias/association gates, plus confirmed remote binding. */
+  boundReady(id:string):boolean {
+    const link=this.links.get(id);
+    return !!link&&this.fastReady(id)&&link.fastBinding!.remoteConfirmed&&link.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT);
+  }
+  sendBound(id:string,tuple:unknown[]):boolean {
+    const link=this.links.get(id);
+    if(!isBoundControl(tuple)||!this.boundReady(id)||tuple[1]!==link!.fastBinding!.segment)return false;
+    const bytes=packMessage(tuple);if(bytes.byteLength>BOUND_CONTROL_BYTES)return false;
+    try {link!.channel!.send(new Uint8Array(bytes));this.binarySentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
   /** `force` replaces a drained link with a fresh RTCPeerConnection and gate; the restart budget carries over. */
   private async offer(id:string,force=false):Promise<void>{

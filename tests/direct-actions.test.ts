@@ -144,7 +144,8 @@ test('origin immediately sends newest plus old gap records; backpressure repair 
   const delivery = new DirectDelivery(7, 0, 65), wire: Uint8Array[] = [];
   const send = (bytes: Uint8Array) => { wire.push(bytes); return false; };
   for (let seq = 1; seq <= 6; seq++) assert.equal(delivery.enqueue([seq, 66 + seq, 0, seq % 4], seq, send), true);
-  assert.deepEqual(decodeDirectPacket(wire[5])?.[3].map(a => a[0]), [6, 1, 2, 3]);
+  const repeated = decodeDirectPacket(wire[5])![3].map(a => a[0]);
+  assert.deepEqual(repeated.slice(0, 2), [6, 1]); assert.ok(repeated.includes(5));
   for (let now = 7; now < 56; now++) delivery.pump(now, send);
   assert.equal(wire.length, 6); delivery.pump(56, send); assert.equal(wire.length, 7);
   assert.ok(wire.every(bytes => bytes.byteLength <= FAST_PACKET_BYTES));
@@ -207,7 +208,7 @@ test('malformed/future/wrong-owner/stale-segment messages do not alter healthy w
   const world = setup(), before = canonical(world.state), size = world.retainedBytes;
   assert.equal(world.receive(1, packet(0, [[1, 66, 0, 1]]), 66).status, 'invalid');
   assert.equal(world.receive(0, packet(0, [[1, 66, 0, 1]], null, 6), 66).status, 'stale');
-  assert.equal(world.receive(0, packet(0, [[1, 80, 0, 1]]), 66).status, 'invalid');
+  assert.equal(world.receive(0, packet(0, [[1, 81, 0, 1]]), 66).status, 'invalid');
   assert.equal(world.receive(0, packet(0, [[257, 66, 0, 1]]), 66).status, 'overflow');
   assert.equal(world.receive(0, new Uint8Array([0xc1]), 66).status, 'invalid');
   assert.equal(world.receive(0, packet(0, []), NaN).status, 'invalid');
@@ -298,4 +299,113 @@ test('bootstrap rejects a rehashed impossible gesture state, not only corrupt ha
   state.held.set(0, { at: 65, flags: 4, aim: null }); state.gestures.set(0, { active: 1, latest: 2 });
   const bytes = packBootstrap(7, state, [0, 1, 2, 3, 4].map(slot => [slot, 0]));
   assert.equal(RollbackWorld.open(bytes, 7), undefined);
+});
+
+test('older complete finality advances while newer certificates still await input repair', () => {
+  const leader = setup(), guest = setup();
+  const actions: DirectAction[] = [[1, 66, 1, 1], [2, 68, 2, 1, null], [3, 73, 0, 1], [4, 78, 0, 0]];
+  leader.receive(0, packet(0, actions), 80); advance(leader, 80); advance(guest, 80);
+  const certificates = [certify(leader, 70, [2, 0, 0, 0, 0]), certify(leader, 75, [3, 0, 0, 0, 0]), certify(leader, 80, [4, 0, 0, 0, 0])];
+  for (const certificate of certificates) assert.equal(guest.finalize(certificate).status, 'waiting');
+  for (let slot = 1; slot < 5; slot++) guest.receive(slot, packet(slot, [], [80, 0]), 80);
+  for (const [tick, prefix] of [[70, 2], [75, 3], [80, 4]]) guest.receive(0, packet(0, [], [tick, prefix]), 80);
+  const early = guest.receive(0, packet(0, actions.slice(0, 2)), 80);
+  assert.equal(guest.finalizedTick, 70); assert.equal(guest.pendingFinalizedTick, 80);
+  assert.deepEqual(early.events, leader.finalize(certificates[0]).events);
+  assert.ok(early.events.length > 0);
+  const middle = guest.receive(0, packet(0, [actions[2]]), 80);
+  assert.equal(guest.finalizedTick, 75); assert.equal(guest.pendingFinalizedTick, 80);
+  assert.deepEqual(middle.events, leader.finalize(certificates[1]).events);
+  const latest = guest.receive(0, packet(0, [actions[3]]), 80);
+  assert.equal(guest.finalizedTick, 80); assert.equal(guest.pendingFinalizedTick, undefined);
+  assert.deepEqual(latest.events, leader.finalize(certificates[2]).events);
+  const events = [...early.events, ...middle.events, ...latest.events];
+  assert.equal(new Set(events.map(e => e.id)).size, events.length);
+  assert.equal(replayHash(guest.finalizedState()), replayHash(leader.finalizedState()));
+  assert.deepEqual(guest.receive(0, packet(0, actions), 80).events, []);
+});
+
+test('pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash', () => {
+  const leader = setup(), guest = setup(); advance(leader, 75); advance(guest, 75);
+  const early = certify(leader, 70), late = certify(leader, 75);
+  const corrupt = structuredClone(early); corrupt[5] = '0'.repeat(16);
+  assert.equal(guest.finalize(corrupt).status, 'waiting');
+  const bytes = guest.retainedBytes;
+  const reordered = structuredClone(corrupt); reordered[4].reverse();
+  assert.equal(guest.finalize(reordered).status, 'waiting'); assert.equal(guest.retainedBytes, bytes);
+  assert.equal(guest.finalize(early).status, 'invalid'); assert.equal(guest.retainedBytes, bytes);
+  assert.equal(guest.finalize(late).status, 'waiting');
+  for (let slot = 0; slot < 4; slot++) guest.receive(slot, packet(slot, [], [75, 0]), 75);
+  const rejected = guest.receive(4, packet(4, [], [75, 0]), 75);
+  assert.equal(rejected.status, 'invalid'); assert.deepEqual(rejected.events, []); assert.equal(guest.finalizedTick, 65);
+  // Rejection clears the bad proposal, so an explicit retry of a correct certificate can recover.
+  assert.equal(guest.finalize(late).status, 'accepted'); assert.equal(guest.finalizedTick, 75);
+  assert.equal(guest.finalize(early).status, 'stale'); assert.deepEqual(guest.finalize(late).events, []);
+});
+
+test('pending finality has a forty-tick bound and encoded-byte admission is atomic', () => {
+  const world = setup(), initial = world.retainedBytes;
+  const certificates: Finality[] = Array.from({ length: ROLLBACK_TICKS }, (_, i) => [1, 7, 'final', 66 + i, [0, 1, 2, 3, 4].map(slot => [slot, 0]), '0'.repeat(16)]);
+  for (const certificate of certificates) assert.equal(world.finalize(certificate).status, 'waiting');
+  assert.equal(world.pendingFinalizedTick, 105);
+  assert.equal(world.retainedBytes, initial + packMessage(certificates).byteLength - packMessage([]).byteLength);
+  const retained = world.retainedBytes;
+  assert.equal(world.finalize([1, 7, 'final', 106, certificates[0][4], '0'.repeat(16)]).status, 'invalid');
+  assert.equal(world.retainedBytes, retained);
+  const limit = initial + packMessage([certificates[0]]).byteLength - packMessage([]).byteLength;
+  const bounded = RollbackWorld.open(setup().bootstrap(), 7, limit)!; assert.ok(bounded);
+  assert.equal(bounded.finalize(certificates[0]).status, 'waiting'); assert.equal(bounded.retainedBytes, limit);
+  const before = canonical(bounded.state);
+  assert.equal(bounded.finalize(certificates[1]).status, 'overflow');
+  assert.equal(bounded.pendingFinalizedTick, 66); assert.equal(bounded.retainedBytes, limit); assert.equal(canonical(bounded.state), before);
+});
+
+
+test('lost receipts retain the oldest gap without starving rotation through the unacknowledged tail', () => {
+  let delivery = new DirectDelivery(7, 0, 65);
+  for (let seq = 1; seq <= 23; seq++) {
+    const action: DirectAction = [seq, 66 + seq, 0, seq % 4];
+    const next = delivery.prepare([action]); assert.ok(next); delivery = next;
+    delivery.publish([action], seq, () => true);
+  }
+  const covered = new Set<number>();
+  for (let now = 73; now <= 423; now += 50) delivery.pump(now, bytes => {
+    const actions = decodeDirectPacket(bytes)![3];
+    assert.equal(actions[0][0], 1); assert.equal(actions.length, 4);
+    assert.equal(new Set(actions.map(a => a[0])).size, actions.length);
+    actions.forEach(a => covered.add(a[0])); return true;
+  });
+  assert.equal(covered.size, 23); assert.equal(delivery.retainedRecords, 23);
+  assert.equal(delivery.acknowledge(packMessage([1, 7, 0, 23])), true);
+  assert.equal(delivery.retainedRecords, 0);
+});
+
+
+test('delivery exact cuts exclude future groups and cannot contradict retained actions', () => {
+  let delivery = new DirectDelivery(7, 0, 65);
+  delivery = delivery.prepare([[1, 66, 0, 1], [2, 68, 0, 0]])!;
+  assert.equal(delivery.advanceCut([65, 0]), true);
+  assert.equal(delivery.advanceCut([66, 2]), false);
+  assert.equal(delivery.advanceCut([66, 0]), false);
+  assert.equal(delivery.advanceCut([66, 1]), true);
+  assert.equal(delivery.advanceCut([65, 0]), false);
+  assert.equal(delivery.advanceCut([68, 1]), false);
+  const sent: Uint8Array[] = []; delivery.flush(0, bytes => { sent.push(bytes); return true; });
+  assert.deepEqual(decodeDirectPacket(sent[0])![4], [66, 1]);
+  assert.equal(delivery.advanceCut([68, 2]), true);
+  assert.equal(delivery.advanceCut([69, 3]), false);
+  assert.equal(delivery.acknowledge(packMessage([1, 7, 0, 2])), true);
+  assert.equal(delivery.advanceCut([70, 2]), true);
+});
+
+
+test('remote future staging derives from both clock uncertainties without extending the execution horizon', () => {
+  const world = setup();
+  assert.equal(world.receive(0, packet(0, [[1, 79, 0, 1]]), 65).status, 'accepted');
+  const before = canonical(world.state), bytes = world.retainedBytes;
+  assert.equal(world.receive(0, packet(0, [[2, 80, 0, 0]]), 65).status, 'invalid');
+  assert.equal(canonical(world.state), before); assert.equal(world.retainedBytes, bytes);
+  advance(world, 78); assert.equal(world.state.held.get(0)?.flags ?? 0, 0);
+  advance(world, 79); assert.equal(world.state.held.get(0)?.flags, 1);
+  advance(world, 105); assert.equal(world.advance(106).status, 'paused');
 });

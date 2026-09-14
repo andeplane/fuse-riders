@@ -1,6 +1,7 @@
 import { canonical, replayHash, validAim } from '../shared/action-log.js';
 import { DIRECT_RULES, stepDirect, uint32, type DirectState } from '../shared/direct-input.js';
 import type { GameEvent } from '../shared/protocol.js';
+import { FUTURE_RECORD_TICKS } from './direct-clock.js';
 import { decodeGameState, encodeGameState } from './checkpoint.js';
 import { packMessage, unpackMessage } from './action-replication.js';
 import { decodeDirectPacket, DIRECT_VERSION, DirectStream, type DirectReceipt } from './direct-stream.js';
@@ -68,7 +69,7 @@ export function packBootstrap(segment: number, state: DirectState, prefixes: Str
 export class RollbackWorld {
   private candidate: Candidate;
   private streams = new Map<number, DirectStream>();
-  private pendingFinality?: Finality;
+  private pendingFinality = new Map<number, Finality>();
   private finalTick: number;
   private finalHash: string;
   private finalPrefixes: StreamPrefixes;
@@ -91,15 +92,21 @@ export class RollbackWorld {
   /** Read-only to consumers; the runtime must not mutate supplied simulation objects. */
   get state(): Readonly<DirectState> { return this.candidate.state; }
   get finalizedTick(): number { return this.finalTick; }
+  get finalizedPrefixes(): StreamPrefixes { return structuredClone(this.finalPrefixes); }
+  streamProgress(): { slot: number; contiguous: number; watermark: [number, number]; cuts: [number, number][] }[] {
+    return [...this.streams].map(([slot, stream]) => ({ slot, contiguous: stream.contiguous, watermark: [...stream.watermark], cuts: [...stream.cuts] }));
+  }
+  /** A fresh validated copy, suitable for a lifecycle barrier or finalized outcome presentation. */
+  finalizedState(): DirectState { return this.stateAt(this.finalTick)!; }
   get retainedBytes(): number { return this.measure(this.candidate, this.streams); }
   get retainedRecords(): number { return [...this.streams.values()].reduce((sum, s) => sum + s.records.size, 0); }
-  get pendingFinalizedTick(): number | undefined { return this.pendingFinality?.[3]; }
+  get pendingFinalizedTick(): number | undefined { return this.pendingFinality.size ? Math.max(...this.pendingFinality.keys()) : undefined; }
 
   receive(ownerSlot: number, bytes: Uint8Array, localTargetTick: number): WorldResult {
     const packet = decodeDirectPacket(bytes);
     if (!packet || packet[2] !== ownerSlot || !this.streams.has(ownerSlot) || !uint32(localTargetTick)) return result('invalid');
     if (packet[1] !== this.segment) return result('stale');
-    const received = this.streams.get(ownerSlot)!.receive(packet[3], packet[4], Math.min(localTargetTick, this.finalTick + ROLLBACK_TICKS) + 4);
+    const received = this.streams.get(ownerSlot)!.receive(packet[3], packet[4], Math.min(localTargetTick, this.finalTick + ROLLBACK_TICKS) + FUTURE_RECORD_TICKS);
     if (received.status !== 'accepted') return result(received.status);
     const streams = new Map(this.streams); streams.set(ownerSlot, received.stream);
     const earliest = Math.min(...received.added.map(a => a[1]));
@@ -137,12 +144,17 @@ export class RollbackWorld {
   }
   finalize(raw: unknown): WorldResult {
     if (!Array.isArray(raw) || raw.length !== 6 || raw[0] !== DIRECT_VERSION || raw[1] !== this.segment || raw[2] !== 'final' || !uint32(raw[3]) || raw[3] > this.finalTick + ROLLBACK_TICKS || !validPrefixes(raw[4], this.candidate.state) || typeof raw[5] !== 'string' || !/^[0-9a-f]{16}$/.test(raw[5])) return result('invalid');
-    const message = raw as Finality;
+    const message = structuredClone(raw) as Finality;
+    message[4].sort(([a],[b])=>a-b);
     if (message[3] < this.finalTick) return result('stale');
     if (message[3] === this.finalTick) return result(message[5] === this.finalHash && canonical([...message[4]].sort()) === canonical([...this.finalPrefixes].sort()) ? 'stale' : 'invalid');
-    if (this.pendingFinality && message[3] < this.pendingFinality[3]) return result('stale');
-    if (this.pendingFinality && message[3] === this.pendingFinality[3] && canonical(message) !== canonical(this.pendingFinality)) return result('invalid');
-    this.pendingFinality = structuredClone(message);
+    const previous = this.pendingFinality.get(message[3]);
+    if (previous && canonical(message) !== canonical(previous)) return result('invalid');
+    this.pendingFinality.set(message[3], message);
+    if (this.pendingFinality.size > ROLLBACK_TICKS || this.retainedBytes > this.byteLimit) {
+      if (previous) this.pendingFinality.set(message[3], previous); else this.pendingFinality.delete(message[3]);
+      return result('overflow');
+    }
     return this.tryFinality();
   }
   bootstrap(): Uint8Array {
@@ -150,19 +162,27 @@ export class RollbackWorld {
   }
 
   private tryFinality(): WorldResult {
-    const message = this.pendingFinality;
-    if (!message || message[3] > this.state.game.tick || [...this.streams.values()].some(s => !s.completeThrough(message[3]))) return result('waiting');
+    let message: Finality | undefined, state: DirectState | undefined;
+    for (const candidate of [...this.pendingFinality.values()].sort((a,b)=>a[3]-b[3])) {
+      const at = candidate[3];
+      if (at > this.state.game.tick || [...this.streams.values()].some(s => !s.completeThrough(at))) continue;
+      const reconstructed = this.stateAt(at)!;
+      if (candidate[4].some(([slot,seq])=>this.streams.get(slot)!.prefixAt(at)!==seq) || replayHash(reconstructed)!==candidate[5]) {
+        this.pendingFinality.delete(at); return result('invalid');
+      }
+      message = candidate; state = reconstructed;
+    }
+    if (!message || !state) return result('waiting');
     const [, , , tick, prefixes, hash] = message;
-    const state = this.stateAt(tick)!;
-    if (prefixes.some(([slot, seq]) => this.streams.get(slot)!.prefixAt(tick) !== seq) || replayHash(state) !== hash) { this.pendingFinality = undefined; return result('invalid'); }
     const events: CommittedEvent[] = [];
     for (const [at, entries] of [...this.candidate.events].sort(([a], [b]) => a - b)) if (at <= tick) entries.forEach((event, i) => events.push({ id: `${this.segment}:${at}:${i}`, tick: at, event }));
     const snapshots = new Map([...this.candidate.snapshots].filter(([at]) => at > tick)); snapshots.set(tick, packState(state));
     const pendingEvents = new Map([...this.candidate.events].filter(([at]) => at > tick));
     const streams = new Map([...this.streams].map(([slot, stream]) => [slot, stream.trim(tick, state.gestures.get(slot)?.latest ?? 0)]));
     const candidate = { state: this.candidate.state, snapshots, events: pendingEvents };
-    if (this.measure(candidate, streams) > this.byteLimit) return result('overflow');
-    this.finalTick = tick; this.finalHash = hash; this.finalPrefixes = structuredClone(prefixes); this.pendingFinality = undefined;
+    const pending = new Map([...this.pendingFinality].filter(([at])=>at>tick));
+    if (this.measure(candidate, streams, pending) > this.byteLimit) return result('overflow');
+    this.finalTick = tick; this.finalHash = hash; this.finalPrefixes = structuredClone(prefixes); this.pendingFinality = pending;
     this.streams = streams; this.candidate = candidate;
     return { status: 'accepted', events, rollbackTicks: 0 };
   }
@@ -189,11 +209,11 @@ export class RollbackWorld {
     }
     return candidate;
   }
-  private measure(candidate: Candidate, streams: ReadonlyMap<number, DirectStream>): number {
+  private measure(candidate: Candidate, streams: ReadonlyMap<number, DirectStream>, pending: ReadonlyMap<number,Finality> = this.pendingFinality): number {
     if ([...candidate.snapshots.values()].some(bytes => bytes.byteLength > CHECKPOINT_BYTES)) return Infinity;
     return [...candidate.snapshots.values()].reduce((sum, bytes) => sum + bytes.byteLength, 0)
       + [...streams.values()].reduce((sum, stream) => sum + packMessage([...stream.records.values()]).byteLength, 0)
       + [...streams.values()].reduce((sum, stream) => sum + packMessage([...stream.cuts]).byteLength, 0)
-      + packMessage([...candidate.events]).byteLength;
+      + packMessage([...candidate.events]).byteLength + packMessage([...pending.values()]).byteLength;
   }
 }

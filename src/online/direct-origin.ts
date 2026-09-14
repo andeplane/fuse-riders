@@ -1,5 +1,6 @@
 import { validAim, type AimTuple } from '../shared/action-log.js';
 import { uint32, UINT32_MAX, type DirectAction } from '../shared/direct-input.js';
+import { MAX_ORIGIN_LEAD_TICKS } from './direct-clock.js';
 import type { Watermark } from './direct-stream.js';
 
 export interface OriginInput {
@@ -12,7 +13,7 @@ export interface OriginInput {
 }
 interface OriginState {
   revision: number; sequence: number; lastTick: number; gesture: number; active: number;
-  flags: number; aim: AimTuple; watermark: Watermark; suspended: boolean;
+  flags: number; aim: AimTuple; watermark: Watermark; frontier: Watermark[]; suspended: boolean;
 }
 export type OriginResult = { status: 'accepted'; origin: DirectOrigin; actions: DirectAction[] } | { status: 'stale' | 'invalid' | 'exhausted' | 'suspended' };
 
@@ -21,9 +22,11 @@ export class DirectOrigin {
   private constructor(readonly segment: number, readonly slot: number, private readonly state: OriginState) {}
   static start(segment: number, slot: number, baseTick: number): DirectOrigin {
     if (!uint32(segment) || !segment || !uint32(slot) || slot > 4 || !uint32(baseTick)) throw new Error('Invalid origin scope');
-    return new DirectOrigin(segment, slot, { revision: -1, sequence: 0, lastTick: baseTick, gesture: 0, active: 0, flags: 0, aim: null, watermark: [baseTick, 0], suspended: false });
+    return new DirectOrigin(segment, slot, { revision: -1, sequence: 0, lastTick: baseTick, gesture: 0, active: 0, flags: 0, aim: null, watermark: [baseTick, 0], frontier: [[baseTick, 0]], suspended: false });
   }
   get watermark(): Watermark { return [...this.state.watermark]; }
+  get revision(): number { return this.state.revision; }
+  get activeControls(): boolean { return this.state.flags !== 0 || this.state.active !== 0; }
   /** A failed untimestamped release must not fire when a later clock sample arrives. Only a new scope resumes input. */
   suspend(): DirectOrigin { return new DirectOrigin(this.segment, this.slot, { ...this.state, suspended: true }); }
 
@@ -37,7 +40,7 @@ export class DirectOrigin {
     if (input.revision <= this.state.revision) return { status: 'stale' };
     const tick = Math.max(Math.floor(clockTick) + 1, this.state.lastTick, this.state.watermark[0] + 1);
     if (!uint32(tick)) return { status: 'exhausted' };
-    if (tick > Math.floor(clockTick) + 4) return { status: 'invalid' };
+    if (tick > Math.floor(clockTick) + MAX_ORIGIN_LEAD_TICKS) return { status: 'invalid' };
     const next: OriginState = { ...this.state, revision: input.revision, aim: structuredClone(aim) };
     const actions: DirectAction[] = [];
     const flags = Number(input.left) | (Number(input.right) << 1);
@@ -52,13 +55,18 @@ export class DirectOrigin {
       next.active = 0;
     }
     if (next.sequence > UINT32_MAX || next.gesture > UINT32_MAX) return { status: 'exhausted' };
-    if (actions.length) next.lastTick = tick;
+    if (actions.length) {
+      next.lastTick = tick;
+      next.frontier = [...this.state.frontier.filter(([at]) => at !== tick), [tick, next.sequence]];
+      if (next.frontier.length > 64) return { status: 'exhausted' };
+    }
     return { status: 'accepted', origin: new DirectOrigin(this.segment, this.slot, next), actions };
   }
 
-  /** Caller must also have a fresh, started clock; an issued future action prevents a premature exact cut. */
+  /** An exact current-tick prefix excludes already-issued future actions, so continuous input cannot starve progress. */
   advanceWatermark(tick: number): DirectOrigin | undefined {
-    if (this.state.suspended || !uint32(tick) || tick < this.state.lastTick || tick < this.state.watermark[0]) return;
-    return new DirectOrigin(this.segment, this.slot, { ...this.state, watermark: [tick, this.state.sequence] });
+    if (this.state.suspended || !uint32(tick) || tick < this.state.watermark[0]) return;
+    const sequence = this.state.frontier.filter(([at]) => at <= tick).at(-1)?.[1] ?? this.state.watermark[1];
+    return new DirectOrigin(this.segment, this.slot, { ...this.state, watermark: [tick, sequence], frontier: [[tick, sequence], ...this.state.frontier.filter(([at]) => at > tick)] });
   }
 }

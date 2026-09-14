@@ -80,7 +80,7 @@ test('press replacement, missing press, release and neutral cancellation preserv
 
 test('origin exact cuts cannot cover future actions or permit a later action before the cut', () => {
   const first = accepted(DirectOrigin.start(7, 0, 10).prepare(input(0, { right: true }), 10));
-  assert.equal(first.origin.advanceWatermark(10), undefined);
+  assert.deepEqual(first.origin.advanceWatermark(10)?.watermark, [10, 0]);
   let origin = first.origin.advanceWatermark(11)!;
   assert.deepEqual(origin.watermark, [11, 1]);
   let second = accepted(origin.prepare(input(1), 10.9));
@@ -215,4 +215,42 @@ test('stale baseline recovery remains conservative, and a failed release cannot 
   assert.deepEqual(accepted(freshOrigin.prepare(input(2, { bombAction: 'release' }), 121)).actions, []);
   now = 1600; clock.read(); now = 2002; clock.read();
   probe = clock.request()!; assert.equal(clock.accept([1, 7, 'time', probe[3], 147]), 'fault');
+});
+
+test('origin bounds unpublished tick frontiers and publishing a cut restores capacity atomically', () => {
+  let origin = DirectOrigin.start(7, 0, 0);
+  for (let revision = 0; revision < 63; revision++) {
+    const prepared = origin.prepare({ revision, left: revision % 2 === 0, right: false, bomb: false, aim: null }, revision);
+    assert.equal(prepared.status, 'accepted'); if (prepared.status === 'accepted') origin = prepared.origin;
+  }
+  const frame = { revision: 63, left: false, right: false, bomb: false, aim: null };
+  assert.equal(origin.prepare(frame, 63).status, 'exhausted'); assert.equal(origin.revision, 62);
+  const progressed = origin.advanceWatermark(32)!;
+  assert.deepEqual(progressed.watermark, [32, 32]);
+  const accepted = progressed.prepare(frame, 63);
+  assert.equal(accepted.status, 'accepted');
+  if (accepted.status === 'accepted') assert.deepEqual(accepted.actions, [[64, 64, 0, 0]]);
+  assert.deepEqual(origin.watermark, [0, 0]);
+});
+
+test('expiry cannot turn an uncertain idle clock into a qualified projection', () => {
+  let now = 0; const clock = DirectTickClock.follower(7, 65, () => now);
+  let probe = clock.request()!; now = 490;
+  assert.equal(clock.accept([1, 7, 'time', probe[3], 65]), 'accepted'); assert.equal(clock.read().canOriginate, true);
+  probe = clock.request()!; now = 970;
+  assert.equal(clock.accept([1, 7, 'time', probe[3], 84.4]), 'accepted'); assert.equal(clock.read().reason, 'uncertain');
+  now = 1500; assert.equal(clock.read().canAdvance, false);
+  now = 1980; assert.equal(clock.read().reason, 'uncertain'); assert.equal(clock.read().canAdvance, false); assert.equal(clock.read().canOriginate, false);
+  assert.ok(clock.read().uncertaintyTicks > 5);
+});
+
+
+test('uncertainty admission persists even when no read occurs before samples expire', () => {
+  let now = 0; const clock = DirectTickClock.follower(7, 65, () => now);
+  let probe = clock.request()!; now = 490;
+  assert.equal(clock.accept([1, 7, 'time', probe[3], 65]), 'accepted');
+  probe = clock.request()!; now = 970;
+  assert.equal(clock.accept([1, 7, 'time', probe[3], 84.4]), 'accepted');
+  now = 1500; clock.request(); now = 1980; clock.request();
+  assert.equal(clock.read().reason, 'uncertain'); assert.equal(clock.read().canAdvance, false);
 });

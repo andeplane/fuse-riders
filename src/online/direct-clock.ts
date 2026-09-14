@@ -1,11 +1,15 @@
 import { uint32, UINT32_MAX } from '../shared/direct-input.js';
 import { DIRECT_VERSION } from './direct-stream.js';
 
+export const MAX_CLOCK_UNCERTAINTY_TICKS = 5;
+export const MAX_ORIGIN_LEAD_TICKS = 4;
+export const FUTURE_RECORD_TICKS = 2 * MAX_CLOCK_UNCERTAINTY_TICKS + MAX_ORIGIN_LEAD_TICKS;
+
 export type ClockProbe = [version: 1, segment: number, kind: 'clock', id: number];
 export type ClockReply = [version: 1, segment: number, kind: 'time', id: number, tick: number];
 export interface DirectClockReading {
   tick: number; fractionalTick: number; canAdvance: boolean; canOriginate: boolean;
-  reason: 'ready' | 'waiting' | 'sampling' | 'stale' | 'clock-jump' | 'discrepancy' | 'exhausted';
+  reason: 'ready' | 'waiting' | 'sampling' | 'uncertain' | 'stale' | 'clock-jump' | 'discrepancy' | 'exhausted';
   uncertaintyTicks: number;
 }
 interface Sample { at: number; midpoint: number; rtt: number }
@@ -17,6 +21,7 @@ export class DirectTickClock {
   private lastObserved: number;
   private value?: number;
   private started = false;
+  private uncertaintyTicks = 0;
   private lastValid = -Infinity;
   private nextId = 0;
   private lastAccepted = 0;
@@ -49,18 +54,25 @@ export class DirectTickClock {
       if (this.value > UINT32_MAX) this.fault = 'exhausted';
       if (this.leader && this.value >= this.baseTick) this.started = true;
     }
-    this.lastObserved = at;
+    this.lastObserved = at; this.rememberUncertainty(at);
     for (const [id, sent] of this.pending) if (at - sent > 500) this.pending.delete(id);
     return at;
   }
   private best(): Sample | undefined { return this.samples.reduce<Sample | undefined>((best, s) => !best || s.rtt < best.rtt ? s : best, undefined); }
 
+  private rememberUncertainty(at: number): void {
+    const best = this.best();
+    if (best) this.uncertaintyTicks = radius(best) + Math.abs(projected(best, at) - Math.max(this.baseTick, this.value ?? this.baseTick));
+  }
+
   read(activeControls = false): DirectClockReading {
-    const at = this.observe(), best = this.best();
+    const at = this.observe();
     const fractionalTick = Math.max(this.baseTick, this.value ?? this.baseTick);
     const fresh = this.leader || at - this.lastValid <= 1000;
-    const reason = this.fault ?? (this.value === undefined ? 'sampling' : !this.started ? 'waiting' : !fresh ? 'stale' : 'ready');
-    return { tick: Math.floor(fractionalTick), fractionalTick, canOriginate: reason === 'ready', canAdvance: !this.fault && this.started && (fresh || !activeControls), reason, uncertaintyTicks: best ? radius(best) + Math.abs(projected(best, at) - fractionalTick) : 0 };
+    const uncertaintyTicks = this.uncertaintyTicks;
+    const uncertain = uncertaintyTicks > MAX_CLOCK_UNCERTAINTY_TICKS;
+    const reason = this.fault ?? (this.value === undefined ? 'sampling' : !this.started ? 'waiting' : uncertain ? 'uncertain' : !fresh ? 'stale' : 'ready');
+    return { tick: Math.floor(fractionalTick), fractionalTick, canOriginate: reason === 'ready', canAdvance: !this.fault && !uncertain && this.started && (fresh || !activeControls), reason, uncertaintyTicks };
   }
   request(): ClockProbe | undefined {
     const at = this.observe();
@@ -91,7 +103,7 @@ export class DirectTickClock {
     this.samples.push(sample);
     if (this.samples.length > 8) this.samples.shift();
     this.value ??= sample.midpoint;
-    this.lastAccepted = raw[3]; this.lastValid = at;
+    this.lastAccepted = raw[3]; this.lastValid = at; this.rememberUncertainty(at);
     if (raw[4] >= this.baseTick) this.started = true;
     return 'accepted';
   }

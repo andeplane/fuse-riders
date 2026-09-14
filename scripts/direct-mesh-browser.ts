@@ -16,7 +16,7 @@ const bundle = await build({ stdin: { contents: `
 import {PeerTransport} from './src/online/peer-transport.ts';
 import {packMessage,unpackMessage} from './src/online/action-replication.ts';
 globalThis.startMesh=(code,token)=>{
- const peers=new Set(), bound=new Set(), got=[], errors=[], statuses=[];
+ const peers=new Set(), bound=new Set(), got=[], controls=[], errors=[], statuses=[];
  // Browser impairment harness only: retain locally created channels to inject stale data/closure.
  const channels=[], trail=[], tracked=new WeakSet(), originalCreate=RTCPeerConnection.prototype.createDataChannel;
  const record=entry=>{trail.push({at:performance.now(),...entry});if(trail.length>100)trail.shift();};
@@ -31,18 +31,23 @@ globalThis.startMesh=(code,token)=>{
  let blockCoordinator=false;
  const transport=new PeerTransport(code,token,{
   welcome:()=>{},peer:(id,online)=>{if(online)peers.add(id);else{peers.delete(id);bound.delete(id);}},linkReset:id=>bound.delete(id),
-  message:(id,message)=>{if(blockCoordinator&&id===transport.hostId)return;if(message?.type==='bind'&&message.segment===7){if(transport.bindFast(id,7)){bound.add(id);transport.send(id,{type:'bound',segment:7});}}else if(message?.type==='bound'&&message.segment===7){if(transport.bindFast(id,7))bound.add(id);}},
+  message:(id,message)=>{if(blockCoordinator&&id===transport.hostId)return;if(Array.isArray(message)){controls.push({from:id,packet:message});return;}if(message?.type==='bind'&&message.segment===7){if(transport.bindFast(id,7,{actions:[1],receipts:[]})){bound.add(id);transport.send(id,{type:'bound',segment:7});}}else if(message?.type==='bound'&&message.segment===7){if(transport.bindFast(id,7,{actions:[1],receipts:[]}))bound.add(id);}},
   fast:(id,bytes)=>{if(blockCoordinator&&id===transport.hostId)return;got.push({from:id,packet:unpackMessage(bytes)});},
   status:message=>{statuses.push(message);if(statuses.length>30)statuses.shift();if(/exceeded|protocol changed|replaced/i.test(message))errors.push(message);},
  },{mesh:true});
  const pump=setInterval(()=>{for(const id of peers){if(blockCoordinator&&id===transport.hostId)continue;if(!bound.has(id))transport.send(id,{type:'bind',segment:7});}},100);
  transport.connect();
  globalThis.mesh={
-  snapshot:async()=>({id:transport.id,host:transport.hostId,peers:[...peers],bound:[...bound],got,errors,statuses,membershipTrail,stats:await transport.stats(),diagnostics:await transport.diagnostics()}),
-  ready:(count=5)=>bound.size===count&&[...peers].every(id=>transport.fastReady(id)),
+  snapshot:async()=>({id:transport.id,host:transport.hostId,peers:[...peers],bound:[...bound],got,controls,errors,statuses,membershipTrail,stats:await transport.stats(),diagnostics:await transport.diagnostics()}),
+  ready:(count=5)=>bound.size===count&&[...peers].every(id=>transport.fastReady(id)&&transport.boundReady(id)),
   members:()=>[...peers],
   blackhole:value=>{dropFast=value;},
   received:()=>got.length,
+  controlCount:()=>controls.length,
+  boundControl:to=>transport.sendBound(to,[1,7,'time',1,100.125]),
+  staleControl:to=>transport.sendBound(to,[1,6,'time',1,100.125]),
+  unknownControl:to=>transport.sendBound(to,[1,7,'other',1]),
+  rawControl:()=>{let sent=0;for(const c of channels)if(c.label==='game'&&c.readyState==='open'){c.send(packMessage([1,6,'time',1,100.125]));c.send(packMessage([1,7,'other',1]));sent+=2;}return sent;},
   trail:()=>trail,
   send:(to,sequence)=>transport.sendFast(to,packMessage([1,7,1,[[sequence,66+sequence,0,sequence%4]],null])),
   stale:to=>transport.sendFast(to,packMessage([1,6,1,[[1,67,0,1]],null])),
@@ -52,7 +57,7 @@ globalThis.startMesh=(code,token)=>{
   stop:()=>{clearInterval(pump);transport.close();},
  };
 };`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife', platform: 'browser', define: { 'import.meta.env.BASE_URL': '"/"', 'import.meta.env.VITE_API_ORIGIN': 'undefined' } });
-interface Snapshot { id: string; host: string; peers: string[]; bound: string[]; got: { from: string; packet: unknown }[]; errors: string[]; stats: { direct: number; relayed: number; buffered: number } }
+interface Snapshot { id: string; host: string; peers: string[]; bound: string[]; got: { from: string; packet: unknown }[]; controls: {from:string;packet:unknown}[]; errors: string[]; stats: { direct: number; relayed: number; buffered: number } }
 const snapshot = (page: Page) => page.evaluate(async () => (globalThis as unknown as { mesh: { snapshot(): Promise<Snapshot> } }).mesh.snapshot());
 const browsers = [await chromium.launch({ headless: true }), await webkit.launch({ headless: true })];
 const pages: Page[] = [], errors: string[] = [], samples: Snapshot[][] = [];
@@ -83,6 +88,13 @@ try {
     assert.ok(sent, `Peer ${source} sends directly to peer ${target}`);
   }
   for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { received(): number } }).mesh.received() === 5);
+  for (let source=0;source<6;source++) for(let target=0;target<6;target++) if(source!==target) {
+    assert.equal(await pages[source].evaluate(to=>(globalThis as unknown as {mesh:{boundControl(to:string):boolean}}).mesh.boundControl(to),ready[target].id),true);
+  }
+  for(const page of pages) await page.waitForFunction(()=>(globalThis as unknown as {mesh:{controlCount():number}}).mesh.controlCount()===5);
+  assert.equal(await pages[0].evaluate(to=>(globalThis as unknown as {mesh:{staleControl(to:string):boolean}}).mesh.staleControl(to),ready[1].id),false);
+  assert.equal(await pages[0].evaluate(to=>(globalThis as unknown as {mesh:{unknownControl(to:string):boolean}}).mesh.unknownControl(to),ready[1].id),false);
+  console.log('All thirty directions delivered bound compact reliable control; stale/unknown outbound tuples were rejected.');
   samples.push(await Promise.all(pages.map(snapshot)));
   const initiator=ready.findIndex(m=>m.id===[...ready.map(m=>m.id)].sort()[0]);
   phase='fast-send blackhole';
@@ -95,9 +107,11 @@ try {
   console.log('Compact liveness restored fast delivery after a three-second send blackhole in',Math.round(recoveryMs),'ms.');
   phase='stale ingress';
   assert.equal(await pages[initiator].evaluate(()=>(globalThis as unknown as {mesh:{rawStale():number}}).mesh.rawStale()),5);
+  assert.equal(await pages[initiator].evaluate(()=>(globalThis as unknown as {mesh:{rawControl():number}}).mesh.rawControl()),10);
   // Negative receive check on real SCTP; this wait is observation time, not a unit-test clock.
   await pages[initiator].waitForTimeout(250);
   assert.deepEqual((await Promise.all(pages.map(snapshot))).map(m=>m.got.length),samples.at(-1)!.map(m=>m.got.length));
+  assert.deepEqual((await Promise.all(pages.map(snapshot))).map(m=>m.controls.length),samples.at(-1)!.map(m=>m.controls.length));
   for(const page of pages)await page.evaluate(()=>(globalThis as unknown as {mesh:{block(value:boolean):void}}).mesh.block(false));
   phase='action channel closure';
   await pages[initiator].evaluate(()=>(globalThis as unknown as {mesh:{closeFast():void}}).mesh.closeFast());
