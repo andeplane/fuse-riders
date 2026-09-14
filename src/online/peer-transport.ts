@@ -53,7 +53,13 @@ export class PeerTransport {
     if(previous&&previous.incarnation===raw.incarnation&&(raw.epoch<previous.epoch||(raw.epoch===previous.epoch&&raw.expiresAt<previous.expiresAt)))return;
     const changed=!previous||previous.incarnation!==raw.incarnation||previous.epoch!==raw.epoch;
     this.grant=raw;
-    if(changed){this.received.clear();this.callbacks.authorityChanged?.();}
+    if(changed){
+      this.received.clear();
+      // Compact aliases may restart in a new service epoch only on fresh RTC associations.
+      if(previous){const retired=[...this.links.values()];this.links.clear();for(const link of retired){link.gate.drain();link.fastGate.drain();link.pc.close();}}
+      this.callbacks.authorityChanged?.();
+      if(previous)for(const id of this.connections.keys())if(this.initiates(id))void this.offer(id).catch(()=>this.callbacks.status('Restoring direct links'));
+    }
   }
   private sampleTime(renew=true):void {
     if(this.stopped||this.socket?.readyState!==WebSocket.OPEN)return;

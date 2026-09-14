@@ -67,13 +67,15 @@ The LAN TV provides audio controls, fullscreen, a main-menu reset, session score
 ```text
 LAN:     phones ── WebSocket ── Node simulation ── WebSocket ── TV
 
-Online:  player/display ── WebRTC ── host browser simulation
-                └── Cloud Run gateway ────────────┘
+Online:  input origins ── WebRTC ── subscribed local simulators
+                 └── Cloud Run gateway ─────────────┘
                     Firestore: room metadata / leases
                     Pub/Sub: signalling / coordination
 ```
 
-The shared deterministic simulation advances at 20 Hz. Online replication publishes at 20 Hz using field changes and trail deltas with periodic keyframes. Local presentation replays applied-tick movement using the same pure kernel as authority, including drunk steering. A bounded synchronized tick estimate supplies fractional render time; acknowledgements report actual application, not mere receipt. Remote snapshots use a tick-indexed buffer: 25 ms after a fresh validated nearby probe (RTT ≤40 ms), otherwise 100 ms, with no speculative extrapolation. A fixed response benchmark batch measured local p95 27.6 ms and TV p95 88.2 ms; see [method, failed trials and continuity measurements](docs/online/RESPONSE-BENCHMARK.md). These are desktop browser measurements, not physical-device latency guarantees. Gameplay never uses the backend as a relay. Failed WebRTC connections show why (STUN, signalling or ICE) in the header and under **MENU → LINK DIAGNOSTICS**; there is no TURN server, so a guest behind symmetric or carrier-grade NAT (common on cellular) may be unable to connect directly and should join the host's Wi-Fi. See [protocol notes](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
+The shared deterministic simulation advances at 20 Hz. This implementation branch replaces routine online world deltas with absolute-tick MessagePack actions sent directly to every subscribed simulator. Personal-screen clients simulate locally and roll back late input; controller-only phones retain input/status metadata, and a shared TV owns its world. The coordinator handles setup, finality and lifecycle recovery outside ordinary input delivery. State checkpoints are reserved for lifecycle/recovery. This is the branch's default online protocol; it has no opt-in replication flag. Qualification is still in progress: see [implementation status and limitations](docs/online/DIRECT-ACTIONS-IMPLEMENTATION.md).
+
+The public release still uses the earlier snapshot architecture. Its [response measurements](docs/online/RESPONSE-BENCHMARK.md), including local p95 27.6 ms and TV p95 88.2 ms, do not measure this direct-action runtime. Gameplay never uses the backend as a relay. Failed WebRTC connections show diagnostics under **MENU → LINK DIAGNOSTICS**; the deployment has no TURN server, so some NAT configurations cannot connect directly. Physical-phone and WAN qualification remain separate gates. See [direct-link diagnostics and limits](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
 
 | Location | Responsibility |
 | --- | --- |

@@ -409,3 +409,14 @@ test('remote future staging derives from both clock uncertainties without extend
   advance(world, 79); assert.equal(world.state.held.get(0)?.flags, 1);
   advance(world, 105); assert.equal(world.advance(106).status, 'paused');
 });
+
+test('recovery distinguishes invalid action admission from verified finality disagreement', () => {
+  const world = setup();
+  const input = world.receive(0, packet(0, [[1, 1000, 0, 1]]), 65);
+  assert.equal(input.status, 'invalid'); assert.equal(input.corrupt, undefined);
+  assert.equal(world.finalize([1, 7, 'final', 66, [], '0'.repeat(16)]).corrupt, undefined);
+  advance(world, 66); const finality = certify(world, 66);
+  const corrupt = world.finalize([...finality.slice(0, 5), '0'.repeat(16)]);
+  assert.equal(corrupt.status, 'invalid'); assert.equal(corrupt.corrupt, true);
+  assert.equal(world.finalize(finality).status, 'accepted');
+});

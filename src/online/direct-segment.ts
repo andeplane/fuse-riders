@@ -20,7 +20,7 @@ export interface SegmentPorts {
   fast(peer: string, bytes: Uint8Array): boolean;
   reliable(peer: string, tuple: unknown[]): boolean;
   events(events: CommittedEvent[]): void;
-  fault(reason: string): void;
+  fault(reason: string, corrupt?: boolean): void;
 }
 
 /** Live segment orchestration shared by the browser runtime and deterministic network tests. */
@@ -71,11 +71,11 @@ export class DirectSegment {
   get inputSlots(): number[] { return [...this.origins.keys()]; }
   get retainedRecords(): number { return [...this.deliveries.values()].reduce((sum, peers) => sum + [...peers.values()].reduce((n, q) => n + q.retainedRecords, 0), 0); }
   revision(slot: number): number { return this.origins.get(slot)?.revision ?? -1; }
-  private fail(reason: string): void {
+  private fail(reason: string, corrupt = false): void {
     if (this.stopped) return;
     this.stopped = reason;
     this.origins = new Map([...this.origins].map(([slot, origin]) => [slot, origin.suspend()]));
-    this.ports.fault(reason);
+    this.ports.fault(reason, corrupt);
   }
   stop(): void { this.stopped ??= 'Segment replaced'; this.origins.clear(); this.deliveries.clear(); this.pendingFinality.clear(); }
   input(slot: number, frame: OriginInput): boolean {
@@ -131,7 +131,7 @@ export class DirectSegment {
     if (raw[4].some(p => !Array.isArray(p) || p.length !== 2 || !uint32(p[0]) || !uint32(p[1]) || !slots.delete(p[0]))) return;
     const finality = structuredClone(raw); finality[4].sort(([a], [b]) => a - b);
     if (this.finality && (finality[3] === this.finalizedTick ? canonical(finality) !== canonical(this.finality) : finality[4].some(([slot, seq]) => seq < this.finality![4].find(([prior]) => prior === slot)![1]))) {
-      this.fail('Conflicting coordinator progress — synchronizing'); return;
+      this.fail('Conflicting coordinator progress — synchronizing', true); return;
     }
     this.finality = finality;
   }
@@ -178,7 +178,7 @@ export class DirectSegment {
     if (!reading.canOriginate && active && reading.reason === 'stale') this.fail('Input clock stale — synchronizing controls');
   }
   private result(outcome: WorldResult): boolean {
-    if (outcome.status === 'invalid' || outcome.status === 'overflow' || outcome.status === 'paused') { this.fail(`World ${outcome.status} — synchronizing`); return false; }
+    if (outcome.status === 'invalid' || outcome.status === 'overflow' || outcome.status === 'paused') { this.fail(`World ${outcome.status} — synchronizing`, !!outcome.corrupt); return false; }
     if (outcome.rollbackTicks) { this.rollbackCount++; this.rollbackTicks += outcome.rollbackTicks; }
     this.refreshFinalView();
     if (outcome.events.length) this.ports.events(outcome.events);

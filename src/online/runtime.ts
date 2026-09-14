@@ -1,220 +1,429 @@
-import { REPLAY_RULES } from '../shared/action-log.js';
-import { ActionSender, ActionReceiver, ACTION_VERSION } from './action-replication.js';
-import { toSnapshot } from '../shared/game.js';
-import { authorityTransitionStatus } from './authority-status.js';
-import { StatusNotices } from './status-notices.js';
-import { AuthorityGrace } from './authority-grace.js';
-import { KeyframeDelivery, AcceptedKeyframe, type KeyframeReceipt } from './keyframe-delivery.js';
-import { recipientAcknowledgements } from './recipient-ack.js';
-import { isShotTransition } from './shot-failure.js';
-import { isAppliedMotionState, isInputControlScope } from './prediction-validation.js';
-import { DeferredCommand } from './deferred-command.js';
-import { TickProbes } from './tick-probes.js';
-import type { AppliedMotionState, TickClockSample, InputControlScope } from './prediction-contract.js';
-import { JoinRequest } from './join-request.js';
-import { HostSession, type RoomCommand } from './host-session.js';
-import { PeerTransport } from './peer-transport.js';
-import { WorldDecoder, WorldEncoder, type WorldFrame } from './world-codec.js';
-import type { ViewSnapshot } from '../client/snapshot-stream.js';
-import type { RoomSettings } from '../shared/room-settings.js';
+import { canonical, type GameOperation } from '../shared/action-log.js';
+import { DIRECT_RULES, uint32 } from '../shared/direct-input.js';
+import { createGame, RIDER_SPEED, RIDER_TURN_RATE, toSnapshot } from '../shared/game.js';
+import { BotController, BOT_ID_PREFIX } from '../shared/bot-controller.js';
+import { advanceRiderPose } from '../shared/rider-motion.js';
+import { drunkHeadingOffset } from '../shared/drunk.js';
+import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { GameEvent } from '../shared/protocol.js';
-interface WorldEnvelope {type:'world';frame:WorldFrame;settings:RoomSettings;ack:Record<string,number>;paused:boolean;motion?:AppliedMotionState}
-export interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void;ended?:()=>void }
+import type { ViewSnapshot } from '../client/snapshot-stream.js';
+import type { AppliedMotionState, TickClockSample } from './prediction-contract.js';
+import type { RoomCommand } from './host-session.js';
+import { PeerTransport, type TransportCallbacks } from './peer-transport.js';
+import { StatusNotices } from './status-notices.js';
+import { DirectSegment } from './direct-segment.js';
+import { RollbackWorld, type CommittedEvent } from './rollback-world.js';
+import { catalog, catalogView, deriveTransition, initialWorld, isCatalog, isPlan, isPreparation, isView, isThinView, manager, neutral, ownersFor, prepareWorld, record, thinSnapshot, transitionBytes, type LobbyCatalog, type Preparation, type RoomPlan } from './direct-room-state.js';
+
+export interface Callbacks { controlsReset?:()=>void;shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void;ended?:()=>void }
+export type OnlineInput = Omit<Extract<RoomCommand, { type: 'input' }>, 'scope' | 'intendedTick' | 'resultAcks'>;
+type Management = Exclude<RoomCommand, { type: 'input' }>;
+interface PendingCommand { request: number; command: Management; expires: number; sent: number }
+interface Incoming { header: Preparation; at: number; buffer?: Uint8Array; received: number; candidate?: Uint8Array; ready: boolean; activated: boolean; lastAck: number }
+interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean }
+
+export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendBound' | 'stats' | 'diagnostics'>;
+export interface RuntimeEnvironment {
+  now(): number;
+  hidden(): boolean;
+  display: boolean;
+  randomId(): string;
+  storage: Pick<Storage, 'getItem' | 'setItem'>;
+  schedule(callback: () => void): () => void;
+  transport(callbacks: TransportCallbacks): RuntimeTransport;
+}
+function browserEnvironment(code: string, token: string): RuntimeEnvironment {
+  return { now: () => performance.now(), hidden: () => document.hidden, display: new URLSearchParams(location.search).has('display'), randomId: () => crypto.randomUUID(), storage: localStorage,
+    schedule: callback => { const timer = setInterval(callback, 10); return () => clearInterval(timer); }, transport: callbacks => new PeerTransport(code, token, callbacks, { mesh: true }) };
+}
+/** Online gameplay uses one direct action protocol; HostSession is only a transient management validator. */
 export class RoomRuntime {
-  private readonly actionMode=new URLSearchParams(location.search).get('replication')==='actions';
-  private readonly displayRole=new URLSearchParams(location.search).has('display');
-  private readonly actionPeers=new Map<string,{sender:ActionSender;display:boolean;full:boolean;lastResync:number}>();
-  private readonly actionReceiver=new ActionReceiver();
-  private actionStopped=false;
-  private actionNegotiated=false;
-  private actionFull=false;
-  private actionHelloStarted=-Infinity;
-  private lastActionResync=-Infinity;
-  get replicationDiagnostics(){return {mode:this.actionMode?'actions':'snapshots',acceptedBatches:this.actionReceiver.acceptedBatches,hashMismatches:this.actionReceiver.hashMismatches,replicaTick:this.actionReceiver.state?.game.tick??null,fullViewPeers:[...this.actionPeers.values()].filter(p=>p.full).length,controllerPeers:[...this.actionPeers.values()].filter(p=>!p.full).length,binarySentBytes:this.transport.binarySentBytes};}
-  private session?:HostSession;
-  private peers=new Set<string>();
-  private encoders=new Map<string,WorldEncoder>();
-  private generations=new Map<string,number>();
-  private keyframes=new Map<string,KeyframeDelivery<WorldEnvelope>>();
-  private acceptedKeyframe=new AcceptedKeyframe();
-  private lastResync=0;
-  private decoder=new WorldDecoder();
-  private lastState=performance.now();
-  private readonly deferredHost=new DeferredCommand<RoomCommand>();
-  private readonly tickProbes=new TickProbes(()=>performance.now());
-  private lastClockProbe=-Infinity;
-  private lastMotionScope='';
-  private interval?:ReturnType<typeof setInterval>;
-  private lastTick=performance.now();
-  private accumulator=0;
-  private announced=false;
-  private authorityActive=false;
-  private readonly authorityGrace=new AuthorityGrace();
-  private recovering=false;
-  private lastPausedPublish=0;
-  private readonly joinRequest=new JoinRequest<Extract<RoomCommand,{type:'join'}>>();
-  readonly transport:PeerTransport;
-  private readonly status:StatusNotices;
-  constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks){
-    this.status=new StatusNotices(()=>performance.now(),text=>callbacks.status(text));
-    this.transport=new PeerTransport(code,token,{
-      welcome:(id,hostId)=>{
-        if(id===hostId&&!this.session){
-          this.session=new HostSession(id,settings,{token:()=>crypto.randomUUID(),captureActions:this.actionMode});
-          try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.status.notice('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
+  readonly transport: RuntimeTransport;
+  private readonly display: boolean;
+  private readonly status: StatusNotices;
+  private plan?: RoomPlan;
+  private lobby: LobbyCatalog;
+  private roles = new Map<string, { connection: string; display: boolean }>();
+  private planCounter = 0;
+  private requestCounter = 0;
+  private requestedPlans = new Map<string, number>();
+  private pendingPlan?: { request: number; settings: RoomSettings; sent: number; at: number };
+  private commands = new Map<string, PendingCommand>();
+  private acceptedCommands = new Map<string, number>();
+  private localCommand?: PendingCommand;
+  private segment?: DirectSegment;
+  private incoming?: Incoming;
+  private outgoing?: Outgoing;
+  private change?: { base: RollbackWorld; ops: GameOperation[]; settings: RoomSettings };
+  private applied = new Set<string>();
+  private startAt?: number;
+  private faultPending?: string;
+  private corruptionPending = false;
+  private recoveryRequired = false;
+  private recovering = false;
+  private recoveryRequest?: { revision: number; peer: string; at: number; sent: number };
+  private lastFault?: string;
+  private recoveries: number[] = [];
+  private recoveryEpisodeAt?: number;
+  private chargedCorruption?: string;
+  private lastRecovery = -Infinity;
+  private lastHello = -Infinity;
+  private lastStatus = -Infinity;
+  private lastPublish = '';
+  private statusKeys = new Map<string, string>();
+  private statusRevision = 0;
+  private acceptedStatus = -1;
+  private view?: ViewSnapshot;
+  private matchId = '';
+  private lastBotTick = -1;
+  private readonly bots = new BotController();
+  private localInput?: OnlineInput;
+  private cancelSchedule?: () => void;
+  private stopped = false;
+  constructor(private readonly code: string, token: string, settings: RoomSettings, private readonly callbacks: Callbacks, private readonly environment: RuntimeEnvironment = browserEnvironment(code, token)) {
+    this.display = environment.display;
+    this.status = new StatusNotices(() => this.environment.now(), text => callbacks.status(text));
+    this.lobby = catalog(createGame(this.environment.randomId()), settings);
+    this.transport = environment.transport({
+      welcome: (id, host) => {
+        this.roles.set(id, { connection: this.transport.connectionId, display: this.display });
+        if (id === host && !this.segment) {
+          try { const saved: unknown = JSON.parse(this.environment.storage.getItem(`fuse-direct-room-${code}`) ?? 'null');
+            if (record(saved) && isCatalog(saved.catalog)) { this.lobby = saved.catalog; if (isView(saved.status)) { this.view = saved.status; this.matchId = this.lobby.matchId; this.recoveryRequired = saved.status.phase !== 'lobby'; } }
+          } catch { /* A damaged local cache cannot become a live simulation. */ }
         }
-        this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.actionReceiver.reset();this.actionPeers.clear();this.actionNegotiated=false;this.actionHelloStarted=-Infinity;this.callbacks.ready(id,id===hostId);
-        if(id!==hostId)this.transport.send(hostId,{type:'resync'});
+        callbacks.ready(id, id === host);
+        if (this.recoveryRequired) { this.publish(); this.status.notice('Game recovery needs a fresh lobby — choose MAIN MENU'); }
+        else if (id === host) this.issuePlan(this.lobby.settings);
+        this.lastHello = -Infinity;
       },
-      peer:(id,online)=>{
-        if(online){this.peers.add(id);this.encoders.delete(id);this.keyframes.delete(id);if(id===this.transport.hostId&&!this.session){this.decoder.reset();this.acceptedKeyframe.clear();this.transport.send(id,{type:'resync'});}}
-        else{this.actionPeers.delete(id);this.peers.delete(id);this.encoders.delete(id);this.keyframes.delete(id);this.session?.disconnect(id);}
+      peer: (id, online) => {
+        if (!online || this.plan?.members.some(m => m.id === id && m.connection !== this.transport.connectionOf(id))) { this.acceptedCommands.delete(id); this.requestedPlans.delete(id); this.commands.delete(id); }
+        if (!online) this.roles.delete(id);
+        if (this.plan && this.plan.members.some(m => m.id === id && (!online || m.connection !== this.transport.connectionOf(id)))) this.faultPending = 'Room membership changed — synchronizing';
+        this.lastHello = -Infinity;
       },
-      message:(id,data)=>this.receive(id,data),status:text=>this.status.recurring(text),
-      ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.actionReceiver.reset();this.actionPeers.clear();this.actionNegotiated=false;this.actionHelloStarted=-Infinity;this.callbacks.ended?.();},
-      revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.interval=undefined;this.session?.clear();this.session=undefined;this.status.terminal('This host tab was replaced — use the newer tab');},
-      // A protocol mismatch closes the transport; the tick interval has to stop too, or it would keep restating
-      // connection status over the reload notice (#23).
-      terminated:text=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.interval=undefined;this.status.terminal(text);},
-      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.actionReceiver.reset();this.actionPeers.clear();this.actionNegotiated=false;this.actionHelloStarted=-Infinity;this.session?.clear();this.authorityGrace.reset();this.accumulator=0;},
+      linkReset: id => { if (this.segment && this.plan?.members.some(m => m.id === id)) this.faultPending = 'Direct link replaced — synchronizing'; },
+      message: (id, data) => this.receive(id, data), fast: (id, bytes) => { if (this.activationSafe()) this.segment?.receiveFast(id, bytes); },
+      status: text => { if (!this.recoveryRequired) this.status.recurring(text); },
+      authorityChanged: () => { this.freeze(); this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
+      ended: () => { this.stop(); callbacks.ended?.(); },
+      revoked: () => this.terminal('This creator tab was replaced — use the newer tab'),
+      terminated: text => this.terminal(text),
     });
   }
-  start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
-  private receive(id:string,raw:unknown):void {
-    if(!raw||typeof raw!=='object')return;
-    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;transient?:boolean;shotRejected?:boolean;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope;receipt?:KeyframeReceipt};
-    if(this.actionMode&&id===this.transport.hostId&&!this.session&&data.type==='actionUnsupported'){this.actionStopped=true;this.status.terminal('Action replay protocol unavailable — reload every participant with the same build');return;}
-    if(this.session){
-      if(data.type==='actionHello'){
-        const hello=raw as {version?:number;rules?:string;display?:boolean};
-        if(!this.actionMode||hello.version!==ACTION_VERSION||hello.rules!==REPLAY_RULES||typeof hello.display!=='boolean'){this.transport.send(id,{type:'actionUnsupported'});return;}
-        this.transport.send(id,{type:'actionWelcome',version:ACTION_VERSION,rules:REPLAY_RULES,full:hello.display||this.session.settings.mode==='devices'});
-        const old=this.actionPeers.get(id);
-        if(!old){this.actionPeers.set(id,{sender:new ActionSender(),display:hello.display,full:hello.display||this.session.settings.mode==='devices',lastResync:-Infinity});this.encoders.delete(id);this.keyframes.delete(id);}
-        return;
-      }
-      if(data.type==='actionReceipt'){this.actionPeers.get(id)?.sender.receive(raw);return;}
-      if(data.type==='actionResync'){const peer=this.actionPeers.get(id);if(peer&&performance.now()-peer.lastResync>=500){peer.lastResync=performance.now();peer.sender.requestBaseline();}return;}
-      if(data.type==='tickProbe'&&Number.isSafeInteger(data.probeId)&&Number.isFinite(data.localSentAt)){
-        const scope=this.session.controlScope(id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.transport.send(id,{type:'tickPong',probeId:data.probeId,localSentAt:data.localSentAt,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing',scope});return;
-      }
-      if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(data.command?.type==='input'?{transient:true}:{}),...(isShotTransition(data.command)?{shotRejected:true}:{})});this.peers.add(id);}
-      if(data.type==='worldReceipt'){this.keyframes.get(id)?.acknowledge(data.receipt);return;}
-      if(data.type==='resync'){this.peers.add(id);if(!this.keyframes.get(id)?.waiting)this.encoders.delete(id);}
+  get replicationDiagnostics() { return { mode: 'direct', coordinator: this.plan?.coordinator, alias: this.plan?.revision, simulator: !!this.segment?.world, replicaTick: this.segment?.world?.state.game.tick ?? null, finalizedTick: this.segment?.finalizedTick, finalizedHash: this.segment?.world?.finalizedHash, retainedRecords: this.segment?.retainedRecords ?? 0, rollbackCount: this.segment?.rollbackCount ?? 0, fastSentBytes: this.transport.fastSentBytes, binarySentBytes: this.transport.binarySentBytes, recoveryRequired: this.recoveryRequired, corruptRecoveryAttempts: this.recoveries.filter(at => this.environment.now() - at < 30000).length, lastFault: this.lastFault, barrier: !!this.incoming && !this.incoming.activated, fault: this.segment?.faultReason ?? this.faultPending }; }
+  start(): void { this.transport.connect(); this.cancelSchedule = this.environment.schedule(() => this.tick()); }
+  private terminal(text: string): void { this.freeze(); this.stopped = true; this.cancelSchedule?.(); this.status.terminal(text); }
+  private freeze(): void { this.segment?.stop(); this.localInput = undefined; this.startAt = undefined; this.lastBotTick = -1; this.callbacks.controlsReset?.(); }
+  private send(id: string, data: unknown): boolean { if (id === this.transport.id) { this.receive(id, data); return true; } return this.transport.send(id, data, true); }
+  private planCurrent(plan: RoomPlan): boolean {
+    return plan.incarnation === this.transport.grant?.incarnation && plan.epoch === this.transport.grant?.epoch && plan.members.every(m => m.connection === this.transport.connectionOf(m.id));
+  }
+  private issuePlan(settings: RoomSettings, force = false): void {
+    if (this.transport.id !== this.transport.hostId || !this.transport.authorityPermitted() || this.recoveryRequired) return;
+    if (this.transport.members().some(id => this.roles.get(id)?.connection !== this.transport.connectionOf(id))) return;
+    if (!force && this.outgoing?.activating && [...this.outgoing.peers.values()].some(peer => !peer.applied)) return;
+    const members = [...this.roles].filter(([id, role]) => role.connection === this.transport.connectionOf(id)).map(([id, role]) => ({ id, connection: role.connection, display: role.display, view: role.display || settings.mode === 'devices' })).sort((a, b) => a.id.localeCompare(b.id));
+    if (!members.some(m => m.id === this.transport.id)) return;
+    const previous = this.plan?.coordinator;
+    const coordinator = members.find(m => m.id === previous && m.view)?.id ?? members.find(m => m.id === this.transport.hostId && m.view)?.id ?? members.find(m => m.view)?.id ?? null;
+    const source = previous ?? this.transport.id;
+    if (!members.some(m => m.id === source)) { this.recoveryRequired = true; this.status.notice('The simulation coordinator left — choose MAIN MENU for a fresh lobby'); return; }
+    if (!force && this.plan && canonical([members, coordinator, settings]) === canonical([this.plan.members, this.plan.coordinator, this.plan.settings])) return;
+    if (++this.planCounter > 0xffffffff) { this.terminal('Room sequence exhausted — create a new room'); return; }
+    const plan: RoomPlan = { type: 'directPlan', rules: DIRECT_RULES, revision: this.planCounter, initialize: !previous, incarnation: this.transport.grant!.incarnation, epoch: this.transport.grant!.epoch, source, coordinator, members, settings: structuredClone(settings) };
+    for (const peer of members) if (peer.id !== this.transport.id) this.send(peer.id, plan);
+    this.adoptPlan(plan);
+  }
+  private adoptPlan(plan: RoomPlan): void {
+    if (!this.planCurrent(plan) || plan.revision <= (this.plan?.revision ?? 0) || !plan.members.some(m => m.id === this.transport.id)) return;
+    this.freeze(); this.plan = structuredClone(plan); this.incoming = undefined; this.outgoing = undefined; this.applied.clear(); this.acceptedStatus = -1; this.statusKeys.clear(); this.recovering = false; this.recoveryRequired = false; this.recoveryRequest = undefined; this.faultPending = undefined; this.corruptionPending = false;
+    this.lobby.settings = structuredClone(plan.settings);
+    if (!plan.coordinator) {
+      this.segment = undefined; this.change = undefined; this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish();
+      if (this.transport.id === this.transport.hostId) this.broadcastLobby();
+      this.status.recurring('Open TV view to start · phones are controllers'); return;
+    }
+    if (plan.source === this.transport.id) this.prepare();
+    if (!this.recoveryRequired) this.status.recurring('Synchronizing direct simulation');
+  }
+  private prepare(): void {
+    const plan = this.plan!;
+    try {
+      if (!plan.initialize && !this.change?.base && !this.segment?.world) throw new Error('The coordinator lost its simulation — choose MAIN MENU for a fresh lobby');
+      const base = this.change?.base ?? this.segment?.world ?? initialWorld(this.lobby, plan.revision);
+      const ops: GameOperation[] = [...(this.change?.ops ?? [])];
+      for (const player of base.state.game.players.values()) if (!player.id.startsWith(BOT_ID_PREFIX) && !plan.members.some(m => m.id === player.id)) ops.push(['lobby', 'roundOver', 'matchOver'].includes(base.state.game.phase) ? [2, player.id] : [3, player.id, false]);
+      const payload = transitionBytes(base, ops), derived = deriveTransition(payload, plan.revision, this.segment?.world);
+      if (!derived) throw new Error('Lifecycle base could not be validated');
+      const game = derived.state.game;
+      const view = { ...toSnapshot(game), tick: game.tick, round: game.round };
+      const header: Preparation = { type: 'directPrepare', revision: plan.revision, alias: plan.revision, bytes: payload.byteLength, hash: derived.hash, matchId: game.matchId, tick: game.tick, round: game.round, status: thinSnapshot(view), ...(game.phase === 'lobby' ? { lobby: catalog(game, plan.settings) } : {}), owners: ownersFor(game, plan) };
+      this.outgoing = { header, payload, at: this.environment.now(), activating: false, peers: new Map(plan.members.map(m => [m.id, { header: false, offset: 0, ready: false, applied: false, lastMeta: -Infinity, lastChunk: -Infinity }])) };
+      this.acceptPreparation(header);
+      if (plan.members.find(m => m.id === this.transport.id)!.view) { this.incoming!.buffer = payload; this.incoming!.received = payload.length; this.finishPreparation(); }
+    } catch (error) { this.lastFault = error instanceof Error ? error.message : 'Lifecycle preparation failed'; this.requireLobby(this.lastFault); const message = { type: 'directBaseUnavailable', revision: plan.revision }; if (this.transport.id === this.transport.hostId) { for (const member of plan.members) if (member.id !== this.transport.id) this.send(member.id, message); } else this.send(this.transport.hostId, message); }
+  }
+  private acceptPreparation(header: Preparation): void {
+    const plan = this.plan!;
+    if (!isPreparation(header, plan)) return;
+    if (this.incoming) { if (canonical(this.incoming.header) !== canonical(header)) { this.faultPending = 'Conflicting lifecycle preparation'; this.corruptionPending = true; } else this.send(plan.source, { type: 'directHeader', revision: plan.revision }); return; }
+    const full = plan.members.find(m => m.id === this.transport.id)!.view;
+    this.incoming = { header: structuredClone(header), at: this.environment.now(), ...(full ? { buffer: new Uint8Array(header.bytes) } : {}), received: 0, ready: false, activated: false, lastAck: -Infinity };
+    this.send(plan.source, { type: 'directHeader', revision: plan.revision });
+  }
+  private finishPreparation(): void {
+    const incoming = this.incoming!, plan = this.plan!;
+    if (!incoming.buffer || incoming.received !== incoming.header.bytes) return;
+    const candidate = prepareWorld(incoming.buffer, incoming.header, plan, this.segment?.world);
+    if (!candidate) { this.faultPending = 'Checkpoint validation failed'; this.corruptionPending = true; return; }
+    incoming.candidate = candidate; incoming.buffer = undefined;
+  }
+  private bind(): boolean {
+    const plan = this.plan!, incoming = this.incoming!;
+    const localView = plan.members.find(m => m.id === this.transport.id)!.view;
+    let ready = true;
+    for (const peer of plan.members) if (peer.id !== this.transport.id) {
+      const actions = localView ? incoming.header.owners.filter(([, owner]) => owner === peer.id).map(([slot]) => slot) : [];
+      const receipts = peer.view ? incoming.header.owners.filter(([, owner]) => owner === this.transport.id).map(([slot]) => slot) : [];
+      if (!this.transport.bindFast(peer.id, plan.revision, { actions, receipts }) || !this.transport.boundReady(peer.id)) ready = false;
+    }
+    return ready;
+  }
+  private activate(): void {
+    const plan = this.plan!, incoming = this.incoming!;
+    if (!incoming.ready) return;
+    if (!incoming.activated) {
+      const now = this.environment.now(); this.startAt = plan.coordinator === this.transport.id ? now + 800 : undefined;
+      this.segment = new DirectSegment({ alias: plan.revision, id: this.transport.id, coordinator: plan.coordinator!, baseTick: incoming.header.tick, running: incoming.header.status.phase !== 'lobby', members: plan.members.map(m => m.id), views: plan.members.filter(m => m.view).map(m => m.id), owners: incoming.header.owners, bootstrap: incoming.candidate, startAt: this.startAt }, {
+        now: () => this.environment.now(), fast: (peer, bytes) => this.transport.sendFast(peer, bytes), reliable: (peer, tuple) => this.transport.sendBound(peer, tuple),
+        events: events => this.events(events), fault: (reason, corrupt) => { this.faultPending = reason; this.corruptionPending = !!corrupt; },
+      });
+      incoming.activated = true; this.view = this.segment.snapshot() ?? incoming.header.status; this.matchId = incoming.header.matchId; if (incoming.header.lobby) this.lobby = structuredClone(incoming.header.lobby); incoming.candidate = undefined; this.change = undefined; this.pendingPlan = undefined;
+      this.lastPublish = ''; this.publish(); this.lastBotTick = -1; this.applied.add(this.transport.id);
+      this.status.recurring('Connected · direct action simulation'); this.save();
+    }
+    for (const id of new Set([plan.source, plan.coordinator!])) this.send(id, { type: 'directApplied', revision: plan.revision });
+  }
+  /** A delayed RTC callback cannot publish a started clock before the activation deadline is checked. */
+  private activationSafe(): boolean {
+    if (this.startAt !== undefined && this.plan && this.environment.now() >= this.startAt - 100 && this.plan.members.some(m => !this.applied.has(m.id))) {
+      this.freeze(); this.faultPending = 'Not everyone confirmed the start — synchronizing'; return false;
+    }
+    return !this.stopped && !this.recoveryRequired;
+  }
+  private receive(id: string, raw: unknown): void {
+    if (this.stopped || !this.transport.authorityPermitted()) return;
+    if (Array.isArray(raw)) { if (this.activationSafe()) this.segment?.receiveControl(id, raw); return; }
+    if (!record(raw)) return;
+    if (raw.type === 'directHello' && raw.rules === DIRECT_RULES && typeof raw.display === 'boolean' && id !== this.transport.id) {
+      const connection = this.transport.connectionOf(id); if (!connection) return;
+      if (this.transport.id === this.transport.hostId) { this.roles.set(id, { connection, display: raw.display }); this.issuePlan(this.plan?.settings ?? this.lobby.settings); if (this.plan) this.send(id, this.plan); if (!this.plan?.coordinator) this.send(id, { type: 'directLobby', revision: this.plan?.revision, catalog: this.lobby }); }
       return;
     }
-    if(id!==this.transport.hostId)return;
-    if(this.actionMode&&data.type==='actionWelcome'){const welcome=raw as {version?:number;rules?:string;full?:boolean};if(welcome.version===ACTION_VERSION&&welcome.rules===REPLAY_RULES&&typeof welcome.full==='boolean'){this.actionNegotiated=true;this.actionFull=welcome.full;if(!welcome.full)this.actionReceiver.release();}return;}
-    if(this.actionMode&&this.actionNegotiated&&this.actionFull&&!this.actionStopped&&(data.type==='actionChunk'||data.type==='actionBatch')){
-      const now=performance.now(),result=this.actionReceiver.receive(raw,now);
-      if('receipt'in result&&result.receipt)this.transport.send(id,result.receipt,true);
-      if(result.status==='accepted'){
-        const {state,meta}=result,snapshot=toSnapshot(state.game);
-        if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.joinRequest.confirm();
-        this.lastState=now;this.callbacks.state({...snapshot,tick:state.game.tick,round:state.game.round},meta.settings,meta.ack,state.game.matchId,meta.motion??undefined);
-        this.status.recurring(meta.paused?'Paused — host is in the background':'Connected · experimental action replay');
-      }else if(result.status==='failed'){this.actionStopped=true;this.status.terminal('Action replay diverged repeatedly — reload to recover');}
-      else if(result.status==='resync'&&now-this.lastActionResync>=500){this.lastActionResync=now;this.transport.send(id,{type:'actionResync'},true);this.status.recurring('Repairing action replay — waiting for a checkpoint');}
+    if (raw.type === 'actionHello' || raw.type === 'resync') { this.send(id, { type: 'directUnsupported' }); return; }
+    if (raw.type === 'directUnsupported') { this.terminal('Game protocol changed — reload every participant'); return; }
+    if (id === this.transport.hostId && isPlan(raw)) { this.adoptPlan(raw); return; }
+    if (raw.type === 'directPlanRequest' && this.transport.id === this.transport.hostId && id === this.plan?.coordinator && uint32(raw.request) && parseRoomSettings(raw.settings)) {
+      if ((this.requestedPlans.get(id) ?? -1) < raw.request) { this.requestedPlans.set(id, raw.request); this.issuePlan(parseRoomSettings(raw.settings)!, true); } else if (this.plan) this.send(id, this.plan);
       return;
     }
-    if(data.type==='tickPong'&&isInputControlScope(data.scope)){
-      const sample=this.tickProbes.accept(data.probeId!,data.localSentAt!,data.authorityTick!,data.paused!,data.scope);if(sample)this.callbacks.clock?.(sample);return;
+    const plan = this.plan;
+    if (this.recoveryRequired || !plan || !this.planCurrent(plan) || raw.revision !== plan.revision || !plan.members.some(m => m.id === id)) return;
+    if (raw.type === 'directBaseUnavailable' && (id === plan.source || id === this.transport.hostId)) {
+      this.requireLobby('The simulation base is unavailable — creator must choose MAIN MENU');
+      if (this.transport.id === this.transport.hostId) for (const member of plan.members) if (member.id !== this.transport.id) this.send(member.id, raw);
+      return;
     }
-    if(data.type==='world'&&data.frame&&data.settings){
-      if(this.actionMode&&(!this.actionNegotiated||this.actionFull||this.actionStopped))return;
-      if(this.actionMode&&!(raw as {controller?:boolean}).controller)return;
-      const duplicateReceipt=this.acceptedKeyframe.receipt(raw as WorldEnvelope);
-      if(duplicateReceipt){this.transport.send(id,{type:'worldReceipt',receipt:duplicateReceipt});return;}
-      const result=this.decoder.decode(data.frame);
-      if(result.status!=='accepted'){if((result.status==='needsBaseline'||result.status==='invalid')&&performance.now()-this.lastResync>=500){this.lastResync=performance.now();this.transport.send(id,{type:'resync'});}return;}
-      const snapshot=result.state;
-      if(data.frame.base===0){this.acceptedKeyframe.remember(raw as WorldEnvelope);const receipt=this.acceptedKeyframe.receipt(raw as WorldEnvelope);if(receipt)this.transport.send(id,{type:'worldReceipt',receipt});}
-      if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.joinRequest.confirm();
-      this.lastState=performance.now();
-      if(isAppliedMotionState(data.motion)){const scope=JSON.stringify(data.motion.scope);if(scope!==this.lastMotionScope){this.lastMotionScope=scope;this.lastClockProbe=-Infinity;}}
-    this.callbacks.state({...snapshot,tick:data.frame.tick,round:data.frame.round},data.settings,data.ack?.[this.transport.id]??-1,data.frame.matchId,isAppliedMotionState(data.motion)&&data.motion.tick===data.frame.tick&&data.motion.scope.matchId===data.frame.matchId&&data.motion.scope.round===data.frame.round?data.motion:undefined);
-      this.status.recurring(data.paused?'Paused — host is in the background':'Connected · direct game link');
-    }else if(data.type==='event'&&data.event)this.callbacks.event(data.event,data.matchId??'',data.round??0,data.tick??0);
-    else if(data.type==='error'){const text=data.error??'Room error';if(data.transient===true)this.status.transient(text);else this.status.notice(text);if(data.shotRejected===true)this.callbacks.shotFailed?.();}
+    if (raw.type === 'directLobby' && id === this.transport.hostId && !plan.coordinator && isCatalog(raw.catalog)) { this.lobby = structuredClone(raw.catalog); this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish(); return; }
+    if (raw.type === 'directPrepare' && id === plan.source && isPreparation(raw, plan)) { this.acceptPreparation(raw); return; }
+    if (raw.type === 'directHeader' && this.outgoing) { const peer = this.outgoing.peers.get(id); if (peer) peer.header = true; return; }
+    if (raw.type === 'directChunk' && id === plan.source && this.incoming?.buffer && uint32(raw.offset) && raw.data instanceof Uint8Array && raw.data.length <= 12_000) {
+      const incoming = this.incoming;
+      if (raw.offset < incoming.received) return;
+      if (raw.offset !== incoming.received || raw.offset + raw.data.length > incoming.header.bytes || !raw.data.length) { this.faultPending = 'Invalid checkpoint chunk'; return; }
+      incoming.buffer!.set(raw.data, raw.offset); incoming.received += raw.data.length; this.finishPreparation(); return;
+    }
+    if (raw.type === 'directReady' && this.outgoing) { const peer = this.outgoing.peers.get(id); if (peer) peer.ready = true; return; }
+    if (raw.type === 'directActivate' && id === plan.source && this.incoming) { this.activate(); return; }
+    if (raw.type === 'directApplied') { this.applied.add(id); const peer = this.outgoing?.peers.get(id); if (peer) peer.applied = true; return; }
+    if (raw.type === 'directRecover' && id !== this.transport.id && plan.coordinator === this.transport.id) { this.faultPending ??= 'A participant requested synchronization'; return; }
+    if (raw.type === 'directCommand' && uint32(raw.request) && record(raw.command) && raw.command.type !== 'input' && (plan.coordinator ?? this.transport.hostId) === this.transport.id) {
+      if (raw.request <= (this.acceptedCommands.get(id) ?? -1)) { this.send(id, { type: 'directCommandAck', revision: plan.revision, request: raw.request }); return; }
+      this.commands.set(id, { request: raw.request, command: raw.command as Management, expires: this.environment.now() + 5000, sent: 0 }); return;
+    }
+    if (raw.type === 'directCommandAck' && id === (plan.coordinator ?? this.transport.hostId) && raw.request === this.localCommand?.request) { this.localCommand = undefined; if (typeof raw.error === 'string') this.status.notice(raw.error); return; }
+    if (raw.type === 'directStatus' && id === plan.coordinator && !this.segment?.world && uint32(raw.sequence) && raw.sequence > this.acceptedStatus && isThinView(raw.view, this.transport.id) && this.incoming?.header.matchId === raw.matchId && raw.view.round === this.incoming?.header.round) {
+      this.acceptedStatus = raw.sequence; this.view = raw.view; this.publish(); this.save(); return;
+    }
   }
-  command(command:RoomCommand):boolean {
-    if(this.actionStopped){if(isShotTransition(command))this.callbacks.shotFailed?.();return false;}
-    if(command.type==='join'){this.joinRequest.request(command);return true;}
-    if(!this.transport.authorityPermitted()){
-      if(this.session&&['action','settings','bot'].includes(command.type)){this.deferredHost.offer(command,performance.now());this.status.notice('Applying when the room connection is confirmed');return true;}
-      this.status.notice('Waiting for room authority — try again when connected');if(isShotTransition(command))this.callbacks.shotFailed?.();return false;
-    }
-    if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){if(command.type==='input')this.status.transient(error);else this.status.notice(error);if(isShotTransition(command))this.callbacks.shotFailed?.();}return !error;}
-    const sent=this.transport.send(this.transport.hostId,{type:'command',command});
-    if(!sent&&isShotTransition(command))this.callbacks.shotFailed?.();return sent;
-  }
-  private tick():void {
-    const now=performance.now(),elapsed=now-this.lastTick;this.lastTick=now;
-    const permitted=this.transport.authorityPermitted();
-    const transitionStatus=authorityTransitionStatus(this.authorityActive,permitted);
-    if(transitionStatus)this.status.recurring(transitionStatus);
-    this.status.refresh();
-    const deferred=this.deferredHost.drain(now,permitted);
-    if(deferred.status==='ready')this.command(deferred.value);
-    else if(deferred.status==='expired')this.status.notice('Room action timed out — please try again');
-    // A non-permitted clock pauses advancing at once; seats keep their control scope through a bounded gap (#48).
-    if(this.authorityGrace.clearSeats(now,permitted))this.session?.clear();
-    if(!permitted){this.accumulator=0;this.authorityActive=false;return;}
-    this.authorityActive=true;
-    if(now-this.lastClockProbe>=500){
-      this.lastClockProbe=now;
-      if(this.actionMode&&!this.session&&!this.actionStopped){if(this.actionHelloStarted===-Infinity)this.actionHelloStarted=now;if(!this.actionNegotiated&&now-this.actionHelloStarted>5000){this.actionStopped=true;this.status.terminal('Action replay handshake timed out — reload every participant with the same build');}else this.transport.send(this.transport.hostId,{type:'actionHello',version:ACTION_VERSION,rules:REPLAY_RULES,display:this.displayRole});}
-      if(this.session){const scope=this.session.controlScope(this.transport.id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.callbacks.clock?.({scope,localSentAt:now,localReceivedAt:now,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing'});}
-      else this.transport.send(this.transport.hostId,{type:'tickProbe',...this.tickProbes.request()});
-    }
-    this.joinRequest.retry(now,true,command=>{
-      if(this.session){const error=this.session.command(this.transport.id,command);this.joinRequest.confirm();if(error)this.status.notice(error);else this.save();}
-      else this.transport.send(this.transport.hostId,{type:'command',command});
-    });
-    if(!this.session){if(now-this.lastState>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);return;}
-    if(this.recovering){
-      if(this.session.game.phase==='lobby'||[...this.session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
-      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
-    }
-    this.accumulator+=Math.min(elapsed,100);
-    if(document.hidden){
-      if(!this.announced){this.session.clear();this.publish(true);this.announced=true;}this.accumulator=0;return;
-    }
-    this.announced=false;
-    while(this.accumulator>=50){
-      this.accumulator-=50;
-      for(const event of this.session.advance()){
-        const {matchId,round,tick}=this.session.game;this.callbacks.event(event,matchId,round,tick);for(const id of this.peers)this.transport.send(id,{type:'event',event,matchId,round,tick});
+  command(command: RoomCommand | OnlineInput): boolean {
+    if (this.stopped) return false;
+    if (command.type === 'input') {
+      const segment = this.segment, player = this.view?.players.find(p => p.id === this.transport.id);
+      if (!segment || !player || !this.activationSafe() || this.recovering || this.faultPending || segment.faultReason) { if (command.bombAction === 'release') this.callbacks.shotFailed?.(); return false; }
+      if (!segment.clock.read().canOriginate) {
+        if (command.bombAction === 'release') { this.freeze(); this.faultPending = 'Release could not be timed — synchronizing controls'; this.callbacks.shotFailed?.(); }
+        return false;
       }
-      this.publish(false);
+      const ok = segment.input(player.slot, { revision: command.seq, left: command.left, right: command.right, bomb: command.bomb, bombAction: command.bombAction, aim: command.aim ? [command.aim.x, command.aim.y] : null });
+      if (ok) this.localInput = command; else if (command.bombAction === 'release') this.callbacks.shotFailed?.(); return ok;
     }
+    if (this.recoveryRequired && this.transport.id === this.transport.hostId && command.type === 'action' && command.action === 'lobby') {
+      this.lobby.matchId = this.environment.randomId(); this.lobby.seed = createGame(this.lobby.matchId).seed; this.recoveryRequired = false; this.recoveryEpisodeAt = undefined; this.segment = undefined; this.plan = undefined; this.view = catalogView(this.lobby); this.issuePlan(this.lobby.settings, true); return true;
+    }
+    this.localCommand = { request: ++this.requestCounter, command: structuredClone(command), expires: this.environment.now() + 5000, sent: -Infinity }; return true;
   }
-  private publish(paused:boolean):void {
-    const session=this.session!;const game=session.game;const snapshot=session.snapshot();const ack=session.acknowledgements();
-    if(game.tick%20===0||paused)try{localStorage.setItem(`fuse-checkpoint-${this.code}`,session.checkpoint());}catch{}
-    this.callbacks.state({...snapshot,tick:game.tick,round:game.round},session.settings,ack[this.transport.id]??-1,game.matchId,session.appliedMotion(this.transport.id));
-    const scope=session.controlScope(this.transport.id)??{matchId:game.matchId,round:game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};
-    const at=performance.now();this.callbacks.clock?.({scope,localSentAt:at,localReceivedAt:at,authorityTick:game.tick+this.accumulator/50,paused:paused||game.phase!=='playing'});
-    for(const id of this.peers){
-      const actionPeer=this.actionPeers.get(id);
-      if(actionPeer){
-        const full=actionPeer.display||session.settings.mode==='devices';
-        if(full!==actionPeer.full){this.transport.send(id,{type:'actionWelcome',version:ACTION_VERSION,rules:REPLAY_RULES,full});actionPeer.full=full;actionPeer.sender.requestBaseline();this.encoders.delete(id);this.keyframes.delete(id);}
-        if(full){actionPeer.sender.publish(session.journal,{settings:session.settings,ack:ack[id]??-1,paused,motion:session.appliedMotion(id)},at,message=>this.transport.send(id,message,true));continue;}
+  private processCommands(): void {
+    const plan = this.plan!;
+    if ((plan.coordinator ?? this.transport.hostId) !== this.transport.id || this.recovering || this.change || this.outgoing || this.incoming && !this.incoming.activated || !this.commands.size) return;
+    const base = this.segment?.world ?? initialWorld(this.lobby, plan.revision);
+    this.freeze();
+    const state = neutral(base.finalizedState()), session = manager(this.transport.hostId, state.game, plan.settings);
+    for (const player of session.game.players.values()) if (!player.id.startsWith(BOT_ID_PREFIX) && !plan.members.some(m => m.id === player.id)) session.disconnect(player.id);
+    for (const [peer, pending] of this.commands) {
+      let error = this.environment.now() > pending.expires ? 'Room command expired — try again' : undefined;
+      if (!error && !plan.coordinator && pending.command.type === 'action' && pending.command.action !== 'lobby') error = 'Open TV view before starting the race';
+      if (!error && pending.command.type === 'settings' && parseRoomSettings(pending.command.settings)?.mode === 'shared' && session.game.phase !== 'lobby' && !plan.members.some(m => m.display)) error = 'Open TV view before changing the active match to shared mode';
+      error ??= session.command(peer, pending.command);
+      this.acceptedCommands.set(peer, pending.request); this.send(peer, { type: 'directCommandAck', revision: plan.revision, request: pending.request, ...(error ? { error } : {}) });
+    }
+    if (session.game.phase === 'lobby' && canonical(session.game.settings) !== canonical(session.settings)) session.journal.apply([4, session.settings]);
+    this.commands.clear();
+    if (!plan.coordinator) {
+      this.lobby = catalog(session.game, session.settings); this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.broadcastLobby(); this.issuePlan(session.settings); this.save(); return;
+    }
+    this.change = { base, ops: session.journal.since(0)!, settings: session.settings };
+    this.requestPlan(session.settings);
+  }
+  private requestPlan(settings: RoomSettings): void {
+    if (this.transport.id === this.transport.hostId) this.issuePlan(settings, true);
+    else this.pendingPlan = { request: ++this.requestCounter, settings: structuredClone(settings), sent: -Infinity, at: this.environment.now() };
+  }
+  private requireLobby(reason: string): void {
+    this.freeze(); this.recoveryRequired = true; this.recoveryRequest = undefined; this.pendingPlan = undefined;
+    this.status.recurring(reason); this.status.notice(reason);
+  }
+  private recover(reason: string, corrupt = false): void {
+    const now = this.environment.now(); this.freeze(); this.lastFault = reason; this.status.notice(reason); this.recoveryEpisodeAt ??= now;
+    if (now - this.lastRecovery < 500 || this.recovering || this.recoveryRequired) return;
+    this.lastRecovery = now; this.recoveries = this.recoveries.filter(at => now - at < 30_000);
+    // One charge per corrupt attempt; availability pauses have their own episode deadline.
+    const attempt = `${this.plan?.incarnation}:${this.plan?.epoch}:${this.plan?.revision}`;
+    if (corrupt && this.chargedCorruption !== attempt) {
+      if (this.recoveries.length >= 3) { this.requireLobby('Repeated invalid state — creator must choose MAIN MENU'); return; }
+      this.chargedCorruption = attempt; this.recoveries.push(now);
+    }
+    this.recovering = true;
+    if (this.plan?.coordinator === this.transport.id) this.requestPlan(this.plan.settings);
+    else if (this.plan) this.recoveryRequest = { revision: this.plan.revision, peer: this.plan.coordinator ?? this.transport.hostId, at: now, sent: -Infinity };
+  }
+  private tick(): void {
+    if (this.stopped) return;
+    const now = this.environment.now(); this.status.refresh();
+    if (!this.transport.authorityPermitted() || this.environment.hidden()) { if (this.segment && !this.segment.faultReason) this.faultPending = 'Room clock paused — synchronizing'; return; }
+    if (now - this.lastHello >= 250) {
+      this.lastHello = now;
+      if (this.transport.id !== this.transport.hostId) this.send(this.transport.hostId, { type: 'directHello', rules: DIRECT_RULES, display: this.display });
+      else this.issuePlan(this.plan?.settings ?? this.lobby.settings);
+    }
+    if (this.pendingPlan && now - this.pendingPlan.at > 5000) this.requireLobby('The creator could not confirm synchronization — choose a fresh lobby');
+    if (this.pendingPlan && now - this.pendingPlan.sent >= 200) { this.pendingPlan.sent = now; this.send(this.transport.hostId, { type: 'directPlanRequest', request: this.pendingPlan.request, settings: this.pendingPlan.settings }); }
+    if (this.localCommand) {
+      if (now > this.localCommand.expires) { this.localCommand = undefined; this.status.notice('Room command timed out — try again'); }
+      else if (this.plan && now - this.localCommand.sent >= 200) { this.localCommand.sent = now; this.send(this.plan.coordinator ?? this.transport.hostId, { type: 'directCommand', revision: this.plan.revision, request: this.localCommand.request, command: this.localCommand.command }); }
+    }
+    if (this.faultPending) { const reason = this.faultPending, corrupt = this.corruptionPending; this.faultPending = undefined; this.corruptionPending = false; this.recover(reason, corrupt); }
+    const recovery = this.recoveryRequest;
+    if (recovery) {
+      if (now - recovery.at > 5000) { this.requireLobby('Synchronization unavailable — creator must open a fresh lobby'); }
+      else if (now - recovery.sent >= 500) { recovery.sent = now; this.send(recovery.peer, { type: 'directRecover', revision: recovery.revision }); }
+    }
+    if (this.recoveryEpisodeAt !== undefined && now - this.recoveryEpisodeAt > 15000 && !this.recoveryRequired) this.requireLobby('Synchronization could not restore play — creator must choose MAIN MENU');
+    const plan = this.plan; if (!plan || this.recoveryRequired) return;
+    if (this.incoming && !this.incoming.activated) {
+      if (now - this.incoming.at > 5000) { this.recover('Direct simulation setup timed out — retrying'); return; }
+      const full = plan.members.find(m => m.id === this.transport.id)!.view;
+      if ((!full || this.incoming.candidate) && this.bind()) this.incoming.ready = true;
+      if (this.incoming.ready && now - this.incoming.lastAck >= 100) { this.incoming.lastAck = now; this.send(plan.source, { type: 'directReady', revision: plan.revision }); }
+    }
+    const outgoing = this.outgoing;
+    if (outgoing) {
+      if (now - outgoing.at > 5000 && [...outgoing.peers.values()].some(p => !p.applied)) { this.recover('Not every participant confirmed the lifecycle change'); return; }
+      for (const [id, peer] of outgoing.peers) {
+        if (!peer.ready && now - peer.lastMeta >= 100) { peer.lastMeta = now; this.send(id, outgoing.header); }
+        if (id !== this.transport.id && peer.header && plan.members.find(m => m.id === id)!.view && peer.offset < outgoing.payload.length && now - peer.lastChunk >= 50) {
+          peer.lastChunk = now;
+          for (let count = 0; count < 2 && peer.offset < outgoing.payload.length; count++) { const data = outgoing.payload.slice(peer.offset, peer.offset + 12_000); if (!this.send(id, { type: 'directChunk', revision: plan.revision, offset: peer.offset, data })) break; peer.offset += data.length; }
+        }
       }
-      const peerSnapshot=actionPeer?{...snapshot,players:snapshot.players.map(player=>({...player,x:player.id===id?player.x:0,y:player.id===id?player.y:0,angle:0,trail:[]})),bombs:[],blasts:[],pickups:[],portalPair:undefined}:snapshot;
-      let delivery=this.keyframes.get(id);if(!delivery){delivery=new KeyframeDelivery<WorldEnvelope>();this.keyframes.set(id,delivery);}
-      if(!delivery.matchesScope(game.matchId,game.round)){delivery.clear();this.encoders.delete(id);}
-      const pending=delivery.pump(at,world=>this.transport.send(id,world,!!actionPeer));
-      if(pending==='waiting')continue;if(pending==='expired')this.encoders.delete(id);
-      let encoder=this.encoders.get(id);if(!encoder){const generation=(this.generations.get(id)??0)+1;this.generations.set(id,generation);encoder=new WorldEncoder(generation);this.encoders.set(id,encoder);}
-      // A fresh encoder keyframes itself. On one ordered reliable channel a delta chain cannot drift, and a broken chain already resyncs, so a periodic re-baseline only buys a ~30 KB burst plus a receipt wait that blocks every delta to that peer (#61).
-      const frame=encoder.encode(peerSnapshot,game.matchId,game.round,game.tick);
-      const world:WorldEnvelope & {controller?:boolean}={type:'world',...(actionPeer?{controller:true}:{}),frame,settings:session.settings,ack:recipientAcknowledgements(ack,id),paused,motion:session.appliedMotion(id)};
-      if(frame.base===0){delivery.hold(world,at);delivery.pump(at,payload=>this.transport.send(id,payload,!!actionPeer));}
-      else if(!this.transport.send(id,world,!!actionPeer))this.encoders.delete(id);
+      if ([...outgoing.peers.values()].every(p => p.ready)) outgoing.activating = true;
+      if (outgoing.activating) for (const [id, peer] of outgoing.peers) if (!peer.applied && now - peer.lastMeta >= 100) { peer.lastMeta = now; this.send(id, { type: 'directActivate', revision: plan.revision }); }
+      if ([...outgoing.peers.values()].every(p => p.applied)) { this.outgoing = undefined; if (!this.segment?.world) this.change = undefined; }
+    }
+    if (!this.activationSafe() || this.recovering) return;
+    this.segment?.tick();
+    const segment = this.segment;
+    if (segment && !segment.faultReason && this.incoming?.activated && segment.clock.read().canOriginate && (plan.coordinator !== this.transport.id || plan.members.every(m => this.applied.has(m.id))) && (!segment.config.running || segment.finalizedTick > segment.config.baseTick)) this.recoveryEpisodeAt = undefined;
+    if (segment?.world && !segment.faultReason) {
+      const clock = segment.clock.read();
+      if (plan.coordinator === this.transport.id && clock.canOriginate && clock.tick !== this.lastBotTick) {
+        this.lastBotTick = clock.tick;
+        for (const p of segment.world.state.game.players.values()) if (p.id.startsWith(BOT_ID_PREFIX)) {
+          const input = this.bots.input(segment.world.state.game, p.id), command = input.bombCommands?.[0];
+          segment.input(p.slot, { revision: segment.revision(p.slot) + 1, left: input.left, right: input.right, bomb: input.bomb, bombAction: command?.action, aim: input.aim ? [input.aim.x, input.aim.y] : null });
+        }
+      }
+      this.view = segment.snapshot(); this.matchId = segment.world.state.game.matchId;
+      if (plan.coordinator === this.transport.id && this.view?.phase === 'roundOver' && this.view.phaseEndsAtTick !== undefined && segment.world.finalizedTick >= this.view.phaseEndsAtTick && !this.change) {
+        const game = segment.world.finalizedState().game;
+        this.freeze(); const session = manager(this.transport.hostId, neutral(segment.world.finalizedState()).game, plan.settings);
+        for (const p of [...session.game.players.values()]) if (!p.connected) session.disconnect(p.id);
+        if (session.game.players.size >= 2) { session.journal.apply([4, { ...plan.settings, match: game.settings!.match, length: game.settings!.length }]); session.journal.apply([5, 1, '']); this.change = { base: segment.world, ops: session.journal.since(0)!, settings: plan.settings }; this.requestPlan(plan.settings); }
+      }
+    } else if (segment && this.view && segment.clock.read().canOriginate) this.view = { ...this.view, tick: segment.clock.read().tick };
+    this.publish(); this.processCommands();
+    if (this.plan !== plan) return;
+    if (plan.coordinator === this.transport.id && this.view && now - this.lastStatus >= 100) {
+      this.lastStatus = now;
+      for (const member of plan.members) if (!member.view && member.id !== this.transport.id) {
+        const view = thinSnapshot(this.view, member.id), key = canonical({ ...view, tick: 0 });
+        if (this.statusKeys.get(member.id) === key) continue;
+        if (this.send(member.id, { type: 'directStatus', revision: plan.revision, sequence: ++this.statusRevision, matchId: this.matchId, view })) this.statusKeys.set(member.id, key);
+      }
     }
   }
-  private save(){if(this.session)try{localStorage.setItem(`fuse-checkpoint-${this.code}`,this.session.checkpoint());}catch{}}
-  stop(){this.save();clearInterval(this.interval);this.transport.close();}
+  private events(events: CommittedEvent[]): void {
+    const game = this.segment?.world?.state.game; if (!game) return;
+    for (const { tick, event } of events) this.callbacks.event(event, game.matchId, game.round, tick);
+  }
+  private broadcastLobby(): void { this.publish(); if (this.plan) for (const member of this.plan.members) if (member.id !== this.transport.id) this.send(member.id, { type: 'directLobby', revision: this.plan.revision, catalog: this.lobby }); }
+  private publish(): void {
+    if (!this.view) return;
+    const key = `${this.plan?.revision}:${this.view.tick}:${this.segment?.finalizedTick}:${canonical(this.plan?.settings ?? this.lobby.settings)}:${this.view.players.length}:${this.view.phase}:${this.view.phase === 'lobby' ? canonical(this.view) : ''}`;
+    if (key === this.lastPublish) return; this.lastPublish = key;
+    const own = this.view.players.find(p => p.id === this.transport.id);
+    this.callbacks.state(this.view, this.plan?.settings ?? this.lobby.settings, own ? this.segment?.revision(own.slot) ?? -1 : -1, this.matchId);
+  }
+  private save(): void {
+    if (this.transport.id !== this.transport.hostId || !this.view || this.incoming && !this.incoming.activated) return;
+    if (this.segment?.world) this.lobby = catalog(this.segment.world.state.game, this.plan!.settings);
+    else if (this.view.phase !== 'lobby') this.lobby = { ...this.lobby, matchId: this.matchId, tick: this.view.tick, leaderboard: structuredClone(this.view.leaderboard), settings: this.plan?.settings ?? this.lobby.settings, players: this.view.players.map(({ id, name, slot, color, avatarId, connected }) => ({ id, name, slot, color, avatarId, connected })) };
+    try { this.environment.storage.setItem(`fuse-direct-room-${this.code}`, JSON.stringify({ catalog: this.lobby, status: thinSnapshot(this.view) })); } catch { /* Cache is best effort, not durable failover. */ }
+  }
+  renderSnapshot(): ViewSnapshot | undefined {
+    if (!this.activationSafe() || !this.view || !this.segment?.world || this.segment.faultReason) return this.view;
+    const segment = this.segment, world = segment.world!, reading = segment.clock.read();
+    const fraction = this.view.phase === 'playing' && reading.canAdvance ? Math.max(0, Math.min(1, reading.fractionalTick - world.state.game.tick)) : 0;
+    return { ...this.view, tick: world.state.game.tick + fraction, players: this.view.players.map(p => {
+      const sim = world.state.game.players.get(p.id); if (!sim?.alive || !fraction) return p;
+      const held = world.state.held.get(p.slot), local = p.id === this.transport.id ? this.localInput : undefined;
+      const controls = local ?? { left: !!((held?.flags ?? 0) & 1), right: !!((held?.flags ?? 0) & 2) };
+      const nextOffset = drunkHeadingOffset(world.state.game.seed, p.id, world.state.game.tick + 1, sim.drunkStartedTick, sim.drunkUntilTick);
+      const pose = advanceRiderPose({ x: p.x, y: p.y, angle: p.angle, drunkHeadingOffset: sim.drunkHeadingOffset }, controls, { distance: RIDER_SPEED / 20 * fraction, turn: RIDER_TURN_RATE / 20 * fraction, drunkHeadingOffset: sim.drunkHeadingOffset + (nextOffset - sim.drunkHeadingOffset) * fraction });
+      return { ...p, x: pose.x, y: pose.y, angle: pose.angle };
+    }) };
+  }
+  stop(): void { this.save(); this.freeze(); this.stopped = true; this.cancelSchedule?.(); this.transport.close(); }
 }

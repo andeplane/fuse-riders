@@ -17,10 +17,11 @@ export interface WorldResult {
   status: 'accepted' | 'stale' | 'waiting' | 'invalid' | 'overflow' | 'paused';
   events: CommittedEvent[];
   rollbackTicks: number;
+  corrupt?: true;
   receipt?: Uint8Array;
 }
 interface Candidate { state: DirectState; snapshots: Map<number, Uint8Array>; events: Map<number, GameEvent[]> }
-const result = (status: WorldResult['status']): WorldResult => ({ status, events: [], rollbackTicks: 0 });
+const result = (status: WorldResult['status'], corrupt = false): WorldResult => ({ status, events: [], rollbackTicks: 0, ...(corrupt ? { corrupt: true as const } : {}) });
 
 function packState(state: DirectState): Uint8Array {
   return packMessage([encodeGameState(state.game), [...state.held].map(([s, h]) => [s, h.at, h.flags, h.aim]), [...state.gestures].map(([s, g]) => [s, g.active, g.latest])]);
@@ -92,6 +93,7 @@ export class RollbackWorld {
   /** Read-only to consumers; the runtime must not mutate supplied simulation objects. */
   get state(): Readonly<DirectState> { return this.candidate.state; }
   get finalizedTick(): number { return this.finalTick; }
+  get finalizedHash(): string { return this.finalHash; }
   get finalizedPrefixes(): StreamPrefixes { return structuredClone(this.finalPrefixes); }
   streamProgress(): { slot: number; contiguous: number; watermark: [number, number]; cuts: [number, number][] }[] {
     return [...this.streams].map(([slot, stream]) => ({ slot, contiguous: stream.contiguous, watermark: [...stream.watermark], cuts: [...stream.cuts] }));
@@ -147,9 +149,9 @@ export class RollbackWorld {
     const message = structuredClone(raw) as Finality;
     message[4].sort(([a],[b])=>a-b);
     if (message[3] < this.finalTick) return result('stale');
-    if (message[3] === this.finalTick) return result(message[5] === this.finalHash && canonical([...message[4]].sort()) === canonical([...this.finalPrefixes].sort()) ? 'stale' : 'invalid');
+    if (message[3] === this.finalTick) return result(message[5] === this.finalHash && canonical([...message[4]].sort()) === canonical([...this.finalPrefixes].sort()) ? 'stale' : 'invalid', message[5] !== this.finalHash || canonical(message[4]) !== canonical([...this.finalPrefixes].sort(([a],[b])=>a-b)));
     const previous = this.pendingFinality.get(message[3]);
-    if (previous && canonical(message) !== canonical(previous)) return result('invalid');
+    if (previous && canonical(message) !== canonical(previous)) return result('invalid', true);
     this.pendingFinality.set(message[3], message);
     if (this.pendingFinality.size > ROLLBACK_TICKS || this.retainedBytes > this.byteLimit) {
       if (previous) this.pendingFinality.set(message[3], previous); else this.pendingFinality.delete(message[3]);
@@ -168,7 +170,7 @@ export class RollbackWorld {
       if (at > this.state.game.tick || [...this.streams.values()].some(s => !s.completeThrough(at))) continue;
       const reconstructed = this.stateAt(at)!;
       if (candidate[4].some(([slot,seq])=>this.streams.get(slot)!.prefixAt(at)!==seq) || replayHash(reconstructed)!==candidate[5]) {
-        this.pendingFinality.delete(at); return result('invalid');
+        this.pendingFinality.delete(at); return result('invalid', true);
       }
       message = candidate; state = reconstructed;
     }
