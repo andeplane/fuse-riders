@@ -4,7 +4,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 const base=process.env.HOME_URL??'http://127.0.0.1:4188/';
-interface Snapshot {kind:string;phase:string;tick:number;players:Array<{id:string;angle:number;alive:boolean}>}
+interface Snapshot {kind:string;phase:string;authorityScope:string;tick:number;heldMotion?:{left:boolean;right:boolean};players:Array<{id:string;angle:number;alive:boolean}>}
 const results:object[]=[];await mkdir('artifacts',{recursive:true});
 const bundle=await readFile('dist/index.html','utf8');
 const assetPath=bundle.match(/type="module"[^>]*src="([^"]+)"/)?.[1];
@@ -16,7 +16,25 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){
  await page.addInitScript(()=>{localStorage.setItem('fuse-riders-room-settings-v1',JSON.stringify({version:1,mode:'devices',match:'wins',length:3,weights:{}}));window.addEventListener('fuse-benchmark',event=>{void Reflect.get(window,'recordKeyboardSnapshot')((event as CustomEvent).detail);});});
  const latest=()=>snapshots.at(-1)!;const actor=()=>latest().players.find(p=>p.id==='solo')!;
  const wait=async(predicate:()=>boolean)=>{const deadline=Date.now()+10000;while(!predicate()){assert.ok(Date.now()<deadline,'timed out waiting for authoritative keyboard outcome');await page.waitForTimeout(25);}};
- const turn=async(key:string,sign:number)=>{const before=actor().angle,tick=latest().tick;await page.keyboard.down(key);await wait(()=>latest().tick>=tick+3);await page.keyboard.up(key);assert.ok(actor().alive,'actor died during steering trial');const delta=Math.atan2(Math.sin(actor().angle-before),Math.cos(actor().angle-before));assert.ok(delta*sign>0.02,`${key} must turn authoritative pose: ${delta}`);return{key,fromTick:tick,toTick:latest().tick,delta};};
+ const turn=async(key:string,sign:number)=>{
+  await page.keyboard.down(key);
+  try {
+   // Browser event delivery and scheduled simulation input are separate boundaries.
+   // Start measuring only once the authority reports this direction as applied.
+   await wait(()=>latest().heldMotion?.left===(sign<0)&&latest().heldMotion?.right===(sign>0));
+   const before=actor().angle,tick=latest().tick,scope=latest().authorityScope;
+   await wait(()=>latest().tick>=tick+3);
+   assert.equal(latest().phase,'playing','steering trial must stay in play');
+   assert.equal(latest().authorityScope,scope,'steering trial must stay in the same round');
+   assert.ok(actor().alive,'actor died during steering trial');
+   const delta=Math.atan2(Math.sin(actor().angle-before),Math.cos(actor().angle-before));
+   assert.ok(delta*sign>0.02,`${key} must turn authoritative pose: ${delta}`);
+   return{key,fromTick:tick,toTick:latest().tick,delta};
+  } finally {
+   await page.keyboard.up(key);
+   await wait(()=>latest().heldMotion?.left===false&&latest().heldMotion?.right===false);
+  }
+ };
  try{
   await page.goto(new URL('?solo=1&benchmark=1',base).href);await page.waitForFunction(()=>document.querySelector('canvas')?.dataset.renderer?.startsWith('phaser-'));await wait(()=>snapshots.length>0&&latest().phase==='playing');
   const steering=[await turn('ArrowLeft',-1),await turn('ArrowRight',1)];
