@@ -21,6 +21,13 @@ test('fresh health restores the budget and retires the attempt in flight',()=>{
   const next=p.begin(17000);assert.equal(p.complete(stale),false);assert.equal(p.complete(next),true);
 });
 
+test('idle health checks every 200 ms do not retire anything',()=>{
+  const p=new LinkRestartPolicy(0,4,8000);
+  for(let t=200;t<=4000;t+=200)p.healthy(t);
+  const attempt=p.begin(12000);p.healthy(12100);
+  assert.equal(p.complete(attempt),false,'health during an attempt retires it');
+});
+
 test('only the newest attempt can complete',()=>{
   const p=new LinkRestartPolicy(0,4,100);
   const first=p.begin(100);

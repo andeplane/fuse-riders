@@ -10,7 +10,7 @@ test('defaults carry two STUN providers and no TURN',()=>{
 test('service ICE lists are validated at the client boundary and fall back to defaults',()=>{
   assert.deepEqual(parseIceServers({iceServers:[{urls:'stun:a.example:3478'},{urls:['turn:b.example'],username:'u',credential:'c'}]}),[{urls:['stun:a.example:3478']},{urls:['turn:b.example'],username:'u',credential:'c'}]);
   for(const raw of [undefined,null,'x',{},{iceServers:'stun:a'},{iceServers:[]},{iceServers:[{urls:'http://evil'}]},{iceServers:[{urls:['stun:ok','javascript:x']}]},{iceServers:[{urls:''}]},{iceServers:[5,null]}])
-    assert.deepEqual(parseIceServers(raw),[...DEFAULT_ICE_SERVERS],JSON.stringify(raw));
+    assert.equal(parseIceServers(raw),undefined,JSON.stringify(raw));
   assert.deepEqual(parseIceServers({iceServers:[{urls:'stun:a',username:5}]}),[{urls:['stun:a']}]);
 });
 
@@ -35,4 +35,18 @@ test('a failed ICE fetch yields the STUN defaults, never an empty list',async()=
   assert.match(ice.source,/failed/);
   await ice.load(()=>Promise.resolve({iceServers:[]}));
   assert.equal((await ice.iceServers()).length,2);
+  assert.equal(ice.source,'default (service list invalid)','defaults substituted for an unusable service list are not reported as service');
+});
+
+test('a hung ICE fetch falls back to the STUN defaults when the abort bound fires, even if the fetch ignores the signal',async()=>{
+  const ice=new IceConfig();const controller=new AbortController();
+  let settled=false;const loading=ice.load(()=>new Promise(()=>{}),controller.signal).then(()=>{settled=true;});
+  const waiting=ice.iceServers();
+  await Promise.resolve();await Promise.resolve();assert.equal(settled,false);
+  controller.abort(new Error('ice fetch timeout'));
+  await loading;
+  assert.deepEqual(await waiting,[...DEFAULT_ICE_SERVERS]);
+  assert.equal(ice.source,'default (ice fetch failed)');
+  const late=new IceConfig();await late.load(()=>Promise.resolve({iceServers:[{urls:'stun:late.example'}]}),AbortSignal.abort(new Error('already out of time')));
+  assert.deepEqual(await late.iceServers(),[...DEFAULT_ICE_SERVERS],'an already-aborted signal never waits for the fetch');
 });

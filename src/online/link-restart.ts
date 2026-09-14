@@ -8,7 +8,7 @@ export class LinkRestartPolicy {
   get attempts():number{return this.count;}
   get exhausted():boolean{return this.count>=this.max;}
   /** Fresh health restores the full budget; anything still in flight is stale. */
-  healthy(now:number):void{this.count=0;this.inFlight=false;this.current++;this.dueAt=now+this.intervalMs;}
+  healthy(now:number):void{if(this.inFlight||this.count)this.current++;this.count=0;this.inFlight=false;this.dueAt=now+this.intervalMs;}
   due(now:number):boolean{return !this.exhausted&&!this.inFlight&&now>=this.dueAt;}
   begin(now:number):number{this.count++;this.inFlight=true;this.dueAt=now+this.intervalMs;return ++this.current;}
   /** Returns false when the attempt is no longer current; callers must not signal for it. */
