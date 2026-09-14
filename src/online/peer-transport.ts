@@ -1,6 +1,7 @@
 import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
+import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT } from './link-send-gate.js';
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
 export interface TransportCallbacks {
@@ -12,7 +13,7 @@ export interface TransportCallbacks {
   ended?:()=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number>;health:LinkHealth;restartAt:number;restarting:boolean }
+interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number>;health:LinkHealth;gate:LinkSendGate;restartAt:number;restarting:boolean }
 export class PeerTransport {
   id='';hostId='';connectionId='';sentBytes=0;
   grant?:AuthorityGrant;
@@ -41,6 +42,11 @@ export class PeerTransport {
   }
   private socket?:WebSocket;
   private links=new Map<string,Link>();
+  // Macrotask deferral that background timer throttling cannot delay (a throttled setTimeout would pong a
+  // screen-off phone a second late, fail LinkHealth and force-re-offer a healthy channel every 8 s).
+  private readonly deferred:Array<()=>void>=[];
+  private readonly deferPort=(()=>{const channel=new MessageChannel();channel.port1.onmessage=()=>this.deferred.shift()?.();return channel.port2;})();
+  private defer(task:()=>void):void{this.deferred.push(task);this.deferPort.postMessage(null);}
   private seq=0;
   private stopped=false;
   private retry?:ReturnType<typeof setTimeout>;
@@ -60,6 +66,9 @@ export class PeerTransport {
         if(message.type==='welcome'){
           if(message.protocol!==2||typeof message.connectionId!=='string'){this.callbacks.status('Game protocol changed — reload this page');this.close();return;}
           this.received.clear();
+          // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
+          const roster=new Set<string>(message.peers.map((peer:{id:string})=>peer.id));
+          for(const id of this.connections.keys())if(!roster.has(id))this.callbacks.peer(id,false);
           for(const link of this.links.values())link.pc.close();this.links.clear();this.connections.clear();
           this.id=message.id;this.hostId=message.hostId;this.connectionId=message.connectionId;this.readyScope='';
           for(const peer of message.peers)this.connections.set(peer.id,peer.connectionId);
@@ -81,7 +90,9 @@ export class PeerTransport {
             this.connections.set(message.id,message.connectionId);
             if(previous!==message.connectionId){this.links.get(message.id)?.pc.close();this.links.delete(message.id);this.received.delete(message.id);}
             this.callbacks.peer(message.id,true);if(this.id===this.hostId)await this.offer(message.id);
-          }else if(this.connections.get(message.id)===message.connectionId&&this.links.get(message.id)?.channel?.readyState!=='open'){
+          }else if(this.connections.get(message.id)===message.connectionId){
+            // The service is the membership authority (ADR035): the connection is retired even if the RTC channel still reads "open".
+            this.links.get(message.id)?.gate.drain();
             this.connections.delete(message.id);this.callbacks.peer(message.id,false);this.links.get(message.id)?.pc.close();this.links.delete(message.id);
           }
         }else if(message.type==='signal'&&this.connections.get(message.from)===message.connectionId)await this.signal(message.from,message.data);
@@ -101,13 +112,19 @@ export class PeerTransport {
   private link(id:string):Link {
     const existing=this.links.get(id);if(existing)return existing;
     const pc=new RTCPeerConnection({iceServers:this.servers});
-    const link:Link={pc,ice:[],seen:new Set(),health:new LinkHealth(performance.now()),restartAt:performance.now()+8000,restarting:false};this.links.set(id,link);
+    const link:Link={pc,ice:[],seen:new Set(),health:new LinkHealth(performance.now()),gate:new LinkSendGate(),restartAt:performance.now()+8000,restarting:false};this.links.set(id,link);
     pc.onicecandidate=event=>{if(!isCurrentLinkCallback(this.links.get(id),link))return;if(event.candidate)this.relay('signal',id,{candidate:event.candidate.toJSON()});};
     pc.ondatachannel=event=>{if(!isCurrentLinkCallback(this.links.get(id),link)){event.channel.close();return;}this.channel(id,event.channel);};
     pc.onconnectionstatechange=()=>{
       if(!isCurrentLinkCallback(this.links.get(id),link))return;
       if(pc.connectionState==='connected')this.callbacks.status('Direct peer link connected');
+      // "disconnected" may recover through fresh probes (ADR035); only terminal states drain the link.
+      if(pc.connectionState==='failed'||pc.connectionState==='closed')link.gate.drain();
       if(pc.connectionState==='failed'||pc.connectionState==='disconnected'){link.health.fail(performance.now());this.callbacks.status('Direct connection interrupted · retrying');}
+    };
+    pc.oniceconnectionstatechange=()=>{
+      if(!isCurrentLinkCallback(this.links.get(id),link))return;
+      if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='closed')link.gate.drain();
     };
     return link;
   }
@@ -115,7 +132,9 @@ export class PeerTransport {
     const link=this.link(id);link.channel=channel;
     channel.onmessage=event=>{if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
     channel.onopen=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))this.callbacks.status('Direct peer link connected');};
-    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;this.callbacks.status('Direct connection failed · retrying');};
+    channel.onclosing=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
+    channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
+    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;link.gate.drain();this.callbacks.status('Direct connection failed · retrying');};
   }
   private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
@@ -142,7 +161,13 @@ export class PeerTransport {
       if(probe.type==='linkProbe'||probe.type==='linkPong'){
         if(!direct||!Number.isSafeInteger(probe.probeId))return;
         if(probe.type==='linkPong')this.links.get(id)?.health.acknowledge(probe.probeId!,performance.now());
-        else this.sendDirectProbe(id,{type:'linkPong',probeId:probe.probeId!});
+        else{
+          // libwebrtc delivers the probe before the closing state change that follows it (WebKit posts OnMessage, then
+          // OnStateChange). Answering inside this onmessage task would hand the pong to an already-dead transport, so
+          // defer one macrotask: the queued state-change task runs first and readyState plus the gate refuse the send.
+          const link=this.links.get(id),probeId=probe.probeId!;
+          if(link)this.defer(()=>{if(isCurrentLinkCallback(this.links.get(id),link))this.sendDirectProbe(id,{type:'linkPong',probeId});});
+        }
         return;
       }
     }
@@ -152,16 +177,16 @@ export class PeerTransport {
   }
   send(id:string,data:unknown):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
-    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const channel=this.links.get(id)?.channel;
-    if(!document.hidden&&!this.relayOnly&&channel?.readyState==='open'&&this.links.get(id)!.health.direct(performance.now())&&channel.bufferedAmount<64000){
-      try{channel.send(JSON.stringify(envelope));return true;}catch{}
+    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const link=this.links.get(id);
+    if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
+      try{link.channel!.send(JSON.stringify(envelope));return true;}catch{}
     }
     return false;
   }
   private sendDirectProbe(id:string,data:{type:string;probeId:number}):void {
-    const channel=this.links.get(id)?.channel;
-    if(!this.authorityPermitted()||channel?.readyState!=='open'||channel.bufferedAmount>4096)return;
-    try{channel.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));}catch{}
+    const link=this.links.get(id);
+    if(!this.authorityPermitted()||!link?.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return;
+    try{link.channel!.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));}catch{}
   }
   private checkLinks():void {
     if(this.stopped||document.hidden||!this.authorityPermitted())return;
@@ -175,7 +200,7 @@ export class PeerTransport {
       }
     }
   }
-  close():void{this.stopped=true;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
+  close():void{this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
   async stats():Promise<{direct:number;relayed:number;buffered:number;authority:{reason:string;roundTripMs?:number}}>{
     let direct=0,relayed=0,buffered=this.socket?.bufferedAmount??0;
     for(const link of this.links.values()){
