@@ -141,55 +141,13 @@ function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<Tra
   ctx.restore();
 }
 
-function drawPixelBrick(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, color: string, seed: number): void {
-  if (width <= 1 || height <= 1) return;
-  ctx.fillStyle = '#211862'; ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = color; ctx.globalAlpha = .92; ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
-  ctx.fillStyle = 'rgba(182,150,255,.65)'; ctx.fillRect(x + 3, y + 3, width - 6, 2);
-  ctx.fillStyle = 'rgba(25,17,78,.65)'; ctx.fillRect(x + 3, y + height - 5, width - 6, 3);
-  ctx.globalAlpha = .45;
-  ctx.fillStyle = '#241664';
-  ctx.fillRect(x + 5 + seed % Math.max(2, width - 11), y + 7 + (seed * 3) % Math.max(2, height - 12), 3, 2);
-  ctx.globalAlpha = 1;
-}
-
 function drawBoundary(ctx: CanvasRenderingContext2D, width: number, height: number, inset: number, theme: ThemeDefinition): void {
   ctx.save();
   ctx.fillStyle = 'rgba(0,2,12,.67)';
   ctx.fillRect(0, 0, width, inset); ctx.fillRect(0, height - inset, width, inset);
   ctx.fillRect(0, inset, inset, height - inset * 2); ctx.fillRect(width - inset, inset, inset, height - inset * 2);
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 18;
+  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 2; ctx.globalAlpha = .45;
   ctx.strokeRect(inset, inset, width - inset * 2, height - inset * 2);
-  ctx.shadowBlur = 7;
-  if (!theme.rendering.pixelated) {
-    ctx.strokeStyle = theme.palette.wall; ctx.lineWidth = theme.rendering.wallWidth;
-    ctx.strokeRect(Math.max(3, inset - 8), Math.max(3, inset - 8), width - Math.max(3, inset - 8) * 2, height - Math.max(3, inset - 8) * 2);
-    ctx.restore(); return;
-  }
-  const depth = Math.max(8, Math.min(18, inset - 2)); const gap = 3; const brick = 32;
-  ctx.shadowColor = theme.palette.wall; ctx.shadowBlur = 5;
-  let seed = 0;
-  for (let x = inset; x < width - inset; x += brick + gap) {
-    const w = Math.min(brick, width - inset - x);
-    drawPixelBrick(ctx, x, inset - depth, w, depth - 3, theme.palette.wall, seed++);
-    drawPixelBrick(ctx, x, height - inset + 3, w, depth - 3, theme.palette.wall, seed++);
-  }
-  for (let y = inset; y < height - inset; y += brick + gap) {
-    const h = Math.min(brick, height - inset - y);
-    drawPixelBrick(ctx, inset - depth, y, depth - 3, h, theme.palette.wall, seed++);
-    drawPixelBrick(ctx, width - inset + 3, y, depth - 3, h, theme.palette.wall, seed++);
-  }
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
-  const c = 27; const o = Math.max(2, inset - depth - 3);
-  const corners: Array<readonly [number, number, number, number, number, number]> = [
-    [o + c, o, o, o, o, o + c], [width - o - c, o, width - o, o, width - o, o + c],
-    [o, height - o - c, o, height - o, o + c, height - o], [width - o, height - o - c, width - o, height - o, width - o - c, height - o],
-  ];
-  for (const [ax, ay, bx, by, cx, cy] of corners) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.stroke(); }
-  ctx.shadowColor = '#ff850d'; ctx.shadowBlur = 12; ctx.fillStyle = '#fff19b';
-  for (const [x, y] of [[o + 5, o + 5], [width - o - 11, o + 5], [o + 5, height - o - 11], [width - o - 11, height - o - 11]]) {
-    ctx.fillStyle = '#ff7b16'; ctx.fillRect(x, y, 7, 7); ctx.fillStyle = '#fff5a4'; ctx.fillRect(x + 2, y + 2, 3, 3);
-  }
   ctx.restore();
 }
 

@@ -24,6 +24,20 @@ const waitFor = async (predicate: () => boolean, detail: string) => {
 try {
   await mkdir('artifacts', { recursive: true });
   const host = await browser.newPage({ viewport: { width: 1600, height: 960 } }); monitor(host);
+  let hostSnapshotTick = -1;
+  host.on('websocket', socket => socket.on('framereceived', frame => {
+    const message: { type?: string; tick?: number } = JSON.parse(frame.payload.toString());
+    if (message.type === 'snapshot' && typeof message.tick === 'number') hostSnapshotTick = message.tick;
+  }));
+  const advanceDelivered = async (count: number) => {
+    // Manual ticks must let the real socket drain. Several synchronous rounds can
+    // exceed the server's bounded send queue and discard the final UI snapshot.
+    for (let remaining = count; remaining > 0; remaining -= 2) {
+      app.advance(Math.min(2, remaining));
+      const tick = app.game.tick;
+      await waitFor(() => hostSnapshotTick >= tick, `host snapshot delivery at tick ${tick}`);
+    }
+  };
   await host.addInitScript(() => {
     const create = AudioContext.prototype.createOscillator;
     AudioContext.prototype.createOscillator = function () {
@@ -276,15 +290,15 @@ try {
   // Exercise complete first-to-three / automatic round restart / host rematch UI.
   const winner = previousIds[0];
   for (let round = 0; round < 3; round++) {
-    if (app.game.phase === 'countdown') app.advance(60);
+    if (app.game.phase === 'countdown') await advanceDelivered(60);
     for (const id of previousIds) if (id !== winner) eliminatePlayer(app.game, id);
-    app.advance(2);
-    if (app.game.phase !== 'matchOver') app.advance(60);
+    await advanceDelivered(2);
+    if (app.game.phase !== 'matchOver') await advanceDelivered(60);
   }
   assert.equal(app.game.phase, 'matchOver');
   await host.getByText('FINAL ROUND', { exact: true }).waitFor();
   assert.equal(await host.locator('.match-recap:not(.hidden)').count(), 0);
-  app.advance(60);
+  await advanceDelivered(60);
   await host.getByRole('button', { name: 'REMATCH' }).waitFor();
   await host.locator('.match-recap:not(.hidden)').waitFor();
   assert.equal(await host.locator('.comparison-row:not(.comparison-header)').count(), 5);
