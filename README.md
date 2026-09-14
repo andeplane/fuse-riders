@@ -18,13 +18,12 @@ Requires Node.js **22.12 or newer** and npm. From a fresh checkout:
 
 ```sh
 npm ci
-npm run build
 PORT=3030 npm start
 ```
 
 Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host display URL printed by the server**, then scan its QR code from each phone. The host URL contains a capability needed to start/reset matches; an ordinary `/display` URL does not grant those controls. Phones use `/controller`. Use the printed LAN IP on phones, not `localhost`. Set `HOST_IP` if automatic interface discovery selects the wrong network.
 
-`PORT=3030 npm run dev` runs the development server with Vite browser updates. Production uses the built `dist/` assets and does not automatically refresh. Rebuild and restart between matches, open the new printed host link, and refresh/rejoin phones. Restarting the Node process clears its in-memory game and session scores. The default port is 3000 when `PORT` is omitted.
+`npm start` builds the latest browser assets before starting the server. For development, use `PORT=3030 npm run dev`: Vite serves current browser code and updates it as you edit, with no separate build needed. Changes to server code or its shared dependencies automatically restart the Node process. Each restart clears the in-memory game and session scores; open the new printed host link and refresh/rejoin phones. Production does not watch files or automatically refresh; stop and run `npm start` again between matches to pick up changes. The default port is 3000 when `PORT` is omitted.
 
 The room-creation home page requires a room service API. Use `/display` and `/controller` for LAN play; use the following command for online rooms.
 
@@ -45,6 +44,8 @@ The creator's browser owns the simulation. Keep its tab in the foreground: a pho
 ## How to play
 
 Hold or slide a finger into left/right to steer. Hold **Fire** to charge a forward launch, then release. Target Bomb changes Fire into a thumb trackpad with a public aiming marker. Tap **HEAD** to change avatar, including during a round. Phone colors match riders. Joiners can enter during play when a seat is available and wait for the next round.
+
+On a computer, hold **← / →** to steer and hold/release **Space** for the Fire action in solo, online rooms or the LAN controller. Opening a dialog or switching away cancels held controls. Use the on-screen Fire pad to slide the Target Bomb aim. Desktop arena views use compact controls to give the board more space; touch devices keep large pads.
 
 Drops include blast upgrades, Beer, Ink, Triple/Five Shot, Target Bomb, Orbit Shield, portals, shells, gun projectiles, and shorter fuses. Star is excluded from default drops. Balance changes frequently: use [pickup weights](src/shared/pickup-weights.ts), [game rules](src/shared/game.ts), and [room settings](src/shared/room-settings.ts) as the source of truth rather than copying constants into documentation.
 
@@ -109,6 +110,7 @@ LAN browser smoke starts its own isolated server. It uses installed Chrome by de
 mkdir -p artifacts
 npx tsx scripts/online-smoke.ts
 BROWSER=webkit npx tsx scripts/online-smoke.ts
+ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
 npx tsx scripts/benchmark-deltas.ts
 npx tsx scripts/online-network-benchmark.ts
 ```
