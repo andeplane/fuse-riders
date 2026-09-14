@@ -7,29 +7,37 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${PORT:-8787}"
 URL="http://localhost:$PORT/"
+STEPS="typecheck,worker,coverage,build,lan,avatar,keyboard,online,phaser,home,landscape,shared,deltas"
 ONLY="${ONLY:-}"; ONLY="${ONLY//core/typecheck,worker,coverage,build}"
+for t in ${ONLY//,/ }; do [[ ",$STEPS," == *",$t,"* ]] || { echo "Unknown ONLY step '$t' (steps: $STEPS, core)"; exit 1; }; done
 WRANGLER_PID=""
 START=$SECONDS
+RAN=0
 
 needs() { [[ -z "$ONLY" || ",$ONLY," == *",$1,"* ]]; }
 
 step() {  # step <name>[:variant] cmd...
   local label=$1 name=${1%%:*}; shift
   needs "$name" || return 0
-  local begin=$SECONDS
-  echo "=== $label: $*"
-  if "$@"; then
+  local begin=$SECONDS rc=0
+  echo "=== $label: $*"; RAN=$((RAN+1))
+  "$@" || rc=$?
+  if [[ $rc -eq 0 ]]; then
     echo "PASS $label ($((SECONDS-begin))s)"
   else
-    echo "FAIL $label ($((SECONDS-begin))s)"; exit 1
+    echo "FAIL $label ($((SECONDS-begin))s)"; exit "$rc"
   fi
 }
 
 start_wrangler() {
   mkdir -p artifacts
+  if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN > /dev/null 2>&1; then echo "FAIL port $PORT already in use; pick another with PORT=<port>"; exit 1; fi
   # set -m gives wrangler its own process group so the trap also kills workerd.
   set -m; npx wrangler dev --port "$PORT" > artifacts/worker.log 2>&1 & WRANGLER_PID=$!; set +m
-  for _ in $(seq 1 30); do curl -fsS "$URL" > /dev/null 2>&1 && return 0; sleep 1; done
+  for _ in $(seq 1 30); do
+    kill -0 "$WRANGLER_PID" 2>/dev/null || { cat artifacts/worker.log; echo "FAIL wrangler exited early"; exit 1; }
+    curl -fsS "$URL" > /dev/null 2>&1 && return 0; sleep 1
+  done
   cat artifacts/worker.log; echo "FAIL wrangler did not answer on $URL"; exit 1
 }
 
@@ -59,3 +67,4 @@ step home env HOME_URL="$URL" npx tsx scripts/home-mobile-smoke.ts
 step landscape env HOME_URL="$URL" npx tsx scripts/mobile-landscape-smoke.ts
 step shared env ONLINE_URL="$URL" npx tsx scripts/shared-room-smoke.ts
 step deltas npx tsx scripts/benchmark-deltas.ts
+[[ $RAN -gt 0 ]] || { echo "FAIL no steps ran"; exit 1; }
