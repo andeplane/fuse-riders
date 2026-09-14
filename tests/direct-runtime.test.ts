@@ -223,10 +223,12 @@ test('checkpoint backpressure pauses preparation and resumes the same transfer a
   const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
   room.checkpointBlocked.add('p1');
   const sentBefore = room.sends.filter(m => m.to === 'p1' && m.type === 'directChunk').length;
+  const headersBefore=room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length;
   creator.runtime.command({ type: 'action', action: 'start' }); room.advance(1000);
   assert.equal(room.sends.filter(m => m.to === 'p1' && m.type === 'directChunk').length, sentBefore);
   assert.equal(guest.view?.phase, 'lobby');
   assert.equal(guest.runtime.replicationDiagnostics.barrier, true);
+  assert.equal(room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length,headersBefore+1,'acknowledged header must not repeat while chunks wait for backpressure');
   const alias = guest.runtime.replicationDiagnostics.alias;
   room.checkpointBlocked.delete('p1'); room.advance(1600);
   assert.ok(room.sends.filter(m => m.to === 'p1' && m.type === 'directChunk').length > sentBefore);
@@ -234,6 +236,71 @@ test('checkpoint backpressure pauses preparation and resumes the same transfer a
   assert.equal(guest.runtime.replicationDiagnostics.barrier, false);
   assert.equal(guest.view?.phase, 'countdown');
   assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, false);
+});
+
+test('header and header-ACK enqueue failures retry delivery without substituting for readiness',()=>{
+ const room=setup(),creator=room.members.get('p0')!,guest=room.members.get('p1')!;
+ let headerFailed=false,ackFailed=false;
+ room.accept((from,to,raw)=>{
+  if(raw&&typeof raw==='object'&&'type' in raw){
+   if(from==='p0'&&to==='p1'&&raw.type==='directPrepare'&&!headerFailed){headerFailed=true;return false;}
+   if(from==='p1'&&to==='p0'&&raw.type==='directHeader'&&!ackFailed){ackFailed=true;return false;}
+  }
+  return true;
+ });
+ room.checkpointBlocked.add('p1');creator.runtime.command({type:'action',action:'start'});room.advance(1000);
+ assert.ok(headerFailed&&ackFailed);assert.equal(guest.runtime.replicationDiagnostics.barrier,true);assert.equal(guest.view?.phase,'lobby');
+ const headers=room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length;room.advance(1000);
+ assert.equal(room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length,headers);
+ room.checkpointBlocked.delete('p1');room.advance(1600);assert.equal(guest.runtime.replicationDiagnostics.barrier,false);assert.equal(guest.view?.phase,'countdown');
+});
+
+test('stale or malformed header acknowledgements cannot stop preparation delivery',()=>{
+ const room=setup(),creator=room.members.get('p0')!,guest=room.members.get('p1')!;
+ room.accept((from,_to,raw)=>!(from==='p1'&&raw&&typeof raw==='object'&&'type' in raw&&raw.type==='directHeader'));
+ room.checkpointBlocked.add('p1');creator.runtime.command({type:'action',action:'start'});room.advance(200);
+ const revision=guest.runtime.replicationDiagnostics.alias!;
+ const headers=()=>room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length;
+ creator.callbacks.message('p1',{type:'directHeader',revision:revision-1});creator.callbacks.message('p1',{type:'directHeader',revision,extra:true});
+ const before=headers();room.advance(200);assert.ok(headers()>before);
+ creator.callbacks.message('p1',{type:'directHeader',revision});const acknowledged=headers();room.advance(400);assert.equal(headers(),acknowledged);
+ assert.equal(guest.runtime.replicationDiagnostics.barrier,true);
+});
+
+test('checkpoint chunks alternate eligible recipients with one successful enqueue per scheduler tick',()=>{
+ const room=setup(),creator=room.members.get('p0')!;
+ const chunks:{to:string;at:number;offset:number;bytes:number}[]=[];
+ room.accept((from,to,raw)=>{
+  if(from==='p0'&&raw&&typeof raw==='object'&&'type' in raw&&raw.type==='directChunk'&&'offset' in raw&&typeof raw.offset==='number'&&'data' in raw&&raw.data instanceof Uint8Array)chunks.push({to,at:room.now(),offset:raw.offset,bytes:raw.data.byteLength});
+  return true;
+ });
+ creator.runtime.command({type:'action',action:'start'});room.advance(1200);
+ assert.ok(chunks.length>=4);assert.deepEqual(chunks.slice(0,2).map(c=>c.to).sort(),['p1','p2']);assert.equal(new Set(chunks.map(c=>c.at)).size,chunks.length);
+ for(const to of ['p1','p2']){let offset=0,at=-Infinity;for(const chunk of chunks.filter(c=>c.to===to)){assert.equal(chunk.offset,offset);assert.ok(chunk.bytes<=2000);assert.ok(chunk.at-at>=50);offset+=chunk.bytes;at=chunk.at;}}
+ assert.ok([...room.members.values()].every(m=>!m.runtime.replicationDiagnostics.barrier));
+});
+
+test('synchronous authority replacement during a chunk send retires the old transfer immediately',()=>{
+ const room=setup(),creator=room.members.get('p0')!;let chunks=0;
+ room.accept((from,_to,raw)=>{
+  if(from==='p0'&&raw&&typeof raw==='object'&&'type' in raw&&raw.type==='directChunk'){chunks++;creator.callbacks.authorityChanged?.();}
+  return true;
+ });
+ creator.runtime.command({type:'action',action:'start'});room.advance(300);
+ assert.equal(chunks,1);assert.equal(creator.runtime.replicationDiagnostics.alias,undefined);assert.equal(creator.runtime.replicationDiagnostics.barrier,false);
+});
+
+test('synchronous end during a header send stops other recipient sends in the same tick',()=>{
+ const room=setup(),creator=room.members.get('p0')!;let headers=0,sentAfterEnd=0;
+ room.accept((from,_to,raw)=>{
+  if(from==='p0'){
+   if(headers)sentAfterEnd++;
+   if(raw&&typeof raw==='object'&&'type' in raw&&raw.type==='directPrepare'){headers++;creator.callbacks.ended?.();}
+  }
+  return true;
+ });
+ creator.runtime.command({type:'action',action:'start'});room.advance(300);
+ assert.equal(headers,1);assert.equal(sentAfterEnd,0);assert.equal(creator.tick,undefined);assert.equal(creator.view?.phase,'lobby');
 });
 
 test('persistent checkpoint backpressure cannot extend the recovery deadline indefinitely', () => {

@@ -1,0 +1,232 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC; regional profile, seed 12345.
+{"elapsed":4.519,"phase":"countdown","round":1,"tick":33,"diagnostics":{"mode":"direct","coordinator":"eea14d75886348b9d7ada7f6","alias":5,"simulator":true,"replicaTick":33,"finalizedTick":24,"finalizedHash":"809b343371ef812f","retainedRecords":0,"rollbackCount":0,"fastSentBytes":2979,"binarySentBytes":179987,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.518,"phase":"playing","round":1,"tick":133,"diagnostics":{"mode":"direct","coordinator":"eea14d75886348b9d7ada7f6","alias":5,"simulator":true,"replicaTick":133,"finalizedTick":123,"finalizedHash":"e9895b928bf7d346","retainedRecords":0,"rollbackCount":13,"fastSentBytes":6598,"binarySentBytes":185771,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.519,"phase":"roundOver","round":1,"tick":233,"diagnostics":{"mode":"direct","coordinator":"eea14d75886348b9d7ada7f6","alias":6,"simulator":true,"replicaTick":209,"finalizedTick":203,"finalizedHash":"60218abf6c1ba0b3","retainedRecords":0,"rollbackCount":14,"fastSentBytes":8526,"binarySentBytes":449502,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":true,"fault":"Segment replaced"}}
+{"elapsed":19.528,"phase":"roundOver","round":1,"tick":333,"diagnostics":{"mode":"direct","coordinator":"eea14d75886348b9d7ada7f6","alias":7,"simulator":true,"replicaTick":209,"finalizedTick":203,"finalizedHash":"60218abf6c1ba0b3","retainedRecords":0,"rollbackCount":14,"fastSentBytes":9376,"binarySentBytes":583454,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{"elapsed":24.535,"phase":"roundOver","round":1,"tick":433,"diagnostics":{"mode":"direct","coordinator":"eea14d75886348b9d7ada7f6","alias":8,"simulator":true,"replicaTick":209,"finalizedTick":203,"finalizedHash":"60218abf6c1ba0b3","retainedRecords":0,"rollbackCount":14,"fastSentBytes":10021,"binarySentBytes":862626,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{"elapsed":29.545,"phase":"roundOver","round":1,"tick":533,"diagnostics":{"mode":"direct","coordinator":"eea14d75886348b9d7ada7f6","alias":9,"simulator":true,"replicaTick":209,"finalizedTick":203,"finalizedHash":"60218abf6c1ba0b3","retainedRecords":0,"rollbackCount":14,"fastSentBytes":10646,"binarySentBytes":1220372,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{
+  "passed": false,
+  "totals": [
+    {
+      "index": 0,
+      "actionArrivalAgeTicks": {
+        "count": 25,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 226,
+        "p50": 7,
+        "p95": 21,
+        "p99": 23,
+        "max": 23
+      },
+      "network": {
+        "attempted": 2271,
+        "delivered": 2166,
+        "fastDropped": 22,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 86228,
+        "maxQueuedBytes": 218854,
+        "maxQueuedPackets": 242
+      },
+      "engine": "chromium",
+      "rtcUpload": 1386667,
+      "rtcDownload": 146845,
+      "signallingUpload": 12048,
+      "signallingDownload": 20826,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 1,
+      "actionArrivalAgeTicks": {
+        "count": 23,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 230,
+        "p50": 9,
+        "p95": 24,
+        "p99": 25,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1672,
+        "delivered": 1638,
+        "fastDropped": 27,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 243,
+        "maxQueuedBytes": 1728,
+        "maxQueuedPackets": 15
+      },
+      "engine": "webkit",
+      "rtcUpload": 103019,
+      "rtcDownload": 333827,
+      "signallingUpload": 2566,
+      "signallingDownload": 14918,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 2,
+      "actionArrivalAgeTicks": {
+        "count": 25,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 243,
+        "p50": 9,
+        "p95": 23,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1678,
+        "delivered": 1652,
+        "fastDropped": 19,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 243,
+        "maxQueuedBytes": 1512,
+        "maxQueuedPackets": 13
+      },
+      "engine": "chromium",
+      "rtcUpload": 104896,
+      "rtcDownload": 356682,
+      "signallingUpload": 2931,
+      "signallingDownload": 15286,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 3,
+      "actionArrivalAgeTicks": {
+        "count": 26,
+        "p50": -1,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 243,
+        "p50": 8,
+        "p95": 23,
+        "p99": 25,
+        "max": 26
+      },
+      "network": {
+        "attempted": 1941,
+        "delivered": 1916,
+        "fastDropped": 25,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "maxQueuedBytes": 2139,
+        "maxQueuedPackets": 15
+      },
+      "engine": "webkit",
+      "rtcUpload": 218493,
+      "rtcDownload": 479190,
+      "signallingUpload": 2565,
+      "signallingDownload": 14918,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 4,
+      "actionArrivalAgeTicks": {
+        "count": 25,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 247,
+        "p50": 9,
+        "p95": 23,
+        "p99": 25,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1686,
+        "delivered": 1669,
+        "fastDropped": 16,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 5,
+        "maxQueuedBytes": 1728,
+        "maxQueuedPackets": 15
+      },
+      "engine": "chromium",
+      "rtcUpload": 106991,
+      "rtcDownload": 355045,
+      "signallingUpload": 2958,
+      "signallingDownload": 15310,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 5,
+      "actionArrivalAgeTicks": {
+        "count": 31,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 241,
+        "p50": 8,
+        "p95": 25,
+        "p99": 34,
+        "max": 37
+      },
+      "network": {
+        "attempted": 1570,
+        "delivered": 1545,
+        "fastDropped": 25,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "maxQueuedBytes": 1712,
+        "maxQueuedPackets": 14
+      },
+      "engine": "webkit",
+      "rtcUpload": 109081,
+      "rtcDownload": 357558,
+      "signallingUpload": 2566,
+      "signallingDownload": 14916,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    }
+  ],
+  "failure": "Error: page.waitForFunction: Error: Game required recovery\n    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)\n    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)\n    at next (eval at evaluate (:311:30), <anonymous>:29:33)",
+  "errors": []
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Error: Game required recovery
+    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)
+    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)
+    at next (eval at evaluate (:311:30), <anonymous>:29:33)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:42:46)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:42:29) {
+  log: []
+}
+
+Node.js v22.14.0

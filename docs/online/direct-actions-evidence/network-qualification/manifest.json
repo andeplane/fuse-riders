@@ -1,0 +1,87 @@
+{
+  "date": "2026-09-14",
+  "baseRevision": "bc191d800e2fe3d468fd20d5160549c76dc13f4c",
+  "scope": "Reviewed header, direct-only charge/finality, shared transfer pacing and MessagePack network fixture corrections. Local full-match and WebKit pass; regional qualification remains failed. No deployment. ADR043 local-base reuse is independently approved as the next implementation step; it is not implemented.",
+  "sourceSha256": {
+    "scripts/direct-mesh-browser.ts": "c3a2994d8e503cbe917c8a6e1779fee4718c2f3ec3a60225611f952ee4424b03",
+    "scripts/direct-traffic-browser.ts": "2adb62d5e93e1ef3486e52337716607c45737c7daf58bebaac843a625f58b43b",
+    "scripts/fixtures/direct-traffic-fixture.ts": "2b10ac165f1775e940da038787f09a6de1383bfd7639490ac5f88ac78945faa3",
+    "src/online/link-send-gate.ts": "88846e721519449baa81308386f0cbd5f8c2c0186d92d373a9cd6ec50a001ee3",
+    "src/online/peer-transport.ts": "7891fad70a0713dbfde840d98a93198b9b6a51b8ee0b94cb5a253dc6494e5e32",
+    "src/online/rollback-world.ts": "2a44af4865f68dc3720a3cdaa72c8b223b3cae60146fc27e427a7e926f00570d",
+    "src/online/runtime.ts": "365c904905d658c54a6589ad8c04ca3f035073250296e15880dfc28a713fc2b2",
+    "src/shared/direct-input.ts": "43011e3133d5466d4a2b43f90c231718e1fdad354b1c62681d020bb328c8f759",
+    "tests/direct-actions.test.ts": "eafd0a809328d96a4a719d6a96b31563593a87c75ae08f589050ca56836760a0",
+    "tests/direct-runtime.test.ts": "d268eee5bef8acfc6db3e8045453c0f0f27f924af4f3995c1137853b4e14addb",
+    "tests/link-send-gate.test.ts": "342e23569e8e23f7fba414980f54463826c0de9e58d9bf7446e547b0280591ec",
+    "scripts/fixtures/direct-network-queue.ts": "c383689ec09c4716e1ca53bca00e6fab403cd30c839a0d5dd2a4a9d7a2a05d92",
+    "tests/direct-network-queue.test.ts": "645d2662f57f7d539aa648e41be090777ebeea8c56c9f5bf680a01332759bd09",
+    ".c8rc.json": "239cacc0eb3e4015d7828c1395a7189fc2114b2e5505f260b8bb661e074cdc30"
+  },
+  "evidenceSha256": {
+    "coverage.log": "91a0d6c6f0e9c6073356e5f162c5bd248a5e7e39378096c9dd6b0bf7b09787ee",
+    "direct-traffic-regional-06.json.gz": "1e8824008f17765c7d689126b26790a0a22de8a5d2705cb37cb7061b452ed719",
+    "webkit.log": "df0cd92af415b5da2d621e9cfc3d1bcb8dcecd4a0a9c0d06b7102bb085b41007",
+    "direct-traffic-regional-04.json.gz": "3ffb770f04e74cdac63dc7475648ca67ea7e15a58191a5b344ef11a1c023c0f7",
+    "typecheck.log": "374e896c0d6e11fcfe28c47b1144206a87ea04f5db4ea121f23c5a19fc33fd4d",
+    "direct-traffic-regional-05.json.gz": "cb7f8f7e7917eb1875b283f70c207f47f950a45fd8eabaaab0a2cc901d096135",
+    "charge-before.log": "087f691671309835e789441f1faa1bb9d118b25b85b37cda091d0db9a1788d1f",
+    "charge-after.log": "fafe7e1325cfd275c68ede742b27426eee44dda660cadbdd45367892827cd854",
+    "direct-traffic-qualified-local-01.json.gz": "1655098ced6a861ee9c50c1d3833a779b9cb3e0aec7fe2ca2b748dd58fe7c911",
+    "header-before.log": "4ff87d87986eb3b48245461764fe22300a03e018408a70a47144f0ca83030aca",
+    "transfer-guards.log": "d0ab05fde52825e4f9d0bd59ee516e2a9fb46e0997349d12a6a5f7ffc289c6c9",
+    "queue-final.log": "b381f501160bf66d26a7bf190cc0951ca8969c43fd8f373d170864fa87b6439b",
+    "direct-traffic-regional-01.json.gz": "30bb9ba3034a3d1d228e4367e4ebd1dbfbeea3896ca7cb90279851cc64342804",
+    "header-after.log": "25216f84ae75e220bde819af930f5f261bb28f598bcc17528e225136622c0b5e",
+    "local-native.log": "93ecacbb40cd5fb9199584d5abfee34406ded0f9a3590389c2efc212e0bd2070",
+    "regional-04.log": "d0fd598e219710b95fc6f57af433600ec6c457d8e9064c1fef279bb67ca09aca",
+    "regional-05.log": "a962b222bb10d44d8408c1dd8a3207b310b1a264f7eab47f095d8b7a05adae4e",
+    "direct-traffic-regional-03.json.gz": "208e527645ac552e93a1f912c60c01cd5a490a3ff103dc05c50b6ddefc914367",
+    "regional-06.log": "90357e486575b09fdd95c040ed59bde2ab093f7816c5706b3aba54b4662ea61c",
+    "regional-02.log": "34de3f8892823cf0566e8e1ace1f6de3b2321c2b654e6bbae2eed089fd760a97",
+    "regional-03.log": "8c2e17d75a7c6ee8cefd0f24bcaba4e5f38ffa66785a06cff07bbef0983c1d10",
+    "regional-01.log": "62bf96aa58edb40c540ed3035965263b65da04a8af661f56aa89ca61e7593cd1",
+    "direct-traffic-regional-02.json.gz": "b7a50aaf6ebe5efd8629e2f2233531ea6c4d1d6785db612b5bbbbd3e3f4c7d27",
+    "build.log": "7a4fd39516e2324f114bfdd82cd6203b521b2872c8dde6c54db1ae0393ed01c4",
+    "worker-typecheck.log": "0102f73cb93b40d17dc8b71ee627cccfba5d38485df9ea6c25581b26319dc89e"
+  },
+  "checks": {
+    "tests": "608 passed, zero failed. Coverage99.19%lines/statements,94.13%branches,98.88%functions;unchanged thresholds.",
+    "typechecks": "Main and Worker passed. Final main typecheck includes bounded console-error trace change.",
+    "build": "Passed; existing chunk advisory.",
+    "independentReview": "40 focused runtime/gate/network tests passed; additional43actions/segment tests passed. No findings remain in correction scope.",
+    "localNative": {
+      "passed": true,
+      "seconds": 36.464,
+      "bundleSha256": "028fb2b88c2391e5c81e479fe9a63d3cdf93b49dfeed92ac9b7cd51fe3ce3b44",
+      "scope": "Five scriptedhumanorigins plusdisplay, sixsimulatorsalternatingChromium/WebKit;three rounds, exactfinalizedoutcomeagreement,noautomaticrecovery,reconnect,console/page/teardownerrors. Applicationbyte windowincludestransitions;notwireor renderedlatency."
+    },
+    "webkit": "Final personal-screen/TV controller flows, start/settings/reset and reloads passed;zero browsererrors.",
+    "regional": "FAILED:regional06 under40\u00b120msdelay,2%fastloss,512kbpssender budget hits five-second roundcheckpointpreparation timeout;noexceptions,queueoverflowor truncatedsamples. Max coordinator residence235.2ms. Do not claim regional reliability or full release qualification."
+  },
+  "runInterpretation": {
+    "regional-01": "Failed;initial synthetic queue omitted bufferedAmount/backpressure, so throughput is not production evidence.",
+    "regional-02": "Failed;syntheticbackpressureadded, butfullpreparationheaders repeated afterACK. Modelalso counted propagationdelay asunsentbuffer.",
+    "regional-03": "Failed;headercorrection allowsplay butroundsetup recovers. Strengthenedstickyfaultchecks preserve this as failure. Propagation-as-buffered limitation remains.",
+    "regional-04": "Failed;captured real unreadable finalizedcheckpoint TypeError. Exact public-API regression reproduces charge/gestureinconsistency independently. Sameolderbuffer model.",
+    "regional-05": "Failed;chargefix andaggregatepacing removeerrors/reducequeue residence, butroundtransferstilltimesout. Propagationdelay incorrectly counted asunsentbuffer;notproductionthroughputevidence.",
+    "regional-06": "Failed under corrected unsent/propagation model. Retained exactsourceandpacketobservations. Remaining roundtransfer limit is open.",
+    "qualified-local-01": "Passed currentproduction source,36.464s,alloutcomesagree. Random game seeds differ from historical traffic;no matchedpercentageclaim."
+  },
+  "commands": [
+    "npm run typecheck",
+    "npm run typecheck:worker",
+    "npm run test:coverage",
+    "npm run build",
+    "ONLINE_URL=http://localhost:8812/ TRAFFIC_PROFILE=regional TRAFFIC_RUN=regional-06 node --import tsx scripts/direct-traffic-browser.ts",
+    "ONLINE_URL=http://localhost:8812/ TRAFFIC_RUN=qualified-local-01 node --import tsx scripts/direct-traffic-browser.ts",
+    "BROWSER=webkit ONLINE_URL=http://localhost:8812/ ROOM_RENDERER=canvas node --import tsx scripts/online-smoke.ts"
+  ],
+  "limits": [
+    "Compressed JSON preserves all raw run fields; decompress with gzip for inspection.",
+    "Application-send injection does not model IP loss,SCTPcongestion/ACKs or physical phones. Fast drops occur before bandwidth serialization.",
+    "Native bytes use bounded measurementwindow;synthetic queue stats include collectiontail. Pending window-end and stopcancelledbytes are explicit.",
+    "First-actionarrival age is receiver simulation tick minus stamped tick, not localinput-to-render latency.",
+    "Renderingbuffer, sustained30minute qualification, mobileprofile andbroader lifecycle/failure/latency/resource acceptance remain."
+  ]
+}

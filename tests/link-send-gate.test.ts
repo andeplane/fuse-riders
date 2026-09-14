@@ -1,7 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT, permitsFastControl, type SendChannelFacts } from '../src/online/link-send-gate.js';
+import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT, permitsFastControl, permitsAggregate, CHECKPOINT_BUFFER_LIMIT, COORDINATION_BUFFER_LIMIT, type SendChannelFacts } from '../src/online/link-send-gate.js';
 const open=(bufferedAmount=0):SendChannelFacts=>({readyState:'open',bufferedAmount});
+
+test('aggregate transfer budget counts other peers, both lanes and the encoded envelope while reserving control headroom',()=>{
+ const links=[{channel:open(2000),fast:open(500)},{channel:open(1000),fast:open(500)}];
+ assert.equal(permitsAggregate(links,2000,CHECKPOINT_BUFFER_LIMIT),true);
+ assert.equal(permitsAggregate(links,2200,CHECKPOINT_BUFFER_LIMIT),false,'a 2KB payload plus its envelope exceeds the remaining budget');
+ assert.equal(permitsAggregate(links,2200,COORDINATION_BUFFER_LIMIT),true);
+ assert.equal(permitsAggregate(links,8000,COORDINATION_BUFFER_LIMIT),true);assert.equal(permitsAggregate(links,8001,COORDINATION_BUFFER_LIMIT),false);
+ for(const bytes of [-1,0,NaN,Infinity,1.5,12001])assert.equal(permitsAggregate([],bytes,COORDINATION_BUFFER_LIMIT),false);
+ assert.equal(permitsAggregate([{channel:open(Infinity)}],1,CHECKPOINT_BUFFER_LIMIT),false);assert.equal(permitsAggregate([{fast:open(-1)}],1,CHECKPOINT_BUFFER_LIMIT),false);
+ assert.equal(permitsAggregate([{}],1,CHECKPOINT_BUFFER_LIMIT),true);
+});
 
 test('deferred fast health replies recheck visibility and both lanes without depending on reliable backlog',()=>{
  for(const change of ['hidden','stopped','reliable-close','fast-close','reliable-drain','fast-drain'] as const){

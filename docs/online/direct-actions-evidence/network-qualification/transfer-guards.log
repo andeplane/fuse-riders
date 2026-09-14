@@ -1,0 +1,190 @@
+TAP version 13
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 1 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 115.199167
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 2 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 40.837458
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 3 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 49.476
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 4 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 132.492
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 5 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 23.189834
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 6 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 139.6715
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 7 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 44.313083
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 8 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 132.76725
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 9 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 247.083666
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 10 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 37.757542
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 11 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 186.471458
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 12 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 43.621458
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 13 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 83.006583
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 14 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 37.019166
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+ok 15 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 37.266625
+  ...
+# Subtest: header and header-ACK enqueue failures retry delivery without substituting for readiness
+ok 16 - header and header-ACK enqueue failures retry delivery without substituting for readiness
+  ---
+  duration_ms: 43.002291
+  ...
+# Subtest: stale or malformed header acknowledgements cannot stop preparation delivery
+ok 17 - stale or malformed header acknowledgements cannot stop preparation delivery
+  ---
+  duration_ms: 24.183958
+  ...
+# Subtest: checkpoint chunks alternate eligible recipients with one successful enqueue per scheduler tick
+ok 18 - checkpoint chunks alternate eligible recipients with one successful enqueue per scheduler tick
+  ---
+  duration_ms: 25.8975
+  ...
+# Subtest: synchronous authority replacement during a chunk send retires the old transfer immediately
+ok 19 - synchronous authority replacement during a chunk send retires the old transfer immediately
+  ---
+  duration_ms: 19.236625
+  ...
+# Subtest: synchronous end during a chunk send stops the retained transfer before activation
+ok 20 - synchronous end during a chunk send stops the retained transfer before activation
+  ---
+  duration_ms: 19.402209
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 21 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 154.465958
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 22 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 155.182375
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 23 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 156.799125
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 24 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 149.378625
+  ...
+# Subtest: settled room metadata stops repeating until a lifecycle change
+ok 25 - settled room metadata stops repeating until a lifecycle change
+  ---
+  duration_ms: 52.124917
+  ...
+# Subtest: a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+ok 26 - a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+  ---
+  duration_ms: 42.662375
+  ...
+# Subtest: stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+ok 27 - stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+  ---
+  duration_ms: 33.000458
+  ...
+# Subtest: only an identical current plan duplicate receives another delivery acknowledgement
+ok 28 - only an identical current plan duplicate receives another delivery acknowledgement
+  ---
+  duration_ms: 33.81175
+  ...
+# Subtest: delegated setup request retries do not resend an already acknowledged room plan
+ok 29 - delegated setup request retries do not resend an already acknowledged room plan
+  ---
+  duration_ms: 20.32075
+  ...
+# Subtest: an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+ok 30 - an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+  ---
+  duration_ms: 165.043208
+  ...
+# Subtest: freezing a runtime deactivates its installed alias before another preparation
+ok 31 - freezing a runtime deactivates its installed alias before another preparation
+  ---
+  duration_ms: 34.636792
+  ...
+# Subtest: aggregate transfer budget counts other peers, both lanes and the encoded envelope while reserving control headroom
+ok 32 - aggregate transfer budget counts other peers, both lanes and the encoded envelope while reserving control headroom
+  ---
+  duration_ms: 0.407583
+  ...
+# Subtest: deferred fast health replies recheck visibility and both lanes without depending on reliable backlog
+ok 33 - deferred fast health replies recheck visibility and both lanes without depending on reliable backlog
+  ---
+  duration_ms: 0.162041
+  ...
+# Subtest: healthy open channel under the buffer limit is permitted for gameplay and probes
+ok 34 - healthy open channel under the buffer limit is permitted for gameplay and probes
+  ---
+  duration_ms: 0.054375
+  ...
+# Subtest: a closing signal recorded before the DOM readyState changes blocks gameplay and probe sends
+ok 35 - a closing signal recorded before the DOM readyState changes blocks gameplay and probe sends
+  ---
+  duration_ms: 0.089417
+  ...
+# Subtest: bulk transfer idle permission requires an open, fully drained, undrained action channel
+ok 36 - bulk transfer idle permission requires an open, fully drained, undrained action channel
+  ---
+  duration_ms: 0.054416
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 36
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2705.219958

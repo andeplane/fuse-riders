@@ -1,0 +1,244 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC; regional profile, seed 12345.
+{"elapsed":4.54,"phase":"countdown","round":1,"tick":40,"diagnostics":{"mode":"direct","coordinator":"4dbc4d8657aabc83d98b34e8","alias":5,"simulator":true,"replicaTick":40,"finalizedTick":24,"finalizedHash":"9efc83e5745ee261","retainedRecords":0,"rollbackCount":0,"fastSentBytes":2859,"binarySentBytes":125739,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.561,"phase":"roundOver","round":1,"tick":140,"diagnostics":{"mode":"direct","coordinator":"4dbc4d8657aabc83d98b34e8","alias":5,"simulator":true,"replicaTick":140,"finalizedTick":136,"finalizedHash":"08b56c94deadcb40","retainedRecords":0,"rollbackCount":18,"fastSentBytes":6259,"binarySentBytes":131532,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.575,"phase":"roundOver","round":1,"tick":241,"diagnostics":{"mode":"direct","coordinator":"4dbc4d8657aabc83d98b34e8","alias":6,"simulator":true,"replicaTick":208,"finalizedTick":200,"finalizedHash":"916aa14b7fe79547","retainedRecords":0,"rollbackCount":18,"fastSentBytes":8162,"binarySentBytes":202752,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":true,"fault":"Segment replaced"}}
+{"elapsed":19.593,"phase":"roundOver","round":1,"tick":340,"diagnostics":{"mode":"direct","coordinator":"4dbc4d8657aabc83d98b34e8","alias":7,"simulator":true,"replicaTick":208,"finalizedTick":200,"finalizedHash":"916aa14b7fe79547","retainedRecords":0,"rollbackCount":18,"fastSentBytes":8802,"binarySentBytes":396254,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{"elapsed":24.639,"phase":"roundOver","round":1,"tick":441,"diagnostics":{"mode":"direct","coordinator":"4dbc4d8657aabc83d98b34e8","alias":8,"simulator":true,"replicaTick":208,"finalizedTick":200,"finalizedHash":"916aa14b7fe79547","retainedRecords":0,"rollbackCount":18,"fastSentBytes":9432,"binarySentBytes":614632,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{"elapsed":29.63,"phase":"roundOver","round":1,"tick":541,"diagnostics":{"mode":"direct","coordinator":"4dbc4d8657aabc83d98b34e8","alias":9,"simulator":true,"replicaTick":208,"finalizedTick":200,"finalizedHash":"916aa14b7fe79547","retainedRecords":0,"rollbackCount":18,"fastSentBytes":10057,"binarySentBytes":874764,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{
+  "passed": false,
+  "totals": [
+    {
+      "index": 0,
+      "actionArrivalAgeTicks": {
+        "count": 23,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 224,
+        "p50": 7,
+        "p95": 21,
+        "p99": 23,
+        "max": 23
+      },
+      "network": {
+        "attempted": 2389,
+        "delivered": 2361,
+        "fastDropped": 22,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 3900,
+        "maxQueuedBytes": 12842,
+        "maxQueuedPackets": 21,
+        "maxScheduledDelayMs": 228.8355573285371,
+        "maxResidenceMs": 234.2000002861023
+      },
+      "engine": "chromium",
+      "rtcUpload": 1179284,
+      "rtcDownload": 210677,
+      "signallingUpload": 5403,
+      "signallingDownload": 14243,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 1,
+      "actionArrivalAgeTicks": {
+        "count": 22,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 236,
+        "p50": 9,
+        "p95": 22,
+        "p99": 24,
+        "max": 24
+      },
+      "network": {
+        "attempted": 1849,
+        "delivered": 1816,
+        "fastDropped": 30,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 639,
+        "maxQueuedBytes": 1728,
+        "maxQueuedPackets": 15,
+        "maxScheduledDelayMs": 76.28505702130497,
+        "maxResidenceMs": 84
+      },
+      "engine": "webkit",
+      "rtcUpload": 179570,
+      "rtcDownload": 519764,
+      "signallingUpload": 1241,
+      "signallingDownload": 13605,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 2,
+      "actionArrivalAgeTicks": {
+        "count": 23,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 314,
+        "p50": 10,
+        "p95": 22,
+        "p99": 24,
+        "max": 24
+      },
+      "network": {
+        "attempted": 2148,
+        "delivered": 2128,
+        "fastDropped": 14,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 865,
+        "maxQueuedBytes": 1734,
+        "maxQueuedPackets": 15,
+        "maxScheduledDelayMs": 76.76764196716249,
+        "maxResidenceMs": 80.09999990463257
+      },
+      "engine": "chromium",
+      "rtcUpload": 233868,
+      "rtcDownload": 346139,
+      "signallingUpload": 1558,
+      "signallingDownload": 13922,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 3,
+      "actionArrivalAgeTicks": {
+        "count": 25,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 274,
+        "p50": 10,
+        "p95": 22,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1989,
+        "delivered": 1963,
+        "fastDropped": 24,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 426,
+        "maxQueuedBytes": 1728,
+        "maxQueuedPackets": 15,
+        "maxScheduledDelayMs": 76.70236120931804,
+        "maxResidenceMs": 84
+      },
+      "engine": "webkit",
+      "rtcUpload": 218337,
+      "rtcDownload": 495530,
+      "signallingUpload": 1241,
+      "signallingDownload": 13605,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 4,
+      "actionArrivalAgeTicks": {
+        "count": 23,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 240,
+        "p50": 9,
+        "p95": 22,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1967,
+        "delivered": 1945,
+        "fastDropped": 22,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "maxQueuedBytes": 1944,
+        "maxQueuedPackets": 17,
+        "maxScheduledDelayMs": 75.21174503304064,
+        "maxResidenceMs": 78.2999997138977
+      },
+      "engine": "chromium",
+      "rtcUpload": 201508,
+      "rtcDownload": 324137,
+      "signallingUpload": 1597,
+      "signallingDownload": 13961,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 5,
+      "actionArrivalAgeTicks": {
+        "count": 29,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 258,
+        "p50": 10,
+        "p95": 22,
+        "p99": 23,
+        "max": 25
+      },
+      "network": {
+        "attempted": 2008,
+        "delivered": 1989,
+        "fastDropped": 17,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 218,
+        "maxQueuedBytes": 1739,
+        "maxQueuedPackets": 15,
+        "maxScheduledDelayMs": 76.78215257823467,
+        "maxResidenceMs": 85
+      },
+      "engine": "webkit",
+      "rtcUpload": 231899,
+      "rtcDownload": 348219,
+      "signallingUpload": 1241,
+      "signallingDownload": 13605,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    }
+  ],
+  "failure": "Error: page.waitForFunction: Error: Game required recovery\n    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)\n    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)\n    at next (eval at evaluate (:311:30), <anonymous>:29:33)",
+  "errors": []
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Error: Game required recovery
+    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)
+    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)
+    at next (eval at evaluate (:311:30), <anonymous>:29:33)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:49:46)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:49:29) {
+  log: []
+}
+
+Node.js v22.14.0

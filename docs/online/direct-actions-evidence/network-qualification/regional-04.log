@@ -1,0 +1,1691 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC; regional profile, seed 12345.
+{"elapsed":4.539,"phase":"countdown","round":1,"tick":36,"diagnostics":{"mode":"direct","coordinator":"f0cf5c8fa8e3a060b437537c","alias":5,"simulator":true,"replicaTick":36,"finalizedTick":24,"finalizedHash":"85058283ece2018f","retainedRecords":0,"rollbackCount":0,"fastSentBytes":2715,"binarySentBytes":142241,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.559,"phase":"playing","round":1,"tick":136,"diagnostics":{"mode":"direct","coordinator":"f0cf5c8fa8e3a060b437537c","alias":5,"simulator":true,"replicaTick":136,"finalizedTick":126,"finalizedHash":"0b8db64cfe9d1600","retainedRecords":0,"rollbackCount":18,"fastSentBytes":6350,"binarySentBytes":148459,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.572,"phase":"roundOver","round":1,"tick":236,"diagnostics":{"mode":"direct","coordinator":"f0cf5c8fa8e3a060b437537c","alias":5,"simulator":true,"replicaTick":236,"finalizedTick":221,"finalizedHash":"9725dc5380ee0e6f","retainedRecords":0,"rollbackCount":34,"fastSentBytes":10051,"binarySentBytes":152291,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{
+  "passed": false,
+  "totals": [
+    {
+      "index": 0,
+      "actionArrivalAgeTicks": {
+        "count": 51,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 281,
+        "p50": 8,
+        "p95": 26,
+        "p99": 37,
+        "max": 40
+      },
+      "network": {
+        "attempted": 904,
+        "delivered": 887,
+        "fastDropped": 14,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 427,
+        "maxQueuedBytes": 44341,
+        "maxQueuedPackets": 36,
+        "maxScheduledDelayMs": 656.9692180026323,
+        "maxResidenceMs": 658.1999998092651
+      },
+      "engine": "chromium",
+      "rtcUpload": 111186,
+      "rtcDownload": 24565,
+      "signallingUpload": 2557,
+      "signallingDownload": 6717,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 1,
+      "actionArrivalAgeTicks": {
+        "count": 50,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 278,
+        "p50": 9,
+        "p95": 29,
+        "p99": 40,
+        "max": 40
+      },
+      "network": {
+        "attempted": 651,
+        "delivered": 636,
+        "fastDropped": 13,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 216,
+        "maxQueuedBytes": 1517,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 71.87163643538952,
+        "maxResidenceMs": 76
+      },
+      "engine": "webkit",
+      "rtcUpload": 23564,
+      "rtcDownload": 43942,
+      "signallingUpload": 595,
+      "signallingDownload": 6531,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 2,
+      "actionArrivalAgeTicks": {
+        "count": 52,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 285,
+        "p50": 9,
+        "p95": 28,
+        "p99": 40,
+        "max": 40
+      },
+      "network": {
+        "attempted": 630,
+        "delivered": 618,
+        "fastDropped": 9,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 427,
+        "maxQueuedBytes": 1512,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 71.58933592028916,
+        "maxResidenceMs": 73.7999997138977
+      },
+      "engine": "chromium",
+      "rtcUpload": 21551,
+      "rtcDownload": 33715,
+      "signallingUpload": 768,
+      "signallingDownload": 6704,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 3,
+      "actionArrivalAgeTicks": {
+        "count": 52,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 276,
+        "p50": 9,
+        "p95": 29,
+        "p99": 40,
+        "max": 40
+      },
+      "network": {
+        "attempted": 640,
+        "delivered": 615,
+        "fastDropped": 11,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 1517,
+        "maxQueuedBytes": 1522,
+        "maxQueuedPackets": 15,
+        "maxScheduledDelayMs": 75.20736629888415,
+        "maxResidenceMs": 82
+      },
+      "engine": "webkit",
+      "rtcUpload": 21714,
+      "rtcDownload": 40107,
+      "signallingUpload": 595,
+      "signallingDownload": 6531,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 4,
+      "actionArrivalAgeTicks": {
+        "count": 51,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 286,
+        "p50": 9,
+        "p95": 29,
+        "p99": 40,
+        "max": 40
+      },
+      "network": {
+        "attempted": 660,
+        "delivered": 653,
+        "fastDropped": 4,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 427,
+        "maxQueuedBytes": 1903,
+        "maxQueuedPackets": 16,
+        "maxScheduledDelayMs": 78.03434196859598,
+        "maxResidenceMs": 79.59999990463257
+      },
+      "engine": "chromium",
+      "rtcUpload": 22703,
+      "rtcDownload": 37557,
+      "signallingUpload": 756,
+      "signallingDownload": 6692,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 5,
+      "actionArrivalAgeTicks": {
+        "count": 64,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "speculationTicks": {
+        "count": 276,
+        "p50": 9,
+        "p95": 29,
+        "p99": 40,
+        "max": 40
+      },
+      "network": {
+        "attempted": 435,
+        "delivered": 429,
+        "fastDropped": 3,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 427,
+        "maxQueuedBytes": 1938,
+        "maxQueuedPackets": 16,
+        "maxScheduledDelayMs": 73.44178448431194,
+        "maxResidenceMs": 80
+      },
+      "engine": "webkit",
+      "rtcUpload": 19207,
+      "rtcDownload": 40039,
+      "signallingUpload": 593,
+      "signallingDownload": 6529,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    }
+  ],
+  "failure": "Error: page.waitForFunction: Error: Game required recovery\n    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)\n    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)\n    at next (eval at evaluate (:311:30), <anonymous>:29:33)",
+  "errors": [
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.finalize (<anonymous>:8931:21)\n    at DirectSegment.tick (<anonymous>:8960:40)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n    at Object.accept (<anonymous>:8642:32)\n    at DirectHeartbeat.receive (<anonymous>:6977:35)\n    at DirectSegment.receiveFast (<anonymous>:8843:52)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n    at Object.accept (<anonymous>:8642:32)\n    at DirectHeartbeat.receive (<anonymous>:6977:35)\n    at DirectSegment.receiveFast (<anonymous>:8843:52)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n    at Object.accept (<anonymous>:8642:32)\n    at DirectHeartbeat.receive (<anonymous>:6977:35)\n    at DirectSegment.receiveFast (<anonymous>:8843:52)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n    at Object.accept (<anonymous>:8642:32)\n    at DirectHeartbeat.receive (<anonymous>:6977:35)\n    at DirectSegment.receiveFast (<anonymous>:8843:52)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.receiveFast (<anonymous>:8853:19)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n    at Object.accept (<anonymous>:8642:32)\n    at DirectHeartbeat.receive (<anonymous>:6977:35)\n    at DirectSegment.receiveFast (<anonymous>:8843:52)\n    at Object.fast (<anonymous>:9507:59)\n    at channel.onmessage (<anonymous>:7770:44)",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66",
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n    at DirectSegment.result (<anonymous>:8989:12)\n    at DirectSegment.tick (<anonymous>:8952:76)\n    at RoomRuntime.tick (<anonymous>:10108:21)\n    at <anonymous>:9588:66"
+  ]
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: No browser or teardown errors
++ actual - expected
+
++ [
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.finalize (<anonymous>:8931:21)\n' +
++     '    at DirectSegment.tick (<anonymous>:8960:40)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
++     '    at Object.accept (<anonymous>:8642:32)\n' +
++     '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
++     '    at Object.accept (<anonymous>:8642:32)\n' +
++     '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
++     '    at Object.accept (<anonymous>:8642:32)\n' +
++     '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
++     '    at Object.accept (<anonymous>:8642:32)\n' +
++     '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
++     '    at Object.accept (<anonymous>:8642:32)\n' +
++     '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
++     '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
++     '    at Object.fast (<anonymous>:9507:59)\n' +
++     '    at channel.onmessage (<anonymous>:7770:44)',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66',
++   "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
++     '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
++     '    at DirectSegment.result (<anonymous>:8989:12)\n' +
++     '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
++     '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
++     '    at <anonymous>:9588:66'
++ ]
+- []
+
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:86:10) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.finalize (<anonymous>:8931:21)\n' +
+      '    at DirectSegment.tick (<anonymous>:8960:40)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
+      '    at Object.accept (<anonymous>:8642:32)\n' +
+      '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
+      '    at Object.accept (<anonymous>:8642:32)\n' +
+      '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
+      '    at Object.accept (<anonymous>:8642:32)\n' +
+      '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.acceptHeartbeat (<anonymous>:8838:32)\n' +
+      '    at Object.accept (<anonymous>:8642:32)\n' +
+      '    at DirectHeartbeat.receive (<anonymous>:6977:35)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8843:52)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.tick (<anonymous>:8952:76)\n' +
+      '    at RoomRuntime.tick (<anonymous>:10108:21)\n' +
+      '    at <anonymous>:9588:66',
+    "0: TypeError: Cannot read properties of undefined (reading 'game')\n" +
+      '    at DirectSegment.refreshFinalView (<anonymous>:8995:48)\n' +
+      '    at DirectSegment.result (<anonymous>:8989:12)\n' +
+      '    at DirectSegment.receiveFast (<anonymous>:8853:19)\n' +
+      '    at Object.fast (<anonymous>:9507:59)\n' +
+      '    at channel.onmessage (<anonymous>:7770:44)',
+    ... 16 more items
+  ],
+  expected: [],
+  operator: 'deepStrictEqual'
+}
+
+Node.js v22.14.0

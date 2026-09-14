@@ -46,9 +46,9 @@ globalThis.startMesh=(code,token)=>{
   members:()=>[...peers],
   checkpoint:to=>{
    fastBuffered=true;
-   const blocked=transport.sendCheckpoint(to,{type:'checkpointFixture',data:new Uint8Array(12000)});
+   const blocked=transport.sendCheckpoint(to,{type:'checkpointFixture',data:new Uint8Array(2000)});
    fastBuffered=false;
-   return {blocked,resumed:transport.sendCheckpoint(to,{type:'checkpointFixture',data:new Uint8Array(12000)})};
+   return {blocked,resumed:transport.sendCheckpoint(to,{type:'checkpointFixture',data:new Uint8Array(2000)})};
   },
   blackhole:value=>{dropFast=value;},
   received:()=>got.length,

@@ -198,17 +198,19 @@ export class RollbackWorld {
     for (const candidate of [...this.pendingFinality.values()].sort((a,b)=>a[3]-b[3])) {
       const at = candidate[3];
       if (at > this.state.game.tick || [...this.streams.values()].some(s => !s.completeThrough(at))) continue;
-      const reconstructed = this.stateAt(at)!;
-      if (candidate[4].some(([slot,seq])=>this.streams.get(slot)!.prefixAt(at)!==seq) || replayHash(reconstructed)!==candidate[5]) {
+      const reconstructed = this.stateAt(at);
+      if (!reconstructed || candidate[4].some(([slot,seq])=>this.streams.get(slot)!.prefixAt(at)!==seq) || replayHash(reconstructed)!==candidate[5]) {
         this.pendingFinality.delete(at); return result('invalid', true);
       }
       message = candidate; state = reconstructed;
     }
     if (!message || !state) return result('waiting');
     const [, , , tick, prefixes, hash] = message;
+    const checkpoint=packState(state),restored=readState(checkpoint);
+    if(!restored||replayHash(restored)!==hash)return result('invalid',true);
     const events: CommittedEvent[] = [];
     for (const [at, entries] of [...this.candidate.events].sort(([a], [b]) => a - b)) if (at <= tick) entries.forEach((event, i) => events.push({ id: `${this.segment}:${at}:${i}`, tick: at, event }));
-    const snapshots = new Map([...this.candidate.snapshots].filter(([at]) => at > tick)); snapshots.set(tick, packState(state));
+    const snapshots = new Map([...this.candidate.snapshots].filter(([at]) => at > tick)); snapshots.set(tick, checkpoint);
     const pendingEvents = new Map([...this.candidate.events].filter(([at]) => at > tick));
     const streams = new Map([...this.streams].map(([slot, stream]) => [slot, stream.trim(tick, state.gestures.get(slot)?.latest ?? 0)]));
     const candidate = { state: this.candidate.state, snapshots, events: pendingEvents, phaseChanges: new Set([...this.candidate.phaseChanges].filter(at => at > tick)) };

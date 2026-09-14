@@ -1,0 +1,228 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC; regional profile, seed 12345.
+{"elapsed":4.514,"phase":"lobby","round":1,"tick":84,"diagnostics":{"mode":"direct","coordinator":"58cbf3c2ec249a3ff00ade7f","alias":5,"simulator":true,"replicaTick":0,"finalizedTick":0,"finalizedHash":"b6e02fb61c89f4c2","retainedRecords":0,"rollbackCount":0,"fastSentBytes":1826,"binarySentBytes":359344,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":true,"fault":"Segment replaced"}}
+{"elapsed":9.516,"phase":"lobby","round":1,"tick":184,"diagnostics":{"mode":"direct","coordinator":"58cbf3c2ec249a3ff00ade7f","alias":6,"simulator":true,"replicaTick":0,"finalizedTick":0,"finalizedHash":"b6e02fb61c89f4c2","retainedRecords":0,"rollbackCount":0,"fastSentBytes":2696,"binarySentBytes":672089,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Direct simulation setup timed out — retrying","barrier":true,"fault":"Segment replaced"}}
+{
+  "passed": false,
+  "totals": [
+    {
+      "index": 0,
+      "actionArrivalAgeTicks": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "speculationTicks": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "network": {
+        "attempted": 887,
+        "delivered": 826,
+        "fastDropped": 13,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 44932,
+        "maxQueuedBytes": 113264,
+        "maxQueuedPackets": 76
+      },
+      "engine": "chromium",
+      "rtcUpload": 871600,
+      "rtcDownload": 52434,
+      "signallingUpload": 3573,
+      "signallingDownload": 7201,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 1,
+      "actionArrivalAgeTicks": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "speculationTicks": {
+        "count": 14,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "network": {
+        "attempted": 809,
+        "delivered": 796,
+        "fastDropped": 13,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "maxQueuedBytes": 1709,
+        "maxQueuedPackets": 14
+      },
+      "engine": "webkit",
+      "rtcUpload": 52743,
+      "rtcDownload": 210259,
+      "signallingUpload": 519,
+      "signallingDownload": 5713,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 2,
+      "actionArrivalAgeTicks": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "speculationTicks": {
+        "count": 13,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "network": {
+        "attempted": 1040,
+        "delivered": 1031,
+        "fastDropped": 7,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 422,
+        "maxQueuedBytes": 1507,
+        "maxQueuedPackets": 12
+      },
+      "engine": "chromium",
+      "rtcUpload": 139882,
+      "rtcDownload": 269621,
+      "signallingUpload": 662,
+      "signallingDownload": 5856,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 3,
+      "actionArrivalAgeTicks": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "speculationTicks": {
+        "count": 8,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "network": {
+        "attempted": 829,
+        "delivered": 810,
+        "fastDropped": 12,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 242,
+        "maxQueuedBytes": 1512,
+        "maxQueuedPackets": 13
+      },
+      "engine": "webkit",
+      "rtcUpload": 54449,
+      "rtcDownload": 248965,
+      "signallingUpload": 519,
+      "signallingDownload": 5713,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 4,
+      "actionArrivalAgeTicks": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "speculationTicks": {
+        "count": 10,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "network": {
+        "attempted": 828,
+        "delivered": 817,
+        "fastDropped": 9,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 10,
+        "maxQueuedBytes": 1925,
+        "maxQueuedPackets": 14
+      },
+      "engine": "chromium",
+      "rtcUpload": 60611,
+      "rtcDownload": 217929,
+      "signallingUpload": 2047,
+      "signallingDownload": 7479,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    },
+    {
+      "index": 5,
+      "actionArrivalAgeTicks": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "speculationTicks": {
+        "count": 13,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0
+      },
+      "network": {
+        "attempted": 821,
+        "delivered": 809,
+        "fastDropped": 11,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 5,
+        "maxQueuedBytes": 1718,
+        "maxQueuedPackets": 15
+      },
+      "engine": "webkit",
+      "rtcUpload": 53266,
+      "rtcDownload": 233127,
+      "signallingUpload": 555,
+      "signallingDownload": 5999,
+      "rtcUploadBytesPerSecond": null,
+      "rtcDownloadBytesPerSecond": null
+    }
+  ],
+  "failure": "Error: page.waitForFunction: Error: Game required recovery\n    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)\n    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)\n    at next (eval at evaluate (:311:30), <anonymous>:29:33)",
+  "errors": []
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Error: Game required recovery
+    at eval (eval at predicate (eval at evaluate (:311:30)), <anonymous>:1:84)
+    at predicate (eval at evaluate (:311:30), <anonymous>:7:27)
+    at next (eval at evaluate (:311:30), <anonymous>:29:33)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:42:46)
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/direct-traffic-browser.ts:42:29) {
+  log: []
+}
+
+Node.js v22.14.0

@@ -1,0 +1,366 @@
+TAP version 13
+# Subtest: release or cancel after round/match completion stays replayable through late rollback and finality
+ok 1 - release or cancel after round/match completion stays replayable through late rollback and finality
+  ---
+  duration_ms: 37.12825
+  ...
+# Subtest: wire actions use full uint32 ticks and strict bounded MessagePack tuples
+ok 2 - wire actions use full uint32 ticks and strict bounded MessagePack tuples
+  ---
+  duration_ms: 0.503083
+  ...
+# Subtest: independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+ok 3 - independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+  ---
+  duration_ms: 0.174333
+  ...
+# Subtest: conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+ok 4 - conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+  ---
+  duration_ms: 0.14575
+  ...
+# Subtest: whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+ok 5 - whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+  ---
+  duration_ms: 12.418917
+  ...
+# Subtest: all same-tick press/release packet permutations yield exactly one identical shot
+ok 6 - all same-tick press/release packet permutations yield exactly one identical shot
+  ---
+  duration_ms: 15.409
+  ...
+# Subtest: replacement press restarts charge; old release cannot fire the newer gesture
+ok 7 - replacement press restarts charge; old release cannot fire the newer gesture
+  ---
+  duration_ms: 2.417916
+  ...
+# Subtest: missing press never invents charge; cancel and aiming preserve per-action target order
+ok 8 - missing press never invents charge; cancel and aiming preserve per-action target order
+  ---
+  duration_ms: 3.632542
+  ...
+# Subtest: idle repair delivers a lost final release; receipt loss never duplicates shots
+ok 9 - idle repair delivers a lost final release; receipt loss never duplicates shots
+  ---
+  duration_ms: 3.241541
+  ...
+# Subtest: origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+ok 10 - origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+  ---
+  duration_ms: 4.058709
+  ...
+# Subtest: finality waits for cross-channel input gaps, then emits derived effects exactly once
+ok 11 - finality waits for cross-channel input gaps, then emits derived effects exactly once
+  ---
+  duration_ms: 8.186625
+  ...
+# Subtest: finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+ok 12 - finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+  ---
+  duration_ms: 6.874375
+  ...
+# Subtest: speculation pauses at its fixed bound and resumes after verified finality
+ok 13 - speculation pauses at its fixed bound and resumes after verified finality
+  ---
+  duration_ms: 12.248708
+  ...
+# Subtest: malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+ok 14 - malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+  ---
+  duration_ms: 4.092042
+  ...
+# Subtest: invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+ok 15 - invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+  ---
+  duration_ms: 2.923625
+  ...
+# Subtest: encoded history budget rejects growth atomically rather than discarding rollback dependencies
+ok 16 - encoded history budget rejects growth atomically rather than discarding rollback dependencies
+  ---
+  duration_ms: 2.895833
+  ...
+# Subtest: six independently advancing replicas converge through delayed/reordered delivery for five streams
+ok 17 - six independently advancing replicas converge through delayed/reordered delivery for five streams
+  ---
+  duration_ms: 2641.050125
+  ...
+# Subtest: new completeness cuts preserve older promises and already certified progress
+ok 18 - new completeness cuts preserve older promises and already certified progress
+  ---
+  duration_ms: 0.151375
+  ...
+# Subtest: watermark cuts, including empty periods, have a hard retention bound
+ok 19 - watermark cuts, including empty periods, have a hard retention bound
+  ---
+  duration_ms: 0.668209
+  ...
+# Subtest: bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+ok 20 - bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+  ---
+  duration_ms: 0.935167
+  ...
+# Subtest: older complete finality advances while newer certificates still await input repair
+ok 21 - older complete finality advances while newer certificates still await input repair
+  ---
+  duration_ms: 15.770834
+  ...
+# Subtest: pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+ok 22 - pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+  ---
+  duration_ms: 6.45325
+  ...
+# Subtest: pending finality has a forty-tick bound and encoded-byte admission is atomic
+ok 23 - pending finality has a forty-tick bound and encoded-byte admission is atomic
+  ---
+  duration_ms: 5.263875
+  ...
+# Subtest: lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+ok 24 - lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+  ---
+  duration_ms: 0.471625
+  ...
+# Subtest: delivery exact cuts exclude future groups and cannot contradict retained actions
+ok 25 - delivery exact cuts exclude future groups and cannot contradict retained actions
+  ---
+  duration_ms: 0.090458
+  ...
+# Subtest: remote future staging derives from both clock uncertainties without extending the execution horizon
+ok 26 - remote future staging derives from both clock uncertainties without extending the execution horizon
+  ---
+  duration_ms: 7.025083
+  ...
+# Subtest: recovery distinguishes invalid action admission from verified finality disagreement
+ok 27 - recovery distinguishes invalid action admission from verified finality disagreement
+  ---
+  duration_ms: 2.404875
+  ...
+# Subtest: combined progress rejects late conflicts atomically, including pending finality and events
+ok 28 - combined progress rejects late conflicts atomically, including pending finality and events
+  ---
+  duration_ms: 7.785292
+  ...
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 29 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 128.557125
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 30 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 46.204791
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 31 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 54.008708
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 32 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 156.035208
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 33 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 24.7255
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 34 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 151.101167
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 35 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 47.5705
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 36 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 148.9735
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 37 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 269.363125
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 38 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 40.524542
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 39 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 206.248833
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 40 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 48.648583
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 41 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 92.692375
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 42 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 41.497417
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+ok 43 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 39.560041
+  ...
+# Subtest: header and header-ACK enqueue failures retry delivery without substituting for readiness
+ok 44 - header and header-ACK enqueue failures retry delivery without substituting for readiness
+  ---
+  duration_ms: 47.732917
+  ...
+# Subtest: stale or malformed header acknowledgements cannot stop preparation delivery
+ok 45 - stale or malformed header acknowledgements cannot stop preparation delivery
+  ---
+  duration_ms: 27.199167
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 46 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 163.687834
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 47 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 162.905417
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 48 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 162.459125
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 49 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 158.899917
+  ...
+# Subtest: settled room metadata stops repeating until a lifecycle change
+ok 50 - settled room metadata stops repeating until a lifecycle change
+  ---
+  duration_ms: 56.966
+  ...
+# Subtest: a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+ok 51 - a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+  ---
+  duration_ms: 46.063958
+  ...
+# Subtest: stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+ok 52 - stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+  ---
+  duration_ms: 36.051458
+  ...
+# Subtest: only an identical current plan duplicate receives another delivery acknowledgement
+ok 53 - only an identical current plan duplicate receives another delivery acknowledgement
+  ---
+  duration_ms: 36.046875
+  ...
+# Subtest: delegated setup request retries do not resend an already acknowledged room plan
+ok 54 - delegated setup request retries do not resend an already acknowledged room plan
+  ---
+  duration_ms: 21.584209
+  ...
+# Subtest: an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+ok 55 - an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+  ---
+  duration_ms: 178.086875
+  ...
+# Subtest: freezing a runtime deactivates its installed alias before another preparation
+ok 56 - freezing a runtime deactivates its installed alias before another preparation
+  ---
+  duration_ms: 38.269875
+  ...
+# Subtest: six live segments independently advance and finalize continuous inputs under loss and reordering
+ok 57 - six live segments independently advance and finalize continuous inputs under loss and reordering
+  ---
+  duration_ms: 806.785291
+  ...
+# Subtest: shared TV is the only simulator while five controller origins send directly to it
+ok 58 - shared TV is the only simulator while five controller origins send directly to it
+  ---
+  duration_ms: 37.246792
+  ...
+# Subtest: coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+ok 59 - coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+  ---
+  duration_ms: 144.492167
+  ...
+# Subtest: provisional eliminations cannot publish death or placements before verified finality
+ok 60 - provisional eliminations cannot publish death or placements before verified finality
+  ---
+  duration_ms: 2.14225
+  ...
+# Subtest: controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+ok 61 - controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+  ---
+  duration_ms: 4.672583
+  ...
+# Subtest: asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+ok 62 - asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+  ---
+  duration_ms: 283.309042
+  ...
+# Subtest: initial progress grace is bounded and replayed base cuts cannot postpone it
+ok 63 - initial progress grace is bounded and replayed base cuts cannot postpone it
+  ---
+  duration_ms: 82.649125
+  ...
+# Subtest: replayed progress cannot prevent bounded synchronization when an origin falls silent
+ok 64 - replayed progress cannot prevent bounded synchronization when an origin falls silent
+  ---
+  duration_ms: 140.352292
+  ...
+# Subtest: uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+ok 65 - uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+  ---
+  duration_ms: 2.242541
+  ...
+# Subtest: quiet gameplay has one heartbeat exchange per pair per second and no idle action or clock loop
+ok 66 - quiet gameplay has one heartbeat exchange per pair per second and no idle action or clock loop
+  ---
+  duration_ms: 2476.818334
+  ...
+# {"durationMs":10000,"counts":{"pulse":300,"final":50},"applicationUploadBytesPerSecond":[{"peer":"p0","bytes":611},{"peer":"p1","bytes":101},{"peer":"p2","bytes":101},{"peer":"p3","bytes":101},{"peer":"p4","bytes":101},{"peer":"tv","bytes":79}]}
+# Subtest: a heartbeat with an unauthorized nested receipt cannot install its otherwise valid cut
+ok 67 - a heartbeat with an unauthorized nested receipt cannot install its otherwise valid cut
+  ---
+  duration_ms: 10.964875
+  ...
+# Subtest: newer or duplicate confirmation requests cannot postpone failed delivery expiry
+ok 68 - newer or duplicate confirmation requests cannot postpone failed delivery expiry
+  ---
+  duration_ms: 0.323375
+  ...
+# Subtest: a reordered old piggyback receipt does not discard a fresh clock sample
+ok 69 - a reordered old piggyback receipt does not discard a fresh clock sample
+  ---
+  duration_ms: 0.168333
+  ...
+# Subtest: countdown transition is publicly confirmed promptly between periodic certificate ticks
+ok 70 - countdown transition is publicly confirmed promptly between periodic certificate ticks
+  ---
+  duration_ms: 16.609125
+  ...
+# Subtest: an enqueued but lost certificate pulse cannot cancel reliable finality retry
+ok 71 - an enqueued but lost certificate pulse cannot cancel reliable finality retry
+  ---
+  duration_ms: 5.989792
+  ...
+1..71
+# tests 71
+# suites 0
+# pass 71
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4224.139708

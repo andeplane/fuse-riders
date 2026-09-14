@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addPlayer, createGame, SLOT_COLORS, startMatch, step } from '../src/shared/game.js';
+import { addPlayer, createGame, eliminatePlayer, SLOT_COLORS, startMatch, step } from '../src/shared/game.js';
 import { canonical, replayHash } from '../src/shared/action-log.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { DIRECT_RULES, isDirectAction, stepDirect, type DirectAction, type DirectState } from '../src/shared/direct-input.js';
@@ -34,6 +34,25 @@ function certify(world: RollbackWorld, tick: number, prefixes = [0, 0, 0, 0, 0])
   for (let slot = 0; slot < 5; slot++) assert.equal(world.receive(slot, packet(slot, [], [tick, prefixes[slot]]), tick).status, 'accepted');
   const finality = world.proposeFinality(tick); assert.ok(finality); return finality;
 }
+
+test('release or cancel after round/match completion stays replayable through late rollback and finality',()=>{
+ for(const phase of ['roundOver','matchOver'])for(const kind of [2,3] as const)for(const late of [false,true]){
+  const game=createGame('finished-charge',123);game.settings={...defaultRoomSettings(),match:'rounds',length:phase==='matchOver'?1:2};
+  for(let slot=0;slot<2;slot++)addPlayer(game,{id:`p${slot}`,name:`Player ${slot}`,slot,color:SLOT_COLORS[slot]});
+  startMatch(game);for(let i=0;i<60;i++)step(game,new Map());eliminatePlayer(game,'p1');
+  const world=setup({game,held:new Map(),gestures:new Map()});
+  const actions:DirectAction[]=[[1,61,1,1],kind===2?[2,62,2,1,null]:[2,62,3,1]];
+  if(late)advance(world,64);
+  const delivered=world.receive(0,packet(0,actions,[64,2]),64);assert.equal(delivered.status,'accepted');assert.equal(delivered.rollbackTicks,late?4:0);
+  assert.equal(world.receive(1,packet(1,[],[64,0]),64).status,'accepted');if(!late)advance(world,64);
+  assert.equal(world.state.game.phase,phase);
+  const finality=world.proposeFinality(64);assert.ok(finality);assert.equal(world.finalize(finality).status,'accepted');
+  const restored=world.finalizedState();assert.ok(restored,`${phase} ${kind} late=${late}: accepted finality must retain a readable checkpoint`);
+  assert.equal(restored.game.players.get('p0')!.bombChargeStartedTick,undefined);assert.equal(restored.game.players.get('p0')!.bombTarget,undefined);
+  assert.equal(restored.gestures.get(0)!.active,0);assert.equal(restored.held.get(0)!.flags&4,0);assert.equal(replayHash(restored),finality[5]);
+  assert.ok(RollbackWorld.open(world.bootstrap(),7));
+ }
+});
 
 test('wire actions use full uint32 ticks and strict bounded MessagePack tuples', () => {
   const small: DirectAction = [1, 120, 0, 1], late: DirectAction = [100, 72_000, 0, 0];

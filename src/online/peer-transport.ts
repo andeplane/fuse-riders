@@ -7,7 +7,7 @@ import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback, isCurrentPulseCallback } from './link-callback.js';
 import { decodeHeartbeat, isHeartbeat, type HeartbeatResult } from './direct-heartbeat.js';
 import { LinkHealth, LinkPulseMode } from './link-health.js';
-import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT, permitsFastControl } from './link-send-gate.js';
+import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT, permitsFastControl, permitsAggregate, COORDINATION_BUFFER_LIMIT, CHECKPOINT_BUFFER_LIMIT } from './link-send-gate.js';
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from './ice-config.js';
@@ -291,7 +291,7 @@ export class PeerTransport {
   sendBound(id:string,tuple:unknown[]):boolean {
     const link=this.links.get(id);
     if(!isBoundControl(tuple)||!this.boundReady(id)||tuple[1]!==link!.fastBinding!.segment)return false;
-    const bytes=packMessage(tuple);if(bytes.byteLength>BOUND_CONTROL_BYTES)return false;
+    const bytes=packMessage(tuple);if(bytes.byteLength>BOUND_CONTROL_BYTES||!permitsAggregate(this.links.values(),bytes.byteLength,COORDINATION_BUFFER_LIMIT))return false;
     try {link!.channel!.send(new Uint8Array(bytes));this.binarySentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
   /** `force` replaces a drained link with a fresh RTCPeerConnection and gate; the restart budget carries over. */
@@ -358,12 +358,16 @@ export class PeerTransport {
   /** Bulk lifecycle data yields to queued action traffic, even before segment aliases bind. */
   sendCheckpoint(id:string,data:unknown):boolean {
     const link=this.links.get(id);
-    return !!link&&link.fastGate.permitsIdle(link.fast)&&this.send(id,data,true);
+    return !!link&&link.fastGate.permitsIdle(link.fast)&&this.sendEnvelope(id,data,true,CHECKPOINT_BUFFER_LIMIT);
   }
   send(id:string,data:unknown,binary=false):boolean {
+    return this.sendEnvelope(id,data,binary,COORDINATION_BUFFER_LIMIT);
+  }
+  private sendEnvelope(id:string,data:unknown,binary:boolean,bufferLimit:number):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
     const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};const encoded=binary?new Uint8Array(packMessage(envelope)):JSON.stringify(envelope);this.sentBytes+=typeof encoded==='string'?new TextEncoder().encode(encoded).byteLength:encoded.byteLength;const link=this.links.get(id);
-    if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
+    const bytes=typeof encoded==='string'?new TextEncoder().encode(encoded).byteLength:encoded.byteLength;
+    if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())&&permitsAggregate(this.links.values(),bytes,bufferLimit)){
       try{if(typeof encoded==='string')link.channel!.send(encoded);else{link.channel!.send(encoded);this.binarySentBytes+=encoded.byteLength;}return true;}catch{}
     }
     return false;

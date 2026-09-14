@@ -1,0 +1,185 @@
+TAP version 13
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 1 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 114.190125
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 2 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 40.984917
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 3 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 50.509167
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 4 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 138.527208
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 5 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 21.432
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 6 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 135.417875
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 7 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 43.788292
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 8 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 134.282542
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 9 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 245.256291
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 10 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 39.215416
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 11 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 194.417917
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 12 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 43.705792
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 13 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 86.1145
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 14 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 38.296916
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+not ok 15 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 28.295041
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:1:14277'
+  failureType: 'testCodeFailure'
+  error: |-
+    acknowledged header must not repeat while chunks wait for backpressure
+    
+    12 !== 3
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 3
+  actual: 12
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:231:10)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: header and header-ACK enqueue failures retry delivery without substituting for readiness
+not ok 16 - header and header-ACK enqueue failures retry delivery without substituting for readiness
+  ---
+  duration_ms: 32.925125
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:1:15538'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    22 !== 12
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 12
+  actual: 22
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-runtime.test.ts:254:9)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 17 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 170.110042
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 18 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 152.070042
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 19 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 148.547333
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 20 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 146.325334
+  ...
+# Subtest: settled room metadata stops repeating until a lifecycle change
+ok 21 - settled room metadata stops repeating until a lifecycle change
+  ---
+  duration_ms: 51.632042
+  ...
+# Subtest: a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+ok 22 - a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+  ---
+  duration_ms: 42.808791
+  ...
+# Subtest: stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+ok 23 - stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+  ---
+  duration_ms: 33.362958
+  ...
+# Subtest: only an identical current plan duplicate receives another delivery acknowledgement
+ok 24 - only an identical current plan duplicate receives another delivery acknowledgement
+  ---
+  duration_ms: 33.094667
+  ...
+# Subtest: delegated setup request retries do not resend an already acknowledged room plan
+ok 25 - delegated setup request retries do not resend an already acknowledged room plan
+  ---
+  duration_ms: 20.762708
+  ...
+# Subtest: an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+ok 26 - an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+  ---
+  duration_ms: 164.65525
+  ...
+# Subtest: freezing a runtime deactivates its installed alias before another preparation
+ok 27 - freezing a runtime deactivates its installed alias before another preparation
+  ---
+  duration_ms: 34.452292
+  ...
+1..27
+# tests 27
+# suites 0
+# pass 25
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2551.478834

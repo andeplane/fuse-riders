@@ -1,7 +1,7 @@
 import { validAim, type AimTuple, type BombTuple, type ControlChange, type ReplayState, applyOperation } from './action-log.js';
 import type { GameEvent } from './protocol.js';
 
-export const DIRECT_RULES = 'fuse-direct-2';
+export const DIRECT_RULES = 'fuse-direct-3';
 export const UINT32_MAX = 0xffff_ffff;
 export const uint32 = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= UINT32_MAX && !Object.is(value, -0);
 /** Independent player stream. Sequence order breaks ties only within that player. */
@@ -59,5 +59,11 @@ export function stepDirect(state: DirectState, bySlot: ReadonlyMap<number, reado
     state.gestures.set(player.slot, gesture);
     changes.push([player.slot, tick, flags, aim, bombs]);
   }
-  return applyOperation(state, [0, tick, changes]);
+  const events=applyOperation(state, [0, tick, changes]);
+  // The shared game ignores bomb commands outside play. Retain stream identity,
+  // but a finished/countdown phase must not retain a charge after its gesture ends.
+  if(state.game.phase!=='playing')for(const player of state.game.players.values()){
+    player.bombChargeStartedTick=undefined;player.bombTarget=undefined;
+  }
+  return events;
 }

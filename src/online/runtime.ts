@@ -11,6 +11,7 @@ import type { AppliedMotionState, TickClockSample } from './prediction-contract.
 import type { RoomCommand } from './host-session.js';
 import { PeerTransport, type TransportCallbacks } from './peer-transport.js';
 import { StatusNotices } from './status-notices.js';
+import { CHECKPOINT_CHUNK_BYTES } from './link-send-gate.js';
 import { DirectSegment } from './direct-segment.js';
 import { RollbackWorld, type CommittedEvent } from './rollback-world.js';
 import { catalog, catalogView, deriveTransition, initialWorld, isCatalog, isPlan, isPreparation, isView, isThinView, manager, neutral, ownersFor, prepareWorld, record, thinSnapshot, transitionBytes, type LobbyCatalog, type Preparation, type RoomPlan } from './direct-room-state.js';
@@ -20,7 +21,7 @@ export type OnlineInput = Omit<Extract<RoomCommand, { type: 'input' }>, 'scope' 
 type Management = Exclude<RoomCommand, { type: 'input' }>;
 interface PendingCommand { request: number; command: Management; expires: number; sent: number }
 interface Incoming { header: Preparation; at: number; buffer?: Uint8Array; received: number; candidate?: Uint8Array; ready: boolean; activated: boolean; lastAck: number }
-interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean }
+interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean;nextPeer:number }
 
 export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'sendCheckpoint' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendPulse' | 'activatePulse' | 'deactivatePulse' | 'sendBound' | 'stats' | 'diagnostics'>;
 export interface RuntimeEnvironment {
@@ -179,7 +180,7 @@ export class RoomRuntime {
       const game = derived.state.game;
       const view = { ...toSnapshot(game), tick: game.tick, round: game.round };
       const header: Preparation = { type: 'directPrepare', revision: plan.revision, alias: plan.revision, bytes: payload.byteLength, hash: derived.hash, matchId: game.matchId, tick: game.tick, round: game.round, status: thinSnapshot(view), ...(game.phase === 'lobby' ? { lobby: catalog(game, plan.settings) } : {}), owners: ownersFor(game, plan) };
-      this.outgoing = { header, payload, at: this.environment.now(), activating: false, peers: new Map(plan.members.map(m => [m.id, { header: false, offset: 0, ready: false, applied: false, lastMeta: -Infinity, lastChunk: -Infinity }])) };
+      this.outgoing = { header, payload, at: this.environment.now(), activating: false, nextPeer:0, peers: new Map(plan.members.map(m => [m.id, { header: false, offset: 0, ready: false, applied: false, lastMeta: -Infinity, lastChunk: -Infinity }])) };
       this.acceptPreparation(header);
       if (plan.members.find(m => m.id === this.transport.id)!.view) { this.incoming!.buffer = payload; this.incoming!.received = payload.length; this.finishPreparation(); }
     } catch (error) { this.lastFault = error instanceof Error ? error.message : 'Lifecycle preparation failed'; this.requireLobby(this.lastFault); const message = { type: 'directBaseUnavailable', revision: plan.revision }; if (this.transport.id === this.transport.hostId) { for (const member of plan.members) if (member.id !== this.transport.id) this.send(member.id, message); } else this.send(this.transport.hostId, message); }
@@ -266,7 +267,7 @@ export class RoomRuntime {
     }
     if (raw.type === 'directLobby' && id === this.transport.hostId && !plan.coordinator && isCatalog(raw.catalog)) { this.lobby = structuredClone(raw.catalog); this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish(); return; }
     if (raw.type === 'directPrepare' && id === plan.source && isPreparation(raw, plan)) { this.acceptPreparation(raw); return; }
-    if (raw.type === 'directHeader' && this.outgoing) { const peer = this.outgoing.peers.get(id); if (peer) peer.header = true; return; }
+    if (raw.type === 'directHeader' && this.outgoing && Object.keys(raw).length === 2) { const peer = this.outgoing.peers.get(id); if (peer) peer.header = true; return; }
     if (raw.type === 'directChunk' && id === plan.source && this.incoming?.buffer && uint32(raw.offset) && raw.data instanceof Uint8Array && raw.data.length <= 12_000) {
       const incoming = this.incoming;
       if (raw.offset < incoming.received) return;
@@ -382,10 +383,18 @@ export class RoomRuntime {
     if (outgoing) {
       if (now - outgoing.at > 5000 && [...outgoing.peers.values()].some(p => !p.applied)) { this.recover('Not every participant confirmed the lifecycle change'); return; }
       for (const [id, peer] of outgoing.peers) {
-        if (!peer.ready && now - peer.lastMeta >= 100) { peer.lastMeta = now; this.send(id, outgoing.header); }
+        if (!peer.header && now - peer.lastMeta >= 100) { peer.lastMeta = now; this.send(id, outgoing.header); }
+        if(this.stopped||this.recoveryRequired||this.outgoing!==outgoing||this.plan!==plan||!this.planCurrent(plan)||!this.transport.authorityPermitted())return;
+      }
+      const recipients=[...outgoing.peers];
+      for(let offset=0;offset<recipients.length;offset++){
+        const index=(outgoing.nextPeer+offset)%recipients.length,[id,peer]=recipients[index];
         if (id !== this.transport.id && peer.header && plan.members.find(m => m.id === id)!.view && peer.offset < outgoing.payload.length && now - peer.lastChunk >= 50) {
           peer.lastChunk = now;
-          for (let count = 0; count < 2 && peer.offset < outgoing.payload.length; count++) { const data = outgoing.payload.slice(peer.offset, peer.offset + 12_000); if (!this.transport.sendCheckpoint(id, { type: 'directChunk', revision: plan.revision, offset: peer.offset, data })) break; peer.offset += data.length; }
+          const data=outgoing.payload.slice(peer.offset,peer.offset+CHECKPOINT_CHUNK_BYTES);
+          const queued=this.transport.sendCheckpoint(id,{type:'directChunk',revision:plan.revision,offset:peer.offset,data});
+          if(this.stopped||this.recoveryRequired||this.outgoing!==outgoing||this.plan!==plan||!this.planCurrent(plan)||!this.transport.authorityPermitted())return;
+          if(queued){peer.offset+=data.length;outgoing.nextPeer=(index+1)%recipients.length;break;}
         }
       }
       if ([...outgoing.peers.values()].every(p => p.ready)) outgoing.activating = true;

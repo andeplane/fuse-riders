@@ -1,0 +1,163 @@
+TAP version 13
+# Subtest: release or cancel after round/match completion stays replayable through late rollback and finality
+not ok 1 - release or cancel after round/match completion stays replayable through late rollback and finality
+  ---
+  duration_ms: 16.085375
+  location: '/private/tmp/fuse-riders-action-log/tests/direct-actions.test.ts:1:1972'
+  failureType: 'testCodeFailure'
+  error: 'roundOver 2 late=false: accepted finality must retain a readable checkpoint'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (/private/tmp/fuse-riders-action-log/tests/direct-actions.test.ts:50:48)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.start (node:internal/test_runner/test:877:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: wire actions use full uint32 ticks and strict bounded MessagePack tuples
+ok 2 - wire actions use full uint32 ticks and strict bounded MessagePack tuples
+  ---
+  duration_ms: 0.480875
+  ...
+# Subtest: independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+ok 3 - independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+  ---
+  duration_ms: 0.284042
+  ...
+# Subtest: conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+ok 4 - conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+  ---
+  duration_ms: 0.211
+  ...
+# Subtest: whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+ok 5 - whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+  ---
+  duration_ms: 14.48
+  ...
+# Subtest: all same-tick press/release packet permutations yield exactly one identical shot
+ok 6 - all same-tick press/release packet permutations yield exactly one identical shot
+  ---
+  duration_ms: 16.690708
+  ...
+# Subtest: replacement press restarts charge; old release cannot fire the newer gesture
+ok 7 - replacement press restarts charge; old release cannot fire the newer gesture
+  ---
+  duration_ms: 2.440166
+  ...
+# Subtest: missing press never invents charge; cancel and aiming preserve per-action target order
+ok 8 - missing press never invents charge; cancel and aiming preserve per-action target order
+  ---
+  duration_ms: 3.363083
+  ...
+# Subtest: idle repair delivers a lost final release; receipt loss never duplicates shots
+ok 9 - idle repair delivers a lost final release; receipt loss never duplicates shots
+  ---
+  duration_ms: 3.021458
+  ...
+# Subtest: origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+ok 10 - origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+  ---
+  duration_ms: 3.472375
+  ...
+# Subtest: finality waits for cross-channel input gaps, then emits derived effects exactly once
+ok 11 - finality waits for cross-channel input gaps, then emits derived effects exactly once
+  ---
+  duration_ms: 6.431667
+  ...
+# Subtest: finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+ok 12 - finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+  ---
+  duration_ms: 6.091834
+  ...
+# Subtest: speculation pauses at its fixed bound and resumes after verified finality
+ok 13 - speculation pauses at its fixed bound and resumes after verified finality
+  ---
+  duration_ms: 10.169875
+  ...
+# Subtest: malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+ok 14 - malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+  ---
+  duration_ms: 3.62825
+  ...
+# Subtest: invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+ok 15 - invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+  ---
+  duration_ms: 2.912583
+  ...
+# Subtest: encoded history budget rejects growth atomically rather than discarding rollback dependencies
+ok 16 - encoded history budget rejects growth atomically rather than discarding rollback dependencies
+  ---
+  duration_ms: 2.756167
+  ...
+# Subtest: six independently advancing replicas converge through delayed/reordered delivery for five streams
+ok 17 - six independently advancing replicas converge through delayed/reordered delivery for five streams
+  ---
+  duration_ms: 2208.006292
+  ...
+# Subtest: new completeness cuts preserve older promises and already certified progress
+ok 18 - new completeness cuts preserve older promises and already certified progress
+  ---
+  duration_ms: 0.151958
+  ...
+# Subtest: watermark cuts, including empty periods, have a hard retention bound
+ok 19 - watermark cuts, including empty periods, have a hard retention bound
+  ---
+  duration_ms: 0.701583
+  ...
+# Subtest: bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+ok 20 - bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+  ---
+  duration_ms: 0.8415
+  ...
+# Subtest: older complete finality advances while newer certificates still await input repair
+ok 21 - older complete finality advances while newer certificates still await input repair
+  ---
+  duration_ms: 12.365541
+  ...
+# Subtest: pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+ok 22 - pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+  ---
+  duration_ms: 5.495083
+  ...
+# Subtest: pending finality has a forty-tick bound and encoded-byte admission is atomic
+ok 23 - pending finality has a forty-tick bound and encoded-byte admission is atomic
+  ---
+  duration_ms: 5.269375
+  ...
+# Subtest: lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+ok 24 - lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+  ---
+  duration_ms: 0.449958
+  ...
+# Subtest: delivery exact cuts exclude future groups and cannot contradict retained actions
+ok 25 - delivery exact cuts exclude future groups and cannot contradict retained actions
+  ---
+  duration_ms: 0.085542
+  ...
+# Subtest: remote future staging derives from both clock uncertainties without extending the execution horizon
+ok 26 - remote future staging derives from both clock uncertainties without extending the execution horizon
+  ---
+  duration_ms: 6.647917
+  ...
+# Subtest: recovery distinguishes invalid action admission from verified finality disagreement
+ok 27 - recovery distinguishes invalid action admission from verified finality disagreement
+  ---
+  duration_ms: 2.112375
+  ...
+# Subtest: combined progress rejects late conflicts atomically, including pending finality and events
+ok 28 - combined progress rejects late conflicts atomically, including pending finality and events
+  ---
+  duration_ms: 6.86675
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 27
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2555.300208

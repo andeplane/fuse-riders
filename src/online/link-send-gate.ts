@@ -6,6 +6,19 @@
 export interface SendChannelFacts { readyState:RTCDataChannelState;bufferedAmount:number }
 export const GAMEPLAY_BUFFER_LIMIT=64000;
 export const PROBE_BUFFER_LIMIT=4096;
+export const COORDINATION_BUFFER_LIMIT=12_000;
+export const CHECKPOINT_BUFFER_LIMIT=6_000;
+export const CHECKPOINT_CHUNK_BYTES=2_000;
+/** Shared uplink budget includes every link/lane and the complete prospective wire envelope. */
+export function permitsAggregate(links:Iterable<{channel?:SendChannelFacts;fast?:SendChannelFacts}>,bytes:number,limit:number):boolean {
+  if(!Number.isSafeInteger(bytes)||bytes<=0||bytes>limit)return false;
+  let total=bytes;
+  for(const link of links)for(const channel of [link.channel,link.fast])if(channel){
+    if(!Number.isFinite(channel.bufferedAmount)||channel.bufferedAmount<0)return false;
+    total+=channel.bufferedAmount;if(total>limit)return false;
+  }
+  return true;
+}
 /** Re-evaluate at send time, including deferred replies. Reliable backlog must not block fast health evidence. */
 export function permitsFastControl(stopped:boolean,hidden:boolean,fast:SendChannelFacts|undefined,fastGate:LinkSendGate,reliable:SendChannelFacts|undefined,reliableGate:LinkSendGate):boolean {
   return !stopped&&!hidden&&reliable?.readyState==='open'&&!reliableGate.draining&&fastGate.permits(fast,PROBE_BUFFER_LIMIT);
