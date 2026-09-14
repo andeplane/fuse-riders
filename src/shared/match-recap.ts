@@ -1,20 +1,18 @@
+import { durationText } from './duration-text.js';
 import type { MatchPlayerStats } from './match-stats.js';
 
 /**
  * Pure end-of-match presentation model shared by the LAN TV and the online UI.
  * It only reads authoritative `MatchPlayerStats`; it never invents or rescores data.
+ * Durations use the formatter added by #55, relocated from `src/client/` to `src/shared/` so this
+ * module — which `src/online/` renders too — keeps one implementation without importing client code.
  */
-export const TICKS_PER_SECOND = 20;
+export { durationText };
 export const RECAP_KICKER = 'MATCH COMPLETE // AFTER ACTION REPORT';
 export const RECAP_TITLE = 'Grid legends';
 export const RECAP_EMPTY_MESSAGE = 'Compiling the after action report…';
 export const COMPARISON_KEY = 'BOMBS = EXPLODED / PLACED   ·   DEATHS = WALL / TRAIL / BLAST / RIDER';
 export const PODIUM_PLACES = 3;
-
-export function durationText(ticks: number): string {
-  const seconds = Math.max(0, ticks) / TICKS_PER_SECOND;
-  return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s` : `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-}
 
 export function distanceText(units: number): string {
   return `${Math.round(Math.max(0, units))}u`;
@@ -27,7 +25,7 @@ export function orderedStats(stats: ReadonlyArray<MatchPlayerStats>): MatchPlaye
 
 /** Changes whenever any rendered figure changes; renderers use it to skip identical rebuilds. */
 export function recapSignature(stats: ReadonlyArray<MatchPlayerStats>): string {
-  return orderedStats(stats).map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
+  return orderedStats(stats).map((entry) => [entry.playerId, entry.matchPlacement, entry.roundsPlayed, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
     entry.longestSurvivalTicks, entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected,
     entry.invulnerableTicks, entry.wallBounces, entry.earlyExits, entry.blastPickups, entry.starPickups, entry.beerPickups, entry.inkPickups,
     entry.triplePickups, entry.fivePickups, entry.targetPickups, entry.shieldPickups, entry.portalPickups, entry.portalTransits,

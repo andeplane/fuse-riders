@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { durationText as sharedDurationText } from '../src/shared/duration-text.js';
 import type { MatchPlayerStats } from '../src/shared/match-stats.js';
 import {
   AWARD_DEFINITIONS,
@@ -25,16 +26,12 @@ function rider(overrides: Partial<MatchPlayerStats> & { playerId: string; slot: 
   };
 }
 
-test('formatting helpers use 20 ticks per second and whole arena units', () => {
-  assert.equal(durationText(0), '0.0s');
-  assert.equal(durationText(18), '0.9s');
-  assert.equal(durationText(200), '10s');
-  assert.equal(durationText(1200), '1m 0s');
-  assert.equal(durationText(1520), '1m 16s');
-  assert.equal(durationText(-40), '0.0s');
+test('distances render as whole arena units and durations reuse the shared formatter', () => {
   assert.equal(distanceText(0), '0u');
   assert.equal(distanceText(1234.6), '1235u');
   assert.equal(distanceText(-3), '0u');
+  // durationText is re-exported from src/shared/duration-text.ts; tests/duration-text.test.ts owns its cases.
+  assert.equal(durationText, sharedDurationText);
 });
 
 test('empty statistics produce an empty recap with no placeholder awards or totals', () => {
@@ -164,6 +161,7 @@ test('the signature changes with any rendered figure and is order independent', 
   assert.equal(recapSignature([a, b]), recapSignature([b, a]));
   assert.notEqual(recapSignature([a, b]), recapSignature([a, { ...b, deathsByCause: { ...b.deathsByCause, rider: 1 } }]));
   assert.notEqual(recapSignature([a, b]), recapSignature([a, { ...b, longestSurvivalTicks: 5 }]));
+  assert.notEqual(recapSignature([a, b]), recapSignature([a, { ...b, roundsPlayed: 1 }]));
   assert.notEqual(recapSignature([a, b]), recapSignature([a]));
 });
 

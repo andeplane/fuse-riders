@@ -17,7 +17,6 @@ import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
-import { durationText } from './duration-text.js';
 import { legendSrc } from './legend-src.js';
 import { safeStorage } from './safe-storage.js';
 import { SocketClient } from './socket-client.js';

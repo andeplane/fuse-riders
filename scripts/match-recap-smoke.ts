@@ -25,6 +25,7 @@ async function assertRecapLayout(page: Page): Promise<{ podium: number; awards: 
   await dialog.waitFor({ state: 'visible' });
   await page.locator('.match-recap-report').waitFor({ state: 'visible' });
   assert.ok(await page.locator('dialog.game-dialog').evaluate((element) => element.classList.contains('recap-dialog')), 'recap uses the wide dialog variant');
+  assert.equal(await dialog.getAttribute('aria-label'), 'Match results', 'the report announces itself as the results, not the game menu');
   await inside(page, dialog);
   await inside(page, page.getByRole('button', { name: 'CLOSE', exact: true }));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'document must not scroll horizontally');
@@ -67,7 +68,7 @@ try {
       await page.goto(new URL('?solo=1&benchmark=1', base).href);
       await page.waitForFunction(() => document.querySelector('canvas')?.dataset.renderer?.startsWith('phaser-'));
       await waitFor(() => snapshots.length > 0, 20000, 'first snapshot');
-      assert.equal(await page.getByRole('button', { name: 'RESULTS', exact: true, includeHidden: true }).isHidden(), true, 'RESULTS stays hidden before the match ends');
+      assert.equal(await page.getByRole('button', { name: 'RESULTS', exact: true, includeHidden: true }).evaluate((element: HTMLElement) => element.hidden), true, 'RESULTS stays hidden before the match ends');
       if (!phone) {
         // The desktop run picks the shortest format through the real settings menu; a new length applies to the next match.
         await page.getByRole('button', { name: 'ROOM SETTINGS', exact: true }).click();
@@ -97,11 +98,17 @@ try {
       screenshots.push(`artifacts/match-recap-${tag}-scrolled.png`); await page.screenshot({ path: screenshots[1]! });
       await page.getByRole('button', { name: 'CLOSE', exact: true }).click();
       await page.getByRole('dialog').waitFor({ state: 'hidden' });
-      assert.equal(await page.locator('dialog.game-dialog').evaluate((element) => element.classList.contains('recap-dialog')), false, 'closing restores the ordinary dialog width');
-      // matchOver leaves the mobile play overlay, so the ordinary header (with RESULTS) is visible on the phone too.
+      // `close` is fired from a queued task, so the ordinary width/title/name are restored just after the dialog stops rendering.
+      await page.waitForFunction(() => {
+        const element = document.querySelector('dialog.game-dialog')!;
+        return !element.classList.contains('recap-dialog') && element.getAttribute('aria-label') === 'Game menu';
+      });
+      // A joined phone stays the landscape thirds controller in matchOver, so the header (and RESULTS) sits behind the ☰ MENU overlay.
       const reopen = page.getByRole('button', { name: 'RESULTS', exact: true });
+      if (phone && !(await reopen.isVisible())) await page.locator('.mobile-tools-toggle').click();
       await reopen.waitFor({ state: 'visible' }); await inside(page, reopen); await reopen.click();
       await assertRecapLayout(page);
+      assert.equal(await page.locator('.dialog-body').evaluate((element) => element.scrollTop), 0, 'reopening starts at the podium, not where the reader left off');
       screenshots.push(`artifacts/match-recap-${tag}-reopened.png`); await page.screenshot({ path: screenshots[2]! });
       await page.getByRole('button', { name: 'CLOSE', exact: true }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
       if (!phone) {
