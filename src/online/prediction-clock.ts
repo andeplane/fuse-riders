@@ -19,10 +19,10 @@ export class PredictionClock {
     this.nearbySamples=rtt<=40?Math.min(3,this.nearbySamples+1):0;
     this.sample={...sample,scope:{...sample.scope}};this.lastRead=this.now();return true;
   }
-  /** Only fresh, repeatedly verified nearby host probes permit a shorter presentation buffer. */
-  presentationDelayTicks():1|2 {
+  /** Only a fresh validated nearby host probe permit a shorter presentation buffer. */
+  presentationDelayTicks():0.5|2 {
     if(!this.estimate()||!this.sample||this.now()-this.sample.localReceivedAt>1000){this.nearbySamples=0;return 2;}
-    return this.nearbySamples>=3?1:2;
+    return this.nearbySamples>=1?0.5:2;
   }
   /** Read-only opt-in measurement data; does not refresh or qualify a clock. */
   diagnostics():{scope:InputControlScope;rttMs:number;sampleAgeMs:number;nearbySamples:number}|undefined {

@@ -22,3 +22,10 @@ test('unchanged heading times out and incomplete capture is separately rejected'
 test('one degree metric remains later than the first tiny numerical departure',()=>{
  const frames=[...before(),frame(1010,.001),frame(1020,.01),frame(1030,.02)];assert.equal(headingResponse(pointer,frames).latencyMs,10);assert.equal(headingResponse(pointer,frames,800,Math.PI/180).latencyMs,30);
 });
+
+test('render continuity separates repeated authoritative ticks from animation cadence and attempt gaps',async()=>{
+ const {renderedTickContinuity}=await import('../src/online/response-measurement.js');
+ const result=renderedTickContinuity([frame(0,0,{tick:10}),frame(25,0,{tick:10}),frame(50,0,{tick:10}),frame(75,0,{tick:11}),frame(500,0,{tick:12}),frame(525,0,{tick:13})],'actor');
+ assert.equal(result.intervals.count,4);assert.equal(result.repeatedTickRatio,.5);assert.equal(result.observedHoldSpansMs.max,50);assert.equal(result.intervals.p95,25);assert.equal(result.excludedGapsOver100ms.count,1);assert.equal(result.excludedGapsOver100ms.max,425);
+ const dead=frame(550,0,{tick:13});dead.players[0]!.alive=false;assert.equal(renderedTickContinuity([dead,frame(575,0,{tick:13})],'actor').intervals.count,0);
+});

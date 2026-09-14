@@ -1,6 +1,6 @@
 /** Opt-in CPU render-submission evidence. These are not physical screen/scanout timestamps. */
 export interface ResponseActor {id:string;angle:number;alive:boolean;drunkUntilTick:number;invulnerableUntilTick:number;portalCooldownUntilTick:number;shielded:boolean}
-export interface ResponseFrame {kind:'response-render';delayTicks?:1|2;clock?:{rttMs:number;sampleAgeMs:number;nearbySamples:number;scope:{matchId:string;round:number;controlEpoch:string}};epochAt:number;scope:string;phase:string;tick:number;powerupsDisabled:boolean;players:ResponseActor[]}
+export interface ResponseFrame {kind:'response-render';delayTicks?:0.5|1|2;clock?:{rttMs:number;sampleAgeMs:number;nearbySamples:number;scope:{matchId:string;round:number;controlEpoch:string}};epochAt:number;scope:string;phase:string;tick:number;powerupsDisabled:boolean;players:ResponseActor[]}
 export interface ResponsePointer {epochAt:number;actorId:string;direction:-1|1;trusted:boolean}
 export interface ResponseResult {status:'changed'|'rejected'|'timeout';reason?:string;latencyMs?:number;baseline?:ResponseFrame;changed?:ResponseFrame;frames:ResponseFrame[]}
 const delta=(a:number,b:number)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
@@ -24,4 +24,23 @@ export function headingResponse(pointer:ResponsePointer,frames:readonly Response
  }
  if((window.at(-1)?.epochAt??-Infinity)<pointer.epochAt+deadlineMs-100)return reject('incomplete-observation');
  return {status:'timeout',reason:'no-changed-heading-before-deadline',baseline,frames:window};
+}
+/** Comparable sampled render windows: excludes phase/death/scope changes and gaps between attempts. */
+export function renderedTickContinuity(frames:readonly ResponseFrame[],actorId:string){
+ const unique=[...new Map(frames.map(f=>[f.epochAt,f])).values()].sort((a,b)=>a.epochAt-b.epochAt);
+ const intervals:number[]=[],holds:number[]=[],largeGaps:number[]=[];let previous:ResponseFrame|undefined,hold=0,repeated=0,repeatedMs=0;
+ const endHold=()=>{if(hold>0)holds.push(hold);hold=0;};
+ for(const frame of unique){
+  const actor=frame.players.find(p=>p.id===actorId);
+  if(frame.phase!=='playing'||!actor?.alive){endHold();previous=undefined;continue;}
+  const dt=previous?frame.epochAt-previous.epochAt:0;
+  if(previous&&previous.scope===frame.scope&&dt>0&&dt<=100){
+   intervals.push(dt);
+   if(Math.abs(frame.tick-previous.tick)<1e-6){repeated++;repeatedMs+=dt;hold+=dt;}else endHold();
+  }else {if(previous&&previous.scope===frame.scope&&dt>100)largeGaps.push(dt);endHold();}
+  previous=frame;
+ }
+ endHold();
+ const q=(v:number[])=>{const s=[...v].sort((a,b)=>a-b);return{count:s.length,p50:s[Math.ceil(s.length*.5)-1]??null,p95:s[Math.ceil(s.length*.95)-1]??null,p99:s[Math.ceil(s.length*.99)-1]??null,max:s.at(-1)??null};};
+ return {intervals:q(intervals),excludedGapsOver100ms:q(largeGaps),observedHoldSpansMs:q(holds),repeatedTickIntervals:repeated,repeatedTickRatio:intervals.length?repeated/intervals.length:0,repeatedTickTimeRatio:intervals.length?repeatedMs/intervals.reduce((a,b)=>a+b,0):0};
 }
