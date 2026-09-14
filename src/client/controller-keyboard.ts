@@ -3,13 +3,13 @@ import { ControllerInputState, type ControllerControl } from './controller-state
 const keys: Readonly<Record<string, readonly [number, ControllerControl]>> = {
   ArrowLeft: [-101, 'left'], ArrowRight: [-102, 'right'], Space: [-103, 'bomb'],
 };
-export interface KeyboardInputEvent {code:string;repeat:boolean;preventDefault():void}
+export interface KeyboardInputEvent {code:string;repeat:boolean;altKey?:boolean;ctrlKey?:boolean;metaKey?:boolean;preventDefault():void}
 /** Distinct contact IDs let keyboard and touch share one held-control model. */
 export class ControllerKeyboardBindings {
   private held = new Set<string>();
   constructor(private state:ControllerInputState,private allowed:()=>boolean,private changed:()=>void=()=>{}){}
   down(event:KeyboardInputEvent):void {
-    const binding=keys[event.code];if(!binding)return;
+    const binding=keys[event.code];if(!binding||event.altKey||event.ctrlKey||event.metaKey)return;
     if(!this.allowed()){this.clear();return;}
     event.preventDefault();if(event.repeat||this.held.has(event.code))return;
     this.held.add(event.code);this.state.pointerDown(...binding);this.changed();

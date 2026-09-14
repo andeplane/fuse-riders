@@ -8,3 +8,12 @@ test('pointer ownership survives keyboard release and cancellation',()=>{const f
 test('menu/focus/visibility cancellation never fires and repeat after reset cannot restart charge',()=>{const f=fixture();f.keyboard.down(f.event('Space'));f.keyboard.clear();f.keyboard.down(f.event('Space',true));f.keyboard.up(f.event('Space'));assert.deepEqual(f.messages.map(m=>m.bombAction),['press','cancel']);f.keyboard.down(f.event('Space'));f.block();f.keyboard.up(f.event('Space'));assert.deepEqual(f.messages.map(m=>m.bombAction),['press','cancel','press','cancel']);});
 test('blocked and unrelated keys retain normal browser handling',()=>{const f=fixture();f.keyboard.down(f.event('KeyA'));f.block();f.keyboard.down(f.event('Space'));f.keyboard.up(f.event('Space'));assert.equal(f.prevented(),0);assert.equal(f.messages.length,0);});
 test('blocked new key clears previously held keys without releasing a bomb',()=>{const f=fixture();f.keyboard.down(f.event('Space'));f.block();f.keyboard.down(f.event('ArrowLeft'));assert.equal(f.state.hasHeld(),false);assert.equal(f.messages.at(-1)?.bombAction,'cancel');});
+test('browser modifier shortcuts remain untouched while keyup releases an earlier plain hold',()=>{
+ for(const modifier of ['altKey','ctrlKey','metaKey'] as const){
+  const f=fixture();
+  for(const code of ['ArrowLeft','ArrowRight','Space'])f.keyboard.down({...f.event(code),[modifier]:true});
+  assert.equal(f.prevented(),0);assert.deepEqual(f.messages,[]);assert.equal(f.state.hasHeld(),false);
+  f.keyboard.down(f.event('Space'));f.keyboard.up({...f.event('Space'),[modifier]:true});
+  assert.deepEqual(f.messages.map(message=>message.bombAction),['press','release']);assert.equal(f.state.hasHeld(),false);
+ }
+});
