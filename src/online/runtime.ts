@@ -159,8 +159,9 @@ export class RoomRuntime {
       if(!delivery.matchesScope(game.matchId,game.round)){delivery.clear();this.encoders.delete(id);}
       const pending=delivery.pump(at,world=>this.transport.send(id,world));
       if(pending==='waiting')continue;if(pending==='expired')this.encoders.delete(id);
-      let encoder=this.encoders.get(id);const fresh=!encoder;if(!encoder){const generation=(this.generations.get(id)??0)+1;this.generations.set(id,generation);encoder=new WorldEncoder(generation);this.encoders.set(id,encoder);}
-      const frame=encoder.encode(snapshot,game.matchId,game.round,game.tick,fresh||game.tick%300===0);
+      let encoder=this.encoders.get(id);if(!encoder){const generation=(this.generations.get(id)??0)+1;this.generations.set(id,generation);encoder=new WorldEncoder(generation);this.encoders.set(id,encoder);}
+      // A fresh encoder keyframes itself. On one ordered reliable channel a delta chain cannot drift, and a broken chain already resyncs, so a periodic re-baseline only buys a ~30 KB burst plus a receipt wait that blocks every delta to that peer (#61).
+      const frame=encoder.encode(snapshot,game.matchId,game.round,game.tick);
       const world:WorldEnvelope={type:'world',frame,settings:session.settings,ack:recipientAcknowledgements(ack,id),paused,motion:session.appliedMotion(id)};
       if(frame.base===0){delivery.hold(world,at);delivery.pump(at,payload=>this.transport.send(id,payload));}
       else if(!this.transport.send(id,world))this.encoders.delete(id);
