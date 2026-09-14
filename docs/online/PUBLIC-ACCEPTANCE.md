@@ -14,3 +14,11 @@ Both browsers completed UI room creation, host join, ADD AI, guest join over dir
 The raw `pass` fields refer to the completed functional assertions; they do not override the separately recorded WebKit error. Snapshot metrics are individual samples, not latency distributions. Both environments were automated desktop browsers; mobile viewport emulation does not establish physical-phone compatibility.
 
 [Actual public Phaser screenshot](../public-phaser-chrome.png) shows the countdown with the host, AI and guest visible. It is not an image-generated mockup or a screenshot of the later scored round. The hosted release predates later keyframe-recovery and shot-failure changes and cannot certify those changes.
+
+## Final expanded public check
+
+The expanded check subsequently passed **both Chrome and WebKit with zero page errors and zero failed HTTP responses** against served frontend `d715642ebd4d0cc63c5e5639a0adee6c3f4ab05d`, verified CI `34794220106`, built `2026-09-14T01:00:44.513Z`, and the same configured GCP backend. [Final raw report](public-final-acceptance.json) preserves the actual served manifest and results separately from the initial check above.
+
+For each browser, a 390×844 host created a room, joined, added AI, accepted a direct WebRTC guest, started a normally scored round and reset to the lobby. The host then selected shared-screen mode, length 2 and blast weight 0; both phone boards hid. After host refresh, the settings dialog and saved preferences retained those values in the restored lobby. A separate TV showed Phaser while hiding host-only controls, and the phone host started and reset its race. The guest context was closed before opening the TV to keep at most two live views on the runner. These checks distinguish saved preferences from changes to an already-running match.
+
+[Public phone host](../public-phone-host-chrome.png) and [separate public TV](../public-shared-tv-webkit.png) are actual browser screenshots. This clean retest resolves the earlier observed WebKit page-error symptom for this sequence; it does not prove the absence of all possible RTC failures. Physical phones, arbitrary NATs and poor-network performance are outside this positive-path public check.

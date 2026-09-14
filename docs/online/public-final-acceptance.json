@@ -1,0 +1,74 @@
+[
+  {
+    "browser": "chrome",
+    "release": {
+      "gitRevision": "d715642ebd4d0cc63c5e5639a0adee6c3f4ab05d",
+      "verifiedCiRun": "34794220106",
+      "apiOrigin": "https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app",
+      "base": "/fuse-riders/",
+      "builtAt": "2026-09-14T01:00:44.513Z"
+    },
+    "created": true,
+    "aiAdded": true,
+    "guestJoined": true,
+    "countdownReceived": true,
+    "metrics": "{\"direct\":1,\"relayed\":0,\"buffered\":261,\"authority\":{\"reason\":\"permitted\",\"roundTripMs\":95.40000000596046},\"sentBytes\":3515,\"frameP95\":28.5,\"inputP95\":0,\"ackMs\":0,\"correction\":0,\"tick\":86}",
+    "renderer": "phaser-webgl",
+    "screenshot": "artifacts/public-phaser-chrome.png",
+    "scoring": true,
+    "phoneHost": {
+      "width": 390,
+      "height": 844,
+      "createdJoinedStarted": true
+    },
+    "reset": true,
+    "sharedPhoneViewsHidden": true,
+    "savedPreferences": {
+      "mode": "shared",
+      "length": 2,
+      "blastWeight": 0
+    },
+    "settingsRestoredInLobby": true,
+    "separateTvVisible": true,
+    "phoneHostControlsTv": true,
+    "pass": true,
+    "errors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "release": {
+      "gitRevision": "d715642ebd4d0cc63c5e5639a0adee6c3f4ab05d",
+      "verifiedCiRun": "34794220106",
+      "apiOrigin": "https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app",
+      "base": "/fuse-riders/",
+      "builtAt": "2026-09-14T01:00:44.513Z"
+    },
+    "created": true,
+    "aiAdded": true,
+    "guestJoined": true,
+    "countdownReceived": true,
+    "metrics": "{\"direct\":1,\"relayed\":0,\"buffered\":0,\"authority\":{\"reason\":\"permitted\",\"roundTripMs\":103},\"sentBytes\":4337,\"frameP95\":18,\"inputP95\":0,\"ackMs\":0,\"correction\":0,\"tick\":96}",
+    "renderer": "phaser-webgl",
+    "screenshot": "artifacts/public-phaser-webkit.png",
+    "scoring": true,
+    "phoneHost": {
+      "width": 390,
+      "height": 844,
+      "createdJoinedStarted": true
+    },
+    "reset": true,
+    "sharedPhoneViewsHidden": true,
+    "savedPreferences": {
+      "mode": "shared",
+      "length": 2,
+      "blastWeight": 0
+    },
+    "settingsRestoredInLobby": true,
+    "separateTvVisible": true,
+    "phoneHostControlsTv": true,
+    "pass": true,
+    "errors": [],
+    "failedRequests": []
+  }
+]
