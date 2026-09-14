@@ -43,6 +43,9 @@ jobs:
           cat artifacts/worker.log
           exit 1
       - name: Desktop keyboard steering and firing
+        # Temporary (user-approved): non-blocking while #43 is open so Deploy Pages is
+        # not held by the runner-only keyboard timeout; restore when #43 merges.
+        continue-on-error: true
         run: npx tsx scripts/keyboard-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
