@@ -117,6 +117,13 @@ npx tsx scripts/online-network-benchmark.ts
 
 `ONLINE_URL=https://your-preview.example npx tsx scripts/online-smoke.ts` targets a preview and creates test rooms there. Never point tests at an occupied game. Benchmark scripts write reports under `docs/online/`; review regenerated evidence before committing it.
 
+To run the whole [CI](.github/workflows/ci.yml) suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts Wrangler itself (log in `artifacts/worker.log`) and always stops it on exit. `PORT` chooses the Wrangler port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `worker`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `shared`, `deltas`; `core` expands to the first four) and starts Wrangler only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the Wrangler-backed steps serve `dist/`, so run `build` (or `core`) first:
+
+```sh
+PORT=8801 scripts/ci-local.sh
+ONLY=core,keyboard PORT=8801 scripts/ci-local.sh
+```
+
 Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser/Worker path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage, builds and browser checks; inspect the actual revision's result rather than treating this checklist as proof of passing CI.
 
 The delta benchmark asserts exact reconstruction for every measured update. The [browser network harness](docs/online/NETWORK-HARNESS.md) uses five players plus a TV and seeded application-level delay, jitter, loss/reordering, bandwidth queues and a one-way blackhole. Opt-in `?benchmark=1` events expose accepted snapshots and predicted poses without capabilities. Application-message injection is not real IP packet loss, and desktop animation timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
