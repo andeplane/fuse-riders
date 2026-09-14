@@ -92,7 +92,8 @@ export class HostSession {
   private newSeat(seq:number):Seat {
     return {seq,tick:this.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer(),scope:{matchId:this.game.matchId,round:this.game.round,controlEpoch:`${this.dependencies.token()}:${++this.scopeCounter}`},pending:new Map(),results:new Map(),appliedSeq:-1,appliedTick:this.game.tick,processedSeq:seq,bombSeq:seq};
   }
-  private resetSeat(seat:Seat):void {Object.assign(seat,this.newSeat(seat.seq));seat.bombs.cancel(true);}
+  // A new control scope already fences old gestures; queue cancellation without blocking a new press.
+  private resetSeat(seat:Seat):void {Object.assign(seat,this.newSeat(seat.seq));seat.bombs.cancel();}
   private pruneResults(seat:Seat):void {for(const [seq,result] of seat.results)if(this.game.tick-result.at>100)seat.results.delete(seq);}
   controlScope(id:string):InputControlScope|undefined {const seat=this.seats.get(id);return seat?{...seat.scope}:undefined;}
   acknowledgeMotion(id:string,scope:InputControlScope,seqs:readonly number[]):boolean {
@@ -124,7 +125,7 @@ export class HostSession {
         }
       }
       if(newest){seat.input={left:newest.left,right:newest.right,bomb:newest.bomb,...(newest.aim?{aim:newest.aim}:{})};seat.tick=nextTick;seat.appliedSeq=newest.seq;seat.appliedTick=nextTick;}
-      if(nextTick-seat.tick>=10){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel(true);}
+      if(nextTick-seat.tick>=10){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel();}
       inputs.set(id,{...seat.input,bombCommands:seat.bombs.drainCommands()});
     }
     const before=this.game.phase;const result=step(this.game,inputs);
