@@ -1,0 +1,290 @@
+TAP version 13
+# Subtest: wire actions use full uint32 ticks and strict bounded MessagePack tuples
+ok 1 - wire actions use full uint32 ticks and strict bounded MessagePack tuples
+  ---
+  duration_ms: 1.597
+  ...
+# Subtest: independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+ok 2 - independent stream fills holes, permits older repairs after watermark, ignores reordered watermarks
+  ---
+  duration_ms: 0.335083
+  ...
+# Subtest: conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+ok 3 - conflicting IDs, incomparable promises, chronological inversion and reused gesture are atomic faults
+  ---
+  duration_ms: 0.512417
+  ...
+# Subtest: whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+ok 4 - whole world advances with no action packets, then bounded rollback exactly reconstructs late actions
+  ---
+  duration_ms: 27.197875
+  ...
+# Subtest: all same-tick press/release packet permutations yield exactly one identical shot
+ok 5 - all same-tick press/release packet permutations yield exactly one identical shot
+  ---
+  duration_ms: 18.599792
+  ...
+# Subtest: replacement press restarts charge; old release cannot fire the newer gesture
+ok 6 - replacement press restarts charge; old release cannot fire the newer gesture
+  ---
+  duration_ms: 2.484959
+  ...
+# Subtest: missing press never invents charge; cancel and aiming preserve per-action target order
+ok 7 - missing press never invents charge; cancel and aiming preserve per-action target order
+  ---
+  duration_ms: 3.842958
+  ...
+# Subtest: idle repair delivers a lost final release; receipt loss never duplicates shots
+ok 8 - idle repair delivers a lost final release; receipt loss never duplicates shots
+  ---
+  duration_ms: 3.176833
+  ...
+# Subtest: origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+ok 9 - origin immediately sends newest plus old gap records; backpressure repair is paced and bounded
+  ---
+  duration_ms: 4.061167
+  ...
+# Subtest: finality waits for cross-channel input gaps, then emits derived effects exactly once
+ok 10 - finality waits for cross-channel input gaps, then emits derived effects exactly once
+  ---
+  duration_ms: 7.722708
+  ...
+# Subtest: finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+ok 11 - finalized bootstrap uses applied prefixes, leaving already received future actions for suffix replay
+  ---
+  duration_ms: 6.515708
+  ...
+# Subtest: speculation pauses at its fixed bound and resumes after verified finality
+ok 12 - speculation pauses at its fixed bound and resumes after verified finality
+  ---
+  duration_ms: 12.461542
+  ...
+# Subtest: malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+ok 13 - malformed/future/wrong-owner/stale-segment messages do not alter healthy world
+  ---
+  duration_ms: 4.177375
+  ...
+# Subtest: invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+ok 14 - invalid bootstrap, changed rules, corrupt state and wrong scope never instantiate a replica
+  ---
+  duration_ms: 2.917417
+  ...
+# Subtest: encoded history budget rejects growth atomically rather than discarding rollback dependencies
+ok 15 - encoded history budget rejects growth atomically rather than discarding rollback dependencies
+  ---
+  duration_ms: 2.928792
+  ...
+# Subtest: six independently advancing replicas converge through delayed/reordered delivery for five streams
+ok 16 - six independently advancing replicas converge through delayed/reordered delivery for five streams
+  ---
+  duration_ms: 2362.93475
+  ...
+# Subtest: new completeness cuts preserve older promises and already certified progress
+ok 17 - new completeness cuts preserve older promises and already certified progress
+  ---
+  duration_ms: 0.142084
+  ...
+# Subtest: watermark cuts, including empty periods, have a hard retention bound
+ok 18 - watermark cuts, including empty periods, have a hard retention bound
+  ---
+  duration_ms: 0.715333
+  ...
+# Subtest: bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+ok 19 - bootstrap rejects a rehashed impossible gesture state, not only corrupt hashes
+  ---
+  duration_ms: 0.842583
+  ...
+# Subtest: older complete finality advances while newer certificates still await input repair
+ok 20 - older complete finality advances while newer certificates still await input repair
+  ---
+  duration_ms: 12.066958
+  ...
+# Subtest: pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+ok 21 - pending certificates normalize prefix order and reject conflicts without bypassing a bad older hash
+  ---
+  duration_ms: 5.74775
+  ...
+# Subtest: pending finality has a forty-tick bound and encoded-byte admission is atomic
+ok 22 - pending finality has a forty-tick bound and encoded-byte admission is atomic
+  ---
+  duration_ms: 5.270625
+  ...
+# Subtest: lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+ok 23 - lost receipts retain the oldest gap without starving rotation through the unacknowledged tail
+  ---
+  duration_ms: 0.452375
+  ...
+# Subtest: delivery exact cuts exclude future groups and cannot contradict retained actions
+ok 24 - delivery exact cuts exclude future groups and cannot contradict retained actions
+  ---
+  duration_ms: 0.085291
+  ...
+# Subtest: remote future staging derives from both clock uncertainties without extending the execution horizon
+ok 25 - remote future staging derives from both clock uncertainties without extending the execution horizon
+  ---
+  duration_ms: 6.796958
+  ...
+# Subtest: recovery distinguishes invalid action admission from verified finality disagreement
+ok 26 - recovery distinguishes invalid action admission from verified finality disagreement
+  ---
+  duration_ms: 2.501542
+  ...
+# Subtest: initial room preparation accepts tick-stamped snapshots and rejects unknown snapshot fields
+ok 27 - initial room preparation accepts tick-stamped snapshots and rejects unknown snapshot fields
+  ---
+  duration_ms: 4.979625
+  ...
+# Subtest: lifecycle changes reproduce validated management operations with neutral input state
+ok 28 - lifecycle changes reproduce validated management operations with neutral input state
+  ---
+  duration_ms: 16.226834
+  ...
+# Subtest: lifecycle checkpoint validation fences the actual old state and leaves healthy state untouched
+ok 29 - lifecycle checkpoint validation fences the actual old state and leaves healthy state untouched
+  ---
+  duration_ms: 4.99475
+  ...
+# Subtest: controller status contains no world geometry and cannot change stream ownership
+ok 30 - controller status contains no world geometry and cannot change stream ownership
+  ---
+  duration_ms: 2.280167
+  ...
+# Subtest: room catalogs and delegation validate identities and mode-specific simulator ownership
+ok 31 - room catalogs and delegation validate identities and mode-specific simulator ownership
+  ---
+  duration_ms: 1.150459
+  ...
+# Subtest: played lobby catalog reconstructs the exact nonzero-tick checkpoint and ordered historical scores
+ok 32 - played lobby catalog reconstructs the exact nonzero-tick checkpoint and ordered historical scores
+  ---
+  duration_ms: 1.997833
+  ...
+# Subtest: full-view preparation rejects a valid checkpoint paired with a different phase, round or status
+ok 33 - full-view preparation rejects a valid checkpoint paired with a different phase, round or status
+  ---
+  duration_ms: 7.288375
+  ...
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 34 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 156.934208
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 35 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 44.504416
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 36 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 53.169042
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 37 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 189.460375
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 38 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 26.287
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 39 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 181.675291
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 40 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 46.843792
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 41 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 173.408625
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 42 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 402.489708
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 43 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 39.341333
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 44 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 204.650541
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 45 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 45.276
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 46 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 88.38325
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 47 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 38.975375
+  ...
+# Subtest: six live segments independently advance and finalize continuous inputs under loss and reordering
+ok 48 - six live segments independently advance and finalize continuous inputs under loss and reordering
+  ---
+  duration_ms: 632.472167
+  ...
+# Subtest: shared TV is the only simulator while five controller origins send directly to it
+ok 49 - shared TV is the only simulator while five controller origins send directly to it
+  ---
+  duration_ms: 24.605875
+  ...
+# Subtest: coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+ok 50 - coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+  ---
+  duration_ms: 81.944333
+  ...
+# Subtest: provisional eliminations cannot publish death or placements before verified finality
+ok 51 - provisional eliminations cannot publish death or placements before verified finality
+  ---
+  duration_ms: 1.962583
+  ...
+# Subtest: controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+ok 52 - controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+  ---
+  duration_ms: 4.827833
+  ...
+# Subtest: asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+ok 53 - asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+  ---
+  duration_ms: 374.094417
+  ...
+# Subtest: initial progress grace is bounded and replayed base cuts cannot postpone it
+ok 54 - initial progress grace is bounded and replayed base cuts cannot postpone it
+  ---
+  duration_ms: 100.450583
+  ...
+# Subtest: after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+ok 55 - after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+  ---
+  duration_ms: 42.419875
+  ...
+# Subtest: uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+ok 56 - uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+  ---
+  duration_ms: 1.916625
+  ...
+1..56
+# tests 56
+# suites 0
+# pass 56
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2642.76175

@@ -1,0 +1,214 @@
+Guest roster confirmed
+Five riders joined
+Settings/reset confirmed
+Guest refresh confirmed
+Guest roster confirmed
+ROOM DIAGNOSTIC 0 {
+  body: 'FUSE\n' +
+    'RIDERS\n' +
+    'Repeated synchronization failure — reload the room\n' +
+    '♫ AUDIO\n' +
+    'MENU\n' +
+    'HEAD\n' +
+    '⛶\n' +
+    '\n' +
+    'PHONE PARTY // 2–5 RIDERS\n' +
+    '\n' +
+    'SCAN.\n' +
+    'STEER.\n' +
+    'SURVIVE.\n' +
+    '\n' +
+    'Pick your head. Grab your phone. Carve neon trails and blow up your friends’ plans.\n' +
+    '\n' +
+    'STEER ◀ ▶ HOLD · AIM · RELEASE\n' +
+    '\n' +
+    'SCAN TO JOIN\n' +
+    '\n' +
+    'XV56\n' +
+    'HOST\n' +
+    'READY\n' +
+    'GUEST\n' +
+    'OFFLINE\n' +
+    'RIDER 2\n' +
+    'READY\n' +
+    'RIDER 3\n' +
+    'READY\n' +
+    'RIDER 4\n' +
+    'READY\n' +
+    '4 riders ready\n' +
+    'START RACE\n' +
+    'MAIN MENU\n' +
+    'ROOM SETTINGS\n' +
+    'INVITE / TV\n' +
+    'ADD AI',
+  metrics: '{"direct":4,"relayed":0,"buffered":493,"authority":{"reason":"permitted","roundTripMs":5.300000190734863},"replication":{"mode":"direct","coordinator":"0e9e20ec1c351d1773e97c4a","alias":4,"simulator":false,"replicaTick":null,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":3124,"binarySentBytes":1896382,"barrier":true},"sentBytes":2166928,"frameP95":17,"inputP95":9.800000190734863,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 2 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 3 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 4 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s',
+  canvas: {
+    hidden: true,
+    parentClass: 'online-app mobile-lobby room-waiting',
+    renderer: 'canvas'
+  },
+  savedMode: 'shared'
+}
+ROOM DIAGNOSTIC 1 {
+  body: 'Join your friends, then start the race\n◀\nHOLD TO FIRE\n▶\n☰ MENU',
+  metrics: '{"direct":4,"relayed":0,"buffered":214,"authority":{"reason":"permitted","roundTripMs":1.5},"replication":{"mode":"direct","coordinator":"0e9e20ec1c351d1773e97c4a","alias":4,"simulator":true,"replicaTick":0,"finalizedTick":0,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":80,"binarySentBytes":33918,"barrier":true,"fault":"Segment replaced"},"sentBytes":307556,"frameP95":18.200000286102295,"inputP95":8.5,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 2 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 3 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 4 (host): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s',
+  canvas: {
+    hidden: false,
+    parentClass: 'online-app mobile-play mobile-lobby',
+    renderer: 'canvas'
+  },
+  savedMode: undefined
+}
+ROOM DIAGNOSTIC 2 {
+  body: 'Join your friends, then start the race\n◀\nHOLD TO FIRE\n▶\n☰ MENU',
+  metrics: '{"direct":4,"relayed":0,"buffered":265,"authority":{"reason":"permitted","roundTripMs":5.099999904632568},"replication":{"mode":"direct","coordinator":"0e9e20ec1c351d1773e97c4a","alias":4,"simulator":true,"replicaTick":0,"finalizedTick":0,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":647,"binarySentBytes":44594,"barrier":true,"fault":"Segment replaced"},"sentBytes":322032,"frameP95":18,"inputP95":12.5,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 1, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 39s\n' +
+    'link 2 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 39s\n' +
+    'link 3 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 1, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 39s\n' +
+    'link 4 (host): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 39s',
+  canvas: {
+    hidden: false,
+    parentClass: 'online-app mobile-play mobile-lobby',
+    renderer: 'canvas'
+  },
+  savedMode: undefined
+}
+ROOM DIAGNOSTIC 3 {
+  body: 'Join your friends, then start the race\n◀\nHOLD TO FIRE\n▶\n☰ MENU',
+  metrics: '{"direct":4,"relayed":0,"buffered":263,"authority":{"reason":"permitted","roundTripMs":2.4000000953674316},"replication":{"mode":"direct","coordinator":"0e9e20ec1c351d1773e97c4a","alias":3,"simulator":true,"replicaTick":0,"finalizedTick":0,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":572,"binarySentBytes":29776,"barrier":true,"fault":"Segment replaced"},"sentBytes":313474,"frameP95":16.90000009536743,"inputP95":0.5,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 2 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 3 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 2↑ 0↓ · answers 0↑ 2↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 4 (host): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s',
+  canvas: {
+    hidden: false,
+    parentClass: 'online-app mobile-play mobile-lobby',
+    renderer: 'canvas'
+  },
+  savedMode: undefined
+}
+ROOM DIAGNOSTIC 4 {
+  body: 'Join your friends, then start the race\n◀\nHOLD TO FIRE\n▶\n☰ MENU',
+  metrics: '{"direct":4,"relayed":0,"buffered":214,"authority":{"reason":"permitted","roundTripMs":2.8000001907348633},"replication":{"mode":"direct","coordinator":"0e9e20ec1c351d1773e97c4a","alias":4,"simulator":true,"replicaTick":0,"finalizedTick":0,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":432,"binarySentBytes":39707,"barrier":true,"fault":"Segment replaced"},"sentBytes":320539,"frameP95":17.5,"inputP95":11.099999904632568,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 1, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 2 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 1, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 3 (guest): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s\n' +
+    'link 4 (host): direct link healthy\n' +
+    '  local host×2 srflx×1 · remote host×2 srflx×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 2↓ · answers 2↑ 0↓ · candidates 3↑ 3↓ (applied 3, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 40s',
+  canvas: {
+    hidden: false,
+    parentClass: 'online-app mobile-play mobile-lobby',
+    renderer: 'canvas'
+  },
+  savedMode: undefined
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator('.online-arena') to be hidden[22m
+[2m    64 × locator resolved to visible <canvas width="693" height="390" class="online-arena" data-renderer="canvas"></canvas>[22m
+
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/online-smoke.ts:34:40) {
+  log: [
+    "  - waiting for locator('.online-arena') to be hidden",
+    '    64 × locator resolved to visible <canvas width="693" height="390" class="online-arena" data-renderer="canvas"></canvas>'
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.14.0

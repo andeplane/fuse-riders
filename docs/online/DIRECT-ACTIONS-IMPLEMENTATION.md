@@ -10,7 +10,7 @@ The branch now replaces the old online snapshot/accepted-action selection with `
 
 Lifecycle preparation transfers the actual finalized base plus deterministic management operations. Views validate both that base and every derived header field before activation. A future-start applied barrier gates the coordinator clock. Prepared UI/cache state is published only at activation. Lobby catalogs preserve tick, seed, raw player/leaderboard ordering and selected settings; returning to lobby explicitly applies pending settings. Ownership validation compares slot mappings independently of roster presentation order. New connections reset management deduplication. Recovery retries/deadlines, untimestampable releases, unavailable TV bases and late activation after timeout have runtime regressions using injected clocks, scheduling, storage and serialized transport.
 
-An initial complete Chromium room smoke passed five joins, start, settings/reset, guest/creator refresh and shared TV. Earlier failing runs found real startup validation, ownership-order and lobby-settings reconstruction defects; an intermittent native RTC channel startup failure remains unexplained. Strengthened browser checks, full measurements and soak are still acceptance work. No public deployment has occurred.
+An initial complete Chromium room smoke passed five joins, start, settings/reset, guest/creator refresh and shared TV. Earlier failing runs found real startup validation, ownership-order and lobby-settings reconstruction defects; an intermittent native RTC channel startup failure remains unexplained. The strengthened separate Chromium and WebKit room flows subsequently passed, asserting simulator/controller roles and zero page errors. Mixed-engine impairment, full measurements and soak are still acceptance work. No public deployment has occurred.
 
 ## Implemented components
 
@@ -35,7 +35,7 @@ Both existing online room browser smokes passed after the transport change, usin
 
 ## Remaining implementation
 
-Complete checkpoint backpressure gating, strengthened Chromium/WebKit lifecycle checks, mixed-engine active gameplay, bot and automatic-round transitions, reconnect/partial-mesh behavior and LAN regressions. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
+Complete checkpoint backpressure gating, mixed-engine active gameplay, bot and automatic-round transitions, reconnect/partial-mesh behavior and LAN regressions. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
 
 Then measure real five-rider-plus-TV gameplay: every payload class in both directions, input-to-render/finality latency, corrections, replay/frame time and memory across declared impairment profiles and a sustained soak. Preserve LAN regressions. Wire overhead, WAN routing and physical-phone behavior remain separately unverified. Do not reuse the prototype's 29→12.7 KB/s measurement as the expected or measured direct-mesh result.
 
@@ -67,3 +67,7 @@ Clean source `f80f6de` adds reviewed segment composition and regressions for con
 The full suite and coverage passed 530 tests (99.60% lines/statements, 94.50% branches, 99.06% functions); both typechecks and build passed. Exact replay again matched 1,800 ticks per browser engine. The clean mixed-browser transport run passed 30 action and 30 compact-control directions, stale/unknown alias checks, channel rebuild and one cycle each of held-ICE peer replacement/removal; it recovered from a three-second synthetic fast-send blackhole in 414 ms and recorded no browser/teardown errors. Those timings are fixture observations, not a gameplay latency or reliability guarantee. See the [new evidence manifest](direct-actions-evidence/segment-orchestration/manifest.json). Earlier failed runs and their unresolved diagnoses remain retained above.
 
 This is historical component evidence. The runtime cutover described above is newer and requires its own acceptance; the component approval does not release the branch.
+
+## Runtime source 850b057 evidence
+
+Committed runtime source `850b057` passed both typechecks, build and 552 tests with unchanged coverage thresholds (99.14% lines/statements, 93.89% branches, 98.78% functions). `RoomRuntime` is now included: 92.77% lines and 86.58% branches. Separate Chromium and WebKit room smokes passed five full simulators, start/settings/reset, guest/creator refresh, lightweight controllers and TV simulation; both enforce zero page errors. Build assets matched the post-commit rebuild. The [runtime manifest](direct-actions-evidence/runtime-cutover/manifest.json) retains source/build hashes, raw failures and current checks. This closes the initial room-flow checkpoint, not mixed-engine impairment, latency/bandwidth, checkpoint backpressure or sustained acceptance.

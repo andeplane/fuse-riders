@@ -1,0 +1,65 @@
+ROOM DIAGNOSTIC 0 {
+  body: 'FUSE\n' +
+    'RIDERS\n' +
+    'Direct peer link connected\n' +
+    '♫ AUDIO\n' +
+    'MENU\n' +
+    'HEAD\n' +
+    '⛶\n' +
+    'JOIN AS PLAYER\n' +
+    '◀\n' +
+    'HOLD TO FIRE\n' +
+    '▶\n' +
+    'START RACE\n' +
+    'MAIN MENU\n' +
+    'ROOM SETTINGS\n' +
+    'INVITE / TV\n' +
+    'ADD AI',
+  metrics: '{"direct":1,"relayed":0,"buffered":473,"authority":{"reason":"permitted","roundTripMs":2.8000001907348633},"replication":{"mode":"direct","coordinator":"2a008c4c6f3153760ec4a167","alias":1,"simulator":false,"replicaTick":null,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":0,"binarySentBytes":69124,"barrier":false},"sentBytes":131942,"frameP95":17.700000286102295,"inputP95":4.599999904632568,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (guest): direct link healthy\n' +
+    '  local host×1 · remote host×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 1↑ 0↓ · answers 0↑ 1↓ · candidates 1↑ 1↓ (applied 1, buffered 1, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 30s',
+  canvas: { hidden: false, parentClass: 'online-app', renderer: undefined },
+  savedMode: 'devices'
+}
+ROOM DIAGNOSTIC 1 {
+  body: 'FUSE\n' +
+    'RIDERS\n' +
+    'Direct peer link connected\n' +
+    '♫ AUDIO\n' +
+    'MENU\n' +
+    'HEAD\n' +
+    '⛶\n' +
+    'JOIN AS PLAYER\n' +
+    '◀\n' +
+    'HOLD TO FIRE\n' +
+    '▶',
+  metrics: '{"direct":1,"relayed":0,"buffered":251,"authority":{"reason":"permitted","roundTripMs":1.0999999046325684},"replication":{"mode":"direct","simulator":false,"replicaTick":null,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":0,"binarySentBytes":24024,"barrier":false},"sentBytes":87893,"frameP95":18.300000190734863,"inputP95":13.800000190734863,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (host): direct link healthy\n' +
+    '  local host×1 · remote host×1 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 1↓ · answers 1↑ 0↓ · candidates 1↑ 1↓ (applied 1, buffered 0, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 30s',
+  canvas: { hidden: false, parentClass: 'online-app', renderer: undefined },
+  savedMode: undefined
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator(':is(.online-roster,.room-riders):visible').getByText('Guest') to be visible[22m
+
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/online-smoke.ts:16:99) {
+  log: [
+    "  - waiting for locator(':is(.online-roster,.room-riders):visible').getByText('Guest') to be visible"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.14.0

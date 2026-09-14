@@ -1,0 +1,82 @@
+ROOM DIAGNOSTIC 0 {
+  body: 'FUSE\n' +
+    'RIDERS\n' +
+    'Direct peer link connected\n' +
+    '♫ AUDIO\n' +
+    'MENU\n' +
+    'HEAD\n' +
+    '⛶\n' +
+    '\n' +
+    'PHONE PARTY // 2–5 RIDERS\n' +
+    '\n' +
+    'SCAN.\n' +
+    'STEER.\n' +
+    'SURVIVE.\n' +
+    '\n' +
+    'Pick your head. Grab your phone. Carve neon trails and blow up your friends’ plans.\n' +
+    '\n' +
+    'STEER ◀ ▶ HOLD · AIM · RELEASE\n' +
+    '\n' +
+    'SCAN TO JOIN\n' +
+    '\n' +
+    'AD13\n' +
+    'HOST\n' +
+    'READY\n' +
+    '1 riders ready\n' +
+    'START RACE\n' +
+    'MAIN MENU\n' +
+    'ROOM SETTINGS\n' +
+    'INVITE / TV\n' +
+    'ADD AI',
+  metrics: '{"direct":1,"relayed":0,"buffered":485,"authority":{"reason":"permitted","roundTripMs":3.1000003814697266},"replication":{"mode":"direct","coordinator":"2008e3f51dc2e3c0888f5b1d","alias":2,"simulator":true,"replicaTick":0,"finalizedTick":0,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":0,"binarySentBytes":0,"recoveryRequired":false,"barrier":false},"sentBytes":31521,"frameP95":18.300000190734863,"inputP95":5.599999904632568,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (guest): direct link connected — waiting for gameplay probe acknowledgements\n' +
+    '  local host×4 srflx×3 · remote host×4 srflx×3 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel open · dtls connected · sctp connected\n' +
+    '  signalling offers 4↑ 0↓ · answers 0↑ 4↓ · candidates 7↑ 7↓ (applied 7, buffered 3, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 3/4 · age 30s',
+  canvas: {
+    hidden: true,
+    parentClass: 'online-app mobile-lobby room-waiting',
+    renderer: 'canvas'
+  },
+  savedMode: 'devices'
+}
+ROOM DIAGNOSTIC 1 {
+  body: 'FUSE\n' +
+    'RIDERS\n' +
+    'Direct peer link connected\n' +
+    '♫ AUDIO\n' +
+    'MENU\n' +
+    'HEAD\n' +
+    '⛶\n' +
+    'JOIN AS PLAYER\n' +
+    '◀\n' +
+    'HOLD TO FIRE\n' +
+    '▶',
+  metrics: '{"direct":0,"relayed":0,"buffered":50,"authority":{"reason":"permitted","roundTripMs":3},"replication":{"mode":"direct","simulator":false,"replicaTick":null,"retainedRecords":0,"rollbackCount":0,"fastSentBytes":0,"binarySentBytes":0,"recoveryRequired":false,"barrier":false},"sentBytes":24308,"frameP95":17.699999809265137,"inputP95":13.699999809265137,"ackMs":0,"correction":0,"tick":0}',
+  linkDiagnostics: 'room service: open · STUN servers: 2 (service)\n' +
+    'link 1 (host): ICE connected, data channel connecting (DTLS connected, SCTP connected)\n' +
+    '  local host×4 srflx×3 · remote host×4 srflx×3 · pair host→host/udp\n' +
+    '  ice connected · gathering complete · pc connected · signaling stable · channel connecting · dtls connected · sctp connected\n' +
+    '  signalling offers 0↑ 4↓ · answers 4↑ 0↓ · candidates 7↑ 7↓ (applied 7, buffered 1, rejected 0, dropped 0, relay failed 0)\n' +
+    '  restarts 0/4 · age 30s',
+  canvas: { hidden: false, parentClass: 'online-app', renderer: undefined },
+  savedMode: undefined
+}
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for locator(':is(.online-roster,.room-riders):visible').getByText('Guest') to be visible[22m
+
+    at <anonymous> (/private/tmp/fuse-riders-action-log/scripts/online-smoke.ts:16:99) {
+  log: [
+    "  - waiting for locator(':is(.online-roster,.room-riders):visible').getByText('Guest') to be visible"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.14.0
