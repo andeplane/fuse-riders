@@ -10,7 +10,7 @@ A TypeScript party game for 2–5 players: steer neon riders, dodge their trails
 
 *Rendered in the real game client using a reproducible gameplay showcase.*
 
-**The public frontend and backend are connected and playable; poor-network/mobile qualification remains in progress.** Initial public Chromium testing created a room, joined a guest, added AI and reached scoring with no page errors. Initial WebKit reached scoring but logged one RTC send error, so clean WebKit acceptance is still pending. See the [dated public deployment evidence](docs/online/PUBLIC-BETA-2026-09-14.md). The implementation now includes host leases, validated checkpoints, fixed-tick prediction, direct WebRTC recovery and Phaser rendering. Passing unit tests does not certify uninterrupted Internet play. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The LAN path remains available.
+Public Chrome and WebKit checks cover phone hosting, AI, guest connections, saved settings, shared-TV play and reset. The [public acceptance report](docs/online/PUBLIC-ACCEPTANCE.md) records the tested release. Renderer and network benchmarks are documented separately; physical-device performance and arbitrary network reliability are not guaranteed. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The LAN path remains available.
 
 ## Run a LAN game
 
@@ -125,7 +125,7 @@ The online beta is deployed on **GitHub Pages, Cloud Run, Firestore room metadat
 
 A temporary experimental preview was reported at **https://fuse-riders.vagabond-walk.workers.dev**. This is not a declared production endpoint: current reachability, account ownership, claim status and expiry must be verified before relying on it. The supported beta uses the GitHub Pages and Cloud Run endpoints in the verified inventory; the old Cloudflare preview is not its backend. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
-See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://andeplane.github.io/fuse-riders/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. Backend revision `fuse-riders-gateway-00002-x2q` (source `81939f3`) passed the public provider smoke on 2026-09-14; see the dated evidence for exact frontend/backend versions and remaining limits.
+See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://andeplane.github.io/fuse-riders/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. The [deployment inventory](docs/online/GCP-INVENTORY.md) records the exact frontend/backend source, immutable image, runtime identity and completed public service checks.
 
 For the older Cloudflare prototype, `npm run deploy` builds and invokes Wrangler. **That command does not run the release gates.** Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting to production. See [deployment details and cost assumptions](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, `.dev.vars`, Wrangler credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
