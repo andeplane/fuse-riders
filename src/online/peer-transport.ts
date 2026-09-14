@@ -30,7 +30,7 @@ export interface TransportCallbacks {
   terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
-interface PauseNotice { segment:number;probeId:number;epoch:number;incarnation:string;sender:string;receiver:string }
+interface PauseNotice { segment:number;probeId:number;epoch:number;incarnation:string;sender:string;receiver:string;deferred:boolean }
 interface Link { pendingPause?:PauseNotice;pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;pulse:LinkPulseMode;epoch:number;incarnation:string;sender:string;receiver:string};ingress:DirectIngress;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 export interface PeerTransportOptions { mesh?:boolean }
 const RESTART_ATTEMPTS=4;
@@ -277,13 +277,20 @@ export class PeerTransport {
     if(!link||!this.fastBound(id,link)||link.fastBinding!.segment!==segment)return;
     const first = !link.fastBinding!.pulse.locallyPaused, now = performance.now();
     link.fastBinding!.pulse.pauseLocal();link.health.setPulseMode(false,now);
-    if(first) {
+    if(first&&!link.pendingPause) {
       const { epoch, incarnation, sender, receiver } = link.fastBinding!;
       const probeId = link.health.probe(now);
-      link.pendingPause ??= { segment, probeId, epoch, incarnation, sender, receiver };
-      this.sendFastProbe(id,12,probeId,segment);
+      const pause:PauseNotice = { segment, probeId, epoch, incarnation, sender, receiver, deferred:true };
+      link.pendingPause = pause;
+      // Pause receipt can precede WebKit's queued closing notification. Freeze
+      // immediately, but let that notification drain the gates before responding.
+      this.defer(()=>{
+        if(this.links.get(id)!==link||link.pendingPause!==pause||epoch!==this.grant?.epoch||incarnation!==this.grant?.incarnation||sender!==this.connections.get(id)||receiver!==this.connectionId)return;
+        pause.deferred=false;
+        this.sendFastProbe(id,12,probeId,segment);
+        this.flushPause(id,link);
+      });
     }
-    this.flushPause(id,link);
   }
   sendPulse(id:string,bytes:Uint8Array):boolean {
     const link=this.links.get(id),pulse=decodeHeartbeat(bytes);
@@ -398,7 +405,7 @@ export class PeerTransport {
   private flushPause(id:string,link:Link):boolean {
     const pause=link.pendingPause;if(!pause)return true;
     if(this.links.get(id)!==link||pause.epoch!==this.grant?.epoch||pause.incarnation!==this.grant?.incarnation||pause.sender!==this.connections.get(id)||pause.receiver!==this.connectionId){link.pendingPause=undefined;return false;}
-    if(this.stopped||document.hidden||!this.authorityPermitted()||link.fastGate.draining||!link.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return false;
+    if(pause.deferred||this.stopped||document.hidden||!this.authorityPermitted()||link.fastGate.draining||!link.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return false;
     const bytes=packMessage([DIRECT_VERSION,pause.segment,12,pause.probeId]);
     try { link.channel!.send(new Uint8Array(bytes));this.binarySentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength; }
     catch { return false; }
