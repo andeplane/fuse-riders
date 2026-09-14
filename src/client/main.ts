@@ -1138,6 +1138,7 @@ function startController(): void {
     const element = document.elementFromPoint(x, y);
     return [left, bomb, right].find(button => element !== null && button.contains(element));
   });
+  pointerBindings.bindKeyboard(window, () => Boolean(playerId) && !hasLeft && !controls.classList.contains('hidden') && !document.hidden && !document.querySelector('dialog[open]') && !document.activeElement?.closest('input,textarea,select,[contenteditable]'));
   leave.addEventListener('click', () => {
     hasLeft = true; clearControls(); socket.send({ type: 'leave' }); socket.close();
     localStorage.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = ''; latestSnapshot = undefined;

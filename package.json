@@ -7,8 +7,9 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "tsx src/server/index.ts",
+    "dev": "NODE_ENV=development tsx watch --exclude '**/.vite-temp/**' src/server/index.ts",
     "build": "tsc --noEmit && vite build",
+    "prestart": "npm run build",
     "start": "NODE_ENV=production tsx src/server/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
