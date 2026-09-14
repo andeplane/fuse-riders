@@ -1,8 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
-  <path fill="#ff397e" d="M11 7h9v2h5v3h3v5h2v7h-3v4h-5v3H10v-2H6v-4H3v-8h2v-5h3V9h3z"/>
-  <path fill="#17152f" d="M11 9h8v2h5v4h3v6h-3v4h-5v3h-8v-2H7v-4H5v-6h2v-4h4z"/>
-  <path fill="#3f3c68" d="M10 12h7v2h4v3h2v5h-3v3h-7v-2h-4v-4H7v-4h3z"/>
-  <path fill="#aab4d8" d="M10 12h4v3h-3v3H8v-3h2z"/>
-  <path fill="#ffbd3e" d="M17 9V6h2V4h3V2h3v3h-3v3h-2v3z"/>
-  <path fill="#fff2a8" d="M22 2h3v2h-3z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <radialGradient id="body" cx=".3" cy=".2" r=".85"><stop stop-color="#62628e"/><stop offset=".48" stop-color="#26334d"/><stop offset="1" stop-color="#0a1127"/></radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#f4fcff"/><stop offset="0.5" stop-color="#8eaec7"/><stop offset="1" stop-color="#36546c"/></linearGradient>
+  </defs>
+  <g transform="scale(.5)">
+    <path d="M36 20c0-9 6-13 12-10" fill="none" stroke="#ffb64e" stroke-width="4"/>
+    <path d="m47 5 1 5 5 1M52 5l-2 2" fill="none" stroke="#fff4bf" stroke-width="2"/>
+    <rect x="27" y="17" width="13" height="9" rx="3" fill="url(#metal)" transform="rotate(18 33 22)"/>
+    <circle cx="31" cy="37" r="20" fill="url(#body)" stroke="#ff5ca6" stroke-width="2.5"/>
+    <path d="M16 34a15 15 0 0 1 11-12" fill="none" stroke="#e7eeff" stroke-width="3.5" opacity=".9"/>
+    <path d="M24 52a16 16 0 0 0 20-10" fill="none" stroke="#c24084" stroke-width="2" opacity=".65"/>
+    <ellipse cx="23" cy="28" rx="4" ry="2" fill="#fff" opacity=".5" transform="rotate(-35 23 28)"/>
+  </g>
 </svg>

@@ -80,7 +80,7 @@
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Three-arrow fan for the next three-bomb volley."
+      "description": "Three magenta bombs in a violet frame for the next three-bomb volley."
     },
     "pickup-orbitShield": {
       "file": "pickup-orbitShield.svg",
@@ -132,15 +132,15 @@
       "tint": false,
       "description": "Rare Target Bomb: slide Fire to place its public reticle."
     },
-    "pickup-shell": {
-      "file": "pickup-shell.svg",
+    "pickup-stopwatch": {
+      "file": "pickup-stopwatch.svg",
       "anchor": [
         16,
         16
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Bouncing shell bomb for the next shot."
+      "description": "Gold stopwatch for shorter bomb fuses."
     },
     "pickup-gun": {
       "file": "pickup-gun.svg",
@@ -150,17 +150,17 @@
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Gun that shoots holes in walls with slight homing."
+      "description": "Silver and cyan gun for the next shot."
     },
-    "pickup-stopwatch": {
-      "file": "pickup-stopwatch.svg",
+    "pickup-shell": {
+      "file": "pickup-shell.svg",
       "anchor": [
         16,
         16
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Fuse timer: shortens your bomb fuse per pickup."
+      "description": "Green segmented shell for the next bouncing projectile."
     }
   }
 }
