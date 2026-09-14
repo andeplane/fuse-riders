@@ -4,11 +4,11 @@ Issue [#82](https://github.com/andeplane/fuse-riders/issues/82), branch `codex/d
 
 ## What works
 
-The existing host coordinates accepted inputs at shared 20 Hz ticks. A shared reducer records exact applied controls, transient bomb commands, bot actions, input cancellation and lifecycle changes. Held controls are persisted; only changes carry a new per-player tick delta. MessagePack tuples encode these records. Full views reconstruct the complete world from a validated checkpoint and subsequent transactions. Shared-TV controller phones receive reduced status worlds and release their full replica when changing roles; the TV continues simulating.
+The existing host coordinates accepted inputs at shared 20 Hz ticks. A shared reducer records exact applied controls, transient bomb commands, bot actions, input cancellation and lifecycle changes. Held controls are persisted; only changes carry a per-player action record. The absolute-tick amendment now writes the full applied tick into each record (`fuse-actions-3`). MessagePack tuples encode these records. Full views reconstruct the complete world from a validated checkpoint and subsequent transactions. Shared-TV controller phones receive reduced status worlds and release their full replica when changing roles; the TV continues simulating.
 
 The reliable WebRTC channel retains incarnation, authority and connection fencing. Explicit version/rules negotiation rejects incompatible participants. Receipts acknowledge accepted state, not queued sends. Bounded retransmission, sequence/generation fences, chunked recovery, transaction hashes, decoder budgets and atomic candidate validation handle invalid, stale, dropped and reordered application messages. Repeated hash divergence stops the experimental stream visibly.
 
-Exact cross-engine replay exposed native distance/trigonometry differences. Shared numeric helpers now use fixed arithmetic and pinned JavaScript stdlib implementations, including the shared motion kernel used for prediction. Checkpoints preserve signed zero; accepted input aims normalize zero before MessagePack encoding. Compatibility changed to `fuse-simulation-2` / `fuse-actions-2`; old saved checkpoints are rejected into a fresh lobby. Low-order physics bits change on both default and experimental paths. The default network mode and LAN paths are preserved.
+Exact cross-engine replay exposed native distance/trigonometry differences. Shared numeric helpers now use fixed arithmetic and pinned JavaScript stdlib implementations, including the shared motion kernel used for prediction. Checkpoints preserve signed zero; accepted input aims normalize zero before MessagePack encoding. Compatibility changed to `fuse-simulation-2` / initially `fuse-actions-2` (now `fuse-actions-3` for absolute action ticks); old saved checkpoints are rejected into a fresh lobby. Low-order physics bits change on both default and experimental paths. The default network mode and LAN paths are preserved.
 
 ## How to try it
 
@@ -63,6 +63,10 @@ BROWSER=webkit node --import tsx scripts/browser-smoke.ts
 ```
 
 Coverage retains the existing thresholds and adds the action protocol module. Runtime/transport/UI browser integration remains outside the named unit-coverage surface. Browser reports identify revision, dirty state, seeds and scope. Earlier native-math failures are retained alongside passing evidence.
+
+## Target architecture after user clarification
+
+The intended online architecture is direct per-player action streams and continuous full-world simulation on every viewing device, including bounded rollback for late input. A coordinator handles setup, membership, finality and recovery without being a normal-input relay. The existing host-star, 20 Hz publication and opt-in snapshot compatibility are transitional prototype choices, not permanent requirements. See the revised [brief](DETERMINISTIC-ACTION-LOG-BRIEF.md). Controller-only phones remain lightweight, and the separate LAN path is preserved.
 
 ## Follow-up milestones
 

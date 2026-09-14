@@ -4,11 +4,11 @@ import { isAvatarId, type AvatarId } from './avatars.js';
 import { parseRoomSettings, type RoomSettings } from './room-settings.js';
 import type { GameEvent } from './protocol.js';
 
-export const REPLAY_RULES = 'fuse-actions-2';
+export const REPLAY_RULES = 'fuse-actions-3';
 export type AimTuple = [number, number] | null;
 export type BombTuple = [number, AimTuple];
-/** slot, tick delta since this player's previous recorded change, controls, aim, transient bombs */
-export type ControlChange = [number, number, number, AimTuple, BombTuple[]];
+/** Self-contained action timestamp; must equal the containing step's absolute tick. */
+export type ControlChange = [slot:number, appliedTick:number, flags:number, aim:AimTuple, bombs:BombTuple[]];
 export type GameOperation = [0, number, ControlChange[]] | [1, PlayerIdentity] | [2, string] |
   [3, string, boolean] | [4, RoomSettings] | [5, number, string] | [6, string, AvatarId];
 export interface HeldControl { at: number; flags: number; aim: AimTuple }
@@ -22,7 +22,7 @@ export function validOperation(value: unknown): value is GameOperation {
   if (!Array.isArray(value)) return false;
   const [kind, a, b] = value;
   switch (kind) {
-    case 0: return value.length === 3 && integer(a) && Array.isArray(b) && b.length <= 5 && b.every(c => Array.isArray(c) && c.length === 5 && integer(c[0], 4) && integer(c[1]) && integer(c[2], 7) && validAim(c[3]) && Array.isArray(c[4]) && c[4].length <= 128 && c[4].every((v: unknown) => Array.isArray(v) && v.length === 2 && integer(v[0], 2) && validAim(v[1])));
+    case 0: return value.length === 3 && integer(a) && Array.isArray(b) && b.length <= 5 && b.every(c => Array.isArray(c) && c.length === 5 && integer(c[0], 4) && integer(c[1]) && c[1] === a && integer(c[2], 7) && validAim(c[3]) && Array.isArray(c[4]) && c[4].length <= 128 && c[4].every((v: unknown) => Array.isArray(v) && v.length === 2 && integer(v[0], 2) && validAim(v[1])));
     case 1: return value.length === 2 && a && typeof a === 'object' && !Array.isArray(a) && Object.keys(a).every(k => ['id','name','slot','color','avatarId','connected'].includes(k)) && text(a.id) && text(a.name) && a.name.trim().length > 0 && a.name.length <= 20 && integer(a.slot, 4) && a.color === SLOT_COLORS[a.slot] && (a.avatarId === undefined || isAvatarId(a.avatarId)) && (a.connected === undefined || typeof a.connected === 'boolean');
     case 2: return value.length === 2 && text(a);
     case 3: return value.length === 3 && text(a) && typeof b === 'boolean';
@@ -40,8 +40,8 @@ export function applyOperation(state: ReplayState, op: GameOperation): GameEvent
       if (op[1] !== game.tick + 1) throw new Error('Noncontiguous simulation tick');
       const inputs = new Map<string, InputIntent>();
       const changed = new Set<number>();
-      for (const [slot, delta, flags, aim, bombs] of op[2]) {
-        if (changed.has(slot) || ![...game.players.values()].some(p => p.slot === slot) || (state.held.get(slot)?.at ?? 0) + delta !== op[1]) throw new Error('Invalid player action anchor');
+      for (const [slot, appliedTick, flags, aim, bombs] of op[2]) {
+        if (changed.has(slot) || ![...game.players.values()].some(p => p.slot === slot) || appliedTick !== op[1]) throw new Error('Invalid player action tick');
         changed.add(slot); state.held.set(slot, {at: op[1], flags, aim});
         const player = [...game.players.values()].find(p => p.slot === slot)!;
         inputs.set(player.id, {left: !!(flags & 1), right: !!(flags & 2), bomb: !!(flags & 4), ...(aim ? {aim:{x:aim[0],y:aim[1]}} : {}), bombCommands: bombs.map(([action, target]) => ({action: actions[action]!, ...(target ? {aim:{x:target[0],y:target[1]}} : {})}))});
@@ -105,7 +105,7 @@ export class ActionJournal {
       const aim = aimTuple(input.aim);
       const bombs: BombTuple[] = (input.bombCommands ?? []).map(b => [actions.indexOf(b.action), aimTuple(b.aim)]);
       const old = this.state.held.get(player.slot);
-      if (!old || old.flags !== flags || JSON.stringify(old.aim) !== JSON.stringify(aim) || bombs.length) changes.push([player.slot,tick-(old?.at??0),flags,aim,bombs]);
+      if (!old || old.flags !== flags || JSON.stringify(old.aim) !== JSON.stringify(aim) || bombs.length) changes.push([player.slot,tick,flags,aim,bombs]);
     }
     return this.apply([0,tick,changes]);
   }

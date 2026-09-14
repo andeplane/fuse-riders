@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HostSession } from '../src/online/host-session.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
-import { applyOperation, canonical, replayHash, validOperation, ActionJournal, type ReplayState } from '../src/shared/action-log.js';
+import { applyOperation, canonical, replayHash, validOperation, ActionJournal, type ReplayState, type GameOperation, REPLAY_RULES } from '../src/shared/action-log.js';
 import { createGame, SLOT_COLORS } from '../src/shared/game.js';
 import { encodeGameState, decodeGameState } from '../src/online/checkpoint.js';
-import { ActionSender, ActionReceiver, packMessage, unpackMessage, type ActionMessage, type ActionMetadata, type ActionReceipt } from '../src/online/action-replication.js';
+import { ActionSender, ActionReceiver, packCheckpoint, packMessage, unpackMessage, type ActionMessage, type ActionMetadata, type ActionReceipt } from '../src/online/action-replication.js';
 
 function fixture(){let id=0;const host=new HostSession('host',defaultRoomSettings(),{token:()=>`replay-${++id}`,captureActions:true});host.command('host',{type:'join',name:'Host'});host.command('guest',{type:'join',name:'Guest'});return host;}
 const meta=(host:HostSession):ActionMetadata=>({settings:host.settings,ack:host.acknowledgements().guest??-1,paused:false,motion:host.appliedMotion('guest')});
@@ -162,8 +162,50 @@ test('host refuses a new historical identity before replay/checkpoint capacity i
 test('signed-zero local aim is normalized before MessagePack checkpoint and action capture',()=>{
   const host=fixture();host.command('host',{type:'action',action:'start'});for(let i=0;i<65;i++)host.advance();
   host.command('guest',{type:'input',scope:host.controlScope('guest')!,intendedTick:66,seq:0,left:false,right:false,bomb:true,bombAction:'press',aim:{x:-0,y:.5}});host.advance();
-  assert.ok(Object.is(host.journal.state.held.get(1)!.aim![0],0));assert.equal(validOperation([0,67,[[1,1,0,[-0,.5],[]]]]),false);
+  assert.ok(Object.is(host.journal.state.held.get(1)!.aim![0],0));assert.equal(validOperation([0,67,[[1,67,0,[-0,.5],[]]]]),false);
   const sender=new ActionSender(),receiver=new ActionReceiver();let wire:ActionMessage[]=[];
   const transfer=(time:number)=>{wire=[];sender.publish(host.journal,meta(host),time,m=>{wire.push(unpackMessage(packMessage(m)) as ActionMessage);return true;});for(const m of wire){const r=receiver.receive(m,time);assert.equal(r.status,'accepted');if('receipt'in r&&r.receipt)sender.receive(r.receipt);}assert.equal(canonical(receiver.state),canonical(host.journal.state));};
   transfer(0);host.command('guest',{type:'input',scope:host.controlScope('guest')!,intendedTick:67,seq:1,left:false,right:false,bomb:false,bombAction:'release',aim:{x:.5,y:-0}});host.advance();transfer(50);
+});
+
+
+test('MessagePack action changes carry full applied ticks across sparse input and bomb transitions',()=>{
+  const host=fixture();host.command('host',{type:'action',action:'start'});for(let i=0;i<65;i++)host.advance();
+  const replica:ReplayState=structuredClone(host.journal.state);const sequence=host.journal.sequence;
+  for(let tick=66;tick<=72;tick++){
+    if(tick===66||tick===70)host.command('guest',{type:'input',scope:host.controlScope('guest')!,intendedTick:tick,seq:tick-66,left:tick===66,right:false,bomb:tick===66,bombAction:tick===66?'press':'release'});
+    host.advance();
+  }
+  const ops=host.journal.since(sequence)!;const wire=unpackMessage(packMessage(ops));assert.ok(Array.isArray(wire)&&wire.every(validOperation));
+  const changes=ops.flatMap(op=>op[0]===0?op[2].filter(c=>c[0]===1):[]);
+  assert.deepEqual(changes.map(c=>c[1]),[66,70]);assert.deepEqual(changes.map(c=>c[4].map(b=>b[0])),[[0],[1]]);
+  for(const op of wire)applyOperation(replica,op);assert.equal(canonical(replica),canonical(host.journal.state));
+  assert.equal(host.game.players.get('guest')!.bombChargeStartedTick,undefined);assert.equal([...host.game.bombs.values()].filter(b=>b.ownerId==='guest').length,1);
+});
+
+test('absolute action ticks above uint16 replay independently of previous held timestamps',()=>{
+  const host=fixture();host.game.tick=72_000;
+  host.journal.advance(new Map([['guest',{left:true,right:false,bomb:false}]]));
+  const baseline:ReplayState=structuredClone(host.journal.state);const otherHistory:ReplayState=structuredClone(baseline);
+  otherHistory.held.get(1)!.at=1;
+  const sequence=host.journal.sequence;
+  host.journal.advance(new Map([['guest',{left:false,right:true,bomb:false}]]));
+  const operation=unpackMessage(packMessage(host.journal.since(sequence)![0]));assert.ok(validOperation(operation));assert.equal(operation[0],0);
+  if(operation[0]!==0)return;
+  assert.equal(operation[1],72_002);assert.equal(operation[2].find(c=>c[0]===1)![1],72_002);assert.equal(packMessage(72_002).byteLength,5);
+  applyOperation(baseline,operation);applyOperation(otherHistory,operation);assert.equal(canonical(baseline),canonical(otherHistory));assert.equal(canonical(baseline),canonical(host.journal.state));
+});
+
+test('action tick mismatch and legacy replay checkpoints preserve healthy receiver state',()=>{
+  const host=fixture(),receiver=new ActionReceiver();
+  host.advance();const checkpoint=packCheckpoint(host.journal,meta(host));
+  assert.equal(receiver.receive({type:'actionChunk',generation:1,index:0,total:1,bytes:checkpoint},0).status,'accepted');
+  const healthy=canonical(receiver.state);const decoded=unpackMessage(checkpoint);assert.ok(Array.isArray(decoded));assert.equal(decoded[1],REPLAY_RULES);
+  decoded[1]='fuse-actions-2';
+  assert.equal(receiver.receive({type:'actionChunk',generation:2,index:0,total:1,bytes:packMessage(decoded)},10).status,'resync');assert.equal(canonical(receiver.state),healthy);
+  // A formerly valid delta of 1 must not be interpreted as absolute tick 2.
+  const bad:GameOperation=[0,2,[[1,1,0,null,[]]]];assert.equal(validOperation(bad),false);
+  assert.equal(receiver.receive({type:'actionBatch',generation:1,from:host.journal.sequence,tick:2,operations:[bad],hash:null,meta:meta(host)},20).status,'resync');assert.equal(canonical(receiver.state),healthy);
+  const snapshot=host.checkpoint();const restored=fixture();assert.equal(restored.restore(snapshot),true);assert.equal(restored.game.tick,host.game.tick);
+  assert.equal(receiver.receive({type:'actionChunk',generation:2,index:0,total:1,bytes:checkpoint},30).status,'accepted');assert.equal(canonical(receiver.state),healthy);
 });
