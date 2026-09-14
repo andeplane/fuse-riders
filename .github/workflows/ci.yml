@@ -7,7 +7,10 @@ permissions:
   contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded pull-request runs, but never a push run: a cancelled CI run has no
+  # success conclusion, so cancelling main's run silently withholds every deployment for
+  # that commit. Pending push runs still collapse to the newest, so no backlog forms.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     runs-on: ubuntu-latest

@@ -8,6 +8,7 @@
     "src/client/controller-keyboard.ts",
     "src/client/snapshot-stream.ts",
     "src/client/render-snapshot.ts",
+    "src/client/bomb-preview.ts",
     "src/client/audio-director.ts",
     "src/online/host-session.ts",
     "src/online/authority.ts",

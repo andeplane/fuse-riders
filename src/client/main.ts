@@ -8,7 +8,8 @@ import { createGameAudio } from './game-audio.js';
 import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
-import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
+import { BOMB_MAX_CHARGE_TICKS } from '../shared/bomb-launch.js';
+import { bombPreviewDistance } from './bomb-preview.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
 import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortalPair, drawStarAura } from './pickup-renderer.js';
@@ -231,8 +232,8 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
 
   for (const player of snapshot.players) {
     if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed || player.gunArmed) continue;
-    const chargeTicks = Math.max(0, snapshot.tick - player.bombChargeStartedTick);
-    const distance = bombLaunchDistance(chargeTicks);
+    const chargeTicks = (player.presentationTick ?? snapshot.tick) - player.bombChargeStartedTick;
+    const distance = bombPreviewDistance(chargeTicks);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
     const angles = player.tripleShotArmed || player.fiveShotArmed ? volleyAngles(player.angle, player.fiveShotArmed ? 5 : 3) : [player.angle];

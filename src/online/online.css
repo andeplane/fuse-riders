@@ -8,26 +8,29 @@
 .online-score-card.out{opacity:.5}
 .controller-only .online-score-card{padding:2px 4px;border:0;background:none}
 .controller-only .online-score-card .avatar-portrait{display:none}
-/* A desktop shares one compact toolbar; touch devices retain the large pads. */
-@media(min-width:1000px) and (hover:hover) and (pointer:fine){
-  .online-app:not(.landing-app){padding:6px;gap:4px}
-  .online-header{flex-wrap:nowrap}
-  .online-app:not(.landing-app):not(.controller-only)>.online-header{order:-2;padding:8px 6px;border-bottom:1px solid #18305a}
-  .online-app:not(.landing-app):not(.controller-only)>.online-scoreboard{order:-1;padding:4px 0}
-  .online-header button{min-height:32px;font-size:13px;padding:4px 8px}
-  .online-scoreboard{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;flex-shrink:0}
-  .online-notice:empty{display:none}
-  .online-roster button{min-height:28px;min-width:28px}
-  .online-roster{gap:8px}
-  .online-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;flex-shrink:0}
-  .online-controls{min-height:44px;grid-template-columns:80px 180px 80px;gap:6px}
-  .online-controls button{font-size:12px;padding:4px 8px}
-  .online-controls button::after{display:block;font-size:10px;opacity:.75;margin-top:3px;content:attr(aria-keyshortcuts)}
-  .online-controls button[aria-keyshortcuts~=ArrowLeft]::after{content:'← / A'}
-  .online-controls button[aria-keyshortcuts~=ArrowRight]::after{content:'→ / D'}
-  .online-controls button[aria-keyshortcuts=Space]::after{content:'SPACE'}
-  .online-host button{font-size:12px;min-height:36px;padding:4px 8px}
-}
+/* The desktop arena gets everything below one compact game bar. The renderer
+   fits the fixed world aspect inside this box; no world geometry is changed. */
+.desktop-help{display:none}
+.online-app.desktop-game{padding:4px;gap:4px}
+.desktop-game>.online-header{position:relative;flex:0 0 auto;flex-wrap:wrap;gap:6px;padding:2px 4px 6px;border-bottom:1px solid #18305a;z-index:20}
+.desktop-game .room-brand{font-size:clamp(12px,1.2vw,20px);gap:8px;margin-right:auto}
+.desktop-game .online-header button{min-height:30px;flex-shrink:0;font-size:11px;padding:4px 7px;white-space:nowrap}
+.desktop-game .desktop-help{display:block;min-width:30px}
+.desktop-game .online-roster{flex:0 1 auto;justify-content:center;gap:5px;flex-wrap:nowrap;min-width:0;margin:0 auto}
+.desktop-game .online-score-card{flex:0 0 auto;padding:3px 5px;gap:4px;min-width:0}
+.desktop-game .online-score-card>span:not(.avatar-portrait){font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.desktop-game .online-score-card .avatar-portrait{width:20px;height:20px;flex-basis:20px}
+.desktop-game .online-score-card button{min-width:22px;min-height:22px;padding:0 3px}
+.desktop-game .online-score-card button:disabled{display:none}
+.desktop-game .online-host{gap:5px;flex-wrap:nowrap}
+.desktop-game .online-host button:disabled{display:none}
+.desktop-game .online-controls,.desktop-game>.online-footer{display:none}
+.desktop-game>.online-arena{flex:1 1 0;min-width:0;min-height:0;width:100%;height:100%;object-fit:contain}
+.desktop-game .online-notice{position:absolute;top:calc(100% + 12px);left:50%;transform:translateX(-50%);max-width:50%;width:max-content;box-sizing:border-box;min-height:0;padding:6px 14px;background:#030d1fe8;border:1px solid #1b708b;font-size:13px;pointer-events:none}
+.desktop-game .online-notice:empty{display:none}
+/* Connection/authority notices remain readable without taking a permanent row. */
+.desktop-game .online-header>.online-status{position:absolute;top:calc(100% + 12px);left:8px;max-width:23%;font-size:10px;line-height:1.5;padding:3px 6px;background:#030d1fcc;pointer-events:none}
+.desktop-game .online-header>.online-status:empty{display:none}
 .online-shot-error{position:fixed;z-index:50;top:4.5rem;left:50%;transform:translateX(-50%);max-width:calc(100vw - 2rem);width:max-content;padding:.75rem 1rem;margin:0;background:#321222;border:2px solid #ff5c91;color:#fff;font-size:14px;text-align:center;pointer-events:none;box-shadow:0 0 16px #ff2d7533}
 
 /* Attract screen: the live arena is scenery, the menu remains the foreground. */
@@ -110,3 +113,6 @@
   .match-recap-report .award-card{padding:7px}.match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.match-recap-report .comparison-row{min-height:44px}
   .online-app .recap-dialog .dialog-bar{padding:6px 12px}.online-app .recap-dialog .dialog-bar button{min-height:38px;font-size:14px}
 }
+.room-boot{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;color:#b6cce3}.room-boot-title{font:12px/1 'Press Start 2P',monospace;letter-spacing:3px;color:#00d9ff}.room-boot-note{font-size:13px;animation:room-boot-pulse 1.4s ease-in-out infinite}@keyframes room-boot-pulse{50%{opacity:.35}}
+.online-app.booting .online-arena,.online-app.booting .online-scoreboard,.online-app.booting .online-join,.online-app.booting .online-footer,.online-app.booting .online-header>span{display:none}
+.online-header>span{max-height:2.8em;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
