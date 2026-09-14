@@ -4,19 +4,21 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 const base=process.env.HOME_URL??'http://127.0.0.1:4188/';
-interface Snapshot {kind:string;phase:string;authorityScope:string;tick:number;heldMotion?:{left:boolean;right:boolean};players:Array<{id:string;angle:number;alive:boolean;bombReadyAtTick:number;bombChargeStartedTick?:number}>}
+interface Snapshot {kind:'snapshot';phase:string;authorityScope:string;tick:number;heldMotion?:{left:boolean;right:boolean};players:Array<{id:string;angle:number;alive:boolean;bombReadyAtTick:number;bombChargeStartedTick?:number}>}
+interface InputSample {kind:'input';at:number;seq:number;bomb:boolean;bombAction?:string;scheduled:boolean;intendedTick?:number;sent:boolean;estimate?:{tick:number};baseTick?:number;pending:number}
 const results:object[]=[];await mkdir('artifacts',{recursive:true});
 const bundle=await readFile('dist/index.html','utf8');
 const assetPath=bundle.match(/type="module"[^>]*src="([^"]+)"/)?.[1];
 const asset=assetPath?await readFile(`dist/${assetPath.replace(/^\//,'')}`):undefined;
 const identity={assetPath,assetSha256:asset?createHash('sha256').update(asset).digest('hex'):undefined,revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),htmlSha256:createHash('sha256').update(bundle).digest('hex'),date:new Date().toISOString(),base};
 for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){
- const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();page.setDefaultTimeout(15000);const errors:string[]=[],snapshots:Snapshot[]=[];
- page.on('pageerror',e=>errors.push(e.stack??e.message));await page.exposeFunction('recordKeyboardSnapshot',(s:Snapshot)=>{if(s.kind==='snapshot')snapshots.push(s);});
+ const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();page.setDefaultTimeout(15000);const errors:string[]=[],snapshots:Snapshot[]=[],inputs:Array<InputSample&{snapshotTick?:number}>=[];
+ page.on('pageerror',e=>errors.push(e.stack??e.message));await page.exposeFunction('recordKeyboardSnapshot',(s:Snapshot|InputSample)=>{if(s.kind==='snapshot')snapshots.push(s);else if(s.kind==='input')inputs.push({...s,snapshotTick:snapshots.at(-1)?.tick});});
  await page.addInitScript(()=>{localStorage.setItem('fuse-riders-room-settings-v1',JSON.stringify({version:1,mode:'devices',match:'wins',length:3,weights:{}}));window.addEventListener('fuse-benchmark',event=>{void Reflect.get(window,'recordKeyboardSnapshot')((event as CustomEvent).detail);});});
  const latest=()=>snapshots.at(-1)!;const actor=()=>latest().players.find(p=>p.id==='solo')!;
  const wait=async(predicate:()=>boolean)=>{const started=Date.now(),deadline=started+10000,fromTick=snapshots.at(-1)?.tick,fromCount=snapshots.length;while(!predicate()){const now=Date.now();
-  if(now>=deadline){const last=snapshots.at(-1);console.error(`keyboard-smoke ${name}: timed out after ${now-started}ms waiting for ${predicate.toString()} from tick ${fromTick} (snapshot #${fromCount}); last observed:`,last?{phase:last.phase,authorityScope:last.authorityScope,tick:last.tick,heldMotion:last.heldMotion,solo:last.players.find(p=>p.id==='solo'),snapshots:snapshots.length}:'no snapshots');}
+  if(now>=deadline){const last=snapshots.at(-1);console.error(`keyboard-smoke ${name}: timed out after ${now-started}ms waiting for ${predicate.toString()} from tick ${fromTick} (snapshot #${fromCount}); last observed:`,last?{phase:last.phase,authorityScope:last.authorityScope,tick:last.tick,heldMotion:last.heldMotion,solo:last.players.find(p=>p.id==='solo'),snapshots:snapshots.length}:'no snapshots');
+   console.error(`keyboard-smoke ${name}: last scheduled inputs (snapshotTick = authority tick known when the input was sent):`,inputs.slice(-12).map(i=>({seq:i.seq,bomb:i.bomb,bombAction:i.bombAction,scheduled:i.scheduled,intendedTick:i.intendedTick,sent:i.sent,estimateTick:i.estimate===undefined?undefined:Number(i.estimate.tick.toFixed(2)),snapshotTick:i.snapshotTick,pending:i.pending})));}
   assert.ok(now<deadline,'timed out waiting for authoritative keyboard outcome');await page.waitForTimeout(25);}};
  const turn=async(key:string,sign:number)=>{
   await page.keyboard.down(key);
@@ -50,6 +52,6 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){
   await page.keyboard.down('Space');await fire.getByText('RELEASE!',{exact:true}).waitFor();await wait(()=>actor().bombChargeStartedTick!==undefined);await page.getByRole('button',{name:'MENU',exact:true}).click();await page.keyboard.up('Space');await page.getByRole('button',{name:'CLOSE',exact:true}).click();const cancelTick=latest().tick;await wait(()=>latest().tick>=cancelTick+6);assert.equal(latest().authorityScope,cancelScope);assert.ok(actor().alive);assert.equal(actor().bombReadyAtTick,beforeCancel,'opening modal must cancel, not fire');
   await page.getByRole('button',{name:'MAIN MENU',exact:true}).click();await page.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();const length=page.getByLabel('Match length');await length.fill('12');await length.press('ArrowLeft');await length.press('Backspace');assert.equal(await length.inputValue(),'2','editable input must retain ordinary arrow/delete editing');await page.keyboard.press('Space');assert.ok(!(await fire.textContent())?.includes('RELEASE'),'editable Space must not charge');
   assert.deepEqual(errors,[]);results.push({browser:name,passed:true,steering,spaceChargeRelease:true,modalCancelWithoutShot:true,editableKeys:true,errors});console.log(`PASS ${name} desktop keyboard`);
- }catch(error){results.push({browser:name,passed:false,error:String(error),errors,snapshots:snapshots.slice(-20)});throw error;}
+ }catch(error){results.push({browser:name,passed:false,error:String(error),errors,snapshots:snapshots.slice(-20),inputs:inputs.slice(-40)});throw error;}
  finally{await browser.close();await writeFile('artifacts/keyboard-smoke.json',JSON.stringify({identity,results},null,2));}
 }

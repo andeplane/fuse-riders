@@ -31,6 +31,14 @@ test('held acknowledged steering continues then expires at ten ticks without fre
 test('same-tick press/release survives steering supersession, duplicates cannot launch twice',()=>{
  const s=playing();s.command('host',input(s,0));s.command('host',input(s,1,{left:true,bomb:true,bombAction:'press'}));const release=input(s,2,{right:true,bombAction:'release'});s.command('host',release);s.advance();assert.equal(s.game.bombs.size,1);s.command('host',release);s.advance();assert.equal(s.game.bombs.size,1);
 });
+test('a press stamped later than the following hold sample is still processed first in sequence order (#43)',()=>{
+ const s=playing(),tick=s.game.tick;s.command('host',input(s,0));
+ assert.equal(s.command('host',input(s,1,{bomb:true,bombAction:'press',intendedTick:tick+3})),undefined); // stale clock sample extrapolated ahead
+ assert.equal(s.command('host',input(s,2,{bomb:true,intendedTick:tick+1})),undefined); // 50 ms hold resend after a fresh sample
+ s.advance();const p=s.game.players.get('host')!;assert.notEqual(p.bombChargeStartedTick,undefined);
+ assert.deepEqual(s.appliedMotion('host')!.results.map(r=>[r.seq,r.status]),[[0,'superseded'],[1,'superseded'],[2,'applied']]);
+ s.command('host',input(s,3,{bombAction:'release'}));s.advance();assert.equal(s.game.bombs.size,1);assert.equal(p.bombChargeStartedTick,undefined);
+});
 test('old-scope release cannot cancel current charge; expired current release cancels without firing',()=>{
  const s=playing(),old=input(s,2,{bombAction:'release'});s.clear();s.command('host',input(s,0));s.command('host',input(s,1,{bomb:true,bombAction:'press'}));s.advance();const p=s.game.players.get('host')!;assert.notEqual(p.bombChargeStartedTick,undefined);
  assert.match(s.command('host',old)!,/scope/);s.advance();assert.notEqual(p.bombChargeStartedTick,undefined);

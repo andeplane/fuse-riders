@@ -41,7 +41,10 @@ export class LocalRuntime {
   command(command:RoomCommand):boolean {
     const session=this.session;if(!session)return false;
     if(command.type==='input'&&(this.paused||this.dependencies.hidden()))return false;
-    const effective=command.type==='settings'?{...command,settings:{...command.settings,mode:'devices' as const}}:command;
+    // The authority is in-process: an input reaches it before the next advance whatever the wall-clock estimate said.
+    // When the main thread stalls, the extrapolated estimate runs ahead of the clamped 100 ms catch-up and the
+    // authority would refuse the sample as future, losing one-shot fire edges for good (#43).
+    const effective=command.type==='settings'?{...command,settings:{...command.settings,mode:'devices' as const}}:command.type==='input'?{...command,intendedTick:session.game.tick+1}:command;
     const error=session.command('solo',effective);
     if(error){this.callbacks.status(error);return false;}
     if(command.type!=='input')this.publish();
