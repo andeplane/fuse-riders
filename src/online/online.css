@@ -74,3 +74,30 @@
 @media(max-width:400px){.room-lobby{padding:18px;gap:14px}.room-lobby h1{font-size:22px}.room-qr-card{padding:7px}.room-qr-card .shared-room-code{font-size:16px}.room-lobby .room-qr-card p{font-size:9px;letter-spacing:1px}.room-lobby .room-eyebrow{font-size:9px}.room-rider{gap:5px}.room-rider .avatar-portrait{width:25px;height:25px;flex-basis:25px}}
 
 .room-rider>button{margin-left:auto;min-width:36px;min-height:36px;padding:4px;color:var(--rider-color);border-color:var(--rider-color);flex-shrink:0}
+
+/* End-of-match report: the LAN podium/award/comparison styling inside a wider, scrollable dialog. */
+.online-app dialog.game-dialog.recap-dialog{width:min(1120px,calc(100vw - 24px))}
+.recap-dialog .dialog-body{padding:14px 18px 18px}
+.match-recap-report{display:grid;gap:12px;align-content:start;min-width:0}
+.match-recap-report .recap-heading{border-bottom:1px solid #284068;padding-bottom:10px}
+.match-recap-report .recap-heading .kicker{margin:0;color:#79e9ff;font-size:11px;letter-spacing:2px;font-weight:900}
+.recap-dialog .dialog-body .match-recap-report h2{margin:6px 0 0;color:#effcff;font:clamp(15px,2.2vw,26px)/1.25 'Press Start 2P',ui-monospace,monospace;text-transform:uppercase;text-shadow:4px 4px 0 #332167,0 0 16px #21ddff73}
+.match-recap-report .recap-podium{align-items:end;flex-wrap:wrap}
+.match-recap-report .podium-card{flex:1 1 120px;max-width:220px}
+.match-recap-report .recap-totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px}
+.match-recap-report .recap-total{display:grid;gap:5px;padding:8px 6px;border:1px solid #20365f;background:#040d24;text-align:center;min-width:0}
+.match-recap-report .recap-total strong{color:#ffe55e;font:12px/1.2 'Press Start 2P',ui-monospace,monospace;text-shadow:0 0 10px #ffe55e55;overflow-wrap:anywhere}
+.match-recap-report .recap-total small{color:#7c93b8;font-size:10px;letter-spacing:1px}
+.match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.match-recap-report .recap-comparison{overflow-x:auto;overflow-y:hidden;max-width:100%}
+.match-recap-report .comparison-row{min-width:820px;grid-template-columns:minmax(150px,1.55fr) repeat(6,minmax(52px,1fr)) minmax(230px,2.4fr) repeat(2,minmax(52px,1fr))}
+.match-recap-report .recap-empty{margin:0;padding:24px 0;color:#8da3c4;text-align:center}
+@media(max-width:700px){.match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.match-recap-report .recap-totals{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(orientation:landscape) and (max-height:550px){
+  .recap-dialog .dialog-body{padding:8px 12px 12px}.match-recap-report{gap:8px}
+  .match-recap-report .recap-heading{padding-bottom:6px}.match-recap-report .recap-heading .kicker{font-size:9px}
+  .match-recap-report .podium-place-1{min-height:88px}.match-recap-report .podium-place-2{min-height:74px}.match-recap-report .podium-place-3{min-height:64px}.match-recap-report .podium-card{padding:8px 6px;gap:5px}
+  .match-recap-report .recap-totals{grid-template-columns:repeat(4,minmax(0,1fr))}.match-recap-report .recap-total{padding:6px 4px}.match-recap-report .recap-total strong{font-size:10px}.match-recap-report .recap-total small{font-size:9px}
+  .match-recap-report .award-card{padding:7px}.match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.match-recap-report .comparison-row{min-height:44px}
+  .online-app .recap-dialog .dialog-bar{padding:6px 12px}.online-app .recap-dialog .dialog-bar button{min-height:38px;font-size:14px}
+}
