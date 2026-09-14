@@ -1,0 +1,62 @@
+[
+  {
+    "browser": "chrome",
+    "passed": true,
+    "portraitGate": true,
+    "thirds": [
+      {
+        "x": 0,
+        "y": 0,
+        "width": 281.328125,
+        "height": 390
+      },
+      {
+        "x": 281.328125,
+        "y": 0,
+        "width": 281.328125,
+        "height": 390
+      },
+      {
+        "x": 562.65625,
+        "y": 0,
+        "width": 281.34375,
+        "height": 390
+      }
+    ],
+    "objectFit": "contain",
+    "hintsFaded": true,
+    "rotationCancelledHeldInput": true,
+    "portraitMenuAccessible": true,
+    "errors": []
+  },
+  {
+    "browser": "webkit",
+    "passed": true,
+    "portraitGate": true,
+    "thirds": [
+      {
+        "x": 0,
+        "y": 0,
+        "width": 281.328125,
+        "height": 390
+      },
+      {
+        "x": 281.328125,
+        "y": 0,
+        "width": 281.328125,
+        "height": 390
+      },
+      {
+        "x": 562.65625,
+        "y": 0,
+        "width": 281.328125,
+        "height": 390
+      }
+    ],
+    "objectFit": "contain",
+    "hintsFaded": true,
+    "rotationCancelledHeldInput": true,
+    "portraitMenuAccessible": true,
+    "errors": []
+  }
+]

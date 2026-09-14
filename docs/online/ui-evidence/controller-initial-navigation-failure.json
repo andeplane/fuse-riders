@@ -1,0 +1,98 @@
+[
+  {
+    "browser": "chrome",
+    "passed": true,
+    "shortCodePattern": true,
+    "hostQr": true,
+    "tvQr": true,
+    "startReset": true,
+    "endedWithoutReconnect": true,
+    "controlBounds": [
+      {
+        "viewport": {
+          "width": 320,
+          "height": 568
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 143,
+            "width": 147,
+            "height": 203.5
+          },
+          {
+            "x": 8,
+            "y": 356.5,
+            "width": 304,
+            "height": 203.5
+          },
+          {
+            "x": 165,
+            "y": 143,
+            "width": 147,
+            "height": 203.5
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 143,
+            "width": 182,
+            "height": 341.5
+          },
+          {
+            "x": 8,
+            "y": 494.5,
+            "width": 374,
+            "height": 341.5
+          },
+          {
+            "x": 200,
+            "y": 143,
+            "width": 182,
+            "height": 341.5
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 844,
+          "height": 390
+        },
+        "bounds": [
+          {
+            "x": 8,
+            "y": 105,
+            "width": 244.84375,
+            "height": 277
+          },
+          {
+            "x": 262.84375,
+            "y": 105,
+            "width": 318.296875,
+            "height": 277
+          },
+          {
+            "x": 591.140625,
+            "y": 105,
+            "width": 244.859375,
+            "height": 277
+          }
+        ]
+      }
+    ],
+    "inputApplied": true
+  },
+  {
+    "browser": "webkit",
+    "passed": false,
+    "error": "TimeoutError: page.waitForURL: Timeout 25000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================",
+    "errors": []
+  }
+]

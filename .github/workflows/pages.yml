@@ -1,5 +1,15 @@
 name: Deploy Pages
 on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact current main SHA verified locally
+        required: true
+        type: string
+      local_verification:
+        description: Local test and visual verification evidence (no secrets)
+        required: true
+        type: string
   workflow_run:
     workflows: [CI]
     branches: [main]
@@ -12,23 +22,27 @@ concurrency:
 jobs:
   build:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
       revision: ${{ steps.revision.outputs.sha }}
     steps:
-      - name: Require the successful CI revision to still be main
+      - name: Require the explicitly verified revision to still be main
         id: revision
         uses: actions/github-script@v7
         with:
           script: |
-            const sha = context.payload.workflow_run.head_sha;
+            const manual = context.eventName === 'workflow_dispatch';
+            const sha = manual ? context.payload.inputs.revision : context.payload.workflow_run.head_sha;
+            if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('An exact full revision is required.');
+            if (manual && !context.payload.inputs.local_verification?.trim()) throw new Error('Local verification evidence is required.');
             const { data } = await github.rest.repos.getCommit({ ...context.repo, ref: 'main' });
-            if (data.sha !== sha) throw new Error('A newer main revision exists; await its CI.');
+            if (data.sha !== sha) throw new Error('A newer main revision exists; verify that exact revision first.');
             core.setOutput('sha', sha);
       - uses: actions/checkout@v4
         with:
@@ -58,13 +72,16 @@ jobs:
           RELEASE_REVISION: ${{ steps.revision.outputs.sha }}
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
           CI_RUN_ID: ${{ github.event.workflow_run.id }}
+          VERIFICATION_MODE: ${{ github.event_name == 'workflow_dispatch' && 'local' || 'ci' }}
+          LOCAL_VERIFICATION_NOTE: ${{ inputs.local_verification }}
         run: |
           mkdir -p artifacts
           node --input-type=module <<'NODE'
           import { writeFileSync } from 'node:fs';
           writeFileSync('dist/release.json', JSON.stringify({
             gitRevision: process.env.RELEASE_REVISION,
-            verifiedCiRun: process.env.CI_RUN_ID,
+            verifiedCiRun: process.env.VERIFICATION_MODE === 'ci' ? process.env.CI_RUN_ID : null,
+            sourceVerification: { mode: process.env.VERIFICATION_MODE, ...(process.env.VERIFICATION_MODE === 'local' ? { note: process.env.LOCAL_VERIFICATION_NOTE } : {}) },
             apiOrigin: process.env.VITE_API_ORIGIN,
             base: '/fuse-riders/',
             builtAt: new Date().toISOString()

@@ -1,0 +1,9 @@
+[
+  {
+    "browser": "chrome",
+    "passed": false,
+    "error": "TimeoutError: page.waitForURL: Timeout 25000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================",
+    "errors": [],
+    "body": "FUSERIDERS\nTINY RIDERS. BIG TROUBLE.\n\nA NEON ARENA PARTY GAME\n\nLEAVE A TRAIL.\nMAKE A MESS.\n\nOutrun your friends. Blow up their plans.\nOne arena. Five riders. Absolutely no brakes.\n\n▶   PLAY SOLO\nYOU VS. FOUR AI RIVALS\n\nOR BRING YOUR FRIENDS\n\nWhere will you play?\nEach device\nShared TV\nCREATE ROOM\nJOIN ROOM\n\nSyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input\n\nPhones are your controllers. A TV can be your arena.\nOn the same Wi-Fi? Even better.\n\n LIVE AI FREE-FOR-ALL\nReal riders. Real explosions.\nSTEER. CHARGE. RELEASE. SURVIVE.\nⅡ PAUSE BACKGROUND"
+  }
+]

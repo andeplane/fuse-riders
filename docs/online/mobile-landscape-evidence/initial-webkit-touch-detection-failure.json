@@ -1,0 +1,38 @@
+[
+  {
+    "browser": "chrome",
+    "passed": true,
+    "portraitGate": true,
+    "thirds": [
+      {
+        "x": 0,
+        "y": 0,
+        "width": 281.328125,
+        "height": 390
+      },
+      {
+        "x": 281.328125,
+        "y": 0,
+        "width": 281.328125,
+        "height": 390
+      },
+      {
+        "x": 562.65625,
+        "y": 0,
+        "width": 281.34375,
+        "height": 390
+      }
+    ],
+    "objectFit": "contain",
+    "hintsFaded": true,
+    "rotationCancelledHeldInput": true,
+    "portraitMenuAccessible": true,
+    "errors": []
+  },
+  {
+    "browser": "webkit",
+    "passed": false,
+    "error": "TimeoutError: locator.waitFor: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.mobile-rotate-gate') to be visible\u001b[22m\n\u001b[2m    33 × locator resolved to hidden <section role=\"status\" class=\"mobile-rotate-gate\">…</section>\u001b[22m\n",
+    "errors": []
+  }
+]

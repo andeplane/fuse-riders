@@ -23,6 +23,7 @@
     "src/online/response-measurement.ts",
     "src/online/prediction-clock.ts",
     "src/online/local-runtime.ts",
+    "src/online/mobile-play-policy.ts",
     "src/online/room-socket-close.ts"
   ],
   "reporter": [

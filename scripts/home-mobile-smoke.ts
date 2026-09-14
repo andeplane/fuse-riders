@@ -29,11 +29,28 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    await page.getByRole('button',{name:/PLAY BACKGROUND/}).click();await page.waitForFunction(t=>document.querySelector('canvas')?.getAttribute('data-attract-tick')!==t,paused);
    await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:/PLAY BACKGROUND/}).waitFor();await frames(page);const reduced=await page.locator('canvas').getAttribute('data-attract-tick');await frames(page);assert.equal(await page.locator('canvas').getAttribute('data-attract-tick'),reduced);
    await page.screenshot({path:`artifacts/home-${tag}.png`});
-   await page.getByRole('link',{name:/PLAY SOLO/}).click();await page.locator('.online-roster').getByText('You',{exact:false}).waitFor();assert.equal(await page.locator('.online-roster>span').count(),5);assert.equal(await page.getByRole('button',{name:/Remove AI/}).count(),4);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);
+   await page.getByRole('link',{name:/PLAY SOLO/}).click();await page.locator('.online-roster').getByText('You',{exact:false}).waitFor({state:'attached'});assert.equal(await page.locator('.online-roster>span').count(),5);assert.equal(await page.getByRole('button',{name:/Remove AI/,includeHidden:true}).count(),4);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);
    // Avoid spontaneous end-of-match recaps while reviewing modal layouts.
+   if(await page.locator('.mobile-tools-toggle').isVisible())await page.locator('.mobile-tools-toggle').click();
    await page.getByRole('button',{name:'MAIN MENU',exact:true}).click();
    for(const name of ['ROOM SETTINGS','♫ AUDIO','HEAD','MENU']){
     await page.getByRole('button',{name,exact:true}).click();const dialog=page.getByRole('dialog');await dialog.waitFor({state:'visible'});await inside(page,dialog);assert.ok(await page.locator('.dialog-body').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'dialog body horizontal overflow');
+    if(name==='ROOM SETTINGS'){
+      assert.equal(await dialog.locator('select').count(),0,'room settings use styled choices');
+      assert.equal(await dialog.getByText('Blast radius',{exact:true}).count(),0,'powerups belong in submenu');
+      await page.getByLabel('Match length').fill('7');
+      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();
+      const blast=dialog.locator('label').filter({hasText:'Blast radius'}).locator('input');await blast.fill('42');
+      await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));
+      await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
+      assert.equal(await page.getByLabel('Match length').inputValue(),'7','draft survives submenu navigation');
+      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');
+      await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
+      await page.getByLabel('Match length').fill('0');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();assert.equal(await dialog.isVisible(),true);await dialog.getByRole('alert').getByText('Choose a match length from 1 to 20.').waitFor();
+      await page.getByLabel('Match length').fill('7');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();await dialog.waitFor({state:'hidden'});
+      await page.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();assert.equal(await page.getByLabel('Match length').inputValue(),'7');
+      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
+    }
     if(name==='HEAD'){for(const option of await page.locator('.avatar-option').all()){await inside(page,option);assert.ok(await option.evaluate(e=>{const text=e.lastElementChild!,a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&text.scrollWidth<=text.clientWidth+1;}),'avatar name clipped');}}
     if(name==='♫ AUDIO'){await page.locator('.audio-panel').waitFor({state:'visible'});for(const slider of await page.locator('.audio-panel input[type=range]').all())await inside(page,slider);}
     await page.locator('.dialog-body').evaluate(e=>{e.scrollTop=e.scrollHeight;});await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));await page.screenshot({path:`artifacts/menu-${tag}-${name==='♫ AUDIO'?'audio':name.replaceAll(' ','-')}.png`});await page.getByRole('button',{name:'CLOSE',exact:true}).click();await dialog.waitFor({state:'hidden'});

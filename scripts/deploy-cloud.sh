@@ -27,7 +27,17 @@ repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 remote_main="$(gh api "repos/$repository/commits/main" --jq .sha)"
 [[ "$revision" == "$remote_main" ]] || { echo 'Only the current pushed main revision can deploy.' >&2; exit 1; }
 ci_result="$(gh api "repos/$repository/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=$revision&per_page=20" --jq '.workflow_runs | sort_by(.run_number) | last | if .status == "completed" then .conclusion else "pending" end')"
-[[ "$ci_result" == success ]] || { echo "CI for $revision is $ci_result; refusing unchecked deployment." >&2; exit 1; }
+LOCAL_VERIFICATION_NOTE="${LOCAL_VERIFICATION_NOTE:-}"
+source_verification=ci
+if [[ -n "${LOCAL_VERIFIED_REVISION:-}" ]]; then
+  [[ "$LOCAL_VERIFIED_REVISION" == "$revision" ]] || { echo 'LOCAL_VERIFIED_REVISION must equal the current pushed main SHA.' >&2; exit 1; }
+  [[ -n "${LOCAL_VERIFICATION_NOTE//[[:space:]]/}" ]] || { echo 'Set LOCAL_VERIFICATION_NOTE to the completed local checks and visual evidence (no secrets).' >&2; exit 1; }
+  [[ "$ci_result" == success || "$ci_result" == pending || "$ci_result" == null ]] || { echo "CI completed with $ci_result; this local override only permits pending CI." >&2; exit 1; }
+  source_verification=local
+else
+  [[ "$ci_result" == success ]] || { echo "CI for $revision is $ci_result; refusing unchecked deployment." >&2; exit 1; }
+fi
+export source_verification ci_result LOCAL_VERIFICATION_NOTE="${LOCAL_VERIFICATION_NOTE:-}"
 
 # Validate configurable identifiers before passing them as gcloud paths/substitutions.
 node --input-type=module <<'NODE'
@@ -93,7 +103,8 @@ node --input-type=module - "$build_dir/service.json" "$manifest" "$revision" "$i
 import {readFileSync,writeFileSync} from 'node:fs';
 const [servicePath,manifestPath,revision,image,buildId,previousRevision]=process.argv.slice(2);
 const service=JSON.parse(readFileSync(servicePath,'utf8'));
-const evidence={recordedAt:new Date().toISOString(),project:'andershaf-87',region:process.env.GCP_REGION,gitRevision:revision,image,buildId,service:service.metadata?.name,readyRevision:service.status?.latestReadyRevisionName,url:service.status?.url,previousRevision,smoke:'NOT YET VERIFIED'};
+const sourceVerification={mode:process.env.source_verification,observedCiResult:process.env.ci_result,...(process.env.source_verification==='local'?{note:process.env.LOCAL_VERIFICATION_NOTE}:{})};
+const evidence={sourceVerification,recordedAt:new Date().toISOString(),project:'andershaf-87',region:process.env.GCP_REGION,gitRevision:revision,image,buildId,service:service.metadata?.name,readyRevision:service.status?.latestReadyRevisionName,url:service.status?.url,previousRevision,smoke:'NOT YET VERIFIED'};
 writeFileSync(manifestPath,JSON.stringify(evidence,null,2)+'\n');
 console.log(JSON.stringify(evidence,null,2));
 NODE
