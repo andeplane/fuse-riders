@@ -1,5 +1,7 @@
 # Phaser presentation and renderer evidence
 
+For proposed optimization work and independently assignable experiments, see the [performance exploration brief](performance/EXPLORATION-BRIEF.md). Its hypotheses and suggested selection criteria are separate from the completed measurements below.
+
 Fuse Riders uses **Phaser 3.90.0 for arena presentation**. The shared TypeScript simulation remains the authority; Phaser physics, input and audio systems do not own game rules. DOM menus, pointer controls and the existing audio director remain outside the scene.
 
 `src/client/phaser/presentation.ts` lazily loads Phaser when a board is first rendered, so shared-TV phone controllers do not download or initialize a hidden arena. The caller supplies snapshots and the frame clock. The Phaser automatic loop stops after scene creation and each caller frame manually steps presentation once. An explicit scope string (authority epoch plus match ID) and snapshot round delimit effect history. Callers must provide a coherent visual tick for smoothly sampled bomb flights; the renderer never predicts authoritative collisions.
