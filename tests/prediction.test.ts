@@ -30,3 +30,25 @@ test('remote buffer uses coherent past state and fractional ticks without portal
 test('spectator clock advances fractional render ticks without a player seat and resets scope',()=>{let now=0;const clock=new PredictionClock(()=>now),scope=ledger(1).scope,a=fixture(),b={...a,tick:a.tick+2},buffer=new RemoteWorldBuffer();buffer.push(a,'a');buffer.push(b,'a');clock.observe({scope,localSentAt:0,localReceivedAt:0,authorityTick:b.tick,paused:false});assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick);now=25;assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick+.5);const predictor=new LocalPrediction(()=>now);predictor.observeClock({scope,localSentAt:25,localReceivedAt:25,authorityTick:b.tick,paused:false});predictor.resetExternalScope();assert.equal(predictor.clock.estimate(),undefined);});
 test('presentation connector is bounded and never mutates confirmed trails',()=>{const {state,predictor,time}=setup();const length=state.players[0]!.trail.length;predictor.input(1,false,true);time(100);const shown=predictor.render(state,'h').players[0]!;assert.equal(state.players[0]!.trail.length,length);assert.equal(shown.trail.length,length+1);const last=shown.trail.at(-1)!;assert.ok(Math.hypot(last.x2-last.x1,last.y2-last.y1)<=40);});
 test('inactive snapshots do not invent movement correction or smoothing offsets',()=>{for(const phase of ['countdown','roundOver','lobby','matchOver'] as const){const {state,motion,predictor}=setup();const inactive={...state,phase};predictor.accept(inactive,'h',-1,motion,'authority');const next={...inactive,tick:inactive.tick+2};predictor.accept(next,'h',-1,{...motion,tick:next.tick},'authority');assert.equal(predictor.correction,0,phase);assert.equal(predictor.render(next,'h').players[0]!.x,inactive.players[0]!.x);}});
+test('slow round trip or lagging snapshot never rejects input locally; host admission and the four-tick lead cap bound it (#15)',()=>{
+ let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now),neutral=new LocalPrediction(()=>now);
+ for(const p of [predictor,neutral])p.accept(state,'h',-1,motion,'authority');
+ // 300 ms probe: six ticks of uncertainty, estimate nine ticks past a snapshot that is already stale.
+ now=300;for(const p of [predictor,neutral])assert.ok(p.observeClock({scope:motion.scope,localSentAt:0,localReceivedAt:300,authorityTick:state.tick+6,paused:false}));
+ const scheduled=predictor.input(0,true,false);assert.ok(scheduled);assert.equal(scheduled.intendedTick,state.tick+10);
+ assert.deepEqual(predictor.predict(state.tick+4),neutral.predict(state.tick+4),'preview never advances past the base window');
+ const later={...state,tick:state.tick+9};predictor.accept(later,'h',-1,{...motion,tick:later.tick},'authority');
+ assert.equal(predictor.diagnostics().pending,1);assert.notEqual(predictor.predict(later.tick+2)!.angle,later.players[0]!.angle,'the input replays once the base reaches its tick');
+});
+test('transport-refused and stale inputs never count toward the bound; overflow drops the backlog instead of blocking (#20)',()=>{
+ const {state,motion,predictor}=setup();
+ for(let seq=0;seq<300;seq++){assert.ok(predictor.input(seq,true,false));predictor.discard(seq);}
+ assert.equal(predictor.diagnostics().pending,0);
+ for(let seq=300;seq<428;seq++)assert.ok(predictor.input(seq,true,false));
+ assert.equal(predictor.diagnostics().pending,128);
+ assert.ok(predictor.input(428,true,false));assert.equal(predictor.diagnostics().pending,1);
+ for(let seq=429;seq<440;seq++)assert.ok(predictor.input(seq,true,false));
+ const later={...state,tick:state.tick+20};assert.ok(predictor.accept(later,'h',-1,{...motion,tick:later.tick},'authority'));
+ assert.equal(predictor.diagnostics().pending,0,'inputs behind the host window are pruned');
+ assert.ok(predictor.input(440,true,false));assert.equal(predictor.render(later,'h').players[0]!.alive,true);
+});

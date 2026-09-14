@@ -16,20 +16,23 @@ export class LocalPrediction {
   private offset={x:0,y:0};
   private lastRender=0;
   private shown?:RiderPose;
-  private blocked=false;
   correction=0;ackMs=0;
   constructor(private readonly now:()=>number){this.clock=new PredictionClock(now);}
-  resetExternalScope():void {this.base=undefined;this.pending=[];this.shown=undefined;this.offset={x:0,y:0};this.blocked=false;this.clock.reset();}
+  resetExternalScope():void {this.base=undefined;this.pending=[];this.shown=undefined;this.offset={x:0,y:0};this.clock.reset();}
   observeClock(sample:TickClockSample):boolean{return this.clock.observe(sample);}
+  /** Read-only opt-in measurement data for the input probe. */
+  diagnostics():{baseTick?:number;pending:number}{return {baseTick:this.base?.state.tick,pending:this.pending.length};}
+  /** Only the host's admission window decides; a slow clock or lagging snapshot limits the local preview, never the send. */
   input(seq:number,left:boolean,right:boolean):ScheduledMotionInput|undefined {
     const base=this.base,estimate=base&&this.clock.estimate(base.ledger.scope);
-    if(!base||!estimate||this.blocked||estimate.upper-estimate.lower>4)return undefined;
-    if(this.pending.length>=128){this.blocked=true;this.pending=[];return undefined;}
+    if(!base||!estimate)return undefined;
+    if(this.pending.length>=128)this.pending=[]; // Unreported backlog is stale; never block fresh input.
     const intendedTick=Math.floor(estimate.tick)+1;
-    if(intendedTick>base.state.tick+4)return undefined;
     const input={seq,left,right,intendedTick,scope:{...base.ledger.scope},resultAcks:base.ledger.results.map(result=>result.seq)};
     this.pending.push({...input,at:this.now()});return input;
   }
+  /** A scheduled input the transport refused never reaches the authority. */
+  discard(seq:number):void {this.pending=this.pending.filter(input=>input.seq!==seq);}
   /** ack is retained only for wire compatibility; receive sequence never retires input. */
   accept(state:ViewSnapshot,id:string,_ack:number,ledger?:AppliedMotionState,authorityScope=''):boolean {
     const player=state.players.find(p=>p.id===id);
@@ -40,10 +43,11 @@ export class LocalPrediction {
     const priorPlayer=previous?.state.players.find(p=>p.id===id);
     const reset=changed||!player.alive||player.portalCooldownUntilTick!==priorPlayer?.portalCooldownUntilTick;
     const oldPose=!reset&&previous?.state.phase==='playing'&&state.phase==='playing'?this.predict(state.tick):undefined;
-    if(changed){this.pending=[];this.blocked=false;this.offset={x:0,y:0};if(previous)this.clock.reset();}
+    if(changed){this.pending=[];this.offset={x:0,y:0};if(previous)this.clock.reset();}
     const results=new Set(ledger.results.map(r=>r.seq));
     for(const input of this.pending)if(results.has(input.seq))this.ackMs=this.now()-input.at;
-    this.pending=this.pending.filter(input=>!results.has(input.seq));
+    // Results retire pending; anything behind the host's admission window can no longer be applied.
+    this.pending=this.pending.filter(input=>!results.has(input.seq)&&input.intendedTick>=state.tick-4);
     const pose={x:player.x,y:player.y,angle:player.angle,drunkHeadingOffset:ledger.motion.drunkHeadingOffset};
     this.correction=oldPose?Math.hypot(oldPose.x-pose.x,oldPose.y-pose.y):0;
     this.base={state,id,ledger,pose};this.authorityScope=authorityScope;
@@ -71,7 +75,7 @@ export class LocalPrediction {
     const base=this.base,player=base?.state.players.find(p=>p.id===id);if(!base||!player)return state;
     if(!player.alive||base.state.phase!=='playing')return {...state,players:state.players.map(p=>p.id===id?player:p)};
     const estimate=this.clock.estimate(base.ledger.scope);
-    const pose=estimate&&!this.blocked?this.predict(Math.min(estimate.tick,base.state.tick+4)):this.shown??base.pose;
+    const pose=estimate?this.predict(Math.min(estimate.tick,base.state.tick+4)):this.shown??base.pose;
     if(!pose)return state;
     const now=this.now(),decay=Math.exp(-Math.max(0,now-this.lastRender)/65);this.lastRender=now;
     this.offset.x*=decay;this.offset.y*=decay;this.shown=pose;

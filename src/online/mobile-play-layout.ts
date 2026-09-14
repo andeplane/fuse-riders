@@ -11,8 +11,10 @@ export function installMobilePlayLayout(app:HTMLElement,clearControls:()=>void){
   const orientation=screen.orientation as ScreenOrientation&{lock?:(mode:string)=>Promise<void>};void orientation?.lock?.('landscape').catch(()=>{});
  };
  gate.append(heading,description,fullscreen);
- const hints=document.createElement('div');hints.className='mobile-control-hints';for(const text of ['HOLD LEFT','HOLD TO FIRE · RELEASE TO LAUNCH','HOLD RIGHT']){const hint=document.createElement('span');hint.textContent=text;hints.append(hint);}
+ // Labels render from attributes via CSS generated content: no text node exists for iOS long-press selection or Copy/Look Up callouts.
+ const hints=document.createElement('div');hints.className='mobile-control-hints';for(const text of ['HOLD LEFT','HOLD TO FIRE · RELEASE TO LAUNCH','HOLD RIGHT']){const hint=document.createElement('span');hint.dataset.hint=text;hint.setAttribute('aria-label',text);hints.append(hint);}
  app.append(gate,hints,compact);
+ for(const type of ['selectstart','contextmenu'])app.addEventListener(type,event=>{const target=event.target as Node;const element=target instanceof Element?target:target.parentElement;if(app.classList.contains('mobile-play')&&!element?.closest('dialog,input,textarea,select'))event.preventDefault();});
  const closeTools=()=>{app.classList.remove('mobile-tools-open');compact.setAttribute('aria-expanded','false');};
  compact.onclick=()=>{clearControls();const open=app.classList.toggle('mobile-tools-open');compact.setAttribute('aria-expanded',String(open));};
  const update=()=>{const previous=app.classList.contains('mobile-play'),blocked=app.classList.contains('mobile-portrait');const next=mobilePlayPolicy(state,navigator.maxTouchPoints>0||matchMedia('(pointer: coarse)').matches,innerWidth,innerHeight);if(previous!==next.active||blocked!==next.blocked){clearControls();closeTools();}app.classList.toggle('mobile-play',next.active);app.classList.toggle('mobile-portrait',next.blocked);};

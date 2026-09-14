@@ -15,7 +15,9 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){
  page.on('pageerror',e=>errors.push(e.stack??e.message));await page.exposeFunction('recordKeyboardSnapshot',(s:Snapshot)=>{if(s.kind==='snapshot')snapshots.push(s);});
  await page.addInitScript(()=>{localStorage.setItem('fuse-riders-room-settings-v1',JSON.stringify({version:1,mode:'devices',match:'wins',length:3,weights:{}}));window.addEventListener('fuse-benchmark',event=>{void Reflect.get(window,'recordKeyboardSnapshot')((event as CustomEvent).detail);});});
  const latest=()=>snapshots.at(-1)!;const actor=()=>latest().players.find(p=>p.id==='solo')!;
- const wait=async(predicate:()=>boolean)=>{const deadline=Date.now()+10000;while(!predicate()){assert.ok(Date.now()<deadline,'timed out waiting for authoritative keyboard outcome');await page.waitForTimeout(25);}};
+ const wait=async(predicate:()=>boolean)=>{const started=Date.now(),deadline=started+10000,fromTick=snapshots.at(-1)?.tick,fromCount=snapshots.length;while(!predicate()){const now=Date.now();
+  if(now>=deadline){const last=snapshots.at(-1);console.error(`keyboard-smoke ${name}: timed out after ${now-started}ms waiting for ${predicate.toString()} from tick ${fromTick} (snapshot #${fromCount}); last observed:`,last?{phase:last.phase,authorityScope:last.authorityScope,tick:last.tick,heldMotion:last.heldMotion,solo:last.players.find(p=>p.id==='solo'),snapshots:snapshots.length}:'no snapshots');}
+  assert.ok(now<deadline,'timed out waiting for authoritative keyboard outcome');await page.waitForTimeout(25);}};
  const turn=async(key:string,sign:number)=>{
   await page.keyboard.down(key);
   try {
