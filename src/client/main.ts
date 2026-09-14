@@ -10,24 +10,33 @@ import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { BOMB_MAX_CHARGE_TICKS, bombLaunchDistance } from '../shared/bomb-launch.js';
-import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, ServerMessage, TrailSegment } from '../shared/protocol.js';
+import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
 import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortalPair, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
+import { durationText } from './duration-text.js';
+import { legendSrc } from './legend-src.js';
+import { safeStorage } from './safe-storage.js';
+import { SocketClient } from './socket-client.js';
 import '@fontsource/press-start-2p/latin.css';
 import './style.css';
 
 const app = document.querySelector<HTMLElement>('#app')!;
 if (!app) throw new Error('Missing app root');
 
-const HEARTBEAT_MS = 2_000;
 const HELD_RESEND_MS = 100;
 const PLAYER_TOKEN_KEY = 'fuse-riders-player-token';
 const PLAYER_NAME_KEY = 'fuse-riders-player-name';
 const HOST_TOKEN_KEY = 'fuse-riders-host-token';
 const THEME_KEY = 'fuse-riders-display-theme';
+
+// Evaluating `localStorage`/`sessionStorage` itself can throw (Safari "Block all cookies", some
+// embedded webviews); these wrappers defer that access into a try/catch on every call instead of
+// crashing page startup.
+const localStorageSafe = safeStorage(() => localStorage);
+const sessionStorageSafe = safeStorage(() => sessionStorage);
 
 type LeaderboardEntryView = { id: string; name: string; totalScoreUnits: number; roundsPlayed: number; roundWins: number; matchWins: number };
 type RoundPlacementView = { playerId: string; name: string; place: number; scoreUnits: number };
@@ -42,21 +51,11 @@ function scoreText(scoreUnits: number): string {
   return Number.isInteger(points) ? String(points) : points.toFixed(1);
 }
 
-function durationText(ticks: number): string {
-  const seconds = ticks / 20;
-  return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s` : `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-}
-
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
-}
-
-function websocketUrl(): string {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${location.host}/ws`;
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -65,73 +64,6 @@ function clamp(value: number, low: number, high: number): number {
 
 function escapeColor(value: string): string {
   return /^#[\da-f]{3,8}$/i.test(value) || /^(cyan|magenta|lime|orange|violet)$/i.test(value) ? value : '#ffffff';
-}
-
-class SocketClient {
-  socket?: WebSocket;
-  heartbeat?: number;
-  reconnectTimer?: number;
-  intentionallyClosed = false;
-  retry = 0;
-  pingId = 0;
-  constructor(
-    private readonly authenticate: () => ClientMessage | undefined,
-    private readonly onMessage: (message: ServerMessage) => void,
-    private readonly onStatus: (connected: boolean, reason?: 'replaced') => void,
-    private readonly onRoundTrip?: (milliseconds: number) => void,
-  ) {}
-
-  connect(): void {
-    window.clearTimeout(this.reconnectTimer);
-    this.intentionallyClosed = false;
-    const socket = new WebSocket(websocketUrl());
-    this.socket = socket;
-    socket.addEventListener('open', () => {
-      if (socket !== this.socket) return;
-      this.retry = 0;
-      this.onStatus(true);
-      const auth = this.authenticate();
-      if (auth) this.send(auth);
-      this.heartbeat = window.setInterval(() => {
-        this.send({ type: 'heartbeat' });
-        this.send({ type: 'ping', id: this.pingId++, sentAt: performance.now() });
-      }, HEARTBEAT_MS);
-    });
-    socket.addEventListener('message', (event) => {
-      if (socket !== this.socket || typeof event.data !== 'string') return;
-      try {
-        const message = JSON.parse(event.data) as ServerMessage;
-        if (message.type === 'pong') { this.onRoundTrip?.(performance.now() - message.sentAt); return; }
-        this.onMessage(message);
-      } catch {
-        // Ignore malformed server frames; the next complete snapshot repairs the view.
-      }
-    });
-    socket.addEventListener('close', (event) => {
-      if (socket !== this.socket) return;
-      window.clearInterval(this.heartbeat);
-      if (event.code === 4001) this.intentionallyClosed = true;
-      this.onStatus(false, event.code === 4001 ? 'replaced' : undefined);
-      if (!this.intentionallyClosed) {
-        const delay = Math.min(3_000, 300 * 2 ** this.retry++);
-        this.reconnectTimer = window.setTimeout(() => this.connect(), delay);
-      }
-    });
-    socket.addEventListener('error', () => socket.close());
-  }
-
-  send(message: ClientMessage): boolean {
-    if (this.socket?.readyState !== WebSocket.OPEN) return false;
-    this.socket.send(JSON.stringify(message));
-    return true;
-  }
-
-  close(): void {
-    this.intentionallyClosed = true;
-    window.clearTimeout(this.reconnectTimer);
-    window.clearInterval(this.heartbeat);
-    this.socket?.close();
-  }
 }
 
 function phaseLabel(snapshot: ViewSnapshot): string {
@@ -504,15 +436,29 @@ function startDisplay(): void {
   const lobbyCopy = element('div', 'lobby-copy');
   lobbyCopy.append(element('p', 'kicker', 'PHONE PARTY // 2–5 RIDERS'), element('h1', '', 'Scan. Steer. Survive.'), element('p', 'lede', 'Open the controller, pick a name, then use your phone to carve neon trails and trigger chain reactions.'));
   const pickupLegend = element('div', 'pickup-legend');
-  const blastLegendImage = element('img'); blastLegendImage.alt = ''; blastLegendImage.src = assetUrl('/themes/neon-pixel/pickup-blast.svg');
-  const starLegendImage = element('img'); starLegendImage.alt = ''; starLegendImage.src = assetUrl('/themes/neon-pixel/pickup-star.svg');
-  const inkLegendImage = element('img'); inkLegendImage.alt = ''; inkLegendImage.src = assetUrl('/themes/neon-pixel/pickup-ink.svg');
-  const beerLegendImage = element('img'); beerLegendImage.alt = ''; beerLegendImage.src = assetUrl('/themes/neon-pixel/pickup-beer.svg');
-  const tripleLegendImage = element('img'); tripleLegendImage.alt = ''; tripleLegendImage.src = assetUrl('/themes/neon-pixel/pickup-triple.svg');
-  const targetLegendImage = element('img'); targetLegendImage.alt = ''; targetLegendImage.src = assetUrl('/themes/neon-pixel/pickup-target.svg');
-  const fiveLegendImage = element('img'); fiveLegendImage.alt = ''; fiveLegendImage.src = assetUrl('/themes/neon-pixel/pickup-five.svg');
-  const shieldLegendImage = element('img'); shieldLegendImage.alt = ''; shieldLegendImage.src = assetUrl('/themes/neon-pixel/pickup-orbitShield.svg');
-  const portalLegendImage = element('img'); portalLegendImage.alt = ''; portalLegendImage.src = assetUrl('/themes/neon-pixel/pickup-portal.svg');
+  const blastLegendImage = element('img'); blastLegendImage.alt = '';
+  const starLegendImage = element('img'); starLegendImage.alt = '';
+  const inkLegendImage = element('img'); inkLegendImage.alt = '';
+  const beerLegendImage = element('img'); beerLegendImage.alt = '';
+  const tripleLegendImage = element('img'); tripleLegendImage.alt = '';
+  const targetLegendImage = element('img'); targetLegendImage.alt = '';
+  const fiveLegendImage = element('img'); fiveLegendImage.alt = '';
+  const shieldLegendImage = element('img'); shieldLegendImage.alt = '';
+  const portalLegendImage = element('img'); portalLegendImage.alt = '';
+  // Every pickup legend src is routed through legendSrc() (which wraps assetUrl()) so it keeps
+  // working once the display page is served under a base path; applyLegendTheme() is the single
+  // place that sets these nine srcs, called both here and from the theme <select> change handler.
+  function applyLegendTheme(id: ThemeId): void {
+    blastLegendImage.src = legendSrc(id, 'pickup-blast');
+    starLegendImage.src = legendSrc(id, 'pickup-star');
+    inkLegendImage.src = legendSrc(id, 'pickup-ink');
+    beerLegendImage.src = legendSrc(id, 'pickup-beer');
+    tripleLegendImage.src = legendSrc(id, 'pickup-triple');
+    targetLegendImage.src = legendSrc(id, 'pickup-target');
+    fiveLegendImage.src = legendSrc(id, 'pickup-five');
+    shieldLegendImage.src = legendSrc(id, 'pickup-orbitShield');
+    portalLegendImage.src = legendSrc(id, 'pickup-portal');
+  }
   const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
   const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 3s'));
   const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
@@ -560,14 +506,14 @@ function startDisplay(): void {
   root.append(topbar, stage);
   app.replaceChildren(root);
 
-  let hostToken = sessionStorage.getItem(HOST_TOKEN_KEY) ?? '';
+  let hostToken = sessionStorageSafe.getItem(HOST_TOKEN_KEY) ?? '';
   function captureHostToken(): boolean {
     if (location.hash.length <= 1) return false;
     let candidate = '';
     try { candidate = decodeURIComponent(location.hash.slice(1)); } catch { /* invalid URL encoding */ }
     history.replaceState(null, '', `${location.pathname}${location.search}`);
     if (!/^[a-f0-9]{32,64}$/.test(candidate)) { connection.textContent = 'INVALID HOST LINK'; return false; }
-    hostToken = candidate; sessionStorage.setItem(HOST_TOKEN_KEY, candidate); return true;
+    hostToken = candidate; sessionStorageSafe.setItem(HOST_TOKEN_KEY, candidate); return true;
   }
   captureHostToken();
   if (!hostToken) connection.textContent = 'HOST LINK REQUIRED';
@@ -583,32 +529,21 @@ function startDisplay(): void {
   let recapSignature = '';
   let showPerformance = new URLSearchParams(location.search).get('perf') === '1';
   performanceDisplay.classList.toggle('hidden', !showPerformance);
-  const savedTheme = localStorage.getItem(THEME_KEY);
-  let activeTheme = savedTheme && savedTheme in themes ? themes[savedTheme as ThemeId] : defaultTheme;
+  const savedTheme = localStorageSafe.getItem(THEME_KEY);
+  // Object.hasOwn (not `savedTheme in themes`) so a stored value like "constructor" cannot resolve
+  // to a prototype member instead of a real theme.
+  let activeTheme = savedTheme && Object.hasOwn(themes, savedTheme) ? themes[savedTheme as ThemeId] : defaultTheme;
   let activeSprites: ThemeSprites = {};
   themeSelect.value = activeTheme.id;
   applyThemeProperties(activeTheme);
-  blastLegendImage.src = `/themes/${activeTheme.id}/pickup-blast.svg`;
-  starLegendImage.src = `/themes/${activeTheme.id}/pickup-star.svg`;
-  beerLegendImage.src = `/themes/${activeTheme.id}/pickup-beer.svg`;
-  inkLegendImage.src = `/themes/${activeTheme.id}/pickup-ink.svg`;
-  tripleLegendImage.src = `/themes/${activeTheme.id}/pickup-triple.svg`; fiveLegendImage.src = `/themes/${activeTheme.id}/pickup-five.svg`;
-
-  shieldLegendImage.src = `/themes/${activeTheme.id}/pickup-orbitShield.svg`;
-  portalLegendImage.src = `/themes/${activeTheme.id}/pickup-portal.svg`;
-  targetLegendImage.src = `/themes/${activeTheme.id}/pickup-target.svg`;
+  applyLegendTheme(activeTheme.id);
   void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
 
   themeSelect.addEventListener('change', () => {
     const next = themes[themeSelect.value as ThemeId];
     if (!next) return;
-    activeTheme = next; activeSprites = {}; localStorage.setItem(THEME_KEY, next.id); applyThemeProperties(next);
-    blastLegendImage.src = `/themes/${next.id}/pickup-blast.svg`; starLegendImage.src = `/themes/${next.id}/pickup-star.svg`;
-    beerLegendImage.src = `/themes/${next.id}/pickup-beer.svg`;
-    inkLegendImage.src = `/themes/${next.id}/pickup-ink.svg`;
-    tripleLegendImage.src = `/themes/${next.id}/pickup-triple.svg`; fiveLegendImage.src = `/themes/${next.id}/pickup-five.svg`;  shieldLegendImage.src = `/themes/${next.id}/pickup-orbitShield.svg`;
-    portalLegendImage.src = `/themes/${next.id}/pickup-portal.svg`;
-    targetLegendImage.src = `/themes/${next.id}/pickup-target.svg`;
+    activeTheme = next; activeSprites = {}; localStorageSafe.setItem(THEME_KEY, next.id); applyThemeProperties(next);
+    applyLegendTheme(next.id);
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
 
@@ -926,10 +861,10 @@ function startController(): void {
   join.append(element('p', 'kicker', 'PHONE CONTROLLER'), element('h1', '', 'Choose your callsign'));
   const form = element('form', 'join-form');
   const input = element('input', 'name-input');
-  input.type = 'text'; input.maxLength = 18; input.setAttribute('autocomplete', 'nickname'); input.placeholder = 'Rider name'; input.value = localStorage.getItem(PLAYER_NAME_KEY) ?? '';
+  input.type = 'text'; input.maxLength = 18; input.setAttribute('autocomplete', 'nickname'); input.placeholder = 'Rider name'; input.value = localStorageSafe.getItem(PLAYER_NAME_KEY) ?? '';
   const joinButton = element('button', 'join-button', 'JOIN THE GRID'); joinButton.type = 'submit';
   const joinStatus = element('p', 'join-status', 'Connect to the same Wi-Fi as the TV.');
-  const avatarPicker = createAvatarPicker(localStorage);
+  const avatarPicker = createAvatarPicker(localStorageSafe);
   form.append(input, avatarPicker.element, joinButton); join.append(form, joinStatus);
 
   const controls = element('section', 'controls hidden');
@@ -964,7 +899,7 @@ function startController(): void {
   controllerPerformance.classList.toggle('hidden', !showControllerPerformance);
   controls.append(identity, instruction, powerStrip, pad, leave);
   const avatarDialog = element('dialog', 'avatar-dialog');
-  const liveAvatarPicker = createAvatarPicker(localStorage, avatarId => {
+  const liveAvatarPicker = createAvatarPicker(localStorageSafe, avatarId => {
     if (playerId) socket.send({ type: 'setAvatar', avatarId });
     avatarDialog.close();
   });
@@ -975,8 +910,8 @@ function startController(): void {
   root.append(header, join, controls, controllerPerformance, avatarDialog);
   app.replaceChildren(root);
 
-  let playerToken = localStorage.getItem(PLAYER_TOKEN_KEY) ?? '';
-  let name = localStorage.getItem(PLAYER_NAME_KEY) ?? '';
+  let playerToken = localStorageSafe.getItem(PLAYER_TOKEN_KEY) ?? '';
+  let name = localStorageSafe.getItem(PLAYER_NAME_KEY) ?? '';
   let playerId = '';
   let latestSnapshot: ViewSnapshot | undefined;
   const snapshotStream = new SnapshotStream();
@@ -1076,7 +1011,7 @@ function startController(): void {
         explicitJoinRequested = false;
         hasLeft = false;
         playerId = message.playerId; playerToken = message.playerToken; inputState.setNextSequence(message.nextInputSeq);
-        localStorage.setItem(PLAYER_TOKEN_KEY, playerToken); localStorage.setItem(PLAYER_NAME_KEY, name);
+        localStorageSafe.setItem(PLAYER_TOKEN_KEY, playerToken); localStorageSafe.setItem(PLAYER_NAME_KEY, name);
         root.style.setProperty('--player-color', escapeColor(message.color));
         identityMarker.style.setProperty('--player-color', escapeColor(message.color));
         join.classList.add('hidden'); controls.classList.remove('hidden');
@@ -1099,7 +1034,7 @@ function startController(): void {
       } else if (message.type === 'error') {
         clearControls(false);
         if (message.code === 'unauthorized') {
-          localStorage.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = '';
+          localStorageSafe.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = '';
           join.classList.remove('hidden'); controls.classList.add('hidden');
           status('Your old seat expired. Tap join to claim a new one.', true);
         } else {
@@ -1126,7 +1061,7 @@ function startController(): void {
     event.preventDefault();
     const trimmed = [...input.value.trim()].slice(0, 18).join('');
     if (!trimmed) { status('Enter a rider name.', true); input.focus(); return; }
-    name = trimmed; localStorage.setItem(PLAYER_NAME_KEY, name); joinButton.disabled = true; status('Claiming a seat…');
+    name = trimmed; localStorageSafe.setItem(PLAYER_NAME_KEY, name); joinButton.disabled = true; status('Claiming a seat…');
     hasLeft = false;
     explicitJoinRequested = true;
     if (socket.send(currentJoin(false)!)) explicitJoinRequested = false;
@@ -1141,7 +1076,7 @@ function startController(): void {
   pointerBindings.bindKeyboard(window, () => Boolean(playerId) && !hasLeft && !controls.classList.contains('hidden') && !document.hidden && !document.querySelector('dialog[open]') && !document.activeElement?.closest('input,textarea,select,[contenteditable]'));
   leave.addEventListener('click', () => {
     hasLeft = true; clearControls(); socket.send({ type: 'leave' }); socket.close();
-    localStorage.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = ''; latestSnapshot = undefined;
+    localStorageSafe.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = ''; latestSnapshot = undefined;
     controls.classList.add('hidden'); join.classList.remove('hidden'); status('You left the game.');
   });
   window.addEventListener('blur', () => clearControls());
