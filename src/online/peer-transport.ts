@@ -11,6 +11,8 @@ export interface TransportCallbacks {
   status:(status:string)=>void;
   revoked?:()=>void;
   ended?:()=>void;
+  /** The link is unrecoverable for this page: the transport is closed and the notice must stay on screen. */
+  terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
 interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number>;health:LinkHealth;gate:LinkSendGate;restartAt:number;restarting:boolean }
@@ -64,7 +66,7 @@ export class PeerTransport {
       try {
         const message=JSON.parse(event.data);
         if(message.type==='welcome'){
-          if(message.protocol!==2||typeof message.connectionId!=='string'){this.callbacks.status('Game protocol changed — reload this page');this.close();return;}
+          if(message.protocol!==2||typeof message.connectionId!=='string'){this.terminate('Game protocol changed — reload this page');this.close();return;}
           this.received.clear();
           // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
           const roster=new Set<string>(message.peers.map((peer:{id:string})=>peer.id));
@@ -101,7 +103,7 @@ export class PeerTransport {
     };
     ws.onclose=event=>{
       if(ws!==this.socket)return;
-      handleRoomSocketClose(event.code,{stopped:()=>this.stopped,stop:()=>this.close(),revoked:()=>this.callbacks.revoked?.(),ended:()=>this.callbacks.ended?.(),status:this.callbacks.status,retry:()=>{this.retry=setTimeout(()=>this.connect(),1500);}});
+      handleRoomSocketClose(event.code,{stopped:()=>this.stopped,stop:()=>this.close(),revoked:()=>this.callbacks.revoked?.(),ended:()=>this.callbacks.ended?.(),status:this.callbacks.status,terminated:message=>this.terminate(message),retry:()=>{this.retry=setTimeout(()=>this.connect(),1500);}});
     };
     ws.onerror=()=>ws.close();
   }
@@ -200,6 +202,8 @@ export class PeerTransport {
       }
     }
   }
+  /** Terminal for this page: report it as a notice the room runtime keeps on screen over recurring status. */
+  private terminate(status:string):void{if(this.callbacks.terminated)this.callbacks.terminated(status);else this.callbacks.status(status);}
   close():void{this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
   async stats():Promise<{direct:number;relayed:number;buffered:number;authority:{reason:string;roundTripMs?:number}}>{
     let direct=0,relayed=0,buffered=this.socket?.bufferedAmount??0;
