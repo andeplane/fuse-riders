@@ -50,3 +50,12 @@ BROWSER=webkit ONLINE_URL=http://localhost:8812/ ROOM_RENDERER=canvas node --imp
 ```
 
 Generated reports/logs live in ignored `artifacts/`; selected redacted evidence and source hashes are retained in the [evidence manifest](direct-actions-evidence/manifest.json). The full component suite passed 506 tests with 99.55% lines, 94.61% branches and 99.59% functions. Build and dedicated browser reports identify clean source `afc5196`; the manifest explains the unit/default-smoke source equivalence and keeps historical failures distinct. Never point browser impairment tests at an occupied match.
+
+
+## Segment orchestration checkpoint
+
+Clean source `f80f6de` adds reviewed segment composition and regressions for continuous-input progress, delayed receipts, pending finality starvation, opposite clock errors, uncertainty expiry, startup/silence deadlines and finalized death/placement presentation. Per-flow ingress supports the declared 100 Hz input workload with separate liveness capacity; tests exercise all five authorized flows with additional repair/cut traffic. The reliable bound control lane avoids repeated identity envelopes for clock/finality messages.
+
+The full suite and coverage passed 530 tests (99.60% lines/statements, 94.50% branches, 99.06% functions); both typechecks and build passed. Exact replay again matched 1,800 ticks per browser engine. The clean mixed-browser transport run passed 30 action and 30 compact-control directions, stale/unknown alias checks, channel rebuild and one cycle each of held-ICE peer replacement/removal; it recovered from a three-second synthetic fast-send blackhole in 414 ms and recorded no browser/teardown errors. Those timings are fixture observations, not a gameplay latency or reliability guarantee. See the [new evidence manifest](direct-actions-evidence/segment-orchestration/manifest.json). Earlier failed runs and their unresolved diagnoses remain retained above.
+
+Actual `RoomRuntime`/UI activation and lifecycle/delegation work remain the next step. The component approval does not certify those unimplemented paths or release the branch.
