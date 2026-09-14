@@ -10,7 +10,7 @@ Verified 2026-09-14. The initial backend and Pages artifact are deployed; final 
 - Runtime service account: `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com`.
 - Runtime database IAM: `roles/datastore.user`, condition limited to `projects/andershaf-87/databases/fuse-riders`.
 - Runtime Pub/Sub IAM: project custom role `fuseRidersSignalling` with subscription create/get/delete/consume; topic-bound `fuseRidersTopic` with topic get/publish/attachSubscription. No topic creation/deletion or IAM administration.
-- GitHub Pages: `https://andeplane.github.io/fuse-riders/`, deployed by successful Actions run `34791501787`. Its public `release.json` reports source `2ff884388cfd0930088bade0bc849bc936d46bb7`, verified CI `34791214391`, and the Cloud Run API origin below. Browser gameplay verification is separate.
+- GitHub Pages: `https://andeplane.github.io/fuse-riders/`. Initial Actions deployment `34791501787` served source `2ff8843`; the completed update `34792756008` serves source `81939f3426a7a64e3ecb8421cba5a62aa65442f6`, verified CI `34792494691`. The public `release.json` was fetched and preserved below. Browser gameplay evidence currently refers to the initial `2ff8843` bundle, not the later update.
 - Enabled deployment APIs include Cloud Run, Cloud Build, Artifact Registry, Firestore, Pub/Sub and IAM. No service-account keys were created.
 
 Image registry `europe-west1-docker.pkg.dev/andershaf-87/fuse-riders` is created. Build account `fuse-riders-build@andershaf-87.iam.gserviceaccount.com` has writer access to that repository, log-writer permission, and object-viewer access only to the dedicated `gs://andershaf-87-fuse-riders-build` source bucket. Deployment scripts stage source in that bucket.
@@ -23,6 +23,14 @@ Image registry `europe-west1-docker.pkg.dev/andershaf-87/fuse-riders` is created
 - Image: `europe-west1-docker.pkg.dev/andershaf-87/fuse-riders/fuse-riders@sha256:e4b51a457e1f07fc06fe686f41a548272daa78f189218ea9c8b2c6cf19a256cd`.
 - Limits: minimum zero / maximum two instances, 1 CPU, 512 MiB, concurrency 80, 3600-second request timeout, CPU throttling, no session affinity.
 - Actual public room creation returned HTTP 201 and host WSS admission returned protocol 2 plus authority using the attached runtime service account. This establishes those provider operations, not the complete public smoke or RTC acceptance.
-- The first complete public smoke stopped at `/healthz`, which Google reserves before requests reach the service. Safe `/api/health` and `/api/ready` aliases are committed for the next deployment; do not treat that failed smoke as passed.
+- The first complete public smoke stopped at `/healthz`, which Google reserves before requests reach the service. Safe `/api/health` and `/api/ready` aliases were deployed in the subsequent revision below; do not treat the initial failed smoke as passed.
 
  Active WebSockets incur Cloud Run work; minimum instances zero is not a claim that active play costs nothing.
+
+## Verified beta backend update and public play
+
+At 2026-09-14 00:29 UTC, source `81939f3426a7a64e3ecb8421cba5a62aa65442f6` deployed as `fuse-riders-gateway-00002-x2q`. A subsequent read-only service inspection confirmed this ready revision receives 100% of traffic and uses `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com`. Cloud Build `f3266f39-2b28-42e4-aa02-1037e9972983` produced immutable image digest `sha256:467dab03074ff4666aa5a06ebdc2084000c83eb05807b914f8b02c5f693a90b0`. The service URL is unchanged.
+
+The public provider smoke **passed** at `2026-09-14T00:29:31.766Z`: safe health paths, Pages CORS, Firestore room creation, WSS host/guest admission, SDP exchange, gameplay rejection, lease renewal and host replacement. The attached runtime identity was verified separately from smoke. [Release manifest](evidence/cloud-release-81939f3-2026-09-14.json), [service configuration](evidence/cloud-service-81939f3-2026-09-14.json), [smoke result](evidence/cloud-public-smoke-81939f3-2026-09-14.json). The original manifest's `NOT YET VERIFIED` field is preserved because it was recorded before the separate passing smoke.
+
+Initial public Chromium testing of Pages source `2ff8843` reached room creation, AI addition, guest join, countdown and scoring over direct RTC with no page errors. WebKit completed those flows but recorded one RTC send page error: this is not clean WebKit acceptance. Subsequent source/CI work does not retroactively certify that deployed bundle. [Public beta evidence and limits](PUBLIC-BETA-2026-09-14.md).

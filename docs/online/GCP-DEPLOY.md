@@ -1,6 +1,6 @@
 # GCP gateway and GitHub Pages deployment
 
-This is deployment scaffolding, not a deployment record. The user explicitly narrowed transport scope: Pub/Sub carries coordination/signalling only; **gameplay uses direct WebRTC, and a failed direct connection shows failure/retry instead of relaying game data**. This supersedes earlier WSS-gameplay-fallback requirements. Root verified the isolated native Firestore database `fuse-riders` in `europe-west1` in project `andershaf-87`; the pre-existing default Datastore database serves other applications and must remain untouched. Record the actual service URL, image digest, revision and smoke result after deployment. Architectural limits and mandatory release gates remain in ADRs 028–034 and `ROADMAP.md`.
+The online beta is deployed; exact source/image versions and public acceptance are recorded in [GCP inventory](GCP-INVENTORY.md) and [dated public beta evidence](PUBLIC-BETA-2026-09-14.md). The instructions below describe reproducible deployment and its verification boundaries. The user explicitly narrowed transport scope: Pub/Sub carries coordination/signalling only; **gameplay uses direct WebRTC, and a failed direct connection shows failure/retry instead of relaying game data**. This supersedes earlier WSS-gameplay-fallback requirements. Root verified the isolated native Firestore database `fuse-riders` in `europe-west1` in project `andershaf-87`; the pre-existing default Datastore database serves other applications and must remain untouched. Record the actual service URL, image digest, revision and smoke result after deployment. Architectural limits and mandatory release gates remain in ADRs 028–034 and `ROADMAP.md`.
 
 ## Resources and runtime
 
@@ -34,7 +34,7 @@ Application Default Credentials come from the attached Cloud Run service account
 
 ## Build and deploy a verified commit
 
-Root must first provision/verify the database, topic, Artifact Registry repository, build/runtime service accounts, required APIs, IAM, budgets and backend acceptance. The script deliberately does not enable APIs, create databases/topics/repositories, grant roles or modify other applications. Invoking it **does build and deploy** a public Cloud Run service; do not run it as a read-only check.
+For a new environment, first provision/verify the database, topic, Artifact Registry repository, build/runtime service accounts, required APIs, IAM, budgets and backend acceptance. The existing beta resources are listed in the dated inventory. The script deliberately does not enable APIs, create databases/topics/repositories, grant roles or modify other applications. Invoking it **does build and deploy** a public Cloud Run service; do not run it as a read-only check.
 
 Only a clean tracked checkout matching current pushed `main` with a successful latest `CI` push run for that exact commit is accepted. Source is exported with `git archive`, so local untracked files and credentials cannot leak into the Cloud Build source. The Docker context additionally uses an allowlist. Build uses the committed lockfile, records the commit label, resolves the pushed Artifact Registry digest and deploys that immutable digest. A failed build or superseded main revision stops publication.
 
@@ -120,7 +120,7 @@ Read-only provider inspection confirmed the following application-owned resource
 
 **Subscription IAM residual scope:** the runtime's four subscription permissions currently apply project-wide. Topic attachment and publishing remain restricted to the game's topic, and the adapter creates names beginning `fuse-production-`, but code naming is not an IAM boundary for consuming/deleting other subscriptions. The official supported `resource.name` attribute table lists Pub/Sub Lite, not standard Pub/Sub; a speculative prefix condition was therefore not installed. See [supported resource attributes](https://docs.cloud.google.com/iam/docs/conditions-resource-attributes) and [Pub/Sub permission requirements](https://docs.cloud.google.com/pubsub/docs/access-control). Stronger isolation would use a separate GCP project, or separately provisioned subscription resource policies with a redesigned lifecycle. Record this remaining permission scope when assessing production risk; do not call the current role fully prefix-scoped. No unrelated project bindings were changed by this review.
 
-Use the verified values `ARTIFACT_REPOSITORY=fuse-riders`, `BUILD_SOURCE_BUCKET=andershaf-87-fuse-riders-build` and the dedicated accounts above with the deploy command. Runtime identity/database conditions still require the deployed smoke; the earlier local provider harness used user credentials and cannot verify them.
+Use the verified values `ARTIFACT_REPOSITORY=fuse-riders`, `BUILD_SOURCE_BUCKET=andershaf-87-fuse-riders-build` and the dedicated accounts above with the deploy command. The later public smoke on backend `81939f3` passed using the deployed identity, with the attached runtime account verified separately; the earlier local provider harness used user credentials and remains insufficient on its own.
 
 ## Public deployed gateway smoke
 

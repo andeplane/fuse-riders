@@ -1,0 +1,46 @@
+[
+  {
+    "browser": "chrome",
+    "release": {
+      "gitRevision": "2ff884388cfd0930088bade0bc849bc936d46bb7",
+      "verifiedCiRun": "34791214391",
+      "apiOrigin": "https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app",
+      "base": "/fuse-riders/",
+      "builtAt": "2026-09-14T00:16:45.777Z"
+    },
+    "created": true,
+    "aiAdded": true,
+    "guestJoined": true,
+    "countdownReceived": true,
+    "metrics": "{\"direct\":1,\"relayed\":0,\"buffered\":631,\"authority\":{\"reason\":\"permitted\",\"roundTripMs\":96.5},\"sentBytes\":2855,\"frameP95\":18.400000005960464,\"inputP95\":0,\"ackMs\":0,\"correction\":0,\"tick\":76}",
+    "renderer": "phaser-webgl",
+    "screenshot": "artifacts/public-phaser-chrome.png",
+    "scoring": true,
+    "pass": true,
+    "errors": [],
+    "failedRequests": []
+  },
+  {
+    "browser": "webkit",
+    "release": {
+      "gitRevision": "2ff884388cfd0930088bade0bc849bc936d46bb7",
+      "verifiedCiRun": "34791214391",
+      "apiOrigin": "https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app",
+      "base": "/fuse-riders/",
+      "builtAt": "2026-09-14T00:16:45.777Z"
+    },
+    "created": true,
+    "aiAdded": true,
+    "guestJoined": true,
+    "countdownReceived": true,
+    "metrics": "{\"direct\":1,\"relayed\":0,\"buffered\":0,\"authority\":{\"reason\":\"permitted\",\"roundTripMs\":97},\"sentBytes\":9021,\"frameP95\":18,\"inputP95\":0,\"ackMs\":0,\"correction\":0,\"tick\":204}",
+    "renderer": "phaser-webgl",
+    "screenshot": "artifacts/public-phaser-webkit.png",
+    "scoring": true,
+    "pass": true,
+    "errors": [
+      "Error sending string through RTCDataChannel."
+    ],
+    "failedRequests": []
+  }
+]

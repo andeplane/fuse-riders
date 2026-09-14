@@ -1,0 +1,13 @@
+{
+  "recordedAt": "2026-09-14T00:29:20.424Z",
+  "project": "andershaf-87",
+  "region": "europe-west1",
+  "gitRevision": "81939f3426a7a64e3ecb8421cba5a62aa65442f6",
+  "image": "europe-west1-docker.pkg.dev/andershaf-87/fuse-riders/fuse-riders@sha256:467dab03074ff4666aa5a06ebdc2084000c83eb05807b914f8b02c5f693a90b0",
+  "buildId": "f3266f39-2b28-42e4-aa02-1037e9972983",
+  "service": "fuse-riders-gateway",
+  "readyRevision": "fuse-riders-gateway-00002-x2q",
+  "url": "https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app",
+  "previousRevision": "fuse-riders-gateway-00001-5mm",
+  "smoke": "NOT YET VERIFIED"
+}
