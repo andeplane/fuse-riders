@@ -15,7 +15,7 @@ const browser = process.env.BROWSER === 'webkit'
   ? await webkit.launch({ headless: true })
   : await chromium.launch({ channel: 'chrome', headless: true });
 const errors: string[] = [];
-const monitor = (page: Page) => { page.on('pageerror', e => errors.push(e.message)); };
+const monitor = (page: Page) => { page.on('pageerror', e => errors.push(e.stack ?? e.message)); };
 const origin = `http://127.0.0.1:${app.port}`;
 const waitFor = async (predicate: () => boolean, detail: string) => {
   const until = Date.now() + 5000;
