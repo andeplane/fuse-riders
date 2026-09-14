@@ -12,13 +12,17 @@ export function installMobilePlayLayout(app:HTMLElement,clearControls:()=>void){
  };
  gate.append(heading,description,fullscreen);
  // Labels render from attributes via CSS generated content: no text node exists for iOS long-press selection or Copy/Look Up callouts.
- const hints=document.createElement('div');hints.className='mobile-control-hints';for(const text of ['HOLD LEFT','HOLD TO FIRE · RELEASE TO LAUNCH','HOLD RIGHT']){const hint=document.createElement('span');hint.dataset.hint=text;hint.setAttribute('aria-label',text);hints.append(hint);}
+ const hints=document.createElement('div');hints.className='mobile-control-hints';for(const text of ['HOLD LEFT','HOLD TO FIRE · RELEASE TO LAUNCH','HOLD RIGHT']){const hint=document.createElement('span');hint.dataset.hint=text;hints.append(hint);}
  app.append(gate,hints,compact);
  for(const type of ['selectstart','contextmenu'])app.addEventListener(type,event=>{const target=event.target as Node;const element=target instanceof Element?target:target.parentElement;if(app.classList.contains('mobile-play')&&!element?.closest('dialog,input,textarea,select'))event.preventDefault();});
- const closeTools=()=>{app.classList.remove('mobile-tools-open');compact.setAttribute('aria-expanded','false');};
+ const closeTools=()=>{app.classList.remove('mobile-tools-open');compact.setAttribute('aria-expanded','false');};const openTools=()=>{clearControls();app.classList.add('mobile-tools-open');compact.setAttribute('aria-expanded','true');};
  compact.onclick=()=>{clearControls();const open=app.classList.toggle('mobile-tools-open');compact.setAttribute('aria-expanded',String(open));};
- const update=()=>{const previous=app.classList.contains('mobile-play'),blocked=app.classList.contains('mobile-portrait');const next=mobilePlayPolicy(state,navigator.maxTouchPoints>0||matchMedia('(pointer: coarse)').matches,innerWidth,innerHeight);if(previous!==next.active||blocked!==next.blocked){clearControls();closeTools();}app.classList.toggle('mobile-play',next.active);app.classList.toggle('mobile-portrait',next.blocked);};
+ const update=()=>{const previous=app.classList.contains('mobile-play'),blocked=app.classList.contains('mobile-portrait');const next=mobilePlayPolicy(state,navigator.maxTouchPoints>0||matchMedia('(pointer: coarse)').matches,innerWidth,innerHeight);if(previous!==next.active||blocked!==next.blocked){clearControls();closeTools();}app.classList.toggle('mobile-play',next.active);app.classList.toggle('mobile-portrait',next.blocked);app.classList.toggle('mobile-lobby',state.phase==='lobby');};
  window.addEventListener('resize',update);window.visualViewport?.addEventListener('resize',update);
- app.querySelector('dialog')?.addEventListener('close',closeTools);
- return {update(next:MobilePlayState){state=next;update();},blocked:()=>app.classList.contains('mobile-portrait')||app.classList.contains('mobile-tools-open')};
+ // Closing a dialog returns to the live thirds mid-round; in lobby/results the roster and actions stay open.
+ app.querySelector('dialog')?.addEventListener('close',()=>{if(['countdown','playing'].includes(state.phase))closeTools();});
+ // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
+ // entering lobby/matchOver as host opens the overlay so START RACE / REMATCH / MAIN MENU are in view instead of hidden behind ☰ MENU.
+ const enter=()=>{if(['countdown','playing'].includes(state.phase)){closeTools();hints.remove();app.append(hints);}else if(state.host&&['lobby','matchOver'].includes(state.phase))openTools();};
+ return {update(next:MobilePlayState){const entered=next.phase!==state.phase||!app.classList.contains('mobile-play');state=next;update();if(entered&&app.classList.contains('mobile-play'))enter();},active:()=>app.classList.contains('mobile-play'),blocked:()=>app.classList.contains('mobile-portrait')||app.classList.contains('mobile-tools-open')};
 }
