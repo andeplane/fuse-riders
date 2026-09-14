@@ -165,7 +165,8 @@ export class PeerTransport {
     const now=performance.now();
     for(const [id,link] of this.links){
       this.sendDirectProbe(id,{type:'linkProbe',probeId:link.health.probe(now)});
-      if(!link.health.direct(now)&&this.id===this.hostId&&now>=link.restartAt&&!link.restarting){
+      if(link.health.direct(now)){link.restartAt=now+8000;continue;}
+      if(link.health.shouldRestart(now)&&this.id===this.hostId&&now>=link.restartAt&&!link.restarting){
         link.restarting=true;
         void this.offer(id,true).catch(()=>{link.restarting=false;link.restartAt=performance.now()+8000;});
       }

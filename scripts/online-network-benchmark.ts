@@ -10,19 +10,20 @@ const profiles:Profile[]=[
   {name:'regional',delay:40,jitter:10,loss:.01,reorder:.01,kbps:2000,outageMs:0},
   {name:'poor-asymmetric',delay:75,jitter:30,loss:.03,reorder:.05,kbps:500,outageMs:3000},
 ];
+interface PacketTrace { at:number; edge:number; type?:string; generation?:number; seq?:number; base?:number; tick?:number; bytes:number; outcome:string; finishedAt?:number; queueBytes:number }
 interface Injection {
   attempted:number; delivered:number; dropped:number; expired:number; reordered:number; bytes:number; queueBytes:number; maxQueueBytes:number; relayAttempts:number; blockedUntil:number; outageStartedAt:number;
-  windows:Record<string,number>; active:boolean; frameMs:number[]; events:unknown[]; eventsTruncated:number;
+  windows:Record<string,number>; active:boolean; frameMs:number[]; events:unknown[]; eventsTruncated:number; packets:PacketTrace[]; packetsTruncated:number;
 }
 declare global { interface Window { __networkBench: Injection } }
 /** Application-message impairment before the real SCTP send, deliberately NOT IP shaping. */
 function installImpairment({profile,seed,host,renderView}:{profile:Profile;seed:number;host:boolean;renderView:boolean}) {
   if(!renderView){const hide=()=>{for(const canvas of document.querySelectorAll('canvas'))if(!canvas.hidden)canvas.hidden=true;};new MutationObserver(hide).observe(document,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});hide();}
-  const state:Injection={attempted:0,delivered:0,dropped:0,expired:0,reordered:0,bytes:0,queueBytes:0,maxQueueBytes:0,relayAttempts:0,blockedUntil:0,outageStartedAt:0,windows:{},active:false,frameMs:[],events:[],eventsTruncated:0};
+  const state:Injection={attempted:0,delivered:0,dropped:0,expired:0,reordered:0,bytes:0,queueBytes:0,maxQueueBytes:0,relayAttempts:0,blockedUntil:0,outageStartedAt:0,windows:{},active:false,frameMs:[],events:[],eventsTruncated:0,packets:[],packetsTruncated:0};
   Object.assign(window,{__networkBench:state});
   window.addEventListener('fuse-benchmark',event=>{if(!state.active)return;const detail=(event as CustomEvent<unknown>).detail;if(state.events.length>=20000){state.eventsTruncated++;return;}state.events.push(detail);});
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-  let bandwidthAt=0;
+  let bandwidthAt=0,nextEdge=0;const edges=new WeakMap<RTCDataChannel,number>();
   const original=RTCDataChannel.prototype.send;
   const maxQueue=256*1024,maxAge=800;
   RTCDataChannel.prototype.send=function(data:string|Blob|ArrayBuffer|ArrayBufferView<ArrayBuffer>) {
@@ -31,7 +32,11 @@ function installImpairment({profile,seed,host,renderView}:{profile:Profile;seed:
     // The current wire is JSON strings. Refuse to silently mismeasure a changed binary protocol.
     if(typeof data!=='string')throw new Error('Benchmark only supports current JSON RTC wire');
     const bytes=new TextEncoder().encode(data).byteLength;
-    if(now<state.blockedUntil||random()<profile.loss||state.queueBytes+bytes>maxQueue){state.dropped++;return;}
+    let edge=edges.get(this);if(edge===undefined){edge=++nextEdge;edges.set(this,edge);}
+    const trace:PacketTrace={at:now,edge,bytes,outcome:'queued',queueBytes:state.queueBytes};
+    try{const wire=JSON.parse(data);if(wire&&typeof wire==='object'&&wire.data&&typeof wire.data==='object'){trace.type=typeof wire.data.type==='string'?wire.data.type:undefined;const frame=wire.data.frame;if(frame&&typeof frame==='object')for(const key of ['generation','seq','base','tick'] as const)if(Number.isSafeInteger(frame[key]))trace[key]=frame[key];}}catch{}
+    if(state.packets.length<12000)state.packets.push(trace);else state.packetsTruncated++;
+    if(now<state.blockedUntil||random()<profile.loss||state.queueBytes+bytes>maxQueue){state.dropped++;trace.outcome=now<state.blockedUntil?'blackhole':state.queueBytes+bytes>maxQueue?'queue-full':'application-drop';trace.finishedAt=now;return;}
     const extra=random()<profile.reorder?150:0;if(extra)state.reordered++;
     // One sender budget shared by all host edges; host has higher egress than each guest.
     const kbps=profile.kbps*(host?4:1);
@@ -41,7 +46,9 @@ function installImpairment({profile,seed,host,renderView}:{profile:Profile;seed:
     const channel=this;
     setTimeout(()=>{
       state.queueBytes-=bytes;
-      if(performance.now()-now>maxAge||performance.now()<state.blockedUntil||channel.readyState!=='open'){state.expired++;return;}
+      trace.finishedAt=performance.now();
+      if(performance.now()-now>maxAge||performance.now()<state.blockedUntil||channel.readyState!=='open'){state.expired++;trace.outcome=performance.now()-now>maxAge?'age-expired':performance.now()<state.blockedUntil?'blackhole':'channel-closed';return;}
+      trace.outcome='delivered';
       Reflect.apply(original,channel,[data]);state.delivered++;state.bytes+=bytes;
       const second=Math.floor(performance.now()/1000);state.windows[second]=(state.windows[second]??0)+bytes;
       const keys=Object.keys(state.windows);if(keys.length>3600)delete state.windows[keys[0]!];
