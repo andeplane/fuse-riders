@@ -2,6 +2,16 @@ import type { ServerMessage } from '../shared/protocol.js';
 import { CHIPTUNES, MUSIC_STEPS, musicStep, musicStepDuration } from './music-score.js';
 
 export type AudioChannel = 'music' | 'effects';
+/**
+ * How far ahead of the current frame music steps are handed to the synth. The
+ * frame callback that drives {@link AudioDirector.update} is coarse (a 60 Hz
+ * frame is 16.7 ms, a 30 Hz frame 33.3 ms, the online interval driver 50 ms), so
+ * a step whose deadline falls between two frames must be scheduled by the frame
+ * before it with the delay that places it exactly on its deadline. One lookahead
+ * is shorter than the shortest step of any track, so a frame schedules at most
+ * two steps.
+ */
+export const MUSIC_LOOKAHEAD_MS = 60;
 export interface SynthNote { frequency: number; endFrequency?: number; duration: number; delay?: number; wave: 'square' | 'triangle' | 'sawtooth'; level: number }
 export interface GameSynth {
   unlock(): Promise<boolean>;
@@ -33,7 +43,13 @@ export class AudioDirector {
     return this.unlocked;
   }
   get trackTitle(): string { return CHIPTUNES[this.trackIndex]!.title; }
-  nextTrack(): void { this.trackIndex = (this.trackIndex + 1) % CHIPTUNES.length; this.beat = 0; this.nextBeat = this.now(); }
+  /** A deliberate track change (playlist button, new round) restarts the beat clock at the current time. */
+  nextTrack(): void { this.advanceTrack(true); }
+  /** Rolling over at the end of an arrangement keeps the existing deadline so the tempo does not slip between tracks. */
+  private advanceTrack(restartClock: boolean): void {
+    this.trackIndex = (this.trackIndex + 1) % CHIPTUNES.length; this.beat = 0;
+    if (restartClock) this.nextBeat = this.now();
+  }
   setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); }
   setVolume(channel: AudioChannel, value: number): void {
     this.settings[channel].volume = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
@@ -64,14 +80,28 @@ export class AudioDirector {
     this.seen.add(key); if (this.seen.size > 100) this.seen.delete(this.seen.values().next().value!);
     this.cue(message.event.type === 'bombPlaced' && message.event.gun ? 'cannon' : message.event.type);
   }
+  /**
+   * Frame-driven step scheduler. Deadlines advance from the previous deadline,
+   * never from the frame timestamp that noticed them, so the lateness of a frame
+   * cannot accumulate into a slow tempo; every step is handed to the synth with
+   * the delay that starts it exactly on its deadline instead of at the audio
+   * clock's current time. A frame arriving more than one step late (a hidden tab
+   * or a stalled main thread) resynchronises the clock to the current time
+   * rather than firing a burst of catch-up steps.
+   */
   update(): void {
     if (!this.unlocked || !this.playing) { this.nextBeat = this.now(); return; }
     const now = this.now();
-    if (now < this.nextBeat) return;
-    if (this.beat >= MUSIC_STEPS) this.nextTrack();
-    const track = CHIPTUNES[this.trackIndex]!;
-    this.nextBeat = now + musicStepDuration(track, this.beat); // Never catch up after a slow/background frame.
-    for (const note of musicStep(track, this.beat++)) this.synth.note('music', note);
+    if (now - this.nextBeat > musicStepDuration(CHIPTUNES[this.trackIndex]!, this.beat)) this.nextBeat = now;
+    const horizon = now + MUSIC_LOOKAHEAD_MS;
+    while (this.nextBeat <= horizon) {
+      if (this.beat >= MUSIC_STEPS) this.advanceTrack(false);
+      const track = CHIPTUNES[this.trackIndex]!;
+      const delay = Math.max(0, (this.nextBeat - now) / 1000);
+      this.nextBeat += musicStepDuration(track, this.beat);
+      for (const note of musicStep(track, this.beat)) this.synth.note('music', { ...note, delay });
+      this.beat++;
+    }
   }
   private cue(type: string): void {
     if (!this.unlocked) return;
