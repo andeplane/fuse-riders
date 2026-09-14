@@ -38,3 +38,13 @@ The60second `e473a10` diagnostic run (2026-09-14 01:20:47UTC) retained38attempts
 ##40ms qualification trial: improved, still above target
 
 The02a982f run completed01:27:11UTC with38attempts,18valid,20confounded,0timeouts/errors. [Full evidence](evidence/response-02a982f.json) shows localp95=25.8ms andTVp50=87.8ms/p95=136.6ms. FourTVtrials remaineddelay2 duringqualification (112.9–136.6ms);13alreadyqualifieddelay1trials ranged60.5–114.7ms, including two above100ms; one2→1transition measured90.2ms. Those two qualified tails show continuously advancing rendered ticks, not a frozen buffer. Startup qualification explains the worst cases, but reducing startup alone cannot meet the unchanged target. No trial was excluded to improve the result.
+
+## 25 ms presentation experiment: TV passed; overall run still failed
+
+The f2e6d4e experiment completed at 2026-09-14 01:36:42 UTC. [All frames, clock observations and attempts](evidence/response-f2e6d4e.json) are retained. There were 38 attempts, 18 valid per view, 20 confounded per view, zero timeouts, zero browser errors and no truncated captures.
+
+TV first-departure and one-degree p95 were **91.6 ms**, below the unchanged 100 ms candidate; median was 63.5 ms. Local first-departure p95 was **34.1 ms**, narrowly above the unchanged 33 ms candidate, so the overall artifact correctly remains **FAIL**. Local one-degree p95 was 52.3 ms.
+
+The full TV render stream had 1,203 eligible intervals: 2.99% repeated the previous presented tick, observed hold-span p95 was 48.3 ms and maximum 49.3 ms. Frame interval p95 was 27.5 ms; no eligible gap exceeded 100 ms. These are presentation continuity proxies, not physical scanout or a guarantee of perceived smoothness.
+
+The fair historical comparison uses fixed 200 ms pre-pointer windows, because the earlier artifact did not retain full-run frames. Both versions had zero repeated ticks in those limited windows; TV frame interval p95 was 28.8 ms before and 27.6 ms after. This comparison cannot establish that full-run hold frequency is unchanged. The new full-stream hold results and narrower latency improvement need an explicit product tradeoff review; a TV percentile pass alone is not an overall acceptance pass.
