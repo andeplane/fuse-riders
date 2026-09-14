@@ -39,6 +39,7 @@ export class SocketClient {
 
   connect(): void {
     clearTimeout(this.reconnectTimer);
+    clearInterval(this.heartbeat);
     this.intentionallyClosed = false;
     const previous = this.socket;
     const socket = this.createSocket();
