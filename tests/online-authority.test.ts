@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AuthorityClock, isAuthorityGrant, LEASE_GUARD_MS, reserveAuthority, renewAuthority } from '../src/online/authority.js';
+import { HostSession } from '../src/online/host-session.js';
+import { defaultRoomSettings } from '../src/shared/room-settings.js';
 
 test('replacement reservation fences partitions and rejects delayed old renewals', () => {
   const old = reserveAuthority(undefined, 'room', 'host-a', 'grant-a', 1000);
@@ -63,4 +65,18 @@ test('grant boundary validation rejects malformed values and exhausted epochs', 
   assert.throws(() => reserveAuthority({...grant, epoch:Number.MAX_SAFE_INTEGER}, 'r', 'h', 'g', 1));
   assert.equal(renewAuthority(grant, {...grant, holder:'other'}, 1), undefined);
   assert.equal(renewAuthority(grant, grant, NaN), undefined);
+});
+
+test('players who vanish in the lobby free their seats so a newcomer can join and the host can start', () => {
+  const room = new HostSession('host', defaultRoomSettings(), { token: () => crypto.randomUUID() });
+  for (const id of ['host', 'a', 'b', 'c', 'd']) assert.equal(room.command(id, { type: 'join', name: id }), undefined);
+  assert.match(room.command('e', { type: 'join', name: 'e' })!, /full/);
+  for (const id of ['b', 'c', 'd']) room.disconnect(id);
+  assert.equal(room.game.players.size, 2);
+  assert.equal(room.command('e', { type: 'join', name: 'e' }), undefined);
+  assert.equal(room.command('host', { type: 'action', action: 'start' }), undefined);
+  assert.equal(room.game.phase, 'countdown');
+  assert.deepEqual([...room.game.players.keys()].sort(), ['a', 'e', 'host']);
+  room.disconnect('a');
+  assert.equal(room.game.players.get('a')!.connected, false, 'mid-match drops keep the seat for a reconnect');
 });

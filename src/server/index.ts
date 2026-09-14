@@ -121,9 +121,10 @@ export async function createGameServer(options: ServerOptions = {}) {
     }
     const required = { start: 'lobby', nextRound: 'roundOver', rematch: 'matchOver' };
     if (game.phase !== required[action]) { error(ws, 'invalid_phase'); return; }
-    if (connectedCount() < 2) { error(ws, 'not_enough_players'); return; }
     // resetMatch handles filtering at matchOver; removePlayer supports boundary cleanup.
-    pruneDisconnected(); clearInputs();
+    pruneDisconnected();
+    if (connectedCount() < 2) { error(ws, 'not_enough_players'); return; }
+    clearInputs();
     try {
       if (action === 'start') startMatch(game);
       else if (action === 'nextRound') startNextRound(game);
@@ -187,6 +188,7 @@ export async function createGameServer(options: ServerOptions = {}) {
           if (old) { connections.delete(old); old.close(4001, 'Controller replaced'); }
           neutral(seat, true);
         } else {
+          if (game.players.size >= 5 && game.phase === 'lobby') pruneDisconnected(); // Vanished phones must not hold lobby seats.
           if (game.players.size >= 5) { error(ws, 'full'); return; }
           const slot = COLORS.findIndex((_, i) => ![...game.players.values()].some(s => s.slot === i));
           seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, bombInput: new BombInputBuffer(), leaving: false };

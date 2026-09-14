@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
-import { createGameServer, catchUpSteps, controllerSnapshot } from '../src/server/index.js';
+import { createGameServer, catchUpSteps, controllerSnapshot, type ServerDependencies } from '../src/server/index.js';
 import { eliminatePlayer } from '../src/shared/game.js';
 import type { ClientMessage, MatchPlayerStats, ServerMessage } from '../src/shared/protocol.js';
 
@@ -42,10 +42,10 @@ class Peer {
   async flush() { this.send({ type: 'hostAction', action: 'start' }); await this.take('error', x => x.code === 'unauthorized'); }
 }
 
-async function fixture() {
+async function fixture(dependencies: Partial<ServerDependencies> = {}) {
   let now = 0; let nonce = 0;
   const app = await createGameServer({ port: 0, hostname: '127.0.0.1', lanAddress: '127.0.0.1', manualTicks: true,
-    dependencies: { now: () => now, token: () => (++nonce).toString(16).padStart(48, '0') } });
+    dependencies: { now: () => now, token: () => (++nonce).toString(16).padStart(48, '0'), ...dependencies } });
   const peers: Peer[] = [];
   async function connect() {
     const peer = new Peer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`)); peers.push(peer);
@@ -356,5 +356,23 @@ test('a joined controller can change only its own avatar during play without alt
     const reconnect = await f.connect(); reconnect.send({ type: 'join', name: 'A', playerToken: a.joined.playerToken }); await reconnect.take('joined');
     const state = await reconnect.take('snapshot', s => s.state.players.some(p => p.id === a.joined.playerId));
     assert.equal(state.state.players.find(p => p.id === a.joined.playerId)!.avatarId, 'slime');
+  } finally { await f.close(); }
+});
+
+test('phones that vanish in the lobby free their seats so a newcomer can join and the host can start', async () => {
+  const f = await fixture({ schedule: () => () => {} });
+  try {
+    const host = await f.host();
+    const players = []; for (let i = 0; i < 5; i++) players.push(await f.join(`P${i}`));
+    for (const { peer, joined } of players.slice(2)) {
+      const closed = once(peer.socket, 'close'); peer.socket.terminate(); await closed;
+      await host.take('snapshot', s => s.state.players.some(p => p.id === joined.playerId && !p.connected));
+    }
+    f.elapse(60_001); // fresh per-address join window; the watchdog is a no-op in this fixture
+    const sixth = await f.connect(); sixth.send({ type: 'join', name: 'P6' }); const joined = await sixth.take('joined');
+    assert.equal(f.app.game.players.size, 3);
+    host.send({ type: 'hostAction', action: 'start' });
+    const countdown = await host.take('snapshot', s => s.state.phase === 'countdown');
+    assert.deepEqual(countdown.state.players.map(p => p.id).sort(), [players[0]!.joined.playerId, players[1]!.joined.playerId, joined.playerId].sort());
   } finally { await f.close(); }
 });

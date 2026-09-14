@@ -155,7 +155,12 @@ export class HostSession {
     removePlayer(this.game,id);this.bots.delete(id);this.seats.delete(id);
   }
   acknowledgements():Record<string,number>{return Object.fromEntries([...this.seats].map(([id,seat])=>[id,seat.seq]));}
-  disconnect(id:string):void {if(this.bots.has(id))return;if(this.game.players.has(id))setPlayerConnected(this.game,id,false);const seat=this.seats.get(id);if(seat)this.resetSeat(seat);}
+  disconnect(id:string):void {
+    if(this.bots.has(id))return;
+    // Nothing is in progress in the lobby or after a match, so a vanished player must not keep the seat.
+    if(this.game.phase==='lobby'||this.game.phase==='matchOver'){removePlayer(this.game,id);this.seats.delete(id);return;}
+    if(this.game.players.has(id))setPlayerConnected(this.game,id,false);const seat=this.seats.get(id);if(seat)this.resetSeat(seat);
+  }
   clear():void {for(const seat of this.seats.values())this.resetSeat(seat);}
   checkpoint():string {
     return encodeCheckpoint(this.hostId,this.game,this.settings,[...this.seats].filter(([id])=>this.game.players.has(id)).map(([id,seat])=>[id,seat.seq] as const),this.bots);
