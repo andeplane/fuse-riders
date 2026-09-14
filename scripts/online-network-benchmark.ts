@@ -13,15 +13,27 @@ const profiles:Profile[]=[
 interface PacketTrace { at:number; edge:number; type?:string; generation?:number; seq?:number; base?:number; tick?:number; bytes:number; outcome:string; finishedAt?:number; queueBytes:number }
 interface Injection {
   attempted:number; delivered:number; dropped:number; expired:number; reordered:number; bytes:number; queueBytes:number; maxQueueBytes:number; relayAttempts:number; blockedUntil:number; outageStartedAt:number;
-  windows:Record<string,number>; active:boolean; frameMs:number[]; events:unknown[]; eventsTruncated:number; packets:PacketTrace[]; packetsTruncated:number;
+  windows:Record<string,number>; active:boolean; frameMs:number[]; events:unknown[]; eventsTruncated:number; snapshotCount:number; snapshotRegressions:number; packets:PacketTrace[]; packetsTruncated:number;
 }
 declare global { interface Window { __networkBench: Injection } }
 /** Application-message impairment before the real SCTP send, deliberately NOT IP shaping. */
 function installImpairment({profile,seed,host,renderView}:{profile:Profile;seed:number;host:boolean;renderView:boolean}) {
   if(!renderView){const hide=()=>{for(const canvas of document.querySelectorAll('canvas'))if(!canvas.hidden)canvas.hidden=true;};new MutationObserver(hide).observe(document,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});hide();}
-  const state:Injection={attempted:0,delivered:0,dropped:0,expired:0,reordered:0,bytes:0,queueBytes:0,maxQueueBytes:0,relayAttempts:0,blockedUntil:0,outageStartedAt:0,windows:{},active:false,frameMs:[],events:[],eventsTruncated:0,packets:[],packetsTruncated:0};
+  const state:Injection={attempted:0,delivered:0,dropped:0,expired:0,reordered:0,bytes:0,queueBytes:0,maxQueueBytes:0,relayAttempts:0,blockedUntil:0,outageStartedAt:0,windows:{},active:false,frameMs:[],events:[],eventsTruncated:0,snapshotCount:0,snapshotRegressions:0,packets:[],packetsTruncated:0};
   Object.assign(window,{__networkBench:state});
-  window.addEventListener('fuse-benchmark',event=>{if(!state.active)return;const detail=(event as CustomEvent<unknown>).detail;if(state.events.length>=20000){state.eventsTruncated++;return;}state.events.push(detail);});
+  const acceptedTicks=new Map<string,number>();
+  window.addEventListener('fuse-benchmark',event=>{
+    if(!state.active)return;const detail=(event as CustomEvent<unknown>).detail;
+    if(detail&&typeof detail==='object'&&'kind' in detail&&detail.kind==='snapshot'&&'authorityScope' in detail&&typeof detail.authorityScope==='string'&&'tick' in detail&&typeof detail.tick==='number'){
+      state.snapshotCount++;const previous=acceptedTicks.get(detail.authorityScope);
+      if(previous!==undefined&&detail.tick<previous)state.snapshotRegressions++;
+      acceptedTicks.set(detail.authorityScope,detail.tick);
+      if(acceptedTicks.size>256)acceptedTicks.delete(acceptedTicks.keys().next().value!);
+    }
+    // Preserve recent accepted snapshots for end-of-soak freshness; counters cover the whole run.
+    if(state.events.length>=20000){state.events.splice(0,1000);state.eventsTruncated+=1000;}
+    state.events.push(detail);
+  });
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
   let bandwidthAt=0,nextEdge=0;const edges=new WeakMap<RTCDataChannel,number>();
   const original=RTCDataChannel.prototype.send;
@@ -112,9 +124,15 @@ try {
       await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();await host.getByLabel('Match length').fill('20');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
       await Promise.all(pages.map(page=>page.evaluate(()=>{const state=window.__networkBench;state.active=true;})));
       await host.getByRole('button',{name:'START RACE',exact:true}).click();console.log(`${profile.name}: six contexts ready, impairment active`);
-      const started=Date.now();let outage=false;
+      const started=Date.now();let outage=false;let matchRestarts=0;
       while(Date.now()-started<duration*1000){
         const elapsed=Date.now()-started;
+        if((await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){
+          await Promise.all(pages.map(async page=>{await page.mouse.up();await page.keyboard.press('Escape');}));
+          await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();
+          await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();
+          await host.getByRole('button',{name:'START RACE',exact:true}).click();matchRestarts++;
+        }
         if(profile.outageMs&&!outage&&elapsed>duration*500){outage=true;await pages[1]!.evaluate(ms=>{const state=window.__networkBench;state.outageStartedAt=performance.now();state.blockedUntil=state.outageStartedAt+ms;},profile.outageMs);}
         // Real pointer changes on all five controllers. These are workload, not an AI survival guarantee.
         await Promise.all(pages.slice(0,5).map(async(page,i)=>{
@@ -126,7 +144,7 @@ try {
         samples.push({elapsed,peers});await delay(340);
       }
       const injection=await Promise.all(pages.map(page=>page.evaluate(()=>window.__networkBench)));
-      result={...result,injection,frameDistributions:injection.map(s=>quantiles(s.frameMs)),errors};results[results.length-1]=result;
+      result={...result,matchRestarts,injection,frameDistributions:injection.map(s=>quantiles(s.frameMs)),errors};results[results.length-1]=result;
       assert.equal(errors.length,0,'Browser error');assert.ok(injection.slice(0,5).every(s=>s.attempted>0),'Every controller must exercise RTC');assert.ok(injection.every(s=>s.relayAttempts===0),'Gameplay WSS relay attempted');assert.ok(injection.every(s=>s.maxQueueBytes<=256*1024),'Injection queue exceeded bound');
       const finalObservations=await Promise.all(pages.map(page=>page.evaluate(()=>({now:performance.now(),events:window.__networkBench.events,outageStartedAt:window.__networkBench.outageStartedAt,outageEndedAt:window.__networkBench.blockedUntil}))));
       const freshness=finalObservations.map(observation=>{
@@ -139,15 +157,15 @@ try {
       if(profile.outageMs){assert.ok(freshness[1]!.firstPostOutageAt!==undefined,'Affected guest must accept a world snapshot after connectivity returns');assert.ok(freshness[1]!.progressedSinceOutage,'Affected guest accepted world must progress beyond pre-outage tick or scope');assert.ok(freshness[1]!.firstPostOutageDelayMs!==null&&freshness[1]!.firstPostOutageDelayMs<=2000,'Affected guest must accept a world snapshot within two seconds after connectivity returns');}
       const finalMetrics=await Promise.all(pages.map(page=>page.evaluate(()=>JSON.parse(document.querySelector<HTMLElement>('#app')?.dataset.metrics??'{}') as {direct?:number})));
       result.finalMetrics=finalMetrics;assert.ok(finalMetrics.slice(1).every(m=>(m.direct??0)>=1),'Every guest and TV must regain a healthy direct link by end of run');
-      result.applicationDiagnostics=injection.map(s=>({...inspectApplicationEvents(s.events),truncated:s.eventsTruncated}));
+      result.applicationDiagnostics=injection.map(s=>({...inspectApplicationEvents(s.events),totalSnapshots:s.snapshotCount,totalAcceptedTickRegressions:s.snapshotRegressions,truncated:s.eventsTruncated}));
       assert.ok(injection.every(s=>inspectApplicationEvents(s.events).snapshots>0),'Hook-enabled build required: no accepted snapshot diagnostics');
-      assert.ok(injection.every(s=>inspectApplicationEvents(s.events).acceptedTickRegressions===0),'Accepted snapshot tick regressed within scope');
+      assert.ok(injection.every(s=>s.snapshotRegressions===0),'Accepted snapshot tick regressed within scope');
       result.passed=true;
     }catch(error){result.failure=error instanceof Error?error.message:String(error);throw error;}
     finally{await Promise.all(contexts.map(context=>context.close()));}
   }
 }catch(error){failed=error;}finally{await browser.close();}
 await mkdir('artifacts',{recursive:true});
-const report={date:new Date().toISOString(),revision:sourceRevision,renderMode:process.env.BENCH_RENDER_SINGLE==='1'?'only-guest-1-canvas; other five hidden via MutationObserver, all RTC and simulation remain active':'six-visible-canvases',entryAssets,durationSeconds:duration,method:'Six isolated Chromium contexts: five human-controller workloads plus display; real RTC with seeded application-message send impairment. Not OS wire shaping, packet-loss emulation, physical devices, or certification. Setup is unimpaired. Reliable ordered SCTP messages are deliberately dropped/reordered BEFORE SCTP, exercising application boundaries rather than reproducing TCP/SCTP loss recovery.',limits:['Frame samples are headless desktop animation frames, not phone GPU acceptance.','JSON payload bytes exclude SCTP/DTLS/IP overhead.','UI ack/correction values are sampled latest values, not event distributions.','Accepted snapshot diagnostics check monotonic tick per authority scope; shot identities and host action application are not exposed, so no claim of zero duplicate shots or complete outcome consistency.','Controls may die before the run ends; this is not yet a sustained five-active-rider soak.','Single-render mode is diagnostic isolation only and does not replace six-view or physical-device acceptance.'],results};
+const report={date:new Date().toISOString(),revision:sourceRevision,renderMode:process.env.BENCH_RENDER_SINGLE==='1'?'only-guest-1-canvas; other five hidden via MutationObserver, all RTC and simulation remain active':'six-visible-canvases',entryAssets,durationSeconds:duration,method:'Six isolated Chromium contexts: five human-controller workloads plus display; real RTC with seeded application-message send impairment. Not OS wire shaping, packet-loss emulation, physical devices, or certification. Setup is unimpaired. Reliable ordered SCTP messages are deliberately dropped/reordered BEFORE SCTP, exercising application boundaries rather than reproducing TCP/SCTP loss recovery.',limits:['Frame samples are headless desktop animation frames, not phone GPU acceptance.','JSON payload bytes exclude SCTP/DTLS/IP overhead.','UI ack/correction values are sampled latest values, not event distributions.','Accepted snapshot diagnostics check monotonic tick per authority scope; shot identities and host action application are not exposed, so no claim of zero duplicate shots or complete outcome consistency.','Eliminated riders wait for the next round; completed matches are restarted through host UI. This is not continuous five-alive gameplay. Raw events retain the latest20k in chunks; whole-run tick-regression counters retain at most256 scopes.','Single-render mode is diagnostic isolation only and does not replace six-view or physical-device acceptance.'],results};
 await writeFile('artifacts/online-network-benchmark.json',JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify({report:'artifacts/online-network-benchmark.json',profiles:results.length,passed:!failed}));if(failed)throw failed;
