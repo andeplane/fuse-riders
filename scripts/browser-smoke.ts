@@ -235,13 +235,26 @@ try {
   app.game.pickups.push({ id: 9_007, type: 'portal', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_007), false, 'portal pickup consumed authoritatively');
   assert.ok(app.game.portalPair, 'portal pickup opens an authoritative gate pair');
+  // Placement was exercised above. Isolate transit from the random board left by
+  // earlier weapons: a valid pair can correctly refuse an obstructed linked exit.
+  app.game.bombs.clear(); app.game.blasts = [];
+  for (const player of app.game.players.values()) {
+    player.trail = [];
+    if (player !== poweredRider) { player.x = app.game.width / 2; player.y = 80 + player.slot * 35; player.angle = 0; }
+  }
+  app.game.portalPair!.gates = [
+    { x: app.game.width * .3, y: app.game.height / 2, halfLength: 100 },
+    { x: app.game.width * .7, y: app.game.height / 2, halfLength: 100 },
+  ];
   const entryGate = app.game.portalPair!.gates[0];
-  const entrySide = entryGate.x < app.game.width / 2 ? 1 : -1;
-  poweredRider.x = entryGate.x + entrySide * 15;
-  poweredRider.y = entryGate.y;
-  poweredRider.angle = entrySide > 0 ? Math.PI : 0; poweredRider.trail = [];
-  app.advance(2); await phones[0].getByText(/PORTAL · PHASE [0-9.]+s/).waitFor();
+  poweredRider.x = entryGate.x + 15; poweredRider.y = entryGate.y;
+  poweredRider.angle = Math.PI; poweredRider.portalCooldownUntilTick = 0; poweredRider.portalGraceUntilTick = 0;
+  assert.equal(poweredRider.alive, true, 'transit fixture rider remains alive');
+  app.advance(2);
   assert.ok(poweredRider.portalCooldownUntilTick > app.game.tick, 'gate transit starts authoritative cooldown');
+  assert.ok(poweredRider.portalGraceUntilTick > app.game.tick, 'gate transit starts authoritative phase grace');
+  assert.ok(poweredRider.x > app.game.width / 2, 'rider arrives at linked gate');
+  await phones[0].getByText(/PORTAL · PHASE [0-9.]+s/).waitFor();
   for (const phone of phones) {
     const overflow = await phone.evaluate(() => ({ x: document.documentElement.scrollWidth > innerWidth, y: document.documentElement.scrollHeight > innerHeight }));
     assert.equal(overflow.x, false, 'power-up phone has no horizontal overflow'); assert.equal(overflow.y, false, 'power-up phone has no vertical overflow');
