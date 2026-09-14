@@ -1,0 +1,56 @@
+{
+  "identity": {
+    "assetPath": "/assets/index-B3XO3Sox.js",
+    "assetSha256": "120cd45604b447abe847f514ed910a02f35c845ebc7cb619a0e34483d4daad58",
+    "revision": "1d58300e34dd231514519497b2ac689d2f1d92b0",
+    "htmlSha256": "4ab97a669e37c40d200f70b4a91c151baa469159863103f5504419e7b7eee47f",
+    "date": "2026-09-14T06:55:16.738Z",
+    "base": "http://127.0.0.1:4188/"
+  },
+  "results": [
+    {
+      "browser": "chrome",
+      "passed": true,
+      "steering": [
+        {
+          "key": "ArrowLeft",
+          "fromTick": 60,
+          "toTick": 63,
+          "delta": -0.41999999999999843
+        },
+        {
+          "key": "ArrowRight",
+          "fromTick": 63,
+          "toTick": 66,
+          "delta": 0.28000000000000114
+        }
+      ],
+      "spaceChargeRelease": true,
+      "modalCancelWithoutShot": true,
+      "editableKeys": true,
+      "errors": []
+    },
+    {
+      "browser": "webkit",
+      "passed": true,
+      "steering": [
+        {
+          "key": "ArrowLeft",
+          "fromTick": 60,
+          "toTick": 63,
+          "delta": -0.41999999999999843
+        },
+        {
+          "key": "ArrowRight",
+          "fromTick": 63,
+          "toTick": 66,
+          "delta": 0.4200000000000011
+        }
+      ],
+      "spaceChargeRelease": true,
+      "modalCancelWithoutShot": true,
+      "editableKeys": true,
+      "errors": []
+    }
+  ]
+}
