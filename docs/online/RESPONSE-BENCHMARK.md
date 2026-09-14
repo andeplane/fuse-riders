@@ -24,3 +24,7 @@ Completed 2026-09-14 01:03:48 UTC against local fixture8794, source `d715642ebd4
 | TV |17|21|0|115.3 /162.5ms|174.6ms|FAIL ≤100ms |
 
 All38attempts remain in the artifact. Rejections were confounded or already-turning baselines, principally normal round/death lifecycle. The TV result is a real measured response gap under the candidate nearby threshold, not a physical-phone measurement. Current10Hz publication plus the two-tick remote interpolation buffer is a plausible mechanism; a rate/buffer adjustment needs an independent review and new response/bandwidth evidence. This run changed no networking or simulation behavior.
+
+## Reviewed20Hz / qualified-buffer trial: target still failed
+
+The first ADR037 implementation `e1dcc6f` was measured with the same60second workload and every startup/round trial retained. [Complete raw evidence](evidence/response-e1dcc6f.json) contains38attempts,18validperview,20confounded/rejectedperview,0timeouts and0browsererrors. Local first-departure p95was29.9ms; TVp50was117.5ms andp95was159.1ms, still above100ms. Secondaryone-degreep95was54.4mslocal and159.1msTV. This is insufficient improvement; the target remains failed. The response artifact does not record the qualifying clock samples, so it cannot establish whether the nearby-delay policy activated for individual attempts. Further diagnostics must resolve that before further tuning.
