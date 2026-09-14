@@ -45,3 +45,23 @@ npx tsx scripts/phaser-showcase.ts
 The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot with a deterministic showcase state injected by `scripts/phaser-showcase.ts`, not an image-generated mockup or evidence of a natural online match. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
 
 Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authority and release acceptance remain governed by the online ADRs and roadmap; this rendering work does not close those gates.
+
+## Mobile-sized viewport evidence
+
+The same synthetic workload was subsequently measured sequentially in Chrome and WebKit at **390×844 viewport, DPR 2**, low quality with a 160-particle cap, for 30 seconds per renderer. The fitted board measured **390×219.375 CSS pixels**, while its actual backing remained **1600×900**, matching the current production renderer. DPR does not silently reduce or double that backing. Raw reports include actual dimensions, source revisions/hashes and every timing sample: [Chrome](performance/phaser-mobile-chrome.json), [WebKit](performance/phaser-mobile-webkit.json).
+
+| Browser / renderer | Frame p95 / p99 / max | Render CPU p95 | Max scene objects / particles |
+| --- | --- | --- | --- |
+| Chrome / Canvas | 16.7 / 16.8 / 16.8 ms | 0.6 ms | Not instrumented |
+| Chrome / Phaser | 16.7 / 16.8 / 16.8 ms | 4.9 ms | 83 / 159 |
+| WebKit / Canvas | 18 / 19 / 20 ms | 1 ms | Not instrumented |
+| WebKit / Phaser | 18 / 19 / 22 ms | 5 ms | 79 / 158 |
+
+Each mode retained 1,741 post-warmup frames. Both browser runs had zero page errors, no independent Phaser RAF loop, and active particles below the mobile cap. This is desktop browser viewport/DPR emulation on the same M4 Max machine, **not physical-phone GPU, thermals, touch or battery evidence**. Phaser costs more CPU than Canvas here too.
+
+```sh
+VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
+BROWSER=webkit VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
+```
+
+The default desktop workload remains unchanged. `QUALITY` defaults to low below 701 viewport pixels; explicit low/high values let measurements reproduce the selected budget. Backing size is observed and asserted, not rescaled into a different game world.
