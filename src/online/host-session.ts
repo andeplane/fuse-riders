@@ -125,7 +125,10 @@ export class HostSession {
     for(const [id,seat] of this.seats){
       if(this.bots.has(id)){inputs.set(id,this.botController.input(this.game,id));continue;}
       this.pruneResults(seat);
-      const eligible=[...seat.pending.values()].filter(command=>command.intendedTick<=nextTick).sort((a,b)=>a.seq-b.seq);
+      // Sequence order dominates intended tick: a fire edge stamped from a stale clock estimate must not be skipped by a
+      // later hold sample whose fresher estimate named an earlier tick (#43).
+      const queued=[...seat.pending.values()].sort((a,b)=>a.seq-b.seq),latest=queued.filter(command=>command.intendedTick<=nextTick).at(-1)?.seq;
+      const eligible=latest===undefined?[]:queued.filter(command=>command.seq<=latest);
       const newest=eligible.filter(command=>command.seq>seat.appliedSeq&&command.intendedTick>=this.game.tick-4).at(-1);
       for(const command of eligible){
         seat.pending.delete(command.seq);seat.processedSeq=Math.max(seat.processedSeq,command.seq);

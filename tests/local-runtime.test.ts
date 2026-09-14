@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { LocalRuntime,type LocalRuntimeDependencies } from '../src/online/local-runtime.js';
 import type { Callbacks } from '../src/online/runtime.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
+import { PredictionClock } from '../src/online/prediction-clock.js';
 
 function fixture(){
   let now=0,hidden=false,nextToken=0,timer:(()=>void)|undefined,visibility:(()=>void)|undefined,cancelled=0;
@@ -10,7 +11,7 @@ function fixture(){
   const dependencies:LocalRuntimeDependencies={now:()=>now,hidden:()=>hidden,token:()=>`local-${++nextToken}`,humanName:'Player',schedule:callback=>{timer=callback;return()=>{timer=undefined;cancelled++;};},onVisibilityChange:callback=>{visibility=callback;return()=>{visibility=undefined;cancelled++;};}};
   const settings={...defaultRoomSettings(),mode:'shared' as const};
   const runtime=new LocalRuntime(settings,{state:(...args)=>states.push(args),clock:sample=>clocks.push(sample),ready:id=>ready.push(id),status:s=>statuses.push(s),event:()=>{}},dependencies);
-  return{runtime,settings,states,clocks,ready,statuses,step:(ms=50)=>{now+=ms;timer?.();},hide:(value:boolean)=>{hidden=value;visibility?.();},jump:(value:number)=>{now=value;timer?.();},cancelled:()=>cancelled,staleTimer:()=>timer};
+  return{runtime,settings,states,clocks,ready,statuses,step:(ms=50)=>{now+=ms;timer?.();},hide:(value:boolean)=>{hidden=value;visibility?.();},jump:(value:number)=>{now=value;timer?.();},idle:(ms:number)=>{now+=ms;},now:()=>now,cancelled:()=>cancelled,staleTimer:()=>timer};
 }
 test('solo starts one human and four AI without browser services, ready only on start',async()=>{
   const f=fixture();assert.deepEqual(f.ready,[]);assert.equal(f.runtime.command({type:'action',action:'start'}),false);
@@ -47,4 +48,29 @@ test('lobby settings and rematch use ordinary commands, stop disposes callbacks'
   assert.equal(f.runtime.command({type:'action',action:'rematch'}),false); // Same phase rule as online.
   const stale=f.staleTimer()!,count=f.states.length;f.runtime.stop();f.runtime.stop();assert.equal(f.cancelled(),2);stale();f.step();assert.equal(f.states.length,count);
   assert.equal(f.runtime.command({type:'action',action:'start'}),false);
+});
+test('fire edges stamped from a stalled wall-clock estimate are admitted for the next authority tick (#43)',()=>{
+  const f=fixture();f.runtime.start();for(let i=0;i<70;i++)f.step();
+  const clock=new PredictionClock(f.now);assert.equal(clock.observe(f.clocks.at(-1)!),true);
+  const state=f.states.at(-1)!,tick=state[0].tick,scope=state[4]!.scope,before=state[0].players.find(p=>p.id==='solo')!.bombReadyAtTick;
+  f.idle(300); // Main thread stalled: the 10 ms timer has not fired, the wall clock ran on.
+  const press=Math.floor(clock.estimate(scope)!.tick)+1;assert.ok(press>tick+4,`extrapolated ${press} is outside the +4 window of ${tick}`);
+  assert.equal(f.runtime.command({type:'input',scope,intendedTick:press,seq:0,left:true,right:false,bomb:true,bombAction:'press'}),true);
+  f.step(); // Catch-up is clamped to 100 ms: two ticks, not the seven the estimate assumed.
+  const charged=f.states.at(-1)!;assert.equal(charged[0].tick,tick+2);assert.equal(charged[4]!.appliedTick,tick+1);assert.deepEqual(charged[4]!.held,{left:true,right:false});
+  assert.notEqual(charged[0].players.find(p=>p.id==='solo')!.bombChargeStartedTick,undefined);
+  assert.equal(clock.observe(f.clocks.at(-1)!),true);f.idle(280);
+  const release=Math.floor(clock.estimate(scope)!.tick)+1;assert.ok(release>charged[0].tick+4);
+  assert.equal(f.runtime.command({type:'input',scope,intendedTick:release,seq:1,left:false,right:false,bomb:false,bombAction:'release'}),true);
+  f.step();const fired=f.states.at(-1)![0].players.find(p=>p.id==='solo')!;
+  assert.equal(fired.bombChargeStartedTick,undefined);assert.ok(fired.bombReadyAtTick>before,'release must launch the charged bomb');
+  assert.deepEqual(f.statuses.filter(s=>/resync/.test(s)),[]);f.runtime.stop();
+});
+test('a hold resend that estimated an earlier tick cannot skip the solo press (#43)',()=>{
+  const f=fixture();f.runtime.start();for(let i=0;i<70;i++)f.step();
+  const state=f.states.at(-1)!,tick=state[0].tick,scope=state[4]!.scope;
+  assert.equal(f.runtime.command({type:'input',scope,intendedTick:tick+4,seq:0,left:false,right:false,bomb:true,bombAction:'press'}),true);
+  assert.equal(f.runtime.command({type:'input',scope,intendedTick:tick+1,seq:1,left:false,right:false,bomb:true}),true);
+  f.step();assert.notEqual(f.states.at(-1)![0].players.find(p=>p.id==='solo')!.bombChargeStartedTick,undefined);
+  assert.deepEqual(f.states.at(-1)![4]!.results.map(r=>[r.seq,r.status]),[[0,'superseded'],[1,'applied']]);f.runtime.stop();
 });
