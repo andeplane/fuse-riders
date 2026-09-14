@@ -29,7 +29,7 @@ try{
   console.log('Guest refresh confirmed');await host.reload();
   await host.locator('.online-roster').getByText('Guest',{exact:false}).waitFor();console.log('Guest roster confirmed');
   await host.getByRole('button',{name:'START RACE',exact:true}).waitFor({state:'visible'});
-  await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();await host.locator('dialog select').first().selectOption('shared');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
+  await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();await host.getByRole('radio',{name:'Shared TV + phone controls',exact:true}).check();await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
   await guest.locator('.online-arena').waitFor({state:'hidden'});
   const displayContext=await browser.newContext();displayContext.setDefaultTimeout(30000);const display=await displayContext.newPage();await display.goto(url+'&display=1');await display.locator('.online-roster').getByText('Host',{exact:false}).waitFor();
   assert.equal(await display.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);await display.locator('.shared-lobby').waitFor({state:'visible'});await display.waitForFunction(()=>{const image=document.querySelector<HTMLImageElement>('.shared-lobby img');return image?.complete&&image.naturalWidth>0;});
