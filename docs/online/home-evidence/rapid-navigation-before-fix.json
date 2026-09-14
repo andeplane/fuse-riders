@@ -1,0 +1,599 @@
+[
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-blast.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-blast.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-blast.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-blast.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-blast.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-blast.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-gun.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-gun.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-gun.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-shell.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-shell.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-shell.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-stopwatch.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-stopwatch.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-stopwatch.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-star.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-star.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-star.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-orbitShield.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-orbitShield.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-orbitShield.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-ink.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-ink.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-ink.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-ink.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-ink.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-ink.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/bomb.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/bomb.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/bomb.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/rider.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/rider.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/rider.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-star.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-star.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-star.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-target.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-target.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-target.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/bomb.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/bomb.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/bomb.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-beer.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-beer.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-beer.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-target.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-target.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-target.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-stopwatch.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-stopwatch.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-stopwatch.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-orbitShield.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-orbitShield.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-orbitShield.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-shell.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-shell.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-shell.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-beer.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-beer.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-beer.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-triple.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-triple.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-triple.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-gun.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-gun.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-gun.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-portal.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-portal.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-portal.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-five.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-five.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-five.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/rider.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/rider.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/rider.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-triple.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-triple.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-triple.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-five.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-five.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-five.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-portal.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-portal.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-portal.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-blast.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-blast.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-blast.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-blast.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-gun.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-gun.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-shell.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-shell.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-stopwatch.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-stopwatch.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-star.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-star.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-orbitShield.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-orbitShield.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-ink.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-ink.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-ink.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-ink.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/bomb.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/bomb.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/rider.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/rider.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-star.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-star.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-target.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-target.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/bomb.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/bomb.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-beer.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-beer.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-target.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-target.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-stopwatch.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-stopwatch.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-orbitShield.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-orbitShield.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-shell.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-shell.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-beer.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-beer.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-triple.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-triple.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-gun.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-gun.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-portal.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-portal.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/pickup-five.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/pickup-five.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/neon-pixel/rider.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/neon-pixel/rider.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-triple.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-triple.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-five.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-five.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "error",
+    "phase": "rapid-solo-click",
+    "message": "/127.0.0.1:4188/themes/clean-neon/pickup-portal.svg due to access control checks.",
+    "stack": "XMLHttpRequest cannot load http://127.0.0.1:4188/themes/clean-neon/pickup-portal.svg due to access control checks.\n    at c (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:111051)\n    at load (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98286)\n    at onError (http://127.0.0.1:4188/assets/arena-BaAkoI21.js:18:98892)"
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-reload",
+    "type": "script",
+    "path": "/assets/arena-BaAkoI21.js",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  }
+]

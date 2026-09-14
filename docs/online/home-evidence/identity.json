@@ -1,0 +1,18 @@
+{
+  "fixture": "http://127.0.0.1:4188/",
+  "implementationCommit": "4ff9427",
+  "sourceSha256": {
+    "src/client/phaser/arena.ts": "bd13cea07c7bf78942ce3239c15298b20af4625cf39ab18440bc515dc64d863a",
+    "scripts/home-mobile-smoke.ts": "ec6e537e0e5858e1068f579f4e2755e97fb9c7701807a2d3faaa91bcf80d5dfe",
+    "src/online/ui.ts": "0e5b34edb31fc709b41bb920b209a9937af38126bf6a95bfd088101907ccd8ed",
+    "src/online/online.css": "f267f4c0a4e1ede99bc8cae8c9406c14ceec818d8ea330dbef27dcf3a0a4cd33",
+    "src/online/attract.ts": "b999476d4f9d610b2711eb2dc85783e94e95e671ab171944cbe5b93b11254fed",
+    "src/online/local-runtime.ts": "59a30082b26d9e6312ee5fed81594ba7e9ece729533307544e97b611da2bf7c1"
+  },
+  "servedEntryAssets": [
+    {
+      "path": "/assets/index-DGaS0WoU.js",
+      "sha256": "946b5f74835f626736006739d1a10e446fbc13e642c97ab4fd9f3cee69110b0e"
+    }
+  ]
+}
