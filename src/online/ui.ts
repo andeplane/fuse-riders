@@ -72,6 +72,8 @@ export async function startOnline():Promise<void>{
   const benchmark=url.searchParams.get('benchmark')==='1'||responseBenchmark;let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
   const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
   const displayOnly=!solo&&url.searchParams.has('display');
+  // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
+  let roomEnded=false;
   const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…'),audioButton=node('button','♫ AUDIO'),menu=node('button','MENU');
   title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);header.append(title,status,audioButton,menu);
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
@@ -101,10 +103,12 @@ export async function startOnline():Promise<void>{
   const callbacks:Callbacks={
     ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
     shotFailed:()=>{shotFailure.show();updateShotNotice();},
-    status:text=>{status.textContent=text;},
+    status:text=>{status.textContent=text;if(roomEnded)notice.textContent=text;},
+    ended:()=>{roomEnded=true;clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     clock:clockSample=>{const accepted=prediction.observeClock(clockSample);if(responseBenchmark)sample({kind:'response-clock',epochAt:performance.timeOrigin+performance.now(),accepted,sample:clockSample,diagnostics:prediction.clock.diagnostics()});},
     state:(state,rules,ack,matchId,motion)=>{
+      if(roomEnded)return;
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
       snapshot=state;const nextRenderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;if(nextRenderScope!==renderScope)prediction.resetExternalScope();renderScope=nextRenderScope;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack,motion,renderScope);
       worldBuffer.push(state,renderScope);
@@ -154,11 +158,11 @@ export async function startOnline():Promise<void>{
     showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>dialog.close());
     dialog.showModal();
   };
-  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);const sent=scheduled?runtime.command({...message,...scheduled}):false;if(scheduled&&!sent)prediction.discard(message.seq);if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,scheduled:Boolean(scheduled),intendedTick:scheduled?.intendedTick,sent,estimate:prediction.clock.estimate(),...prediction.diagnostics()});if(!scheduled&&isShotTransition(message)){shotFailure.show();updateShotNotice();}return sent;}});
+  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);const sent=scheduled?runtime.command({...message,...scheduled}):false;if(scheduled&&!sent)prediction.discard(message.seq);if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,scheduled:Boolean(scheduled),intendedTick:scheduled?.intendedTick,sent,estimate:prediction.clock.estimate(),...prediction.diagnostics()});if(!scheduled&&isShotTransition(message)){shotFailure.show();updateShotNotice();}return sent;}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
-  const keyboard=new ControllerKeyboardBindings(inputState,()=>joined&&!mobileLayout.blocked()&&!dialog.open&&!document.hidden&&!leftButton.disabled&&!Boolean(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')),()=>{for(const [button,control] of [[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']] as const)button.classList.toggle('active',inputState.isHeld(control));});
+  const keyboard=new ControllerKeyboardBindings(inputState,()=>joined&&!roomEnded&&!mobileLayout.blocked()&&!dialog.open&&!document.hidden&&!leftButton.disabled&&!Boolean(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')),()=>{for(const [button,control] of [[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']] as const)button.classList.toggle('active',inputState.isHeld(control));});
   window.addEventListener('keydown',event=>keyboard.down(event));
   window.addEventListener('keyup',event=>keyboard.up(event));
   const clearControls=()=>{keyboard.clear();bindings.clear(true,true);};
@@ -169,7 +173,7 @@ export async function startOnline():Promise<void>{
   document.addEventListener('focusin',()=>{if(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))keyboard.clear();});
   new MutationObserver(()=>{if(dialog.open)clearControls();}).observe(dialog,{attributes:true,attributeFilter:['open']});
   window.addEventListener('pagehide',clearControls);
-  setInterval(()=>{if(joined)inputState.resend();audio.director.update();updateShotNotice();},50);
+  setInterval(()=>{if(joined&&!roomEnded)inputState.resend();audio.director.update();updateShotNotice();},50);
   runtime.start();
   setInterval(()=>{void runtime.transport.stats().then(connection=>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;

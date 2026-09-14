@@ -14,7 +14,7 @@ import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { RoomSettings } from '../shared/room-settings.js';
 import type { GameEvent } from '../shared/protocol.js';
 interface WorldEnvelope {type:'world';frame:WorldFrame;settings:RoomSettings;ack:Record<string,number>;paused:boolean;motion?:AppliedMotionState}
-export interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void }
+export interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void;ended?:()=>void }
 export class RoomRuntime {
   private session?:HostSession;
   private peers=new Set<string>();
@@ -53,7 +53,7 @@ export class RoomRuntime {
         else{this.peers.delete(id);this.encoders.delete(id);this.keyframes.delete(id);this.session?.disconnect(id);}
       },
       message:(id,data)=>this.receive(id,data),status:callbacks.status,
-      ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();},
+      ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.callbacks.ended?.();},
       revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.callbacks.status('This host tab was replaced — use the newer tab');},
       authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.session?.clear();this.accumulator=0;},
     });
