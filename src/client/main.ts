@@ -1,6 +1,5 @@
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
-import { assetUrl } from './asset-url.js';
 import { drawBombTargets } from './target-renderer.js';
 import { createAvatarPicker, createAvatarPortrait, drawAvatarHead } from './avatar-heads.js';
 import { drawInkClouds } from './ink-renderer.js';
@@ -394,40 +393,28 @@ function startDisplay(): void {
   const lobbyCopy = element('div', 'lobby-copy');
   lobbyCopy.append(element('p', 'kicker', 'PHONE PARTY // 2–5 RIDERS'), element('h1', '', 'Scan. Steer. Survive.'), element('p', 'lede', 'Open the controller, pick a name, then use your phone to carve neon trails and trigger chain reactions.'));
   const pickupLegend = element('div', 'pickup-legend');
-  const blastLegendImage = element('img'); blastLegendImage.alt = '';
-  const starLegendImage = element('img'); starLegendImage.alt = '';
-  const inkLegendImage = element('img'); inkLegendImage.alt = '';
-  const beerLegendImage = element('img'); beerLegendImage.alt = '';
-  const tripleLegendImage = element('img'); tripleLegendImage.alt = '';
-  const targetLegendImage = element('img'); targetLegendImage.alt = '';
-  const fiveLegendImage = element('img'); fiveLegendImage.alt = '';
-  const shieldLegendImage = element('img'); shieldLegendImage.alt = '';
-  const portalLegendImage = element('img'); portalLegendImage.alt = '';
   // Every pickup legend src is routed through legendSrc() (which wraps assetUrl()) so it keeps
   // working once the display page is served under a base path; applyLegendTheme() is the single
-  // place that sets these nine srcs, called both here and from the theme <select> change handler.
+  // place that sets every one of these srcs, called both here and from the theme <select> change
+  // handler. A new legend icon only needs its sprite name in this list to be themed with the rest.
+  const legendSprites = ['blast', 'ink', 'beer', 'triple', 'target', 'five', 'orbitShield', 'portal', 'shell', 'gun', 'stopwatch'] as const;
+  const legendImages = Object.fromEntries(legendSprites.map(name => {
+    const image = element('img'); image.alt = ''; return [name, image];
+  })) as Record<(typeof legendSprites)[number], HTMLImageElement>;
   function applyLegendTheme(id: ThemeId): void {
-    blastLegendImage.src = legendSrc(id, 'pickup-blast');
-    starLegendImage.src = legendSrc(id, 'pickup-star');
-    inkLegendImage.src = legendSrc(id, 'pickup-ink');
-    beerLegendImage.src = legendSrc(id, 'pickup-beer');
-    tripleLegendImage.src = legendSrc(id, 'pickup-triple');
-    targetLegendImage.src = legendSrc(id, 'pickup-target');
-    fiveLegendImage.src = legendSrc(id, 'pickup-five');
-    shieldLegendImage.src = legendSrc(id, 'pickup-orbitShield');
-    portalLegendImage.src = legendSrc(id, 'pickup-portal');
+    for (const name of legendSprites) legendImages[name].src = legendSrc(id, `pickup-${name}`);
   }
-  const blastLegend = element('span'); blastLegend.append(blastLegendImage, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
-  const inkLegend = element('span'); inkLegend.append(inkLegendImage, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 3s'));
-  const beerLegend = element('span'); beerLegend.append(beerLegendImage, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
-  const targetLegend = element('span'); targetLegend.append(targetLegendImage, element('b', '', 'TARGET'), document.createTextNode(' slide Fire · instant blast'));
-  const fiveLegend = element('span'); fiveLegend.append(fiveLegendImage, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));
-  const tripleLegend = element('span'); tripleLegend.append(tripleLegendImage, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
-  const shieldLegend = element('span'); shieldLegend.append(shieldLegendImage, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
-  const portalLegend = element('span'); portalLegend.append(portalLegendImage, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  const shellLegend = element('span'); const shellImage = element('img'); shellImage.src = assetUrl('/themes/neon-pixel/pickup-shell.svg'); shellImage.alt = ''; shellLegend.append(shellImage, element('b', '', 'SHELL'), document.createTextNode(' bounces until hit · next shot'));
-  const gunLegend = element('span'); const gunImage = element('img'); gunImage.src = assetUrl('/themes/neon-pixel/pickup-gun.svg'); gunImage.alt = ''; gunLegend.append(gunImage, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
-  const watchLegend = element('span'); const watchImage = element('img'); watchImage.src = assetUrl('/themes/neon-pixel/pickup-stopwatch.svg'); watchImage.alt = ''; watchLegend.append(watchImage, element('b', '', 'FUSE'), document.createTextNode(' your bombs: 2s → 1.5s → 1s'));
+  const blastLegend = element('span'); blastLegend.append(legendImages.blast, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
+  const inkLegend = element('span'); inkLegend.append(legendImages.ink, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 3s'));
+  const beerLegend = element('span'); beerLegend.append(legendImages.beer, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
+  const targetLegend = element('span'); targetLegend.append(legendImages.target, element('b', '', 'TARGET'), document.createTextNode(' slide Fire · instant blast'));
+  const fiveLegend = element('span'); fiveLegend.append(legendImages.five, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));
+  const tripleLegend = element('span'); tripleLegend.append(legendImages.triple, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
+  const shieldLegend = element('span'); shieldLegend.append(legendImages.orbitShield, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
+  const portalLegend = element('span'); portalLegend.append(legendImages.portal, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
+  const shellLegend = element('span'); shellLegend.append(legendImages.shell, element('b', '', 'SHELL'), document.createTextNode(' bounces until hit · next shot'));
+  const gunLegend = element('span'); gunLegend.append(legendImages.gun, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
+  const watchLegend = element('span'); watchLegend.append(legendImages.stopwatch, element('b', '', 'FUSE'), document.createTextNode(' your bombs: 2s → 1.5s → 1s'));
   pickupLegend.append(blastLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend, gunLegend, watchLegend); lobbyCopy.append(pickupLegend);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');

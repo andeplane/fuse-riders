@@ -69,6 +69,14 @@ try {
   await host.getByText('blocks one crash', { exact: false }).waitFor();
   await host.getByText('opens linked gates', { exact: false }).waitFor();
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
+  // Switching the style must re-src every legend icon, not just the ones that existed when the
+  // theme plumbing was written. Ends on the default so later steps shoot the usual artwork.
+  for (const themeId of ['clean-neon', 'neon-pixel']) {
+    await host.getByRole('combobox').selectOption(themeId);
+    const legendSources = await host.locator('.pickup-legend img').evaluateAll(images => images.map(image => image.getAttribute('src') ?? ''));
+    assert.ok(legendSources.length >= 11, `legend icons found: ${legendSources.length}`);
+    for (const source of legendSources) assert.ok(source.includes(`/themes/${themeId}/`), `legend icon ${source} ignores theme ${themeId}`);
+  }
 
   // A fresh token delivered as a hash-only navigation must be consumed and re-authenticated.
   const recoveredHost = await browser.newPage({ viewport: { width: 1200, height: 800 } }); monitor(recoveredHost);
