@@ -37,3 +37,7 @@ Public product checks, the 30-minute source-66f67bd soak, mobile-sized Phaser be
 - [Network harness method and limitations](NETWORK-HARNESS.md). Inspect generated report revision and assertions; historical exploratory JSON does not certify the final release.
 - [Real-device test plan](DEVICE-TEST-PLAN.md) for physical phones on real Wi-Fi/cellular: the manual steps, capture list and pass/fail criteria for the physical-phone confirmation still owed under #4, #5, #12, #13, #14 and #15.
 - [GCP inventory](GCP-INVENTORY.md), [deployment procedure](GCP-DEPLOY.md), and [provider evidence](GCP-PROVIDER-EVIDENCE.md). These records, not an ephemeral LAN address or old preview URL, establish deployment status.
+
+## ADR040 branch prototype
+
+Issue [#82](https://github.com/andeplane/fuse-riders/issues/82) tracks opt-in action replication. The isolated `codex/deterministic-action-log` branch implements accepted-action replay, MessagePack, bounded resync/checkpoints and full-view/controller roles; see [implementation and evidence](ACTION-REPLICATION-PROTOTYPE.md). Default/public transport remains unchanged. Edge-only upstream inputs, full-world speculative rollback, unreliable transport and production qualification remain follow-up milestones.

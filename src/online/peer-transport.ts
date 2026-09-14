@@ -1,3 +1,4 @@
+import { packMessage, unpackMessage } from './action-replication.js';
 import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
@@ -23,6 +24,7 @@ export interface TransportCallbacks {
 interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 const RESTART_ATTEMPTS=4;
 export class PeerTransport {
+  binarySentBytes=0;
   id='';hostId='';connectionId='';sentBytes=0;
   grant?:AuthorityGrant;
   private authorityClock=new AuthorityClock(()=>performance.now());
@@ -149,7 +151,15 @@ export class PeerTransport {
   }
   private channel(id:string,link:Link,channel:RTCDataChannel):void {
     link.channel=channel;
-    channel.onmessage=event=>{if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
+    channel.binaryType='arraybuffer';
+    channel.onmessage=event=>{
+      if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;
+      try{
+        if(event.data instanceof ArrayBuffer){if(event.data.byteLength>200000){channel.close();return;}this.receive(id,unpackMessage(new Uint8Array(event.data)) as Parameters<PeerTransport['receive']>[1],true);}
+        else if(typeof event.data==='string'&&event.data.length<=200000)this.receive(id,JSON.parse(event.data),true);
+        else channel.close();
+      }catch{}
+    };
     channel.onopen=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))this.callbacks.status('Direct peer link connected');};
     channel.onclosing=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
     channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
@@ -214,11 +224,11 @@ export class PeerTransport {
     seen.add(envelope.id);if(seen.size>1000)seen.delete(seen.values().next().value!);this.received.set(id,seen);
     this.callbacks.message(id,envelope.data);
   }
-  send(id:string,data:unknown):boolean {
+  send(id:string,data:unknown,binary=false):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
-    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const link=this.links.get(id);
+    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};const encoded=binary?new Uint8Array(packMessage(envelope)):JSON.stringify(envelope);this.sentBytes+=typeof encoded==='string'?new TextEncoder().encode(encoded).byteLength:encoded.byteLength;const link=this.links.get(id);
     if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
-      try{link.channel!.send(JSON.stringify(envelope));return true;}catch{}
+      try{if(typeof encoded==='string')link.channel!.send(encoded);else{link.channel!.send(encoded);this.binarySentBytes+=encoded.byteLength;}return true;}catch{}
     }
     return false;
   }

@@ -10,6 +10,7 @@
     "src/client/render-snapshot.ts",
     "src/client/audio-director.ts",
     "src/online/host-session.ts",
+    "src/online/action-replication.ts",
     "src/online/authority.ts",
     "src/online/authority-status.ts",
     "src/online/status-notices.ts",

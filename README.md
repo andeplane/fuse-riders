@@ -147,3 +147,7 @@ See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-onl
 For the older Cloudflare prototype, `npm run deploy` builds and invokes Wrangler. **That command does not run the release gates.** Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting to production. See [deployment details and cost assumptions](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, `.dev.vars`, Wrangler credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
 Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.
+
+## Experimental action replication (branch prototype)
+
+ADR040 adds an opt-in `?replication=actions` online mode: full views reconstruct the shared world from MessagePack action records and validated checkpoints; shared-screen controller phones remain lightweight. Invites and TV links preserve the mode. Use the same build on all participants. The existing snapshot mode remains the default. See [the implementation report](docs/online/ACTION-REPLICATION-PROTOTYPE.md) for commands, measurements and limitations. This is not enabled on the public beta.
