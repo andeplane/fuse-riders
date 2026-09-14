@@ -34,7 +34,7 @@ function installImpairment({profile,seed,host,renderView}:{profile:Profile;seed:
     const bytes=new TextEncoder().encode(data).byteLength;
     let edge=edges.get(this);if(edge===undefined){edge=++nextEdge;edges.set(this,edge);}
     const trace:PacketTrace={at:now,edge,bytes,outcome:'queued',queueBytes:state.queueBytes};
-    try{const wire=JSON.parse(data);if(wire&&typeof wire==='object'&&wire.data&&typeof wire.data==='object'){trace.type=typeof wire.data.type==='string'?wire.data.type:undefined;const frame=wire.data.frame;if(frame&&typeof frame==='object')for(const key of ['generation','seq','base','tick'] as const)if(Number.isSafeInteger(frame[key]))trace[key]=frame[key];}}catch{}
+    try{const wire=JSON.parse(data);if(wire&&typeof wire==='object'&&wire.data&&typeof wire.data==='object'){trace.type=typeof wire.data.type==='string'?wire.data.type:undefined;const receipt=wire.data.receipt;if(receipt&&typeof receipt==='object'){if(Number.isSafeInteger(receipt.generation))trace.generation=receipt.generation;if(Number.isSafeInteger(receipt.seq))trace.seq=receipt.seq;}const frame=wire.data.frame;if(frame&&typeof frame==='object')for(const key of ['generation','seq','base','tick'] as const)if(Number.isSafeInteger(frame[key]))trace[key]=frame[key];}}catch{}
     if(state.packets.length<12000)state.packets.push(trace);else state.packetsTruncated++;
     if(now<state.blockedUntil||random()<profile.loss||state.queueBytes+bytes>maxQueue){state.dropped++;trace.outcome=now<state.blockedUntil?'blackhole':state.queueBytes+bytes>maxQueue?'queue-full':'application-drop';trace.finishedAt=now;return;}
     const extra=random()<profile.reorder?150:0;if(extra)state.reordered++;

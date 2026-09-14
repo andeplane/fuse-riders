@@ -1,3 +1,4 @@
+import { KeyframeDelivery, AcceptedKeyframe, type KeyframeReceipt } from './keyframe-delivery.js';
 import { isShotTransition } from './shot-failure.js';
 import { isAppliedMotionState, isInputControlScope } from './prediction-validation.js';
 import { DeferredCommand } from './deferred-command.js';
@@ -10,12 +11,15 @@ import { WorldDecoder, WorldEncoder, type WorldFrame } from './world-codec.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { RoomSettings } from '../shared/room-settings.js';
 import type { GameEvent } from '../shared/protocol.js';
+interface WorldEnvelope {type:'world';frame:WorldFrame;settings:RoomSettings;ack:Record<string,number>;paused:boolean;motion?:AppliedMotionState}
 interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void }
 export class RoomRuntime {
   private session?:HostSession;
   private peers=new Set<string>();
   private encoders=new Map<string,WorldEncoder>();
   private generations=new Map<string,number>();
+  private keyframes=new Map<string,KeyframeDelivery<WorldEnvelope>>();
+  private acceptedKeyframe=new AcceptedKeyframe();
   private lastResync=0;
   private decoder=new WorldDecoder();
   private lastState=performance.now();
@@ -39,28 +43,29 @@ export class RoomRuntime {
           this.session=new HostSession(id,settings,{token:()=>crypto.randomUUID()});
           try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.callbacks.status('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
         }
-        this.decoder.reset();this.callbacks.ready(id,id===hostId);
+        this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.callbacks.ready(id,id===hostId);
         if(id!==hostId)this.transport.send(hostId,{type:'resync'});
       },
       peer:(id,online)=>{
-        if(online){this.peers.add(id);this.encoders.delete(id);if(id===this.transport.hostId&&!this.session){this.decoder.reset();this.transport.send(id,{type:'resync'});}}
-        else{this.peers.delete(id);this.encoders.delete(id);this.session?.disconnect(id);}
+        if(online){this.peers.add(id);this.encoders.delete(id);this.keyframes.delete(id);if(id===this.transport.hostId&&!this.session){this.decoder.reset();this.acceptedKeyframe.clear();this.transport.send(id,{type:'resync'});}}
+        else{this.peers.delete(id);this.encoders.delete(id);this.keyframes.delete(id);this.session?.disconnect(id);}
       },
       message:(id,data)=>this.receive(id,data),status:callbacks.status,
       revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.callbacks.status('This host tab was replaced — use the newer tab');},
-      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.encoders.clear();this.session?.clear();this.accumulator=0;},
+      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.session?.clear();this.accumulator=0;},
     });
   }
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
   private receive(id:string,raw:unknown):void {
     if(!raw||typeof raw!=='object')return;
-    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;shotRejected?:boolean;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope};
+    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;shotRejected?:boolean;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope;receipt?:KeyframeReceipt};
     if(this.session){
       if(data.type==='tickProbe'&&Number.isSafeInteger(data.probeId)&&Number.isFinite(data.localSentAt)){
         const scope=this.session.controlScope(id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.transport.send(id,{type:'tickPong',probeId:data.probeId,localSentAt:data.localSentAt,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing',scope});return;
       }
       if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(isShotTransition(data.command)?{shotRejected:true}:{})});this.peers.add(id);}
-      if(data.type==='resync'){this.peers.add(id);this.encoders.delete(id);}
+      if(data.type==='worldReceipt'){this.keyframes.get(id)?.acknowledge(data.receipt);return;}
+      if(data.type==='resync'){this.peers.add(id);if(!this.keyframes.get(id)?.waiting)this.encoders.delete(id);}
       return;
     }
     if(id!==this.transport.hostId)return;
@@ -68,9 +73,12 @@ export class RoomRuntime {
       const sample=this.tickProbes.accept(data.probeId!,data.localSentAt!,data.authorityTick!,data.paused!,data.scope);if(sample)this.callbacks.clock?.(sample);return;
     }
     if(data.type==='world'&&data.frame&&data.settings){
+      const duplicateReceipt=this.acceptedKeyframe.receipt(raw as WorldEnvelope);
+      if(duplicateReceipt){this.transport.send(id,{type:'worldReceipt',receipt:duplicateReceipt});return;}
       const result=this.decoder.decode(data.frame);
       if(result.status!=='accepted'){if((result.status==='needsBaseline'||result.status==='invalid')&&performance.now()-this.lastResync>=500){this.lastResync=performance.now();this.transport.send(id,{type:'resync'});}return;}
       const snapshot=result.state;
+      if(data.frame.base===0){this.acceptedKeyframe.remember(raw as WorldEnvelope);const receipt=this.acceptedKeyframe.receipt(raw as WorldEnvelope);if(receipt)this.transport.send(id,{type:'worldReceipt',receipt});}
       if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.joinRequest.confirm();
       this.lastState=performance.now();
       if(isAppliedMotionState(data.motion)){const scope=JSON.stringify(data.motion.scope);if(scope!==this.lastMotionScope){this.lastMotionScope=scope;this.lastClockProbe=-Infinity;}}
@@ -130,9 +138,15 @@ export class RoomRuntime {
     const scope=session.controlScope(this.transport.id)??{matchId:game.matchId,round:game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};
     const at=performance.now();this.callbacks.clock?.({scope,localSentAt:at,localReceivedAt:at,authorityTick:game.tick+this.accumulator/50,paused:paused||game.phase!=='playing'});
     for(const id of this.peers){
+      let delivery=this.keyframes.get(id);if(!delivery){delivery=new KeyframeDelivery<WorldEnvelope>();this.keyframes.set(id,delivery);}
+      if(!delivery.matchesScope(game.matchId,game.round)){delivery.clear();this.encoders.delete(id);}
+      const pending=delivery.pump(at,world=>this.transport.send(id,world));
+      if(pending==='waiting')continue;if(pending==='expired')this.encoders.delete(id);
       let encoder=this.encoders.get(id);const fresh=!encoder;if(!encoder){const generation=(this.generations.get(id)??0)+1;this.generations.set(id,generation);encoder=new WorldEncoder(generation);this.encoders.set(id,encoder);}
       const frame=encoder.encode(snapshot,game.matchId,game.round,game.tick,fresh||game.tick%300===0);
-      if(!this.transport.send(id,{type:'world',frame,settings:session.settings,ack,paused,motion:session.appliedMotion(id)}))this.encoders.delete(id);
+      const world:WorldEnvelope={type:'world',frame,settings:session.settings,ack,paused,motion:session.appliedMotion(id)};
+      if(frame.base===0){delivery.hold(world,at);delivery.pump(at,payload=>this.transport.send(id,payload));}
+      else if(!this.transport.send(id,world))this.encoders.delete(id);
     }
   }
   private save(){if(this.session)try{localStorage.setItem(`fuse-checkpoint-${this.code}`,this.session.checkpoint());}catch{}}

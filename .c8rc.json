@@ -13,7 +13,8 @@
     "src/online/link-health.ts",
     "src/online/checkpoint.ts",
     "src/online/world-codec.ts",
-    "src/online/prediction.ts"
+    "src/online/prediction.ts",
+    "src/online/keyframe-delivery.ts"
   ],
   "reporter": [
     "text",
