@@ -283,7 +283,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.strokeStyle = '#aab9cc';
     ctx.beginPath(); ctx.arc(bomb.x, bomb.y, bomb.blastRange, 0, Math.PI * 2);
     ctx.globalAlpha = .28; ctx.lineWidth = 1.5;
-    ctx.setLineDash([8, 8]); ctx.stroke(); ctx.restore();
+    ctx.stroke(); ctx.restore();
     const airborne = snapshot.tick < bomb.landsAtTick;
     const flightDuration = Math.max(1, bomb.landsAtTick - bomb.launchedTick);
     const flight = clamp((snapshot.tick - bomb.launchedTick) / flightDuration, 0, 1);
@@ -304,17 +304,16 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.translate(Math.round(drawX), Math.round(drawY));
     ctx.scale(pulse * (airborne ? 1.12 : 1), pulse * (airborne ? 1.12 : 1));
     ctx.shadowColor = '#ff397e'; ctx.shadowBlur = 12;
-    if (sprites.bomb) drawSprite(ctx, sprites.bomb, 0, 0, 44, 0, undefined, theme.rendering.pixelated);
+    if (sprites.bomb) drawSprite(ctx, sprites.bomb, 0, 0, 44, 0, undefined, false);
     else { const ball = ctx.createRadialGradient(-5, -7, 1, 0, 0, 18); ball.addColorStop(0, '#7481a8'); ball.addColorStop(.3, '#242a4a'); ball.addColorStop(1, '#070815'); ctx.fillStyle = ball; ctx.strokeStyle = '#8f7bbd'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
     ctx.strokeStyle = airborne ? '#d67cff' : remaining < 0.3 ? '#fff06a' : '#ff2d7d';
-    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14; ctx.lineWidth = 5; ctx.setLineDash([5, 4]);
-    ctx.beginPath(); ctx.arc(0, 0, 20, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (airborne ? flight : remaining)); ctx.stroke();
-    ctx.setLineDash([]);
+    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, 0, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (airborne ? flight : remaining)); ctx.stroke();
     if (!sprites.bomb) { ctx.fillStyle = '#ffb52e'; ctx.fillRect(9, -20, 3, 9); }
     const spark = Math.round(now / 80 + bomb.id) % 3;
     ctx.shadowColor = '#ff9a18'; ctx.shadowBlur = 10; ctx.fillStyle = '#fff3a1';
-    ctx.fillRect(11 + spark * 2, -25 - spark * 2, 3, 3);
-    ctx.fillStyle = '#ff5c17'; ctx.fillRect(17 - spark, -20 - spark * 4, 2, 2);
+    ctx.beginPath(); ctx.arc(11 + spark * 2, -25 - spark * 2, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff5c17'; ctx.beginPath(); ctx.arc(17 - spark, -20 - spark * 4, 1, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
@@ -324,18 +323,10 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.save();
     ctx.beginPath(); ctx.rect(snapshot.boundaryInset, snapshot.boundaryInset, snapshot.width - 2 * snapshot.boundaryInset, snapshot.height - 2 * snapshot.boundaryInset); ctx.clip();
     ctx.globalAlpha = alpha;
-    // One bounded polygon per ring keeps five simultaneous explosions cheap.
+    // Smooth discs use the supplied radius without theme-dependent grid snapping.
     for (const [scale, color] of [[1, theme.palette.blast], [.84, '#ffb21e'], [.56, theme.palette.blastCore]] as const) {
       ctx.fillStyle = color; ctx.beginPath();
-      const steps = theme.rendering.pixelated ? 32 : 64;
-      for (let i = 0; i < steps; i += 1) {
-        const angle = i * Math.PI * 2 / steps;
-        const px = x + Math.cos(angle) * radius * scale;
-        const py = y + Math.sin(angle) * radius * scale;
-        const snap = theme.rendering.pixelated ? 6 : 1;
-        if (i === 0) ctx.moveTo(Math.round(px / snap) * snap, Math.round(py / snap) * snap);
-        else ctx.lineTo(Math.round(px / snap) * snap, Math.round(py / snap) * snap);
-      }
+      ctx.arc(x, y, radius * scale, 0, Math.PI * 2);
       ctx.closePath(); ctx.fill();
     }
     ctx.restore();

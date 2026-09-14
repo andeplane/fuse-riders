@@ -80,7 +80,7 @@
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Three-arrow fan for the next three-bomb volley."
+      "description": "Three magenta bombs in a violet frame for the next three-bomb volley."
     },
     "pickup-orbitShield": {
       "file": "pickup-orbitShield.svg",
@@ -131,6 +131,36 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Rare Target Bomb: slide Fire to place its public reticle."
+    },
+    "pickup-stopwatch": {
+      "file": "pickup-stopwatch.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Gold stopwatch for shorter bomb fuses."
+    },
+    "pickup-gun": {
+      "file": "pickup-gun.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Silver and cyan gun for the next shot."
+    },
+    "pickup-shell": {
+      "file": "pickup-shell.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Green segmented shell for the next bouncing projectile."
     }
   }
 }

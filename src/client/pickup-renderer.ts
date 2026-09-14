@@ -108,6 +108,7 @@ export function drawPickups(
     const size = 34 * pulse;
     const image = pickupImage(theme, pickup.type);
     ctx.save();
+    ctx.imageSmoothingEnabled = true;
     ctx.globalAlpha = alpha;
     ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'orbitShield' ? '#5cf4ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
     ctx.shadowBlur = 5;

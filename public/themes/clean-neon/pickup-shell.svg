@@ -1,1 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="#46dc54" stroke="#d6ffd5" stroke-width="2" d="M6 7h20v4h3v14H3V11h3z"/><path fill="#1b8035" stroke="#093d20" stroke-width="2" d="m16 6 7 5v9l-7 5-7-5v-9z"/><path fill="none" stroke="#dcffd1" stroke-width="2" d="M3 25h26M9 11 4 8m19 3 5-3M9 20l-5 4m19-4 5 4"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="metal" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#f4fcff"/><stop offset="0.5" stop-color="#8eaec7"/><stop offset="1" stop-color="#36546c"/></linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#c3ff88"/><stop offset="0.5" stop-color="#58dc71"/><stop offset="1" stop-color="#159377"/></linearGradient>
+  </defs>
+  <g transform="scale(.5)">
+    <path d="M9 39C9 3 55 3 55 39l-5 10H14Z" fill="url(#green)" stroke="#d8ffbf" stroke-width="2"/>
+    <path d="m32 14-10 8 3 14h14l3-14-10-8Zm-10 8-11 2m14 12-9 10m23-10 9 10m-6-24 11 2" fill="none" stroke="#13775a" stroke-width="2.5"/>
+    <path d="M12 39c9 7 31 7 40 0l4 6c-7 15-41 15-48 0Z" fill="url(#metal)" stroke="#edffdf" stroke-width="2"/>
+    <path d="M18 45c8 4 20 4 28 0" fill="none" stroke="#fff" stroke-width="2"/>
+  </g>
+</svg>

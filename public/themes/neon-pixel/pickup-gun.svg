@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="#a2fff0" stroke="#237f76" stroke-width="2" d="M3 9h23v3h4v6H14v5h-3v5H5V17H3z"/><path fill="#173a48" d="M6 12h16v3H6zM8 19h3v6H8z"/><path fill="#fff" d="M28 6h3v4h-3z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <radialGradient id="body" cx=".3" cy=".2" r=".85"><stop stop-color="#62628e"/><stop offset=".48" stop-color="#26334d"/><stop offset="1" stop-color="#0a1127"/></radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#f4fcff"/><stop offset="0.5" stop-color="#8eaec7"/><stop offset="1" stop-color="#36546c"/></linearGradient>
+  </defs>
+  <g transform="scale(.5)">
+    <path d="m19 35-4 16c-.6 3 1 5 4 5h8l6-20" fill="url(#body)" stroke="#a9d8e5" stroke-width="2"/>
+    <path d="M13 16h34l8 6v12H14a6 6 0 0 1-6-6v-6a6 6 0 0 1 5-6Z" fill="url(#metal)" stroke="#deffff" stroke-width="2"/>
+    <rect x="43" y="18" width="13" height="17" rx="4" fill="#122b43" stroke="#79e6f2" stroke-width="2"/>
+    <path d="M16 23h19" stroke="#fff" stroke-width="3"/>
+    <path d="M30 37v7h7l4-8" fill="none" stroke="#9fcbd9" stroke-width="2.5"/>
+    <path d="M21 41h5m-6 6h5" stroke="#65d3ee" stroke-width="2"/>
+  </g>
+</svg>
