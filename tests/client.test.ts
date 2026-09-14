@@ -3,6 +3,7 @@ import test from 'node:test';
 import { ControllerInputState, type ControllerInputMessage } from '../src/client/controller-state.js';
 import { renderedSnapshot, type SnapshotFrame } from '../src/client/render-snapshot.js';
 import { SnapshotStream } from '../src/client/snapshot-stream.js';
+import { bombPreviewDistance } from '../src/client/bomb-preview.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
@@ -23,6 +24,21 @@ test('visual projection uses authoritative tick spacing during packet bursts', (
   const frames = [playingFrame(10, 100, 100), playingFrame(12, 101, 115)];
   const projected = renderedSnapshot(frames, 151)!;
   assert.equal(projected.players[0]!.x, 122.5, 'two-tick velocity projects at most one 7.5-unit step');
+});
+
+test('LAN bomb preview uses fractional rider time with a one-tick cap and intact authoritative state', () => {
+  const frames = [playingFrame(10, 100, 100), playingFrame(12, 101, 115)];
+  for (const frame of frames) frame.snapshot.players[0]!.bombChargeStartedTick = 10;
+  const original = structuredClone(frames);
+  const shown = renderedSnapshot(frames, 126)!;
+  const player = shown.players[0]!;
+  assert.equal(player.presentationTick, 12.5);
+  assert.equal(bombPreviewDistance(player.presentationTick! - player.bombChargeStartedTick!), 131.25);
+  assert.equal(shown.tick, 12, 'world and discrete effects retain the authoritative tick');
+  assert.equal(renderedSnapshot(frames, 9999)!.players[0]!.presentationTick, 13);
+  assert.deepEqual(frames, original);
+  const next = playingFrame(13, 151, 122.5);
+  assert.equal(renderedSnapshot([frames[1]!, next], 176)!.players[0]!.bombChargeStartedTick, undefined, 'release/cancel removes the preview immediately');
 });
 
 test('visual projection freezes after 50 ms and never projects death or non-playing phases', () => {

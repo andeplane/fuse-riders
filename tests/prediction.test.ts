@@ -6,9 +6,40 @@ import { HostSession } from '../src/online/host-session.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { advanceRiderPose } from '../src/shared/rider-motion.js';
 import { drunkHeadingOffset } from '../src/shared/drunk.js';
+import { bombPreviewDistance } from '../src/client/bomb-preview.js';
 function fixture(){const room=new HostSession('h',defaultRoomSettings(),{token:()=>crypto.randomUUID()});room.command('h',{type:'join',name:'Host'});room.command('p',{type:'join',name:'P'});room.command('h',{type:'action',action:'start'});for(let i=0;i<60;i++)room.advance();return {...room.snapshot(),tick:room.game.tick,round:1};}
 function ledger(tick:number):AppliedMotionState{return {scope:{matchId:'match',round:1,controlEpoch:'c'},tick,appliedSeq:-1,appliedTick:tick,held:{left:false,right:false},results:[],motion:{seed:31,drunkStartedTick:0,drunkUntilTick:0,drunkHeadingOffset:0}};}
 function setup(){let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now);predictor.accept(state,'h',-1,motion,'authority');predictor.observeClock({scope:motion.scope,localSentAt:0,localReceivedAt:0,authorityTick:state.tick,paused:false});return {state,motion,predictor,time:(n:number)=>{now=n;}};}
+test('local charge preview shares the fractional rider clock rather than delayed world time',()=>{
+ const {state,motion,predictor,time}=setup();
+ const charging={...state,players:state.players.map(p=>({...p,bombChargeStartedTick:state.tick}))};
+ predictor.accept(charging,'h',-1,motion,'authority');
+ const original=structuredClone(charging),buffered={...charging,tick:state.tick-2};
+ time(25);const shown=predictor.render(buffered,'h'),local=shown.players.find(p=>p.id==='h')!;
+ assert.equal(local.presentationTick,state.tick+.5);
+ assert.equal(bombPreviewDistance(local.presentationTick!-local.bombChargeStartedTick!),106.25);
+ assert.equal(shown.tick,buffered.tick,'other world effects retain buffered time');
+ assert.equal(shown.players.find(p=>p.id==='p')!.presentationTick,undefined,'remote riders keep world interpolation');
+ time(300);assert.equal(predictor.render(buffered,'h').players[0]!.presentationTick,state.tick+4,'existing prediction cap');
+ time(1000);assert.equal(predictor.render(buffered,'h').players[0]!.presentationTick,state.tick+4,'lost clock freezes rider and charge time together');
+ assert.deepEqual(charging,original);
+ predictor.accept({...charging,players:charging.players.map(p=>({...p,bombChargeStartedTick:undefined}))},'h',-1,motion,'authority');
+ assert.equal(predictor.render(buffered,'h').players[0]!.bombChargeStartedTick,undefined,'confirmed release/cancel removes preview even when world is behind');
+ predictor.resetExternalScope();assert.equal(predictor.render(state,'h'),state,'reset drops presentation time');
+});
+
+test('charge preview time resets with phase, death, portal and authority boundaries',()=>{
+ for(const change of ['death','portal','round','authority','phase'] as const){
+  const {state,motion,predictor,time}=setup();time(25);predictor.render(state,'h');
+  const next={...state,tick:state.tick+1,round:change==='round'?2:1,
+   phase:change==='phase'?'roundOver' as const:state.phase,
+   players:state.players.map(p=>({...p,alive:change!=='death',portalCooldownUntilTick:change==='portal'?99:p.portalCooldownUntilTick}))};
+  const nextMotion={...motion,tick:next.tick,scope:{...motion.scope,round:next.round}};
+  predictor.accept(next,'h',-1,nextMotion,change==='authority'?'next':'authority');
+  const shown=predictor.render(next,'h').players[0]!;
+  assert.equal(shown.presentationTick,change==='death'||change==='phase'?undefined:next.tick,change);
+ }
+});
 test('local steering responds next frame using a partial step which never changes fixed replay',()=>{
  const {state,predictor,time}=setup(),original=state.players[0]!;assert.ok(predictor.input(0,false,true));time(16);const first=predictor.render(state,'h').players[0]!;assert.notEqual(first.angle,original.angle);
  const expected=advanceRiderPose({...original,drunkHeadingOffset:0},{left:false,right:true},{distance:7.5,turn:.14,drunkHeadingOffset:0});
