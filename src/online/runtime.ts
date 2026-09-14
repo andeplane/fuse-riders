@@ -1,3 +1,4 @@
+import { authorityTransitionStatus } from './authority-status.js';
 import { KeyframeDelivery, AcceptedKeyframe, type KeyframeReceipt } from './keyframe-delivery.js';
 import { recipientAcknowledgements } from './recipient-ack.js';
 import { isShotTransition } from './shot-failure.js';
@@ -101,10 +102,13 @@ export class RoomRuntime {
   }
   private tick():void {
     const now=performance.now(),elapsed=now-this.lastTick;this.lastTick=now;
-    const deferred=this.deferredHost.drain(now,this.transport.authorityPermitted());
+    const permitted=this.transport.authorityPermitted();
+    const transitionStatus=authorityTransitionStatus(this.authorityActive,permitted);
+    if(transitionStatus)this.callbacks.status(transitionStatus);
+    const deferred=this.deferredHost.drain(now,permitted);
     if(deferred.status==='ready')this.command(deferred.value);
     else if(deferred.status==='expired')this.callbacks.status('Room action timed out — please try again');
-    if(!this.transport.authorityPermitted()){this.accumulator=0;if(this.authorityActive)this.session?.clear();this.authorityActive=false;this.callbacks.status('Paused — confirming room authority');return;}
+    if(!permitted){this.accumulator=0;if(this.authorityActive)this.session?.clear();this.authorityActive=false;return;}
     this.authorityActive=true;
     if(now-this.lastClockProbe>=500){
       this.lastClockProbe=now;
