@@ -73,12 +73,15 @@ export async function startOnline():Promise<void>{
   const joinPanel=node('form','','online-join');const name=node('input');name.placeholder='Your name';name.maxLength=20;const previousName=read('fuse-riders-player-name');name.value=previousName??'';
   const joinButton=node('button','JOIN AS PLAYER');joinPanel.append(name,joinButton);joinButton.disabled=true;
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);
+  for(const [button,key,label] of [[leftButton,'ArrowLeft','Steer left'],[fireButton,'Space','Hold to charge, release to fire'],[rightButton,'ArrowRight','Steer right']] as const){button.setAttribute('aria-keyshortcuts',key);button.title=`${label} (${key})`;}
   const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','INVITE / TV'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
   const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;remove:HTMLButtonElement}>();
   const avatarButton=node('button','HEAD'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');fullscreen.onclick=()=>void document.documentElement.requestFullscreen?.();header.append(avatarButton,fullscreen);
   const dialog=node('dialog','','game-dialog');dialog.setAttribute('aria-label','Game menu');const close=node('button','✕  CLOSE');close.type='button';close.setAttribute('aria-label','CLOSE');close.onclick=()=>dialog.close();const dialogBar=node('header','','dialog-bar');dialogBar.append(node('strong','GAME MENU'),close);const dialogBody=node('div','','dialog-body');dialog.append(dialogBar,dialogBody);dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
   const shotNotice=node('p','','online-shot-error');shotNotice.setAttribute('role','alert');shotNotice.hidden=true;const shotFailure=new ShotFailureNotice(()=>performance.now());const updateShotNotice=()=>{const message=shotFailure.message();shotNotice.hidden=!message;if(message&&shotNotice.textContent!==message)shotNotice.textContent=message;};
-  app.replaceChildren(header,canvas,notice,shotNotice,roster,joinPanel,controls,hostControls,dialog);
+  const scoreboard=node('div','','online-scoreboard');scoreboard.append(notice,roster);
+  const footer=node('footer','','online-footer');footer.append(controls,hostControls);
+  app.replaceChildren(header,canvas,scoreboard,shotNotice,joinPanel,footer,dialog);
   const audio=createGameAudio();audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
   const callbacks:Callbacks={
     ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
@@ -87,6 +90,7 @@ export async function startOnline():Promise<void>{
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     clock:clockSample=>{const accepted=prediction.observeClock(clockSample);if(responseBenchmark)sample({kind:'response-clock',epochAt:performance.timeOrigin+performance.now(),accepted,sample:clockSample,diagnostics:prediction.clock.diagnostics()});},
     state:(state,rules,ack,matchId,motion)=>{
+      if(snapshot&&snapshot.phase!==state.phase)bindings.clear(true,true);
       snapshot=state;const nextRenderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;if(nextRenderScope!==renderScope)prediction.resetExternalScope();renderScope=nextRenderScope;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack,motion,renderScope);
       worldBuffer.push(state,renderScope);
       sample({kind:'snapshot',at:performance.now(),presentationDelayTicks:prediction.clock.presentationDelayTicks(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y})),leaderboard:state.leaderboard,motionResults:motion?.results,correction:prediction.correction,ackMs:prediction.ackMs});
@@ -137,8 +141,10 @@ export async function startOnline():Promise<void>{
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
+  bindings.bindKeyboard(window,()=>joined&&!displayOnly&&!dialog.open&&!document.hidden&&!document.activeElement?.closest('input,textarea,select,[contenteditable]'));
   window.addEventListener('blur',()=>bindings.clear(true,true));
   document.addEventListener('visibilitychange',()=>{if(document.hidden)bindings.clear(true,true);});
+  window.addEventListener('pagehide',()=>bindings.clear(true,true));
   setInterval(()=>{if(joined)inputState.resend();audio.director.update();updateShotNotice();},50);
   runtime.start();
   setInterval(()=>{void runtime.transport.stats().then(connection=>{

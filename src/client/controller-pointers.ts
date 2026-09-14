@@ -8,7 +8,7 @@ export interface PointerButton extends EventTarget {
   hasPointerCapture(pointerId: number): boolean;
 }
 
-/** Browser events and capture ownership mapped into the typed input model. */
+/** Browser controls and capture ownership mapped into the typed input model. */
 export class ControllerPointerBindings {
   private readonly owners = new Map<number, PointerButton>();
   private readonly interrupted = new Set<number>();
@@ -71,6 +71,32 @@ export class ControllerPointerBindings {
         this.finish(pointer.pointerId, name === 'pointercancel', { x: pointer.clientX, y: pointer.clientY });
       }, { capture: true });
     }
+  }
+
+  bindKeyboard(target: EventTarget, enabled: () => boolean): void {
+    // Synthetic IDs stay separate from browser pointer IDs, allowing mouse/touch
+    // and keyboard to hold the same control without releasing one another.
+    const keys = new Map<string, readonly [number, ControllerControl]>([
+      ['ArrowLeft', [-101, 'left']], ['ArrowRight', [-102, 'right']], ['Space', [-103, 'bomb']],
+    ]);
+    target.addEventListener('keydown', event => {
+      const key = event as KeyboardEvent;
+      const binding = keys.get(key.code);
+      if (!binding || !enabled() || key.altKey || key.ctrlKey || key.metaKey) return;
+      key.preventDefault();
+      if (key.repeat) return;
+      this.state.pointerDown(...binding);
+      this.sync();
+    });
+    target.addEventListener('keyup', event => {
+      const key = event as KeyboardEvent;
+      const binding = keys.get(key.code);
+      if (!binding) return;
+      if (enabled()) key.preventDefault();
+      this.state.pointerRelease(binding[0]);
+      this.sync();
+    });
+    target.addEventListener('focusin', () => { if (!enabled()) this.clear(); });
   }
 
   clear(send = true, force = false): void {

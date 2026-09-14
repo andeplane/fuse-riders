@@ -44,6 +44,8 @@ The creator's browser owns the simulation. Keep its tab in the foreground: a pho
 
 Hold or slide a finger into left/right to steer. Hold **Fire** to charge a forward launch, then release. Target Bomb changes Fire into a thumb trackpad with a public aiming marker. Tap **HEAD** to change avatar, including during a round. Phone colors match riders. Joiners can enter during play when a seat is available and wait for the next round.
 
+On a computer, hold **← / →** to steer and hold/release **Space** for the Fire action in solo, online rooms or the LAN controller. Opening a dialog or switching away cancels held controls. Use the on-screen Fire pad to slide the Target Bomb aim. Desktop arena views use compact controls to give the board more space; touch devices keep large pads.
+
 Drops include blast upgrades, Beer, Ink, Triple/Five Shot, Target Bomb, Orbit Shield, portals, shells, gun projectiles, and shorter fuses. Star is excluded from default drops. Balance changes frequently: use [pickup weights](src/shared/pickup-weights.ts), [game rules](src/shared/game.ts), and [room settings](src/shared/room-settings.ts) as the source of truth rather than copying constants into documentation.
 
 Use **ADD AI** in the host controls to fill empty seats. AI uses normal steering and weapons under the same rules as people; see [AI riders](docs/online/AI-RIDERS.md).
@@ -107,6 +109,7 @@ LAN browser smoke starts its own isolated server. It uses installed Chrome by de
 mkdir -p artifacts
 npx tsx scripts/online-smoke.ts
 BROWSER=webkit npx tsx scripts/online-smoke.ts
+ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
 npx tsx scripts/benchmark-deltas.ts
 npx tsx scripts/online-network-benchmark.ts
 ```
