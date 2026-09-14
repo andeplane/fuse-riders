@@ -41,7 +41,7 @@ export class HostSession {
       if(typeof command.name!=='string'||!command.name.trim()||command.name.length>20)return 'Choose a name (1–20 characters)';
       const existing=this.game.players.get(peerId);
       if(existing){setPlayerConnected(this.game,peerId,true);return;}
-      const slot=SLOT_COLORS.findIndex((_,slot)=>![...this.game.players.values()].some(player=>player.slot===slot));
+      const slot=this.freeSlot();
       if(slot<0)return 'Room is full (5 players)';
       addPlayer(this.game,{id:peerId,name:command.name.trim(),slot,color:SLOT_COLORS[slot]!,...(isAvatarId(command.avatarId)?{avatarId:command.avatarId}:{})});
       this.seats.set(peerId,this.newSeat(-1));return;
@@ -55,11 +55,13 @@ export class HostSession {
     }
     if(command.type==='action') {
       if(peerId!==this.hostId)return 'Only the host can manage the room';
+      if(command.action!=='lobby'&&command.action!=='start'&&command.action!=='rematch')return 'Unknown action';
+      // A rider lost mid-round must not be dragged into the next match; a boundary action releases its seat first.
+      if(command.action!=='lobby'&&this.reclaimable())this.pruneDisconnected();
       try {
         if(command.action==='lobby'){const tick=this.game.tick;returnToLobby(this.game,this.dependencies.token());this.game.tick=tick;}
         else if(command.action==='start'){this.game.settings=this.settings;startMatch(this.game);}
-        else if(command.action==='rematch'){this.game.settings=this.settings;resetMatch(this.game,this.dependencies.token());}
-        else return 'Unknown action';
+        else{this.game.settings=this.settings;resetMatch(this.game,this.dependencies.token());}
       }catch(error){return error instanceof Error?error.message:'Action unavailable';}
       this.clear();return;
     }
@@ -88,6 +90,17 @@ export class HostSession {
   private validScope(raw:unknown):raw is InputControlScope {
     if(!raw||typeof raw!=='object')return false;const value=raw as InputControlScope;
     return typeof value.matchId==='string'&&typeof value.controlEpoch==='string'&&Number.isSafeInteger(value.round);
+  }
+  // removePlayer is legal only between rounds: mid-round a vanished rider keeps its seat so a reconnect resumes it.
+  private reclaimable():boolean {return ['lobby','roundOver','matchOver'].includes(this.game.phase);}
+  private pruneDisconnected():void {
+    for(const player of [...this.game.players.values()])if(!player.connected){removePlayer(this.game,player.id);this.seats.delete(player.id);}
+  }
+  private freeSlot():number {
+    const open=()=>SLOT_COLORS.findIndex((_,slot)=>![...this.game.players.values()].some(player=>player.slot===slot));
+    const slot=open();
+    if(slot>=0||!this.reclaimable())return slot;
+    this.pruneDisconnected();return open();
   }
   private newSeat(seq:number):Seat {
     return {seq,tick:this.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer(),scope:{matchId:this.game.matchId,round:this.game.round,controlEpoch:`${this.dependencies.token()}:${++this.scopeCounter}`},pending:new Map(),results:new Map(),appliedSeq:-1,appliedTick:this.game.tick,processedSeq:seq,bombSeq:seq};
@@ -141,7 +154,7 @@ export class HostSession {
     return result.events;
   }
   private addBot():string|undefined {
-    const slot=SLOT_COLORS.findIndex((_,slot)=>![...this.game.players.values()].some(player=>player.slot===slot));
+    const slot=this.freeSlot();
     if(slot<0)return 'Room is full (5 players including AI)';
     if(this.game.leaderboard.size>=128)return 'Start a fresh room before adding more riders';
     let number=1;while(this.game.leaderboard.has(`${BOT_ID_PREFIX}${number}`))number++;
@@ -155,7 +168,15 @@ export class HostSession {
     removePlayer(this.game,id);this.bots.delete(id);this.seats.delete(id);
   }
   acknowledgements():Record<string,number>{return Object.fromEntries([...this.seats].map(([id,seat])=>[id,seat.seq]));}
-  disconnect(id:string):void {if(this.bots.has(id))return;if(this.game.players.has(id))setPlayerConnected(this.game,id,false);const seat=this.seats.get(id);if(seat)this.resetSeat(seat);}
+  // Mirrors the LAN server's explicit leave: between rounds a vanished guest frees its seat instead of holding it forever.
+  disconnect(id:string):void {
+    if(this.bots.has(id))return;
+    if(this.game.players.has(id)){
+      if(this.reclaimable()){removePlayer(this.game,id);this.seats.delete(id);return;}
+      setPlayerConnected(this.game,id,false);
+    }
+    const seat=this.seats.get(id);if(seat)this.resetSeat(seat);
+  }
   clear():void {for(const seat of this.seats.values())this.resetSeat(seat);}
   checkpoint():string {
     return encodeCheckpoint(this.hostId,this.game,this.settings,[...this.seats].filter(([id])=>this.game.players.has(id)).map(([id,seat])=>[id,seat.seq] as const),this.bots);

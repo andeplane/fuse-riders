@@ -358,3 +358,73 @@ test('a joined controller can change only its own avatar during play without alt
     assert.equal(state.state.players.find(p => p.id === a.joined.playerId)!.avatarId, 'slime');
   } finally { await f.close(); }
 });
+
+async function vanish(peer: Peer) { const closed = once(peer.socket, 'close'); peer.socket.terminate(); await closed; }
+
+test('phones that vanish in the lobby release their seats for newcomers and for the next start', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host();
+    const players = [];
+    for (let index = 0; index < 4; index++) players.push(await f.join(`P${index}`));
+    for (const player of players.slice(0, 3)) await vanish(player.peer);
+    await host.take('snapshot', s => s.state.players.filter(p => !p.connected).length === 3);
+    assert.equal(f.app.game.players.size, 4, 'a closed tab alone never rewrites the roster');
+    // A start that cannot run still clears the ghosts, so the room stops counting and reserving them.
+    host.send({ type: 'hostAction', action: 'start' });
+    assert.equal((await host.take('error')).code, 'not_enough_players');
+    assert.equal(f.app.game.players.size, 1);
+    await host.take('snapshot', s => s.state.players.length === 1);
+    const newcomer = await f.join('Newcomer');
+    assert.equal(f.app.game.players.size, 2);
+    host.send({ type: 'hostAction', action: 'start' });
+    await host.take('snapshot', s => s.state.phase === 'countdown');
+    assert.deepEqual([...f.app.game.players.keys()], [players[3]!.joined.playerId, newcomer.joined.playerId]);
+  } finally { await f.close(); }
+});
+
+test('a full lobby reclaims a vanished seat for a newcomer without any host action', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host();
+    const players = [];
+    for (let index = 0; index < 3; index++) players.push(await f.join(`P${index}`));
+    for (let index = 0; index < 2; index++) { host.send({ type: 'hostBot', action: 'add' }); await host.take('snapshot', s => s.state.players.length === 4 + index); }
+    const gone = players[2]!;
+    await vanish(gone.peer);
+    await host.take('snapshot', s => s.state.players.some(p => p.id === gone.joined.playerId && !p.connected));
+    const newcomer = await f.join('Newcomer');
+    assert.equal(f.app.game.players.size, 5);
+    assert.equal(f.app.game.players.has(gone.joined.playerId), false);
+    assert.equal(f.app.game.players.get(newcomer.joined.playerId)!.slot, gone.joined.slot);
+    assert.equal([...f.app.game.players.keys()].filter(id => id.startsWith('bot:')).length, 2, 'AI seats are host-owned and never reclaimed');
+    const stale = await f.connect(); stale.send({ type: 'join', name: 'P2', playerToken: gone.joined.playerToken });
+    assert.equal((await stale.take('error')).code, 'unauthorized');
+    const sixth = await f.connect(); sixth.send({ type: 'join', name: 'P6' });
+    assert.equal((await sixth.take('error')).code, 'full');
+  } finally { await f.close(); }
+});
+
+test('a phone that vanishes mid-round keeps its seat for reconnection and never yields it to a newcomer', async () => {
+  const f = await fixture();
+  try {
+    const host = await f.host();
+    const players = [];
+    for (let index = 0; index < 4; index++) players.push(await f.join(`P${index}`));
+    host.send({ type: 'hostBot', action: 'add' }); await host.take('snapshot', s => s.state.players.length === 5);
+    host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown');
+    f.app.advance(60); assert.equal(f.app.game.phase, 'playing');
+    const gone = players[1]!;
+    await vanish(gone.peer);
+    await host.take('snapshot', s => s.state.players.some(p => p.id === gone.joined.playerId && !p.connected));
+    const newcomer = await f.connect(); newcomer.send({ type: 'join', name: 'Newcomer' });
+    assert.equal((await newcomer.take('error')).code, 'full');
+    assert.equal(f.app.game.players.size, 5);
+    const resumed = await f.connect(); resumed.send({ type: 'join', name: 'P1', playerToken: gone.joined.playerToken });
+    const rejoined = await resumed.take('joined');
+    assert.equal(rejoined.playerId, gone.joined.playerId);
+    assert.equal(rejoined.slot, gone.joined.slot);
+    assert.equal(f.app.game.players.get(gone.joined.playerId)!.connected, true);
+    assert.equal(f.app.game.players.size, 5);
+  } finally { await f.close(); }
+});
