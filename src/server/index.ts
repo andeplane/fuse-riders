@@ -140,11 +140,12 @@ export async function createGameServer(options: ServerOptions = {}) {
     ws.on('close', () => detach(ws));
     ws.on('message', (data, binary) => {
       if (!connections.has(ws)) return;
-      const message = binary ? null : parseClientMessage(data.toString());
-      if (!message) { error(ws, 'invalid_message'); return; }
-      const now = dependencies.now(); c.lastSeen = now;
+      const now = dependencies.now();
       if (now - c.window >= 1000) { c.window = now; c.count = 0; }
       if (++c.count > 100) { error(ws, 'invalid_message'); ws.close(1008, 'Rate limit'); return; }
+      const message = binary ? null : parseClientMessage(data.toString());
+      if (!message) { error(ws, 'invalid_message'); return; }
+      c.lastSeen = now;
       if (message.type === 'heartbeat') return;
       if (message.type === 'ping') { send(ws, { type: 'pong', id: message.id, sentAt: message.sentAt }); return; }
       if (message.type === 'hostAuth') {
