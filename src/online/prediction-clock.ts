@@ -11,12 +11,12 @@ export class PredictionClock {
     const now=this.now(),previous=this.sample;
     if(this.lastRead!==undefined&&(now<this.lastRead||now-this.lastRead>500))this.reset();
     const rtt=sample.localReceivedAt-sample.localSentAt;
-    if(Number.isFinite(rtt)&&rtt>20)this.nearbySamples=0;
+    if(Number.isFinite(rtt)&&rtt>40)this.nearbySamples=0;
     if(sample.paused){this.reset();return false;}
     if(![rtt,sample.authorityTick,sample.localReceivedAt].every(Number.isFinite)||rtt<0||rtt>500||sample.localReceivedAt>this.now()||this.now()-sample.localReceivedAt>4000)return false;
     if(previous&&sameControlScope(sample.scope,previous.scope)&&sample.localReceivedAt<=previous.localReceivedAt)return false;
     if(!this.sample||!sameControlScope(sample.scope,this.sample.scope)||sample.localReceivedAt-this.sample.localReceivedAt>1000)this.nearbySamples=0;
-    this.nearbySamples=rtt<=20?Math.min(3,this.nearbySamples+1):0;
+    this.nearbySamples=rtt<=40?Math.min(3,this.nearbySamples+1):0;
     this.sample={...sample,scope:{...sample.scope}};this.lastRead=this.now();return true;
   }
   /** Only fresh, repeatedly verified nearby host probes permit a shorter presentation buffer. */
