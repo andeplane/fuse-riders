@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { POINT_UNIT } from '../src/shared/leaderboard.ts';
+import { defaultRoomSettings } from '../src/shared/room-settings.ts';
 import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from '../src/shared/drunk.ts';
 import {
   BOMB_FLIGHT_TICKS,
@@ -1094,4 +1095,139 @@ test('gun explodes against the trail directly behind a rider and kills the rider
   assert.equal(state.players.get('p1')!.alive, false);
   assert.equal(state.blasts.length, 1);
   assert.ok(result.events.some(event => event.type === 'explosion'));
+});
+
+test('a blast clears trails whether it came from a landed bomb or a gun projectile hitting a rider', () => {
+  // Regression for #26: gun-on-rider blasts are appended after the first explosion pass,
+  // so the trail-clearing filter has to run once the shell sweep has finished.
+  for (const source of ['bomb', 'gun'] as const) {
+    const state = gameWithPlayers(3);
+    enterPlaying(state);
+    Object.assign(state.players.get('p0')!, { x: 200, y: 200, angle: 0, trail: [] });
+    Object.assign(state.players.get('p1')!, { x: 900, y: 450, angle: 0, trail: [] });
+    Object.assign(state.players.get('p2')!, { x: 1200, y: 800, angle: 0, trail: [{
+      x1: 905, y1: 470, x2: 905, y2: 480, createdTick: state.tick, expiresAtTick: state.tick + 100,
+    }] });
+    const shared = { id: 99, ownerId: 'p0', placedTick: state.tick, flightPath: [] };
+    if (source === 'bomb') {
+      // A landed bomb sitting on the detonation point, due this tick.
+      state.bombs.set(99, { ...shared, x: 900, y: 450, launchX: 900, launchY: 450,
+        launchedTick: state.tick - 10, landsAtTick: state.tick - 1, explodeAtTick: state.tick, blastRange: 32 });
+    } else {
+      // A gun projectile already overlapping p1, so it detonates on the rider at (900, 450).
+      state.bombs.set(99, { ...shared, x: 890, y: 450, launchX: 890, launchY: 450,
+        launchedTick: state.tick - 10, landsAtTick: state.tick + 60, explodeAtTick: state.tick + 60,
+        blastRange: 0, shell: { vx: 300, vy: 0, gun: true } });
+    }
+
+    const result = step(state, new Map());
+    assert.ok(result.events.some((event) => event.type === 'explosion' && event.bombId === 99), `${source} explodes`);
+    assert.deepEqual(state.blasts.map((blast) => [blast.circle.x, blast.circle.y, blast.circle.radius]),
+      [[900, 450, 32]], `${source} blast geometry`);
+    assert.equal(state.players.get('p2')!.trail.some((segment) => segment.y1 === 470), false,
+      `${source} blast burns the trail`);
+  }
+});
+
+test('a fixed-rounds match ends on the standings leader even when another rider wins the final round', () => {
+  // Regression for #19: the standings leader is not the final round's winner, which used to
+  // throw inside applyRoundScores after partially mutating the state.
+  const state = gameWithPlayers();
+  state.settings = { ...defaultRoomSettings(), match: 'rounds', length: 3 };
+  enterPlaying(state);
+  for (const loser of ['p1', 'p1', 'p0'] as const) {
+    eliminatePlayer(state, loser);
+    const result = step(state, new Map());
+    assert.equal(result.events.filter((event) => event.type === 'roundEnded').length, 1);
+    if (state.phase !== 'roundOver') break;
+    state.tick = state.phaseEndsAtTick!;
+    startNextRound(state);
+    for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  }
+
+  assert.equal(state.phase, 'matchOver');
+  assert.equal(state.matchWinnerId, 'p0');
+  assert.equal(state.roundWinnerId, 'p1', 'the final round still belongs to its survivor');
+  assert.deepEqual(state.leaderboard.get('p0'), {
+    id: 'p0', name: 'Player 1', totalScoreUnits: 13 * POINT_UNIT,
+    roundsPlayed: 3, roundWins: 2, matchWins: 1,
+  });
+  assert.deepEqual(state.leaderboard.get('p1'), {
+    id: 'p1', name: 'Player 2', totalScoreUnits: 11 * POINT_UNIT,
+    roundsPlayed: 3, roundWins: 1, matchWins: 0,
+  });
+  // The state must stay usable: a crashed resolveRound used to re-throw on every later step.
+  assert.doesNotThrow(() => { for (let tick = 0; tick < 5; tick += 1) step(state, new Map()); });
+  assert.equal(state.phase, 'matchOver');
+  assert.equal(toSnapshot(state).matchWinnerId, 'p0');
+});
+
+test('a drawn final round still awards the fixed-rounds match to the standings leader', () => {
+  const state = gameWithPlayers();
+  state.settings = { ...defaultRoomSettings(), match: 'rounds', length: 2 };
+  enterPlaying(state);
+  eliminatePlayer(state, 'p1');
+  step(state, new Map());
+  assert.equal(state.phase, 'roundOver');
+  state.tick = state.phaseEndsAtTick!;
+  startNextRound(state);
+  for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  Object.assign(state.players.get('p0')!, { x: 600, y: 450, angle: 0, trail: [] });
+  Object.assign(state.players.get('p1')!, { x: 1000, y: 450, angle: 0, trail: [] });
+  state.roundStartedTick = state.tick - ROUND_DRAW_TICK + 1;
+  const result = step(state, new Map());
+
+  assert.equal(state.phase, 'matchOver');
+  assert.equal(state.matchWinnerId, 'p0');
+  assert.equal(state.roundWinnerId, undefined);
+  assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
+  assert.ok(result.events.some((event) => event.type === 'matchEnded' && event.winnerId === 'p0'));
+  assert.deepEqual(state.leaderboard.get('p0'), {
+    id: 'p0', name: 'Player 1', totalScoreUnits: 9 * POINT_UNIT,
+    roundsPlayed: 2, roundWins: 1, matchWins: 1,
+  });
+  assert.deepEqual(state.leaderboard.get('p1'), {
+    id: 'p1', name: 'Player 2', totalScoreUnits: 7 * POINT_UNIT,
+    roundsPlayed: 2, roundWins: 0, matchWins: 0,
+  });
+});
+
+test('a fixed-rounds leader who also wins the final round is credited exactly once', () => {
+  const state = gameWithPlayers();
+  state.settings = { ...defaultRoomSettings(), match: 'rounds', length: 2 };
+  enterPlaying(state);
+  for (let round = 1; round <= 2; round += 1) {
+    eliminatePlayer(state, 'p1');
+    step(state, new Map());
+    if (state.phase !== 'roundOver') break;
+    state.tick = state.phaseEndsAtTick!;
+    startNextRound(state);
+    for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  }
+
+  assert.equal(state.phase, 'matchOver');
+  assert.equal(state.matchWinnerId, 'p0');
+  assert.deepEqual(state.leaderboard.get('p0'), {
+    id: 'p0', name: 'Player 1', totalScoreUnits: 10 * POINT_UNIT,
+    roundsPlayed: 2, roundWins: 2, matchWins: 1,
+  });
+  assert.equal(state.leaderboard.get('p1')!.matchWins, 0);
+});
+
+test('a fixed-rounds match tied at the final round ends without a match winner', () => {
+  const state = gameWithPlayers();
+  state.settings = { ...defaultRoomSettings(), match: 'rounds', length: 2 };
+  enterPlaying(state);
+  eliminatePlayer(state, 'p1');
+  step(state, new Map());
+  state.tick = state.phaseEndsAtTick!;
+  startNextRound(state);
+  for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  eliminatePlayer(state, 'p0');
+  const result = step(state, new Map());
+
+  assert.equal(state.phase, 'matchOver');
+  assert.equal(state.matchWinnerId, undefined);
+  assert.ok(result.events.some((event) => event.type === 'matchEnded' && event.winnerId === undefined));
+  assert.ok([...state.leaderboard.values()].every((entry) => entry.matchWins === 0 && entry.roundWins === 1));
 });

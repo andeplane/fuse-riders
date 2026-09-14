@@ -465,15 +465,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6 ? [] : player.trail), TRAIL_WIDTH));
     bomb.x = motion.x; bomb.y = motion.y; bomb.shell = { vx: motion.vx, vy: motion.vy };
   }
+  // Trails burn away once the sweep below has appended any gun-on-rider blasts (#26).
   const newBlasts = resolveExplosions(state, events);
-  if (newBlasts.length > 0) {
-
-    for (const player of state.players.values()) {
-      player.trail = player.trail.filter((segment) =>
-        !newBlasts.some((blast) => segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)),
-      );
-    }
-  }
 
   const causes = new Map<PlayerId, EliminationCause>();
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
@@ -516,6 +509,14 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         detonateGun(bomb, state.tick, hit.oldX + (hit.x - hit.oldX) * hitTime, hit.oldY + (hit.y - hit.oldY) * hitTime);
         newBlasts.push(...resolveExplosions(state, events));
       } else state.bombs.delete(bomb.id);
+    }
+  }
+
+  if (newBlasts.length > 0) {
+    for (const player of state.players.values()) {
+      player.trail = player.trail.filter((segment) =>
+        !newBlasts.some((blast) => segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)),
+      );
     }
   }
 
@@ -1091,28 +1092,29 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   const alive = sortedPlayers(state).filter((player) => player.alive);
   if (alive.length > 1 && elapsed < ROUND_DRAW_TICK) return;
 
-  let winnerId: PlayerId | undefined;
-  let matchWinnerId: PlayerId | undefined;
-  if (alive.length === 1) {
-    const winner = alive[0]!;
-    winner.roundWins += 1;
-    winnerId = winner.id;
-    state.roundWinnerId = winner.id;
-    if ((state.settings?.match ?? 'wins') === 'wins' && winner.roundWins >= (state.settings?.length ?? 3)) {
-      matchWinnerId = winner.id;
-      state.matchWinnerId = winner.id;
-    }
-  } else {
-    state.roundWinnerId = undefined;
-  }
+  // Everything that can throw is computed before any mutation, so a rejected round
+  // cannot leave the state half-updated and re-throwing on every later step (#19).
+  const winner = alive.length === 1 ? alive[0] : undefined;
+  const winnerId = winner?.id;
+  const winsAfterRound = (player: PlayerState): number => player.roundWins + (player.id === winnerId ? 1 : 0);
 
+  let matchWinnerId: PlayerId | undefined;
+  if (winner && (state.settings?.match ?? 'wins') === 'wins' && winsAfterRound(winner) >= (state.settings?.length ?? 3)) {
+    matchWinnerId = winner.id;
+  }
   const fixedEnd = state.settings?.match === 'rounds' && state.round >= state.settings.length;
   if (fixedEnd) {
-    const ranking = sortedPlayers(state).sort((a,b)=>b.roundWins-a.roundWins);
-    if (ranking[0] && ranking[0].roundWins > (ranking[1]?.roundWins ?? -1)) matchWinnerId = ranking[0].id;
-    state.matchWinnerId = matchWinnerId;
+    const ranking = sortedPlayers(state).sort((a, b) => winsAfterRound(b) - winsAfterRound(a));
+    matchWinnerId = ranking[0] && winsAfterRound(ranking[0]) > (ranking[1] ? winsAfterRound(ranking[1]) : -1)
+      ? ranking[0].id
+      : undefined;
   }
-  scoreRoundOnce(state, winnerId, matchWinnerId);
+  const placements = state.roundScored ? undefined : rankRound([...state.roundParticipants.values()]);
+
+  if (winner) winner.roundWins += 1;
+  state.roundWinnerId = winnerId;
+  if (matchWinnerId !== undefined || fixedEnd) state.matchWinnerId = matchWinnerId;
+  scoreRoundOnce(state, placements, winnerId, matchWinnerId);
   events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
   if (matchWinnerId !== undefined || fixedEnd) {
     state.phase = 'matchOver';
@@ -1129,13 +1131,30 @@ function recordElimination(state: GameState, playerId: PlayerId): void {
   if (participant && participant.eliminatedAtTick === undefined) participant.eliminatedAtTick = state.tick;
 }
 
-function scoreRoundOnce(state: GameState, winnerId?: PlayerId, matchWinnerId?: PlayerId): void {
-  if (state.roundScored) return;
-  const placements = rankRound([...state.roundParticipants.values()]);
-  applyRoundScores(state.leaderboard, placements, winnerId, matchWinnerId);
+function scoreRoundOnce(
+  state: GameState,
+  placements: RoundPlacement[] | undefined,
+  winnerId?: PlayerId,
+  matchWinnerId?: PlayerId,
+): void {
+  if (state.roundScored || !placements) return;
+  // applyRoundScores' match-winner argument means "this round's win clinched the match",
+  // so a fixed-rounds standings winner who did not win the final round is credited here (#19).
+  applyRoundScores(state.leaderboard, placements, winnerId, matchWinnerId === winnerId ? matchWinnerId : undefined);
+  if (matchWinnerId !== undefined && matchWinnerId !== winnerId) creditMatchWin(state, matchWinnerId);
   finalizeMatchStatsRound(state.matchStats, [...state.roundParticipants.keys()], winnerId);
   state.roundPlacements = placements;
   state.roundScored = true;
+}
+
+/** Credit a match win to a leaderboard entry, creating it when the winner sat out this round. */
+function creditMatchWin(state: GameState, matchWinnerId: PlayerId): void {
+  const entry = state.leaderboard.get(matchWinnerId) ?? {
+    id: matchWinnerId, name: state.players.get(matchWinnerId)?.name ?? matchWinnerId,
+    totalScoreUnits: 0, roundsPlayed: 0, roundWins: 0, matchWins: 0,
+  };
+  entry.matchWins += 1;
+  state.leaderboard.set(entry.id, entry);
 }
 
 function requireEnoughPlayers(state: GameState): void {
