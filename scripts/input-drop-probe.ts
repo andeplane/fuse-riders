@@ -13,7 +13,7 @@ import { execFileSync } from 'node:child_process';
 const base=new URL(process.env.ONLINE_URL??'http://localhost:8787/');
 const seconds=Number(process.env.PROBE_SECONDS??60),room=process.env.PROBE_ROOM?.toUpperCase();
 const impairment={downDelay:Number(process.env.PROBE_DOWN_DELAY_MS??(room?0:100)),downJitter:Number(process.env.PROBE_DOWN_JITTER_MS??(room?0:200)),upDelay:Number(process.env.PROBE_UP_DELAY_MS??(room?0:30))};
-const hideMs=Number(process.env.PROBE_HIDE_MS??(room?0:1500)),maxLocalRejectPercent=Number(process.env.PROBE_MAX_LOCAL_REJECT_PCT??2);
+const hideMs=Number(process.env.PROBE_HIDE_MS??(room?0:1500)),maxLocalRejectPercent=Number(process.env.PROBE_MAX_LOCAL_REJECT_PCT??2),minHostProcessedPercent=Number(process.env.PROBE_MIN_HOST_PROCESSED_PCT??90),maxHostExpiredPercent=Number(process.env.PROBE_MAX_HOST_EXPIRED_PCT??3),recoveryMs=Number(process.env.PROBE_RECOVERY_MS??5000);
 assert.ok(seconds>=10&&seconds<=1800,'PROBE_SECONDS must be 10–1800');
 if(!['localhost','127.0.0.1'].includes(base.hostname)&&process.env.BENCH_ALLOW_REMOTE!=='1')throw new Error('Remote probe requires BENCH_ALLOW_REMOTE=1 and an isolated authorized room');
 
@@ -94,7 +94,7 @@ try{
   while(Date.now()-startedAt<seconds*1000){
    const elapsed=Date.now()-startedAt;
    if(host&&(await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){await touch.clear();await host.keyboard.press('Escape');await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();await host.getByRole('button',{name:'START RACE',exact:true}).click();restarts++;}
-   if(hideMs&&!hiddenWindow&&elapsed>seconds*500){
+   if(hideMs&&!hiddenWindow&&elapsed>seconds*500&&latest()?.phase==='playing'){
     await touch.clear();hiddenWindow={from:await guest.evaluate(()=>performance.now()),to:0};
     const cdp=await guestContext.newCDPSession(guest);
     await guest.evaluate(()=>Reflect.get(window,'__probeSetHidden')(true));
@@ -123,11 +123,19 @@ try{
  const localRejectPercent=playing.length?100*localRejected/playing.length:0;
  const quantiles=(values:number[])=>{const sorted=[...values].sort((a,b)=>a-b);return {count:sorted.length,p50:sorted[Math.floor((sorted.length-1)*.5)]??0,p95:sorted[Math.floor((sorted.length-1)*.95)]??0,max:sorted.at(-1)??0};};
  const appliedReportMs=quantiles(playing.flatMap(input=>{const result=results.get(input.seq);return result?.status==='applied'?[result.at-input.at]:[];}));
- report={...report,summary,localRejectPercent,appliedReportMs,hiddenWindow,samplesRetained:samples.length};
- console.log(JSON.stringify({...summary,localRejectPercent:Number(localRejectPercent.toFixed(2)),appliedReportMs},null,1));
+ const count=(counts:Record<string,number>,prefix:string)=>Object.entries(counts).filter(([key])=>key.startsWith(prefix)).reduce((sum,[,value])=>sum+value,0);
+ const hostProcessedPercent=playing.length?100*(count(summary.playing,'host-applied')+count(summary.playing,'host-superseded'))/playing.length:0,hostExpiredPercent=playing.length?100*count(summary.playing,'host-expired')/playing.length:0;
+ // Recovery: once the guest is back in play after the hidden window, the authority must apply its input again promptly.
+ const playingAgainAt=hiddenWindow?snapshots.find(snapshot=>snapshot.at>=hiddenWindow!.to&&snapshot.phase==='playing')?.at:undefined;
+ const recoveredAfterMs=playingAgainAt===undefined?null:(inputs.find(input=>input.at>=playingAgainAt&&results.get(input.seq)?.status==='applied')?.at??Infinity)-playingAgainAt;
+ report={...report,summary,localRejectPercent,hostProcessedPercent,hostExpiredPercent,recoveredAfterMs,appliedReportMs,hiddenWindow,samplesRetained:samples.length};
+ console.log(JSON.stringify({...summary,localRejectPercent:Number(localRejectPercent.toFixed(2)),hostProcessedPercent:Number(hostProcessedPercent.toFixed(2)),hostExpiredPercent:Number(hostExpiredPercent.toFixed(2)),recoveredAfterMs,appliedReportMs},null,1));
  assert.equal(errors.length,0,'Browser errors');
  assert.ok(playing.length>=100,'Probe needs at least 100 playing-phase inputs');
  assert.ok(localRejectPercent<=maxLocalRejectPercent,`Local rejection ${localRejectPercent.toFixed(1)}% exceeds ${maxLocalRejectPercent}% while connected`);
+ assert.ok(hostProcessedPercent>=minHostProcessedPercent,`Authority applied or superseded only ${hostProcessedPercent.toFixed(1)}% (need ${minHostProcessedPercent}%)`);
+ assert.ok(hostExpiredPercent<=maxHostExpiredPercent,`Authority expired ${hostExpiredPercent.toFixed(1)}% (limit ${maxHostExpiredPercent}%)`);
+ if(hideMs)assert.ok(recoveredAfterMs!==null&&recoveredAfterMs<=recoveryMs,`Input not applied within ${recoveryMs} ms of playing again after the hidden window (${recoveredAfterMs})`);
  report.passed=true;
 }catch(error){report.failure=error instanceof Error?error.message:String(error);throw error;}
 finally{await mkdir('artifacts',{recursive:true});await writeFile('artifacts/input-drop-probe.json',JSON.stringify({...report,samples:samples.slice(-6000)},null,1)+'\n');await Promise.all(contexts.map(context=>context.close()));await browser.close();}

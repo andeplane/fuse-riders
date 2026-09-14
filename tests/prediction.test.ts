@@ -52,3 +52,16 @@ test('transport-refused and stale inputs never count toward the bound; overflow 
  assert.equal(predictor.diagnostics().pending,0,'inputs behind the host window are pruned');
  assert.ok(predictor.input(440,true,false));assert.equal(predictor.render(later,'h').players[0]!.alive,true);
 });
+test('overflow first drops inputs behind the host window and only clears a fully fresh backlog (#15 follow-up)',()=>{
+ let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now);predictor.accept(state,'h',-1,motion,'authority');
+ now=10;assert.ok(predictor.observeClock({scope:motion.scope,localSentAt:10,localReceivedAt:10,authorityTick:state.tick-10,paused:false}));
+ for(let seq=0;seq<100;seq++)assert.equal(predictor.input(seq,true,false)!.intendedTick,state.tick-9);
+ now=20;assert.ok(predictor.observeClock({scope:motion.scope,localSentAt:20,localReceivedAt:20,authorityTick:state.tick,paused:false}));
+ for(let seq=100;seq<128;seq++)assert.equal(predictor.input(seq,true,false)!.intendedTick,state.tick+1);
+ assert.equal(predictor.diagnostics().pending,128);
+ assert.ok(predictor.input(128,true,false));assert.equal(predictor.diagnostics().pending,29,'stale entries go first, fresh ones survive');
+ for(let seq=129;seq<228;seq++)assert.ok(predictor.input(seq,true,false));
+ assert.equal(predictor.diagnostics().pending,128);
+ assert.ok(predictor.input(228,true,false));assert.equal(predictor.diagnostics().pending,1,'a full fresh backlog is dropped as a whole');
+ assert.equal(predictor.diagnostics().estimate?.tick,state.tick);
+});
