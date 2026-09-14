@@ -1,0 +1,76 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC.
+{"elapsed":4.509,"phase":"playing","round":1,"tick":69,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":5,"simulator":true,"replicaTick":69,"finalizedTick":66,"finalizedHash":"fdc939f9135e68bd","retainedRecords":0,"rollbackCount":0,"fastSentBytes":3700,"binarySentBytes":264005,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.51,"phase":"playing","round":1,"tick":169,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":5,"simulator":true,"replicaTick":169,"finalizedTick":165,"finalizedHash":"6985af21326c212d","retainedRecords":0,"rollbackCount":0,"fastSentBytes":8715,"binarySentBytes":382119,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.511,"phase":"countdown","round":2,"tick":245,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":6,"simulator":true,"replicaTick":245,"finalizedTick":245,"finalizedHash":"9cbcf7bb226156cf","retainedRecords":0,"rollbackCount":0,"fastSentBytes":12840,"binarySentBytes":741383,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":19.512,"phase":"playing","round":2,"tick":345,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":6,"simulator":true,"replicaTick":345,"finalizedTick":342,"finalizedHash":"247a11a6cb48eb42","retainedRecords":0,"rollbackCount":0,"fastSentBytes":17595,"binarySentBytes":859834,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":24.511,"phase":"roundOver","round":2,"tick":445,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":6,"simulator":true,"replicaTick":445,"finalizedTick":441,"finalizedHash":"48796af96eb88745","retainedRecords":0,"rollbackCount":0,"fastSentBytes":22803,"binarySentBytes":978328,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":29.513,"phase":"countdown","round":3,"tick":520,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":7,"simulator":true,"replicaTick":520,"finalizedTick":518,"finalizedHash":"61624e3f127935ab","retainedRecords":0,"rollbackCount":0,"fastSentBytes":27313,"binarySentBytes":1353663,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":34.513,"phase":"playing","round":3,"tick":620,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":7,"simulator":true,"replicaTick":620,"finalizedTick":617,"finalizedHash":"dcb3362605977b2a","retainedRecords":0,"rollbackCount":0,"fastSentBytes":32722,"binarySentBytes":1471058,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":39.516,"phase":"playing","round":3,"tick":720,"diagnostics":{"mode":"direct","coordinator":"0076c291e67ef6e67bad9dd2","alias":7,"simulator":true,"replicaTick":720,"finalizedTick":717,"finalizedHash":"fd460b6ef5843b6a","retainedRecords":0,"rollbackCount":0,"fastSentBytes":38505,"binarySentBytes":1588471,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{
+  "passed": true,
+  "seconds": 40.666,
+  "totals": [
+    {
+      "index": 0,
+      "engine": "chromium",
+      "rtcUpload": 1555378,
+      "rtcDownload": 224896,
+      "signallingUpload": 6324,
+      "signallingDownload": 16724,
+      "rtcUploadBytesPerSecond": 38247.62701027886,
+      "rtcDownloadBytesPerSecond": 5530.320169183102
+    },
+    {
+      "index": 1,
+      "engine": "webkit",
+      "rtcUpload": 79439,
+      "rtcDownload": 345593,
+      "signallingUpload": 1507,
+      "signallingDownload": 16347,
+      "rtcUploadBytesPerSecond": 1953.4500565583044,
+      "rtcDownloadBytesPerSecond": 8498.327841440025
+    },
+    {
+      "index": 2,
+      "engine": "chromium",
+      "rtcUpload": 79332,
+      "rtcDownload": 341506,
+      "signallingUpload": 1947,
+      "signallingDownload": 16787,
+      "rtcUploadBytesPerSecond": 1950.8188658830475,
+      "rtcDownloadBytesPerSecond": 8397.826193872032
+    },
+    {
+      "index": 3,
+      "engine": "webkit",
+      "rtcUpload": 79590,
+      "rtcDownload": 345524,
+      "signallingUpload": 1507,
+      "signallingDownload": 16347,
+      "rtcUploadBytesPerSecond": 1957.1632321841344,
+      "rtcDownloadBytesPerSecond": 8496.63109231299
+    },
+    {
+      "index": 4,
+      "engine": "chromium",
+      "rtcUpload": 79841,
+      "rtcDownload": 344753,
+      "signallingUpload": 1980,
+      "signallingDownload": 17070,
+      "rtcUploadBytesPerSecond": 1963.335464515812,
+      "rtcDownloadBytesPerSecond": 8477.671765110905
+    },
+    {
+      "index": 5,
+      "engine": "webkit",
+      "rtcUpload": 60870,
+      "rtcDownload": 332178,
+      "signallingUpload": 1543,
+      "signallingDownload": 16633,
+      "rtcUploadBytesPerSecond": 1496.8278168494567,
+      "rtcDownloadBytesPerSecond": 8168.4453843505635
+    }
+  ],
+  "errors": []
+}

@@ -1,0 +1,77 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC.
+{"elapsed":4.512,"phase":"playing","round":1,"tick":69,"diagnostics":{"mode":"direct","coordinator":"cda361d6cd0383fd212edf09","alias":5,"simulator":true,"replicaTick":69,"finalizedTick":68,"finalizedHash":"402ce037dfec0053","retainedRecords":0,"rollbackCount":0,"fastSentBytes":3755,"binarySentBytes":262616,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.509,"phase":"playing","round":1,"tick":169,"diagnostics":{"mode":"direct","coordinator":"cda361d6cd0383fd212edf09","alias":5,"simulator":true,"replicaTick":169,"finalizedTick":168,"finalizedHash":"61c26ed651b6faf2","retainedRecords":0,"rollbackCount":0,"fastSentBytes":8765,"binarySentBytes":381805,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.51,"phase":"countdown","round":2,"tick":246,"diagnostics":{"mode":"direct","coordinator":"cda361d6cd0383fd212edf09","alias":6,"simulator":true,"replicaTick":246,"finalizedTick":245,"finalizedHash":"df3abea24a891efe","retainedRecords":0,"rollbackCount":0,"fastSentBytes":12850,"binarySentBytes":748328,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":19.516,"phase":"countdown","round":2,"tick":291,"diagnostics":{"mode":"direct","simulator":true,"replicaTick":291,"finalizedTick":290,"finalizedHash":"ca69fc74bf627708","retainedRecords":0,"rollbackCount":0,"fastSentBytes":14910,"binarySentBytes":802276,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false,"fault":"Segment replaced"}}
+{"elapsed":24.516,"phase":"countdown","round":2,"tick":291,"diagnostics":{"mode":"direct","simulator":true,"replicaTick":291,"finalizedTick":290,"finalizedHash":"ca69fc74bf627708","retainedRecords":0,"rollbackCount":0,"fastSentBytes":14910,"binarySentBytes":817225,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Room membership changed — synchronizing","barrier":false,"fault":"Segment replaced"}}
+{"elapsed":29.513,"phase":"playing","round":2,"tick":346,"diagnostics":{"mode":"direct","coordinator":"cda361d6cd0383fd212edf09","alias":2,"simulator":true,"replicaTick":346,"finalizedTick":343,"finalizedHash":"b13b34dbf09fea37","retainedRecords":0,"rollbackCount":0,"fastSentBytes":18500,"binarySentBytes":1079350,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Room membership changed — synchronizing","barrier":false}}
+{"elapsed":34.516,"phase":"roundOver","round":2,"tick":447,"diagnostics":{"mode":"direct","coordinator":"cda361d6cd0383fd212edf09","alias":2,"simulator":true,"replicaTick":447,"finalizedTick":443,"finalizedHash":"01643b071955bf1b","retainedRecords":0,"rollbackCount":0,"fastSentBytes":23925,"binarySentBytes":1196763,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Room membership changed — synchronizing","barrier":false}}
+{"elapsed":39.52,"phase":"countdown","round":3,"tick":522,"diagnostics":{"mode":"direct","coordinator":"cda361d6cd0383fd212edf09","alias":3,"simulator":true,"replicaTick":522,"finalizedTick":519,"finalizedHash":"14c2ac2189e9562d","retainedRecords":0,"rollbackCount":0,"fastSentBytes":28200,"binarySentBytes":1538097,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Room membership changed — synchronizing","barrier":false}}
+{"elapsed":44.519,"phase":"playing","round":3,"tick":622,"diagnostics":{"mode":"direct","coordinator":"cda361d6cd0383fd212edf09","alias":3,"simulator":true,"replicaTick":622,"finalizedTick":619,"finalizedHash":"ead59889ed21a93d","retainedRecords":0,"rollbackCount":0,"fastSentBytes":33310,"binarySentBytes":1654429,"recoveryRequired":false,"corruptRecoveryAttempts":0,"lastFault":"Room membership changed — synchronizing","barrier":false}}
+{
+  "passed": true,
+  "seconds": 47.432,
+  "totals": [
+    {
+      "index": 0,
+      "engine": "chromium",
+      "rtcUpload": 1678165,
+      "rtcDownload": 247664,
+      "signallingUpload": 12424,
+      "signallingDownload": 25171,
+      "rtcUploadBytesPerSecond": 35380.43936582898,
+      "rtcDownloadBytesPerSecond": 5221.45387080452
+    },
+    {
+      "index": 1,
+      "engine": "webkit",
+      "rtcUpload": 98309,
+      "rtcDownload": 384703,
+      "signallingUpload": 6866,
+      "signallingDownload": 24134,
+      "rtcUploadBytesPerSecond": 2072.630291786136,
+      "rtcDownloadBytesPerSecond": 8110.621521335806
+    },
+    {
+      "index": 2,
+      "engine": "chromium",
+      "rtcUpload": 97801,
+      "rtcDownload": 379361,
+      "signallingUpload": 7687,
+      "signallingDownload": 24867,
+      "rtcUploadBytesPerSecond": 2061.9202226345083,
+      "rtcDownloadBytesPerSecond": 7997.997132737392
+    },
+    {
+      "index": 3,
+      "engine": "webkit",
+      "rtcUpload": 97259,
+      "rtcDownload": 380745,
+      "signallingUpload": 7915,
+      "signallingDownload": 23391,
+      "rtcUploadBytesPerSecond": 2050.493337831,
+      "rtcDownloadBytesPerSecond": 8027.17574633159
+    },
+    {
+      "index": 4,
+      "engine": "chromium",
+      "rtcUpload": 98075,
+      "rtcDownload": 380714,
+      "signallingUpload": 7041,
+      "signallingDownload": 24597,
+      "rtcUploadBytesPerSecond": 2067.6969134761343,
+      "rtcDownloadBytesPerSecond": 8026.522179119582
+    },
+    {
+      "index": 5,
+      "engine": "webkit",
+      "rtcUpload": 78942,
+      "rtcDownload": 375364,
+      "signallingUpload": 10976,
+      "signallingDownload": 23029,
+      "rtcUploadBytesPerSecond": 1664.3194467869791,
+      "rtcDownloadBytesPerSecond": 7913.729128014842
+    }
+  ],
+  "errors": []
+}

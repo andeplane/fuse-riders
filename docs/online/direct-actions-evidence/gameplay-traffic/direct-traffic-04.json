@@ -1,0 +1,3348 @@
+{
+  "revision": "8b4ef5eecda0a19e24ed533dec00e3836bbe849a",
+  "dirty": true,
+  "sourceHashes": {
+    "src/shared/deterministic-math.ts": "6e39806445fbe3ca403f1e26a9b6a47841e82a18935ae0b760cb54b8de4c0453",
+    "src/shared/rider-motion.ts": "6669666ce27de726dcfd97e0d438f512af4e6cf459fa569179f0dbca912c9764",
+    "src/shared/pickup-weights.ts": "1c0b7d2481374895e838ffb9c42ecc9f3a213d0b0c5690608d3ac79986073ffb",
+    "src/shared/room-settings.ts": "969db54db0738385f7831d6df6521091556b8b5f74681922c600d364b2a96971",
+    "src/shared/gun.ts": "eedcc8a5cb9d642cca504e77397d5fc1769eb916ff7dcbe79ab674ca9a212a3b",
+    "src/shared/shell.ts": "2e83398c28dcff15fdd9d0679b58a3494bd6381a8a2bbd1f03d36331c56c70ae",
+    "src/shared/avatars.ts": "e592d5cbd5b390e37c952ea2264f17b9239eb354d762ec81f812b616eeb6b790",
+    "src/shared/trail-clipping.ts": "9fff85cb382be0e19519be18c7f75c9ecd29d554c6296bb458bc6653dc9827b9",
+    "src/shared/blast-geometry.ts": "4344f601c04c273dc00e21d077e3f1ad53fe14abe0c08d3e966ce2be6cc85b30",
+    "src/shared/portal.ts": "3bae0038d788a47667b7725c2d6b5e55c918bb732d7c5fb54e9f49bea6ea3547",
+    "src/shared/leaderboard.ts": "d1dcde6d3f8eaf65477017821d95a18285974faa9578e9f30cea4d61256adc9b",
+    "src/shared/match-stats.ts": "75aefcb83896c869ed622104d68bd80654fac4d91c8d93e427d3f17f75a1f975",
+    "src/shared/drunk.ts": "64ae63d62479730d42828c4c1a813893b422bc07ccc69709e1f9b9504de24349",
+    "src/shared/bomb-launch.ts": "c10f44079bbb1cf87053e6e6e46723856da135e7954395de1917763c1f387f6b",
+    "src/shared/launch-modifiers.ts": "0cb33c5483369146140f223ebf5ea0a137f53d32e012c99f4ff3edb14ae34986",
+    "src/shared/game.ts": "1b496f81b2d4c283ba4c64b153b4837dbe573f921b592a6f5b85cd0627a92557",
+    "src/shared/action-log.ts": "b49ee6871a08cc6fd9d4c4210f8b0d3f43225ed7d574e4fd5ec23dd524e97d41",
+    "src/shared/direct-input.ts": "82e75f0653f23821ee89fba23adb7cfe81e7a36dca6a6b23a415fd062d618bf5",
+    "src/shared/bot-controller.ts": "0e30dcd18c97c2f41c0fc6114436b169f25656687f8078a9cd53562cb2561ffe",
+    "src/online/checkpoint.ts": "5664e30e2982116e90266a2c815776939b89db96b9c93068a38bc4a12cf0c379",
+    "src/online/prediction-validation.ts": "8f8ae7ddbdd0f454d052c4a84299b93311a36ab626680da28a128049e5608736",
+    "src/online/action-replication.ts": "1adb99b9695c55dd733149c1d77118624239349493a8d8dfc3bbaabf34441ede",
+    "src/online/direct-stream.ts": "ddff7ecaa97d2612c51ca69a57eb61c3897c55e61dbeff9162ad02ddf8e3e3f0",
+    "src/online/direct-ingress.ts": "91ca5d0d3a04b38b038fb462ed478d375037b09d38e61331a49d8b60e1d1224b",
+    "src/online/direct-control.ts": "9f69074e91b7e891abe041aa7ea6e951304fa2b92991764660937bdb978e9dda",
+    "src/online/room-socket-close.ts": "8b279133ac98e57f5127644ea71a289ea49ffceea13c95c5f86aefac618da10d",
+    "src/online/link-callback.ts": "a4a1bc8e6f85cef1f3d57fd56a810cc7de61235ee73c7eccef3edaaf755392fa",
+    "src/online/link-health.ts": "1478559ee79877c3565081f0476dc79dd85e6db0cb44bddeacea938cd7c5a06a",
+    "src/online/link-send-gate.ts": "ba9cf81f28ad83d301bfef8a14c333be068466474fb77d8435f48b92254a77a0",
+    "src/online/endpoints.ts": "71d23adfd1e21f4de0e6ec9775a15dc520491e1531d94701b4c97795c919c702",
+    "src/online/authority.ts": "1a52e6ed39cee1f1037fd346b63684f71fea5278a603a3be1ccab4955f3b773b",
+    "src/online/ice-config.ts": "b3445b7c930594aa96f247b538d1f66625c3a2a84f870f335bd13fd852081ec0",
+    "src/online/ice-signal.ts": "4f715de2549e90042f20ab33f2156a891e115ed62e7931cba2635a3d6c01e56f",
+    "src/online/remote-signal.ts": "b502896e9d7fe06a728a5874f047a2b39ee1a9ae81f47c936c3521aa614af337",
+    "src/online/link-restart.ts": "65400186a56cb3522385e63185b1f895634badcbeef72c890408a4d821cdc96a",
+    "src/online/link-diagnostics.ts": "ce67e9d671534d31ad25f4106beef919d65291a8235d613a92578fee12af1dd8",
+    "src/online/peer-transport.ts": "4b17212c3b6673eac0873caa1f026528b2663be2d31d2b27956919889ed8e84b",
+    "src/online/status-notices.ts": "b95fbaf23c5d9c64104ea58bdcbb02adc3667babed24b06b7c1acb24c255dea6",
+    "src/online/direct-clock.ts": "bc0fdf630902a676b209a66d281a02c9dd886b5663cc363d0b40044a97344bf7",
+    "src/online/direct-origin.ts": "c7872241ff730aafce5ecfba4cf841e3b5ccb36a9dfe93a7cb8246dc80f34858",
+    "src/online/rollback-world.ts": "af8d33326242cc210b6ec7c51ba4ae17a05e2bbc41a9a559daf233282cc26f73",
+    "src/online/direct-segment.ts": "f0340dbc11e2f5cc44696f710e40a5b3e92e5a091e14035a78d1072b312d0f6a",
+    "src/online/prediction-contract.ts": "aad83dbc0523d83dbeec5a937cf55dfcde4e788b2951ed2b0fdc1a72ccfc77cc",
+    "src/server/bomb-input.ts": "f238f2ec76c0f9a7ab892dea8620233781fce710a6ccb00f6efa94d80585654b",
+    "src/online/host-session.ts": "0de535c7cddca50268f46d201f4b6ffe2ac55a4558b52bf755b51421e4ad80c7",
+    "src/online/direct-room-state.ts": "73c2c53f0861b92a4f187f6cef35a9ae3710ce38682d715e014b95eb006509c1",
+    "src/online/runtime.ts": "1b3a80d8a10061f58b8327cd6d44142429c2da3da5629454fac5b859c36ea177",
+    "scripts/fixtures/direct-traffic-fixture.ts": "ddb8d8fbe3eff71b2c60b6bf2f64081e51f095641254c608cc08713c93fb230d"
+  },
+  "bundleSha256": "ab5ef0b23c8e1fa4649a0c3a97927d77412aa66b848189658ee0f05797e38285",
+  "passed": true,
+  "start": 1789406731636,
+  "end": 1789406767468,
+  "seconds": 35.832,
+  "method": "Real RoomRuntime and PeerTransport, five scripted human origins plus display, six simulators alternating Chromium/WebKit. Three-round default-pickup match; window starts before start command and includes countdowns, automatic round transitions and match completion. Native accepted-send and delivered-message application bytes classified for every RTC/WS payload. Excludes room-join bootstrap, HTTP requests/handshakes, SCTP/DTLS/IP headers, retransmission wire cost and rendering. Local network, no injected impairment. This workload is not matched to the historical five-bot serializer benchmark.",
+  "totals": [
+    {
+      "index": 0,
+      "engine": "chromium",
+      "rtcUpload": 662163,
+      "rtcDownload": 54350,
+      "signallingUpload": 5719,
+      "signallingDownload": 15079,
+      "rtcUploadBytesPerSecond": 18479.65505693235,
+      "rtcDownloadBytesPerSecond": 1516.80062513954
+    },
+    {
+      "index": 1,
+      "engine": "webkit",
+      "rtcUpload": 41094,
+      "rtcDownload": 161689,
+      "signallingUpload": 1317,
+      "signallingDownload": 14423,
+      "rtcUploadBytesPerSecond": 1146.851975887475,
+      "rtcDownloadBytesPerSecond": 4512.419066755972
+    },
+    {
+      "index": 2,
+      "engine": "chromium",
+      "rtcUpload": 41677,
+      "rtcDownload": 161930,
+      "signallingUpload": 1718,
+      "signallingDownload": 15074,
+      "rtcUploadBytesPerSecond": 1163.1223487385578,
+      "rtcDownloadBytesPerSecond": 4519.144898414825
+    },
+    {
+      "index": 3,
+      "engine": "webkit",
+      "rtcUpload": 41112,
+      "rtcDownload": 161538,
+      "signallingUpload": 1353,
+      "signallingDownload": 14709,
+      "rtcUploadBytesPerSecond": 1147.3543201607501,
+      "rtcDownloadBytesPerSecond": 4508.204956463496
+    },
+    {
+      "index": 4,
+      "engine": "chromium",
+      "rtcUpload": 41250,
+      "rtcDownload": 158776,
+      "signallingUpload": 1707,
+      "signallingDownload": 15063,
+      "rtcUploadBytesPerSecond": 1151.2056262558606,
+      "rtcDownloadBytesPerSecond": 4431.123018530922
+    },
+    {
+      "index": 5,
+      "engine": "webkit",
+      "rtcUpload": 24815,
+      "rtcDownload": 153828,
+      "signallingUpload": 1353,
+      "signallingDownload": 14709,
+      "rtcUploadBytesPerSecond": 692.5373967403439,
+      "rtcDownloadBytesPerSecond": 4293.034159410583
+    }
+  ],
+  "samples": [
+    {
+      "id": "5f8de649734cdd015fd5114d",
+      "index": 0,
+      "start": 1789406731636,
+      "end": 1789406767468,
+      "now": 1789406767527,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 651,
+      "players": 5,
+      "outcome": {
+        "leaderboard": [
+          {
+            "id": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "totalScoreUnits": 780,
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "matchWins": 1
+          },
+          {
+            "id": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "totalScoreUnits": 480,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "totalScoreUnits": 420,
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "matchWins": 0
+          },
+          {
+            "id": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "totalScoreUnits": 240,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "totalScoreUnits": 60,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          }
+        ],
+        "roundPlacements": [
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "place": 1,
+            "scoreUnits": 300
+          },
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "place": 2,
+            "scoreUnits": 180
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "place": 3,
+            "scoreUnits": 120
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "place": 4,
+            "scoreUnits": 60
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "place": 5,
+            "scoreUnits": 0
+          }
+        ],
+        "matchStats": [
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "slot": 1,
+            "color": "#ff4fa3",
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "roundsDrawn": 0,
+            "matchPlacement": 1,
+            "survivalTicks": 346,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2594.9999999999955,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 1,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "slot": 4,
+            "color": "#a78bfa",
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "roundsDrawn": 0,
+            "matchPlacement": 2,
+            "survivalTicks": 239,
+            "longestSurvivalTicks": 127,
+            "distanceUnits": 1792.5000000000007,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 2,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "slot": 0,
+            "color": "#22d3ee",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 164,
+            "longestSurvivalTicks": 72,
+            "distanceUnits": 1229.9999999999998,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 3,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "slot": 2,
+            "color": "#a3e635",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 218,
+            "longestSurvivalTicks": 99,
+            "distanceUnits": 1635.0000000000005,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "slot": 3,
+            "color": "#fb923c",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 320,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2399.9999999999995,
+            "bombsPlaced": 4,
+            "bombsExploded": 2,
+            "eliminations": 2,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          }
+        ]
+      },
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "5f8de649734cdd015fd5114d",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 651,
+        "finalizedTick": 649,
+        "finalizedHash": "c0457d1484f19088",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 34488,
+        "binarySentBytes": 695629,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:directPlan": {
+          "bytes": 16194,
+          "packets": 15,
+          "maxBytes": 1080
+        },
+        "rtc:directPrepare": {
+          "bytes": 85071,
+          "packets": 28,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 444465,
+          "packets": 45,
+          "maxBytes": 12206
+        },
+        "rtc:liveness": {
+          "bytes": 9459,
+          "packets": 1773,
+          "maxBytes": 6
+        },
+        "rtc:linkPong": {
+          "bytes": 1689,
+          "packets": 8,
+          "maxBytes": 212
+        },
+        "rtc:linkProbe": {
+          "bytes": 1486,
+          "packets": 7,
+          "maxBytes": 213
+        },
+        "rtc:directActivate": {
+          "bytes": 2860,
+          "packets": 15,
+          "maxBytes": 191
+        },
+        "rtc:progress": {
+          "bytes": 15755,
+          "packets": 1680,
+          "maxBytes": 10
+        },
+        "rtc:control:time": {
+          "bytes": 8064,
+          "packets": 448,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 6745,
+          "packets": 1349,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 68170,
+          "packets": 1535,
+          "maxBytes": 45
+        },
+        "ws:time": {
+          "bytes": 5719,
+          "packets": 36,
+          "maxBytes": 273
+        },
+        "rtc:actions": {
+          "bytes": 2205,
+          "packets": 130,
+          "maxBytes": 24
+        }
+      },
+      "rx": {
+        "rtc:control:clock": {
+          "bytes": 4500,
+          "packets": 450,
+          "maxBytes": 10
+        },
+        "rtc:directPlanAck": {
+          "bytes": 2835,
+          "packets": 15,
+          "maxBytes": 189
+        },
+        "rtc:directHeader": {
+          "bytes": 5264,
+          "packets": 28,
+          "maxBytes": 188
+        },
+        "rtc:liveness": {
+          "bytes": 9486,
+          "packets": 1778,
+          "maxBytes": 6
+        },
+        "rtc:linkProbe": {
+          "bytes": 1689,
+          "packets": 8,
+          "maxBytes": 212
+        },
+        "rtc:directReady": {
+          "bytes": 3553,
+          "packets": 19,
+          "maxBytes": 187
+        },
+        "rtc:linkPong": {
+          "bytes": 1472,
+          "packets": 7,
+          "maxBytes": 211
+        },
+        "rtc:directApplied": {
+          "bytes": 2835,
+          "packets": 15,
+          "maxBytes": 189
+        },
+        "rtc:progress": {
+          "bytes": 12482,
+          "packets": 1331,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 8375,
+          "packets": 1675,
+          "maxBytes": 5
+        },
+        "ws:time": {
+          "bytes": 10723,
+          "packets": 36,
+          "maxBytes": 301
+        },
+        "ws:authority": {
+          "bytes": 4356,
+          "packets": 18,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 1859,
+          "packets": 112,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406729163,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406731883,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406735844,
+          "phase": "playing",
+          "round": 1,
+          "tick": 63
+        },
+        {
+          "at": 1789406739646,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 139
+        },
+        {
+          "at": 1789406742835,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 196
+        },
+        {
+          "at": 1789406746744,
+          "phase": "playing",
+          "round": 2,
+          "tick": 258
+        },
+        {
+          "at": 1789406753797,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 399
+        },
+        {
+          "at": 1789406756984,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 457
+        },
+        {
+          "at": 1789406760937,
+          "phase": "playing",
+          "round": 3,
+          "tick": 520
+        },
+        {
+          "at": 1789406767205,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 645
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406729162,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406729162,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406729163,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406729165,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406729166,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406729173,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406729688,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406730668,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406730872,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406730894,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731072,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406731652,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731883,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406742615,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406742835,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406756772,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406756984,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 28,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "c5c7fc927afb9152f113740c",
+      "index": 1,
+      "start": 1789406731636,
+      "end": 1789406767468,
+      "now": 1789406767525,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 651,
+      "players": 5,
+      "outcome": {
+        "leaderboard": [
+          {
+            "id": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "totalScoreUnits": 780,
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "matchWins": 1
+          },
+          {
+            "id": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "totalScoreUnits": 480,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "totalScoreUnits": 420,
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "matchWins": 0
+          },
+          {
+            "id": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "totalScoreUnits": 240,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "totalScoreUnits": 60,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          }
+        ],
+        "roundPlacements": [
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "place": 1,
+            "scoreUnits": 300
+          },
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "place": 2,
+            "scoreUnits": 180
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "place": 3,
+            "scoreUnits": 120
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "place": 4,
+            "scoreUnits": 60
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "place": 5,
+            "scoreUnits": 0
+          }
+        ],
+        "matchStats": [
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "slot": 1,
+            "color": "#ff4fa3",
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "roundsDrawn": 0,
+            "matchPlacement": 1,
+            "survivalTicks": 346,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2594.9999999999955,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 1,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "slot": 4,
+            "color": "#a78bfa",
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "roundsDrawn": 0,
+            "matchPlacement": 2,
+            "survivalTicks": 239,
+            "longestSurvivalTicks": 127,
+            "distanceUnits": 1792.5000000000007,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 2,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "slot": 0,
+            "color": "#22d3ee",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 164,
+            "longestSurvivalTicks": 72,
+            "distanceUnits": 1229.9999999999998,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 3,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "slot": 2,
+            "color": "#a3e635",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 218,
+            "longestSurvivalTicks": 99,
+            "distanceUnits": 1635.0000000000005,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "slot": 3,
+            "color": "#fb923c",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 320,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2399.9999999999995,
+            "bombsPlaced": 4,
+            "bombsExploded": 2,
+            "eliminations": 2,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          }
+        ]
+      },
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "5f8de649734cdd015fd5114d",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 651,
+        "finalizedTick": 647,
+        "finalizedHash": "54287d6abe10da26",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 34349,
+        "binarySentBytes": 6565,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:directPlanAck": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:directHeader": {
+          "bytes": 1128,
+          "packets": 6,
+          "maxBytes": 188
+        },
+        "rtc:linkPong": {
+          "bytes": 1889,
+          "packets": 9,
+          "maxBytes": 211
+        },
+        "rtc:liveness": {
+          "bytes": 9384,
+          "packets": 1761,
+          "maxBytes": 6
+        },
+        "rtc:linkProbe": {
+          "bytes": 1481,
+          "packets": 7,
+          "maxBytes": 212
+        },
+        "rtc:directReady": {
+          "bytes": 561,
+          "packets": 3,
+          "maxBytes": 187
+        },
+        "rtc:directApplied": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:control:clock": {
+          "bytes": 900,
+          "packets": 90,
+          "maxBytes": 10
+        },
+        "rtc:progress": {
+          "bytes": 15550,
+          "packets": 1659,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 6680,
+          "packets": 1336,
+          "maxBytes": 5
+        },
+        "ws:time": {
+          "bytes": 1317,
+          "packets": 35,
+          "maxBytes": 38
+        },
+        "rtc:actions": {
+          "bytes": 2387,
+          "packets": 146,
+          "maxBytes": 18
+        }
+      },
+      "rx": {
+        "rtc:directPlan": {
+          "bytes": 3239,
+          "packets": 3,
+          "maxBytes": 1080
+        },
+        "rtc:directPrepare": {
+          "bytes": 18232,
+          "packets": 6,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 88893,
+          "packets": 9,
+          "maxBytes": 12206
+        },
+        "rtc:liveness": {
+          "bytes": 9384,
+          "packets": 1761,
+          "maxBytes": 6
+        },
+        "rtc:linkProbe": {
+          "bytes": 1900,
+          "packets": 9,
+          "maxBytes": 212
+        },
+        "rtc:linkPong": {
+          "bytes": 1475,
+          "packets": 7,
+          "maxBytes": 212
+        },
+        "rtc:directActivate": {
+          "bytes": 572,
+          "packets": 3,
+          "maxBytes": 191
+        },
+        "rtc:progress": {
+          "bytes": 12531,
+          "packets": 1336,
+          "maxBytes": 10
+        },
+        "rtc:control:time": {
+          "bytes": 1620,
+          "packets": 90,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 8400,
+          "packets": 1680,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 13634,
+          "packets": 307,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4356,
+          "packets": 18,
+          "maxBytes": 242
+        },
+        "ws:time": {
+          "bytes": 10067,
+          "packets": 35,
+          "maxBytes": 288
+        },
+        "rtc:actions": {
+          "bytes": 1809,
+          "packets": 108,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406730882,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406731886,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406735847,
+          "phase": "playing",
+          "round": 1,
+          "tick": 63
+        },
+        {
+          "at": 1789406739651,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 139
+        },
+        {
+          "at": 1789406742839,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 196
+        },
+        {
+          "at": 1789406746747,
+          "phase": "playing",
+          "round": 2,
+          "tick": 258
+        },
+        {
+          "at": 1789406753808,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 399
+        },
+        {
+          "at": 1789406756986,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 457
+        },
+        {
+          "at": 1789406760947,
+          "phase": "playing",
+          "round": 3,
+          "tick": 520
+        },
+        {
+          "at": 1789406767209,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 645
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406729597,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406729601,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406729695,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406730671,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406730882,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406730895,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731074,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406731653,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731886,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406742617,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406742839,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406756774,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406756986,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 31,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "57ba43c81e44ab54f2ef00b4",
+      "index": 2,
+      "start": 1789406731636,
+      "end": 1789406767468,
+      "now": 1789406767525,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 651,
+      "players": 5,
+      "outcome": {
+        "leaderboard": [
+          {
+            "id": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "totalScoreUnits": 780,
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "matchWins": 1
+          },
+          {
+            "id": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "totalScoreUnits": 480,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "totalScoreUnits": 420,
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "matchWins": 0
+          },
+          {
+            "id": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "totalScoreUnits": 240,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "totalScoreUnits": 60,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          }
+        ],
+        "roundPlacements": [
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "place": 1,
+            "scoreUnits": 300
+          },
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "place": 2,
+            "scoreUnits": 180
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "place": 3,
+            "scoreUnits": 120
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "place": 4,
+            "scoreUnits": 60
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "place": 5,
+            "scoreUnits": 0
+          }
+        ],
+        "matchStats": [
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "slot": 1,
+            "color": "#ff4fa3",
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "roundsDrawn": 0,
+            "matchPlacement": 1,
+            "survivalTicks": 346,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2594.9999999999955,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 1,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "slot": 4,
+            "color": "#a78bfa",
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "roundsDrawn": 0,
+            "matchPlacement": 2,
+            "survivalTicks": 239,
+            "longestSurvivalTicks": 127,
+            "distanceUnits": 1792.5000000000007,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 2,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "slot": 0,
+            "color": "#22d3ee",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 164,
+            "longestSurvivalTicks": 72,
+            "distanceUnits": 1229.9999999999998,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 3,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "slot": 2,
+            "color": "#a3e635",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 218,
+            "longestSurvivalTicks": 99,
+            "distanceUnits": 1635.0000000000005,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "slot": 3,
+            "color": "#fb923c",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 320,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2399.9999999999995,
+            "bombsPlaced": 4,
+            "bombsExploded": 2,
+            "eliminations": 2,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          }
+        ]
+      },
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "5f8de649734cdd015fd5114d",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 651,
+        "finalizedTick": 647,
+        "finalizedHash": "54287d6abe10da26",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 34511,
+        "binarySentBytes": 6930,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:control:clock": {
+          "bytes": 900,
+          "packets": 90,
+          "maxBytes": 10
+        },
+        "rtc:directPlanAck": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:directHeader": {
+          "bytes": 1128,
+          "packets": 6,
+          "maxBytes": 188
+        },
+        "rtc:liveness": {
+          "bytes": 9478,
+          "packets": 1777,
+          "maxBytes": 6
+        },
+        "rtc:linkProbe": {
+          "bytes": 2324,
+          "packets": 11,
+          "maxBytes": 212
+        },
+        "ws:time": {
+          "bytes": 1718,
+          "packets": 36,
+          "maxBytes": 51
+        },
+        "rtc:linkPong": {
+          "bytes": 1260,
+          "packets": 6,
+          "maxBytes": 210
+        },
+        "rtc:directReady": {
+          "bytes": 748,
+          "packets": 4,
+          "maxBytes": 187
+        },
+        "rtc:directApplied": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:progress": {
+          "bytes": 15710,
+          "packets": 1675,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 6705,
+          "packets": 1341,
+          "maxBytes": 5
+        },
+        "rtc:actions": {
+          "bytes": 2290,
+          "packets": 135,
+          "maxBytes": 24
+        }
+      },
+      "rx": {
+        "rtc:directPlan": {
+          "bytes": 3238,
+          "packets": 3,
+          "maxBytes": 1080
+        },
+        "rtc:directPrepare": {
+          "bytes": 18210,
+          "packets": 6,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 88893,
+          "packets": 9,
+          "maxBytes": 12206
+        },
+        "rtc:linkPong": {
+          "bytes": 2315,
+          "packets": 11,
+          "maxBytes": 212
+        },
+        "rtc:liveness": {
+          "bytes": 9468,
+          "packets": 1775,
+          "maxBytes": 6
+        },
+        "ws:time": {
+          "bytes": 10718,
+          "packets": 36,
+          "maxBytes": 301
+        },
+        "rtc:linkProbe": {
+          "bytes": 1267,
+          "packets": 6,
+          "maxBytes": 212
+        },
+        "rtc:progress": {
+          "bytes": 12501,
+          "packets": 1333,
+          "maxBytes": 10
+        },
+        "rtc:directActivate": {
+          "bytes": 572,
+          "packets": 3,
+          "maxBytes": 191
+        },
+        "rtc:control:time": {
+          "bytes": 1602,
+          "packets": 89,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 8405,
+          "packets": 1681,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 13634,
+          "packets": 307,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4356,
+          "packets": 18,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 1825,
+          "packets": 110,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406730882,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406731974,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406735849,
+          "phase": "playing",
+          "round": 1,
+          "tick": 63
+        },
+        {
+          "at": 1789406739649,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 139
+        },
+        {
+          "at": 1789406742836,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 196
+        },
+        {
+          "at": 1789406746749,
+          "phase": "playing",
+          "round": 2,
+          "tick": 258
+        },
+        {
+          "at": 1789406753800,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 399
+        },
+        {
+          "at": 1789406756984,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 457
+        },
+        {
+          "at": 1789406760939,
+          "phase": "playing",
+          "round": 3,
+          "tick": 520
+        },
+        {
+          "at": 1789406767208,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 645
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406729673,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406729676,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406729688,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406730671,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406730882,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406730894,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731118,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406731653,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731974,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406742616,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406742836,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406756773,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406756984,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 29,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "98936d6b891e4172ab9005a7",
+      "index": 3,
+      "start": 1789406731636,
+      "end": 1789406767468,
+      "now": 1789406767525,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 651,
+      "players": 5,
+      "outcome": {
+        "leaderboard": [
+          {
+            "id": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "totalScoreUnits": 780,
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "matchWins": 1
+          },
+          {
+            "id": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "totalScoreUnits": 480,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "totalScoreUnits": 420,
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "matchWins": 0
+          },
+          {
+            "id": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "totalScoreUnits": 240,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "totalScoreUnits": 60,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          }
+        ],
+        "roundPlacements": [
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "place": 1,
+            "scoreUnits": 300
+          },
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "place": 2,
+            "scoreUnits": 180
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "place": 3,
+            "scoreUnits": 120
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "place": 4,
+            "scoreUnits": 60
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "place": 5,
+            "scoreUnits": 0
+          }
+        ],
+        "matchStats": [
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "slot": 1,
+            "color": "#ff4fa3",
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "roundsDrawn": 0,
+            "matchPlacement": 1,
+            "survivalTicks": 346,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2594.9999999999955,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 1,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "slot": 4,
+            "color": "#a78bfa",
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "roundsDrawn": 0,
+            "matchPlacement": 2,
+            "survivalTicks": 239,
+            "longestSurvivalTicks": 127,
+            "distanceUnits": 1792.5000000000007,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 2,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "slot": 0,
+            "color": "#22d3ee",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 164,
+            "longestSurvivalTicks": 72,
+            "distanceUnits": 1229.9999999999998,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 3,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "slot": 2,
+            "color": "#a3e635",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 218,
+            "longestSurvivalTicks": 99,
+            "distanceUnits": 1635.0000000000005,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "slot": 3,
+            "color": "#fb923c",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 320,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2399.9999999999995,
+            "bombsPlaced": 4,
+            "bombsExploded": 2,
+            "eliminations": 2,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          }
+        ]
+      },
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "5f8de649734cdd015fd5114d",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 651,
+        "finalizedTick": 647,
+        "finalizedHash": "54287d6abe10da26",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 34111,
+        "binarySentBytes": 6724,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:control:clock": {
+          "bytes": 900,
+          "packets": 90,
+          "maxBytes": 10
+        },
+        "rtc:directPlanAck": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:directHeader": {
+          "bytes": 1128,
+          "packets": 6,
+          "maxBytes": 188
+        },
+        "rtc:linkPong": {
+          "bytes": 2102,
+          "packets": 10,
+          "maxBytes": 211
+        },
+        "rtc:liveness": {
+          "bytes": 9378,
+          "packets": 1761,
+          "maxBytes": 6
+        },
+        "ws:time": {
+          "bytes": 1353,
+          "packets": 36,
+          "maxBytes": 38
+        },
+        "rtc:directReady": {
+          "bytes": 748,
+          "packets": 4,
+          "maxBytes": 187
+        },
+        "rtc:directApplied": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:progress": {
+          "bytes": 15470,
+          "packets": 1650,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 6730,
+          "packets": 1346,
+          "maxBytes": 5
+        },
+        "rtc:actions": {
+          "bytes": 2255,
+          "packets": 135,
+          "maxBytes": 18
+        },
+        "rtc:linkProbe": {
+          "bytes": 1267,
+          "packets": 6,
+          "maxBytes": 212
+        }
+      },
+      "rx": {
+        "rtc:directPlan": {
+          "bytes": 3239,
+          "packets": 3,
+          "maxBytes": 1080
+        },
+        "rtc:directPrepare": {
+          "bytes": 18219,
+          "packets": 6,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 88893,
+          "packets": 9,
+          "maxBytes": 12206
+        },
+        "rtc:liveness": {
+          "bytes": 9357,
+          "packets": 1757,
+          "maxBytes": 6
+        },
+        "rtc:linkProbe": {
+          "bytes": 2114,
+          "packets": 10,
+          "maxBytes": 213
+        },
+        "ws:time": {
+          "bytes": 10353,
+          "packets": 36,
+          "maxBytes": 288
+        },
+        "rtc:progress": {
+          "bytes": 12549,
+          "packets": 1338,
+          "maxBytes": 10
+        },
+        "rtc:directActivate": {
+          "bytes": 572,
+          "packets": 3,
+          "maxBytes": 191
+        },
+        "rtc:control:time": {
+          "bytes": 1602,
+          "packets": 89,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 8265,
+          "packets": 1653,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 13634,
+          "packets": 307,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4356,
+          "packets": 18,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 1832,
+          "packets": 110,
+          "maxBytes": 24
+        },
+        "rtc:linkPong": {
+          "bytes": 1262,
+          "packets": 6,
+          "maxBytes": 211
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406730882,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406731975,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406735848,
+          "phase": "playing",
+          "round": 1,
+          "tick": 63
+        },
+        {
+          "at": 1789406739648,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 139
+        },
+        {
+          "at": 1789406742839,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 196
+        },
+        {
+          "at": 1789406746748,
+          "phase": "playing",
+          "round": 2,
+          "tick": 258
+        },
+        {
+          "at": 1789406753801,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 399
+        },
+        {
+          "at": 1789406756986,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 457
+        },
+        {
+          "at": 1789406760940,
+          "phase": "playing",
+          "round": 3,
+          "tick": 520
+        },
+        {
+          "at": 1789406767216,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 645
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406729867,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406729869,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406729938,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406730671,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406730882,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406730895,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731118,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406731653,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731975,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406742617,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406742839,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406756773,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406756986,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 28,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "cc6aa05255ad51e70a6a68eb",
+      "index": 4,
+      "start": 1789406731636,
+      "end": 1789406767468,
+      "now": 1789406767526,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 651,
+      "players": 5,
+      "outcome": {
+        "leaderboard": [
+          {
+            "id": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "totalScoreUnits": 780,
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "matchWins": 1
+          },
+          {
+            "id": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "totalScoreUnits": 480,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "totalScoreUnits": 420,
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "matchWins": 0
+          },
+          {
+            "id": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "totalScoreUnits": 240,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "totalScoreUnits": 60,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          }
+        ],
+        "roundPlacements": [
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "place": 1,
+            "scoreUnits": 300
+          },
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "place": 2,
+            "scoreUnits": 180
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "place": 3,
+            "scoreUnits": 120
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "place": 4,
+            "scoreUnits": 60
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "place": 5,
+            "scoreUnits": 0
+          }
+        ],
+        "matchStats": [
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "slot": 1,
+            "color": "#ff4fa3",
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "roundsDrawn": 0,
+            "matchPlacement": 1,
+            "survivalTicks": 346,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2594.9999999999955,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 1,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "slot": 4,
+            "color": "#a78bfa",
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "roundsDrawn": 0,
+            "matchPlacement": 2,
+            "survivalTicks": 239,
+            "longestSurvivalTicks": 127,
+            "distanceUnits": 1792.5000000000007,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 2,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "slot": 0,
+            "color": "#22d3ee",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 164,
+            "longestSurvivalTicks": 72,
+            "distanceUnits": 1229.9999999999998,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 3,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "slot": 2,
+            "color": "#a3e635",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 218,
+            "longestSurvivalTicks": 99,
+            "distanceUnits": 1635.0000000000005,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "slot": 3,
+            "color": "#fb923c",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 320,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2399.9999999999995,
+            "bombsPlaced": 4,
+            "bombsExploded": 2,
+            "eliminations": 2,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          }
+        ]
+      },
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "5f8de649734cdd015fd5114d",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 651,
+        "finalizedTick": 647,
+        "finalizedHash": "54287d6abe10da26",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 34437,
+        "binarySentBytes": 6544,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:directPlanAck": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:directHeader": {
+          "bytes": 940,
+          "packets": 5,
+          "maxBytes": 188
+        },
+        "rtc:liveness": {
+          "bytes": 9473,
+          "packets": 1777,
+          "maxBytes": 6
+        },
+        "rtc:linkPong": {
+          "bytes": 1050,
+          "packets": 5,
+          "maxBytes": 211
+        },
+        "rtc:linkProbe": {
+          "bytes": 2320,
+          "packets": 11,
+          "maxBytes": 212
+        },
+        "rtc:directReady": {
+          "bytes": 748,
+          "packets": 4,
+          "maxBytes": 187
+        },
+        "rtc:directApplied": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:control:clock": {
+          "bytes": 900,
+          "packets": 90,
+          "maxBytes": 10
+        },
+        "rtc:progress": {
+          "bytes": 15720,
+          "packets": 1675,
+          "maxBytes": 10
+        },
+        "ws:time": {
+          "bytes": 1707,
+          "packets": 36,
+          "maxBytes": 51
+        },
+        "rtc:receipt": {
+          "bytes": 6670,
+          "packets": 1334,
+          "maxBytes": 5
+        },
+        "rtc:actions": {
+          "bytes": 2295,
+          "packets": 140,
+          "maxBytes": 18
+        }
+      },
+      "rx": {
+        "rtc:directPlan": {
+          "bytes": 3239,
+          "packets": 3,
+          "maxBytes": 1080
+        },
+        "rtc:directPrepare": {
+          "bytes": 15205,
+          "packets": 5,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 88893,
+          "packets": 9,
+          "maxBytes": 12206
+        },
+        "rtc:liveness": {
+          "bytes": 9478,
+          "packets": 1778,
+          "maxBytes": 6
+        },
+        "rtc:linkProbe": {
+          "bytes": 1055,
+          "packets": 5,
+          "maxBytes": 212
+        },
+        "rtc:linkPong": {
+          "bytes": 2312,
+          "packets": 11,
+          "maxBytes": 212
+        },
+        "rtc:directActivate": {
+          "bytes": 572,
+          "packets": 3,
+          "maxBytes": 191
+        },
+        "rtc:progress": {
+          "bytes": 12499,
+          "packets": 1333,
+          "maxBytes": 10
+        },
+        "rtc:control:time": {
+          "bytes": 1620,
+          "packets": 90,
+          "maxBytes": 18
+        },
+        "ws:time": {
+          "bytes": 10707,
+          "packets": 36,
+          "maxBytes": 301
+        },
+        "rtc:receipt": {
+          "bytes": 8445,
+          "packets": 1689,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 13634,
+          "packets": 307,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4356,
+          "packets": 18,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 1824,
+          "packets": 109,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406730874,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406731886,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406735846,
+          "phase": "playing",
+          "round": 1,
+          "tick": 63
+        },
+        {
+          "at": 1789406739660,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 139
+        },
+        {
+          "at": 1789406742838,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 196
+        },
+        {
+          "at": 1789406746747,
+          "phase": "playing",
+          "round": 2,
+          "tick": 258
+        },
+        {
+          "at": 1789406753810,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 399
+        },
+        {
+          "at": 1789406756986,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 457
+        },
+        {
+          "at": 1789406760947,
+          "phase": "playing",
+          "round": 3,
+          "tick": 520
+        },
+        {
+          "at": 1789406767208,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 645
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406729948,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406729953,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406729962,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406730671,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406730874,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406730895,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731074,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406731654,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731886,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406742616,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406742838,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406756773,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406756986,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 28,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "6d008f3a2ef59d4781969dcf",
+      "index": 5,
+      "start": 1789406731636,
+      "end": 1789406767468,
+      "now": 1789406767526,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 651,
+      "players": 5,
+      "outcome": {
+        "leaderboard": [
+          {
+            "id": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "totalScoreUnits": 780,
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "matchWins": 1
+          },
+          {
+            "id": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "totalScoreUnits": 480,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "totalScoreUnits": 420,
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "matchWins": 0
+          },
+          {
+            "id": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "totalScoreUnits": 240,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          },
+          {
+            "id": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "totalScoreUnits": 60,
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "matchWins": 0
+          }
+        ],
+        "roundPlacements": [
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "place": 1,
+            "scoreUnits": 300
+          },
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "place": 2,
+            "scoreUnits": 180
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "place": 3,
+            "scoreUnits": 120
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "place": 4,
+            "scoreUnits": 60
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "place": 5,
+            "scoreUnits": 0
+          }
+        ],
+        "matchStats": [
+          {
+            "playerId": "cc6aa05255ad51e70a6a68eb",
+            "name": "Rider 5",
+            "slot": 1,
+            "color": "#ff4fa3",
+            "roundsPlayed": 3,
+            "roundWins": 2,
+            "roundsDrawn": 0,
+            "matchPlacement": 1,
+            "survivalTicks": 346,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2594.9999999999955,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 1,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "57ba43c81e44ab54f2ef00b4",
+            "name": "Rider 3",
+            "slot": 4,
+            "color": "#a78bfa",
+            "roundsPlayed": 3,
+            "roundWins": 1,
+            "roundsDrawn": 0,
+            "matchPlacement": 2,
+            "survivalTicks": 239,
+            "longestSurvivalTicks": 127,
+            "distanceUnits": 1792.5000000000007,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 2,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "5f8de649734cdd015fd5114d",
+            "name": "Rider 1",
+            "slot": 0,
+            "color": "#22d3ee",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 164,
+            "longestSurvivalTicks": 72,
+            "distanceUnits": 1229.9999999999998,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 3,
+              "trail": 0,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "c5c7fc927afb9152f113740c",
+            "name": "Rider 2",
+            "slot": 2,
+            "color": "#a3e635",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 218,
+            "longestSurvivalTicks": 99,
+            "distanceUnits": 1635.0000000000005,
+            "bombsPlaced": 3,
+            "bombsExploded": 3,
+            "eliminations": 1,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          },
+          {
+            "playerId": "98936d6b891e4172ab9005a7",
+            "name": "Rider 4",
+            "slot": 3,
+            "color": "#fb923c",
+            "roundsPlayed": 3,
+            "roundWins": 0,
+            "roundsDrawn": 0,
+            "matchPlacement": 3,
+            "survivalTicks": 320,
+            "longestSurvivalTicks": 142,
+            "distanceUnits": 2399.9999999999995,
+            "bombsPlaced": 4,
+            "bombsExploded": 2,
+            "eliminations": 2,
+            "deathsByCause": {
+              "wall": 0,
+              "trail": 3,
+              "explosion": 0,
+              "rider": 0
+            },
+            "pickupsCollected": 0,
+            "blastPickups": 0,
+            "starPickups": 0,
+            "beerPickups": 0,
+            "inkPickups": 0,
+            "triplePickups": 0,
+            "fivePickups": 0,
+            "targetPickups": 0,
+            "shieldPickups": 0,
+            "portalPickups": 0,
+            "portalTransits": 0,
+            "invulnerableTicks": 0,
+            "wallBounces": 0,
+            "earlyExits": 0
+          }
+        ]
+      },
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "5f8de649734cdd015fd5114d",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 651,
+        "finalizedTick": 647,
+        "finalizedHash": "54287d6abe10da26",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 18031,
+        "binarySentBytes": 5878,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:directPlanAck": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:directHeader": {
+          "bytes": 940,
+          "packets": 5,
+          "maxBytes": 188
+        },
+        "rtc:liveness": {
+          "bytes": 9368,
+          "packets": 1761,
+          "maxBytes": 6
+        },
+        "rtc:linkPong": {
+          "bytes": 2103,
+          "packets": 10,
+          "maxBytes": 211
+        },
+        "rtc:linkProbe": {
+          "bytes": 1262,
+          "packets": 6,
+          "maxBytes": 211
+        },
+        "rtc:directReady": {
+          "bytes": 748,
+          "packets": 4,
+          "maxBytes": 187
+        },
+        "rtc:directApplied": {
+          "bytes": 567,
+          "packets": 3,
+          "maxBytes": 189
+        },
+        "rtc:control:clock": {
+          "bytes": 900,
+          "packets": 90,
+          "maxBytes": 10
+        },
+        "ws:time": {
+          "bytes": 1353,
+          "packets": 36,
+          "maxBytes": 38
+        },
+        "rtc:receipt": {
+          "bytes": 8360,
+          "packets": 1672,
+          "maxBytes": 5
+        }
+      },
+      "rx": {
+        "rtc:directPlan": {
+          "bytes": 3239,
+          "packets": 3,
+          "maxBytes": 1080
+        },
+        "rtc:directPrepare": {
+          "bytes": 15205,
+          "packets": 5,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 88893,
+          "packets": 9,
+          "maxBytes": 12206
+        },
+        "rtc:liveness": {
+          "bytes": 9367,
+          "packets": 1761,
+          "maxBytes": 6
+        },
+        "rtc:linkProbe": {
+          "bytes": 2115,
+          "packets": 10,
+          "maxBytes": 213
+        },
+        "rtc:linkPong": {
+          "bytes": 1257,
+          "packets": 6,
+          "maxBytes": 210
+        },
+        "rtc:directActivate": {
+          "bytes": 572,
+          "packets": 3,
+          "maxBytes": 191
+        },
+        "rtc:progress": {
+          "bytes": 15643,
+          "packets": 1668,
+          "maxBytes": 10
+        },
+        "rtc:control:time": {
+          "bytes": 1620,
+          "packets": 90,
+          "maxBytes": 18
+        },
+        "ws:time": {
+          "bytes": 10353,
+          "packets": 36,
+          "maxBytes": 288
+        },
+        "rtc:control:final": {
+          "bytes": 13634,
+          "packets": 307,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4356,
+          "packets": 18,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 2283,
+          "packets": 137,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406730874,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406731885,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406735854,
+          "phase": "playing",
+          "round": 1,
+          "tick": 63
+        },
+        {
+          "at": 1789406739649,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 139
+        },
+        {
+          "at": 1789406742839,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 196
+        },
+        {
+          "at": 1789406746748,
+          "phase": "playing",
+          "round": 2,
+          "tick": 258
+        },
+        {
+          "at": 1789406753810,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 399
+        },
+        {
+          "at": 1789406756986,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 457
+        },
+        {
+          "at": 1789406760945,
+          "phase": "playing",
+          "round": 3,
+          "tick": 520
+        },
+        {
+          "at": 1789406767209,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 645
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406730130,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406730134,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406730233,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406730671,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406730874,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406730895,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731074,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406731653,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406731885,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406742616,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406742839,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406756773,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406756986,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 0,
+      "rejectedInputs": 0
+    }
+  ],
+  "errors": []
+}

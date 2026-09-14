@@ -1,6 +1,6 @@
 # Design brief: deterministic action-log replication
 
-Date: 2026-09-14. Status: target architecture revised after user clarification; not a claim that direct mesh/rollback is implemented. Tracking: [issue #82](https://github.com/andeplane/fuse-riders/issues/82). ADR040 implements an incremental host-coordinated replay prototype; the target below replaces that dependency.
+Date: 2026-09-14. Status: the isolated implementation branch now uses this direct-action runtime by default; qualification remains in progress. See [current implementation and measured traffic](DIRECT-ACTIONS-IMPLEMENTATION.md). Tracking: [issue #82](https://github.com/andeplane/fuse-riders/issues/82). ADR040 implements an incremental host-coordinated replay prototype; the target below replaces that dependency.
 
 ## Idea
 

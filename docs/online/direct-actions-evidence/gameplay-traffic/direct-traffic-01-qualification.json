@@ -1,0 +1,4 @@
+{
+  "qualified": false,
+  "reason": "A concurrent npm run build updated watched Worker assets during this first exploratory match. The Worker restarted and reconnected participants mid-window. The original harness passed match completion, but the traffic total is contaminated by unintended recovery. Keep raw report; added explicit no-reconnect/no-recovery qualification assertions before rerun."
+}

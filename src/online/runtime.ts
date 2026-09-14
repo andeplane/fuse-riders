@@ -45,6 +45,7 @@ export class RoomRuntime {
   private lobby: LobbyCatalog;
   private roles = new Map<string, { connection: string; display: boolean }>();
   private planCounter = 0;
+  private planDelivery = new Map<string, { acknowledged: boolean; sentAt: number }>();
   private requestCounter = 0;
   private requestedPlans = new Map<string, number>();
   private pendingPlan?: { request: number; settings: RoomSettings; sent: number; at: number };
@@ -108,7 +109,7 @@ export class RoomRuntime {
       linkReset: id => { if (this.segment && this.plan?.members.some(m => m.id === id)) this.faultPending = 'Direct link replaced — synchronizing'; },
       message: (id, data) => this.receive(id, data), fast: (id, bytes) => { if (this.activationSafe()) this.segment?.receiveFast(id, bytes); },
       status: text => { if (!this.recoveryRequired) this.status.recurring(text); },
-      authorityChanged: () => { this.freeze(); this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
+      authorityChanged: () => { this.freeze(); this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planDelivery.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
       ended: () => { this.stop(); callbacks.ended?.(); },
       revoked: () => this.terminal('This creator tab was replaced — use the newer tab'),
       terminated: text => this.terminal(text),
@@ -135,8 +136,16 @@ export class RoomRuntime {
     if (!force && this.plan && canonical([members, coordinator, settings]) === canonical([this.plan.members, this.plan.coordinator, this.plan.settings])) return;
     if (++this.planCounter > 0xffffffff) { this.terminal('Room sequence exhausted — create a new room'); return; }
     const plan: RoomPlan = { type: 'directPlan', rules: DIRECT_RULES, revision: this.planCounter, initialize: !previous, incarnation: this.transport.grant!.incarnation, epoch: this.transport.grant!.epoch, source, coordinator, members, settings: structuredClone(settings) };
-    for (const peer of members) if (peer.id !== this.transport.id) this.send(peer.id, plan);
     this.adoptPlan(plan);
+    this.sendPlans();
+  }
+  /** Enqueue is not delivery: retry current metadata until the named connection acknowledges it. */
+  private sendPlans(): void {
+    if (this.transport.id !== this.transport.hostId || !this.plan || !this.planCurrent(this.plan) || this.recoveryRequired) return;
+    const now = this.environment.now();
+    for (const [id, delivery] of this.planDelivery) if (!delivery.acknowledged && now - delivery.sentAt >= 250) {
+      delivery.sentAt = now; this.send(id, this.plan);
+    }
   }
   private adoptPlan(plan: RoomPlan): void {
     if (!this.planCurrent(plan) || plan.revision <= (this.plan?.revision ?? 0) || !plan.members.some(m => m.id === this.transport.id)) return;
@@ -145,8 +154,12 @@ export class RoomRuntime {
     if (this.plan?.coordinator && this.settledPlan !== this.plan) this.recoveryEpisodeAt ??= this.environment.now();
     this.attemptAt = plan.coordinator ? this.environment.now() : undefined;
     this.freeze(); this.plan = structuredClone(plan); this.incoming = undefined; this.outgoing = undefined; this.applied.clear(); this.acceptedStatus = -1; this.statusKeys.clear(); this.recovering = false; this.recoveryRequired = false; this.recoveryRequest = undefined; this.faultPending = undefined; this.corruptionPending = false;
+    this.planDelivery.clear();
+    if (this.transport.id === this.transport.hostId) for (const member of plan.members) if (member.id !== this.transport.id) this.planDelivery.set(member.id, { acknowledged: false, sentAt: -Infinity });
     this.lobby.settings = structuredClone(plan.settings);
     if (!plan.coordinator) {
+      // Waiting for a display is an explicit idle lobby, not an unfinished simulation attempt.
+      this.recoveryEpisodeAt = undefined; this.pendingPlan = undefined;
       this.segment = undefined; this.change = undefined; this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish();
       if (this.transport.id === this.transport.hostId) this.broadcastLobby();
       this.status.recurring('Open TV view to start · phones are controllers'); return;
@@ -225,18 +238,26 @@ export class RoomRuntime {
     if (!record(raw)) return;
     if (raw.type === 'directHello' && raw.rules === DIRECT_RULES && typeof raw.display === 'boolean' && id !== this.transport.id) {
       const connection = this.transport.connectionOf(id); if (!connection) return;
-      if (this.transport.id === this.transport.hostId) { this.roles.set(id, { connection, display: raw.display }); this.issuePlan(this.plan?.settings ?? this.lobby.settings); if (this.plan) this.send(id, this.plan); if (!this.plan?.coordinator) this.send(id, { type: 'directLobby', revision: this.plan?.revision, catalog: this.lobby }); }
+      if (this.transport.id === this.transport.hostId) { this.roles.set(id, { connection, display: raw.display }); this.issuePlan(this.plan?.settings ?? this.lobby.settings); this.sendPlans(); if (!this.plan?.coordinator) this.send(id, { type: 'directLobby', revision: this.plan?.revision, catalog: this.lobby }); }
       return;
     }
     if (raw.type === 'actionHello' || raw.type === 'resync') { this.send(id, { type: 'directUnsupported' }); return; }
     if (raw.type === 'directUnsupported') { this.terminal('Game protocol changed — reload every participant'); return; }
-    if (id === this.transport.hostId && isPlan(raw)) { this.adoptPlan(raw); return; }
+    if (id === this.transport.hostId && isPlan(raw)) {
+      this.adoptPlan(raw);
+      if (this.plan && this.planCurrent(this.plan) && canonical(raw) === canonical(this.plan)) this.send(id, { type: 'directPlanAck', revision: this.plan.revision });
+      return;
+    }
     if (raw.type === 'directPlanRequest' && this.transport.id === this.transport.hostId && id === this.plan?.coordinator && uint32(raw.request) && parseRoomSettings(raw.settings)) {
-      if ((this.requestedPlans.get(id) ?? -1) < raw.request) { this.requestedPlans.set(id, raw.request); this.issuePlan(parseRoomSettings(raw.settings)!, true); } else if (this.plan) this.send(id, this.plan);
+      if ((this.requestedPlans.get(id) ?? -1) < raw.request) { this.requestedPlans.set(id, raw.request); this.issuePlan(parseRoomSettings(raw.settings)!, true); } else this.sendPlans();
       return;
     }
     const plan = this.plan;
     if (this.recoveryRequired || !plan || !this.planCurrent(plan) || raw.revision !== plan.revision || !plan.members.some(m => m.id === id)) return;
+    if (raw.type === 'directPlanAck' && this.transport.id === this.transport.hostId && Object.keys(raw).length === 2) {
+      const delivery = this.planDelivery.get(id); if (delivery) delivery.acknowledged = true;
+      return;
+    }
     if (raw.type === 'directBaseUnavailable' && (id === plan.source || id === this.transport.hostId)) {
       this.requireLobby('The simulation base is unavailable — creator must choose MAIN MENU');
       if (this.transport.id === this.transport.hostId) for (const member of plan.members) if (member.id !== this.transport.id) this.send(member.id, raw);
@@ -331,8 +352,10 @@ export class RoomRuntime {
     if (!this.transport.authorityPermitted() || this.environment.hidden()) { if (this.segment && !this.segment.faultReason) this.faultPending = 'Room clock paused — synchronizing'; return; }
     if (now - this.lastHello >= 250) {
       this.lastHello = now;
-      if (this.transport.id !== this.transport.hostId) this.send(this.transport.hostId, { type: 'directHello', rules: DIRECT_RULES, display: this.display });
-      else this.issuePlan(this.plan?.settings ?? this.lobby.settings);
+      if (this.transport.id !== this.transport.hostId) {
+        const confirmed = this.plan && this.planCurrent(this.plan) && this.plan.members.some(m => m.id === this.transport.id && m.connection === this.transport.connectionId && m.display === this.display);
+        if (!confirmed) this.send(this.transport.hostId, { type: 'directHello', rules: DIRECT_RULES, display: this.display });
+      } else { this.issuePlan(this.plan?.settings ?? this.lobby.settings); this.sendPlans(); }
     }
     if (this.pendingPlan && now - this.pendingPlan.at > 5000) this.requireLobby('The creator could not confirm synchronization — choose a fresh lobby');
     if (this.pendingPlan && now - this.pendingPlan.sent >= 200) { this.pendingPlan.sent = now; this.send(this.transport.hostId, { type: 'directPlanRequest', request: this.pendingPlan.request, settings: this.pendingPlan.settings }); }

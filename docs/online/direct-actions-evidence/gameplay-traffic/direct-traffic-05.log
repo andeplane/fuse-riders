@@ -1,0 +1,75 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC.
+{"elapsed":4.508,"phase":"playing","round":1,"tick":69,"diagnostics":{"mode":"direct","coordinator":"a6e5503040f303c030d3d8d4","alias":5,"simulator":true,"replicaTick":69,"finalizedTick":65,"finalizedHash":"6307e6ebf093b6d7","retainedRecords":0,"rollbackCount":0,"fastSentBytes":3675,"binarySentBytes":138129,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.509,"phase":"playing","round":1,"tick":169,"diagnostics":{"mode":"direct","coordinator":"a6e5503040f303c030d3d8d4","alias":5,"simulator":true,"replicaTick":169,"finalizedTick":166,"finalizedHash":"cc153b66c2f43f32","retainedRecords":0,"rollbackCount":0,"fastSentBytes":8695,"binarySentBytes":149444,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.512,"phase":"countdown","round":2,"tick":247,"diagnostics":{"mode":"direct","coordinator":"a6e5503040f303c030d3d8d4","alias":6,"simulator":true,"replicaTick":247,"finalizedTick":244,"finalizedHash":"26319e9efa97bee2","retainedRecords":0,"rollbackCount":0,"fastSentBytes":12845,"binarySentBytes":403728,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":19.513,"phase":"playing","round":2,"tick":347,"diagnostics":{"mode":"direct","coordinator":"a6e5503040f303c030d3d8d4","alias":6,"simulator":true,"replicaTick":347,"finalizedTick":345,"finalizedHash":"bfb620fd3ac8bb81","retainedRecords":0,"rollbackCount":0,"fastSentBytes":17620,"binarySentBytes":415403,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":24.516,"phase":"roundOver","round":2,"tick":447,"diagnostics":{"mode":"direct","coordinator":"a6e5503040f303c030d3d8d4","alias":6,"simulator":true,"replicaTick":447,"finalizedTick":444,"finalizedHash":"f0e6296433f62690","retainedRecords":0,"rollbackCount":0,"fastSentBytes":22817,"binarySentBytes":426878,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":29.519,"phase":"countdown","round":3,"tick":523,"diagnostics":{"mode":"direct","coordinator":"a6e5503040f303c030d3d8d4","alias":7,"simulator":true,"replicaTick":523,"finalizedTick":521,"finalizedHash":"b11ed8b066700e64","retainedRecords":0,"rollbackCount":0,"fastSentBytes":27288,"binarySentBytes":693007,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":34.519,"phase":"playing","round":3,"tick":623,"diagnostics":{"mode":"direct","coordinator":"a6e5503040f303c030d3d8d4","alias":7,"simulator":true,"replicaTick":623,"finalizedTick":621,"finalizedHash":"0bb77c4563a19c21","retainedRecords":0,"rollbackCount":0,"fastSentBytes":32746,"binarySentBytes":704482,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{
+  "passed": true,
+  "seconds": 37.295,
+  "totals": [
+    {
+      "index": 0,
+      "engine": "chromium",
+      "rtcUpload": 670589,
+      "rtcDownload": 57130,
+      "signallingUpload": 5758,
+      "signallingDownload": 15118,
+      "rtcUploadBytesPerSecond": 17980.66764981901,
+      "rtcDownloadBytesPerSecond": 1531.8407293202843
+    },
+    {
+      "index": 1,
+      "engine": "webkit",
+      "rtcUpload": 42493,
+      "rtcDownload": 161376,
+      "signallingUpload": 1355,
+      "signallingDownload": 14711,
+      "rtcUploadBytesPerSecond": 1139.3752513741788,
+      "rtcDownloadBytesPerSecond": 4327.0143450864725
+    },
+    {
+      "index": 2,
+      "engine": "chromium",
+      "rtcUpload": 43144,
+      "rtcDownload": 164550,
+      "signallingUpload": 1691,
+      "signallingDownload": 15047,
+      "rtcUploadBytesPerSecond": 1156.8306743531305,
+      "rtcDownloadBytesPerSecond": 4412.119587076016
+    },
+    {
+      "index": 3,
+      "engine": "webkit",
+      "rtcUpload": 43109,
+      "rtcDownload": 164473,
+      "signallingUpload": 1355,
+      "signallingDownload": 14711,
+      "rtcUploadBytesPerSecond": 1155.8922107521114,
+      "rtcDownloadBytesPerSecond": 4410.054967153774
+    },
+    {
+      "index": 4,
+      "engine": "chromium",
+      "rtcUpload": 43221,
+      "rtcDownload": 161507,
+      "signallingUpload": 1797,
+      "signallingDownload": 15403,
+      "rtcUploadBytesPerSecond": 1158.895294275372,
+      "rtcDownloadBytesPerSecond": 4330.526880278858
+    },
+    {
+      "index": 5,
+      "engine": "webkit",
+      "rtcUpload": 25899,
+      "rtcDownload": 159419,
+      "signallingUpload": 1391,
+      "signallingDownload": 14997,
+      "rtcUploadBytesPerSecond": 694.436251508245,
+      "rtcDownloadBytesPerSecond": 4274.540823166644
+    }
+  ],
+  "errors": []
+}

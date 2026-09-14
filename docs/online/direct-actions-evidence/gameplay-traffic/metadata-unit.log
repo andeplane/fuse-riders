@@ -1,0 +1,135 @@
+TAP version 13
+# Subtest: runtime activates direct simulators, starts a match and sends actions directly between guests
+ok 1 - runtime activates direct simulators, starts a match and sends actions directly between guests
+  ---
+  duration_ms: 137.625125
+  ...
+# Subtest: a failed first recovery enqueue is retried and replaces the paused segment
+ok 2 - a failed first recovery enqueue is retried and replaces the paused segment
+  ---
+  duration_ms: 39.998667
+  ...
+# Subtest: an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+ok 3 - an unavailable recovery coordinator produces a bounded visible fresh-lobby state
+  ---
+  duration_ms: 47.090291
+  ...
+# Subtest: a release without a usable tick freezes its gesture before a fresh clock can resume input
+ok 4 - a release without a usable tick freezes its gesture before a fresh clock can resume input
+  ---
+  duration_ms: 173.3545
+  ...
+# Subtest: a refreshed delegated TV without a simulation base pauses instead of creating a new match
+ok 5 - a refreshed delegated TV without a simulation base pauses instead of creating a new match
+  ---
+  duration_ms: 23.400209
+  ...
+# Subtest: creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+ok 6 - creator refresh in a settled lobby preserves the checkpoint and can switch to shared TV mode
+  ---
+  duration_ms: 160.034
+  ...
+# Subtest: a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+ok 7 - a refreshed guest can rejoin with a fresh command sequence on its replacement connection
+  ---
+  duration_ms: 42.532666
+  ...
+# Subtest: four healthy connection rebuilds do not consume the corrupt-state recovery budget
+ok 8 - four healthy connection rebuilds do not consume the corrupt-state recovery budget
+  ---
+  duration_ms: 151.766041
+  ...
+# Subtest: a running recovery episode cannot reset its deadline through clock readiness without finality
+ok 9 - a running recovery episode cannot reset its deadline through clock readiness without finality
+  ---
+  duration_ms: 363.236458
+  ...
+# Subtest: a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+ok 10 - a delegated coordinator stops retrying an unavailable creator after the plan-request deadline
+  ---
+  duration_ms: 36.361417
+  ...
+# Subtest: a delayed current-alias activation cannot resume a latched recovery timeout
+ok 11 - a delayed current-alias activation cannot resume a latched recovery timeout
+  ---
+  duration_ms: 189.557083
+  ...
+# Subtest: a guest returns after a service-observed departure and lobby seat removal
+ok 12 - a guest returns after a service-observed departure and lobby seat removal
+  ---
+  duration_ms: 42.94475
+  ...
+# Subtest: invalid future actions do not consume the checkpoint and hash recovery budget
+ok 13 - invalid future actions do not consume the checkpoint and hash recovery budget
+  ---
+  duration_ms: 83.038583
+  ...
+# Subtest: conflicting metadata for an installed preparation charges one corrupt recovery attempt
+ok 14 - conflicting metadata for an installed preparation charges one corrupt recovery attempt
+  ---
+  duration_ms: 38.360709
+  ...
+# Subtest: checkpoint backpressure pauses preparation and resumes the same transfer after drain
+ok 15 - checkpoint backpressure pauses preparation and resumes the same transfer after drain
+  ---
+  duration_ms: 42.776667
+  ...
+# Subtest: persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+ok 16 - persistent checkpoint backpressure cannot extend the recovery deadline indefinitely
+  ---
+  duration_ms: 169.426958
+  ...
+# Subtest: new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+ok 17 - new creator plans cannot postpone an unfinished guest recovery episode indefinitely
+  ---
+  duration_ms: 150.192792
+  ...
+# Subtest: an accepted plan without a preparation header times out visibly
+ok 18 - an accepted plan without a preparation header times out visibly
+  ---
+  duration_ms: 152.186334
+  ...
+# Subtest: new plans without any headers cannot restart the guest availability deadline
+ok 19 - new plans without any headers cannot restart the guest availability deadline
+  ---
+  duration_ms: 148.650333
+  ...
+# Subtest: settled room metadata stops repeating until a lifecycle change
+ok 20 - settled room metadata stops repeating until a lifecycle change
+  ---
+  duration_ms: 50.914375
+  ...
+# Subtest: a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+ok 21 - a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan
+  ---
+  duration_ms: 41.415917
+  ...
+# Subtest: stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+ok 22 - stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos
+  ---
+  duration_ms: 32.673375
+  ...
+# Subtest: only an identical current plan duplicate receives another delivery acknowledgement
+ok 23 - only an identical current plan duplicate receives another delivery acknowledgement
+  ---
+  duration_ms: 32.239791
+  ...
+# Subtest: delegated setup request retries do not resend an already acknowledged room plan
+ok 24 - delegated setup request retries do not resend an already acknowledged room plan
+  ---
+  duration_ms: 20.71775
+  ...
+# Subtest: an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+ok 25 - an intentionally idle shared lobby does not keep a previous simulation recovery deadline running
+  ---
+  duration_ms: 166.248291
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2682.960166

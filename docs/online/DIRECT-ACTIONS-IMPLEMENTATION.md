@@ -35,9 +35,9 @@ Both existing online room browser smokes passed after the transport change, usin
 
 ## Remaining implementation
 
-Complete mixed-engine active gameplay, bot and automatic-round transitions, reconnect/partial-mesh behavior and LAN regressions. Checkpoint backpressure and bounded setup episodes now have the reviewed regressions described below. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
+Complete mixed-engine impairment, bot gameplay, reconnect/partial-mesh behavior and LAN regressions. The scripted mixed-engine full-match run below covers ordinary automatic round transitions. Checkpoint backpressure and bounded setup episodes now have the reviewed regressions described below. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
 
-Then measure real five-rider-plus-TV gameplay: every payload class in both directions, input-to-render/finality latency, corrections, replay/frame time and memory across declared impairment profiles and a sustained soak. Preserve LAN regressions. Wire overhead, WAN routing and physical-phone behavior remain separately unverified. Do not reuse the prototype's 29→12.7 KB/s measurement as the expected or measured direct-mesh result.
+Extend the five-rider-plus-TV application-byte measurement below to matched historical workloads, declared impairment profiles and a sustained soak, including input-to-render/finality latency, corrections, replay/frame time and memory. Preserve LAN regressions. Wire overhead, WAN routing and physical-phone behavior remain separately unverified. Do not reuse the prototype's 29→12.7 KB/s measurement as the expected or measured direct-mesh result.
 
 ## Local component commands
 
@@ -80,3 +80,31 @@ Checkpoint sends now wait for an open, undrained action channel with zero buffer
 Independent review found that remotely replaced preparations could avoid starting a guest's overall unsuccessful recovery episode, and a missing preparation header had no local setup deadline. Setup deadlines now start at plan adoption; replacing a never-settled plan retains/starts the episode. Success is associated with the exact adopted plan only after applied activation, clock qualification and the existing finality condition. This closes repeated-plan and missing-header waits without treating previously healthy scopes frozen for management as unsuccessful.
 
 The full suite passed 558 tests with unchanged coverage thresholds (99.14% lines, 93.97% branches, 98.78% functions). All 22 focused gate/runtime tests also passed independent review. The local six-context Chromium/WebKit transport harness passed synthetic fast-buffer refusal/drain checks and the existing delivery, link rebuild and membership cases with zero browser/teardown errors. Synthetic bufferedAmount instrumentation verifies adapter behavior, not real network congestion. Full-match measurements and sustained runtime acceptance remain separate.
+
+
+## Full-match traffic and acknowledged metadata
+
+The actual runtime measurement found that guests' 250 ms setup hellos caused unchanged full room plans to be resent during play. Hello now stops when the current connection/role is confirmed by a validated plan. The creator retries only unacknowledged current plans at most every 250 ms; duplicate hellos and delegated requests share that pacing. A separate delivery acknowledgement never substitutes for ready/applied activation. Lost sends/ACKs, stale/conflicting duplicates and delegated TV setup have independently reviewed regressions.
+
+The final local run used five scripted human input origins and a display, with six simulators alternating Chromium/WebKit. All completed a three-round match and agreed on placements, leaderboard and match statistics. The 37.295-second measurement window included start, countdowns, ordinary play, automatic transitions and match completion; it excluded room-join bootstrap, HTTP, rendering and wire headers. It recorded no reconnect/recovery or browser/teardown errors. Values below are decimal KB and count actual accepted RTC sends/delivered messages, including per-recipient copies.
+
+| Participant | RTC upload | RTC download | Signalling download |
+| --- | ---: | ---: | ---: |
+| Creator/coordinator player | 17.98 KB/s total across peers | 1.53 KB/s | 0.41 KB/s |
+| Other four players | 1.14–1.16 KB/s each | 4.33–4.41 KB/s each | 0.39–0.41 KB/s each |
+| Additional display | 0.69 KB/s | 4.27 KB/s | 0.40 KB/s |
+
+For one WebKit guest, download classes averaged 2.40 KB/s checkpoint chunks, 0.41 KB/s preparation headers, 0.38 KB/s finality, 0.35 KB/s stream progress, 0.26 KB/s compact liveness, 0.23 KB/s receipts, 0.09 KB/s room plans, 0.09 KB/s pre-binding liveness, 0.05 KB/s actions and 0.044 KB/s clock replies. Its room plans were exactly three packets, one per round; it sent no setup hello during the window. Checkpoints at ordinary transitions are now the largest measured opportunity for further reduction. Reusing a retained base must preserve validation and fallback recovery, not assume every peer already has it.
+
+Before the metadata optimization, a separate clean 40.666-second run measured 8.40–8.50 KB/s guest downloads, including 4.33 KB/s of repeated plans. The historical pre-branch serializer benchmark measured 28.7–29.1 KB/s host-to-view traffic, and the old incremental prototype measured 12.7 KB/s. These workloads/scopes differ, so none establishes a matched before/after reduction percentage. The historical benchmark omits several traffic classes now counted. Wire overhead and real-network latency remain unmeasured.
+
+The final source passed both typechecks, build and all 564 tests with unchanged coverage thresholds (99.14% lines, 93.95% branches, 98.78% functions); 25 runtime tests passed independent review. The [traffic manifest](direct-actions-evidence/gameplay-traffic/manifest.json) retains raw results, the final bundle/input hashes, before-fix regression failures and the initial traffic run invalidated by an unintended local Worker restart. The later source-specific run supersedes earlier exploratory totals.
+
+Reproduce against a fresh local Worker with no concurrent build/restart:
+
+```sh
+ONLINE_URL=http://localhost:8812/ TRAFFIC_RUN=local node --import tsx scripts/direct-traffic-browser.ts
+```
+
+
+The first post-optimization WebKit UI flow failed during creator-refresh/shared-TV setup. A focused regression reproduced an inherited simulation recovery deadline expiring while the room intentionally waited without a display. Adopting a validated coordinator-null lobby now cancels that obsolete episode and pending delegated request, preserving corrupt-state history. The 20-second idle → TV join regression and all existing coordinator-bearing deadline cases pass independent review. The repeated WebKit room flow passed five personal views, start/settings/reset, guest/creator refresh, controller-only phones and shared-TV start/reset. This closes the reproduced idle-boundary defect; historical native RTC startup/send failures remain separately unqualified.

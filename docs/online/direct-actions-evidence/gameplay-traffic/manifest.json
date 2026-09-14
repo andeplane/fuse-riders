@@ -1,0 +1,58 @@
+{
+  "sourceBaseRevision": "8b4ef5e",
+  "scope": "Default runtime acknowledged metadata delivery, reviewed idle-lobby recovery cancellation, and mixed-browser full-match application traffic. Exact final bundled source hashes are in direct-traffic-05.json. No deployment.",
+  "finalRun": "direct-traffic-05.json",
+  "method": "Real RoomRuntime and PeerTransport, five scripted human origins plus display, six simulators alternating Chromium/WebKit. Three-round default-pickup match; window starts before start command and includes countdowns, automatic round transitions and match completion. Native accepted-send and delivered-message application bytes classified for every RTC/WS payload. Excludes room-join bootstrap, HTTP requests/handshakes, SCTP/DTLS/IP headers, retransmission wire cost and rendering. Local network, no injected impairment. This workload is not matched to the historical five-bot serializer benchmark.",
+  "checks": {
+    "unitAndCoverage": {
+      "tests": 564,
+      "passed": 564,
+      "lines": 99.14,
+      "branches": 93.95,
+      "functions": 98.78
+    },
+    "independentRuntimeTests": 25,
+    "typecheck": "passed",
+    "workerTypecheck": "passed",
+    "build": "passed",
+    "gameplay": "Six mixed-browser simulators completed all three rounds with equal placements, leaderboard and match statistics; zero browser/teardown errors and no in-window reconnect/recovery.",
+    "webkitUi": "Repeated full room flow passed after idle-lobby fix: five personal views, start/settings/reset, guest/creator refresh, controller-only phones and shared TV start/reset. Original failing log retained."
+  },
+  "history": {
+    "01": "Invalidated for bandwidth qualification: concurrent build restarted local Worker. Original completion-only harness passed; qualification sidecar explains why totals are not used.",
+    "02": "Before hello/plan optimization. Clean no-reconnect match, runtime source equals8b4ef5e. No per-input source hashes in this earlier harness; bundle hash retained.",
+    "03": "After primary optimization, before final delegated-request pacing correction. Clean no-reconnect match; later run04 supersedes it and adds all-engine outcome equality and bundled input source hashes.",
+    "04": "Qualified local full-match measurement before the final idle-lobby recovery correction. Final run05 repeats the measurement for all current bundled inputs.",
+    "05": "Final qualified local application-byte measurement, equal six-view placements/leaderboard/match statistics and exact bundled-input hashes. No reconnect/recovery in the window. Different seed/timing from02 and historical five-bot baseline; not a controlled before/after percentage or wire benchmark.",
+    "webkitUi": "First WebKit flow failed during shared-TV setup. A focused test reproduced an inherited recovery deadline continuing in an intentional idle lobby. The reviewed cancellation fixed that regression and the repeated full WebKit flow passed. Prior unrelated native RTC failures remain open."
+  },
+  "remaining": [
+    "Avoid full-state copies at routine round transitions where a verified retained base can be reused",
+    "Matched-workload historical comparison including every direction and traffic class",
+    "Mixed-engine impairment, sustained gameplay, AI, reconnect and LAN acceptance",
+    "Input/render/finality/correction/replay/frame/memory distributions",
+    "Wire-byte and physical-phone/WAN qualification"
+  ],
+  "artifacts": {
+    "direct-traffic-05.json": "b402c5da388bd428a96e2778b232e73dc8dc4ddd978e9dfd6919b2eb344a8fe3",
+    "direct-traffic-01-qualification.json": "af730b6a49d6ee7ef51827d94d25e009bbce3398b9c1547e884c09ecdd15bfc7",
+    "metadata-before.log": "3d5e10a028e1cb47bd7f9598fa71d047e0df839058b0fe333584b193c96a5f9a",
+    "metadata-unit.log": "9ed99d11888fea6d7c3aef11045d1c642619e9efe40d729f229b1c0a89835986",
+    "direct-traffic-04.json": "ba2893ed582c7bcccb4f9dae53f6166875247dd17a8a109635723cda3e53f55c",
+    "metadata-build.log": "0a412146bdc95e15809a865c9891a1858a2c3d5f7f22faea08af88a1dea76131",
+    "metadata-coverage.log": "def9d454c0e913b0ac09b03376af9a610cf63da4ef44327108cf5cedf9a3a7ad",
+    "metadata-typecheck.log": "374e896c0d6e11fcfe28c47b1144206a87ea04f5db4ea121f23c5a19fc33fd4d",
+    "metadata-worker-typecheck.log": "0102f73cb93b40d17dc8b71ee627cccfba5d38485df9ea6c25581b26319dc89e",
+    "direct-traffic-03.json": "54c9df35625c1ce4c26329c6a7948b99963637fdee03ad5a998193ebb58bd4de",
+    "direct-traffic-02.json": "71d3715c6e15e1fb1e3826db6925de636f83f087628982d360971807203b9d63",
+    "shared-idle-before.log": "45f9a95f23b524b0b2e6f32fcfdfd35a764b4a8b05eebff7324be925da7dba61",
+    "metadata-online-webkit.log": "024a3663beffd950ae6e28fca3be9bbfa57d65ef403cb61b1463601f186b1208",
+    "direct-traffic-01.log": "fe6bda0131655d7c39d643e6c78d0899e5d1b1f82b962c64bd1e424d46b61878",
+    "direct-traffic-01.json": "ae5a63defe2cede01565924538a415c999a540e23075bf00bfcf1754a3372567",
+    "metadata-online-webkit-02.log": "df0cd92af415b5da2d621e9cfc3d1bcb8dcecd4a0a9c0d06b7102bb085b41007",
+    "direct-traffic-02.log": "10817b53e4407e89da38fdd344288690ec6e416e395d7f222c395801c01b80c7",
+    "direct-traffic-03.log": "49b84843a40ec8526fd98508e98890cdd092a3a8d99cb7c673ca0d943083c2c0",
+    "direct-traffic-04.log": "e5cf4bb38857e828c10fb67436ea0525cc1028385698cb5e65c0eb70db91d4a7",
+    "direct-traffic-05.log": "a6f2a59038e075a613e5d19b47c180d54a0b83e87ce62ae8062caf155689147c"
+  }
+}

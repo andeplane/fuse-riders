@@ -1,0 +1,1750 @@
+{
+  "revision": "8b4ef5eecda0a19e24ed533dec00e3836bbe849a",
+  "dirty": true,
+  "bundleSha256": "3f05622ce98ff4a0d1a393e1b8ee68d81f05de7fc898e3304ee25861c304e1c6",
+  "passed": true,
+  "start": 1789406211681,
+  "end": 1789406252347,
+  "seconds": 40.666,
+  "method": "Real RoomRuntime and PeerTransport, five scripted human origins plus display, six simulators alternating Chromium/WebKit. Three-round default-pickup match; window starts before start command and includes countdowns, automatic round transitions and match completion. Native accepted-send and delivered-message application bytes classified for every RTC/WS payload. Excludes room-join bootstrap, HTTP requests/handshakes, SCTP/DTLS/IP headers, retransmission wire cost and rendering. Local network, no injected impairment. This workload is not matched to the historical five-bot serializer benchmark.",
+  "totals": [
+    {
+      "index": 0,
+      "engine": "chromium",
+      "rtcUpload": 1555378,
+      "rtcDownload": 224896,
+      "signallingUpload": 6324,
+      "signallingDownload": 16724,
+      "rtcUploadBytesPerSecond": 38247.62701027886,
+      "rtcDownloadBytesPerSecond": 5530.320169183102
+    },
+    {
+      "index": 1,
+      "engine": "webkit",
+      "rtcUpload": 79439,
+      "rtcDownload": 345593,
+      "signallingUpload": 1507,
+      "signallingDownload": 16347,
+      "rtcUploadBytesPerSecond": 1953.4500565583044,
+      "rtcDownloadBytesPerSecond": 8498.327841440025
+    },
+    {
+      "index": 2,
+      "engine": "chromium",
+      "rtcUpload": 79332,
+      "rtcDownload": 341506,
+      "signallingUpload": 1947,
+      "signallingDownload": 16787,
+      "rtcUploadBytesPerSecond": 1950.8188658830475,
+      "rtcDownloadBytesPerSecond": 8397.826193872032
+    },
+    {
+      "index": 3,
+      "engine": "webkit",
+      "rtcUpload": 79590,
+      "rtcDownload": 345524,
+      "signallingUpload": 1507,
+      "signallingDownload": 16347,
+      "rtcUploadBytesPerSecond": 1957.1632321841344,
+      "rtcDownloadBytesPerSecond": 8496.63109231299
+    },
+    {
+      "index": 4,
+      "engine": "chromium",
+      "rtcUpload": 79841,
+      "rtcDownload": 344753,
+      "signallingUpload": 1980,
+      "signallingDownload": 17070,
+      "rtcUploadBytesPerSecond": 1963.335464515812,
+      "rtcDownloadBytesPerSecond": 8477.671765110905
+    },
+    {
+      "index": 5,
+      "engine": "webkit",
+      "rtcUpload": 60870,
+      "rtcDownload": 332178,
+      "signallingUpload": 1543,
+      "signallingDownload": 16633,
+      "rtcUploadBytesPerSecond": 1496.8278168494567,
+      "rtcDownloadBytesPerSecond": 8168.4453843505635
+    }
+  ],
+  "samples": [
+    {
+      "id": "0076c291e67ef6e67bad9dd2",
+      "index": 0,
+      "start": 1789406211681,
+      "end": 1789406252347,
+      "now": 1789406252400,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 744,
+      "players": 5,
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "0076c291e67ef6e67bad9dd2",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 744,
+        "finalizedTick": 743,
+        "finalizedHash": "97e9a34290771966",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 39810,
+        "binarySentBytes": 1616304,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:liveness": {
+          "bytes": 10954,
+          "packets": 2021,
+          "maxBytes": 6
+        },
+        "rtc:directPlan": {
+          "bytes": 879842,
+          "packets": 814,
+          "maxBytes": 1081
+        },
+        "rtc:directPrepare": {
+          "bytes": 94263,
+          "packets": 31,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 446230,
+          "packets": 45,
+          "maxBytes": 12207
+        },
+        "rtc:linkPong": {
+          "bytes": 2323,
+          "packets": 11,
+          "maxBytes": 212
+        },
+        "rtc:directActivate": {
+          "bytes": 2875,
+          "packets": 15,
+          "maxBytes": 192
+        },
+        "rtc:progress": {
+          "bytes": 17855,
+          "packets": 1890,
+          "maxBytes": 10
+        },
+        "rtc:control:time": {
+          "bytes": 8856,
+          "packets": 492,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 7785,
+          "packets": 1557,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 78510,
+          "packets": 1765,
+          "maxBytes": 45
+        },
+        "ws:time": {
+          "bytes": 6324,
+          "packets": 40,
+          "maxBytes": 273
+        },
+        "rtc:actions": {
+          "bytes": 2910,
+          "packets": 175,
+          "maxBytes": 24
+        },
+        "rtc:linkProbe": {
+          "bytes": 2975,
+          "packets": 14,
+          "maxBytes": 213
+        }
+      },
+      "rx": {
+        "rtc:liveness": {
+          "bytes": 10902,
+          "packets": 2011,
+          "maxBytes": 6
+        },
+        "rtc:directHeader": {
+          "bytes": 5850,
+          "packets": 31,
+          "maxBytes": 189
+        },
+        "rtc:directHello": {
+          "bytes": 165189,
+          "packets": 799,
+          "maxBytes": 208
+        },
+        "rtc:linkProbe": {
+          "bytes": 2329,
+          "packets": 11,
+          "maxBytes": 213
+        },
+        "rtc:directReady": {
+          "bytes": 3563,
+          "packets": 19,
+          "maxBytes": 188
+        },
+        "rtc:directApplied": {
+          "bytes": 2844,
+          "packets": 15,
+          "maxBytes": 190
+        },
+        "rtc:control:clock": {
+          "bytes": 4970,
+          "packets": 497,
+          "maxBytes": 10
+        },
+        "rtc:progress": {
+          "bytes": 14256,
+          "packets": 1508,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 9650,
+          "packets": 1930,
+          "maxBytes": 5
+        },
+        "ws:time": {
+          "bytes": 11884,
+          "packets": 40,
+          "maxBytes": 301
+        },
+        "ws:authority": {
+          "bytes": 4840,
+          "packets": 20,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 2382,
+          "packets": 145,
+          "maxBytes": 24
+        },
+        "rtc:linkPong": {
+          "bytes": 2961,
+          "packets": 14,
+          "maxBytes": 212
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406209129,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406211910,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406215810,
+          "phase": "playing",
+          "round": 1,
+          "tick": 61
+        },
+        {
+          "at": 1789406222055,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 186
+        },
+        {
+          "at": 1789406225360,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 245
+        },
+        {
+          "at": 1789406229364,
+          "phase": "playing",
+          "round": 2,
+          "tick": 309
+        },
+        {
+          "at": 1789406234425,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 410
+        },
+        {
+          "at": 1789406237811,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 469
+        },
+        {
+          "at": 1789406241711,
+          "phase": "playing",
+          "round": 3,
+          "tick": 530
+        },
+        {
+          "at": 1789406252081,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 738
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406209124,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406209124,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406209124,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406209129,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406209132,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406209141,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406209500,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406210718,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406210920,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406210935,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211161,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406211697,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211910,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406225118,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406225360,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406237490,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406237811,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 36,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "a4eeceacf18c36c43959150a",
+      "index": 1,
+      "start": 1789406211681,
+      "end": 1789406252347,
+      "now": 1789406252400,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 744,
+      "players": 5,
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "0076c291e67ef6e67bad9dd2",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 744,
+        "finalizedTick": 743,
+        "finalizedHash": "97e9a34290771966",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 39564,
+        "binarySentBytes": 39829,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:liveness": {
+          "bytes": 10848,
+          "packets": 2003,
+          "maxBytes": 6
+        },
+        "rtc:directHeader": {
+          "bytes": 1321,
+          "packets": 7,
+          "maxBytes": 189
+        },
+        "rtc:directHello": {
+          "bytes": 33089,
+          "packets": 160,
+          "maxBytes": 208
+        },
+        "rtc:linkPong": {
+          "bytes": 2112,
+          "packets": 10,
+          "maxBytes": 212
+        },
+        "rtc:linkProbe": {
+          "bytes": 1482,
+          "packets": 7,
+          "maxBytes": 213
+        },
+        "rtc:directReady": {
+          "bytes": 563,
+          "packets": 3,
+          "maxBytes": 188
+        },
+        "rtc:directApplied": {
+          "bytes": 569,
+          "packets": 3,
+          "maxBytes": 190
+        },
+        "rtc:control:clock": {
+          "bytes": 1000,
+          "packets": 100,
+          "maxBytes": 10
+        },
+        "rtc:progress": {
+          "bytes": 17810,
+          "packets": 1885,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 7700,
+          "packets": 1540,
+          "maxBytes": 5
+        },
+        "ws:time": {
+          "bytes": 1507,
+          "packets": 40,
+          "maxBytes": 38
+        },
+        "rtc:actions": {
+          "bytes": 2945,
+          "packets": 180,
+          "maxBytes": 18
+        }
+      },
+      "rx": {
+        "rtc:liveness": {
+          "bytes": 10858,
+          "packets": 2005,
+          "maxBytes": 6
+        },
+        "rtc:directPlan": {
+          "bytes": 176184,
+          "packets": 163,
+          "maxBytes": 1081
+        },
+        "rtc:directPrepare": {
+          "bytes": 21285,
+          "packets": 7,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 89246,
+          "packets": 9,
+          "maxBytes": 12207
+        },
+        "rtc:linkProbe": {
+          "bytes": 2122,
+          "packets": 10,
+          "maxBytes": 213
+        },
+        "rtc:linkPong": {
+          "bytes": 1476,
+          "packets": 7,
+          "maxBytes": 212
+        },
+        "rtc:progress": {
+          "bytes": 14264,
+          "packets": 1509,
+          "maxBytes": 10
+        },
+        "rtc:directActivate": {
+          "bytes": 575,
+          "packets": 3,
+          "maxBytes": 192
+        },
+        "rtc:control:time": {
+          "bytes": 1800,
+          "packets": 100,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 9705,
+          "packets": 1941,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 15702,
+          "packets": 353,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4840,
+          "packets": 20,
+          "maxBytes": 242
+        },
+        "ws:time": {
+          "bytes": 11507,
+          "packets": 40,
+          "maxBytes": 288
+        },
+        "rtc:actions": {
+          "bytes": 2376,
+          "packets": 144,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406210903,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406211912,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406215815,
+          "phase": "playing",
+          "round": 1,
+          "tick": 62
+        },
+        {
+          "at": 1789406222067,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 187
+        },
+        {
+          "at": 1789406225362,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 245
+        },
+        {
+          "at": 1789406229371,
+          "phase": "playing",
+          "round": 2,
+          "tick": 309
+        },
+        {
+          "at": 1789406234436,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 410
+        },
+        {
+          "at": 1789406237813,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 469
+        },
+        {
+          "at": 1789406241722,
+          "phase": "playing",
+          "round": 3,
+          "tick": 531
+        },
+        {
+          "at": 1789406252087,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 738
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406209412,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406209415,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406209514,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406210717,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406210903,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406210931,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211151,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406211692,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211912,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406225109,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406225362,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406237479,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406237813,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 37,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "5a937f5a6b23a3ac2717a6d4",
+      "index": 2,
+      "start": 1789406211681,
+      "end": 1789406252347,
+      "now": 1789406252400,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 744,
+      "players": 5,
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "0076c291e67ef6e67bad9dd2",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 744,
+        "finalizedTick": 743,
+        "finalizedHash": "97e9a34290771966",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 39874,
+        "binarySentBytes": 39634,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:liveness": {
+          "bytes": 10965,
+          "packets": 2023,
+          "maxBytes": 6
+        },
+        "rtc:directHeader": {
+          "bytes": 1132,
+          "packets": 6,
+          "maxBytes": 189
+        },
+        "rtc:directHello": {
+          "bytes": 32884,
+          "packets": 159,
+          "maxBytes": 208
+        },
+        "rtc:linkPong": {
+          "bytes": 1687,
+          "packets": 8,
+          "maxBytes": 212
+        },
+        "rtc:linkProbe": {
+          "bytes": 1909,
+          "packets": 9,
+          "maxBytes": 213
+        },
+        "rtc:directReady": {
+          "bytes": 563,
+          "packets": 3,
+          "maxBytes": 188
+        },
+        "rtc:directApplied": {
+          "bytes": 569,
+          "packets": 3,
+          "maxBytes": 190
+        },
+        "rtc:control:clock": {
+          "bytes": 1000,
+          "packets": 100,
+          "maxBytes": 10
+        },
+        "rtc:progress": {
+          "bytes": 17780,
+          "packets": 1881,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 7740,
+          "packets": 1548,
+          "maxBytes": 5
+        },
+        "ws:time": {
+          "bytes": 1947,
+          "packets": 40,
+          "maxBytes": 51
+        },
+        "rtc:actions": {
+          "bytes": 3103,
+          "packets": 189,
+          "maxBytes": 24
+        }
+      },
+      "rx": {
+        "rtc:liveness": {
+          "bytes": 10975,
+          "packets": 2025,
+          "maxBytes": 6
+        },
+        "rtc:directPlan": {
+          "bytes": 175104,
+          "packets": 162,
+          "maxBytes": 1081
+        },
+        "rtc:directPrepare": {
+          "bytes": 18236,
+          "packets": 6,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 89246,
+          "packets": 9,
+          "maxBytes": 12207
+        },
+        "rtc:linkProbe": {
+          "bytes": 1695,
+          "packets": 8,
+          "maxBytes": 213
+        },
+        "rtc:linkPong": {
+          "bytes": 1901,
+          "packets": 9,
+          "maxBytes": 212
+        },
+        "rtc:progress": {
+          "bytes": 14263,
+          "packets": 1509,
+          "maxBytes": 10
+        },
+        "rtc:directActivate": {
+          "bytes": 575,
+          "packets": 3,
+          "maxBytes": 192
+        },
+        "rtc:control:time": {
+          "bytes": 1782,
+          "packets": 99,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 9670,
+          "packets": 1934,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 15702,
+          "packets": 353,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4840,
+          "packets": 20,
+          "maxBytes": 242
+        },
+        "ws:time": {
+          "bytes": 11947,
+          "packets": 40,
+          "maxBytes": 301
+        },
+        "rtc:actions": {
+          "bytes": 2357,
+          "packets": 143,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406210922,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406211912,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406215813,
+          "phase": "playing",
+          "round": 1,
+          "tick": 62
+        },
+        {
+          "at": 1789406222064,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 187
+        },
+        {
+          "at": 1789406225361,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 245
+        },
+        {
+          "at": 1789406229374,
+          "phase": "playing",
+          "round": 2,
+          "tick": 309
+        },
+        {
+          "at": 1789406234434,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 410
+        },
+        {
+          "at": 1789406237761,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 469
+        },
+        {
+          "at": 1789406241714,
+          "phase": "playing",
+          "round": 3,
+          "tick": 531
+        },
+        {
+          "at": 1789406252083,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 738
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406209488,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406209490,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406209500,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406210717,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406210922,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406210930,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211162,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406211692,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211912,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406225108,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406225361,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406237479,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406237761,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 36,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "f75518568860cbbf7efd62f7",
+      "index": 3,
+      "start": 1789406211681,
+      "end": 1789406252347,
+      "now": 1789406252401,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 744,
+      "players": 5,
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "0076c291e67ef6e67bad9dd2",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 744,
+        "finalizedTick": 743,
+        "finalizedHash": "97e9a34290771966",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 39565,
+        "binarySentBytes": 39753,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:liveness": {
+          "bytes": 10865,
+          "packets": 2007,
+          "maxBytes": 6
+        },
+        "rtc:directHeader": {
+          "bytes": 1321,
+          "packets": 7,
+          "maxBytes": 189
+        },
+        "rtc:linkPong": {
+          "bytes": 2317,
+          "packets": 11,
+          "maxBytes": 212
+        },
+        "rtc:directHello": {
+          "bytes": 33082,
+          "packets": 160,
+          "maxBytes": 208
+        },
+        "rtc:linkProbe": {
+          "bytes": 1276,
+          "packets": 6,
+          "maxBytes": 213
+        },
+        "rtc:directReady": {
+          "bytes": 751,
+          "packets": 4,
+          "maxBytes": 188
+        },
+        "rtc:directApplied": {
+          "bytes": 569,
+          "packets": 3,
+          "maxBytes": 190
+        },
+        "rtc:control:clock": {
+          "bytes": 990,
+          "packets": 99,
+          "maxBytes": 10
+        },
+        "rtc:progress": {
+          "bytes": 17757,
+          "packets": 1878,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 7725,
+          "packets": 1545,
+          "maxBytes": 5
+        },
+        "ws:time": {
+          "bytes": 1507,
+          "packets": 40,
+          "maxBytes": 38
+        },
+        "rtc:actions": {
+          "bytes": 2937,
+          "packets": 177,
+          "maxBytes": 22
+        }
+      },
+      "rx": {
+        "rtc:liveness": {
+          "bytes": 10876,
+          "packets": 2009,
+          "maxBytes": 6
+        },
+        "rtc:directPlan": {
+          "bytes": 176185,
+          "packets": 163,
+          "maxBytes": 1081
+        },
+        "rtc:directPrepare": {
+          "bytes": 21277,
+          "packets": 7,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 89246,
+          "packets": 9,
+          "maxBytes": 12207
+        },
+        "rtc:linkProbe": {
+          "bytes": 2328,
+          "packets": 11,
+          "maxBytes": 213
+        },
+        "rtc:linkPong": {
+          "bytes": 1271,
+          "packets": 6,
+          "maxBytes": 212
+        },
+        "rtc:progress": {
+          "bytes": 14271,
+          "packets": 1510,
+          "maxBytes": 10
+        },
+        "rtc:directActivate": {
+          "bytes": 575,
+          "packets": 3,
+          "maxBytes": 192
+        },
+        "rtc:control:time": {
+          "bytes": 1764,
+          "packets": 98,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 9645,
+          "packets": 1929,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 15702,
+          "packets": 353,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4840,
+          "packets": 20,
+          "maxBytes": 242
+        },
+        "ws:time": {
+          "bytes": 11507,
+          "packets": 40,
+          "maxBytes": 288
+        },
+        "rtc:actions": {
+          "bytes": 2384,
+          "packets": 145,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406210922,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406211912,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406215822,
+          "phase": "playing",
+          "round": 1,
+          "tick": 62
+        },
+        {
+          "at": 1789406222065,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 187
+        },
+        {
+          "at": 1789406225454,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 245
+        },
+        {
+          "at": 1789406229374,
+          "phase": "playing",
+          "round": 2,
+          "tick": 309
+        },
+        {
+          "at": 1789406234438,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 410
+        },
+        {
+          "at": 1789406237762,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 469
+        },
+        {
+          "at": 1789406241725,
+          "phase": "playing",
+          "round": 3,
+          "tick": 531
+        },
+        {
+          "at": 1789406252094,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 738
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406209680,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406209683,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406209747,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406210717,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406210922,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406210931,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211163,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406211692,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211912,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406225109,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406225454,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406237480,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406237762,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 35,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "3aa418b08f8c08e5183284f7",
+      "index": 4,
+      "start": 1789406211681,
+      "end": 1789406252347,
+      "now": 1789406252401,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 744,
+      "players": 5,
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "0076c291e67ef6e67bad9dd2",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 744,
+        "finalizedTick": 743,
+        "finalizedHash": "97e9a34290771966",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 39875,
+        "binarySentBytes": 39758,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:liveness": {
+          "bytes": 10935,
+          "packets": 2019,
+          "maxBytes": 6
+        },
+        "rtc:directHeader": {
+          "bytes": 1322,
+          "packets": 7,
+          "maxBytes": 189
+        },
+        "rtc:directHello": {
+          "bytes": 32868,
+          "packets": 159,
+          "maxBytes": 208
+        },
+        "rtc:linkProbe": {
+          "bytes": 1266,
+          "packets": 6,
+          "maxBytes": 212
+        },
+        "ws:time": {
+          "bytes": 1980,
+          "packets": 41,
+          "maxBytes": 51
+        },
+        "rtc:linkPong": {
+          "bytes": 2536,
+          "packets": 12,
+          "maxBytes": 212
+        },
+        "rtc:directReady": {
+          "bytes": 750,
+          "packets": 4,
+          "maxBytes": 188
+        },
+        "rtc:directApplied": {
+          "bytes": 569,
+          "packets": 3,
+          "maxBytes": 190
+        },
+        "rtc:control:clock": {
+          "bytes": 980,
+          "packets": 98,
+          "maxBytes": 10
+        },
+        "rtc:progress": {
+          "bytes": 17920,
+          "packets": 1895,
+          "maxBytes": 10
+        },
+        "rtc:receipt": {
+          "bytes": 7750,
+          "packets": 1550,
+          "maxBytes": 5
+        },
+        "rtc:actions": {
+          "bytes": 2945,
+          "packets": 180,
+          "maxBytes": 18
+        }
+      },
+      "rx": {
+        "rtc:liveness": {
+          "bytes": 10940,
+          "packets": 2020,
+          "maxBytes": 6
+        },
+        "rtc:directPlan": {
+          "bytes": 175104,
+          "packets": 162,
+          "maxBytes": 1081
+        },
+        "rtc:directPrepare": {
+          "bytes": 21298,
+          "packets": 7,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 89246,
+          "packets": 9,
+          "maxBytes": 12207
+        },
+        "rtc:linkProbe": {
+          "bytes": 2548,
+          "packets": 12,
+          "maxBytes": 213
+        },
+        "rtc:linkPong": {
+          "bytes": 1261,
+          "packets": 6,
+          "maxBytes": 211
+        },
+        "ws:time": {
+          "bytes": 12230,
+          "packets": 41,
+          "maxBytes": 301
+        },
+        "rtc:directActivate": {
+          "bytes": 575,
+          "packets": 3,
+          "maxBytes": 192
+        },
+        "rtc:progress": {
+          "bytes": 14242,
+          "packets": 1507,
+          "maxBytes": 10
+        },
+        "rtc:control:time": {
+          "bytes": 1746,
+          "packets": 97,
+          "maxBytes": 18
+        },
+        "rtc:receipt": {
+          "bytes": 9715,
+          "packets": 1943,
+          "maxBytes": 5
+        },
+        "rtc:control:final": {
+          "bytes": 15702,
+          "packets": 353,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4840,
+          "packets": 20,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 2376,
+          "packets": 144,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406210903,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406211901,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406215817,
+          "phase": "playing",
+          "round": 1,
+          "tick": 62
+        },
+        {
+          "at": 1789406222058,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 186
+        },
+        {
+          "at": 1789406225453,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 245
+        },
+        {
+          "at": 1789406229366,
+          "phase": "playing",
+          "round": 2,
+          "tick": 309
+        },
+        {
+          "at": 1789406234428,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 410
+        },
+        {
+          "at": 1789406237812,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 469
+        },
+        {
+          "at": 1789406241717,
+          "phase": "playing",
+          "round": 3,
+          "tick": 531
+        },
+        {
+          "at": 1789406252086,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 738
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406209756,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406209758,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406209766,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406210717,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406210903,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406210930,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211162,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406211692,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211901,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406225108,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406225453,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406237479,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406237812,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 37,
+      "rejectedInputs": 0
+    },
+    {
+      "id": "13f7c46713bd8f534a931046",
+      "index": 5,
+      "start": 1789406211681,
+      "end": 1789406252347,
+      "now": 1789406252402,
+      "phase": "matchOver",
+      "round": 3,
+      "tick": 744,
+      "players": 5,
+      "diagnostics": {
+        "mode": "direct",
+        "coordinator": "0076c291e67ef6e67bad9dd2",
+        "alias": 7,
+        "simulator": true,
+        "replicaTick": 744,
+        "finalizedTick": 743,
+        "finalizedHash": "97e9a34290771966",
+        "retainedRecords": 0,
+        "rollbackCount": 0,
+        "fastSentBytes": 20801,
+        "binarySentBytes": 38912,
+        "recoveryRequired": false,
+        "corruptRecoveryAttempts": 0,
+        "barrier": false
+      },
+      "tx": {
+        "rtc:liveness": {
+          "bytes": 10855,
+          "packets": 2007,
+          "maxBytes": 6
+        },
+        "rtc:directHeader": {
+          "bytes": 754,
+          "packets": 4,
+          "maxBytes": 189
+        },
+        "rtc:directHello": {
+          "bytes": 33266,
+          "packets": 161,
+          "maxBytes": 207
+        },
+        "rtc:linkProbe": {
+          "bytes": 2962,
+          "packets": 14,
+          "maxBytes": 213
+        },
+        "rtc:linkPong": {
+          "bytes": 844,
+          "packets": 4,
+          "maxBytes": 212
+        },
+        "rtc:directReady": {
+          "bytes": 936,
+          "packets": 5,
+          "maxBytes": 188
+        },
+        "rtc:directApplied": {
+          "bytes": 568,
+          "packets": 3,
+          "maxBytes": 190
+        },
+        "rtc:control:clock": {
+          "bytes": 1000,
+          "packets": 100,
+          "maxBytes": 10
+        },
+        "ws:time": {
+          "bytes": 1543,
+          "packets": 41,
+          "maxBytes": 38
+        },
+        "rtc:receipt": {
+          "bytes": 9685,
+          "packets": 1937,
+          "maxBytes": 5
+        }
+      },
+      "rx": {
+        "rtc:liveness": {
+          "bytes": 10871,
+          "packets": 2010,
+          "maxBytes": 6
+        },
+        "rtc:directPlan": {
+          "bytes": 177265,
+          "packets": 164,
+          "maxBytes": 1081
+        },
+        "rtc:directPrepare": {
+          "bytes": 12167,
+          "packets": 4,
+          "maxBytes": 3049
+        },
+        "rtc:directChunk": {
+          "bytes": 89246,
+          "packets": 9,
+          "maxBytes": 12207
+        },
+        "rtc:linkPong": {
+          "bytes": 2949,
+          "packets": 14,
+          "maxBytes": 212
+        },
+        "rtc:linkProbe": {
+          "bytes": 848,
+          "packets": 4,
+          "maxBytes": 213
+        },
+        "rtc:directActivate": {
+          "bytes": 575,
+          "packets": 3,
+          "maxBytes": 192
+        },
+        "rtc:progress": {
+          "bytes": 17826,
+          "packets": 1886,
+          "maxBytes": 10
+        },
+        "ws:time": {
+          "bytes": 11793,
+          "packets": 41,
+          "maxBytes": 288
+        },
+        "rtc:control:time": {
+          "bytes": 1764,
+          "packets": 98,
+          "maxBytes": 18
+        },
+        "rtc:control:final": {
+          "bytes": 15702,
+          "packets": 353,
+          "maxBytes": 45
+        },
+        "ws:authority": {
+          "bytes": 4840,
+          "packets": 20,
+          "maxBytes": 242
+        },
+        "rtc:actions": {
+          "bytes": 2965,
+          "packets": 180,
+          "maxBytes": 24
+        }
+      },
+      "phases": [
+        {
+          "at": 1789406210922,
+          "phase": "lobby",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406211901,
+          "phase": "countdown",
+          "round": 1,
+          "tick": 0
+        },
+        {
+          "at": 1789406215819,
+          "phase": "playing",
+          "round": 1,
+          "tick": 62
+        },
+        {
+          "at": 1789406222059,
+          "phase": "roundOver",
+          "round": 1,
+          "tick": 186
+        },
+        {
+          "at": 1789406225362,
+          "phase": "countdown",
+          "round": 2,
+          "tick": 245
+        },
+        {
+          "at": 1789406229375,
+          "phase": "playing",
+          "round": 2,
+          "tick": 309
+        },
+        {
+          "at": 1789406234430,
+          "phase": "roundOver",
+          "round": 2,
+          "tick": 410
+        },
+        {
+          "at": 1789406237762,
+          "phase": "countdown",
+          "round": 3,
+          "tick": 469
+        },
+        {
+          "at": 1789406241725,
+          "phase": "playing",
+          "round": 3,
+          "tick": 531
+        },
+        {
+          "at": 1789406252086,
+          "phase": "matchOver",
+          "round": 3,
+          "tick": 738
+        }
+      ],
+      "notices": [
+        {
+          "at": 1789406209940,
+          "text": "Room authority confirmed"
+        },
+        {
+          "at": 1789406209944,
+          "text": "Connected · checking room authority"
+        },
+        {
+          "at": 1789406210243,
+          "text": "Direct peer link connected"
+        },
+        {
+          "at": 1789406210720,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406210922,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406210931,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211162,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406211692,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406211901,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406225108,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406225362,
+          "text": "Connected · direct action simulation"
+        },
+        {
+          "at": 1789406237480,
+          "text": "Synchronizing direct simulation"
+        },
+        {
+          "at": 1789406237762,
+          "text": "Connected · direct action simulation"
+        }
+      ],
+      "acceptedInputs": 0,
+      "rejectedInputs": 0
+    }
+  ],
+  "errors": []
+}

@@ -305,3 +305,95 @@ test('new plans without any headers cannot restart the guest availability deadli
   assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, true);
   assert.equal(guest.view?.phase, 'lobby');
 });
+
+
+test('settled room metadata stops repeating until a lifecycle change', () => {
+  const room = setup(); room.sends.length = 0; room.advance(1200);
+  assert.equal(room.sends.filter(m => m.type === 'directHello' || m.type === 'directPlan').length, 0);
+  room.members.get('p0')!.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), length: 2 } });
+  room.advance(1800);
+  assert.ok(room.sends.some(m => m.type === 'directPlan'));
+  room.sends.length = 0; room.advance(1200);
+  assert.equal(room.sends.filter(m => m.type === 'directHello' || m.type === 'directPlan').length, 0);
+});
+
+test('a rejected plan enqueue and missing acknowledgement retry without reinstalling the plan', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  let planRejected = false, ackRejected = false;
+  room.accept((from, to, raw) => {
+    if (!raw || typeof raw !== 'object' || !('type' in raw)) return true;
+    if (from === 'p0' && to === 'p1' && raw.type === 'directPlan' && !planRejected) { planRejected = true; return false; }
+    if (from === 'p1' && to === 'p0' && raw.type === 'directPlanAck' && !ackRejected) { ackRejected = true; return false; }
+    return true;
+  });
+  const before = guest.runtime.replicationDiagnostics.alias!;
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), length: 2 } }); room.advance(2000);
+  assert.equal(planRejected, true); assert.equal(ackRejected, true);
+  assert.equal(guest.runtime.replicationDiagnostics.alias, before + 1);
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, false);
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, false);
+  room.sends.length = 0; room.advance(1000);
+  assert.equal(room.sends.filter(m => m.type === 'directPlan').length, 0);
+});
+
+
+test('stale and foreign acknowledgements cannot stop paced plan delivery, even with duplicate hellos', () => {
+  const room = setup(), creator = room.members.get('p0')!;
+  room.accept((from, _to, raw) => !(from === 'p1' && raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directPlanAck'));
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), length: 2 } }); room.advance(100);
+  const revision = creator.runtime.replicationDiagnostics.alias!;
+  creator.callbacks.message('p1', { type: 'directPlanAck', revision: revision - 1 });
+  creator.callbacks.message('foreign', { type: 'directPlanAck', revision });
+  room.sends.length = 0;
+  for (let i = 0; i < 60; i++) {
+    creator.callbacks.message('p1', { type: 'directHello', rules: 'fuse-direct-1', display: false }); room.advance(10);
+  }
+  const retries = room.sends.filter(m => m.to === 'p1' && m.type === 'directPlan');
+  assert.ok(retries.length >= 2 && retries.length <= 3, `${retries.length} paced retries`);
+  creator.callbacks.message('p1', { type: 'directPlanAck', revision });
+  room.sends.length = 0; room.advance(1000);
+  assert.equal(room.sends.filter(m => m.to === 'p1' && m.type === 'directPlan').length, 0);
+});
+
+test('only an identical current plan duplicate receives another delivery acknowledgement', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  let plan: RoomPlan | undefined;
+  room.accept((from, to, raw) => { if (from === 'p0' && to === 'p1' && isPlan(raw)) plan = structuredClone(raw); return true; });
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), length: 2 } }); room.advance(1800); assert.ok(plan);
+  const view = structuredClone(guest.view), alias = guest.runtime.replicationDiagnostics.alias;
+  room.sends.length = 0;
+  guest.callbacks.message('p0', { ...plan, settings: { ...plan.settings, length: 20 } });
+  guest.callbacks.message('p0', { ...plan, revision: plan.revision - 1 });
+  assert.equal(room.sends.filter(m => m.type === 'directPlanAck').length, 0);
+  guest.callbacks.message('p0', plan);
+  assert.equal(room.sends.filter(m => m.type === 'directPlanAck').length, 1);
+  assert.equal(guest.runtime.replicationDiagnostics.alias, alias);
+  assert.deepEqual(guest.view, view);
+});
+
+
+test('delegated setup request retries do not resend an already acknowledged room plan', () => {
+  const room = setup(true), creator = room.members.get('p0')!;
+  room.accept((from, to, raw) => !(from === 'p1' && to === 'tv' && raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directReady'));
+  room.sends.length = 0;
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), mode: 'shared', length: 2 } }); room.advance(1400);
+  assert.ok(room.sends.filter(m => m.from === 'tv' && m.type === 'directPlanRequest').length >= 3);
+  assert.equal(room.sends.filter(m => m.to === 'tv' && m.type === 'directPlan').length, 1);
+  assert.equal(room.members.get('tv')!.runtime.replicationDiagnostics.barrier, true);
+  assert.equal(room.members.get('tv')!.runtime.replicationDiagnostics.recoveryRequired, false);
+});
+
+
+test('an intentionally idle shared lobby does not keep a previous simulation recovery deadline running', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  guest.callbacks.linkReset?.('p0'); room.advance(20);
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), mode: 'shared' } }); room.advance(20000);
+  for (const member of room.members.values()) {
+    assert.equal(member.runtime.replicationDiagnostics.coordinator, null);
+    assert.equal(member.runtime.replicationDiagnostics.simulator, false);
+    assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+  }
+  const tv = room.add('tv', true); for (const [id, member] of room.members) if (id !== 'tv') member.callbacks.peer('tv', true); tv.runtime.start(); room.advance(2000);
+  assert.equal(tv.runtime.replicationDiagnostics.simulator, true);
+  for (const member of room.members.values()) assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+});
