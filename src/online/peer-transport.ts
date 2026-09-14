@@ -1,3 +1,4 @@
+import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
@@ -101,9 +102,10 @@ export class PeerTransport {
     const existing=this.links.get(id);if(existing)return existing;
     const pc=new RTCPeerConnection({iceServers:this.servers});
     const link:Link={pc,ice:[],seen:new Set(),health:new LinkHealth(performance.now()),restartAt:performance.now()+8000,restarting:false};this.links.set(id,link);
-    pc.onicecandidate=event=>{if(event.candidate)this.relay('signal',id,{candidate:event.candidate.toJSON()});};
-    pc.ondatachannel=event=>this.channel(id,event.channel);
+    pc.onicecandidate=event=>{if(!isCurrentLinkCallback(this.links.get(id),link))return;if(event.candidate)this.relay('signal',id,{candidate:event.candidate.toJSON()});};
+    pc.ondatachannel=event=>{if(!isCurrentLinkCallback(this.links.get(id),link)){event.channel.close();return;}this.channel(id,event.channel);};
     pc.onconnectionstatechange=()=>{
+      if(!isCurrentLinkCallback(this.links.get(id),link))return;
       if(pc.connectionState==='connected')this.callbacks.status('Direct peer link connected');
       if(pc.connectionState==='failed'||pc.connectionState==='disconnected'){link.health.fail(performance.now());this.callbacks.status('Direct connection interrupted · retrying');}
     };
@@ -111,15 +113,15 @@ export class PeerTransport {
   }
   private channel(id:string,channel:RTCDataChannel):void {
     const link=this.link(id);link.channel=channel;
-    channel.onmessage=event=>{if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
-    channel.onopen=()=>this.callbacks.status('Direct peer link connected');
-    channel.onerror=event=>{event.preventDefault();this.callbacks.status('Direct connection failed · retrying');};
+    channel.onmessage=event=>{if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
+    channel.onopen=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))this.callbacks.status('Direct peer link connected');};
+    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;this.callbacks.status('Direct connection failed · retrying');};
   }
   private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
     const old=this.links.get(id);if(!force&&old?.channel?.readyState==='open')return;if(old){old.pc.close();this.links.delete(id);}
     const link=this.link(id);this.channel(id,link.pc.createDataChannel('game'));
-    await link.pc.setLocalDescription(await link.pc.createOffer());this.relay('signal',id,{description:link.pc.localDescription});
+    await link.pc.setLocalDescription(await link.pc.createOffer());if(!isCurrentLinkCallback(this.links.get(id),link))return;this.relay('signal',id,{description:link.pc.localDescription});
   }
   private async signal(id:string,data:{description?:RTCSessionDescriptionInit;candidate?:RTCIceCandidateInit}):Promise<void>{
     if(this.relayOnly)return;
@@ -127,8 +129,9 @@ export class PeerTransport {
     const link=this.link(id);
     if(data.description){
       await link.pc.setRemoteDescription(data.description);
+      if(!isCurrentLinkCallback(this.links.get(id),link))return;
       for(const candidate of link.ice)await link.pc.addIceCandidate(candidate);link.ice=[];
-      if(data.description.type==='offer'){await link.pc.setLocalDescription(await link.pc.createAnswer());this.relay('signal',id,{description:link.pc.localDescription});}
+      if(data.description.type==='offer'){await link.pc.setLocalDescription(await link.pc.createAnswer());if(!isCurrentLinkCallback(this.links.get(id),link))return;this.relay('signal',id,{description:link.pc.localDescription});}
     }else if(data.candidate){if(link.pc.remoteDescription)await link.pc.addIceCandidate(data.candidate);else if(link.ice.length<64)link.ice.push(data.candidate);}
   }
   private received=new Map<string,Set<number>>();
