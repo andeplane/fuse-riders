@@ -30,7 +30,7 @@ PUBSUB_TOPIC=fuse-riders-signalling
 ALLOWED_ORIGINS=https://andeplane.github.io
 ```
 
-Application Default Credentials come from the attached Cloud Run service account; do not copy credential JSON into the container or frontend. `/healthz` and `/readyz` are operational checks, not proof of gameplay/network correctness.
+Application Default Credentials come from the attached Cloud Run service account; do not copy credential JSON into the container or frontend. `/api/health` and `/api/ready` are operational checks, not proof of gameplay/network correctness. Cloud Run reserves certain paths ending in `z`; `/healthz` was intercepted by Google's frontend on the first deployed revision. Use the `/api` endpoints publicly. Legacy `/healthz` and `/readyz` aliases remain available in local Node tests. [Cloud Run reserved paths](https://docs.cloud.google.com/run/docs/known-issues#reserved-url-paths)
 
 ## Build and deploy a verified commit
 
@@ -89,7 +89,7 @@ Role bindings/resource creation are deliberately not embedded in the deploy scri
 
 ## Verification and rollback
 
-Verify `/healthz`, `/readyz`, CORS/preflight and the actual Pages path, then create a disposable room. Exercise creator/guest/TV on separate gateways, host replacement, stale sockets, direct WebRTC establishment, explicit direct-failure/retry and recovery, mixed frontend versions and required network/phone profiles. Record results at the exact source/image revision. Do not use a live occupied room for destructive tests.
+Verify `/api/health`, `/api/ready`, CORS/preflight and the actual Pages path, then create a disposable room. Exercise creator/guest/TV on separate gateways, host replacement, stale sockets, direct WebRTC establishment, explicit direct-failure/retry and recovery, mixed frontend versions and required network/phone profiles. Record results at the exact source/image revision. Do not use a live occupied room for destructive tests.
 
 For rollback, use the previously recorded ready revision or a previously verified immutable image. First verify protocol/storage compatibility and test an isolated room; rolling backward does not make newer packets/checkpoints compatible automatically:
 

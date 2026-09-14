@@ -27,7 +27,7 @@ export async function runPublicSmoke(options:PublicSmokeOptions):Promise<PublicS
  const request=(path:string,init:RequestInit={})=>fetch(origin+path,{...init,headers:{Origin:browserOrigin,...init.headers},signal:AbortSignal.timeout(timeout)});
  const open=(code:string,token:string)=>{const u=new URL(`/api/rooms/${code}/ws`,origin);u.protocol=u.protocol==='https:'?'wss:':'ws:';u.searchParams.set('token',token);const peer=new Peer(u.href,browserOrigin,timeout);peers.push(peer);return peer;};
  try{
-  for(const path of ['/healthz','/readyz']){const response=await request(path);assert.equal(response.status,200);assert.equal((await response.json() as {ok:boolean}).ok,true);}
+  for(const path of ['/api/health','/api/ready']){const response=await request(path);assert.equal(response.status,200);assert.equal((await response.json() as {ok:boolean}).ok,true);}
   checked('CORS denies foreign origin and supports Pages preflight');
   assert.equal((await request('/api/rooms',{method:'POST',headers:{Origin:'https://denied.invalid'}})).status,403);
   const preflight=await request('/api/rooms',{method:'OPTIONS',headers:{'Access-Control-Request-Method':'POST'}});assert.equal(preflight.status,204);assert.equal(preflight.headers.get('Access-Control-Allow-Origin'),browserOrigin);

@@ -34,8 +34,8 @@ const server=createServer(async(req,res)=>{
   const json=(value:unknown,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value));};
   try{
     const url=new URL(req.url??'/','http://gateway');
-    if(url.pathname==='/healthz'){json({ok:true});return;}
-    if(url.pathname==='/readyz'){json({ok:gateway.state!=='failed',state:gateway.state,connections:gateway.connections},gateway.state==='failed'?503:200);return;}
+    if(url.pathname==='/api/health'||url.pathname==='/healthz'){json({ok:true});return;}
+    if(url.pathname==='/api/ready'||url.pathname==='/readyz'){json({ok:gateway.state!=='failed',state:gateway.state,connections:gateway.connections},gateway.state==='failed'?503:200);return;}
     if(url.pathname==='/api/rooms'&&req.method==='POST'){
       // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
       const forwarded=req.headers['x-forwarded-for'];const ip=(typeof forwarded==='string'?forwarded.split(',').at(-1)?.trim():undefined)??req.socket.remoteAddress??'unknown';
