@@ -23,9 +23,10 @@ try{
   await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();
   await host.getByLabel('Match length').fill('2');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
   await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();
-  await guest.locator('.shared-lobby').waitFor({state:'visible'});
+  // A joined phone keeps the thirds controller in the lobby (#13); its roster is reachable behind ☰ MENU.
+  await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.startsWith('Join your friends'));await guest.locator('.mobile-play').waitFor({state:'visible'});assert.equal(await guest.locator('.shared-lobby').isVisible(),false);
   console.log('Settings/reset confirmed');await guest.reload();
-  await guest.locator(':is(.online-roster,.room-riders):visible').getByText('Guest',{exact:false}).waitFor();
+  await guest.locator('.mobile-tools-toggle').click();await guest.locator('.online-roster:visible').getByText('Guest',{exact:false}).waitFor();await guest.locator('.mobile-tools-toggle').click();
   console.log('Guest refresh confirmed');await host.reload();
   await host.locator(':is(.online-roster,.room-riders):visible').getByText('Guest',{exact:false}).waitFor();console.log('Guest roster confirmed');
   await host.getByRole('button',{name:'START RACE',exact:true}).waitFor({state:'visible'});
@@ -37,7 +38,7 @@ try{
   console.log('Online smoke passed: room creation, guest join, host permissions, start, settings, reset, full phone view.');
 }catch(error){
   for(const [index,context] of browser.contexts().entries())for(const page of context.pages()){
-    console.error(`ROOM DIAGNOSTIC ${index}`,await page.evaluate(()=>{const canvas=document.querySelector<HTMLCanvasElement>('.online-arena');let savedMode:unknown;try{savedMode=JSON.parse(localStorage.getItem('fuse-riders-room-settings-v1')??'{}').mode;}catch{}return {body:document.body.innerText,metrics:document.querySelector<HTMLElement>('#app')?.dataset.metrics,canvas:{hidden:canvas?.hidden,parentClass:canvas?.parentElement?.className,renderer:canvas?.dataset.renderer},savedMode};}).catch(()=>'<page closed>'));
+    console.error(`ROOM DIAGNOSTIC ${index}`,await page.evaluate(()=>{const canvas=document.querySelector<HTMLCanvasElement>('.online-arena');let savedMode:unknown;try{savedMode=JSON.parse(localStorage.getItem('fuse-riders-room-settings-v1')??'{}').mode;}catch{}return {body:document.body.innerText,metrics:document.querySelector<HTMLElement>('#app')?.dataset.metrics,linkDiagnostics:document.querySelector<HTMLElement>('#app')?.dataset.linkDiagnostics,canvas:{hidden:canvas?.hidden,parentClass:canvas?.parentElement?.className,renderer:canvas?.dataset.renderer},savedMode};}).catch(()=>'<page closed>'));
   }
   throw error;
 }finally{await browser.close();}

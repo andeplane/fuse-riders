@@ -91,6 +91,8 @@ test('Worker routes only current authenticated endpoints and includes source con
   assert.deepEqual(host.last('signal'),{type:'signal',from:guestId,connectionId:freshGuest.last('welcome')!.connectionId,data:payload});
   await f.room.webSocketClose(oldGuest);
   await send(host,guestId,freshGuest.last('welcome')!.connectionId);assert.ok(freshGuest.last('signal'));
+  await f.room.webSocketMessage(host,JSON.stringify({type:'signal',to:guestId,targetConnectionId:freshGuest.last('welcome')!.connectionId,data:{type:'world',bombs:[]}}));
+  assert.deepEqual(freshGuest.last('signal')!.data,payload,'Worker validates signal payloads like the Cloud Run gateway');
   await f.room.webSocketClose(freshGuest);
   assert.deepEqual(host.last('peer'),{type:'peer',id:guestId,connectionId:freshGuest.last('welcome')!.connectionId,online:false});
 });

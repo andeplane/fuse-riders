@@ -126,7 +126,7 @@ export class RoomRuntime {
       if(this.session){const error=this.session.command(this.transport.id,command);this.joinRequest.confirm();if(error)this.status.notice(error);else this.save();}
       else this.transport.send(this.transport.hostId,{type:'command',command});
     });
-    if(!this.session){if(now-this.lastState>2000)this.status.recurring('Waiting for direct connection — retrying; check Wi-Fi or network access');return;}
+    if(!this.session){if(now-this.lastState>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);return;}
     if(this.recovering){
       if(this.session.game.phase==='lobby'||[...this.session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
       else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}

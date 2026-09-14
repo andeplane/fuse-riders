@@ -1,5 +1,6 @@
 import { RoomError, RoomStore, isGrantIdentity, type RoomRecord, type Member } from './room-store.js';
 import { BUS_FRAME_TTL_MS, type RoomBus, type RoutedMessage } from './room-bus.js';
+import { validSignal } from './signal.js';
 export interface GatewaySocket {send(raw:string):void;close(code:number,reason:string):void;bufferedAmount:number}
 export interface GatewayDependencies {now:()=>number;id:()=>string;error:(kind:string,error:unknown)=>void;schedule?:(callback:()=>void,delayMs:number)=>()=>void}
 interface Client {room:string;incarnation:string;member:Member;socket:GatewaySocket;window:number;count:number;bytes:number;chain:Promise<void>;pending:number}
@@ -130,18 +131,3 @@ export class RoomGateway {
   async stop():Promise<void>{for(const client of this.clients.values())client.socket.close(1001,'Service restarting');for(const id of [...this.clients.keys()])await this.disconnect(id);if(this.stateValue!=='idle')await this.drain();}
 }
 
-
-function validSignal(raw:unknown):boolean {
-  if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
-  const signal=raw as Record<string,unknown>;
-  if(Object.keys(signal).length!==1)return false;
-  if(signal.description&&typeof signal.description==='object'){
-    const d=signal.description as Record<string,unknown>;
-    return ['offer','answer'].includes(String(d.type))&&typeof d.sdp==='string'&&d.sdp.length<=30_000&&Object.keys(d).every(k=>['type','sdp'].includes(k));
-  }
-  if(signal.candidate&&typeof signal.candidate==='object'){
-    const c=signal.candidate as Record<string,unknown>;
-    return typeof c.candidate==='string'&&c.candidate.length<=2048&&Object.keys(c).every(k=>['candidate','sdpMid','sdpMLineIndex','usernameFragment'].includes(k))&&(c.sdpMid==null||typeof c.sdpMid==='string')&&(c.sdpMLineIndex==null||(Number.isSafeInteger(c.sdpMLineIndex)&&Number(c.sdpMLineIndex)>=0))&&(c.usernameFragment==null||typeof c.usernameFragment==='string');
-  }
-  return false;
-}
