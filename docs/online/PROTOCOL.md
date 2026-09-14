@@ -22,6 +22,10 @@ Kernel state includes x/y/angle, previous drunk offset, drunk start/end/seed inp
 
 ## Fire and management actions
 
+**Current accepted direct-only scope:** [ADR030 amendment](../adr/030-online-delivery-and-replication.md#reviewed-direct-only-action-amendment-2026-09-14) uses the one ordered reliable RTC channel, scheduled/scoped sequence validation, no replay of old fire edges, ten-tick cancellation watchdog and a persistent notice on known press/release failure. Movement outcomes are not gesture outcomes. The full terminal gesture protocol below is a deferred alternative for guaranteed per-gesture receipts or multiple gameplay carriers, not an implemented direct-only release promise.
+
+### Deferred terminal gesture alternative
+
 A gesture is `{ scope, gestureId, transitionSeq, kind: press|aim|release|cancel, startTick?, releaseTick?, aim? }`. IDs increase within control scope. Each gesture state is absent, charging, applied, cancelled or rejected. Last three are terminal; repeated messages return the identical terminal acknowledgement. Cancel before release terminates; cancel after applied cannot undo a shot. A release received before press produces a minimum-charge shot if legal (no invented charge history). Later press cannot resurrect a terminal gesture. Aim updates never resurrect or fire.
 
 For known press, charge begins at its host application tick. Claimed release/start ticks must lie in the input age/future window, start<=release, and same scope. Charge is bounded by host-observed elapsed ticks and existing game charge cap; client metadata cannot grant extra charge. Invalid metadata is terminal rejected. Cooldown, powerup and alive checks use current authoritative game state. New round/control epoch cancels outstanding gestures.

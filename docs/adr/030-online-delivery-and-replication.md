@@ -1,8 +1,8 @@
 # ADR 030: Delivery, replication and recovery
 
-Date: 2026-09-14. Status: proposed; protocol review before implementation.
+Date: 2026-09-14. Status: accepted direct-only amendment below; historical multi-carrier proposal superseded.
 
-## Decision
+## Historical proposal (superseded where amended below)
 
 Treat RTC and WSS as interchangeable carriers beneath one versioned application protocol, not independent delivery guarantees. Every envelope has authority epoch, peer/control epoch, message class and bounded payload. Prefer direct WebRTC; use WSS application relay when direct liveness fails. Optional TURN is distinct from WSS and requires configured quotas. Signalling remains necessary even for direct gameplay.
 
@@ -26,3 +26,21 @@ A single reliable RTC channel is simpler but creates head-of-line blocking betwe
 Deterministic carriers inject duplication, reordering, delayed first keyframe, missing delta, old epoch, asymmetric loss and cross-lane press/release permutations. Exactly one shot or explicit cancellation; zero stale action execution; monotonic accepted world generation; bounded retained memory. Browser tests blackhole established direct links without closing channels, restore UDP, drop signalling alone, lose both paths, refresh host/guest and resume without page reload. Measure actual fallback/recovery duration and preserve traces for failures.
 
 Concrete proposed protocol amendment: [v2 contract](../online/PROTOCOL.md).
+
+## Reviewed direct-only action amendment (2026-09-14)
+
+The user explicitly selected direct WebRTC gameplay with failure/retry when a direct connection is unavailable. WSS/Pub/Sub is signalling only. The root and independent netcode reviewer therefore accept one ordered, reliable RTC game channel for the first release. The old multi-carrier fallback and terminal gesture replay design above is not required for this narrower scope. Head-of-line delay still exists and must satisfy the measured direct-network acceptance budgets; choosing reliable RTC is not a latency guarantee.
+
+Fire follows the same bounded scheduled input scope as steering: current authority/connection fences, per-player control epoch, sequence and intended tick in the host's ±4-tick admission window. Same-step bomb edges are processed in sequence order separately from latest-wins movement. Duplicate/older processed sequences do not execute twice. A press begins charge only at its actual host application tick; a missing press never creates synthetic charge. Release uses host-observed charge and current shared-game cooldown/powerup rules. Invalid or expired current-scope release/cancel safely cancels charge; foreign scopes cannot cancel a newer gesture.
+
+There is **no automatic fire-edge resend across channel restart**, and no claim of per-gesture applied/cancelled receipts. `ControllerInputState.resend()` sends current held state with a fresh sequence, not the old press/release edge. A missing final release cancels through a subsequent bomb=false state update, or after ten ticks without fresh applied input. Scope reset/disconnect/authority invalidation clears pending edges and held charge; reconnect requires a new physical gesture. This favors safe shot loss over delayed shots firing after recovery. Movement application results acknowledge movement only, even when a superseded steering packet contained an accepted fire edge.
+
+A known local scheduling/send failure or host rejection of press/release must display a separate three-second **Shot not accepted — check the connection and tap FIRE again** notice. Frequent snapshots/connection status updates must not erase it. Neutral/held-state/cancel packets do not spam shot notices. A successful channel enqueue is not execution proof; authority world state and projectile events remain the confirmation. Network failure after enqueue can still cancel a gesture without an individual outcome receipt, accompanied by the connection's explicit recovery status. Guaranteed per-gesture delivery would require revisiting the deferred terminal-gesture protocol.
+
+Management is narrower too: only the creator performs start/reset/settings/bot operations, applied locally by the host runtime. One recent intention may wait up to five seconds for the same authority's clock confirmation; replacement authority discards it. Guest join has its own idempotent retry helper. There is no promise of migrating management actions between hosts or delivering actions while the host is unavailable.
+
+### Evidence and release disposition
+
+Four controller-to-HostSession boundary regressions cover lost press with held resends, lost final release, lost release while steering continues, and ordered delivery after the age window. They prove no invented charge, no delayed shot, bounded cancellation and usability of a subsequent physical gesture. Existing scheduler tests cover duplicate release, reordered same-step press/release, disconnect/restore scopes and exact movement acknowledgement. A typed notice helper tests fire-only classification and the three-second deadline with an injected clock.
+
+Review finding: the previous silent false return from scheduling/send was a concrete usability defect, not evidence of unsafe duplicate/stale shooting. The approved minimum correction is the persistent notice described above; no second action protocol is needed for the stated safe-failure scope. Direct-only packet delay/loss/recovery and browser interaction acceptance remain mandatory. Do not label these unit tests as physical-phone or network-smoothness certification.
