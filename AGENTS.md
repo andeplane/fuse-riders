@@ -10,7 +10,7 @@ Online code now includes Phaser presentation, AI riders, shared-kernel tick pred
 
 - Inspect `git status`, current sources and relevant tests before editing. Preserve unrelated changes and active agents' files. Coordinate explicit file ownership when work is delegated.
 - Keep changes coherent and atomic; commit frequently when authorized. Use `codex/` for new branches unless the user requests another name. Do not use blanket staging when unrelated work is present.
-- Before starting work, inspect open GitHub issues and link the change to an existing issue or create a matching issue when needed. Apply one type label (`feature`, `bug`, `docs`, `test`, or `maintenance`) and add `in-progress` when work starts. Remove `in-progress` when the work is completed or stopped; leave a handoff note when stopping so the next agent can resume without guessing. Keep this lightweight: use the issue to record scope and status, not duplicate the implementation log.
+- Before starting work, inspect open GitHub issues and link the change to an existing issue or create a matching issue when needed. Apply one type label (`feature`, `bug`, `docs`, `test`, or `maintenance`) and add `in-progress` when work starts. Remove `in-progress` when the work is completed. When an agent must stop before the work is complete (session or usage limit, interruption), it commits and pushes its branch (a WIP commit is fine), posts a handoff comment on the issue stating the branch, the worktree path if any, what is done, what remains and the exact next command, then removes `in-progress` and adds `needs-another-agent`. The next agent removes `needs-another-agent`, re-adds `in-progress` and continues from the handoff note. Keep this lightweight: use the issue to record scope and status, not duplicate the implementation log.
 - Start architectural changes with an ADR describing alternatives, authority/time/transport invariants, failure behavior, costs and measurable acceptance criteria. Get an independent review before implementation proceeds; get another review of the resulting implementation before online release.
 - Resolve blockers with regression evidence or an explicit reviewed scope decision. Do not silently weaken a requirement, lower a coverage threshold, or turn a failed assertion into a status note.
 - Preserve the LAN `/display` and `/controller` path and the selected neon/pixel aesthetic. Skins and themes must not change simulation geometry, timing or player identity.
@@ -43,7 +43,7 @@ npm run test:coverage
 npm run build
 ```
 
-See README for Chrome/WebKit LAN and online smoke commands and browser installation. Coverage is enforced by `.c8rc.json` over its named modules; retain thresholds and report excluded surfaces. Browser/Worker integration tests and physical-device checks complement coverage rather than being inferred from it. Do not claim a test passed unless its completed output was inspected for the relevant revision.
+`scripts/ci-local.sh` is the local mirror of CI (`PORT=<port> ONLY=core,<steps> scripts/ci-local.sh`); see README for the step names. See README for Chrome/WebKit LAN and online smoke commands and browser installation. Coverage is enforced by `.c8rc.json` over its named modules; retain thresholds and report excluded surfaces. Browser/Worker integration tests and physical-device checks complement coverage rather than being inferred from it. Do not claim a test passed unless its completed output was inspected for the relevant revision.
 
 ## Network and release evidence
 
