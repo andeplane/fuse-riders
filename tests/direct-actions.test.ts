@@ -498,3 +498,96 @@ test('a late action exposing a corrupt pending finality cannot mutate simulation
   assert.deepEqual(world.presentationFrames(), before); assert.equal(replayHash(world.state), state); assert.deepEqual(world.streamProgress(), progress);
   assert.equal(world.pendingFinalizedTick, undefined, 'discard the corrupt certificate without keeping a poison retry');
 });
+
+test('ordinary rounds advance on their deterministic deadline with neutral controls and persistent gesture identity', () => {
+  const state = fixture();
+  state.game.settings = { ...defaultRoomSettings(), match: 'rounds', length: 3 };
+  for (const player of state.game.players.values()) if (player.slot) eliminatePlayer(state.game, player.id);
+  stepDirect(state, new Map());
+  assert.equal(state.game.phase, 'roundOver');
+  const deadline = state.game.phaseEndsAtTick!;
+  while (state.game.tick < deadline - 1) stepDirect(state, new Map());
+  stepDirect(state, new Map([[0, [[1, deadline, 0, 1], [2, deadline, 1, 1]]]]));
+  assert.equal(state.game.tick, deadline);
+  assert.equal(state.game.round, 2);
+  assert.equal(state.game.phase, 'countdown');
+  assert.equal(state.held.size, 0);
+  assert.deepEqual(state.gestures.get(0), { active: 0, latest: 1 });
+  const countdownEnd = state.game.phaseEndsAtTick!;
+  while (state.game.tick < countdownEnd) stepDirect(state, new Map());
+  const release = state.game.tick + 1;
+  assert.ok(!stepDirect(state, new Map([[0, [[3, release, 2, 1, null]]]])).some(e => e.type === 'bombPlaced'));
+  stepDirect(state, new Map([[0, [[4, release + 1, 1, 2]]]]));
+  assert.ok(stepDirect(state, new Map([[0, [[5, release + 2, 2, 2, null]]]])).some(e => e.type === 'bombPlaced'));
+  const restored = setup(state).finalizedState();
+  assert.equal(replayHash(restored), replayHash(state));
+});
+
+test('late reordered actions across an automatic round boundary replay to the identical world', () => {
+  const state = fixture();
+  state.game.settings = { ...defaultRoomSettings(), match: 'rounds', length: 3 };
+  for (const player of state.game.players.values()) if (player.slot) eliminatePlayer(state.game, player.id);
+  stepDirect(state, new Map());
+  const deadline = state.game.phaseEndsAtTick!;
+  while (state.game.tick < deadline - 2) stepDirect(state, new Map());
+  const onTime = setup(structuredClone(state)), late = setup(structuredClone(state));
+  const actions: DirectAction[] = [[1, deadline - 1, 1, 1], [2, deadline + 2, 2, 1, null]];
+  assert.equal(onTime.receive(0, packet(0, actions), deadline + 3).status, 'accepted');
+  advance(onTime, deadline + 3); advance(late, deadline + 3);
+  const beforeGapRepair = replayHash(late.state);
+  assert.equal(late.receive(0, packet(0, [actions[1]]), deadline + 3).status, 'accepted');
+  assert.equal(replayHash(late.state), beforeGapRepair, 'out-of-order suffix cannot execute before its missing prefix');
+  const repaired = late.receive(0, packet(0, [actions[0]]), deadline + 3);
+  assert.equal(repaired.status, 'accepted'); assert.ok(repaired.rollbackTicks > 0);
+  assert.equal(late.state.game.round, 2);
+  assert.equal(replayHash(late.state), replayHash(onTime.state));
+  const certificate = certify(onTime, deadline + 3, [2, 0, 0, 0, 0]);
+  certify(late, deadline + 3, [2, 0, 0, 0, 0]);
+  assert.equal(onTime.finalize(certificate).status, 'accepted');
+  assert.equal(late.finalize(certificate).status, 'accepted');
+  assert.equal(late.finalizedHash, onTime.finalizedHash);
+});
+
+test('pending round settings survive validated bootstrap and apply without changing the active match format', () => {
+  const state = fixture();
+  state.game.settings = { ...defaultRoomSettings(), match: 'rounds', length: 3 };
+  const selected = { ...defaultRoomSettings(), match: 'wins' as const, length: 5 };
+  for (const key of Object.keys(selected.weights) as (keyof typeof selected.weights)[]) selected.weights[key] = 0;
+  state.roundSettings = selected;
+  for (const player of state.game.players.values()) if (player.slot) eliminatePlayer(state.game, player.id);
+  stepDirect(state, new Map());
+  const deadline = state.game.phaseEndsAtTick!;
+  const restored = setup(state).finalizedState();
+  assert.equal(replayHash(restored), replayHash(state));
+  assert.notDeepEqual(restored.game.settings!.weights, selected.weights);
+  while (restored.game.tick < deadline) stepDirect(restored, new Map());
+  assert.deepEqual(restored.game.settings, { ...selected, match: 'rounds', length: 3 });
+  const bytes = setup(state).bootstrap(), envelope = unpackMessage(bytes) as unknown[];
+  const encodedState = unpackMessage(envelope[3] as Uint8Array) as unknown[];
+  encodedState[3] = { ...selected, length: -1 };
+  envelope[3] = packMessage(encodedState);
+  assert.equal(RollbackWorld.open(packMessage(envelope), 7), undefined);
+  assert.equal(replayHash(setup(state).finalizedState()), replayHash(state));
+});
+
+test('automatic round progression waits when fewer than two participants remain connected', () => {
+  const state = fixture();
+  for (const player of state.game.players.values()) if (player.slot) eliminatePlayer(state.game, player.id);
+  stepDirect(state, new Map());
+  for (const player of state.game.players.values()) if (player.slot) player.connected = false;
+  const deadline = state.game.phaseEndsAtTick!;
+  while (state.game.tick <= deadline) stepDirect(state, new Map());
+  assert.equal(state.game.phase, 'roundOver'); assert.equal(state.game.round, 1);
+  assert.equal(state.game.players.size, 5, 'fixed segment roster is retained');
+});
+
+test('direct stepping without explicit match settings keeps shared defaults when applying pending round settings', () => {
+  const state = fixture(); delete state.game.settings;
+  state.roundSettings = { ...defaultRoomSettings(), match: 'rounds', length: 9, weights: {} };
+  for (const player of state.game.players.values()) if (player.slot) eliminatePlayer(state.game, player.id);
+  stepDirect(state, new Map());
+  const deadline = state.game.phaseEndsAtTick!;
+  while (state.game.tick < deadline) stepDirect(state, new Map());
+  assert.equal(state.game.round, 2);
+  assert.deepEqual(setup(state).finalizedState().game.settings, { ...state.roundSettings, match: 'wins', length: 3 });
+});

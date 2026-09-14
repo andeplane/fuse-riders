@@ -26,6 +26,8 @@ export interface TrafficFixture {
   begin(at: number): void;
   finish(at: number): void;
   snapshot(): TrafficSnapshot;
+  drain(): TrafficSnapshot;
+  rematch(): boolean;
   stop(): number;
 }
 export interface TrafficWindow {
@@ -146,11 +148,18 @@ function classify(raw: unknown): string {
     const d=runtime.replicationDiagnostics;
     if(observations.length<40000)observations.push({at:Date.now(),alias:d.alias,tick:d.replicaTick,finalized:d.finalizedTick,rollbacks:d.rollbackCount,barrier:d.barrier,lastFault:d.lastFault,fault:d.fault,recoveryRequired:d.recoveryRequired});else samplesTruncated++;
   },50);
+  const takeSnapshot = (): TrafficSnapshot => ({ id: runtime.transport.id, index, start, end, now: Date.now(), phase: view?.phase, round: view?.round, tick: view?.tick, players: view?.players.length ?? 0, outcome: view ? { leaderboard: view.leaderboard, roundPlacements: view.roundPlacements, matchStats: view.matchStats } : undefined, diagnostics: runtime.replicationDiagnostics, tx, rx, phases, notices, acceptedInputs, rejectedInputs,network:{...network.stats},arrivals,observations,samplesTruncated,queuedBytesAtWindowEnd,packets });
   runtime.start();
   (globalThis as unknown as TrafficWindow).traffic = {
     ready: () => view?.phase === 'lobby' && view.players.length === 5 && !runtime.replicationDiagnostics.barrier && !runtime.replicationDiagnostics.fault && !runtime.replicationDiagnostics.recoveryRequired,
     begin: at => { start = at; }, finish: at => { end = at; },
-    snapshot: () => ({ id: runtime.transport.id, index, start, end, now: Date.now(), phase: view?.phase, round: view?.round, tick: view?.tick, players: view?.players.length ?? 0, outcome: view ? { leaderboard: view.leaderboard, roundPlacements: view.roundPlacements, matchStats: view.matchStats } : undefined, diagnostics: runtime.replicationDiagnostics, tx, rx, phases, notices, acceptedInputs, rejectedInputs,network:{...network.stats},arrivals,observations,samplesTruncated,queuedBytesAtWindowEnd,packets }),
+    snapshot: takeSnapshot,
+    drain: () => {
+      const result = structuredClone(takeSnapshot());
+      arrivals.length = 0; observations.length = 0; packets.length = 0; phases.length = 0; notices.length = 0;
+      return result;
+    },
+    rematch: () => index === 0 && view?.phase === 'matchOver' && runtime.command({ type: 'action', action: 'rematch' }),
     stop: () => { clearInterval(timer);clearInterval(networkTimer);clearInterval(observationTimer);const cancelled=network.stats.queuedBytes;network.clear();runtime.stop();return cancelled; },
   };
 };

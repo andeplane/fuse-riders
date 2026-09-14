@@ -190,3 +190,22 @@ test('reference admission counts MessagePack containers and the largest complete
   assert.equal(referencePreparation(boundary, world, [], scoped).reference, undefined);
   assert.ok(referencePreparation(plain, world, [], scoped).reference);
 });
+
+test('pending powerup settings derive identically from the authenticated plan on reuse and checkpoint fallback', () => {
+  const { world, plan } = fixture(true), previousHash = world.finalizedHash;
+  plan.settings = { ...plan.settings, length: 5, weights: {} };
+  const payload = transitionBytes(world, []);
+  const derived = deriveTransition(payload, plan.revision, world, undefined, plan.settings)!;
+  const game = derived.state.game;
+  const header = referencePreparation({ type: 'directPrepare', revision: plan.revision, alias: plan.revision, bytes: payload.length, hash: derived.hash, matchId: game.matchId, tick: game.tick, round: game.round,
+    status: thinSnapshot({ ...toSnapshot(game), tick: game.tick, round: game.round }), owners: ownersFor(game, plan) }, world, [], plan);
+  const reused = reuseWorld(world, header, plan), transferred = prepareWorld(payload, header, plan, world);
+  assert.ok(reused); assert.deepEqual(reused, transferred);
+  const restored = RollbackWorld.open(reused, plan.revision)!;
+  assert.deepEqual(restored.state.roundSettings, plan.settings);
+  assert.deepEqual(restored.state.game.settings, world.state.game.settings);
+  assert.equal(world.finalizedHash, previousHash);
+  const conflicting = { ...plan, settings: { ...plan.settings, length: 7 } };
+  assert.equal(reuseWorld(world, header, conflicting), undefined);
+  assert.equal(prepareWorld(payload, header, conflicting, world), undefined);
+});

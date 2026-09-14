@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addPlayer, createGame, SLOT_COLORS, startMatch, step } from '../src/shared/game.js';
-import { replayHash } from '../src/shared/action-log.js';
+import { addPlayer, createGame, eliminatePlayer, SLOT_COLORS, startMatch, step } from '../src/shared/game.js';
+import { canonical, replayHash } from '../src/shared/action-log.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
-import type { DirectState } from '../src/shared/direct-input.js';
+import { stepDirect, type DirectState } from '../src/shared/direct-input.js';
 import { DirectSegment } from '../src/online/direct-segment.js';
 import { packBootstrap } from '../src/online/rollback-world.js';
 import { packMessage, unpackMessage } from '../src/online/action-replication.js';
@@ -20,12 +20,12 @@ function setup(shared = false, clockDelay?: 'ahead' | 'opposed', countdown = fal
   let now = 0, count = 0, blockCoordinator = false, impair = false;
   const faults: { peer: string; reason: string }[] = [], traffic: { from: string; to: string; fast: boolean; bytes: number; pulse?: boolean; kind?: string }[] = [];
   const queue: { at: number; from: string; to: string; bytes: Uint8Array; fast: boolean }[] = [];
-  const peers = new Map<string, DirectSegment>(), silenced = new Set<string>();
+  const peers = new Map<string, DirectSegment>(), silenced = new Set<string>(), droppedPulses = new Set<string>();
   for (const id of members) peers.set(id, new DirectSegment({ alias: 7, id, coordinator, baseTick: game.tick, running: true, owners: [...game.players.values()].map(p => [p.slot, p.id]), views, members, ...(views.includes(id) ? { bootstrap: checkpoint } : {}), startAt: 200 }, {
     now: () => now, pulse: (to, bytes) => {
       const tuple = unpackMessage(bytes) as unknown[];
       traffic.push({ from: id, to, fast: true, bytes: bytes.byteLength, pulse: true, kind: 'pulse' });
-      if (silenced.has(id) || blockCoordinator && (id === coordinator || to === coordinator)) return true;
+      if (silenced.has(id) || droppedPulses.has(`${id}:${to}`) || blockCoordinator && (id === coordinator || to === coordinator)) return true;
       const n = ++count; if (impair && n % 7 === 0) return true;
       const delay = clockDelay && id === 'p1' && to === coordinator && tuple[2] === 10 || clockDelay === 'opposed' && id === coordinator && to === 'p2' && tuple[2] === 11 ? 480 : impair ? 10 + n % 60 : 10;
       queue.push({ at: now + delay, from: id, to, bytes: new Uint8Array(bytes), fast: true }); return true;
@@ -55,7 +55,7 @@ function setup(shared = false, clockDelay?: 'ahead' | 'opposed', countdown = fal
       }
     }
   }
-  return { peers, faults, traffic, advance, silence: (peer: string) => silenced.add(peer), now: () => now, impair: () => { impair = true; }, block: () => { blockCoordinator = true; }, coordinator };
+  return { peers, faults, traffic, advance, droppedPulses, silence: (peer: string) => silenced.add(peer), now: () => now, impair: () => { impair = true; }, block: () => { blockCoordinator = true; }, coordinator };
 }
 
 test('six live segments independently advance and finalize continuous inputs under loss and reordering', () => {
@@ -308,4 +308,99 @@ test('presentation samples newly executable remote actions once, including a rep
   peer.receiveFast('p2', packMessage(first)); peer.receiveFast('p1', new Uint8Array([0xc1]));
   assert.equal(peer.presentation.diagnostics.samples, 2); assert.equal(peer.faultReason, undefined);
   assert.equal(room.peers.get('tv')!.presentation.diagnostics.samples, 0);
+});
+
+test('speculative next-round spawning cannot replace the finalized presentation scene', () => {
+  const game = createGame('round-presentation', 42); game.settings = { ...defaultRoomSettings(), match: 'rounds', length: 2 };
+  for (let slot = 0; slot < 2; slot++) addPlayer(game, { id: `p${slot}`, name: `Rider ${slot}`, slot, color: SLOT_COLORS[slot] });
+  startMatch(game); for (let tick = 0; tick < 65; tick++) step(game, new Map());
+  eliminatePlayer(game, 'p1'); step(game, new Map());
+  const state: DirectState = { game, held: new Map(), gestures: new Map() };
+  while (game.tick < game.phaseEndsAtTick! - 1) stepDirect(state, new Map());
+  let now = 0;
+  const faults: string[] = [];
+  const segment = new DirectSegment({ alias: 7, id: 'p0', coordinator: 'p0', baseTick: game.tick, running: true, owners: [[0, 'p0'], [1, 'p1']], views: ['p0', 'p1'], members: ['p0', 'p1'], bootstrap: packBootstrap(7, state, [[0, 0], [1, 0]]) }, {
+    now: () => now, fast: () => true, pulse: () => true, reliable: () => true, events: () => {}, fault: reason => faults.push(reason),
+  });
+  const finalized = segment.snapshot();
+  now = 100; segment.tick();
+  assert.equal(segment.world!.state.game.round, 2);
+  assert.equal(canonical(segment.snapshot()), canonical(finalized));
+  assert.equal(canonical(segment.present(segment.world!.presentationFrames().at(-1)!)), canonical(finalized));
+  assert.deepEqual(faults, []);
+});
+
+test('a participant behind coordinator finality can request fresh completeness from already-finalized origins', () => {
+  const room = setup(); room.advance(1500);
+  const coordinator = room.peers.get('p0')!;
+  const target = Math.min(...[...room.peers.values()].map(p => p.finalizedTick));
+  assert.ok(target > coordinator.config.baseTick);
+  room.traffic.length = 0;
+  coordinator.receiveControl('p4', [1, 7, 'settle', target]);
+  room.advance(250);
+  assert.ok(room.traffic.some(m => m.from === 'p0' && m.to === 'p4' && m.kind === 'final'), 'an already-finalized settle target must resend its certificate');
+  room.advance(100);
+  for (const id of ['p0', 'p1', 'p2', 'p3']) assert.ok(room.traffic.some(m => m.from === id && m.to === 'p4' && m.kind === 'cut'), `${id} must resend its complete prefix even when the requested tick is already finalized locally`);
+  assert.deepEqual(room.faults, []);
+});
+
+test('losing one quiet heartbeat path does not strand a view behind finality while direct progress repair remains available', () => {
+  const room = setup(); room.advance(400);
+  room.droppedPulses.add('p2:p4');
+  room.advance(6000);
+  assert.deepEqual(room.faults, []);
+  assert.ok(room.peers.get('p4')!.finalizedTick >= 160);
+});
+
+test('simultaneous behind-peer requests share one origin-confirmation fanout and reject wrong scopes', () => {
+  const room = setup(); room.advance(1500);
+  const coordinator = room.peers.get('p0')!;
+  const target = Math.min(...[...room.peers.values()].map(p => p.finalizedTick));
+  room.traffic.length = 0;
+  coordinator.receiveControl('intruder', [1, 7, 'settle', target]);
+  coordinator.receiveControl('p1', [1, 6, 'settle', target]);
+  coordinator.receiveControl('p1', [1, 7, 'confirm', target]);
+  coordinator.receiveControl('p1', [1, 7, 'settle', coordinator.config.baseTick]);
+  assert.equal(room.traffic.length, 0);
+  for (const peer of ['p1', 'p2', 'p3', 'p4', 'tv']) coordinator.receiveControl(peer, [1, 7, 'settle', target]);
+  const outgoing = () => room.traffic.filter(m => m.from === 'p0');
+  assert.equal(outgoing().filter(m => m.kind === 'confirm').length, 4);
+  assert.equal(outgoing().filter(m => m.kind === 'cut').length, 5);
+  const before = room.traffic.length;
+  for (const peer of ['p1', 'p2', 'p3', 'p4', 'tv']) coordinator.receiveControl(peer, [1, 7, 'settle', target]);
+  assert.equal(room.traffic.length, before, 'duplicate requests cannot multiply queued work');
+  room.advance(100);
+  assert.equal(outgoing().filter(m => m.kind === 'confirm').length, 4);
+  assert.deepEqual(room.faults, []);
+});
+
+test('fresh finality retains urgent delivery while duplicate repairs and failed enqueues wait 250 ms', () => {
+  for (const failFirst of [false, true]) {
+    const game = createGame('certificate-pacing'); game.settings = defaultRoomSettings();
+    addPlayer(game, { id: 'p0', name: 'Rider', slot: 0, color: SLOT_COLORS[0] });
+    const state: DirectState = { game, held: new Map(), gestures: new Map() };
+    let now = 0;
+    const sent: { at: number; tick: number }[] = [];
+    const segment = new DirectSegment({ alias: 7, id: 'p0', coordinator: 'p0', baseTick: 0, running: true, owners: [[0, 'p0']], members: ['p0', 'p1', 'p2'], views: ['p0', 'p1', 'p2'], bootstrap: packBootstrap(7, state, [[0, 0]]) }, {
+      now: () => now, fast: () => true, pulse: () => true, events: () => {}, fault: () => {},
+      reliable: (peer, tuple) => {
+        if (peer === 'p1' && tuple[2] === 'final') { sent.push({ at: now, tick: Number(tuple[3]) }); return !failFirst || sent.length > 1; }
+        return true;
+      },
+    });
+    now = 100; segment.tick();
+    segment.receiveControl('p1', [1, 7, 'settle', 2]); segment.tick();
+    assert.deepEqual(sent, [{ at: 100, tick: 2 }]);
+    now = 200;
+    assert.equal(segment.input(0, { revision: 0, left: true, right: false, bomb: false, aim: null }), true);
+    segment.receiveControl('p2', [1, 7, 'settle', 4]); segment.tick();
+    assert.equal(sent.length, failFirst ? 1 : 2);
+    if (!failFirst) assert.deepEqual(sent[1], { at: 200, tick: 4 });
+    now = 350; segment.receiveControl('p1', [1, 7, 'settle', 2]); segment.tick();
+    if (failFirst) assert.deepEqual(sent[1], { at: 350, tick: 4 });
+    else assert.equal(sent.length, 2, 'repair must not repeat a certificate before its retry interval');
+    now = 450; segment.tick();
+    if (!failFirst) assert.deepEqual(sent[2], { at: 450, tick: 4 });
+    assert.equal(segment.faultReason, undefined);
+  }
 });

@@ -30,18 +30,23 @@ export class DirectOrigin {
   /** A failed untimestamped release must not fire when a later clock sample arrives. Only a new scope resumes input. */
   suspend(): DirectOrigin { return new DirectOrigin(this.segment, this.slot, { ...this.state, suspended: true }); }
 
-  prepare(input: OriginInput, clockTick: number): OriginResult {
+  prepare(input: OriginInput, clockTick: number): OriginResult { return this.prepareFrame(input, clockTick, false); }
+  /** Ordinary sequenced cancellation without consuming a caller-owned UI revision. */
+  prepareReset(clockTick: number): OriginResult {
+    return this.prepareFrame({ revision: Math.max(0, this.state.revision), left: false, right: false, bomb: false, bombAction: 'cancel', aim: null }, clockTick, true);
+  }
+  private prepareFrame(input: OriginInput, clockTick: number, reset: boolean): OriginResult {
     if (this.state.suspended) return { status: 'suspended' };
     if (!input || !uint32(input.revision) || typeof input.left !== 'boolean' || typeof input.right !== 'boolean' || typeof input.bomb !== 'boolean'
       || (input.bombAction !== undefined && !['press', 'release', 'cancel'].includes(input.bombAction))
       || (input.bombAction === 'press' && !input.bomb) || ((input.bombAction === 'release' || input.bombAction === 'cancel') && input.bomb)) return { status: 'invalid' };
     const aim = Array.isArray(input.aim) ? input.aim.map(n => Object.is(n, -0) ? 0 : n) : input.aim;
     if (!validAim(aim) || !Number.isFinite(clockTick) || clockTick < 0 || clockTick > UINT32_MAX) return { status: 'invalid' };
-    if (input.revision <= this.state.revision) return { status: 'stale' };
+    if (!reset && input.revision <= this.state.revision) return { status: 'stale' };
     const tick = Math.max(Math.floor(clockTick) + 1, this.state.lastTick, this.state.watermark[0] + 1);
     if (!uint32(tick)) return { status: 'exhausted' };
     if (tick > Math.floor(clockTick) + MAX_ORIGIN_LEAD_TICKS) return { status: 'invalid' };
-    const next: OriginState = { ...this.state, revision: input.revision, aim: structuredClone(aim) };
+    const next: OriginState = { ...this.state, revision: reset ? this.state.revision : input.revision, aim: structuredClone(aim) };
     const actions: DirectAction[] = [];
     const flags = Number(input.left) | (Number(input.right) << 1);
     if (flags !== next.flags) { next.flags = flags; actions.push([++next.sequence, tick, 0, flags]); }

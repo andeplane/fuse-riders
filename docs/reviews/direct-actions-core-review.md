@@ -519,3 +519,77 @@ Record the exact refinement in ADR043 before implementation. Regression evidence
 Approve the inspected small runtime change. A distinct per-peer `nextHeader` deadline now permits the first send immediately, schedules 500 ms after successful enqueue and 100 ms after failure, and stops repeating on validated header acknowledgement. Activation retains its independent `lastMeta` timing, and original attempt/episode bounds are unchanged. The updated stale/malformed ACK test waits through the new retry interval without weakening rejection.
 
 Independently ran the new withheld-ACK regression alone: one passed, zero failed or skipped. It proves exact 100 ms failed-enqueue retry, 500 ms spacing while acknowledged delivery is absent, stopped header repetition after a valid ACK, and separate readiness until blocked chunks are released and activation succeeds. Completed output is retained at `/private/tmp/adr043-review-header-retry.log`. No findings remain in this bounded delivery refinement. Mobile-02's outcome remains separate; no browser or build was run by this reviewer.
+
+
+## ADR045 deterministic round progression design approval
+
+Reviewed the proposed `045-deterministic-round-progression.md` against the current direct reducer, shared `startNextRound`, origin admission, runtime status and presentation boundaries. Approved for bounded implementation: ordinary round advancement is an exact-tick deterministic rule within the existing segment, while explicit management/membership/recovery retains lifecycle barriers. The documented finalized-only local origin reset preserves consumed UI revision and wire/gesture identities, and addresses the otherwise divergent held-control state. Pending settings must be canonical direct state applied identically through reuse and payload derivation; active match format/length stay fixed. Same-scope controller status can advance finalized round/tick, and a speculative new round must render the complete finalized scene until proven. Event identity must retain its originating round.
+
+Implementation verification must cover reset admission failure without declaring a successful reset, sentinel/boundary UI revisions without consuming the next user input, and identical pending-settings clone/bootstrap/hash representation. These follow the existing transaction and serialization contract. No additional design blocker remains. This approval does not establish that the constrained mobile profile passes; both recorded failures and the unchanged qualification criteria remain applicable.
+
+
+### ADR045 initial implementation review — two boundary corrections required
+
+The direct reducer now advances at the exact existing deadline, clears held controls through the shared lifecycle operation, retains latest gesture identities, and includes pending settings in cloned/hashed/bootstrap state. Committed events retain their original round. The origin reset preserves UI revision and uses ordinary sequenced admission; presentation returns the complete finalized scene when round identities differ and suppresses the current local pose in that case.
+
+Two concrete corrections remain before implementation approval:
+
+1. The new controller `directStatus` ownership check assumes every human slot belongs to that player ID. The existing `ownersFor` contract assigns retained disconnected humans to the coordinator, so a valid playing-phase departure can cause subsequent status rejection on all controllers. Its bot-prefix comparison also fails to prove exact immutable bot identity. Validate exact slot/player identity against the preparation roster and reuse the established ownership contract. Regressions should cover shared-TV status after a retained human departure and reject a substituted bot ID.
+2. Applying pending round settings dereferences optional `game.settings` through non-null assertions. Valid shared/direct checkpoints may omit game settings, where existing rules use wins/three defaults. Such a state with pending settings can therefore throw at the next-round deadline. Preserve shared defaults or reject that combination at the validation boundary; cover validated bootstrap through deadline.
+
+This is source review only so far; no browser/build or concurrent qualification test was run by the reviewer. The parent is adding focused regressions and retaining the unchanged network acceptance requirements.
+
+
+### ADR045 bounded implementation approval
+
+The two reported source issues are closed. Controller status now compares exact slot/player identity with the already validated preparation roster, allowing its approved coordinator-owned disconnected human slots while rejecting bot substitution and round/tick regression. Pending-settings application preserves the shared wins/three defaults when the pure reducer receives a game without explicit settings. Correction to the initial review's scope: `checkpoint.ts` already requires game settings in validated checkpoints, so the absent-settings dereference was a pure-reducer boundary issue, not an admitted-bootstrap crash. The new regression exercises that pure path and validates the resulting explicit-settings bootstrap.
+
+Independently ran eleven focused ADR045 regressions: eleven passed, zero failed/skipped. Coverage includes exact automatic deadline, late/reordered boundary replay, pending-state roundtrip and invalid settings rejection, reuse/fallback equivalence, too-few-connected participants, revision-preserving reset including sentinel/max revisions, coherent finalized scenes, serialized individual/shared-TV consecutive rounds without lifecycle traffic, and retained-departure/bot/status identity boundaries. Completed output: `/private/tmp/adr045-independent-corrections.log`. Source inspection also confirms committed-event round identity is captured before each simulation step and retained until finality.
+
+Approve this bounded ADR045 implementation. The separate mobile-03 countdown recovery/completeness issue reported by the parent remains a qualification failure requiring its own diagnosis; completing three rounds does not erase that recovery or establish full mobile acceptance. This review did not run a browser or build and grants no deployment authorization.
+
+
+### ADR042 behind-peer progress repair design review
+
+Approve the bounded correction in principle: a receiver's proven finality does not establish that every other simulator has received all origins' cuts. Authenticated, scoped, bounded already-finalized requests may therefore resend existing certificates and cause owners to publish fresh exact cuts, without relaying another origin's completeness or advancing unproven state. Keep the sender's existing demand deadline and hard execution cap.
+
+Before implementation, make the cross-requester pacing explicit: `demandAdmitted` is a per-requester admission bound, not a fanout bound. The already-finalized path must share existing per-owner/self `demandSent` timing and per-requester pending-certificate retry timing with ordinary pending demands, so five simultaneous requesters cannot multiply own-cut/confirm fanout beyond one per destination per 250 ms. Duplicate requests cannot reset those timestamps. The current shared incoming admission map is appropriate because the role rules permit settle only at the coordinator and confirm only from the coordinator at an owner. Authenticate roles/scope before spending that admission.
+
+At the segment base there need not be any certificate to resend. The proposed strict `target > baseTick` requirement means `localFinality == baseTick` can never enter the already-finalized repair branch; use the existing pending-demand path and never synthesize a base certificate. This is design review only; resulting source, failure retry and rate regressions remain to be inspected.
+
+
+### Behind-peer repair implementation review — certificate pacing clarification required
+
+The new already-finalized request handling correctly retains scope/role/future/base admission, shares `confirmOrigins` pacing across requesters and pending/repair paths, and sends each owner’s own fresh cuts. The new tests exercise an already-finalized request, selectively missing quiet pulses, and simultaneous requester coalescing with role/alias/base rejection.
+
+One unintended broader behavior remains: persistent `finalityAttempts` timestamps are now reused for every newly proposed certificate, including after the previous certificate was successfully sent. That delays genuinely new urgent frontiers until 250 ms, whereas the existing rule permits a new urgent certificate after 50 ms and applies 250 ms to failed/coalesced retries. Preserve the new duplicate-repair bound while retaining fresh-frontier timing (for example, record attempted frontier and success along with timestamp). Add a timing regression distinguishing a new frontier after successful send from the same certificate’s repair and a failed send retry. Otherwise this needs an explicit broader cadence amendment and qualification; it should not enter as an incidental behind-peer repair change. No browser/build was run by the reviewer.
+
+
+### Behind-peer progress repair implementation approval
+
+Approve the corrected bounded implementation. Persistent per-recipient certificate attempt state now records frontier, time and enqueue outcome: duplicate/older repair and a previous failed enqueue retain the 250 ms gate, while a genuinely newer certificate following successful enqueue is eligible under the existing 50 ms urgent-finality rule. The map remains bounded by the immutable member roster and resets when the segment stops. Existing pending-demand deadlines, future/headroom limits and origin-owned completeness remain intact.
+
+Independently reran the four new repair regressions: four passed, zero failed/skipped (`/private/tmp/behind-peer-independent-review.log`). They cover behind-finality completeness, selectively lost quiet pulses with working direct repair, simultaneous requester coalescing and role/scope/base rejection, plus exact fresh/duplicate/failed certificate timing. No concrete blocker remains in this small correction. Mobile-04's reported successful run preceded the final pacing refinement; qualification of the resulting source remains a separate parent-run measurement. No browser/build was run by this reviewer.
+
+
+### Coordinator pause propagation — bounded design approval
+
+Approve surfacing the existing authenticated kind-12 pause probe to the runtime so an active follower stops the old simulation while its coordinator prepares a lifecycle change. Validate the captured current association/channel/binding and authority before the callback. Runtime acceptance requires the installed coordinator, exact alias and current connection-scoped plan; unrelated peers, stale scopes and already-stopped segments cannot pause or extend waiting. This carries no new wire message and grants no state/authority change.
+
+Record a first-pause marker before freeze callbacks for synchronous-delivery safety. Start one nonextendable five-second wait for a new plan and retain/start the existing fifteen-second recovery episode. A duplicate current plan does not satisfy that wait; only adoption of a new validated plan does. Preserve the episode through preparation until ordinary activation success, with the existing explicit no-coordinator lobby exception. Expected management waiting must not write `lastFault` or charge corrupt recovery; deadline expiry uses the existing visible recovery path. Stop input, action/control application and simulation immediately while leaving authorized plan/bootstrap processing available.
+
+Recommend one guarded existing pause probe on the first local pause, followed by the existing 200 ms retries. Repeated freeze calls cannot create extra immediate probes. This reduces avoidable notice delay without assuming unreliable delivery will always precede the unchanged execution cap. Implementation regressions should cover delayed rematch plan beyond old-world headroom, successful new-scope activation, no-plan timeout despite duplicate pause/current-plan traffic, stale/foreign rejection and callback reentrancy. Resulting source review remains required.
+
+
+### Coordinator pause implementation review — frozen-view correction required
+
+The new transport callback is scoped to the current authenticated binding and rechecks association/channel/binding identity after runtime callbacks. Local deactivation emits only the first immediate pause probe. Runtime installs its wait marker before stopping the captured segment, accepts only the installed current coordinator/plan, keeps duplicate deadlines fixed and leaves a newer plan able to complete setup.
+
+A remaining presentation/control-status path defeats a complete freeze: in `runtime.tick`, a stopped full simulator fails the healthy-world branch but falls through to the controller timestamp extrapolation branch, which currently checks only segment/view/clock readiness. It therefore keeps rewriting/publishing `view.tick` while its actual world is stopped. Restrict extrapolation to healthy controller-only segments, and prevent queued old-scope `directStatus` from changing a stopped controller's frozen view. Extend the delayed-plan regression to compare published and rendered snapshots, not only `replicaTick`. This is the remaining bounded pause-review blocker; no browser/build was run.
+
+
+### Coordinator pause propagation implementation approval
+
+The frozen-view finding is closed. Timestamp extrapolation now requires a healthy controller-only segment; stopped full simulators and stopped controllers cannot advance published ticks through that branch. Old-segment status additionally requires an activated healthy controller segment, so queued status cannot overwrite its paused scene. The delayed-plan test captures published and rendered snapshots separately at the pause and proves each remains fixed; this correctly avoids assuming they were identical before pause under existing callback coalescing.
+
+Independently ran the three pause regressions: three passed, zero failed/skipped (`/private/tmp/direct-pause-independent-final.log`). They cover foreign/stale pause rejection, delayed-plan success without a spurious fault, unchanged published/rendered state during waiting, duplicate pause/current-plan traffic not extending the five-second deadline, bounded missing-plan recovery, and rejection of queued controller status. Together with the inspected transport binding/callback guards and first-pause probe behavior, no concrete blocker remains in this bounded implementation review. Approve coordinator pause propagation. Complete checks and current-source repeated native impairment qualification remain separate evidence; no browser/build was run by this reviewer.

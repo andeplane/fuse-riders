@@ -69,6 +69,7 @@ export class RoomRuntime {
   private recoveries: number[] = [];
   private recoveryEpisodeAt?: number;
   private attemptAt?: number;
+  private coordinatorPauseAt?: number;
   private settledPlan?: RoomPlan;
   private chargedCorruption?: string;
   private lastRecovery = -Infinity;
@@ -78,12 +79,15 @@ export class RoomRuntime {
   private statusKeys = new Map<string, string>();
   private statusRevision = 0;
   private acceptedStatus = -1;
+  private acceptedStatusTick = 0;
+  private acceptedStatusRound = 0;
   private view?: ViewSnapshot;
   private rendered?: ViewSnapshot;
   private matchId = '';
   private lastBotTick = -1;
   private readonly bots = new BotController();
   private localInput?: OnlineInput;
+  private controlsRound = 0;
   private cancelSchedule?: () => void;
   private stopped = false;
   constructor(private readonly code: string, token: string, settings: RoomSettings, private readonly callbacks: Callbacks, private readonly environment: RuntimeEnvironment = browserEnvironment(code, token)) {
@@ -109,10 +113,17 @@ export class RoomRuntime {
         if (this.plan && this.plan.members.some(m => m.id === id && (!online || m.connection !== this.transport.connectionOf(id)))) this.faultPending = 'Room membership changed — synchronizing';
         this.lastHello = -Infinity;
       },
+      paused: (id, alias) => {
+        const plan = this.plan, segment = this.segment;
+        if (!plan || !segment || plan.revision !== alias || segment.config.alias !== alias || segment.config.coordinator !== id || plan.coordinator !== id
+          || !this.incoming?.activated || segment.faultReason || this.coordinatorPauseAt !== undefined || !this.planCurrent(plan) || !this.transport.authorityPermitted()) return;
+        this.coordinatorPauseAt = this.environment.now(); this.recoveryEpisodeAt ??= this.coordinatorPauseAt;
+        this.freeze();
+      },
       linkReset: id => { if (this.segment && this.plan?.members.some(m => m.id === id)) this.faultPending = 'Direct link replaced — synchronizing'; },
       message: (id, data) => this.receive(id, data), fast: (id, bytes) => { if (this.activationSafe()) return this.segment?.receiveFast(id, bytes); },
       status: text => { if (!this.recoveryRequired) this.status.recurring(text); },
-      authorityChanged: () => { this.freeze(); this.segmentPlan = undefined; this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planDelivery.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
+      authorityChanged: () => { this.coordinatorPauseAt = undefined; this.freeze(); this.segmentPlan = undefined; this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planDelivery.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
       ended: () => { this.stop(); callbacks.ended?.(); },
       revoked: () => this.terminal('This creator tab was replaced — use the newer tab'),
       terminated: text => this.terminal(text),
@@ -121,7 +132,14 @@ export class RoomRuntime {
   get replicationDiagnostics() { return { mode: 'direct', presentation: this.segment?.presentation.diagnostics, presentationBytes: this.segment?.world?.presentationBytes ?? 0, coordinator: this.plan?.coordinator, alias: this.plan?.revision, simulator: !!this.segment?.world, replicaTick: this.segment?.world?.state.game.tick ?? null, finalizedTick: this.segment?.finalizedTick, finalizedHash: this.segment?.world?.finalizedHash, retainedRecords: this.segment?.retainedRecords ?? 0, rollbackCount: this.segment?.rollbackCount ?? 0, fastSentBytes: this.transport.fastSentBytes, binarySentBytes: this.transport.binarySentBytes, recoveryRequired: this.recoveryRequired, corruptRecoveryAttempts: this.recoveries.filter(at => this.environment.now() - at < 30000).length, lastFault: this.lastFault, barrier: !!this.incoming && !this.incoming.activated, fault: this.segment?.faultReason ?? this.faultPending }; }
   start(): void { this.transport.connect(); this.cancelSchedule = this.environment.schedule(() => this.tick()); }
   private terminal(text: string): void { this.freeze(); this.stopped = true; this.cancelSchedule?.(); this.status.terminal(text); }
-  private freeze(): void { if (this.segment) for (const peer of this.segment.config.members) if (peer !== this.transport.id) this.transport.deactivatePulse(peer, this.segment.config.alias); this.segment?.stop(); this.localInput = undefined; this.startAt = undefined; this.lastBotTick = -1; this.callbacks.controlsReset?.(); }
+  private freeze(): void {
+    const segment = this.segment; segment?.stop();
+    this.localInput = undefined; this.startAt = undefined; this.lastBotTick = -1; this.callbacks.controlsReset?.();
+    if (segment) for (const peer of segment.config.members) {
+      if (this.segment !== segment) return;
+      if (peer !== this.transport.id) this.transport.deactivatePulse(peer, segment.config.alias);
+    }
+  }
   private send(id: string, data: unknown): boolean { if (id === this.transport.id) { this.receive(id, data); return true; } return this.transport.send(id, data, true); }
   private planCurrent(plan: RoomPlan): boolean {
     return plan.incarnation === this.transport.grant?.incarnation && plan.epoch === this.transport.grant?.epoch && plan.members.every(m => m.connection === this.transport.connectionOf(m.id));
@@ -155,8 +173,9 @@ export class RoomRuntime {
     // A remotely superseded attempt is still unsuccessful, including a plan whose
     // source never sent its preparation header. Retain the episode across aliases.
     if (this.plan?.coordinator && this.settledPlan !== this.plan) this.recoveryEpisodeAt ??= this.environment.now();
+    this.coordinatorPauseAt = undefined;
     this.attemptAt = plan.coordinator ? this.environment.now() : undefined;
-    this.freeze(); this.plan = structuredClone(plan); this.incoming = undefined; this.outgoing = undefined; this.applied.clear(); this.acceptedStatus = -1; this.statusKeys.clear(); this.recovering = false; this.recoveryRequired = false; this.recoveryRequest = undefined; this.faultPending = undefined; this.corruptionPending = false;
+    this.freeze(); this.plan = structuredClone(plan); this.incoming = undefined; this.outgoing = undefined; this.applied.clear(); this.acceptedStatus = -1; this.acceptedStatusTick = 0; this.acceptedStatusRound = 0; this.statusKeys.clear(); this.recovering = false; this.recoveryRequired = false; this.recoveryRequest = undefined; this.faultPending = undefined; this.corruptionPending = false;
     this.planDelivery.clear();
     if (this.transport.id === this.transport.hostId) for (const member of plan.members) if (member.id !== this.transport.id) this.planDelivery.set(member.id, { acknowledged: false, sentAt: -Infinity });
     this.lobby.settings = structuredClone(plan.settings);
@@ -177,7 +196,7 @@ export class RoomRuntime {
       const base = this.change?.base ?? this.segment?.world ?? initialWorld(this.lobby, plan.revision);
       const ops: GameOperation[] = [...(this.change?.ops ?? [])];
       for (const player of base.state.game.players.values()) if (!player.id.startsWith(BOT_ID_PREFIX) && !plan.members.some(m => m.id === player.id)) ops.push(['lobby', 'roundOver', 'matchOver'].includes(base.state.game.phase) ? [2, player.id] : [3, player.id, false]);
-      const payload = transitionBytes(base, ops), derived = deriveTransition(payload, plan.revision, this.segment?.world);
+      const payload = transitionBytes(base, ops), derived = deriveTransition(payload, plan.revision, this.segment?.world, undefined, plan.settings);
       if (!derived) throw new Error('Lifecycle base could not be validated');
       const game = derived.state.game;
       const view = { ...toSnapshot(game), tick: game.tick, round: game.round };
@@ -225,7 +244,7 @@ export class RoomRuntime {
         now: () => this.environment.now(), pulse: (peer, bytes) => this.transport.sendPulse(peer, bytes), fast: (peer, bytes) => this.transport.sendFast(peer, bytes), reliable: (peer, tuple) => this.transport.sendBound(peer, tuple),
         events: events => this.events(events), fault: (reason, corrupt) => { this.faultPending = reason; this.corruptionPending = !!corrupt; },
       });
-      this.rendered = undefined;
+      this.rendered = undefined; this.controlsRound = incoming.header.round;
       this.segmentPlan = structuredClone(plan);
       for (const member of plan.members) if (member.id !== this.transport.id && !this.transport.activatePulse(member.id, plan.revision)) { this.faultPending = 'Direct heartbeat activation failed — synchronizing'; return; }
       incoming.activated = true; this.view = this.segment.snapshot() ?? incoming.header.status; this.matchId = incoming.header.matchId; if (incoming.header.lobby) this.lobby = structuredClone(incoming.header.lobby); incoming.candidate = undefined; this.change = undefined; this.pendingPlan = undefined;
@@ -296,8 +315,9 @@ export class RoomRuntime {
       this.commands.set(id, { request: raw.request, command: raw.command as Management, expires: this.environment.now() + 5000, sent: 0 }); return;
     }
     if (raw.type === 'directCommandAck' && id === (plan.coordinator ?? this.transport.hostId) && raw.request === this.localCommand?.request) { this.localCommand = undefined; if (typeof raw.error === 'string') this.status.notice(raw.error); return; }
-    if (raw.type === 'directStatus' && id === plan.coordinator && !this.segment?.world && uint32(raw.sequence) && raw.sequence > this.acceptedStatus && isThinView(raw.view, this.transport.id) && this.incoming?.header.matchId === raw.matchId && raw.view.round === this.incoming?.header.round) {
-      this.acceptedStatus = raw.sequence; this.view = raw.view; this.publish(); this.save(); return;
+    if (raw.type === 'directStatus' && id === plan.coordinator && this.segment && !this.segment.world && !this.segment.faultReason && this.incoming?.activated && uint32(raw.sequence) && raw.sequence > this.acceptedStatus && isThinView(raw.view, this.transport.id) && this.incoming && this.incoming.header.matchId === raw.matchId && raw.view.round >= Math.max(this.acceptedStatusRound, this.incoming.header.round) && raw.view.tick >= Math.max(this.acceptedStatusTick, this.incoming.header.tick)
+      && raw.view.players.length === this.incoming.header.status.players.length && raw.view.players.every(p => this.incoming!.header.status.players.some(expected => expected.slot === p.slot && expected.id === p.id))) {
+      this.acceptedStatus = raw.sequence; this.acceptedStatusTick = raw.view.tick; this.acceptedStatusRound = raw.view.round; this.view = raw.view; this.publish(); this.save(); return;
     }
   }
   command(command: RoomCommand | OnlineInput): boolean {
@@ -386,6 +406,7 @@ export class RoomRuntime {
     }
     if (this.recoveryEpisodeAt !== undefined && now - this.recoveryEpisodeAt > 15000 && !this.recoveryRequired) this.requireLobby('Synchronization could not restore play — creator must choose MAIN MENU');
     const plan = this.plan; if (!plan || this.recoveryRequired) return;
+    if (this.coordinatorPauseAt !== undefined && now - this.coordinatorPauseAt > 5000) { this.coordinatorPauseAt = undefined; this.recover('Coordinator transition timed out — synchronizing'); return; }
     if (this.attemptAt !== undefined && !this.incoming?.activated && now - this.attemptAt > 5000) { this.recover('Direct simulation setup timed out — retrying'); return; }
     if (this.incoming && !this.incoming.activated) {
       const full = plan.members.find(m => m.id === this.transport.id)!.view;
@@ -431,13 +452,8 @@ export class RoomRuntime {
         }
       }
       this.view = segment.snapshot(); this.matchId = segment.world.state.game.matchId;
-      if (plan.coordinator === this.transport.id && this.view?.phase === 'roundOver' && this.view.phaseEndsAtTick !== undefined && segment.world.finalizedTick >= this.view.phaseEndsAtTick && !this.change) {
-        const game = segment.world.finalizedState().game;
-        this.freeze(); const session = manager(this.transport.hostId, neutral(segment.world.finalizedState()).game, plan.settings);
-        for (const p of [...session.game.players.values()]) if (!p.connected) session.disconnect(p.id);
-        if (session.game.players.size >= 2) { session.journal.apply([4, { ...plan.settings, match: game.settings!.match, length: game.settings!.length }]); session.journal.apply([5, 1, '']); this.change = { base: segment.world, ops: session.journal.since(0)!, settings: plan.settings }; this.requestPlan(plan.settings); }
-      }
-    } else if (segment && this.view && segment.clock.read().canOriginate) this.view = { ...this.view, tick: segment.clock.read().tick };
+
+    } else if (segment && !segment.world && !segment.faultReason && this.view && segment.clock.read().canOriginate) this.view = { ...this.view, tick: segment.clock.read().tick };
     this.publish(); this.processCommands();
     if (this.plan !== plan) return;
     if (plan.coordinator === this.transport.id && this.view && now - this.lastStatus >= 100) {
@@ -451,11 +467,16 @@ export class RoomRuntime {
   }
   private events(events: CommittedEvent[]): void {
     const game = this.segment?.world?.state.game; if (!game) return;
-    for (const { tick, event } of events) this.callbacks.event(event, game.matchId, game.round, tick);
+    for (const { tick, round, event } of events) this.callbacks.event(event, game.matchId, round, tick);
   }
   private broadcastLobby(): void { this.publish(); if (this.plan) for (const member of this.plan.members) if (member.id !== this.transport.id) this.send(member.id, { type: 'directLobby', revision: this.plan.revision, catalog: this.lobby }); }
   private publish(): void {
     if (!this.view) return;
+    if (this.segment && this.view.round > this.controlsRound && this.activationSafe() && !this.segment.faultReason) {
+      if (!this.segment.resetControls()) return;
+      this.controlsRound = this.view.round; this.localInput = undefined;
+      this.callbacks.controlsReset?.();
+    }
     const key = `${this.plan?.revision}:${this.view.tick}:${this.segment?.finalizedTick}:${canonical(this.plan?.settings ?? this.lobby.settings)}:${this.view.players.length}:${this.view.phase}:${this.view.phase === 'lobby' ? canonical(this.view) : ''}`;
     if (key === this.lastPublish) return; this.lastPublish = key;
     const own = this.view.players.find(p => p.id === this.transport.id);
@@ -475,6 +496,7 @@ export class RoomRuntime {
     const fraction = this.view.phase === 'playing' && reading.canAdvance ? Math.max(0, Math.min(1, reading.fractionalTick - world.state.game.tick)) : 0;
     const buffered = segment.presentation.render(world.presentationFrames(), reading.fractionalTick, this.environment.now());
     const view = buffered ? segment.present(buffered) : this.view;
+    if (view.round !== world.state.game.round) { this.rendered = view; return view; }
     this.rendered = { ...view, players: view.players.map(remote => {
       if (remote.id !== this.transport.id) return remote;
       const sim = world.state.game.players.get(remote.id)!;

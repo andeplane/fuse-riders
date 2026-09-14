@@ -1,3 +1,4 @@
+import { parseRoomSettings } from '../shared/room-settings.js';
 import { toSnapshot } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import { canonical, replayHash, validAim } from '../shared/action-log.js';
@@ -14,7 +15,7 @@ const SNAPSHOT_INTERVAL = 5;
 const CHECKPOINT_BYTES = 2_000_000;
 export type StreamPrefixes = [slot: number, sequence: number][];
 export type Finality = [version: 1, segment: number, kind: 'final', tick: number, prefixes: StreamPrefixes, hash: string];
-export interface CommittedEvent { id: string; tick: number; event: GameEvent }
+export interface CommittedEvent { id: string; tick: number; round: number; event: GameEvent }
 export interface WorldResult {
   status: 'accepted' | 'stale' | 'waiting' | 'invalid' | 'overflow' | 'paused';
   events: CommittedEvent[];
@@ -24,7 +25,7 @@ export interface WorldResult {
   admittedTicks?: number[];
 }
 interface PresentationFrame { view: ViewSnapshot; bytes: number }
-interface Candidate { views: Map<number, PresentationFrame>; state: DirectState; snapshots: Map<number, Uint8Array>; events: Map<number, GameEvent[]>; phaseChanges: Set<number> }
+interface Candidate { views: Map<number, PresentationFrame>; state: DirectState; snapshots: Map<number, Uint8Array>; events: Map<number, { round: number; entries: GameEvent[] }>; phaseChanges: Set<number> }
 function presentationFrame(state: DirectState): PresentationFrame {
   const game = state.game, view = { ...toSnapshot(game), tick: game.tick, round: game.round };
   return { view, bytes: packMessage(view).byteLength };
@@ -32,16 +33,18 @@ function presentationFrame(state: DirectState): PresentationFrame {
 const result = (status: WorldResult['status'], corrupt = false): WorldResult => ({ status, events: [], rollbackTicks: 0, ...(corrupt ? { corrupt: true as const } : {}) });
 
 function packState(state: DirectState): Uint8Array {
-  return packMessage([encodeGameState(state.game), [...state.held].map(([s, h]) => [s, h.at, h.flags, h.aim]), [...state.gestures].map(([s, g]) => [s, g.active, g.latest])]);
+  return packMessage([encodeGameState(state.game), [...state.held].map(([s, h]) => [s, h.at, h.flags, h.aim]), [...state.gestures].map(([s, g]) => [s, g.active, g.latest]), state.roundSettings ?? null]);
 }
 function readState(bytes: Uint8Array): DirectState | undefined {
   if (bytes.byteLength > CHECKPOINT_BYTES) return;
   try {
     const v = unpackMessage(bytes);
-    if (!Array.isArray(v) || v.length !== 3 || typeof v[0] !== 'string' || !Array.isArray(v[1]) || v[1].length > 5 || !Array.isArray(v[2]) || v[2].length > 5) return;
+    if (!Array.isArray(v) || v.length !== 4 || typeof v[0] !== 'string' || !Array.isArray(v[1]) || v[1].length > 5 || !Array.isArray(v[2]) || v[2].length > 5) return;
     const game = decodeGameState(v[0]);
     if (!game || !uint32(game.tick)) return;
-    const state: DirectState = { game, held: new Map(), gestures: new Map() };
+    const roundSettings = v[3] === null ? undefined : parseRoomSettings(v[3]);
+    if (v[3] !== null && !roundSettings) return;
+    const state: DirectState = { game, held: new Map(), gestures: new Map(), ...(roundSettings ? { roundSettings } : {}) };
     const slots = new Set([...game.players.values()].map(p => p.slot));
     for (const h of v[1]) {
       if (!Array.isArray(h) || h.length !== 4 || !uint32(h[0]) || !slots.has(h[0]) || state.held.has(h[0]) || !uint32(h[1]) || h[1] > game.tick || !uint32(h[2]) || h[2] > 7 || !validAim(h[3])) return;
@@ -224,7 +227,7 @@ export class RollbackWorld {
     const checkpoint=packState(state),restored=readState(checkpoint);
     if(!restored||replayHash(restored)!==hash)return result('invalid',true);
     const events: CommittedEvent[] = [];
-    for (const [at, entries] of [...this.candidate.events].sort(([a], [b]) => a - b)) if (at <= tick) entries.forEach((event, i) => events.push({ id: `${this.segment}:${at}:${i}`, tick: at, event }));
+    for (const [at, { round, entries }] of [...this.candidate.events].sort(([a], [b]) => a - b)) if (at <= tick) entries.forEach((event, i) => events.push({ id: `${this.segment}:${at}:${i}`, tick: at, round, event }));
     const snapshots = new Map([...this.candidate.snapshots].filter(([at]) => at > tick)); snapshots.set(tick, checkpoint);
     const pendingEvents = new Map([...this.candidate.events].filter(([at]) => at > tick));
     const streams = new Map([...this.streams].map(([slot, stream]) => [slot, stream.trim(tick, state.gestures.get(slot)?.latest ?? 0)]));
@@ -252,10 +255,10 @@ export class RollbackWorld {
   private simulate(candidate: Candidate, streams: ReadonlyMap<number, DirectStream>, target: number): Candidate {
     while (candidate.state.game.tick < target) {
       const tick = candidate.state.game.tick + 1;
-      const phase = candidate.state.game.phase;
+      const phase = candidate.state.game.phase, round = candidate.state.game.round;
       const events = stepDirect(candidate.state, new Map([...streams].map(([slot, s]) => [slot, s.at(tick)])));
-      if (events.length) candidate.events.set(tick, events);
-      if (candidate.state.game.phase !== phase) candidate.phaseChanges.add(tick);
+      if (events.length) candidate.events.set(tick, { round, entries: events });
+      if (candidate.state.game.phase !== phase || candidate.state.game.round !== round) candidate.phaseChanges.add(tick);
       candidate.views.set(tick, presentationFrame(candidate.state));
       while (candidate.views.size > 4) candidate.views.delete(candidate.views.keys().next().value!);
       if (tick % SNAPSHOT_INTERVAL === 0) candidate.snapshots.set(tick, packState(candidate.state));

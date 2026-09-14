@@ -314,3 +314,24 @@ test('a prepared clock reply cannot consume the live nonce until its whole aggre
   const again=original.request(8)!;const rejected=original.prepare([1,7,'time',again[3],999]);
   assert.equal(rejected.status,'fault');assert.equal(original.read().reason,'ready');assert.equal(original.outstandingProbes,1);
 });
+
+test('finalized-round cancellation preserves wire identities and does not consume the next UI revision', () => {
+  const pressed = accepted(DirectOrigin.start(7, 0, 100).prepare(input(12, { left: true, bomb: true, bombAction: 'press' }), 100));
+  const reset = accepted(pressed.origin.prepareReset(102));
+  assert.deepEqual(reset.actions, [[3, 103, 0, 0], [4, 103, 3, 1]]);
+  assert.equal(reset.origin.revision, 12);
+  assert.equal(reset.origin.activeControls, false);
+  assert.deepEqual(accepted(reset.origin.prepareReset(103)).actions, []);
+  assert.deepEqual(accepted(reset.origin.prepare(input(13, { left: true, bomb: true, bombAction: 'press' }), 104)).actions,
+    [[5, 105, 0, 1], [6, 105, 1, 2]]);
+  assert.equal(reset.origin.suspend().prepareReset(104).status, 'suspended');
+});
+
+test('round reset preserves the initial and exhausted UI revision values', () => {
+  const origin = DirectOrigin.start(7, 0, 100);
+  assert.equal(accepted(origin.prepareReset(100)).origin.revision, -1);
+  const pressed = accepted(origin.prepare(input(0xffffffff, { bomb: true, bombAction: 'press' }), 100));
+  const reset = accepted(pressed.origin.prepareReset(101));
+  assert.equal(reset.origin.revision, 0xffffffff);
+  assert.deepEqual(reset.actions, [[2, 102, 3, 1]]);
+});

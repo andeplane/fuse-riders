@@ -47,6 +47,7 @@ export class DirectSegment {
   private lastFinal = -Infinity;
   private finality?: Finality;
   private pendingFinality = new Map<string, { message: Finality; attempted: number }>();
+  private finalityAttempts = new Map<string, { tick: number; at: number; queued: boolean }>();
   private finalView?: ViewSnapshot;
   readonly presentation = new DirectPresentation();
   private stopped?: string;
@@ -91,12 +92,17 @@ export class DirectSegment {
     this.origins = new Map([...this.origins].map(([slot, origin]) => [slot, origin.suspend()]));
     this.ports.fault(reason, corrupt);
   }
-  stop(): void { this.stopped ??= 'Segment replaced'; for (const heartbeat of this.heartbeats.values()) heartbeat.stop(); this.origins.clear(); this.deliveries.clear(); this.pendingFinality.clear(); this.demands.clear(); this.confirmation = undefined; }
-  input(slot: number, frame: OriginInput): boolean {
+  stop(): void { this.stopped ??= 'Segment replaced'; for (const heartbeat of this.heartbeats.values()) heartbeat.stop(); this.origins.clear(); this.deliveries.clear(); this.pendingFinality.clear(); this.finalityAttempts.clear(); this.demands.clear(); this.confirmation = undefined; }
+  input(slot: number, frame: OriginInput): boolean { return this.admitInput(slot, frame); }
+  resetControls(): boolean {
+    for (const slot of this.origins.keys()) if (!this.admitInput(slot)) return false;
+    return !this.stopped;
+  }
+  private admitInput(slot: number, frame?: OriginInput): boolean {
     const origin = this.origins.get(slot), reading = this.clock.read(true);
     if (!origin || !this.config.running || this.stopped) return false;
     if (!reading.canOriginate || reading.tick >= this.finalizedTick + ROLLBACK_TICKS) { this.fail('Input clock unavailable — synchronizing controls'); return false; }
-    const prepared = origin.prepare(frame, reading.fractionalTick);
+    const prepared = frame ? origin.prepare(frame, reading.fractionalTick) : origin.prepareReset(reading.fractionalTick);
     if (prepared.status === 'stale') return true;
     if (prepared.status !== 'accepted') { this.fail('Input stream rejected — synchronizing controls'); return false; }
     const next = prepared.actions.length ? prepared.origin.advanceWatermark(reading.tick) : prepared.origin;
@@ -224,8 +230,19 @@ export class DirectSegment {
   private receiveDemand(peer: string, kind: 'settle' | 'confirm', target: number): void {
     if (kind === 'settle' ? this.config.id !== this.config.coordinator || peer === this.config.id : peer !== this.config.coordinator || !this.origins.size) return;
     const now = this.ports.now(), reading = this.clock.read();
-    if (!reading.canOriginate || target <= this.finalizedTick || target > this.finalizedTick + ROLLBACK_TICKS || target > reading.tick + FUTURE_RECORD_TICKS || now - (this.demandAdmitted.get(peer) ?? -Infinity) < 250) return;
+    if (!reading.canOriginate || target <= this.config.baseTick || target > this.finalizedTick + ROLLBACK_TICKS || target > reading.tick + FUTURE_RECORD_TICKS || now - (this.demandAdmitted.get(peer) ?? -Infinity) < 250) return;
     this.demandAdmitted.set(peer, now);
+    // A finalized prefix can still be missing at another view. Repair delivery
+    // without inventing completeness on behalf of its origin.
+    if (target <= this.finalizedTick) {
+      if (kind === 'confirm') {
+        if (now - this.lastConfirmationSent >= 250) { this.lastConfirmationSent = now; this.publishCuts(true); }
+      } else {
+        this.confirmOrigins(target);
+        if (this.finality) this.queueFinality(peer, this.finality);
+      }
+      return;
+    }
     if (kind === 'settle') { const old = this.demands.get(peer); this.demands.set(peer, { target: Math.min(target, old?.target ?? target), at: old?.at ?? now }); }
     else this.confirmation = { target: Math.min(target, this.confirmation?.target ?? target), at: this.confirmation?.at ?? now };
     this.serviceDemands();
@@ -247,13 +264,22 @@ export class DirectSegment {
     if (this.stopped || !this.demands.size) return;
     const target = Math.min(...[...this.demands.values()].map(d => d.target));
     if (this.config.id === this.config.coordinator) {
-      if (now - (this.demandSent.get(this.config.id) ?? -Infinity) >= 250) { this.demandSent.set(this.config.id, now); this.publishCuts(true); }
-      for (const owner of new Set(this.owners.values())) if (!this.stopped && owner !== this.config.id && now - (this.demandSent.get(owner) ?? -Infinity) >= 250) {
-        this.demandSent.set(owner, now); this.ports.reliable(owner, [DIRECT_VERSION, this.config.alias, 'confirm', target]);
-      }
+      this.confirmOrigins(target);
     } else if (now - (this.demandSent.get(this.config.coordinator) ?? -Infinity) >= 250) {
       this.demandSent.set(this.config.coordinator, now); this.ports.reliable(this.config.coordinator, [DIRECT_VERSION, this.config.alias, 'settle', target]);
     }
+  }
+  private confirmOrigins(target: number): void {
+    const now = this.ports.now();
+    if (now - (this.demandSent.get(this.config.id) ?? -Infinity) >= 250) { this.demandSent.set(this.config.id, now); this.publishCuts(true); }
+    for (const owner of new Set(this.owners.values())) if (!this.stopped && owner !== this.config.id && now - (this.demandSent.get(owner) ?? -Infinity) >= 250) {
+      this.demandSent.set(owner, now); this.ports.reliable(owner, [DIRECT_VERSION, this.config.alias, 'confirm', target]);
+    }
+  }
+  private queueFinality(peer: string, message: Finality): void {
+    const previous = this.finalityAttempts.get(peer);
+    const attempted = previous && (!previous.queued || message[3] <= previous.tick) ? previous.at : -Infinity;
+    this.pendingFinality.set(peer, { message, attempted });
   }
   private finalize(): void {
     const now = this.ports.now();
@@ -263,7 +289,7 @@ export class DirectSegment {
         const proposal = this.world.proposeFinality(tick); if (!proposal) continue;
         if (!this.result(this.world.finalize(proposal))) return;
         this.finality = proposal; this.lastFinal = now;
-        for (const peer of this.config.members) if (peer !== this.config.id) this.pendingFinality.set(peer, { message: proposal, attempted: this.pendingFinality.get(peer)?.attempted ?? -Infinity });
+        for (const peer of this.config.members) if (peer !== this.config.id) this.queueFinality(peer, proposal);
         break;
       }
     }
@@ -292,7 +318,10 @@ export class DirectSegment {
     this.finalize();
     for (const [peer, pending] of this.pendingFinality) if (now - pending.attempted >= 250) {
       pending.attempted = now;
-      if (this.ports.reliable(peer, pending.message)) this.pendingFinality.delete(peer);
+      const attempt = { tick: pending.message[3], at: now, queued: false };
+      this.finalityAttempts.set(peer, attempt);
+      attempt.queued = this.ports.reliable(peer, pending.message);
+      if (attempt.queued) this.pendingFinality.delete(peer);
     }
     if (this.config.id === this.config.coordinator && this.startedAt !== undefined && [...this.progress.values()].some(p => p.tick > this.config.baseTick ? now - p.at > HEARTBEAT_FRESH_MS : now - this.startedAt! > 1500)) this.fail('A rider stopped publishing progress — synchronizing');
     if (!reading.canOriginate && active && reading.reason === 'stale') this.fail('Input clock stale — synchronizing controls');
@@ -318,6 +347,7 @@ export class DirectSegment {
   /** Finalized outcomes overlay geometry only after interpolation. */
   present(view: ViewSnapshot): ViewSnapshot {
     const final = this.finalView!;
+    if (view.round !== final.round) return final;
     return { ...view, phase: final.phase, phaseEndsAtTick: final.phaseEndsAtTick, roundWinnerId: final.roundWinnerId, matchWinnerId: final.matchWinnerId,
       leaderboard: final.leaderboard, roundPlacements: final.roundPlacements, matchStats: final.matchStats, players: view.players.map(p => { const outcome = final.players.find(f => f.id === p.id)!; return { ...p, alive: outcome.alive, roundWins: outcome.roundWins }; }) };
   }

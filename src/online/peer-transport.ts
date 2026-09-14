@@ -20,6 +20,7 @@ export interface TransportCallbacks {
   peer:(id:string,online:boolean)=>void;
   message:(id:string,data:unknown)=>void;
   fast?:(id:string,data:Uint8Array)=>HeartbeatResult|void;
+  paused?:(id:string,segment:number)=>void;
   /** A new RTC association needs a fresh reliable capability/segment handshake. */
   linkReset?:(id:string)=>void;
   status:(status:string)=>void;
@@ -242,7 +243,7 @@ export class PeerTransport {
       if(admission==='limited'){drain();channel.close();this.callbacks.status('Direct action flow exceeded its rate limit — retrying');return;}
       if(control.length===4&&(control[2]===8||control[2]===9||control[2]===12)){
         link.fastBinding!.remoteConfirmed=true;
-        if(control[2]===12){link.fastBinding!.pulse.pauseRemote();link.health.setPulseMode(false,now);}
+        if(control[2]===12){const binding=link.fastBinding!;binding.pulse.pauseRemote();link.health.setPulseMode(false,now);this.callbacks.paused?.(id,control[1] as number);if(!current()||link.fastBinding!==binding||!this.fastBound(id,link))return;}
         const segment=control[1] as number,probeId=control[3] as number;
         if(control[2]===9)link.health.acknowledge(probeId,now);
         else this.defer(()=>{if(current())this.sendFastProbe(id,9,probeId,segment);});
@@ -267,7 +268,9 @@ export class PeerTransport {
   deactivatePulse(id:string,segment:number):void {
     const link=this.links.get(id);
     if(!link||!this.fastBound(id,link)||link.fastBinding!.segment!==segment)return;
-    link.fastBinding!.pulse.pauseLocal();link.health.setPulseMode(false,performance.now());
+    const first = !link.fastBinding!.pulse.locallyPaused, now = performance.now();
+    link.fastBinding!.pulse.pauseLocal();link.health.setPulseMode(false,now);
+    if(first)this.sendFastProbe(id,12,link.health.probe(now),segment);
   }
   sendPulse(id:string,bytes:Uint8Array):boolean {
     const link=this.links.get(id),pulse=decodeHeartbeat(bytes);

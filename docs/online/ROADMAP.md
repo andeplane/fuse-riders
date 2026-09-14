@@ -49,3 +49,8 @@ The prior qualification checkpoint used `fuse-direct-3`, fixing an unreadable po
 
 
 [ADR044](../adr/044-adaptive-direct-presentation.md) now provides independently reviewed 50–100 ms adaptive remote presentation, immediate local steering, rollback-correct four-frame history and bounded render diagnostics. The actual Phaser response benchmark passes 18 eligible trials at local p95 16.9 ms and TV p95 79.8 ms; 628 tests, build and WebKit LAN smoke pass. [Presentation evidence](direct-actions-evidence/adaptive-presentation/manifest.json) distinguishes this desktop result from sustained/physical-device qualification.
+
+
+### Deterministic rounds and behind-peer repair
+
+[ADR045](../adr/045-deterministic-round-progression.md) now advances ordinary rounds within one segment, eliminating their full-state preparation transfers. Its implementation review is approved. A reviewed ADR042 repair correction also answers progress requests from peers behind the coordinator's finality. The unchanged mobile profile passes a short six-context match at the pre-final pacing checkpoint; current-source repeated-match and sustained evidence remain in progress. Prior failed profiles are retained, and the public deployment is unchanged.

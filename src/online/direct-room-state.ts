@@ -101,24 +101,28 @@ export function transitionBytes(base: RollbackWorld, operations: GameOperation[]
   return bytes;
 }
 interface DerivedTransition { state: DirectState; bootstrap: Uint8Array; hash: string }
-function deriveBase(base: RollbackWorld, operations: GameOperation[], alias: number, fence?: RollbackWorld, reference?: TransitionReference): DerivedTransition | undefined {
+function deriveBase(base: RollbackWorld, operations: GameOperation[], alias: number, fence?: RollbackWorld, reference?: TransitionReference, roundSettings?: RoomSettings): DerivedTransition | undefined {
   if (!uint32(alias) || !alias || !validOperations(operations)) return;
   const finalized = base.finalizedState(), hash = replayHash(finalized);
   if (reference && (base.segment !== reference[0] || base.finalizedTick !== reference[1] || hash !== reference[2] || canonical(operations) !== canonical(reference[3]))) return;
   if (fence && finalized.game.matchId === fence.state.game.matchId && (base.finalizedTick < fence.finalizedTick || base.finalizedTick === fence.finalizedTick && hash !== replayHash(fence.finalizedState()))) return;
   const state = neutral(finalized);
   for (const op of operations) applyOperation(state, op);
+  if (roundSettings) {
+    if (canonical(roundSettings) === canonical(state.game.settings)) delete state.roundSettings;
+    else state.roundSettings = structuredClone(roundSettings);
+  }
   const bootstrap = packBootstrap(alias, state, [...state.game.players.values()].map(p => [p.slot, 0]));
   if (!RollbackWorld.open(bootstrap, alias)) return;
   return { state, bootstrap, hash: replayHash(state) };
 }
-export function deriveTransition(bytes: Uint8Array, alias: number, fence?: RollbackWorld, reference?: TransitionReference): DerivedTransition | undefined {
+export function deriveTransition(bytes: Uint8Array, alias: number, fence?: RollbackWorld, reference?: TransitionReference, roundSettings?: RoomSettings): DerivedTransition | undefined {
   if (bytes.byteLength > 2_000_000 || !uint32(alias) || !alias) return;
   try {
     const raw = unpackMessage(bytes);
     if (!Array.isArray(raw) || raw.length !== 3 || !uint32(raw[0]) || !raw[0] || !(raw[1] instanceof Uint8Array) || !validOperations(raw[2])) return;
     const base = RollbackWorld.open(raw[1], raw[0]); if (!base) return;
-    return deriveBase(base, raw[2], alias, fence, reference);
+    return deriveBase(base, raw[2], alias, fence, reference, roundSettings);
   } catch { return; }
 }
 export function initialWorld(value: LobbyCatalog, alias: number): RollbackWorld {
@@ -130,12 +134,12 @@ export function catalogView(value: LobbyCatalog): ViewSnapshot { const game = lo
 /** Full views verify every activation field against the derived, hash-checked state. */
 export function prepareWorld(payload: Uint8Array, header: Preparation, plan: RoomPlan, fence?: RollbackWorld): Uint8Array | undefined {
   if (!isPreparation(header, plan) || payload.length !== header.bytes) return;
-  return validatedPreparation(deriveTransition(payload, plan.revision, fence, header.reference), header, plan);
+  return validatedPreparation(deriveTransition(payload, plan.revision, fence, header.reference, plan.settings), header, plan);
 }
 /** Reuse and transfer share derivation and every output-field check; neither mutates the retained world. */
 export function reuseWorld(base: RollbackWorld, header: Preparation, plan: RoomPlan): Uint8Array | undefined {
   if (!isPreparation(header, plan) || !header.reference) return;
-  try { return validatedPreparation(deriveBase(base, header.reference[3], plan.revision, base, header.reference), header, plan); } catch { return; }
+  try { return validatedPreparation(deriveBase(base, header.reference[3], plan.revision, base, header.reference, plan.settings), header, plan); } catch { return; }
 }
 function validatedPreparation(derived: DerivedTransition | undefined, header: Preparation, plan: RoomPlan): Uint8Array | undefined {
   if (!derived) return;

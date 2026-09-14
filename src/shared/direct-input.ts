@@ -1,7 +1,8 @@
 import { validAim, type AimTuple, type BombTuple, type ControlChange, type ReplayState, applyOperation } from './action-log.js';
+import type { RoomSettings } from './room-settings.js';
 import type { GameEvent } from './protocol.js';
 
-export const DIRECT_RULES = 'fuse-direct-4';
+export const DIRECT_RULES = 'fuse-direct-5';
 export const UINT32_MAX = 0xffff_ffff;
 export const uint32 = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= UINT32_MAX && !Object.is(value, -0);
 /** Independent player stream. Sequence order breaks ties only within that player. */
@@ -23,7 +24,7 @@ export function isDirectAction(raw: unknown): raw is DirectAction {
 }
 
 export interface GestureState { active: number; latest: number }
-export interface DirectState extends ReplayState { gestures: Map<number, GestureState> }
+export interface DirectState extends ReplayState { gestures: Map<number, GestureState>; roundSettings?: RoomSettings }
 
 /** Mutates only the supplied candidate. Networking, clocks and side effects stay outside. */
 export function stepDirect(state: DirectState, bySlot: ReadonlyMap<number, readonly DirectAction[]>): GameEvent[] {
@@ -64,6 +65,12 @@ export function stepDirect(state: DirectState, bySlot: ReadonlyMap<number, reado
   // but a finished/countdown phase must not retain a charge after its gesture ends.
   if(state.game.phase!=='playing')for(const player of state.game.players.values()){
     player.bombChargeStartedTick=undefined;player.bombTarget=undefined;
+  }
+  if (state.game.phase === 'roundOver' && state.game.phaseEndsAtTick !== undefined && state.game.tick >= state.game.phaseEndsAtTick
+    && [...state.game.players.values()].filter(p => p.connected).length >= 2) {
+    if (state.roundSettings) applyOperation(state, [4, { ...state.roundSettings, match: state.game.settings?.match ?? 'wins', length: state.game.settings?.length ?? 3 }]);
+    applyOperation(state, [5, 1, '']);
+    for (const gesture of state.gestures.values()) gesture.active = 0;
   }
   return events;
 }

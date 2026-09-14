@@ -604,3 +604,123 @@ test('discarding the simulator retires cached rendering and idle catalogs stay c
   assert.equal(tv.runtime.replicationDiagnostics.simulator, true); assert.equal(tv.runtime.renderSnapshot()!.phase, 'lobby');
   assert.deepEqual(creator.runtime.renderSnapshot(), creator.view);
 });
+
+test('individual views and shared-TV controllers play consecutive rounds in one segment without checkpoint traffic', () => {
+  for (const shared of [false, true]) {
+    const room = setup(shared), creator = room.members.get('p0')!;
+    creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), mode: shared ? 'shared' : 'devices', match: 'rounds', length: 2 } });
+    room.advance(1800);
+    creator.runtime.command({ type: 'action', action: 'start' }); room.advance(1800);
+    const alias = creator.runtime.replicationDiagnostics.alias;
+    const metadata = () => room.sends.filter(m => ['directPrepare', 'directChunk', 'directActivate'].includes(m.type)).length;
+    const before = metadata(), rounds = new Map([...room.members.keys()].map(id => [id, new Set<number>()]));
+    for (let elapsed = 0; elapsed < 90000 && ![...room.members.values()].every(m => m.view?.phase === 'matchOver'); elapsed += 50) {
+      room.advance(50);
+      for (const [id, member] of room.members) {
+        if (member.view?.phase === 'playing') rounds.get(id)!.add(member.view.round);
+        assert.equal(member.runtime.replicationDiagnostics.alias, alias);
+        assert.equal(member.runtime.replicationDiagnostics.lastFault, undefined);
+      }
+    }
+    assert.equal(metadata(), before, 'automatic next-round transition sends no lifecycle traffic');
+    for (const [id, member] of room.members) {
+      assert.equal(member.view?.phase, 'matchOver', id);
+      assert.equal(member.view?.round, 2);
+      assert.deepEqual([...rounds.get(id)!], [1, 2]);
+      assert.equal(member.runtime.replicationDiagnostics.simulator, !shared || id === 'tv');
+      assert.deepEqual(member.view?.leaderboard, creator.view?.leaderboard);
+    }
+  }
+});
+
+test('shared-controller statuses retain departed human and exact bot identities across rounds', () => {
+  const room = setup(true), creator = room.members.get('p0')!, tv = room.members.get('tv')!;
+  creator.runtime.command({ type: 'bot', action: 'add' }); room.advance(1800);
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4300);
+  assert.equal(creator.view?.phase, 'playing');
+  room.remove('p1'); room.advance(2200);
+  assert.equal(creator.view?.players.find(p => p.id === 'p1')?.connected, false);
+  assert.equal(creator.runtime.replicationDiagnostics.simulator, false);
+  assert.equal(creator.view?.round, tv.view?.round);
+  let latest: { type: string; revision: number; sequence: number; matchId: string; view: ViewSnapshot } | undefined;
+  room.accept((from, to, raw) => {
+    if (from === 'tv' && to === 'p0' && raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directStatus')
+      latest = structuredClone(raw) as NonNullable<typeof latest>;
+    return true;
+  });
+  const round = creator.view!.round;
+  for (let elapsed = 0; elapsed < 45000 && creator.view!.round === round; elapsed += 50) room.advance(50);
+  assert.ok(creator.view!.round > round);
+  assert.equal(creator.view?.round, tv.view?.round);
+  assert.ok(latest);
+  room.accept(() => false);
+  const before = structuredClone(creator.view!);
+  for (const view of [
+    { ...latest.view, round: latest.view.round - 1 },
+    { ...latest.view, tick: latest.view.tick - 1 },
+    { ...latest.view, players: latest.view.players.map(p => p.id.startsWith('bot:') ? { ...p, id: 'bot:impostor' } : p) },
+  ]) {
+    assert.notDeepEqual(view, latest.view);
+    creator.callbacks.message('tv', unpackMessage(packMessage({ ...latest, sequence: latest.sequence + 1, view })));
+    assert.deepEqual(creator.view, before, 'regression or identity substitution cannot replace accepted status');
+  }
+});
+
+test('only the installed coordinator pause freezes play while a delayed replacement plan arrives', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4300);
+  const alias = guest.runtime.replicationDiagnostics.alias!;
+  guest.callbacks.paused?.('p2', alias); guest.callbacks.paused?.('p0', alias - 1); room.advance(50);
+  assert.equal(guest.runtime.replicationDiagnostics.fault, undefined);
+  let hold = true;
+  room.accept((from, to, raw) => !(hold && from === 'p0' && to === 'p1' && raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directPlan'));
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), length: 5 } }); room.advance(10);
+  guest.callbacks.paused?.('p0', alias);
+  const tick = guest.runtime.replicationDiagnostics.replicaTick;
+  const frozenView = structuredClone(guest.view), frozenRender = structuredClone(guest.runtime.renderSnapshot());
+  room.advance(2200);
+  assert.deepEqual(guest.view, frozenView); assert.deepEqual(guest.runtime.renderSnapshot(), frozenRender);
+  assert.equal(guest.runtime.replicationDiagnostics.replicaTick, tick);
+  assert.equal(guest.runtime.replicationDiagnostics.lastFault, undefined);
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, false);
+  hold = false; room.advance(1800);
+  assert.ok(guest.runtime.replicationDiagnostics.alias! > alias);
+  assert.equal(guest.runtime.replicationDiagnostics.fault, undefined);
+  assert.equal(guest.runtime.replicationDiagnostics.lastFault, undefined);
+});
+
+test('duplicate coordinator pauses cannot postpone the missing-plan recovery deadline', () => {
+  const room = setup(), guest = room.members.get('p1')!;
+  let plan: RoomPlan | undefined;
+  room.accept((_from, _to, raw) => { if (isPlan(raw)) plan = structuredClone(raw); return true; });
+  room.members.get('p0')!.runtime.command({ type: 'settings', settings: defaultRoomSettings() }); room.advance(1800);
+  assert.ok(plan);
+  const alias = guest.runtime.replicationDiagnostics.alias!;
+  room.silent.add('p0'); guest.callbacks.paused?.('p0', alias);
+  for (let elapsed = 0; elapsed < 5000; elapsed += 100) { room.advance(100); guest.callbacks.paused?.('p0', alias); guest.callbacks.message('p0', structuredClone(plan)); }
+  assert.equal(guest.runtime.replicationDiagnostics.lastFault, undefined);
+  room.advance(10);
+  assert.equal(guest.runtime.replicationDiagnostics.lastFault, 'Coordinator transition timed out — synchronizing');
+  room.advance(10);
+  assert.ok(room.sends.some(m => m.from === 'p1' && m.type === 'directRecover'), 'missing plan enters bounded recovery');
+  room.advance(5100);
+  assert.equal(guest.runtime.replicationDiagnostics.recoveryRequired, true);
+});
+
+test('a paused controller keeps its published scene despite queued old-segment status', () => {
+  const room = setup(true), creator = room.members.get('p0')!;
+  let status: Record<string, unknown> | undefined;
+  room.accept((from, to, raw) => {
+    if (from === 'tv' && to === 'p0' && raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directStatus') status = structuredClone(raw) as Record<string, unknown>;
+    return true;
+  });
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4300);
+  assert.ok(status);
+  creator.callbacks.paused?.('tv', creator.runtime.replicationDiagnostics.alias!);
+  const frozen = structuredClone(creator.view!), frozenRender = structuredClone(creator.runtime.renderSnapshot());
+  creator.callbacks.message('tv', { ...status, sequence: 0xffff_ffff, view: { ...frozen, tick: frozen.tick + 10 } });
+  room.advance(1000);
+  assert.deepEqual(creator.view, frozen);
+  assert.deepEqual(creator.runtime.renderSnapshot(), frozenRender);
+  assert.equal(creator.runtime.replicationDiagnostics.lastFault, undefined);
+});
