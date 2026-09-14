@@ -1,5 +1,7 @@
 # Direct actions: implementation status
 
+**Stopped-work status (2026-09-15):** see [remaining issues and handoff](DIRECT-ACTIONS-REMAINING.md). The final refresh fix is not browser-verified; historical pending/pass statements below describe their recorded checkpoints.
+
 Tracking [#82](https://github.com/andeplane/fuse-riders/issues/82), branch `codex/deterministic-action-log`, worktree `/private/tmp/fuse-riders-action-log`. Contract: [ADR041](../adr/041-direct-actions-and-world-rollback.md). Independent [design](../reviews/direct-actions-design-review.md) and [component reviews](../reviews/direct-actions-core-review.md).
 
 The target is a complete replacement of the online host-star path: input origins send absolute-tick MessagePack actions directly to subscribed simulators; every full view advances independently and rolls back late input. A coordinator handles setup, finality and lifecycle barriers, outside ordinary input delivery. Controller-only phones remain lightweight. No public deployment has occurred.
