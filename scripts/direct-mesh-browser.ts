@@ -143,7 +143,7 @@ try {
   console.log('All thirty directions delivered compact actions; twenty guest directions delivered with coordinator application traffic blocked. Stale alias send rejected.');
 } catch (error) {
   failed=true;
-  const failed=await Promise.all(pages.map(snapshot));samples.push(failed);console.log('Failure diagnostics',JSON.stringify(failed));throw error;
+  const failureSnapshots=await Promise.all(pages.map(snapshot));samples.push(failureSnapshots);console.log('Failure diagnostics',JSON.stringify(failureSnapshots));throw error;
 } finally {
   phase='teardown';
   releaseHeldIce?.();
