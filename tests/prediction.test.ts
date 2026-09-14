@@ -24,7 +24,10 @@ test('fresh-input age neutralizes held controls at tick ten',()=>{const {state,m
 test('press and release scheduled for same tick uses latest sample, received ack cannot retire either',()=>{const {state,predictor}=setup();predictor.input(0,true,false);predictor.input(1,false,false);predictor.accept(state,'h',1,ledger(state.tick),'authority');assert.equal(predictor.predict(state.tick+1)!.angle,state.players[0]!.angle);});
 test('mismatched snapshot and application tick rejected atomically',()=>{const {state,motion,predictor}=setup();const before=predictor.predict(state.tick+2);assert.equal(predictor.accept({...state,tick:state.tick+1},'h',4,motion,'authority'),false);assert.deepEqual(predictor.predict(state.tick+2),before);assert.equal(predictor.accept(state,'h',4,{...motion,results:[{seq:4,status:'applied',appliedTick:state.tick+1}]},'authority'),false);});
 test('applied result retires pending but continues authoritative held input',()=>{const {state,motion,predictor,time}=setup();predictor.input(0,true,false);time(100);const pose=predictor.predict(state.tick+2)!;const confirmed={...state,tick:state.tick+2,players:state.players.map(p=>p.id==='h'?{...p,...pose}:p)};predictor.accept(confirmed,'h',0,{...motion,tick:confirmed.tick,appliedSeq:0,appliedTick:state.tick+1,held:{left:true,right:false},results:[{seq:0,status:'applied',appliedTick:state.tick+1}]},'authority');assert.equal(predictor.ackMs,100);assert.notEqual(predictor.predict(confirmed.tick+1)!.angle,pose.angle);assert.ok(predictor.correction<1e-6);});
-test('death and portal reset local motion and epoch invalidates timing',()=>{const {state,motion,predictor,time}=setup();predictor.input(0,true,false);time(100);const dead={...state,players:state.players.map(p=>({...p,alive:false}))};predictor.accept(dead,'h',0,motion,'authority');assert.equal(predictor.render(state,'h').players[0]!.alive,false);const portal={...state,players:state.players.map(p=>({...p,x:800,portalCooldownUntilTick:99}))};predictor.accept(portal,'h',0,motion,'authority');assert.equal(predictor.predict(state.tick)!.x,800);predictor.accept(state,'h',0,motion,'new-authority');assert.equal(predictor.input(1,true,false),undefined);});
+test('death and portal reset local motion and epoch invalidates timing',()=>{const {state,motion,predictor,time}=setup();predictor.input(0,true,false);time(100);const dead={...state,players:state.players.map(p=>({...p,alive:false}))};predictor.accept(dead,'h',0,motion,'authority');assert.equal(predictor.render(state,'h').players[0]!.alive,false);const portal={...state,players:state.players.map(p=>({...p,x:800,portalCooldownUntilTick:99}))};predictor.accept(portal,'h',0,motion,'authority');assert.equal(predictor.predict(state.tick)!.x,800);predictor.accept(state,'h',0,motion,'new-authority');
+ // The epoch discards the old authority's timing, but the new authority alone refuses its own inputs (#65).
+ assert.equal(predictor.clock.estimate(motion.scope),undefined);
+ const afterEpoch=predictor.input(1,true,false);assert.ok(afterEpoch);assert.equal(afterEpoch.intendedTick,state.tick+1,'scheduled from the new authority snapshot, never from the discarded clock');});
 test('clock retains conservative send sampled bounds and rejects pause stale and invalid RTT',()=>{let now=100;const c=new PredictionClock(()=>now),scope=ledger(1).scope;assert.equal(c.observe({scope,localSentAt:0,localReceivedAt:100,authorityTick:20,paused:false}),true);assert.deepEqual(c.estimate(),{lower:20,upper:22,tick:21});assert.equal(c.observe({scope,localSentAt:110,localReceivedAt:100,authorityTick:20,paused:false}),false);now=700;assert.equal(c.estimate(),undefined);assert.equal(c.observe({scope,localSentAt:700,localReceivedAt:700,authorityTick:30,paused:true}),false);assert.equal(c.estimate(),undefined);now=800;assert.ok(c.observe({scope,localSentAt:800,localReceivedAt:800,authorityTick:30,paused:false}));assert.equal(c.estimate()!.tick,30);});
 test('remote buffer uses coherent past state and fractional ticks without portal chords',()=>{const a=fixture(),b=structuredClone(a);b.tick+=2;b.players[0]!.x+=100;b.players[0]!.portalCooldownUntilTick+=20;const mid=interpolateWorld(a,b,.5);assert.equal(mid.tick,a.tick+1);assert.equal(mid.players[0]!.x,a.players[0]!.x);const buffer=new RemoteWorldBuffer();buffer.push(a,'a');buffer.push(b,'a');assert.equal(buffer.render(a.tick+3)!.tick,a.tick+1);assert.equal(buffer.render(a.tick+2)!.tick,a.tick+1);assert.equal(buffer.render(a.tick+100)!.tick,b.tick);buffer.push({...a,tick:1},'b');assert.equal(buffer.render(3)!.tick,1);});
 test('spectator clock advances fractional render ticks without a player seat and resets scope',()=>{let now=0;const clock=new PredictionClock(()=>now),scope=ledger(1).scope,a=fixture(),b={...a,tick:a.tick+2},buffer=new RemoteWorldBuffer();buffer.push(a,'a');buffer.push(b,'a');clock.observe({scope,localSentAt:0,localReceivedAt:0,authorityTick:b.tick,paused:false});assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick);now=25;assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick+.5);const predictor=new LocalPrediction(()=>now);predictor.observeClock({scope,localSentAt:25,localReceivedAt:25,authorityTick:b.tick,paused:false});predictor.resetExternalScope();assert.equal(predictor.clock.estimate(),undefined);});
@@ -64,4 +67,26 @@ test('overflow first drops inputs behind the host window and only clears a fully
  assert.equal(predictor.diagnostics().pending,128);
  assert.ok(predictor.input(228,true,false));assert.equal(predictor.diagnostics().pending,1,'a full fresh backlog is dropped as a whole');
  assert.equal(predictor.diagnostics().estimate?.tick,state.tick);
+});
+
+test('a lost clock limits the preview but never the send (#65)',()=>{
+ let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now);
+ predictor.accept(state,'h',-1,motion,'authority');
+ assert.ok(predictor.observeClock({scope:motion.scope,localSentAt:0,localReceivedAt:0,authorityTick:state.tick,paused:false}));
+ // Probes stop answering while snapshots keep arriving: past the four-second sample age no estimate survives.
+ now=4500;const fresh={...state,tick:state.tick+90};
+ assert.ok(predictor.accept(fresh,'h',-1,{...motion,tick:fresh.tick},'authority'));
+ assert.equal(predictor.clock.estimate(motion.scope),undefined,'the clock is gone');
+ now=4525;
+ const scheduled=predictor.input(0,true,false);
+ assert.ok(scheduled,'a lost clock must not swallow the input; only the host may refuse it');
+ assert.equal(scheduled.intendedTick,fresh.tick+1,'scheduled from the newest authoritative tick and its age');
+ assert.deepEqual(scheduled.scope,motion.scope);
+ const rider=(snapshot:ReturnType<typeof fixture>)=>snapshot.players.find(player=>player.id==='h')!;
+ assert.equal(predictor.render(fresh,'h').players.find(player=>player.id==='h')!.angle,rider(fresh).angle,'no invented preview motion without a clock');
+ // Outside play a cleared clock is the host's own paused report, so nothing is scheduled against it.
+ for(const phase of ['lobby','countdown','roundOver','matchOver'] as const){
+  const idle=new LocalPrediction(()=>now);idle.accept({...fresh,phase},'h',-1,{...motion,tick:fresh.tick},'authority');
+  assert.equal(idle.input(1,true,false),undefined,phase);
+ }
 });

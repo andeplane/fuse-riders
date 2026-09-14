@@ -10,7 +10,7 @@ const NEUTRAL:MotionControls={left:false,right:false};
 /** Presentation only. Every replay starts from a confirmed state AFTER its tick. */
 export class LocalPrediction {
   readonly clock:PredictionClock;
-  private base?:{state:ViewSnapshot;id:string;ledger:AppliedMotionState;pose:RiderPose};
+  private base?:{state:ViewSnapshot;id:string;ledger:AppliedMotionState;pose:RiderPose;at:number};
   private pending:Pending[]=[];
   private authorityScope='';
   private offset={x:0,y:0};
@@ -24,11 +24,16 @@ export class LocalPrediction {
   diagnostics():{baseTick?:number;pending:number;estimate?:TickEstimate}{return {baseTick:this.base?.state.tick,pending:this.pending.length,estimate:this.base?this.clock.estimate(this.base.ledger.scope):undefined};}
   /** Only the host's admission window decides; a slow clock or lagging snapshot limits the local preview, never the send. */
   input(seq:number,left:boolean,right:boolean):ScheduledMotionInput|undefined {
-    const base=this.base,estimate=base&&this.clock.estimate(base.ledger.scope);
-    if(!base||!estimate)return undefined;
+    const base=this.base;
+    if(!base)return undefined;
+    const estimate=this.clock.estimate(base.ledger.scope);
+    // Outside play the host reports paused, which legitimately clears the clock; scheduling against it would only spam the
+    // authority with input it cannot use and churn scope-expired replies across every phase boundary.
+    if(!estimate&&base.state.phase!=='playing')return undefined;
     // Overflow: first drop what the host can no longer apply; a full window of unreported input is stale as a whole.
     if(this.pending.length>=128){this.pending=this.pending.filter(input=>input.intendedTick>=base.state.tick-4);if(this.pending.length>=128)this.pending=[];}
-    const intendedTick=Math.floor(estimate.tick)+1;
+    // A lost clock must limit the preview, not the send (#65): an aged authoritative tick still lands inside the host's admission window while snapshots arrive, and only the host decides.
+    const intendedTick=Math.floor(estimate?.tick??base.state.tick+(this.now()-base.at)/50)+1;
     const input={seq,left,right,intendedTick,scope:{...base.ledger.scope},resultAcks:base.ledger.results.map(result=>result.seq)};
     this.pending.push({...input,at:this.now()});return input;
   }
@@ -51,7 +56,7 @@ export class LocalPrediction {
     this.pending=this.pending.filter(input=>!results.has(input.seq)&&input.intendedTick>=state.tick-4);
     const pose={x:player.x,y:player.y,angle:player.angle,drunkHeadingOffset:ledger.motion.drunkHeadingOffset};
     this.correction=oldPose?Math.hypot(oldPose.x-pose.x,oldPose.y-pose.y):0;
-    this.base={state,id,ledger,pose};this.authorityScope=authorityScope;
+    this.base={state,id,ledger,pose,at:this.now()};this.authorityScope=authorityScope;
     if(reset){this.pending=[];this.offset={x:0,y:0};this.shown=pose;}
     else if(oldPose&&this.correction<80)this.offset={x:oldPose.x-pose.x,y:oldPose.y-pose.y};
     else this.offset={x:0,y:0};
