@@ -45,6 +45,10 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
       assert.equal(await page.getByLabel('Match length').inputValue(),'7','draft survives submenu navigation');
       await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');
       await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
+      await page.getByLabel('Match length').fill('0');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();assert.equal(await dialog.isVisible(),true);await dialog.getByRole('alert').getByText('Choose a match length from 1 to 20.').waitFor();
+      await page.getByLabel('Match length').fill('7');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();await dialog.waitFor({state:'hidden'});
+      await page.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();assert.equal(await page.getByLabel('Match length').inputValue(),'7');
+      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
     }
     if(name==='HEAD'){for(const option of await page.locator('.avatar-option').all()){await inside(page,option);assert.ok(await option.evaluate(e=>{const text=e.lastElementChild!,a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&text.scrollWidth<=text.clientWidth+1;}),'avatar name clipped');}}
     if(name==='♫ AUDIO'){await page.locator('.audio-panel').waitFor({state:'visible'});for(const slider of await page.locator('.audio-panel input[type=range]').all())await inside(page,slider);}
