@@ -209,3 +209,36 @@ test('pending powerup settings derive identically from the authenticated plan on
   assert.equal(reuseWorld(world, header, conflicting), undefined);
   assert.equal(prepareWorld(payload, header, conflicting, world), undefined);
 });
+
+test('lifecycle reuse reconstructs the referenced retained tick without advancing old finality', () => {
+  const { world: source, plan } = fixture(true);
+  const follower = RollbackWorld.open(source.bootstrap(), source.segment)!;
+  const at = source.finalizedTick;
+  const actions = packMessage([1, 1, 0, [[1, at + 1, 0, 1], [2, at + 5, 0, 0]], null]);
+  for (const world of [source, follower]) {
+    assert.equal(world.receive(0, actions, at + 8).status, 'accepted');
+    for (let tick = at + 5; tick <= at + 30; tick += 5) assert.equal(world.advance(tick).status, 'accepted');
+  }
+  source.receive(0, packMessage([1, 1, 0, [], [at + 30, 2]]), at + 30);
+  source.receive(1, packMessage([1, 1, 1, [], [at + 30, 0]]), at + 30);
+  assert.equal(source.finalize(source.proposeFinality(at + 21)!).status, 'accepted');
+  assert.equal(follower.proposeFinality(at + 21), undefined, 'ordinary finality still requires origin completeness');
+  const payload = transitionBytes(source, []), derived = deriveTransition(payload, plan.revision)!;
+  const game = derived.state.game;
+  const header = referencePreparation({ type: 'directPrepare', revision: plan.revision, alias: plan.revision, bytes: payload.length, hash: derived.hash, matchId: game.matchId, tick: game.tick, round: game.round,
+    status: thinSnapshot({ ...toSnapshot(game), tick: game.tick, round: game.round }), owners: ownersFor(game, plan) }, source, [], plan);
+  const before = { state: replayHash(follower.state), finality: follower.finalizedHash, tick: follower.finalizedTick, streams: follower.streamProgress(), prefixes: follower.finalizedPrefixes, pendingConfirmation: follower.pendingConfirmationTick, pendingFinality: follower.pendingFinalizedTick, views: structuredClone(follower.presentationFrames()), bytes: follower.retainedBytes };
+  const clone = follower.referenceState(at + 21, source.finalizedHash)!;
+  clone.game.players.get('p0')!.x += 1;
+  for (const tick of [-1, at - 1, at + 31, NaN, 2 ** 32]) assert.equal(follower.referenceState(tick, source.finalizedHash), undefined);
+  assert.equal(follower.referenceState(at + 21, 'invalid'), undefined);
+  const reused = reuseWorld(follower, header, plan);
+  assert.ok(reused, 'authenticated lifecycle reference can match retained state despite delayed old finality');
+  assert.deepEqual(reused, prepareWorld(payload, header, plan, follower));
+  assert.deepEqual({ state: replayHash(follower.state), finality: follower.finalizedHash, tick: follower.finalizedTick, streams: follower.streamProgress(), prefixes: follower.finalizedPrefixes, pendingConfirmation: follower.pendingConfirmationTick, pendingFinality: follower.pendingFinalizedTick, views: follower.presentationFrames(), bytes: follower.retainedBytes }, before, 'reuse leaves old simulation, streams, presentation and finality untouched');
+  const missing = RollbackWorld.open(follower.bootstrap(), follower.segment)!;
+  for (let tick = at + 5; tick <= at + 30; tick += 5) missing.advance(tick);
+  assert.equal(reuseWorld(missing, header, plan), undefined, 'missing actions cannot pass the source state hash');
+  assert.ok(prepareWorld(payload, header, plan, missing), 'missing history retains validated checkpoint fallback');
+  assert.equal(reuseWorld(follower, { ...header, reference: [1, at + 31, header.reference![2], []] }, plan), undefined, 'reuse never advances beyond retained simulation');
+});

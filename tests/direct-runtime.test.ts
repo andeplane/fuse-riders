@@ -790,3 +790,27 @@ test('an activation callback cannot install a prepared world after setup expiry 
   creator.tick?.();
   assert.ok(creator.notices.some(s => s.includes('setup timed out')), 'scheduler takes the existing bounded recovery path');
 });
+
+test('delayed finality certificates do not force checkpoint transfers for a retained lifecycle base', () => {
+  const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4300);
+  let withhold = true;
+  room.accept((from, to, raw) => {
+    if (!withhold || from !== 'p0' || to !== 'p1') return true;
+    const packet: unknown = raw instanceof Uint8Array ? unpackMessage(raw) : raw;
+    if (!Array.isArray(packet)) return true;
+    return packet[2] !== 'final' && !([10, 11].includes(packet[2]) && packet[5]?.[3]);
+  });
+  room.advance(1200);
+  assert.ok(guest.runtime.replicationDiagnostics.finalizedTick! < creator.runtime.replicationDiagnostics.finalizedTick!, 'guest has not received the latest source finality');
+  assert.ok(guest.runtime.replicationDiagnostics.replicaTick! >= creator.runtime.replicationDiagnostics.finalizedTick!, 'guest retains the requested tick');
+  room.checkpointBlocked.add('p1');
+  const before = room.sends.length;
+  creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), length: 5 } });
+  room.advance(200); withhold = false; room.advance(2000);
+  for (const member of room.members.values()) {
+    assert.equal(member.runtime.replicationDiagnostics.barrier, false);
+    assert.equal(member.runtime.replicationDiagnostics.lastFault, undefined);
+  }
+  assert.ok(!room.sends.slice(before).some(s => s.to === 'p1' && s.type === 'directChunk'), 'retained source tick activates while the bulk lane remains blocked');
+});

@@ -48,3 +48,12 @@ All existing five-second preparation and 15-second unsuccessful-episode bounds r
 ## Implementation checkpoint
 
 The `fuse-direct-4` candidate implements reference-based preparation and selective payload acknowledgements. All 615 tests pass. `regional-07` completes three rounds across six Chromium/WebKit simulators under the unchanged regional profile, with matching outcomes and no hidden recovery or browser errors. This is a short application-impairment result, not full release or physical-phone qualification. See [implementation evidence](../online/direct-actions-evidence/lifecycle-reuse/manifest.json).
+
+
+## Reconstruct a retained lifecycle reference (independently approved bounded correction)
+
+Sustained mobile-04 completed two matches, then the third rematch required five full checkpoint fallbacks: the coordinator's finalized base was tick1599, while guests had finalized1589 but already simulated1614–1615. Exact-finalized-tick-only reuse discarded their useful retained history and the transfers exceeded unchanged setup bounds.
+
+Local reuse may reconstruct the authenticated source's reference tick inside the existing interval from local finalized tick through resident simulation head. Return a fresh copy from retained snapshots/actions only when its full canonical DirectState hash equals the source fingerprint, including held controls, gestures and pending settings. Never lookup below the finalized fence, advance beyond the resident head, create another cache or mutate old simulation/history/events/prefixes/finality. Alias, original source/local connection and authority eligibility remain unchanged. Missing actions/history or hash mismatch take the existing validated full transfer path.
+
+This is lifecycle checkpoint equivalence: the already-authorized source can supply a complete checkpoint, and a matching local reconstruction substitutes for that payload. It does not establish ordinary stream completeness, issue cuts, or commit old effects. Therefore delayed completeness certificates alone do not prohibit this reuse. The full-transfer path still derives from its actual validated finalized bootstrap. Both paths share base alias/tick/hash, finalized fence, operations, neutralization, settings and every result-header check. Existing byte/history/deadline limits and ready/applied barriers remain. Regressions compare exact reuse/transfer bytes with delayed finality and missing cuts, reject missing actions/older/future references, preserve all resident state, and exercise serialized runtime transfer avoidance.

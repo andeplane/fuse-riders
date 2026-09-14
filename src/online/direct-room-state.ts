@@ -102,10 +102,13 @@ export function transitionBytes(base: RollbackWorld, operations: GameOperation[]
 }
 interface DerivedTransition { state: DirectState; bootstrap: Uint8Array; hash: string }
 function deriveBase(base: RollbackWorld, operations: GameOperation[], alias: number, fence?: RollbackWorld, reference?: TransitionReference, roundSettings?: RoomSettings): DerivedTransition | undefined {
+  return deriveState(base.finalizedState(), base.segment, operations, alias, fence, reference, roundSettings);
+}
+function deriveState(finalized: DirectState, baseAlias: number, operations: GameOperation[], alias: number, fence?: RollbackWorld, reference?: TransitionReference, roundSettings?: RoomSettings): DerivedTransition | undefined {
   if (!uint32(alias) || !alias || !validOperations(operations)) return;
-  const finalized = base.finalizedState(), hash = replayHash(finalized);
-  if (reference && (base.segment !== reference[0] || base.finalizedTick !== reference[1] || hash !== reference[2] || canonical(operations) !== canonical(reference[3]))) return;
-  if (fence && finalized.game.matchId === fence.state.game.matchId && (base.finalizedTick < fence.finalizedTick || base.finalizedTick === fence.finalizedTick && hash !== replayHash(fence.finalizedState()))) return;
+  const tick = finalized.game.tick, hash = replayHash(finalized);
+  if (reference && (baseAlias !== reference[0] || tick !== reference[1] || hash !== reference[2] || canonical(operations) !== canonical(reference[3]))) return;
+  if (fence && finalized.game.matchId === fence.state.game.matchId && (tick < fence.finalizedTick || tick === fence.finalizedTick && hash !== replayHash(fence.finalizedState()))) return;
   const state = neutral(finalized);
   for (const op of operations) applyOperation(state, op);
   if (roundSettings) {
@@ -139,7 +142,11 @@ export function prepareWorld(payload: Uint8Array, header: Preparation, plan: Roo
 /** Reuse and transfer share derivation and every output-field check; neither mutates the retained world. */
 export function reuseWorld(base: RollbackWorld, header: Preparation, plan: RoomPlan): Uint8Array | undefined {
   if (!isPreparation(header, plan) || !header.reference) return;
-  try { return validatedPreparation(deriveBase(base, header.reference[3], plan.revision, base, header.reference, plan.settings), header, plan); } catch { return; }
+  try {
+    if (base.segment !== header.reference[0]) return;
+    const state = base.referenceState(header.reference[1], header.reference[2]);
+    return state ? validatedPreparation(deriveState(state, base.segment, header.reference[3], plan.revision, base, header.reference, plan.settings), header, plan) : undefined;
+  } catch { return; }
 }
 function validatedPreparation(derived: DerivedTransition | undefined, header: Preparation, plan: RoomPlan): Uint8Array | undefined {
   if (!derived) return;

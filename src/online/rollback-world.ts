@@ -119,6 +119,12 @@ export class RollbackWorld {
   }
   /** A fresh validated copy, suitable for a lifecycle barrier or finalized outcome presentation. */
   finalizedState(): DirectState { return this.stateAt(this.finalTick)!; }
+  /** Lifecycle source equivalence only; never advances resident finality or stream completeness. */
+  referenceState(tick: number, hash: string): DirectState | undefined {
+    if (!uint32(tick) || tick < this.finalTick || tick > this.state.game.tick || !/^[a-f0-9]{16}$/.test(hash)) return;
+    const state = this.stateAt(tick);
+    return state && replayHash(state) === hash ? state : undefined;
+  }
   get retainedBytes(): number { return this.measure(this.candidate, this.streams); }
   get retainedRecords(): number { return [...this.streams.values()].reduce((sum, s) => sum + s.records.size, 0); }
   get pendingFinalizedTick(): number | undefined { return this.pendingFinality.size ? Math.max(...this.pendingFinality.keys()) : undefined; }

@@ -1,0 +1,35 @@
+{
+  "status": "Bounded retained-reference reuse reviewed; 655 tests/coverage, build and Worker typecheck pass. Final test-only refinement additionally passes both regressions with a non-snapshot reference tick and pending-event/prefix immutability. Native sustained rerun pending. No deployment.",
+  "baseRevision": "bae5956ba56d2a850559ad11756c2e08c2e07efa",
+  "sourceHashes": {
+    "src/online/runtime.ts": "c0bb2f5309c57d7e47f5e1fcc1c762754e026871e50bf360948099a89611fb49",
+    "src/online/direct-room-state.ts": "b2d447c1fa6e9c1cd3189a273bf471b6e87f1f93aea15aa478b0948f2f8247f6",
+    "src/online/rollback-world.ts": "45adbda8120528ebc5f2d43b767fb829d71a55474d26194c0d02f94030d85c78",
+    "tests/direct-room-state.test.ts": "8481d1306d9ceb4a98792b85dd11419c6d11c0e4ae2ee9aa9fba847b30481a91",
+    "tests/direct-runtime.test.ts": "39c58acb6d8251d4bd48e9e2340eb5207947c79f9ff5cff8e1f08bda393cc592",
+    "scripts/direct-traffic-browser.ts": "db18ae48aa3585f39a54d94b057df7e5e3a0bc3d53792440ac3ec97bfb93b5ca",
+    "scripts/fixtures/direct-traffic-fixture.ts": "91a27459dd2e53368ddc284c2f6e4aede8936008e0846015c0d2e42d9333e8de"
+  },
+  "files": {
+    "direct-traffic-sustained-mobile-04-match-001.json.gz": "b3d45d0f50f1de1ea3c053ec1760f4f34b8dcea079315e23c1339d498bc3fd3c",
+    "direct-traffic-sustained-mobile-04-match-002.json.gz": "6e1d8e1c4f3648beaaab2c6479c71295281dccbc3bd0671876dccad2eff186f0",
+    "direct-traffic-sustained-mobile-04.json": "88a5d4a187d42a4a015310f114e34f0de8a11c091e97b2902f5fecb7673bdabe",
+    "direct-reference-seek-before.log": "27e908fd31b51a61cf202ce3fba9400bd3f9e698509f99ee985e63f25a10ec54",
+    "direct-reference-focused.log": "c8c501bf33b80ddce57d27e13195cc59f99ad018cff7c6e605a8b53174223609",
+    "direct-reference-independent-final.log": "31253f5ae66798f1f4dfa5cdc4b97147ac9c0f9507b38305114e66955fa1e67c",
+    "direct-reference-regressions-final.log": "d568a6df0f21f50f58d1e61716b5f4908a10a1c499207d1e5579b100d68a4cfa",
+    "direct-reference-coverage.log": "ecf4247993e26045ada48fafcee2942bb4d13390974c957d45575e2e6b736875",
+    "direct-reference-build.log": "b295e6165b6e88584b5f8fc897241fb2799a130dc6eaac0d7cf2d02f9ebf6fce",
+    "direct-reference-worker.log": "0102f73cb93b40d17dc8b71ee627cccfba5d38485df9ea6c25581b26319dc89e",
+    "direct-reference-independent-strengthened.log": "95e1b0286b60b9b1447f1d82515c502b6e6514b0915443e2a2806c2c16e4a64a"
+  },
+  "priorFailure": {
+    "run": "sustained-mobile-04",
+    "revision": "bae5956",
+    "completedMatches": 2,
+    "elapsedSeconds": 101.133,
+    "result": "Third rematch exhausted setup/final recovery bounds while transferring full bases to five views: sourcefinal1599, guestfinal1589, guesthead1614\u20131615. Retained-reference lookup was restricted to exact finalized tick."
+  },
+  "regressions": "Exact reuse/transfer byte equivalence with missing completeness cuts and delayed finality, non-snapshot tick replay, detached copy, unchanged resident simulation/finality/prefixes/pending confirmations/history/bytes, missing-action hash rejection with full fallback, invalid/older/future lookup rejection; serialized runtime prepares retained base with bulk channel blocked.",
+  "limits": "Not sustained or physical-phone acceptance; old failed runs retained."
+}
