@@ -27,14 +27,15 @@ globalThis.startMesh=(code,token)=>{
  globalThis.RTCPeerConnection=class extends OriginalPeer {constructor(...args){super(...args);this.addEventListener('datachannel',event=>track(event.channel,this));}};
  RTCPeerConnection.prototype.createDataChannel=function(...args){const channel=originalCreate.apply(this,args);channels.push(channel);track(channel,this);return channel;};
  // Synthetic buffer pressure tests the native adapter's gate, not actual SCTP congestion.
- let fastBuffered=false;const buffered=Object.getOwnPropertyDescriptor(RTCDataChannel.prototype,'bufferedAmount');
- Object.defineProperty(RTCDataChannel.prototype,'bufferedAmount',{...buffered,get(){return fastBuffered&&this.label==='actions'?1:buffered.get.call(this);}});
+ let fastBuffered=false,reliableBuffered=false,lastReliablePause;const pauseEvents=[];const buffered=Object.getOwnPropertyDescriptor(RTCDataChannel.prototype,'bufferedAmount');
+ Object.defineProperty(RTCDataChannel.prototype,'bufferedAmount',{...buffered,get(){return reliableBuffered&&this.label==='game'?5000:fastBuffered&&this.label==='actions'?1:buffered.get.call(this);}});
  let dropFast=false;const originalSend=RTCDataChannel.prototype.send;
- RTCDataChannel.prototype.send=function(data){if(dropFast&&this.label==='actions')return;record({event:'send',label:this.label,state:this.readyState,buffered:this.bufferedAmount,bytes:typeof data==='string'?data.length:data.byteLength,stack:new Error().stack});return originalSend.call(this,data);};
+ RTCDataChannel.prototype.send=function(data){if(dropFast&&this.label==='actions')return;if(this.label==='game'&&typeof data!=='string'){try{const p=unpackMessage(new Uint8Array(data.buffer??data,data.byteOffset??0,data.byteLength));if(p?.[2]===12)lastReliablePause={channel:this,data:new Uint8Array(data)};}catch{}}record({event:'send',label:this.label,state:this.readyState,buffered:this.bufferedAmount,bytes:typeof data==='string'?data.length:data.byteLength,stack:new Error().stack});return originalSend.call(this,data);};
  let blockCoordinator=false;
  const transport=new PeerTransport(code,token,{
   welcome:()=>{},peer:(id,online)=>{if(online)peers.add(id);else{peers.delete(id);bound.delete(id);}},linkReset:id=>bound.delete(id),
-  message:(id,message)=>{if(blockCoordinator&&id===transport.hostId)return;if(Array.isArray(message)){controls.push({from:id,packet:message});return;}if(message?.type==='bind'&&message.segment===7){if(transport.bindFast(id,7,{actions:[1],receipts:[]})){bound.add(id);transport.send(id,{type:'bound',segment:7});}}else if(message?.type==='bound'&&message.segment===7){if(transport.bindFast(id,7,{actions:[1],receipts:[]}))bound.add(id);}},
+  paused:(id,alias)=>pauseEvents.push({from:id,kind:'pause',alias}),
+  message:(id,message)=>{if(message?.type==='pauseMarker'){pauseEvents.push({from:id,kind:message.marker??'marker'});return;}if(blockCoordinator&&id===transport.hostId)return;if(Array.isArray(message)){controls.push({from:id,packet:message});return;}if(message?.type==='bind'&&message.segment===7){if(transport.bindFast(id,7,{actions:[1],receipts:[]})){bound.add(id);transport.send(id,{type:'bound',segment:7});}}else if(message?.type==='bound'&&message.segment===7){if(transport.bindFast(id,7,{actions:[1],receipts:[]}))bound.add(id);}},
   fast:(id,bytes)=>{if(blockCoordinator&&id===transport.hostId)return;got.push({from:id,packet:unpackMessage(bytes)});},
   status:message=>{statuses.push(message);if(statuses.length>30)statuses.shift();if(/exceeded|protocol changed|replaced/i.test(message))errors.push(message);},
  },{mesh:true});
@@ -51,6 +52,11 @@ globalThis.startMesh=(code,token)=>{
    return {blocked,resumed:transport.sendCheckpoint(to,{type:'checkpointFixture',data:new Uint8Array(2000)})};
   },
   blackhole:value=>{dropFast=value;},
+  pauseEvents:()=>pauseEvents,
+  pauseBlocked:to=>{reliableBuffered=true;dropFast=true;transport.deactivatePulse(to,7);return {rebound:transport.bindFast(to,8,{actions:[1],receipts:[]}),sent:transport.send(to,{type:'pauseMarker'}),activated:transport.activatePulse(to,8)};},
+  pauseRelease:(to,marker='marker')=>{reliableBuffered=false;return transport.send(to,{type:'pauseMarker',marker});},
+  rebind:to=>transport.bindFast(to,8,{actions:[1],receipts:[]}),
+  replayPause:()=>{if(!lastReliablePause)return false;originalSend.call(lastReliablePause.channel,lastReliablePause.data);return true;},
   received:()=>got.length,
   controlCount:()=>controls.length,
   boundControl:to=>transport.sendBound(to,[1,7,'time',1,100.125]),
@@ -169,6 +175,25 @@ try {
   samples.push(await Promise.all(pages.map(snapshot)));
   assert.deepEqual(errors, []); assert.ok(samples.flat().every(m => m.errors.length === 0));
   console.log('All thirty directions delivered compact actions; twenty guest directions delivered with coordinator application traffic blocked. Stale alias send rejected.');
+  phase='reliable pause after dropped fast copy and blocked first enqueue';
+  for(const page of pages)await page.evaluate(()=>(globalThis as unknown as {mesh:{block(value:boolean):void}}).mesh.block(false));
+  for(const [source,target] of [[0,5],[1,4]]) {
+    const from=(await snapshot(pages[source])).id,to=(await snapshot(pages[target])).id;
+    const result=await pages[source].evaluate(to=>(globalThis as unknown as {mesh:{pauseBlocked(to:string):unknown}}).mesh.pauseBlocked(to),to);
+    assert.deepEqual(result,{rebound:true,sent:false,activated:false},'An unqueued pause survives rebinding and blocks management/activation');
+    await pages[source].waitForFunction(to=>(globalThis as unknown as {mesh:{pauseRelease(to:string):boolean}}).mesh.pauseRelease(to),to);
+    await pages[target].waitForFunction(from=>(globalThis as unknown as {mesh:{pauseEvents():{from:string;kind:string}[]}}).mesh.pauseEvents().some(e=>e.from===from&&e.kind==='marker'),from);
+    const events=await pages[target].evaluate(from=>(globalThis as unknown as {mesh:{pauseEvents():{from:string;kind:string;alias?:number}[]}}).mesh.pauseEvents().filter(e=>e.from===from),from);
+    assert.deepEqual(events.slice(0,2),[{from,kind:'pause',alias:7},{from,kind:'marker'}],'Reliable pause precedes management after all fast copies were dropped');
+    assert.equal(await pages[target].evaluate(from=>(globalThis as unknown as {mesh:{rebind(from:string):boolean}}).mesh.rebind(from),from),true);
+    assert.equal(await pages[source].evaluate(()=>(globalThis as unknown as {mesh:{replayPause():boolean}}).mesh.replayPause()),true);
+    // A distinct ordered marker proves the stale replay has already been processed.
+    await pages[source].waitForFunction(to=>(globalThis as unknown as {mesh:{pauseRelease(to:string,marker:string):boolean}}).mesh.pauseRelease(to,'afterReplay'),to);
+    await pages[target].waitForFunction(from=>(globalThis as unknown as {mesh:{pauseEvents():{from:string;kind:string}[]}}).mesh.pauseEvents().some(e=>e.from===from&&e.kind==='afterReplay'),from);
+    assert.equal(await pages[target].evaluate(from=>(globalThis as unknown as {mesh:{pauseEvents():{from:string;kind:string}[]}}).mesh.pauseEvents().filter(e=>e.from===from&&e.kind==='pause').length,from),1,'Retired-alias pause cannot stop the new binding');
+  }
+  console.log('Chrome and WebKit reliably deliver pause before management despite dropped fast copies, blocked enqueue and sender rebinding; stale replay is ignored.');
+
 } catch (error) {
   failed=true;
   const failureSnapshots=await Promise.all(pages.map(snapshot));samples.push(failureSnapshots);console.log('Failure diagnostics',JSON.stringify(failureSnapshots));throw error;

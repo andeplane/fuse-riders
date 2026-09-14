@@ -20,3 +20,9 @@ export function isBoundControl(raw: unknown): raw is BoundControl {
   }
   return true;
 }
+
+/** Same pause record on either RTC lane; association/alias checks authenticate it. */
+export function isBoundPause(raw: unknown): raw is [1, number, 12, number] {
+  return Array.isArray(raw) && raw.length === 4 && raw[0] === DIRECT_VERSION
+    && uint32(raw[1]) && raw[1] > 0 && raw[2] === 12 && uint32(raw[3]);
+}

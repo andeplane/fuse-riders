@@ -1,0 +1,23 @@
+
+> fuse-riders@1.0.0 build
+> tsc --noEmit && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 309 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                 0.52 kB │ gzip:   0.32 kB
+dist/assets/press-start-2p-latin-400-normal-KLytu4cr.woff       6.33 kB
+dist/assets/press-start-2p-latin-400-normal-_wFEWmAB.woff2     12.51 kB
+dist/assets/index-tP3CK0c_.css                                 23.76 kB │ gzip:   6.41 kB
+dist/assets/ui-CFcJhZq-.css                                    28.24 kB │ gzip:   6.47 kB
+dist/assets/index-CooGXr6f.js                                 164.91 kB │ gzip:  59.92 kB
+dist/assets/ui-CuTr4rel.js                                    196.04 kB │ gzip:  59.70 kB
+dist/assets/arena-BC2_ypJE.js                               1,223.74 kB │ gzip: 338.21 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.53s

@@ -1,0 +1,35 @@
+{
+  "status": "Reliable pause ordering independently approved; 653 tests/coverage, build and Worker typecheck pass; native mixed-engine mesh/pause regressions pass. New sustained run pending; no deployment.",
+  "baseRevision": "258f70505890c2e063429d47cbce40d53825b56a",
+  "sourceHashes": {
+    "src/online/runtime.ts": "c0bb2f5309c57d7e47f5e1fcc1c762754e026871e50bf360948099a89611fb49",
+    "src/online/direct-control.ts": "24a1708e7492a6c9b0121f4cf90f386c7b04b4f3af1ed999c3d3bce315d2bd5e",
+    "src/online/peer-transport.ts": "b872290de2d36b525e2877d5d90e7bfa3d372ee00b7f6ba8321b3bad46dfc6b4",
+    "src/online/link-health.ts": "93564d167b40d86ed9ab10bf97abab70bbb6d894e729de05610bd552dfee2a72",
+    "tests/direct-control.test.ts": "5e0a74b7b9db69c62ed647f712e52c66420ef6719e0207d62ff0fceb0486aa96",
+    "scripts/direct-mesh-browser.ts": "6057772978c09d865f022661e07b827cd7a6bb963cefc77f6a15a2e7c1567e64",
+    "scripts/direct-traffic-browser.ts": "db18ae48aa3585f39a54d94b057df7e5e3a0bc3d53792440ac3ec97bfb93b5ca",
+    "scripts/fixtures/direct-traffic-fixture.ts": "91a27459dd2e53368ddc284c2f6e4aede8936008e0846015c0d2e42d9333e8de"
+  },
+  "files": {
+    "direct-traffic-sustained-mobile-03.json": "c5c684430c36dfd100cbb0e8d38348c7a100fe6ce4776646316c6bc1199ca868",
+    "direct-traffic-sustained-mobile-03-match-002.json.gz": "9f693657bbf36877982accac2834fde07f819576b3fdd2f3936781e4f996eb89",
+    "direct-traffic-sustained-mobile-03-match-001.json.gz": "4be5b5e024a3f027928c80b9d525b06a890292c6249ecf9027a41e8157265905",
+    "direct-reliable-pause-tests.log": "76a8022676d50bd30e80a0019486754cc12f497185f77248c3ae600915193bb5",
+    "direct-reliable-pause-independent.log": "6e5093d5e88244b878b8288df141000f5d617f85236509ba94a621fca2ec55dd",
+    "direct-reliable-pause-browser-final.log": "7663ee3f67d63188468467fb62e23cb87d5daf565842b61f1358c0d095d7e3cc",
+    "direct-reliable-pause-coverage.log": "6eb939f4241c27912805890369033f575c488a8ad92276c6c94b8d7e5a13d480",
+    "direct-reliable-pause-build.log": "0f3aba2679a6cbe2d5684b37074e38b08590dabba0ca30431366687ef3c37ebc",
+    "direct-reliable-pause-worker.log": "0102f73cb93b40d17dc8b71ee627cccfba5d38485df9ea6c25581b26319dc89e",
+    "direct-mesh-browser.json": "4a06aefca9cc2bbd91cc9b5f5b9c40c49ed6f0ae3f0d73e29386702084bab4cb"
+  },
+  "priorFailure": {
+    "run": "sustained-mobile-03",
+    "revision": "258f705",
+    "completedMatches": 2,
+    "elapsedSeconds": 75.586,
+    "result": "Second match had old-world horizon exhaustion before a rematch plan reached peer3. The coordinator fast pause was not delivered to it before the alias changed. Raw window002 retains the timing."
+  },
+  "nativeRegression": "Both Chromium and WebKit senders: drop all fast copies, hold reliable bufferedAmount at5000, deactivate7 and rebind8, refuse management and activation while pending, then assert reliablepause7 beforemarker. Rebindreceiver8 and replaypause7; distinct ordered afterReplay marker proves staleprocessing before assertion. Includes existing directmesh, blackout, channelrebuild and membership tests.",
+  "limits": "Application impairment on native desktop RTC; no IP-loss, physical-phone or wire-byte qualification."
+}

@@ -1,7 +1,7 @@
 import { packMessage, unpackMessage } from './action-replication.js';
 import { FAST_PACKET_BYTES, decodeDirectPacket, DIRECT_VERSION } from './direct-stream.js';
 import { DirectIngress, type FastPermissions } from './direct-ingress.js';
-import { BOUND_CONTROL_BYTES, isBoundControl } from './direct-control.js';
+import { BOUND_CONTROL_BYTES, isBoundControl, isBoundPause } from './direct-control.js';
 import { uint32 } from '../shared/direct-input.js';
 import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback, isCurrentPulseCallback } from './link-callback.js';
@@ -30,7 +30,8 @@ export interface TransportCallbacks {
   terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;pulse:LinkPulseMode;epoch:number;incarnation:string;sender:string;receiver:string};ingress:DirectIngress;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
+interface PauseNotice { segment:number;probeId:number;epoch:number;incarnation:string;sender:string;receiver:string }
+interface Link { pendingPause?:PauseNotice;pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;pulse:LinkPulseMode;epoch:number;incarnation:string;sender:string;receiver:string};ingress:DirectIngress;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 export interface PeerTransportOptions { mesh?:boolean }
 const RESTART_ATTEMPTS=4;
 export class PeerTransport {
@@ -190,6 +191,12 @@ export class PeerTransport {
           if(event.data.byteLength>200000){channel.close();return;}
           const decoded=unpackMessage(new Uint8Array(event.data));
           if(Array.isArray(decoded)) {
+            if (isBoundPause(decoded)) {
+              const now = performance.now();
+              if (!link.ingress.packet(event.data.byteLength, now) || link.ingress.flow('probe', 0, now) === 'limited') { link.gate.drain(); link.fastGate.drain(); channel.close(); this.callbacks.status('Direct pause flow exceeded its rate limit — retrying'); return; }
+              if (this.fastBound(id, link) && decoded[1] === link.fastBinding!.segment && !link.gate.draining && !link.fastGate.draining) this.receivePause(id, link, decoded[1], now);
+              return;
+            }
             if(event.data.byteLength<=BOUND_CONTROL_BYTES&&isBoundControl(decoded)&&this.fastBound(id,link)&&link.fastBinding!.remoteConfirmed&&!link.gate.draining&&!link.fastGate.draining&&decoded[1]===link.fastBinding!.segment)this.callbacks.message(id,decoded);
           }else this.receive(id,decoded as Parameters<PeerTransport['receive']>[1],true);
         }
@@ -243,7 +250,7 @@ export class PeerTransport {
       if(admission==='limited'){drain();channel.close();this.callbacks.status('Direct action flow exceeded its rate limit — retrying');return;}
       if(control.length===4&&(control[2]===8||control[2]===9||control[2]===12)){
         link.fastBinding!.remoteConfirmed=true;
-        if(control[2]===12){const binding=link.fastBinding!;binding.pulse.pauseRemote();link.health.setPulseMode(false,now);this.callbacks.paused?.(id,control[1] as number);if(!current()||link.fastBinding!==binding||!this.fastBound(id,link))return;}
+        if(control[2]===12){const binding=link.fastBinding!;this.receivePause(id,link,control[1] as number,now);if(!current()||link.fastBinding!==binding||!this.fastBound(id,link))return;}
         const segment=control[1] as number,probeId=control[3] as number;
         if(control[2]===9)link.health.acknowledge(probeId,now);
         else this.defer(()=>{if(current())this.sendFastProbe(id,9,probeId,segment);});
@@ -262,7 +269,7 @@ export class PeerTransport {
   }
   activatePulse(id:string,segment:number):boolean {
     const link=this.links.get(id);
-    if(!link||!this.boundReady(id)||link.fastBinding!.segment!==segment)return false;
+    if(!link||!this.flushPause(id,link)||!this.boundReady(id)||link.fastBinding!.segment!==segment)return false;
     return link.fastBinding!.pulse.activate();
   }
   deactivatePulse(id:string,segment:number):void {
@@ -270,7 +277,13 @@ export class PeerTransport {
     if(!link||!this.fastBound(id,link)||link.fastBinding!.segment!==segment)return;
     const first = !link.fastBinding!.pulse.locallyPaused, now = performance.now();
     link.fastBinding!.pulse.pauseLocal();link.health.setPulseMode(false,now);
-    if(first)this.sendFastProbe(id,12,link.health.probe(now),segment);
+    if(first) {
+      const { epoch, incarnation, sender, receiver } = link.fastBinding!;
+      const probeId = link.health.probe(now);
+      link.pendingPause ??= { segment, probeId, epoch, incarnation, sender, receiver };
+      this.sendFastProbe(id,12,probeId,segment);
+    }
+    this.flushPause(id,link);
   }
   sendPulse(id:string,bytes:Uint8Array):boolean {
     const link=this.links.get(id),pulse=decodeHeartbeat(bytes);
@@ -293,7 +306,7 @@ export class PeerTransport {
   }
   sendBound(id:string,tuple:unknown[]):boolean {
     const link=this.links.get(id);
-    if(!isBoundControl(tuple)||!this.boundReady(id)||tuple[1]!==link!.fastBinding!.segment)return false;
+    if(!link||!this.flushPause(id,link)||!isBoundControl(tuple)||!this.boundReady(id)||tuple[1]!==link!.fastBinding!.segment)return false;
     const bytes=packMessage(tuple);if(bytes.byteLength>BOUND_CONTROL_BYTES||!permitsAggregate(this.links.values(),bytes.byteLength,COORDINATION_BUFFER_LIMIT))return false;
     try {link!.channel!.send(new Uint8Array(bytes));this.binarySentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
@@ -368,12 +381,29 @@ export class PeerTransport {
   }
   private sendEnvelope(id:string,data:unknown,binary:boolean,bufferLimit:number):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
+    const pendingLink=this.links.get(id);if(pendingLink&&!this.flushPause(id,pendingLink))return false;
     const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};const encoded=binary?new Uint8Array(packMessage(envelope)):JSON.stringify(envelope);this.sentBytes+=typeof encoded==='string'?new TextEncoder().encode(encoded).byteLength:encoded.byteLength;const link=this.links.get(id);
     const bytes=typeof encoded==='string'?new TextEncoder().encode(encoded).byteLength:encoded.byteLength;
     if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())&&permitsAggregate(this.links.values(),bytes,bufferLimit)){
       try{if(typeof encoded==='string')link.channel!.send(encoded);else{link.channel!.send(encoded);this.binarySentBytes+=encoded.byteLength;}return true;}catch{}
     }
     return false;
+  }
+  private receivePause(id:string,link:Link,segment:number,now:number):void {
+    const binding=link.fastBinding!;
+    binding.pulse.pauseRemote();link.health.setPulseMode(false,now);
+    this.callbacks.paused?.(id,segment);
+  }
+  /** Reliable pause precedes later management even when the alias already changed. */
+  private flushPause(id:string,link:Link):boolean {
+    const pause=link.pendingPause;if(!pause)return true;
+    if(this.links.get(id)!==link||pause.epoch!==this.grant?.epoch||pause.incarnation!==this.grant?.incarnation||pause.sender!==this.connections.get(id)||pause.receiver!==this.connectionId){link.pendingPause=undefined;return false;}
+    if(this.stopped||document.hidden||!this.authorityPermitted()||link.fastGate.draining||!link.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return false;
+    const bytes=packMessage([DIRECT_VERSION,pause.segment,12,pause.probeId]);
+    try { link.channel!.send(new Uint8Array(bytes));this.binarySentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength; }
+    catch { return false; }
+    if(this.links.get(id)!==link||link.pendingPause!==pause)return false;
+    link.pendingPause=undefined;return true;
   }
   private sendFastProbe(id:string,kind:8|9|12,probeId:number,segment:number):boolean {
     const link=this.links.get(id);
@@ -395,6 +425,8 @@ export class PeerTransport {
     if(this.stopped||document.hidden||!this.authorityPermitted())return;
     const now=performance.now();
     for(const [id,link] of this.links){
+      this.flushPause(id,link);
+      if(this.links.get(id)!==link)return;
       if(!link.fastBinding?.pulse.active)this.sendDirectProbe(id,{type:'linkProbe',probeId:link.health.probe(now)});
       if(link.health.direct(now)){link.restart.healthy(now);continue;}
       // A down socket cannot carry the restart offer; do not burn the budget on it.

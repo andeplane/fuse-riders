@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BOUND_CONTROL_BYTES, isBoundControl } from '../src/online/direct-control.js';
+import { BOUND_CONTROL_BYTES, isBoundControl, isBoundPause } from '../src/online/direct-control.js';
 import { packMessage, unpackMessage } from '../src/online/action-replication.js';
 
 test('compact control admits only complete bounded clock and finality schemas', () => {
@@ -17,4 +17,13 @@ test('compact control admits only complete bounded clock and finality schemas', 
     [1, 7, 'final', 1, [[0, 1], [0, 2]], 'a'.repeat(16)], [1, 7, 'final', 1, [[5, 1]], 'a'.repeat(16)], [1, 7, 'final', 1, [[0, -1]], 'a'.repeat(16)],
     [1, 7, 'final', 1, [[0]], 'a'.repeat(16)], [1, 7, 'final', 1, [null], 'a'.repeat(16)], [1, 7, 'final', 1, Array(6).fill([0, 0]), 'a'.repeat(16)]];
   for (const tuple of invalid) assert.equal(isBoundControl(tuple), false, JSON.stringify(tuple));
+});
+
+
+test('reliable pause uses the exact bounded fast pause schema', () => {
+  for (const value of [[1, 7, 12, 1], [1, 0xffffffff, 12, 0xffffffff]]) {
+    assert.equal(isBoundPause(unpackMessage(packMessage(value))), true);
+    assert.ok(packMessage(value).byteLength <= 512);
+  }
+  for (const value of [null, {}, [], [2, 7, 12, 1], [1, 0, 12, 1], [1, 7, 8, 1], [1, 7, 12, -1], [1, 7, 12, 2 ** 32], [1, 7, 12, 1, 0], [1, 7, 12]]) assert.equal(isBoundPause(value), false, JSON.stringify(value));
 });

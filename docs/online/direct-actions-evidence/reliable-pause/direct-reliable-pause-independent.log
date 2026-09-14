@@ -1,0 +1,20 @@
+TAP version 13
+# Subtest: compact control admits only complete bounded clock and finality schemas
+ok 1 - compact control admits only complete bounded clock and finality schemas
+  ---
+  duration_ms: 1.561917
+  ...
+# Subtest: reliable pause uses the exact bounded fast pause schema
+ok 2 - reliable pause uses the exact bounded fast pause schema
+  ---
+  duration_ms: 0.153333
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 166.153959
