@@ -29,19 +29,19 @@ test('target collection arms one normal-strength bomb and preserves volley upgra
 });
 test('targeting requires pickup and clamps to the current safe field', () => {
   const { game, player, input } = fixture();
-  input({ bomb: true, bombActions: ['press'], aim: { x: 0, y: 1 } }); assert.equal(player.bombTarget, undefined);
-  input({ bombActions: ['cancel'] }); player.targetBombArmed = true;
-  input({ bomb: true, bombActions: ['press'] }); assert.deepEqual(player.bombTarget, { x: player.x + 100, y: player.y });
+  input({ bomb: true, bombCommands: [{ action: 'press', aim: { x: 0, y: 1 } }], aim: { x: 0, y: 1 } }); assert.equal(player.bombTarget, undefined);
+  input({ bombCommands: [{ action: 'cancel' }] }); player.targetBombArmed = true;
+  input({ bomb: true, bombCommands: [{ action: 'press' }] }); assert.deepEqual(player.bombTarget, { x: player.x + 100, y: player.y });
   game.tick = game.roundStartedTick! + 1200 + 160;
   input({ bombCommands: [{ action: 'release', aim: { x: 0, y: 1 } }] });
   const bomb = game.blasts[0]!.circle; assert.ok(game.boundaryInset >= 100); assert.equal(bomb.x, game.boundaryInset + RIDER_RADIUS); assert.equal(bomb.y, game.height - game.boundaryInset - RIDER_RADIUS);
 });
 test('cancel, rejected release and death clear preview without consuming; next round resets', () => {
   const { game, player, input } = fixture(); player.targetBombArmed = true;
-  input({ bombActions: ['release'] }); assert.equal(player.targetBombArmed, true);
-  input({ bomb: true, bombActions: ['press'] }); input({ bombActions: ['cancel'] }); assert.equal(player.bombTarget, undefined); assert.equal(player.targetBombArmed, true);
-  player.bombReadyAtTick = game.tick + 10; input({ bombActions: ['press', 'release'] }); assert.equal(game.bombs.size, 0); assert.equal(player.targetBombArmed, true);
-  player.bombReadyAtTick = 0; input({ bomb: true, bombActions: ['press'] }); eliminatePlayer(game, 'p0'); assert.equal(player.bombTarget, undefined); assert.equal(player.targetBombArmed, true);
+  input({ bombCommands: [{ action: 'release' }] }); assert.equal(player.targetBombArmed, true);
+  input({ bomb: true, bombCommands: [{ action: 'press' }] }); input({ bombCommands: [{ action: 'cancel' }] }); assert.equal(player.bombTarget, undefined); assert.equal(player.targetBombArmed, true);
+  player.bombReadyAtTick = game.tick + 10; input({ bombCommands: [{ action: 'press' }, { action: 'release' }] }); assert.equal(game.bombs.size, 0); assert.equal(player.targetBombArmed, true);
+  player.bombReadyAtTick = 0; input({ bomb: true, bombCommands: [{ action: 'press' }] }); eliminatePlayer(game, 'p0'); assert.equal(player.bombTarget, undefined); assert.equal(player.targetBombArmed, true);
   input({}); game.tick = game.phaseEndsAtTick!; startNextRound(game); assert.equal(player.targetBombArmed, false);
 });
 test('queued release uses its own aim rather than a later packet in the same server tick', () => {

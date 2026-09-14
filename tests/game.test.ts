@@ -238,12 +238,12 @@ test('bomb input charges, launches on release, caps one live bomb, chains once, 
   const other = state.players.get('p1')!;
   owner.x = 500; owner.y = 350; owner.angle = 0;
   other.x = 900; other.y = 600;
-  let result = step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  let result = step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   assert.equal(state.bombs.size, 0);
   assert.equal(owner.bombChargeStartedTick, state.tick);
   result = step(state, inputs(['p0', { bomb: true }]));
   assert.equal(state.bombs.size, 0, 'held input without an edge only continues charging');
-  result = step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  result = step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   assert.equal(state.bombs.size, 1);
   const firstBomb = [...state.bombs.values()][0]!;
   assert.equal(firstBomb.blastRange, 90, 'base radius is 60% of the original 150');
@@ -254,7 +254,7 @@ test('bomb input charges, launches on release, caps one live bomb, chains once, 
   assert.equal(owner.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
   assert.equal(result.events.filter((event) => event.type === 'bombPlaced').length, 1);
 
-  result = step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  result = step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   assert.equal(state.bombs.size, 1);
   assert.equal(result.events.filter((event) => event.type === 'bombPlaced').length, 0);
 
@@ -281,7 +281,7 @@ test('bomb input charges, launches on release, caps one live bomb, chains once, 
   assert.equal(state.matchStats.get('p0')!.bombsExploded, 1);
   assert.equal(state.matchStats.get('p1')!.bombsExploded, 1);
 
-  result = step(state, inputs(['p0', { bomb: true, bombActions: ['press', 'release'] }]));
+  result = step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
   assert.equal(result.events.filter((event) => event.type === 'bombPlaced').length, 0, 'cooldown rejects a fresh edge');
 });
 
@@ -291,9 +291,9 @@ test('quick bomb action bursts launch at minimum range and cancel paths never la
   const owner = state.players.get('p0')!;
   owner.x = 500; owner.y = 450; owner.angle = 0;
   state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   assert.equal(state.bombs.size, 0, 'release without accepted charge is ignored');
-  const launched = step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  const launched = step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
   const bomb = [...state.bombs.values()][0]!;
   assert.equal(bomb.x - bomb.launchX, BOMB_MIN_LAUNCH_DISTANCE);
   assert.equal(launched.events.filter((event) => event.type === 'bombPlaced').length, 1);
@@ -301,13 +301,13 @@ test('quick bomb action bursts launch at minimum range and cancel paths never la
 
   state.bombs.clear();
   owner.bombReadyAtTick = state.tick;
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   assert.equal(toSnapshot(state).players.find((player) => player.id === owner.id)!.bombChargeStartedTick, state.tick);
-  step(state, inputs(['p0', { bomb: false, bombActions: ['cancel', 'release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'cancel' }, { action: 'release' }] }]));
   assert.equal(state.bombs.size, 0);
   assert.equal(owner.bombChargeStartedTick, undefined);
 
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   eliminatePlayer(state, owner.id);
   assert.equal(owner.bombChargeStartedTick, undefined);
 });
@@ -319,7 +319,7 @@ test('charged launches cap and clamp to the active safe interior', () => {
   owner.x = state.width - state.boundaryInset - 50; owner.y = 450; owner.angle = 0;
   state.players.get('p1')!.x = 800; state.players.get('p1')!.y = 700;
   owner.bombChargeStartedTick = state.tick - BOMB_MAX_CHARGE_TICKS - 100;
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   const bomb = [...state.bombs.values()][0]!;
   assert.equal(bomb.x, state.width - state.boundaryInset - 7);
   assert.ok(bomb.x - bomb.launchX < BOMB_MAX_LAUNCH_DISTANCE, 'boundary clamp shortens the flight endpoint');
@@ -346,7 +346,7 @@ test('Triple Shot releases one deterministic straight three-bomb volley', () => 
   owner.tripleShotArmed = true;
   state.players.get('p1')!.x = 850; state.players.get('p1')!.y = 600;
   state.players.get('p2')!.x = 1300; state.players.get('p2')!.y = 700;
-  const result = step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  const result = step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
   const bombs = [...state.bombs.values()];
   assert.equal(bombs.length, 3);
   assert.equal(result.events.filter((event) => event.type === 'bombPlaced').length, 3);
@@ -365,9 +365,9 @@ test('invalid release and cancellation preserve launch modifiers', () => {
   enterPlaying(state);
   const owner = state.players.get('p0')!;
   owner.tripleShotArmed = true;
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
-  step(state, inputs(['p0', { bomb: false, bombActions: ['cancel'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'cancel' }] }]));
   assert.equal(state.bombs.size, 0);
   assert.equal(owner.tripleShotArmed, true);
 });
@@ -540,7 +540,7 @@ test('blast pickups cap at level two and affect bombs placed on the collection t
     { id: 2, type: 'blast', x: 506, y: 450, expiresAtTick: state.tick + 100 },
     { id: 3, type: 'blast', x: 507, y: 450, expiresAtTick: state.tick + 100 },
   ];
-  step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
   assert.equal(player.blastLevel, 2);
   assert.equal(state.pickups.length, 0);
   assert.equal([...state.bombs.values()][0]!.blastRange, BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE);
@@ -823,10 +823,10 @@ test('Five Shot survives Triple collection and cancellation, then launches five 
   }
   assert.equal(toSnapshot(state).players[0]!.fiveShotArmed, true);
   assert.equal(state.matchStats.get('p0')!.fivePickups, 1);
-  step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'cancel', 'release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'cancel' }, { action: 'release' }] }]));
   assert.equal(player.fiveShotArmed, true);
   assert.equal(state.bombs.size, 0);
-  step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
   const bombs = [...state.bombs.values()];
   assert.equal(bombs.length, 5);
   assert.deepEqual(bombs.map(b => b.flightPath[0]!.angle), [-.44, -.22, 0, .22, .44]);
@@ -834,7 +834,7 @@ test('Five Shot survives Triple collection and cancellation, then launches five 
   assert.equal(player.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
   assert.equal(player.fiveShotArmed, false); assert.equal(player.tripleShotArmed, false);
   player.fiveShotArmed = true;
-  step(state, inputs(['p0', { bomb: false, bombActions: ['press', 'release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
   assert.equal(state.bombs.size, 5); assert.equal(player.fiveShotArmed, true);
   eliminatePlayer(state, 'p1'); step(state, new Map()); state.tick = state.phaseEndsAtTick!; startNextRound(state);
   assert.equal(player.fiveShotArmed, false);
@@ -958,8 +958,8 @@ test('shell persists beyond five seconds and permits another shot after cooldown
   state.pickups = [{ id: 999, type: 'shell', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
   step(state, new Map()); assert.equal(owner.shellArmed, true);
   owner.fiveShotArmed = true; owner.targetBombArmed = true;
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   assert.equal(state.bombs.size, 1);
   const shell = [...state.bombs.values()][0]!;
   assert.ok(shell.shell); assert.equal(shell.explodeAtTick, Number.MAX_SAFE_INTEGER);
@@ -972,10 +972,10 @@ test('shell persists beyond five seconds and permits another shot after cooldown
   shell.landsAtTick = state.tick - 1;
   step(state, new Map());
   assert.ok(state.bombs.has(shell.id)); assert.equal(state.blasts.length, 0);
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   assert.notEqual(owner.bombChargeStartedTick, undefined);
   owner.targetBombArmed = false;
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   assert.equal(state.bombs.size, 6);
 });
 test('shell body hits once, shield absorbs it, and no blast radius is produced', () => {
@@ -1002,8 +1002,8 @@ test('Gun pickup fires one bullet at twice rider speed and cuts a traversable tr
   state.pickups = [{ id: 999, type: 'gun', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
   step(state, new Map()); assert.equal(owner.gunArmed, true);
   owner.fiveShotArmed = true;
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   const bullet = [...state.bombs.values()][0]!;
   assert.equal(bullet.shell!.gun, true); assert.equal(bullet.shell!.vx, 300);
   assert.equal(owner.gunArmed, false); assert.equal(owner.fiveShotArmed, true);
@@ -1044,8 +1044,8 @@ test('stopwatch caps at two levels, changes only future own bombs and resets nex
     assert.equal(state.bombs.get(99)!.explodeAtTick, deadline, 'existing fuse unchanged');
   }
   state.bombs.clear(); owner.tripleShotArmed = true;
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }], ['p1', { bomb: true, bombActions: ['press'] }]));
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }], ['p1', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }], ['p1', { bomb: true, bombCommands: [{ action: 'press' }] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }], ['p1', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   const bombs = [...state.bombs.values()];
   assert.equal(bombs.filter(bomb => bomb.ownerId === owner.id).length, 3);
   assert.ok(bombs.filter(bomb => bomb.ownerId === owner.id).every(bomb => bomb.explodeAtTick - bomb.launchedTick === 20));
@@ -1058,8 +1058,8 @@ test('stopwatch caps at two levels, changes only future own bombs and resets nex
 test('first stopwatch level produces a one-and-a-half second fuse', () => {
   const state = gameWithPlayers(3); enterPlaying(state);
   const owner = state.players.get('p0')!; owner.fuseLevel = 1;
-  step(state, inputs(['p0', { bomb: true, bombActions: ['press'] }]));
-  step(state, inputs(['p0', { bomb: false, bombActions: ['release'] }]));
+  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
+  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   const bomb = [...state.bombs.values()][0]!;
   assert.equal(bomb.explodeAtTick - bomb.launchedTick, 30);
 });
