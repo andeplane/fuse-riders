@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import type { ViewSnapshot } from '../snapshot-stream.js';
 import { themes, type ThemeDefinition } from '../themes.js';
 import { AVATARS, AVATAR_ATLAS_URL } from '../../shared/avatars.js';
-import { bombLaunchDistance } from '../../shared/bomb-launch.js';
+import { bombPreviewDistance } from '../bomb-preview.js';
 import { volleyAngles } from '../../shared/launch-modifiers.js';
 import { drawInkClouds } from '../ink-renderer.js';
 import { EffectTransitions, bombPose } from './effects.js';
@@ -281,7 +281,7 @@ class ArenaScene extends Phaser.Scene {
       if(p.portalGraceUntilTick>s.tick || p.invulnerableUntilTick>s.tick) f.lineStyle(3,0xffdbff,.6).strokeCircle(p.x,p.y,35+Math.sin(now/80)*2);
       if(p.drunkUntilTick>s.tick) { f.lineStyle(2,0xd799ff,.9).strokeEllipse(p.x,p.y-12,70,35); for(let i=0;i<4;i++){ const a=now/240+i*Math.PI/2; const sx=p.x+Math.cos(a)*36,sy=p.y-12+Math.sin(a)*20; f.fillStyle(i%2?0xffe790:0xffaa32).fillRect(sx-2,sy-8,4,16).fillRect(sx-8,sy-2,16,4); } this.label('DIZZY',p.x,p.y+37,'#fff078',9); }
       if(p.bombChargeStartedTick!==undefined && !p.targetBombArmed && !p.shellArmed && !p.gunArmed) {
-        const distance=bombLaunchDistance(s.tick-p.bombChargeStartedTick);
+        const distance=bombPreviewDistance((p.presentationTick??s.tick)-p.bombChargeStartedTick);
         for(const a of p.tripleShotArmed||p.fiveShotArmed?volleyAngles(p.angle,p.fiveShotArmed?5:3):[p.angle]) { const x=clamp(p.x+Math.cos(a)*distance,b+20,w-b-20),y=clamp(p.y+Math.sin(a)*distance,b+20,h-b-20); f.lineStyle(2,tint,.5).lineBetween(p.x,p.y,x,y).lineStyle(2,tint,.9).strokeRect(x-9,y-9,18,18); }
       }
       if(p.targetBombArmed && !p.shellArmed && !p.gunArmed && p.bombChargeStartedTick!==undefined && p.bombTarget) {
