@@ -107,8 +107,10 @@ export async function createGameServer(options: ServerOptions = {}) {
       snapshot();
     }
   }
+  // Only legal where removePlayer is: a mid-round seat belongs to its phone until the round ends, so it can reconnect.
+  function seatReclaimable() { return ['lobby', 'roundOver', 'matchOver'].includes(game.phase); }
   function pruneDisconnected() {
-    // Only invoked at a round boundary. Never alter participants mid-transaction.
+    // Only call where seatReclaimable() holds. Never alter participants mid-transaction.
     for (const [id, seat] of seats) if (!seat.socket || seat.leaving) {
       removePlayer(game, id); seats.delete(id);
     }
@@ -121,9 +123,11 @@ export async function createGameServer(options: ServerOptions = {}) {
     }
     const required = { start: 'lobby', nextRound: 'roundOver', rematch: 'matchOver' };
     if (game.phase !== required[action]) { error(ws, 'invalid_phase'); return; }
-    if (connectedCount() < 2) { error(ws, 'not_enough_players'); return; }
+    // Prune first: a party of vanished phones must never be counted, or the lobby can never be started or refilled.
     // resetMatch handles filtering at matchOver; removePlayer supports boundary cleanup.
-    pruneDisconnected(); clearInputs();
+    pruneDisconnected();
+    if (connectedCount() < 2) { snapshot(); error(ws, 'not_enough_players'); return; }
+    clearInputs();
     try {
       if (action === 'start') startMatch(game);
       else if (action === 'nextRound') startNextRound(game);
@@ -162,7 +166,7 @@ export async function createGameServer(options: ServerOptions = {}) {
           let number=1;while(game.leaderboard.has(`${BOT_ID_PREFIX}${number}`))number++;
           const id=`${BOT_ID_PREFIX}${number}`;addPlayer(game,{id,name:`AI ${['Ada','Turing','Hopper','Nova','Byte'][slot]}`,slot,color:COLORS[slot]!,avatarId:'robot',connected:true});bots.add(id);
         }else{
-          if(!['lobby','roundOver','matchOver'].includes(game.phase)){error(ws,'invalid_phase');return;}
+          if(!seatReclaimable()){error(ws,'invalid_phase');return;}
           if(!message.id||!bots.has(message.id)){error(ws,'invalid_message');return;}
           removePlayer(game,message.id);bots.delete(message.id);
         }
@@ -188,6 +192,8 @@ export async function createGameServer(options: ServerOptions = {}) {
           if (old) { connections.delete(old); old.close(4001, 'Controller replaced'); }
           neutral(seat, true);
         } else {
+          // A vanished phone holds its seat only while a round is running; between rounds a newcomer may reclaim it.
+          if (game.players.size >= 5 && seatReclaimable()) pruneDisconnected();
           if (game.players.size >= 5) { error(ws, 'full'); return; }
           const slot = COLORS.findIndex((_, i) => ![...game.players.values()].some(s => s.slot === i));
           seat = { id: dependencies.token(), token: dependencies.token(), slot, seq: -1, appliedSeq: -1, intent: { ...NEUTRAL }, inputTick: game.tick, bombInput: new BombInputBuffer(), leaving: false };
@@ -207,7 +213,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       if (message.type === 'leave') {
         neutral(seat); seat.leaving = true; seat.socket = undefined; c.seat = undefined;
         setPlayerConnected(game, seat.id, false);
-        if (['lobby', 'roundOver', 'matchOver'].includes(game.phase)) { removePlayer(game, seat.id); seats.delete(seat.id); }
+        if (seatReclaimable()) { removePlayer(game, seat.id); seats.delete(seat.id); }
         else eliminatePlayer(game, seat.id);
         snapshot(); return;
       }
