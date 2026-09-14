@@ -1,3 +1,4 @@
+import { isShotTransition, ShotFailureNotice } from './shot-failure.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
@@ -52,10 +53,12 @@ export async function startOnline():Promise<void>{
   const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;remove:HTMLButtonElement}>();
   const avatarButton=node('button','HEAD'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');fullscreen.onclick=()=>void document.documentElement.requestFullscreen?.();header.append(avatarButton,fullscreen);
   const dialog=node('dialog');const close=node('button','CLOSE');close.onclick=()=>dialog.close();const dialogBody=node('div');dialog.append(dialogBody,close);
-  app.replaceChildren(header,canvas,notice,roster,joinPanel,controls,hostControls,dialog);
+  const shotNotice=node('p','','online-shot-error');shotNotice.setAttribute('role','alert');shotNotice.hidden=true;const shotFailure=new ShotFailureNotice(()=>performance.now());const updateShotNotice=()=>{const message=shotFailure.message();shotNotice.hidden=!message;if(message&&shotNotice.textContent!==message)shotNotice.textContent=message;};
+  app.replaceChildren(header,canvas,notice,shotNotice,roster,joinPanel,controls,hostControls,dialog);
   const audio=createGameAudio();audioButton.onclick=()=>{audio.unlock();dialogBody.replaceChildren(audio.controls);dialog.showModal();};
   const runtime=new RoomRuntime(code,token,settings,{
     ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
+    shotFailed:()=>{shotFailure.show();updateShotNotice();},
     status:text=>{status.textContent=text;},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     clock:sample=>{prediction.observeClock(sample);},
@@ -104,13 +107,13 @@ export async function startOnline():Promise<void>{
     }
     recalc();const apply=node('button','SAVE SETTINGS');apply.onclick=()=>{draft.mode=mode.value as RoomSettings['mode'];draft.match=format.value as RoomSettings['match'];draft.length=Number(length.value);if(runtime.command({type:'settings',settings:draft})){save(SETTINGS_KEY,JSON.stringify(draft));dialog.close();}};dialogBody.append(apply);dialog.showModal();
   };
-  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);return scheduled?runtime.command({...message,...scheduled}):false;}});
+  const inputState=new ControllerInputState({send:message=>{seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);if(!scheduled){if(isShotTransition(message)){shotFailure.show();updateShotNotice();}return false;}return runtime.command({...message,...scheduled});}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
   window.addEventListener('blur',()=>bindings.clear(true,true));
   document.addEventListener('visibilitychange',()=>{if(document.hidden)bindings.clear(true,true);});
-  setInterval(()=>{if(joined)inputState.resend();audio.director.update();},50);
+  setInterval(()=>{if(joined)inputState.resend();audio.director.update();updateShotNotice();},50);
   runtime.start();
   setInterval(()=>{void runtime.transport.stats().then(connection=>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;

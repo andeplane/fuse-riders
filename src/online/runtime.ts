@@ -1,3 +1,4 @@
+import { isShotTransition } from './shot-failure.js';
 import { isAppliedMotionState, isInputControlScope } from './prediction-validation.js';
 import { DeferredCommand } from './deferred-command.js';
 import { TickProbes } from './tick-probes.js';
@@ -9,7 +10,7 @@ import { WorldDecoder, WorldEncoder, type WorldFrame } from './world-codec.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { RoomSettings } from '../shared/room-settings.js';
 import type { GameEvent } from '../shared/protocol.js';
-interface Callbacks { state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void }
+interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void }
 export class RoomRuntime {
   private session?:HostSession;
   private peers=new Set<string>();
@@ -53,12 +54,12 @@ export class RoomRuntime {
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
   private receive(id:string,raw:unknown):void {
     if(!raw||typeof raw!=='object')return;
-    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope};
+    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;shotRejected?:boolean;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope};
     if(this.session){
       if(data.type==='tickProbe'&&Number.isSafeInteger(data.probeId)&&Number.isFinite(data.localSentAt)){
         const scope=this.session.controlScope(id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.transport.send(id,{type:'tickPong',probeId:data.probeId,localSentAt:data.localSentAt,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing',scope});return;
       }
-      if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error});this.peers.add(id);}
+      if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(isShotTransition(data.command)?{shotRejected:true}:{})});this.peers.add(id);}
       if(data.type==='resync'){this.peers.add(id);this.encoders.delete(id);}
       return;
     }
@@ -76,17 +77,17 @@ export class RoomRuntime {
     this.callbacks.state({...snapshot,tick:data.frame.tick,round:data.frame.round},data.settings,data.ack?.[this.transport.id]??-1,data.frame.matchId,isAppliedMotionState(data.motion)&&data.motion.tick===data.frame.tick&&data.motion.scope.matchId===data.frame.matchId&&data.motion.scope.round===data.frame.round?data.motion:undefined);
       this.callbacks.status(data.paused?'Paused — host is in the background':'Connected · direct game link');
     }else if(data.type==='event'&&data.event)this.callbacks.event(data.event,data.matchId??'',data.round??0,data.tick??0);
-    else if(data.type==='error')this.callbacks.status(data.error??'Room error');
+    else if(data.type==='error'){this.callbacks.status(data.error??'Room error');if(data.shotRejected===true)this.callbacks.shotFailed?.();}
   }
   command(command:RoomCommand):boolean {
     if(command.type==='join'){this.joinRequest.request(command);return true;}
     if(!this.transport.authorityPermitted()){
       if(this.session&&['action','settings','bot'].includes(command.type)){this.deferredHost.offer(command,performance.now());this.callbacks.status('Applying when the room connection is confirmed');return true;}
-      this.callbacks.status('Waiting for room authority — try again when connected');return false;
+      this.callbacks.status('Waiting for room authority — try again when connected');if(isShotTransition(command))this.callbacks.shotFailed?.();return false;
     }
-    if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error)this.callbacks.status(error);return !error;}
+    if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){this.callbacks.status(error);if(isShotTransition(command))this.callbacks.shotFailed?.();}return !error;}
     const sent=this.transport.send(this.transport.hostId,{type:'command',command});
-    return sent;
+    if(!sent&&isShotTransition(command))this.callbacks.shotFailed?.();return sent;
   }
   private tick():void {
     const now=performance.now(),elapsed=now-this.lastTick;this.lastTick=now;
