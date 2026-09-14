@@ -115,9 +115,12 @@ mkdir -p artifacts
 npx tsx scripts/online-smoke.ts
 BROWSER=webkit npx tsx scripts/online-smoke.ts
 ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
+BROWSER=webkit ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
 npx tsx scripts/benchmark-deltas.ts
 npx tsx scripts/online-network-benchmark.ts
 ```
+
+Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?**. The arena fits the remaining viewport without changing its aspect ratio; phone touch thirds and the LAN display/controller layout are preserved. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
 
 The end-of-match report (podium, totals, awards and rider comparison) is built by the pure [`src/shared/match-recap.ts`](src/shared/match-recap.ts) module from the authoritative `matchStats`; the LAN `/display` overlay and the online `MATCH RESULTS` dialog both render it, so ties, empty rosters and formatting are covered once by `tests/match-recap.test.ts`. The online dialog opens only after the final-round pause and can be reopened with the header `RESULTS` button until a rematch starts. `HOME_URL=http://localhost:8787/ npx tsx scripts/match-recap-smoke.ts` (and `BROWSER=webkit`) plays a one-round solo match to completion on a desktop and a phone-landscape viewport, checks the pause gate, layout bounds and reopen flow, and writes screenshots to `artifacts/match-recap-*.png`; reviewed copies live under [docs/online/ui-evidence/](docs/online/ui-evidence/).
 

@@ -1,6 +1,8 @@
 import type { GameSnapshot } from '../shared/protocol.js';
 
-export type ViewSnapshot = GameSnapshot & { tick: number; round: number };
+/** Per-rider presentation time is local rendering metadata, never authoritative state. */
+export type ViewPlayer = GameSnapshot['players'][number] & { presentationTick?: number };
+export type ViewSnapshot = Omit<GameSnapshot, 'players'> & { tick: number; round: number; players: readonly ViewPlayer[] };
 export interface SnapshotEnvelope { matchId: string; round: number; tick: number; state: GameSnapshot }
 
 /** Accepts only forward progress while allowing opaque, randomly generated match IDs. */
