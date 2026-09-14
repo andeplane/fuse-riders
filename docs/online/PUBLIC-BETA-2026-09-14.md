@@ -1,41 +1,35 @@
 # Public online beta — 2026-09-14
 
-[Play Fuse Riders](https://andeplane.github.io/fuse-riders/). The public Pages frontend and Cloud Run room service have connected successfully in real browser tests. This is an online beta: the creator's browser runs the game and must remain in the foreground. Gameplay requires direct WebRTC; no TURN or backend gameplay relay is configured. Network problems can pause/cancel actions or require retry. Physical phones have not yet completed online qualification.
+[Play Fuse Riders](https://andeplane.github.io/fuse-riders/). The Pages frontend and Cloud Run room service are deployed. The host can create a room on a phone, add AI opponents, invite friends, choose shared TV or individual screens, and save game preferences locally.
 
-## Exact evidence
+The creator's browser runs the game and must remain in the foreground. Gameplay requires direct WebRTC; no TURN or backend gameplay relay is configured. Failed direct connections produce retry states. These are deliberate product limits, not guarantees that every network can connect.
 
-| Check | Verified version and result |
+## Verified releases
+
+| Check | Exact evidence |
 | --- | --- |
-| Initial public frontend | Pages source `2ff884388cfd0930088bade0bc849bc936d46bb7`; verified CI `34791214391`; base `/fuse-riders/`; build timestamp `2026-09-14T00:16:45.777Z` |
-| Subsequent published frontend | Public `release.json` fetched after Pages run `34792756008` reports source `81939f3426a7a64e3ecb8421cba5a62aa65442f6`, CI `34792494691`, built `2026-09-14T00:27:54.927Z`; distinct from the initial browser test |
-| Initial public Chromium | Created room, added AI, joined guest, received countdown and scoring; Phaser WebGL; one direct peer link, zero relayed; no recorded page errors or failed requests |
-| Initial public WebKit | Same room/AI/guest/countdown/scoring flow completed, but recorded `Error sending string through RTCDataChannel.`; **not clean acceptance** despite the original harness's flow-level `pass: true` |
-| Current recorded backend | Source `81939f3426a7a64e3ecb8421cba5a62aa65442f6`; ready revision `fuse-riders-gateway-00002-x2q`; 100% traffic at subsequent service inspection |
-| Backend runtime identity | `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com`, inspected from the service configuration |
-| Public provider smoke | Passed at `2026-09-14T00:29:31.766Z`; HTTP/WSS public endpoints, no CLI/ADC credentials |
+| Deployed backend | Source `66f67bd0fb1f751f0d2a8a9f2ec8b0a9bc4d32d5`, revision `fuse-riders-gateway-00003-qf7`, 100% traffic; [inventory](GCP-INVENTORY.md) |
+| Public provider smoke | [Passed against the deployed service](evidence/cloud-public-smoke-66f67bd-2026-09-14.json), using public HTTP/WSS endpoints without operator credentials |
+| Expanded public browser check | Chrome and WebKit passed at frontend `d715642ebd4d0cc63c5e5639a0adee6c3f4ab05d`, CI `34794220106`, with zero page errors or failed HTTP responses; [raw results and scope](PUBLIC-ACCEPTANCE.md#final-expanded-public-check) |
+| Subsequent frontend publication | Source `e1dcc6f0f35f518d86c066a5f6c11ad622dd9330`, CI `34795238231` and Pages `34795480877` succeeded. This publication is distinct from the completed public browser check above. |
 
-The backend origin is `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. Cloud Build `f3266f39-2b28-42e4-aa02-1037e9972983` produced image `europe-west1-docker.pkg.dev/andershaf-87/fuse-riders/fuse-riders@sha256:467dab03074ff4666aa5a06ebdc2084000c83eb05807b914f8b02c5f693a90b0`. Provider resources, account scopes and operating limits are in [GCP inventory](GCP-INVENTORY.md) and [deployment instructions](GCP-DEPLOY.md).
+Backend origin: `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. Runtime identity: `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com`. Exact image, provider resources, account scopes, operating limits and rollback instructions are in [GCP inventory](GCP-INVENTORY.md) and [deployment instructions](GCP-DEPLOY.md). Later frontend-only commits do not imply a new backend image.
 
-Raw evidence is preserved separately:
+The expanded public check exercised a phone-sized host creating and joining a room, adding AI, accepting a guest over WebRTC, starting a scored round and resetting. It also verified shared-screen mode, saved length/powerup preferences across refresh, and a separate TV started/reset from the phone. These are automated desktop Chrome/WebKit checks, not physical-phone measurements.
 
-- [Subsequent public Pages release metadata](evidence/pages-release-81939f3-2026-09-14.json), independently fetched without opening a browser.
-- [Initial public browser results](evidence/public-browser-initial-2ff8843-2026-09-14.json), including the WebKit error.
-- [Backend release manifest](evidence/cloud-release-81939f3-2026-09-14.json), recorded before smoke and therefore retaining its original `NOT YET VERIFIED` field.
-- [Passing public provider smoke](evidence/cloud-public-smoke-81939f3-2026-09-14.json), recorded afterward.
-- [Ready revision, traffic and attached account](evidence/cloud-service-81939f3-2026-09-14.json), from a subsequent read-only provider inspection.
+## Performance evidence and remaining work
 
-## What the checks establish
+- [AI riders](AI-RIDERS.md): ordinary input/physics, five combined human/AI slots, mid-race additions join next round; deterministic tests and browser scoring checks passed.
+- [Phaser benchmarks](../PHASER.md): desktop and mobile-sized views measured with production backing resolution. Mobile-sized frame p95 was 16.7 ms in Chrome and 18 ms in WebKit; physical hardware remains unverified.
+- [Network evidence](NETWORK-EVIDENCE-2026-09-14.md): a 30-minute soak passed its documented scope at source `66f67bd`. Later 20 Hz regional and poor profiles passed recovery/freshness checks, but poor-network correction tails remain large. Application-message impairment is not OS-level packet loss.
+- [Actual response benchmark](RESPONSE-BENCHMARK.md): local heading response p95 is about 30 ms. TV response remains around 160 ms, above the proposed 100 ms target; the measured qualification failure is under correction in ADR037. This known gap is not waived by calling the release a beta.
 
-The public browser result establishes that the actual Pages bundle can create a room through the deployed API, join two browser identities, establish a direct game link, render Phaser gameplay and reach scoring. These are browser-automation results, not physical-phone or five-player sustained-network measurements. The recorded frame/input metrics are a short diagnostic snapshot, not a comprehensive latency benchmark.
+Physical touch-to-photon, background/lock and network-transition behavior are not established by phone-sized browser tests. Each linked report identifies its tested artifact; newer commits and running CI are not evidence of a completed test.
 
-The provider smoke establishes safe health routes, allowed/denied Origin behavior, room creation, host/guest WSS admission, ICE metadata, synthetic SDP in both directions, rejection of gameplay relay, identity-only lease renewal and fenced host replacement. Because it uses public endpoints without operator credentials, it exercises the deployed service's provider permissions. The service-account email is established by the separate configuration inspection. The smoke cannot force two Cloud Run instances and does not itself establish real WebRTC; that comes from the separate browser check.
+## Preserved deployment history
 
-Test sockets were closed. No public delete/namespace override endpoint exists, so the one random smoke room and creation-limit record are left to the active Firestore TTL policies. No occupied user room was used.
+The initial backend `00001-5mm` smoke failed at Google's reserved `/healthz` route. Revision `00002-x2q` introduced `/api/health` and `/api/ready`; revision `00003-qf7` has the matching-source public proof above. Earlier manifests and failures remain in [deployment history](GCP-INVENTORY.md#initial-deployment).
 
-## Preserved failure and pending acceptance
+Initial public frontend `2ff8843` completed the game flow in WebKit but logged an RTC send error. The [initial raw report](evidence/public-browser-initial-2ff8843-2026-09-14.json) retains that failure; the separate clean `d715642` retest resolves the observed symptom for the tested sequence without claiming that all possible RTC failures are impossible.
 
-The initial backend `00001-5mm` public smoke failed at `/healthz`, intercepted by Google's reserved URL behavior. The next backend added `/api/health` and `/api/ready`; the later passing smoke is a separate run on `00002-x2q`. The initial failure remains part of [deployment history](GCP-INVENTORY.md#initial-deployment).
-
-The initial WebKit RTC-send error has not been conclusively attributed. Later callback-ownership/liveness/keyframe fixes and green unit tests do not prove that this deployed-browser error is resolved. A clean test of the final published WebKit bundle remains required. The old raw flow-level `pass: true` must not hide its error list.
-
-Poor-direct-network freshness/recovery and sustained play remain qualification work. Existing failed runs and their thresholds are retained in [network evidence](NETWORK-EVIDENCE-2026-09-14.md). New source commits, running CI and an in-progress soak are not substituted for completed public acceptance. Refresh all preview clients when deploying the keyframe-receipt protocol changes; old bundles may otherwise stall waiting for a compatible stream.
+The public provider smoke verifies health, CORS, room creation, host/guest signalling, ICE metadata, rejection of gameplay relay, lease renewal and fenced host replacement. It does not force two Cloud Run instances or establish real WebRTC by itself; the browser checks establish the latter. Temporary test sockets were closed and disposable records are left to Firestore TTL. No occupied user room was used. Refresh all clients together when releasing protocol changes.
