@@ -41,3 +41,15 @@ ONLINE_URL=http://localhost:8794/ BENCH_SECONDS=1800 BENCH_PROFILE=direct BENCH_
 ```
 
 The harness detects the host's visible MATCH COMPLETE notice, releases controls, dismisses recap dialogs with Escape, and clicks MAIN MENU followed by START RACE. It reports `matchRestarts`. This uses public UI commands, not simulation mutation. Eliminated riders remain connected and resume next round; do not label this as uninterrupted five-alive gameplay. Recent raw diagnostic events are bounded, while frame samples (120,000 per view), byte windows (3,600), counters and periodic UI samples cover the configured 30 minutes. Packet traces retain the first 12,000 packets and report omitted counts. The unchanged final-world freshness and accepted-tick regression assertions remain required; a completed duration alone does not imply acceptance.
+
+## Input drop probe
+
+`scripts/input-drop-probe.ts` classifies every guest input while the header says connected: rejected locally (and why), refused by the transport, reported by the authority as applied/superseded/expired, or sent but never reported. It is the regression evidence for issues #15 and #20.
+
+```sh
+ONLINE_URL=http://localhost:8805/ npx tsx scripts/input-drop-probe.ts
+```
+
+Default: a local Chromium host plus one touch guest (real CDP multi-touch: steer holds, fire while steering, charge-and-release) for `PROBE_SECONDS` (60), with in-order application send delay of `PROBE_DOWN_DELAY_MS`+`PROBE_DOWN_JITTER_MS` (100 + 0–200 ms) on the host and `PROBE_UP_DELAY_MS` (30 ms) on the guest, and a `PROBE_HIDE_MS` (1500 ms) frozen/hidden guest tab mid-run. It fails when more than `PROBE_MAX_LOCAL_REJECT_PCT` (2) percent of playing-phase inputs are rejected locally. Zero all three delays for an unimpaired reference. The report is `artifacts/input-drop-probe.json`.
+
+Real phone: host the room on the phone from the deployed URL, then run `BENCH_ALLOW_REMOTE=1 ONLINE_URL=https://<deployed>/ PROBE_ROOM=<code> npx tsx scripts/input-drop-probe.ts` and start the race from the phone; the instrumented laptop guest measures its own input pipeline against the phone host over the real link. Phone-side local rejections are not observable by this script; only the phone's visible shot notices and steering are.
