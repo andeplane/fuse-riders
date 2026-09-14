@@ -62,6 +62,14 @@ jobs:
         run: npx tsx scripts/home-mobile-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
+      - name: Mobile landing, solo and dialog regression
+        run: npx tsx scripts/home-mobile-smoke.ts
+        env:
+          HOME_URL: http://localhost:8787/
+      - name: Shared QR lobby and room termination regression
+        run: npx tsx scripts/shared-room-smoke.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
       - name: Incremental world consistency benchmark
         run: npx tsx scripts/benchmark-deltas.ts
       - name: Save coverage and browser evidence

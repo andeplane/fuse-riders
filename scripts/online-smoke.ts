@@ -32,7 +32,8 @@ try{
   await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();await host.locator('dialog select').first().selectOption('shared');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
   await guest.locator('.online-arena').waitFor({state:'hidden'});
   const displayContext=await browser.newContext();displayContext.setDefaultTimeout(30000);const display=await displayContext.newPage();await display.goto(url+'&display=1');await display.locator('.online-roster').getByText('Host',{exact:false}).waitFor();
-  assert.equal(await display.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);assert.equal(await display.locator('.online-arena').isVisible(),true);
+  assert.equal(await display.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);await display.locator('.shared-lobby').waitFor({state:'visible'});await display.waitForFunction(()=>{const image=document.querySelector<HTMLImageElement>('.shared-lobby img');return image?.complete&&image.naturalWidth>0;});
+  await host.getByRole('button',{name:'START RACE',exact:true}).click();await display.locator('.shared-lobby').waitFor({state:'hidden'});await display.locator('.online-arena').waitFor({state:'visible'});await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();await display.locator('.shared-lobby').waitFor({state:'visible'});
   console.log('Online smoke passed: room creation, guest join, host permissions, start, settings, reset, full phone view.');
 }catch(error){
   for(const [index,context] of browser.contexts().entries())for(const page of context.pages()){
