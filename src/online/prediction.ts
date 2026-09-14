@@ -15,7 +15,7 @@ export class LocalPrediction {
   private authorityScope='';
   private offset={x:0,y:0};
   private lastRender=0;
-  private shown?:RiderPose;
+  private shown?:{pose:RiderPose;tick:number};
   correction=0;ackMs=0;
   constructor(private readonly now:()=>number){this.clock=new PredictionClock(now);}
   resetExternalScope():void {this.base=undefined;this.pending=[];this.shown=undefined;this.offset={x:0,y:0};this.clock.reset();}
@@ -57,7 +57,7 @@ export class LocalPrediction {
     const pose={x:player.x,y:player.y,angle:player.angle,drunkHeadingOffset:ledger.motion.drunkHeadingOffset};
     this.correction=oldPose?Math.hypot(oldPose.x-pose.x,oldPose.y-pose.y):0;
     this.base={state,id,ledger,pose,at:this.now()};this.authorityScope=authorityScope;
-    if(reset){this.pending=[];this.offset={x:0,y:0};this.shown=pose;}
+    if(reset){this.pending=[];this.offset={x:0,y:0};this.shown={pose,tick:state.tick};}
     else if(oldPose&&this.correction<80)this.offset={x:oldPose.x-pose.x,y:oldPose.y-pose.y};
     else this.offset={x:0,y:0};
     return true;
@@ -81,14 +81,15 @@ export class LocalPrediction {
     const base=this.base,player=base?.state.players.find(p=>p.id===id);if(!base||!player)return state;
     if(!player.alive||base.state.phase!=='playing')return {...state,players:state.players.map(p=>p.id===id?player:p)};
     const estimate=this.clock.estimate(base.ledger.scope);
-    const pose=estimate?this.predict(Math.min(estimate.tick,base.state.tick+4)):this.shown??base.pose;
+    const presentationTick=estimate?Math.max(base.state.tick,Math.min(estimate.tick,base.state.tick+4)):this.shown?.tick??base.state.tick;
+    const pose=estimate?this.predict(presentationTick):this.shown?.pose??base.pose;
     if(!pose)return state;
     const now=this.now(),decay=Math.exp(-Math.max(0,now-this.lastRender)/65);this.lastRender=now;
-    this.offset.x*=decay;this.offset.y*=decay;this.shown=pose;
+    this.offset.x*=decay;this.offset.y*=decay;this.shown={pose,tick:presentationTick};
     const x=pose.x+this.offset.x,y=pose.y+this.offset.y;
     const distance=Math.hypot(x-player.x,y-player.y);
     const trail=distance>0&&distance<=40?[...player.trail,{x1:player.x,y1:player.y,x2:x,y2:y,createdTick:base.state.tick,expiresAtTick:base.state.tick+4}]:player.trail;
-    return {...state,players:state.players.map(p=>p.id===id?{...player,...pose,x,y,trail}:p)};
+    return {...state,players:state.players.map(p=>p.id===id?{...player,...pose,x,y,trail,presentationTick}:p)};
   }
 }
 

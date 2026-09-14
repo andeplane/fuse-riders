@@ -51,6 +51,7 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
       const delta = angleDelta(previous.angle, player.angle);
       return {
         ...player,
+        presentationTick: newer.snapshot.tick + projectionDuration / VISUAL_PROJECTION_LIMIT_MS,
         x: player.x + (player.x - previous.x) * factor,
         y: player.y + (player.y - previous.y) * factor,
         angle: player.angle + delta * factor,
