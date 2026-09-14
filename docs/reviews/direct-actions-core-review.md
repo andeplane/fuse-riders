@@ -713,3 +713,12 @@ Independently ran the reproduced initial retry, genuinely missing delegated-TV w
 ### Initial lobby retry implementation approval
 
 The remaining shared-TV regression is verified: while creator and TV activation are held after creator refresh, a TV plan request keeps the successor initial, creator-sourced and TV-coordinated; releasing activation produces one TV simulator and lightweight controllers without recovery. Independently ran that exact test: one passed, zero failed/skipped (`/private/tmp/direct-initial-tv-independent-final.log`). ADR041 now records the same constrained initial-lobby contract. Together with the three previously passing initial-retry/missing-TV/deadline cases, this closes the scoped implementation review with no remaining findings. Repeated native UI acceptance remains separate and is not inferred from these tests.
+
+
+### Retained-world pause scope after authority refresh — implementation approval
+
+Confirmed the original authority-fencing defect: authority change retains the stopped world but clears its installed plan, while transport deactivation receives a numeric alias and authenticates the current binding. When a new epoch reused that number, a later freeze of the old world could irreversibly pause the new binding. This is a reproducible source defect; it does not by itself establish the sole cause of the latest native WebKit failure.
+
+Approve the bounded correction. Freeze still stops the captured local segment immediately, but transport deactivation requires its captured installed plan, the current incarnation/epoch and local connection. Per-peer connection checks exclude replaced associations while preserving pause propagation to unchanged peers. Segment and installed-plan identity checks after external callbacks prevent continuation against a replaced installation. The guard correctly avoids requiring the entire old roster to remain current during a membership transition.
+
+Independently ran both new regressions with `node --import tsx --test --test-name-pattern='a retained old-epoch world cannot pause|freezing after one connection replacement' tests/direct-runtime.test.ts`: two passed, zero failed/skipped. They verify no stale deactivation across a deliberately reused new-epoch alias, successful eventual activation, and continued pause of an unchanged peer when another connection is replaced. No remaining correctness finding in this scoped fix. Native refresh qualification remains required; no browser or build was run by this reviewer.

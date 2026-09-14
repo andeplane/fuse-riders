@@ -165,6 +165,44 @@ test('recreated links during creator-refresh preparation do not restart recovery
   }
 });
 
+test('a retained old-epoch world cannot pause replacement-epoch bindings with a reused alias', () => {
+  const room = setup(), oldCreator = room.members.get('p0')!;
+  const oldAlias = oldCreator.runtime.replicationDiagnostics.alias!;
+  oldCreator.runtime.stop(); const creator = room.add('p0', false, oldCreator.storage);
+  const boundary = room.sends.length;
+  for (const member of room.members.values()) {
+    member.transport.grant = { ...member.transport.grant!, epoch: 2, holder: creator.transport.connectionId };
+    member.callbacks.authorityChanged?.();
+  }
+  room.activation(() => false); creator.runtime.start();
+  for (const [id, member] of room.members) if (id !== 'p0') member.callbacks.welcome(id, 'p0');
+  room.advance(200);
+  while (creator.runtime.replicationDiagnostics.alias! < oldAlias) {
+    room.members.get('p1')!.transport.send('p0', { type: 'directRecover', revision: creator.runtime.replicationDiagnostics.alias });
+    room.advance(600);
+  }
+  assert.equal(creator.runtime.replicationDiagnostics.alias, oldAlias);
+  // These callbacks stop retained worlds, but have no authority to pause new RTC bindings.
+  assert.deepEqual(room.sends.slice(boundary).filter(send => send.type.startsWith('deactivate:')), []);
+  room.activation(() => true); room.advance(2000);
+  for (const member of room.members.values()) {
+    assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+    assert.equal(member.runtime.replicationDiagnostics.barrier, false);
+  }
+});
+
+test('freezing after one connection replacement still pauses unchanged peer associations', () => {
+  const room = setup(), creator = room.members.get('p0')!, oldGuest = room.members.get('p1')!;
+  oldGuest.runtime.stop(); const guest = room.add('p1', false, oldGuest.storage);
+  const boundary = room.sends.length;
+  creator.callbacks.peer('p1', true); room.advance(20);
+  const pauses = room.sends.slice(boundary).filter(send => send.from === 'p0' && send.type.startsWith('deactivate:'));
+  assert.ok(pauses.some(send => send.to === 'p2'));
+  assert.equal(pauses.some(send => send.to === 'p1'), false);
+  guest.runtime.start(); room.advance(2500);
+  for (const member of room.members.values()) assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+});
+
 test('creator refresh can retry initial preparation before the coordinator installs its first world', () => {
   const room = setup(), oldCreator = room.members.get('p0')!, guest = room.members.get('p1')!;
   oldCreator.runtime.stop(); const creator = room.add('p0', false, oldCreator.storage);

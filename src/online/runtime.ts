@@ -137,11 +137,15 @@ export class RoomRuntime {
   start(): void { this.transport.connect(); this.cancelSchedule = this.environment.schedule(() => this.tick()); }
   private terminal(text: string): void { this.freeze(); this.stopped = true; this.cancelSchedule?.(); this.status.terminal(text); }
   private freeze(): void {
-    const segment = this.segment; segment?.stop();
+    const segment = this.segment, installed = this.segmentPlan; segment?.stop();
     this.localInput = undefined; this.startAt = undefined; this.lastBotTick = -1; this.callbacks.controlsReset?.();
-    if (segment) for (const peer of segment.config.members) {
-      if (this.segment !== segment) return;
-      if (peer !== this.transport.id) this.transport.deactivatePulse(peer, segment.config.alias);
+    // Alias numbers restart after authority refresh. A retained old world may
+    // stop locally, but must never pause a new association that reused its alias.
+    if (!segment || !installed || installed.incarnation !== this.transport.grant?.incarnation || installed.epoch !== this.transport.grant?.epoch
+      || !installed.members.some(m => m.id === this.transport.id && m.connection === this.transport.connectionId)) return;
+    for (const peer of installed.members) {
+      if (this.segment !== segment || this.segmentPlan !== installed) return;
+      if (peer.id !== this.transport.id && peer.connection === this.transport.connectionOf(peer.id)) this.transport.deactivatePulse(peer.id, segment.config.alias);
     }
   }
   private send(id: string, data: unknown): boolean { if (id === this.transport.id) { this.receive(id, data); return true; } return this.transport.send(id, data, true); }
