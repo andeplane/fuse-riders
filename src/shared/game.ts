@@ -53,8 +53,6 @@ import {
 export type { BlastCircle, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
 export const TICK_HZ = 20;
-export const SNAPSHOT_HZ = 10;
-export const MAX_CATCH_UP_STEPS = 5;
 export const MAX_PLAYERS = 5;
 export const MIN_PLAYERS = 2;
 
@@ -98,11 +96,6 @@ export const ROUND_OVER_TICKS = 60;
 export const OVERTIME_START_TICK = 1200;
 export const OVERTIME_INSET_PER_TICK = 0.5;
 export const ROUND_DRAW_TICK = 1800;
-
-export const INPUT_RESEND_TICKS = 2;
-export const INPUT_STALE_TICKS = 10;
-export const HEARTBEAT_INTERVAL_MS = 2000;
-export const SOCKET_TIMEOUT_MS = 6000;
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';

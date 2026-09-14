@@ -33,7 +33,7 @@ async function fixture(){
   const storage=new MemoryStorage(),sockets:Socket[]=[];
   const ctx:RoomContext={storage,getWebSockets:()=>sockets,acceptWebSocket:socket=>{assert.ok(socket instanceof Socket);sockets.push(socket);}};
   const env:ConstructorParameters<typeof SignalRoom>[1]={ROOMS:{idFromName:name=>name,get:()=>({fetch:async()=>Response.json({})})},ASSETS:{fetch:async()=>new Response('assets')}};
-  const dependencies:RoomDependencies={now:()=>now,token:()=>`nonce-${++nonce}`,pair:()=>({client:new Socket(),server:new Socket()}),upgrade:()=>new Response('upgraded'),fetch:async()=>Response.json({})};
+  const dependencies:RoomDependencies={now:()=>now,token:()=>`nonce-${++nonce}`,pair:()=>({client:new Socket(),server:new Socket()}),upgrade:()=>new Response('upgraded')};
   const room=new SignalRoom(ctx,env,dependencies);
   const initialize=()=>room.fetch(new Request('https://game.test/initialize',{method:'POST',body:JSON.stringify({token:hostToken})}));
   assert.equal((await initialize()).status,200);

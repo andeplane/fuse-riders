@@ -8,7 +8,7 @@ test('defaults carry two STUN providers and no TURN',()=>{
 });
 
 test('service ICE lists are validated at the client boundary and fall back to defaults',()=>{
-  assert.deepEqual(parseIceServers({iceServers:[{urls:'stun:a.example:3478'},{urls:['turn:b.example'],username:'u',credential:'c'}]}),[{urls:['stun:a.example:3478']},{urls:['turn:b.example'],username:'u',credential:'c'}]);
+  assert.deepEqual(parseIceServers({iceServers:[{urls:'stun:a.example:3478'},{urls:['turn:b.example'],username:'u',credential:'c'}]}),[{urls:['stun:a.example:3478']}],'TURN entries are rejected: ADR035 provisions no relay');
   for(const raw of [undefined,null,'x',{},{iceServers:'stun:a'},{iceServers:[]},{iceServers:[{urls:'http://evil'}]},{iceServers:[{urls:['stun:ok','javascript:x']}]},{iceServers:[{urls:''}]},{iceServers:[5,null]}])
     assert.equal(parseIceServers(raw),undefined,JSON.stringify(raw));
   assert.deepEqual(parseIceServers({iceServers:[{urls:'stun:a',username:5}]}),[{urls:['stun:a']}]);
