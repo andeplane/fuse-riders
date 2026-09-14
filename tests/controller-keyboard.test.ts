@@ -12,7 +12,7 @@ test('browser modifier shortcuts remain untouched while keyup releases an earlie
  for(const modifier of ['altKey','ctrlKey','metaKey'] as const){
   const f=fixture();
   for(const code of ['ArrowLeft','ArrowRight','Space'])f.keyboard.down({...f.event(code),[modifier]:true});
-  assert.equal(f.prevented(),0);assert.deepEqual(f.messages,[]);assert.equal(f.state.hasHeld(),false);
+  assert.equal(f.prevented(),0);assert.equal(f.messages.length,0);assert.equal(f.state.hasHeld(),false);
   f.keyboard.down(f.event('Space'));f.keyboard.up({...f.event('Space'),[modifier]:true});
   assert.deepEqual(f.messages.map(message=>message.bombAction),['press','release']);assert.equal(f.state.hasHeld(),false);
  }
