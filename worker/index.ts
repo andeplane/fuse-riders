@@ -147,7 +147,7 @@ export class SignalRoom {
     const now=this.dependencies.now();if(await this.expired(now)){ws.close(4004,'Room expired');return;}
     if(now-sender.window>=1000){sender.window=now;sender.count=0;sender.bytes=0;}
     sender.count++;sender.bytes+=new TextEncoder().encode(raw).byteLength;
-    // A host fans out five world streams plus control/probe messages.
+    // Signalling is bounded per member; ordinary game actions never use this socket.
     if(sender.count>(sender.host?400:100)||sender.bytes>(sender.host?2_000_000:256_000)){ws.close(1008,'Rate limit');return;}ws.serializeAttachment(sender);
     let message:Record<string,unknown>;try{const decoded:unknown=JSON.parse(raw);if(!decoded||typeof decoded!=='object'||Array.isArray(decoded))return;message=decoded as Record<string,unknown>;}catch{return;}
     if(message.type==='time'){
@@ -173,7 +173,7 @@ export class SignalRoom {
     const target=this.currentSockets(members).find(peer=>identity(peer)?.id===message.to);if(!target)return;
     const targetIdentity=identity(target)!;
     if(message.targetConnectionId!==undefined&&message.targetConnectionId!==targetIdentity.connectionId)return;
-    if(!sender.host&&!targetIdentity.host)return;
+    // ADR041 permits same-room guest pairs to establish direct WebRTC links.
     try{target.send(JSON.stringify({type:message.type,from:sender.id,connectionId:sender.connectionId,data:message.data}));}catch{}
   }
   async webSocketClose(ws:RoomSocket):Promise<void> {

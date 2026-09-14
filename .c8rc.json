@@ -12,6 +12,8 @@
     "src/online/host-session.ts",
     "src/online/action-replication.ts",
     "src/online/direct-stream.ts",
+    "src/online/direct-origin.ts",
+    "src/online/direct-clock.ts",
     "src/online/rollback-world.ts",
     "src/online/authority.ts",
     "src/online/authority-status.ts",

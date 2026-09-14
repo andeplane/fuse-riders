@@ -2,6 +2,8 @@
 
 Issue [#82](https://github.com/andeplane/fuse-riders/issues/82), branch `codex/deterministic-action-log`, isolated worktree `/private/tmp/fuse-riders-action-log`. [ADR040](../adr/040-deterministic-action-replication.md) and [independent implementation review](../reviews/action-log-implementation-review.md) approve this bounded opt-in milestone. No public deployment is part of this work.
 
+This document describes the earlier host-coordinated prototype. The selected replacement is [ADR041 direct actions and world rollback](../adr/041-direct-actions-and-world-rollback.md); its [implementation status](DIRECT-ACTIONS-IMPLEMENTATION.md) distinguishes completed components from remaining gameplay integration. The prototype's bandwidth measurements below do not describe the new direct-mesh design.
+
 ## What works
 
 The existing host coordinates accepted inputs at shared 20 Hz ticks. A shared reducer records exact applied controls, transient bomb commands, bot actions, input cancellation and lifecycle changes. Held controls are persisted; only changes carry a per-player action record. The absolute-tick amendment now writes the full applied tick into each record (`fuse-actions-3`). MessagePack tuples encode these records. Full views reconstruct the complete world from a validated checkpoint and subsequent transactions. Shared-TV controller phones receive reduced status worlds and release their full replica when changing roles; the TV continues simulating.

@@ -1,4 +1,6 @@
 import { packMessage, unpackMessage } from './action-replication.js';
+import { FAST_PACKET_BYTES, decodeDirectPacket, DIRECT_VERSION } from './direct-stream.js';
+import { uint32 } from '../shared/direct-input.js';
 import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
@@ -14,6 +16,9 @@ export interface TransportCallbacks {
   welcome:(id:string,hostId:string)=>void;
   peer:(id:string,online:boolean)=>void;
   message:(id:string,data:unknown)=>void;
+  fast?:(id:string,data:Uint8Array)=>void;
+  /** A new RTC association needs a fresh reliable capability/segment handshake. */
+  linkReset?:(id:string)=>void;
   status:(status:string)=>void;
   revoked?:()=>void;
   ended?:()=>void;
@@ -21,10 +26,12 @@ export interface TransportCallbacks {
   terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
+interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;fastGate:LinkSendGate;fastBinding?:{segment:number;remoteConfirmed:boolean;epoch:number;incarnation:string;sender:string;receiver:string};fastTokens:number;fastAt:number;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
+export interface PeerTransportOptions { mesh?:boolean }
 const RESTART_ATTEMPTS=4;
 export class PeerTransport {
   binarySentBytes=0;
+  fastSentBytes=0;
   id='';hostId='';connectionId='';sentBytes=0;
   grant?:AuthorityGrant;
   private authorityClock=new AuthorityClock(()=>performance.now());
@@ -62,7 +69,8 @@ export class PeerTransport {
   private retry?:ReturnType<typeof setTimeout>;
   private ice=new IceConfig();
   private relayOnly=new URLSearchParams(location.search).has('relay');
-  constructor(readonly code:string,readonly token:string,private callbacks:TransportCallbacks){}
+  constructor(readonly code:string,readonly token:string,private callbacks:TransportCallbacks,private options:PeerTransportOptions={}){}
+  private initiates(id:string):boolean {return this.options.mesh?this.id<id:this.id===this.hostId;}
   connect():void {
     this.authorityClock.invalidate();
     if(!this.healthInterval)this.healthInterval=setInterval(()=>this.checkLinks(),200);
@@ -83,10 +91,17 @@ export class PeerTransport {
           this.id=message.id;this.hostId=message.hostId;this.connectionId=message.connectionId;this.readyScope='';
           for(const peer of message.peers)this.connections.set(peer.id,peer.connectionId);
           this.acceptGrant(message.grant);this.sampleTime();
+          // Membership is synchronous admission state, independent of slow ICE/SDP setup.
+          if(this.options.mesh||this.id===this.hostId)for(const peer of message.peers)this.callbacks.peer(peer.id,true);
           // Offers and signals can arrive during this fetch; link() awaits the ICE config so no peer connection is built without STUN (#27).
           await this.ice.load(signal=>fetch(apiUrl(`/api/rooms/${this.code}/ice?token=${this.token}`),{signal}).then(response=>response.json()),AbortSignal.timeout(ICE_FETCH_TIMEOUT_MS));
+          if(ws!==this.socket||this.stopped||this.connectionId!==message.connectionId)return;
           this.callbacks.status('Connected · checking room authority');
-          if(this.id===this.hostId)for(const peer of message.peers){this.callbacks.peer(peer.id,true);await this.offer(peer.id);}
+          if(this.options.mesh||this.id===this.hostId)for(const peer of message.peers){
+            if(ws!==this.socket||this.stopped||this.connectionId!==message.connectionId)return;
+            if(this.connections.get(peer.id)!==peer.connectionId)continue;
+            if(this.initiates(peer.id))await this.offer(peer.id);
+          }
         }else if(message.type==='time'){
           const sent=this.probes.get(message.id);if(sent===undefined||sent!==message.sentAt)return;
           this.probes.delete(message.id);this.acceptGrant(message.grant);this.authorityClock.synchronize(sent,message.serviceTime);
@@ -100,7 +115,7 @@ export class PeerTransport {
             const previous=this.connections.get(message.id);
             this.connections.set(message.id,message.connectionId);
             if(previous!==message.connectionId){this.links.get(message.id)?.pc.close();this.links.delete(message.id);this.received.delete(message.id);}
-            this.callbacks.peer(message.id,true);if(this.id===this.hostId)await this.offer(message.id);
+            this.callbacks.peer(message.id,true);if(this.initiates(message.id))await this.offer(message.id);
           }else if(this.connections.get(message.id)===message.connectionId){
             // The service is the membership authority (ADR035): the connection is retired even if the RTC channel still reads "open".
             this.links.get(message.id)?.gate.drain();
@@ -123,13 +138,15 @@ export class PeerTransport {
   /** Resolves undefined when the socket epoch changed while waiting for the ICE config: that signal belongs to the old admission. */
   private async link(id:string,restart?:LinkRestartPolicy):Promise<Link|undefined> {
     const existing=this.links.get(id);if(existing)return existing;
-    const socket=this.socket;
+    const socket=this.socket,localConnection=this.connectionId,remoteConnection=this.connections.get(id);
+    if(!remoteConnection)return;
     const iceServers=await this.ice.iceServers();
-    if(socket!==this.socket||this.stopped)return undefined;
+    if(socket!==this.socket||this.stopped||this.connectionId!==localConnection||this.connections.get(id)!==remoteConnection)return undefined;
     const concurrent=this.links.get(id);if(concurrent)return concurrent;
     const pc=new RTCPeerConnection({iceServers});
     const now=performance.now();
-    const link:Link={pc,remote:new RemoteSignal(pc),health:new LinkHealth(now),gate:new LinkSendGate(),restart:restart??new LinkRestartPolicy(now,RESTART_ATTEMPTS),createdAt:now,local:{},remoteTypes:{},counts:{offersOut:0,offersIn:0,answersOut:0,answersIn:0,candidatesOut:0,relayFailed:0}};this.links.set(id,link);
+    const link:Link={pc,fastGate:new LinkSendGate(),fastTokens:200,fastAt:now,remote:new RemoteSignal(pc),health:new LinkHealth(now),gate:new LinkSendGate(),restart:restart??new LinkRestartPolicy(now,RESTART_ATTEMPTS),createdAt:now,local:{},remoteTypes:{},counts:{offersOut:0,offersIn:0,answersOut:0,answersIn:0,candidatesOut:0,relayFailed:0}};this.links.set(id,link);
+    this.callbacks.linkReset?.(id);
     pc.onicecandidate=event=>{
       if(!isCurrentLinkCallback(this.links.get(id),link)||!event.candidate)return;
       const type=candidateType(event.candidate.candidate);link.local[type]=(link.local[type]??0)+1;
@@ -140,16 +157,18 @@ export class PeerTransport {
       if(!isCurrentLinkCallback(this.links.get(id),link))return;
       if(pc.connectionState==='connected')this.callbacks.status('Direct peer link connected');
       // "disconnected" may recover through fresh probes (ADR035); only terminal states drain the link.
-      if(pc.connectionState==='failed'||pc.connectionState==='closed')link.gate.drain();
+      if(pc.connectionState==='failed'||pc.connectionState==='closed'){link.gate.drain();link.fastGate.drain();}
       if(pc.connectionState==='failed'||pc.connectionState==='disconnected'){link.health.fail(performance.now());this.callbacks.status(`Direct connection interrupted — ${this.explain(id)}`);}
     };
     pc.oniceconnectionstatechange=()=>{
       if(!isCurrentLinkCallback(this.links.get(id),link))return;
-      if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='closed')link.gate.drain();
+      if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='closed'){link.gate.drain();link.fastGate.drain();}
     };
     return link;
   }
   private channel(id:string,link:Link,channel:RTCDataChannel):void {
+    if(channel.label==='actions'&&this.options.mesh){this.fastChannel(id,link,channel);return;}
+    if(channel.label!=='game'||link.channel||!channel.ordered||channel.maxRetransmits!==null||channel.maxPacketLifeTime!==null){channel.close();return;}
     link.channel=channel;
     channel.binaryType='arraybuffer';
     channel.onmessage=event=>{
@@ -161,15 +180,71 @@ export class PeerTransport {
       }catch{}
     };
     channel.onopen=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))this.callbacks.status('Direct peer link connected');};
-    channel.onclosing=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
-    channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
-    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;link.gate.drain();this.callbacks.status('Direct connection failed · retrying');};
+    const drain=()=>{link.gate.drain();link.fastGate.drain();};
+    channel.onclosing=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))drain();};
+    channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))drain();};
+    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;drain();this.callbacks.status('Direct connection failed · retrying');};
+  }
+  /** Compact aliases are installed only by a validated reliable bootstrap/handshake. */
+  bindFast(id:string,segment:number):boolean {
+    const link=this.links.get(id),grant=this.grant,sender=this.connections.get(id);
+    if(!this.options.mesh||!link||!grant||!sender||!this.authorityPermitted()||!uint32(segment)||segment===0)return false;
+    const previous=link.fastBinding;
+    if(previous&&segment<=previous.segment)return segment===previous.segment&&this.fastBound(id,link);
+    link.fastBinding={segment,remoteConfirmed:false,epoch:grant.epoch,incarnation:grant.incarnation,sender,receiver:this.connectionId};return true;
+  }
+  private fastBound(id:string,link:Link):boolean {
+    const binding=link.fastBinding;
+    return !!binding&&this.authorityPermitted()&&binding.epoch===this.grant?.epoch&&binding.incarnation===this.grant?.incarnation&&binding.sender===this.connections.get(id)&&binding.receiver===this.connectionId;
+  }
+  private fastSegment(bytes:Uint8Array):number|undefined {
+    if(bytes.byteLength>FAST_PACKET_BYTES)return;
+    try {
+      const packet=decodeDirectPacket(bytes);if(packet)return packet[1];
+      const v=unpackMessage(bytes);
+      if(Array.isArray(v)&&v.length===4&&v[0]===DIRECT_VERSION&&uint32(v[1])&&v[1]>0&&uint32(v[2])&&(v[2]<5||v[2]===8||v[2]===9)&&uint32(v[3]))return v[1];
+    }catch{}
+  }
+  private fastChannel(id:string,link:Link,channel:RTCDataChannel):void {
+    if(link.fast||channel.ordered||channel.maxRetransmits!==0){channel.close();return;}
+    link.fast=channel;channel.binaryType='arraybuffer';
+    const current=()=>isCurrentLinkCallback(this.links.get(id),link)&&link.fast===channel;
+    const drain=()=>{link.fastGate.drain();link.gate.drain();};
+    channel.onmessage=event=>{
+      if(!current())return;
+      const now=performance.now();link.fastTokens=Math.min(200,link.fastTokens+Math.max(0,now-link.fastAt)*.1);link.fastAt=now;
+      if(--link.fastTokens<0){drain();channel.close();this.callbacks.status('Direct action stream exceeded its rate limit');return;}
+      if(!(event.data instanceof ArrayBuffer)||event.data.byteLength>FAST_PACKET_BYTES){drain();channel.close();return;}
+      const bytes=new Uint8Array(event.data);
+      if(!this.fastBound(id,link)||this.fastSegment(bytes)!==link.fastBinding!.segment)return;
+      const control=unpackMessage(bytes) as unknown[];
+      if(control.length===4&&(control[2]===8||control[2]===9)){
+        link.fastBinding!.remoteConfirmed=true;
+        const segment=control[1] as number,probeId=control[3] as number;
+        if(control[2]===9)link.health.acknowledge(probeId,now);
+        else this.defer(()=>{if(current())this.sendFastProbe(id,9,probeId,segment);});
+        return;
+      }
+      this.callbacks.fast?.(id,bytes);
+    };
+    channel.onclosing=channel.onclose=()=>{if(current())drain();};
+    channel.onerror=event=>{event.preventDefault();if(current()){drain();this.callbacks.status('Direct action link interrupted — retrying');}};
+  }
+  sendFast(id:string,bytes:Uint8Array):boolean {
+    const link=this.links.get(id);
+    if(!link||!this.fastReady(id)||this.fastSegment(bytes)!==link.fastBinding!.segment)return false;
+    try{link.fast!.send(new Uint8Array(bytes));this.fastSentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
+  }
+  fastReady(id:string):boolean {
+    const link=this.links.get(id);
+    return !this.stopped&&!document.hidden&&!!link&&this.fastBound(id,link)&&link.fastGate.permits(link.fast,16_000)&&link.health.direct(performance.now());
   }
   /** `force` replaces a drained link with a fresh RTCPeerConnection and gate; the restart budget carries over. */
   private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
-    const old=this.links.get(id);if(!force&&old?.channel?.readyState==='open')return;if(old){old.pc.close();this.links.delete(id);}
+    const old=this.links.get(id);if(!force&&old?.channel)return;if(force&&old){old.pc.close();this.links.delete(id);}
     const link=await this.link(id,force?old?.restart:undefined);if(!link||link.channel)return;this.channel(id,link,link.pc.createDataChannel('game'));
+    if(this.options.mesh)this.channel(id,link,link.pc.createDataChannel('actions',{ordered:false,maxRetransmits:0}));
     await link.pc.setLocalDescription(await link.pc.createOffer());if(!isCurrentLinkCallback(this.links.get(id),link))return;
     if(this.relay('signal',id,{description:link.pc.localDescription}))link.counts.offersOut++;else link.counts.relayFailed++;
   }
@@ -184,9 +259,10 @@ export class PeerTransport {
   }
   private async signal(id:string,data:{description?:RTCSessionDescriptionInit;candidate?:RTCIceCandidateInit}):Promise<void>{
     if(this.relayOnly)return;
+    if(this.options.mesh&&data.description?.type==='offer'&&this.initiates(id))return;
     const previous=this.links.get(id);
     if(data.description?.type==='offer'&&previous&&!sameCertificate(previous.pc.remoteDescription?.sdp,data.description.sdp??'')){previous.pc.close();this.links.delete(id);}
-    const link=await this.link(id);if(!link)return;
+    const link=await this.link(id);if(!link||!isCurrentLinkCallback(this.links.get(id),link))return;
     try{
       if(data.description){
         if(data.description.type==='offer')link.counts.offersIn++;else link.counts.answersIn++;
@@ -215,7 +291,7 @@ export class PeerTransport {
           // OnStateChange). Answering inside this onmessage task would hand the pong to an already-dead transport, so
           // defer one macrotask: the queued state-change task runs first and readyState plus the gate refuse the send.
           const link=this.links.get(id),probeId=probe.probeId!;
-          if(link)this.defer(()=>{if(isCurrentLinkCallback(this.links.get(id),link))this.sendDirectProbe(id,{type:'linkPong',probeId});});
+          if(link)this.defer(()=>{if(isCurrentLinkCallback(this.links.get(id),link))this.sendDirectProbe(id,{type:'linkPong',probeId},false);});
         }
         return;
       }
@@ -232,10 +308,21 @@ export class PeerTransport {
     }
     return false;
   }
-  private sendDirectProbe(id:string,data:{type:string;probeId:number}):void {
+  private sendFastProbe(id:string,kind:8|9,probeId:number,segment:number):boolean {
     const link=this.links.get(id);
+    if(!link||!this.fastBound(id,link)||link.fastBinding!.segment!==segment||!link.fastGate.permits(link.fast,PROBE_BUFFER_LIMIT))return false;
+    const bytes=packMessage([DIRECT_VERSION,segment,kind,probeId]);
+    try{link.fast!.send(new Uint8Array(bytes));this.fastSentBytes+=bytes.byteLength;this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
+  }
+  private sendDirectProbe(id:string,data:{type:string;probeId:number},allowFast=true):void {
+    const link=this.links.get(id);
+    if(allowFast&&link&&this.fastBound(id,link)&&link.fast?.readyState==='open'){
+      this.sendFastProbe(id,8,data.probeId,link.fastBinding!.segment);
+      // Local alias installation does not prove the remote completed its handshake.
+      if(link.fastBinding!.remoteConfirmed)return;
+    }
     if(!this.authorityPermitted()||!link?.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return;
-    try{link.channel!.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));}catch{}
+    try{const encoded=JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)});link.channel!.send(encoded);this.sentBytes+=new TextEncoder().encode(encoded).byteLength;}catch{}
   }
   private checkLinks():void {
     if(this.stopped||document.hidden||!this.authorityPermitted())return;
@@ -244,8 +331,8 @@ export class PeerTransport {
       this.sendDirectProbe(id,{type:'linkProbe',probeId:link.health.probe(now)});
       if(link.health.direct(now)){link.restart.healthy(now);continue;}
       // A down socket cannot carry the restart offer; do not burn the budget on it.
-      if(!link.health.shouldRestart(now)||this.id!==this.hostId||this.socket?.readyState!==WebSocket.OPEN||!link.restart.due(now))continue;
-      if(link.gate.draining){
+      if(!link.health.shouldRestart(now)||!this.initiates(id)||this.socket?.readyState!==WebSocket.OPEN||!link.restart.due(now))continue;
+      if(link.gate.draining||link.fastGate.draining){
         // The gate is monotonic: a drained link never sends again, so an in-place ICE restart could not recover it.
         const attempt=link.restart.begin(now);
         void this.offer(id,true).catch(error=>{link.lastFailure=`recreate: ${error instanceof Error?error.name:'error'}`;}).finally(()=>{link.restart.complete(attempt);});
@@ -287,7 +374,7 @@ export class PeerTransport {
   async stats():Promise<{direct:number;relayed:number;buffered:number;authority:{reason:string;roundTripMs?:number}}>{
     let direct=0,relayed=0,buffered=this.socket?.bufferedAmount??0;
     for(const link of this.links.values()){
-      buffered+=link.channel?.bufferedAmount??0;
+      buffered+=(link.channel?.bufferedAmount??0)+(link.fast?.bufferedAmount??0);
       if(link.channel?.readyState!=='open')continue;
       const report=await link.pc.getStats();let usesRelay=false;
       report.forEach(stat=>{if(stat.type==='candidate-pair'&&stat.state==='succeeded'){const local=report.get(stat.localCandidateId);const remote=report.get(stat.remoteCandidateId);if(local?.candidateType==='relay'||remote?.candidateType==='relay')usesRelay=true;}});

@@ -74,12 +74,25 @@ test('two gateways advertise actual remote members and route only signalling',as
   await f.a.receive(hostConnection,JSON.stringify({type:'signal',to:peerId(GUEST),data:{type:'world',bombs:[]}}));assert.equal(f.aBus.published.length,1);
 });
 
-test('signalling denies guest-to-guest, foreign room and replaced target scopes',async()=>{
+test('mesh signalling permits guest pairs while rejecting foreign room and replaced target scopes',async()=>{
   const f=fixture(),{hostConnection,guestConnection,guest}=await joined(f);const extra=new Socket(),extraId=await f.a.connect(CODE,'c'.repeat(64),extra);
-  await f.b.receive(guestConnection,signal(peerId('c'.repeat(64)),extraId));assert.equal(extra.frames('signal').length,0);
+  await f.b.receive(guestConnection,signal(peerId('c'.repeat(64)),extraId));assert.equal(extra.frames('signal').length,1);
+  assert.equal(extra.frames('signal')[0].connectionId,guestConnection);
+  await f.b.receive(guestConnection,signal(peerId('c'.repeat(64)),'obsolete'));assert.equal(extra.frames('signal').length,1);
+  await f.b.receive(guestConnection,JSON.stringify({type:'signal',to:peerId('c'.repeat(64)),targetConnectionId:extraId,data:{type:'input',tick:66}}));assert.equal(extra.frames('signal').length,1);
   await f.a.receive(hostConnection,signal(peerId(GUEST),'obsolete'));assert.equal(guest.frames('signal').length,0);
   const packet:RoutedMessage={id:'bad',code:'OTHERROOM0',incarnation:'wrong',destination:'b',from:{id:peerId(HOST),connectionId:hostConnection,gatewayId:'a',host:true,expiresAt:9999},to:{id:peerId(GUEST),connectionId:guestConnection,gatewayId:'b',host:false,expiresAt:9999},expiresAt:9999,wire:{type:'signal',from:peerId(HOST),connectionId:hostConnection,data:{}}};
   await f.b.deliver(packet);assert.equal(guest.frames('signal').length,0);
+});
+
+test('guest mesh signals retain source replacement and cross-room membership fences',async()=>{
+  const f=fixture(),{guestConnection}=await joined(f);const target=new Socket(),targetId=await f.a.connect(CODE,'c'.repeat(64),target);
+  f.bBus.delayed=true;await f.b.receive(guestConnection,signal(peerId('c'.repeat(64)),targetId));
+  const replacement=new Socket(),newSource=await f.b.connect(CODE,GUEST,replacement);
+  await f.bBus.flush();assert.equal(target.frames('signal').length,0);
+  f.bBus.delayed=false;await f.b.receive(newSource,signal(peerId('c'.repeat(64)),targetId));assert.equal(target.frames('signal').length,1);
+  await f.store.create('XY42','d'.repeat(64));const foreign=new Socket(),foreignId=await f.a.connect('XY42','d'.repeat(64),foreign);
+  await f.b.receive(newSource,signal(peerId('d'.repeat(64)),foreignId));assert.equal(foreign.frames('signal').length,0);
 });
 
 test('fast bus after delayed metadata emits new source membership before SDP',async()=>{

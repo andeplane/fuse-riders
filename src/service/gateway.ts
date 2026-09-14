@@ -70,7 +70,8 @@ export class RoomGateway {
     let current=room,target=current.members[m.to];
     // Only a connection transition needs an authoritative metadata refresh; no database read per input.
     if(!target||(m.targetConnectionId!==undefined&&target.connectionId!==m.targetConnectionId)){current=await this.store.get(client.room);if(this.clients.get(client.member.connectionId)!==client||this.views.get(client.room)?.room.incarnation!==client.incarnation||current.incarnation!==client.incarnation)return;this.observe(client.room,current);target=current.members[m.to];}
-    if(!target||target.expiresAt<=this.deps.now()||(m.targetConnectionId!==undefined&&m.targetConnectionId!==target.connectionId)||(!client.member.host&&!target.host)||current.members[client.member.id]?.connectionId!==client.member.connectionId)return;
+    // ADR041: any current same-room pair may negotiate a direct link; gameplay still cannot enter this route.
+    if(!target||target.expiresAt<=this.deps.now()||(m.targetConnectionId!==undefined&&m.targetConnectionId!==target.connectionId)||current.members[client.member.id]?.connectionId!==client.member.connectionId)return;
     const routed:RoutedMessage={id:this.deps.id(),code:client.room,incarnation:current.incarnation,destination:target.gatewayId,from:client.member,to:target,expiresAt:this.deps.now()+BUS_FRAME_TTL_MS,wire:{type:'signal',from:client.member.id,connectionId:client.member.connectionId,data:m.data}};
     if(target.gatewayId===this.id)await this.deliver(routed);else await this.bus.publish(routed);
   }
@@ -95,7 +96,7 @@ export class RoomGateway {
     let room=this.views.get(message.code)?.room;
     if(!room||room.expiresAt<=this.deps.now()||room.incarnation!==message.incarnation)return;
     if(room.members[message.from.id]?.connectionId!==message.from.connectionId){room=await this.store.get(message.code);if(this.clients.get(message.to.connectionId)!==client||this.views.get(message.code)?.room.incarnation!==message.incarnation||room.incarnation!==message.incarnation)return;this.observe(message.code,room);}
-    if(room.expiresAt<=this.deps.now()||room.incarnation!==message.incarnation||room.members[message.from.id]?.connectionId!==message.from.connectionId||room.members[message.to.id]?.connectionId!==message.to.connectionId||(!message.from.host&&!message.to.host))return;
+    if(room.expiresAt<=this.deps.now()||room.incarnation!==message.incarnation||room.members[message.from.id]?.connectionId!==message.from.connectionId||room.members[message.to.id]?.connectionId!==message.to.connectionId)return;
     this.seen.set(message.id,message.expiresAt);
     // observe above sends peer connection replacement before this source's first frame.
     this.send(client,message.wire);
@@ -130,4 +131,3 @@ export class RoomGateway {
   private async drain():Promise<void>{this.stateValue='draining';try{await this.bus.stop();}catch(error){this.deps.error('bus-stop',error);}this.seen.clear();this.stateValue='idle';}
   async stop():Promise<void>{for(const client of this.clients.values())client.socket.close(1001,'Service restarting');for(const id of [...this.clients.keys()])await this.disconnect(id);if(this.stateValue!=='idle')await this.drain();}
 }
-

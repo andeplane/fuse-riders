@@ -115,6 +115,27 @@ export class DirectDelivery {
     this.lastTick = initialTick; this.watermark = [initialTick, 0];
   }
   get retainedRecords(): number { return this.pending.length; }
+  /** Prepare a complete local edge group without publishing or changing this subscriber queue. */
+  prepare(actions: readonly DirectAction[]): DirectDelivery | undefined {
+    if (actions.length > 3 || this.pending.length + actions.length > STREAM_RECORD_LIMIT) return;
+    const next = new DirectDelivery(this.segment, this.slot, this.watermark[0]);
+    next.pending = [...this.pending]; next.acknowledged = this.acknowledged; next.lastSequence = this.lastSequence;
+    next.lastTick = this.lastTick; next.watermark = [...this.watermark]; next.lastSent = this.lastSent;
+    for (const action of actions) {
+      if (!isDirectAction(action) || action[0] !== next.lastSequence + 1 || action[1] < next.lastTick || action[1] <= next.watermark[0]) return;
+      next.pending.push(structuredClone(action)); next.lastSequence = action[0]; next.lastTick = action[1];
+    }
+    return next;
+  }
+  /** Install all subscriber candidates first, then send their admitted group; a failed send stays queued. */
+  publish(actions: readonly DirectAction[], now: number, send: (bytes: Uint8Array) => boolean): void {
+    if (!actions.length) return;
+    const selected = actions.map(a => this.pending.find(p => p[0] === a[0]));
+    if (actions.length > 3 || selected.some(a => !a)) return;
+    const records = [...selected as DirectAction[], ...this.pending.filter(p => !actions.some(a => a[0] === p[0])).slice(0, 4 - actions.length)];
+    this.lastSent = now;
+    send(packMessage([DIRECT_VERSION, this.segment, this.slot, records, this.watermark] satisfies DirectPacket));
+  }
   enqueue(action: DirectAction, now: number, send: (bytes: Uint8Array) => boolean): boolean {
     if (!isDirectAction(action) || action[0] !== this.lastSequence + 1 || action[1] < this.lastTick || action[1] <= this.watermark[0] || this.pending.length >= STREAM_RECORD_LIMIT) return false;
     this.pending.push(structuredClone(action)); this.lastSequence = action[0]; this.lastTick = action[1];

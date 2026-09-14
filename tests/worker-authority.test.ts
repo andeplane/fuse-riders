@@ -85,8 +85,12 @@ test('Worker routes only current authenticated endpoints and includes source con
   const payload={description:{type:'offer',sdp:'fixture'}};
   const send=(socket:Socket,to:unknown,targetConnectionId?:unknown)=>f.room.webSocketMessage(socket,JSON.stringify({type:'signal',to,targetConnectionId,data:payload}));
   await send(oldGuest,hostId);assert.equal(host.last('signal'),undefined);
-  await send(other,guestId);assert.equal(freshGuest.last('signal'),undefined,'guest-to-guest routing denied');
-  await send(host,guestId,oldGuest.last('welcome')!.connectionId);assert.equal(freshGuest.last('signal'),undefined,'old target scope denied');
+  await send(other,guestId,freshGuest.last('welcome')!.connectionId);
+  assert.deepEqual(freshGuest.last('signal'),{type:'signal',from:other.last('welcome')!.id,connectionId:other.last('welcome')!.connectionId,data:payload});
+  const count=freshGuest.messages.length;
+  await send(host,guestId,oldGuest.last('welcome')!.connectionId);assert.equal(freshGuest.messages.length,count,'old target scope denied');
+  await send(other,guestId,oldGuest.last('welcome')!.connectionId);assert.equal(freshGuest.messages.length,count,'guest cannot target old connection');
+  await send(other,'foreign-room-peer');assert.equal(freshGuest.messages.length,count,'foreign target is not a room member');
   await send(freshGuest,hostId,host.last('welcome')!.connectionId);
   assert.deepEqual(host.last('signal'),{type:'signal',from:guestId,connectionId:freshGuest.last('welcome')!.connectionId,data:payload});
   await f.room.webSocketClose(oldGuest);
