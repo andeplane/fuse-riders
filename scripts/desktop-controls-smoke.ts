@@ -12,7 +12,7 @@ try {
   const left = page.locator('[aria-keyshortcuts~="ArrowLeft"]');
   const right = page.locator('[aria-keyshortcuts~="ArrowRight"]');
   const fire = page.locator('[aria-keyshortcuts="Space"]');
-  await left.waitFor({ state: 'visible' });
+  await page.locator('.desktop-game').waitFor();
   // Lobby gives deterministic time for hold/cancel checks without AI round changes.
   await page.getByRole('button', { name: 'MAIN MENU', exact: true }).click();
   for (const [code, button] of [['ArrowLeft', left], ['ArrowRight', right], ['KeyA', left], ['KeyD', right], ['Space', fire]] as const) {
@@ -38,12 +38,15 @@ try {
   const arena = await page.locator('.online-arena').boundingBox();
   const pads = await page.locator('.online-controls').boundingBox();
   assert.ok(arena && arena.height > 997 * .8, 'desktop arena should use over 80% of viewport height');
-  assert.ok(pads && pads.height < 60, 'desktop pads should be compact');
+  assert.equal(pads, null, 'desktop pads are hidden behind keyboard help');
+  await page.getByRole('button', { name: 'Keyboard controls', exact: true }).click();
+  await page.getByText('SPACE — hold to charge, release to fire', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'CLOSE', exact: true }).click();
   assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
   // Check the real playing path too: steering must change the rendered rider
   // heading, and Space must be accepted by the ordinary weapon input path.
   await page.goto(`${base}?solo=1&benchmark=1`);
-  await left.waitFor({ state: 'visible' });
+  await page.locator('.desktop-game').waitFor();
   await page.waitForFunction(() => document.querySelector('.online-notice')?.textContent === '');
   // A browser-side string keeps tsx's function-name helper out of the page.
   const heading = () => page.evaluate<number>(`new Promise(resolve => {
@@ -66,7 +69,34 @@ try {
   await page.keyboard.up('Space');
   await page.waitForFunction(() => document.querySelector('[aria-keyshortcuts="Space"]')?.textContent !== 'RELEASE!');
   assert.equal(await page.locator('.online-shot-error').isVisible(), false);
-  await page.screenshot({ path: 'artifacts/desktop-controls.png' });
+  // Check actual fitted pixels, rather than the canvas's letterboxed element alone.
+  const layouts = [];
+  for (const viewport of [{ width: 2048, height: 1178 }, { width: 1723, height: 997 }, { width: 1280, height: 900 }, { width: 2560, height: 1080 }]) {
+    await page.setViewportSize(viewport);
+    const layout = await page.evaluate(() => {
+      const canvas = document.querySelector<HTMLCanvasElement>('.online-arena')!;
+      const r = canvas.getBoundingClientRect(), bar = document.querySelector('.online-header')!.getBoundingClientRect();
+      const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
+      const roster = document.querySelector('.online-roster')!.getBoundingClientRect();
+      const actions = document.querySelector('.online-host')!.getBoundingClientRect();
+      return { viewport: { width: innerWidth, height: innerHeight }, arena: { width: r.width, height: r.height, y: r.y }, fitted: { width: canvas.width * scale, height: canvas.height * scale }, bar: { height: bar.height, bottom: bar.bottom }, rosterY: roster.y, actionsY: actions.y, overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
+    });
+    assert.equal(layout.overflow, false);
+    assert.ok(layout.arena.y >= layout.bar.bottom && layout.arena.y <= layout.bar.bottom + 5);
+    assert.ok(layout.arena.height >= viewport.height - layout.bar.height - 13);
+    if (viewport.width === 2048) {
+      assert.ok(layout.fitted.width > viewport.width * .97, 'reference screen uses at least 97% of horizontal space');
+      assert.ok(Math.abs(layout.rosterY - layout.actionsY) < 8, 'scores and actions share a row');
+      await page.screenshot({ path: 'artifacts/desktop-controls.png' });
+    }
+    layouts.push(layout);
+  }
+  // A resize restores the original compact-screen layout and can return to the game bar.
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.locator('.online-controls').waitFor({ state: 'visible' });
+  await page.setViewportSize({ width: 1723, height: 997 });
+  await page.locator('.desktop-game').waitFor();
+  assert.equal(await page.locator('.online-controls').isVisible(), false);
   const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
   phone.on('pageerror', error => errors.push(error.message));
   await phone.goto(`${base}?solo=1`);
@@ -76,7 +106,7 @@ try {
   await phone.waitForFunction(() => document.querySelector('.online-notice')?.textContent === '');
   await phone.screenshot({ path: 'artifacts/desktop-controls-phone.png' });
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ browser: process.env.BROWSER ?? 'chromium', desktopArena: arena, desktopPads: pads, phonePads, errors }));
+  console.log(JSON.stringify({ browser: process.env.BROWSER ?? 'chromium', desktopArena: arena, desktopPads: pads, layouts, phonePads, errors }));
 } finally {
   await browser.close();
 }
