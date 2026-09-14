@@ -1,4 +1,5 @@
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
+import { isBombChargeTicks } from '../shared/bomb-launch.js';
 import type { GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
@@ -163,6 +164,7 @@ const { drunkStartedTick: _drunkStart, drunkHeadingOffset: _drunkOffset, ...wire
 const { placedTick: _placed, ...wireBombFields } = bombFields;
 const { currentRoundSurvivalTicks: _currentSurvival, ...wireStatsFields } = statsFields;
 const snapshotShape = shape({
+  bombChargeTicks: isBombChargeTicks,
   phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v),
   phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
   width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),

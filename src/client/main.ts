@@ -8,7 +8,6 @@ import { createGameAudio } from './game-audio.js';
 import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
-import { BOMB_MAX_CHARGE_TICKS } from '../shared/bomb-launch.js';
 import { bombPreviewDistance } from './bomb-preview.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
@@ -233,7 +232,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
   for (const player of snapshot.players) {
     if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed || player.gunArmed) continue;
     const chargeTicks = (player.presentationTick ?? snapshot.tick) - player.bombChargeStartedTick;
-    const distance = bombPreviewDistance(chargeTicks);
+    const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
     const angles = player.tripleShotArmed || player.fiveShotArmed ? volleyAngles(player.angle, player.fiveShotArmed ? 5 : 3) : [player.angle];
@@ -911,7 +910,7 @@ function startController(): void {
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
     const charging = player.bombChargeStartedTick !== undefined;
-    const chargePercent = charging ? Math.min(100, Math.round((snapshot.tick - player.bombChargeStartedTick!) / BOMB_MAX_CHARGE_TICKS * 100)) : 0;
+    const chargePercent = charging ? Math.min(100, Math.round((snapshot.tick - player.bombChargeStartedTick!) / snapshot.bombChargeTicks * 100)) : 0;
     const ready = readyTicks <= 0 && snapshot.phase === 'playing' && player.alive;
     bomb.disabled = !ready && !charging;
     bomb.style.setProperty('--charge', `${chargePercent}%`);

@@ -31,9 +31,10 @@ test('checkpoint restore is atomic on the malformed sequences regression', () =>
 test('checkpoint restores exact physics, pending preferences and neutral disconnected identities', () => {
   const source = playing(); source.command('guest', { type: 'input', scope: source.controlScope('guest'), intendedTick: source.game.tick+1, seq: 0, left: false, right: false, bomb: false }); source.command('guest', { type: 'input', scope: source.controlScope('guest'), intendedTick: source.game.tick+1, seq: 99, left: true, right: false, bomb: true, bombAction: 'press' }); source.advance();
   assert.notEqual(source.game.players.get('guest')?.bombChargeStartedTick, undefined);
-  source.settings = { ...source.settings, length: 9 };
+  source.settings = { ...source.settings, length: 9, bombChargeTicks: 24 };
   const destination = session(); assert.equal(destination.restore(source.checkpoint()), true);
   assert.equal(destination.game.tick, source.game.tick); assert.equal(destination.settings.length, 9); assert.equal(destination.game.settings?.length, 3);
+  assert.equal(destination.settings.bombChargeTicks,24);assert.equal(destination.snapshot().bombChargeTicks,8);
   assert.deepEqual(destination.acknowledgements(), source.acknowledgements());
   for (const p of destination.game.players.values()) { assert.equal(p.connected, false); assert.equal(p.bombChargeStartedTick, undefined); assert.equal(p.bombTarget, undefined); }
   assert.equal(destination.command('guest', { type: 'join', name: 'Guest' }), undefined);
@@ -48,6 +49,8 @@ test('checkpoint rejects missing required game maps and nested fields', () => {
 });
 
 test('checkpoint rejects schema incompatibility, foreign host and unsafe shape extensions', () => {
+  rejectedWithoutMutation(corrupt(playing(), data => { data.compatibility='fuse-simulation-1'; }));
+  rejectedWithoutMutation(corrupt(playing(), (_data,game) => { object(game.settings).bombChargeTicks=0; }));
   for (const [key, value] of [['version', 1], ['version', CHECKPOINT_VERSION + 1], ['compatibility', 'future-build'], ['host', 'other-host'], ['unknown', true]]) rejectedWithoutMutation(corrupt(playing(), data => { data[String(key)] = value; }));
   rejectedWithoutMutation('{broken'); rejectedWithoutMutation('null');
   rejectedWithoutMutation(corrupt(playing(), (_data, game) => { game['con' + 'structor'] = 'bad'; }));

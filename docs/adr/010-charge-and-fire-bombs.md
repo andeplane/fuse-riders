@@ -19,6 +19,12 @@ The display shows charge progress, the projected launch direction/range, and the
 
 ## Consequences
 
+### Balance tuning — 2026-09-14
+
+[Issue #86](https://github.com/andeplane/fuse-riders/issues/86) makes full-charge time configurable through room settings, from two to 40 ticks (0.1–2 seconds), defaulting to eight ticks (0.4 seconds). The original pace is selectable as 1.2 seconds. Preferences persist in the creator's browser and apply at the existing round boundary. The active `bombChargeTicks` travels in validated snapshots, keeping AI, fractional previews and charge indicators aligned with authority rather than pending preferences. LAN uses the default. The 100–400 unit range and the authority, release, cancellation, flight, fuse and cooldown rules are preserved. Current bounds live in [bomb-launch.ts](../../src/shared/bomb-launch.ts).
+
+Checkpoint compatibility advances to `fuse-simulation-2` because charge semantics changed. Older checkpoints are rejected; refresh clients together when releasing this snapshot schema, and start fresh rooms when rolling back. This change has only local verification until a release is separately recorded.
+
 Holding creates a readable tactical choice and makes short taps reliable. The server needs a small per-seat charge state and explicit edge handling, while snapshots/events gain projectile/charge presentation data. Disconnect and touch cleanup become safety-critical. The flight animation adds visual state without changing collision rules during the arc.
 
 ## Review resolution

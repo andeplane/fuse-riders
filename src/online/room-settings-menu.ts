@@ -1,5 +1,6 @@
 import type { RoomSettings } from '../shared/room-settings.js';
-import type { PickupType } from '../shared/game.js';
+import { TICK_HZ, type PickupType } from '../shared/game.js';
+import { BOMB_MIN_CHARGE_TICKS, BOMB_CHARGE_TICKS_LIMIT } from '../shared/bomb-launch.js';
 import './room-settings-menu.css';
 const element=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const result=document.createElement(tag);result.textContent=text;return result;};
 /** One draft survives submenu navigation; only Save publishes it. */
@@ -13,8 +14,9 @@ export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boo
     body.replaceChildren(element('h2','Room settings'));
     body.append(choices('Screen layout',draft.mode,[['devices','Full game on each device'],['shared','Shared TV + phone controls']],value=>{draft.mode=value;},solo),choices('Match format',draft.match,[['wins','First to N wins'],['rounds','Play N rounds']],value=>{draft.match=value;}));
     const lengthLabel=element('label','Match length'),length=element('input');length.type='number';length.min='1';length.max='20';length.value=String(draft.length);length.setAttribute('aria-label','Match length');length.oninput=()=>{draft.length=Number(length.value);};lengthLabel.append(length);body.append(lengthLabel);
+    const aimLabel=element('label','Bomb aim time (seconds)'),aim=element('input');aim.type='number';aim.min=String(BOMB_MIN_CHARGE_TICKS/TICK_HZ);aim.max=String(BOMB_CHARGE_TICKS_LIMIT/TICK_HZ);aim.step=String(1/TICK_HZ);aim.required=true;aim.value=String(draft.bombChargeTicks/TICK_HZ);aim.setAttribute('aria-label','Bomb aim time (seconds)');aim.oninput=()=>{draft.bombChargeTicks=Math.round(Number(aim.value)*TICK_HZ);};aimLabel.append(aim);body.append(aimLabel,element('p','Time to reach maximum bomb distance. Lower values aim farther, faster.'));
     const configure=element('button','CONFIGURE POWERUPS');configure.onclick=powerups;body.append(configure,element('p','Gameplay changes apply next round. Match length applies next match.'));
-    const error=element('p');error.setAttribute('role','alert');const apply=element('button','SAVE SETTINGS');apply.onclick=()=>{if(!Number.isInteger(draft.length)||draft.length<1||draft.length>20){error.textContent='Choose a match length from 1 to 20.';return;}if(save(draft))close();else error.textContent='Could not save settings. Check the room connection and try again.';};body.append(error,apply);body.scrollTop=0;
+    const error=element('p');error.setAttribute('role','alert');const apply=element('button','SAVE SETTINGS');apply.onclick=()=>{if(!Number.isInteger(draft.length)||draft.length<1||draft.length>20){error.textContent='Choose a match length from 1 to 20.';return;}if(!aim.checkValidity()){error.textContent='Choose a bomb aim time from 0.1 to 2 seconds in steps of 0.05.';return;}if(save(draft))close();else error.textContent='Could not save settings. Check the room connection and try again.';};body.append(error,apply);body.scrollTop=0;
   };
   const powerups=()=>{
     body.replaceChildren(element('h2','Configure powerups'));const back=element('button','← BACK TO ROOM SETTINGS');back.onclick=main;body.append(back,element('p','Set a weight to 0 to disable a powerup. Higher weights make it more common.'));

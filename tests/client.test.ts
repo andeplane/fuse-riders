@@ -7,7 +7,7 @@ import { bombPreviewDistance } from '../src/client/bomb-preview.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
-  return { phase: 'lobby', width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [], matchStats: [] };
+  return { phase: 'lobby', bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [], matchStats: [] };
 }
 
 function playingFrame(tick: number, receivedAt: number, x: number, alive = true): SnapshotFrame {
@@ -33,7 +33,7 @@ test('LAN bomb preview uses fractional rider time with a one-tick cap and intact
   const shown = renderedSnapshot(frames, 126)!;
   const player = shown.players[0]!;
   assert.equal(player.presentationTick, 12.5);
-  assert.equal(bombPreviewDistance(player.presentationTick! - player.bombChargeStartedTick!), 131.25);
+  assert.equal(bombPreviewDistance(player.presentationTick! - player.bombChargeStartedTick!), 193.75);
   assert.equal(shown.tick, 12, 'world and discrete effects retain the authoritative tick');
   assert.equal(renderedSnapshot(frames, 9999)!.players[0]!.presentationTick, 13);
   assert.deepEqual(frames, original);
