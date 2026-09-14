@@ -20,7 +20,7 @@ Scope: the user's four online-room requests, subsequent benchmark/local-response
 
 ## Running or queued work is not passed work
 
-The root reports an isolated 30-minute soak against unchanged `66f67bd` assets is running. Final regional and public-browser acceptance is running or queued in the root's work plan; no completed final report was available to this audit. Do not mark those checks passed until outputs, exact artifact identities and assertions are inspected. The latest backend public smoke is already a completed pass, separately recorded in [GCP inventory](../online/GCP-INVENTORY.md#matching-source-update-0038-utc).
+The root reports an isolated 30-minute soak against unchanged `66f67bd` assets is running. Regional and final public-browser acceptance are queued, not running, in the root's work plan; no completed final report was available to this audit. A phone-sized browser benchmark configuration is being added for use after the soak; that work is not yet a benchmark result. Do not mark those checks passed until outputs, exact artifact identities and assertions are inspected. The latest backend public smoke is already a completed pass, separately recorded in [GCP inventory](../online/GCP-INVENTORY.md#matching-source-update-0038-utc).
 
 Even a successful existing soak has a narrower scope than the full proposed ADR032 soak: six connected contexts with one visible renderer, eliminated riders waiting for subsequent rounds, repeated ordinary steering/fire workload and bounded diagnostic queues. The harness does not measure CPU/memory growth or assert that target aiming, gun impacts, persistent shells and a shrinking arena were all exercised. It cannot alone certify those conditions, uninterrupted five-alive play, physical-device FPS or real wire loss.
 
@@ -33,6 +33,10 @@ Even a successful existing soak has a narrower scope than the full proposed ADR0
 5. **Operational limitations:** runtime subscription create/get/consume/delete permissions remain project-wide, with topic attachment/publish scoped to the game's topic. The documented residual permission risk is not a fully prefix-scoped IAM result. Rollback commands exist but an executed compatible rollback rehearsal is not recorded. Neither issue is cured by a beta label.
 
 ADR032 still labels its numeric gates proposed. This audit does not silently promote all proposals to new user requirements, waive them, or mark them passed. Before declaring full completion, record which measurable contract is accepted and supply its evidence; unverified physical/hardware gates must remain unverified if access is unavailable. The explicit direct-only decision removes WSS fallback/relay throughput and cross-person host migration from the required solution. It does **not** remove the user's poor-network, responsiveness or benchmark requests.
+
+## Achievable software checks versus external evidence
+
+The protected soak, queued regional/public-browser runs, phone-sized viewport benchmark, valid changed-pose/traffic summaries and documentation reconciliation can be completed in this environment. Physical iOS/Android touch-to-photon, hardware frame performance, lock/network transitions and verified OS-level packet impairment require device/network access not established here. Missing access leaves those claims unverified; it does not itself demonstrate a product defect. Phone-sized WebKit/Chromium is still worthwhile software evidence but cannot replace physical device measurements.
 
 ## Immediate completion sequence
 
