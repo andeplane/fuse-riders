@@ -11,14 +11,14 @@ const profiles:Profile[]=[
   {name:'poor-asymmetric',delay:75,jitter:30,loss:.03,reorder:.05,kbps:500,outageMs:3000},
 ];
 interface Injection {
-  attempted:number; delivered:number; dropped:number; expired:number; reordered:number; bytes:number; queueBytes:number; maxQueueBytes:number; relayAttempts:number; blockedUntil:number;
+  attempted:number; delivered:number; dropped:number; expired:number; reordered:number; bytes:number; queueBytes:number; maxQueueBytes:number; relayAttempts:number; blockedUntil:number; outageStartedAt:number;
   windows:Record<string,number>; active:boolean; frameMs:number[]; events:unknown[]; eventsTruncated:number;
 }
 declare global { interface Window { __networkBench: Injection } }
 /** Application-message impairment before the real SCTP send, deliberately NOT IP shaping. */
 function installImpairment({profile,seed,host,renderView}:{profile:Profile;seed:number;host:boolean;renderView:boolean}) {
   if(!renderView){const hide=()=>{for(const canvas of document.querySelectorAll('canvas'))if(!canvas.hidden)canvas.hidden=true;};new MutationObserver(hide).observe(document,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']});hide();}
-  const state:Injection={attempted:0,delivered:0,dropped:0,expired:0,reordered:0,bytes:0,queueBytes:0,maxQueueBytes:0,relayAttempts:0,blockedUntil:0,windows:{},active:false,frameMs:[],events:[],eventsTruncated:0};
+  const state:Injection={attempted:0,delivered:0,dropped:0,expired:0,reordered:0,bytes:0,queueBytes:0,maxQueueBytes:0,relayAttempts:0,blockedUntil:0,outageStartedAt:0,windows:{},active:false,frameMs:[],events:[],eventsTruncated:0};
   Object.assign(window,{__networkBench:state});
   window.addEventListener('fuse-benchmark',event=>{if(!state.active)return;const detail=(event as CustomEvent<unknown>).detail;if(state.events.length>=20000){state.eventsTruncated++;return;}state.events.push(detail);});
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
@@ -108,7 +108,7 @@ try {
       const started=Date.now();let outage=false;
       while(Date.now()-started<duration*1000){
         const elapsed=Date.now()-started;
-        if(profile.outageMs&&!outage&&elapsed>duration*500){outage=true;await pages[1]!.evaluate(ms=>{const state=window.__networkBench;state.blockedUntil=performance.now()+ms;},profile.outageMs);}
+        if(profile.outageMs&&!outage&&elapsed>duration*500){outage=true;await pages[1]!.evaluate(ms=>{const state=window.__networkBench;state.outageStartedAt=performance.now();state.blockedUntil=state.outageStartedAt+ms;},profile.outageMs);}
         // Real pointer changes on all five controllers. These are workload, not an AI survival guarantee.
         await Promise.all(pages.slice(0,5).map(async(page,i)=>{
           const control=page.getByRole('button',{name:(Math.floor(elapsed/1000)+i)%3===0?'HOLD TO FIRE':i%2?'◀':'▶',exact:true});
@@ -121,6 +121,15 @@ try {
       const injection=await Promise.all(pages.map(page=>page.evaluate(()=>window.__networkBench)));
       result={...result,injection,frameDistributions:injection.map(s=>quantiles(s.frameMs)),errors};results[results.length-1]=result;
       assert.equal(errors.length,0,'Browser error');assert.ok(injection.slice(0,5).every(s=>s.attempted>0),'Every controller must exercise RTC');assert.ok(injection.every(s=>s.relayAttempts===0),'Gameplay WSS relay attempted');assert.ok(injection.every(s=>s.maxQueueBytes<=256*1024),'Injection queue exceeded bound');
+      const finalObservations=await Promise.all(pages.map(page=>page.evaluate(()=>({now:performance.now(),events:window.__networkBench.events,outageStartedAt:window.__networkBench.outageStartedAt,outageEndedAt:window.__networkBench.blockedUntil}))));
+      const freshness=finalObservations.map(observation=>{
+        const snapshots=observation.events.filter((event):event is {kind:string;at:number;tick:number;authorityScope:string}=>!!event&&typeof event==='object'&&'kind' in event&&event.kind==='snapshot'&&'at' in event&&typeof event.at==='number'&&'tick' in event&&typeof event.tick==='number'&&'authorityScope' in event&&typeof event.authorityScope==='string');
+        const latest=snapshots.at(-1),before=snapshots.filter(sample=>sample.at<observation.outageStartedAt).at(-1),after=observation.outageEndedAt?snapshots.find(sample=>sample.at>=observation.outageEndedAt):undefined;
+        return {endAt:observation.now,lastAcceptedAt:latest?.at,lastAcceptedTick:latest?.tick,ageMs:latest?observation.now-latest.at:null,outageStartedAt:observation.outageStartedAt,outageEndedAt:observation.outageEndedAt,firstPostOutageAt:after?.at,firstPostOutageTick:after?.tick,firstPostOutageDelayMs:after?after.at-observation.outageEndedAt:null,progressedSinceOutage:!!latest&&!!before&&(latest.authorityScope!==before.authorityScope||latest.tick>before.tick)};
+      });
+      result.acceptedSnapshotFreshness=freshness;
+      assert.ok(freshness.slice(1).every(sample=>sample.ageMs!==null&&sample.ageMs>=0&&sample.ageMs<=2000),'Every guest and TV must accept a world snapshot within two seconds of test end');
+      if(profile.outageMs){assert.ok(freshness[1]!.firstPostOutageAt!==undefined,'Affected guest must accept a world snapshot after connectivity returns');assert.ok(freshness[1]!.progressedSinceOutage,'Affected guest accepted world must progress beyond pre-outage tick or scope');}
       const finalMetrics=await Promise.all(pages.map(page=>page.evaluate(()=>JSON.parse(document.querySelector<HTMLElement>('#app')?.dataset.metrics??'{}') as {direct?:number})));
       result.finalMetrics=finalMetrics;assert.ok(finalMetrics.slice(1).every(m=>(m.direct??0)>=1),'Every guest and TV must regain a healthy direct link by end of run');
       result.applicationDiagnostics=injection.map(s=>({...inspectApplicationEvents(s.events),truncated:s.eventsTruncated}));

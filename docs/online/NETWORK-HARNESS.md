@@ -27,3 +27,5 @@ Controller gestures produce a workload but do not guarantee all five riders surv
 ## Rendering-isolation diagnostic
 
 `BENCH_RENDER_SINGLE=1` keeps only guest 1's arena visible. A browser-side MutationObserver keeps the other five canvases hidden before lazy renderer startup, while their controls, RTC and host simulation continue. Periodic samples record canvas visibility, renderer kind and available renderer metrics. This is a causal diagnostic for simultaneous rendering contention on the test machine, not a replacement for the six-view workload or physical-device gates.
+
+The final application-recovery assertions require every guest/display's latest accepted snapshot to be at most two seconds old. For the deliberately blackholed guest, the harness also requires a post-outage accepted snapshot and progression beyond its pre-outage tick/scope; it records the first post-outage delay separately. Healthy RTC link counts alone are not sufficient. A failed freshness assertion remains a failure even if rendering and transport connection checks look healthy.

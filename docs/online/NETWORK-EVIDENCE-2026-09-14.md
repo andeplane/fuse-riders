@@ -56,3 +56,26 @@ Filtering **only playing snapshots where the local rider is alive**, and pooling
 | Single view/direct | 639 | 0 | 1.049 | 2.098 |
 
 These are reconciliation values sampled on accepted snapshots, with many zero-correction samples, not hardware-response measurements. Poor-profile outliers remain real recorded presentation deviations and are not erased by the inactive-phase correction finding. Whether an outlier reflects loss/resync, a previously unknown obstacle or another transition requires causal traces; this run does not establish that distinction.
+
+## Stronger world-recovery check: failure preserved
+
+A subsequent single-render, six-RTC-peer poor-profile run completed at 2026-09-14 00:00:24 UTC against revision `2ff884388cfd0930088bade0bc849bc936d46bb7`, served entry `/assets/index-WzaVZ4xd.js`, SHA-256 `b47aee145e1eddba462734a1fb5cd1e59549e1cf0ee8826cd02519a36df89ab4`. The [failed raw report](network-poor-freshness-failed-2026-09-14.json.gz) is retained separately.
+
+The harness now requires every guest and display to have accepted a world snapshot in the final two seconds. It additionally measures the deliberately blackholed guest's first accepted post-outage snapshot and requires world progression beyond its pre-outage tick/scope. These measurements use each browser's monotonic clock.
+
+**The stronger freshness assertion failed.** End-of-run accepted-world ages were:
+
+| View | Age |
+| --- | ---: |
+| Host | 59.9 ms |
+| Guest 1 (deliberate outbound blackout) | 85.4 ms |
+| Guest 2 | 1,907.7 ms |
+| Guest 3 | **2,089.3 ms** |
+| Guest 4 | 1,938.6 ms |
+| Display | **2,305.7 ms** |
+
+The deliberately affected guest accepted a progressing world **751.5 ms** after its three-second outbound blackout ended. Other peers still had stale worlds while reporting healthy direct links and permitted authority in the last periodic metrics. Therefore healthy RTC connection counts alone are insufficient recovery evidence. The exact cause of these stale streams has not been proven; chained delta loss/resync behavior is a hypothesis requiring instrumentation, not an established diagnosis.
+
+No page errors occurred and the visible guest's frame p95 was 17.7 ms, so this failure is distinct from the six-renderer frame contention. The later healthy-link assertion was not reached because the freshness assertion failed. The threshold was not relaxed or retried until a passing sample appeared.
+
+Browser traces still do not establish shot deduplication or rejection of all stale controls. Those invariants have separate typed ledger regressions in `tests/online-input-ledger.test.ts`, covering same-tick press/release, duplicate sequences, ten-tick input expiry, old-scope release rejection, disconnect/restore neutralization and bounded queues. Such unit evidence complements rather than replaces the failed browser world-freshness gate.
