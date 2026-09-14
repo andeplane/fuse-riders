@@ -78,6 +78,7 @@ export class ControllerPointerBindings {
     // and keyboard to hold the same control without releasing one another.
     const keys = new Map<string, readonly [number, ControllerControl]>([
       ['ArrowLeft', [-101, 'left']], ['ArrowRight', [-102, 'right']], ['Space', [-103, 'bomb']],
+      ['KeyA', [-104, 'left']], ['KeyD', [-105, 'right']],
     ]);
     target.addEventListener('keydown', event => {
       const key = event as KeyboardEvent;

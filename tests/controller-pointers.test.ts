@@ -33,19 +33,39 @@ function key(target: EventTarget, type: 'keydown' | 'keyup', code: string, optio
   return event;
 }
 
-test('keyboard arrows and Space share serialized steering and charge/release semantics', () => {
+for (const [left, right] of [['ArrowLeft', 'ArrowRight'], ['KeyA', 'KeyD']] as const) {
+test(`keyboard ${left}/${right} and Space share serialized steering and charge/release semantics`, () => {
   const f = fixture(); f.bindings.bindKeyboard(f.terminal, () => true);
-  assert.equal(key(f.terminal, 'keydown', 'ArrowLeft').defaultPrevented, true);
+  assert.equal(key(f.terminal, 'keydown', left).defaultPrevented, true);
   key(f.terminal, 'keydown', 'Space');
   key(f.terminal, 'keydown', 'Space', { repeat: true });
   assert.equal(f.messages.length, 2);
   assert.deepEqual(f.messages[1], { type: 'input', seq: 1, left: true, right: false, bomb: true, bombAction: 'press' });
   assert.equal(f.left.active, true); assert.equal(f.bomb.active, true);
-  key(f.terminal, 'keydown', 'ArrowRight'); key(f.terminal, 'keyup', 'ArrowLeft');
+  key(f.terminal, 'keydown', right); key(f.terminal, 'keyup', left);
   assert.equal(f.left.active, false); assert.equal(f.right.active, true);
-  key(f.terminal, 'keyup', 'Space'); key(f.terminal, 'keyup', 'ArrowRight');
+  key(f.terminal, 'keyup', 'Space'); key(f.terminal, 'keyup', right);
   assert.equal(f.messages.at(-2)!.bombAction, 'release');
   assert.equal(f.state.hasHeld(), false);
+});
+}
+
+test('arrow and letter aliases keep steering until both keys are released', () => {
+  for (const [arrow, letter, control] of [['ArrowLeft', 'KeyA', 'left'], ['ArrowRight', 'KeyD', 'right']] as const) {
+    for (const [first, second] of [[arrow, letter], [letter, arrow]]) {
+      const f = fixture(); f.bindings.bindKeyboard(f.terminal, () => true);
+      key(f.terminal, 'keydown', first); key(f.terminal, 'keydown', second);
+      key(f.terminal, 'keydown', second, { repeat: true });
+      key(f.terminal, 'keyup', first);
+      assert.equal(f.state.isHeld(control), true);
+      assert.equal(f.messages.length, 1);
+      key(f.terminal, 'keyup', second);
+      assert.deepEqual(f.messages, [
+        { type: 'input', seq: 0, left: control === 'left', right: control === 'right', bomb: false },
+        { type: 'input', seq: 1, left: false, right: false, bomb: false },
+      ]);
+    }
+  }
 });
 
 test('keyboard and pointer holds do not release each other', () => {
@@ -74,12 +94,16 @@ test('focus/lifecycle cancellation never fires or reactivates a held key on repe
 
 test('typing, disabled contexts and browser shortcuts are left alone, but keyup still releases', () => {
   const f = fixture(); let enabled = false; f.bindings.bindKeyboard(f.terminal, () => enabled);
-  assert.equal(key(f.terminal, 'keydown', 'Space').defaultPrevented, false);
+  for (const code of ['Space', 'KeyA', 'KeyD']) {
+    assert.equal(key(f.terminal, 'keydown', code).defaultPrevented, false);
+  }
   enabled = true;
   for (const modifier of ['altKey', 'ctrlKey', 'metaKey']) {
-    assert.equal(key(f.terminal, 'keydown', 'ArrowLeft', { [modifier]: true }).defaultPrevented, false);
+    for (const code of ['ArrowLeft', 'KeyA', 'KeyD']) {
+      assert.equal(key(f.terminal, 'keydown', code, { [modifier]: true }).defaultPrevented, false);
+    }
   }
-  key(f.terminal, 'keydown', 'KeyA'); key(f.terminal, 'keyup', 'KeyA');
+  key(f.terminal, 'keydown', 'KeyW'); key(f.terminal, 'keyup', 'KeyW');
   assert.equal(f.messages.length, 0);
   key(f.terminal, 'keydown', 'ArrowRight'); enabled = false;
   key(f.terminal, 'keyup', 'ArrowRight'); assert.equal(f.state.hasHeld(), false);

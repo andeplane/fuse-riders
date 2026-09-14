@@ -2,6 +2,7 @@ import { ControllerInputState, type ControllerControl } from './controller-state
 
 const keys: Readonly<Record<string, readonly [number, ControllerControl]>> = {
   ArrowLeft: [-101, 'left'], ArrowRight: [-102, 'right'], Space: [-103, 'bomb'],
+  KeyA: [-104, 'left'], KeyD: [-105, 'right'],
 };
 export interface KeyboardInputEvent {code:string;repeat:boolean;altKey?:boolean;ctrlKey?:boolean;metaKey?:boolean;preventDefault():void}
 /** Distinct contact IDs let keyboard and touch share one held-control model. */
