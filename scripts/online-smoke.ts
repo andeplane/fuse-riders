@@ -17,13 +17,13 @@ try{
   for(let i=2;i<5;i++){const context=await browser.newContext({viewport:{width:844,height:390},isMobile:true,hasTouch:true});context.setDefaultTimeout(30000);const page=await context.newPage();await page.goto(url);await page.getByPlaceholder('Your name').fill(`Rider ${i}`);await page.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();await host.locator(':is(.online-roster,.room-riders):visible').getByText(`Rider ${i}`,{exact:false}).waitFor();}
   console.log('Five riders joined');
   const startButton=host.getByRole('button',{name:'START RACE',exact:true});const startBounds=await startButton.boundingBox();assert.ok(startBounds);await host.mouse.move(startBounds.x+startBounds.width/2,startBounds.y+startBounds.height/2);await host.mouse.down();await new Promise(resolve=>setTimeout(resolve,180));await host.mouse.up();
-  await guest.locator('.online-notice').getByText('READY',{exact:false}).waitFor();
+  await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.includes('READY'));await guest.locator('.mobile-play').waitFor({state:'visible'});
   await host.screenshot({path:'artifacts/online-host.png'});await guest.screenshot({path:'artifacts/online-phone.png'});
   assert.equal(await guest.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);
   await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();
   await host.getByLabel('Match length').fill('2');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
   await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();
-  await guest.getByText('Join your friends, then start the race',{exact:true}).waitFor();
+  await guest.locator('.shared-lobby').waitFor({state:'visible'});
   console.log('Settings/reset confirmed');await guest.reload();
   await guest.locator(':is(.online-roster,.room-riders):visible').getByText('Guest',{exact:false}).waitFor();
   console.log('Guest refresh confirmed');await host.reload();
