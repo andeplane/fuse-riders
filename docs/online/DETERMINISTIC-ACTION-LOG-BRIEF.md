@@ -13,6 +13,10 @@ Initial state + versioned rules + seed + committed action log
 
 Transmit the causes of gameplay: steering changes, charge/release actions, joins and settings changes. Viewing devices derive movement, trails, projectiles, explosions, pickups and scores. Routine network traffic then scales with actions rather than the amount of accumulated world geometry. Binary encoding makes those actions compact; determinism removes the need to transmit most state in the first place.
 
+## Event-driven sends
+
+Simulation ticks do not schedule network packets. Send real input changes immediately, repair unacknowledged actions briefly, then combine clock, liveness, receipts and stream completeness into approximately one heartbeat request/reply per peer pair each second. Outcomes and endangered rollback headroom demand prompt confirmation rather than waiting for the next heartbeat. [ADR042](../adr/042-event-driven-coordination.md) specifies the exact bounds. Its heartbeat/clock foundation is implemented and reviewed; gameplay integration is still pending, so the branch currently retains separate periodic bookkeeping loops.
+
 ## Device roles and direct delivery
 
 | Role | Work and network subscription |

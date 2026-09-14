@@ -148,10 +148,10 @@ test('running clock slews in either direction at one tick per second and never m
     assert.equal(clock.accept([1, 7, 'time', probe[3], 100]), 'accepted');
     now = 100; clock.read(); probe = clock.request()!;
     assert.equal(clock.accept([1, 7, 'time', probe[3], 102 + offset]), 'accepted');
-    // Equal RTT ties retain the earlier sample until it ages out.
+    // Age-grown uncertainty now prefers the equally fast, newer sample.
     let previous = clock.read().fractionalTick;
     for (now = 200; now <= 1000; now += 100) {
-      const next = clock.read().fractionalTick; assert.equal(next, previous + 2); previous = next;
+      const next = clock.read().fractionalTick; assert.ok(Math.abs(next - (previous + 2 + Math.sign(offset) * .1)) < 1e-9); previous = next;
     }
     const before = previous;
     const next = clock.read().fractionalTick;
@@ -175,7 +175,10 @@ test('scope fences, expired and reordered replies cannot move time or refresh re
   now = 501;
   assert.equal(clock.accept([1, 7, 'time', expired[3], 110]), 'stale');
   assert.equal(clock.outstandingProbes, 0);
-  now = 1001;
+  now = 1001; assert.equal(clock.read().reason, 'ready');
+  now = 2001; assert.equal(clock.read().reason, 'ready');
+  now = 2500; assert.equal(clock.read().reason, 'ready');
+  now = 2501;
   assert.equal(clock.read().reason, 'stale'); assert.equal(clock.read().canAdvance, true);
   assert.equal(clock.read(true).canAdvance, false); assert.equal(clock.read().canOriginate, false);
 });
@@ -204,17 +207,17 @@ test('stale baseline recovery remains conservative, and a failed release cannot 
   const clock = DirectTickClock.follower(7, 100, () => now);
   let probe = clock.request()!; clock.accept([1, 7, 'time', probe[3], 100]);
   let origin = accepted(DirectOrigin.start(7, 0, 100).prepare(input(0, { bomb: true, bombAction: 'press' }), clock.read().fractionalTick)).origin;
-  now = 600; clock.read(); now = 1001;
+  now = 600; clock.read(); now = 1500; clock.read(); now = 2500; clock.read(); now = 2501;
   assert.equal(clock.read(true).canOriginate, false);
   origin = origin.suspend(); // Runtime invalidates this scope when the release cannot be timestamped.
-  assert.equal(origin.advanceWatermark(120), undefined);
-  probe = clock.request()!; assert.equal(clock.accept([1, 7, 'time', probe[3], 120.02]), 'accepted');
+  assert.equal(origin.advanceWatermark(150), undefined);
+  probe = clock.request()!; assert.equal(clock.accept([1, 7, 'time', probe[3], 150.02]), 'accepted');
   assert.equal(clock.read().canOriginate, true);
   assert.equal(origin.prepare(input(1, { bombAction: 'release' }), clock.read().fractionalTick).status, 'suspended');
   const freshOrigin = DirectOrigin.start(8, 0, 121);
   assert.deepEqual(accepted(freshOrigin.prepare(input(2, { bombAction: 'release' }), 121)).actions, []);
-  now = 1600; clock.read(); now = 2002; clock.read();
-  probe = clock.request()!; assert.equal(clock.accept([1, 7, 'time', probe[3], 147]), 'fault');
+  now = 3400; clock.read(); now = 4300; clock.read(); now = 5200; clock.read();
+  probe = clock.request()!; assert.equal(clock.accept([1, 7, 'time', probe[3], 211]), 'fault');
 });
 
 test('origin bounds unpublished tick frontiers and publishing a cut restores capacity atomically', () => {
@@ -240,7 +243,7 @@ test('expiry cannot turn an uncertain idle clock into a qualified projection', (
   probe = clock.request()!; now = 970;
   assert.equal(clock.accept([1, 7, 'time', probe[3], 84.4]), 'accepted'); assert.equal(clock.read().reason, 'uncertain');
   now = 1500; assert.equal(clock.read().canAdvance, false);
-  now = 1980; assert.equal(clock.read().reason, 'uncertain'); assert.equal(clock.read().canAdvance, false); assert.equal(clock.read().canOriginate, false);
+  now = 1980; clock.read(); now = 2900; clock.read(); now = 3471; assert.equal(clock.read().reason, 'uncertain'); assert.equal(clock.read().canAdvance, false); assert.equal(clock.read().canOriginate, false);
   assert.ok(clock.read().uncertaintyTicks > 5);
 });
 
@@ -251,6 +254,51 @@ test('uncertainty admission persists even when no read occurs before samples exp
   assert.equal(clock.accept([1, 7, 'time', probe[3], 65]), 'accepted');
   probe = clock.request()!; now = 970;
   assert.equal(clock.accept([1, 7, 'time', probe[3], 84.4]), 'accepted');
-  now = 1500; clock.request(); now = 1980; clock.request();
+  now = 1500; clock.request(); now = 1980; clock.request(); now = 2900; clock.request(); now = 3471; clock.request();
   assert.equal(clock.read().reason, 'uncertain'); assert.equal(clock.read().canAdvance, false);
+});
+
+
+test('heartbeat nonces are unique, bounded and correlated with pending clock samples', () => {
+  let now = 0; const clock = DirectTickClock.follower(7, 100, () => now);
+  assert.deepEqual(clock.request(42), [1, 7, 'clock', 42]);
+  for (const nonce of [42, 41, 0, -1, 2 ** 32, NaN]) assert.equal(clock.request(nonce), undefined);
+  assert.equal(clock.outstandingProbes, 1);
+  assert.equal(clock.accept([1, 7, 'time', 41, 100]), 'stale');
+  now = 500; assert.equal(clock.accept([1, 7, 'time', 42, 100]), 'accepted');
+  assert.equal(clock.read().reason, 'uncertain');
+  // In-flight drift already exhausts a maximum-RTT sample's uncertainty margin.
+  now = 501; assert.equal(clock.read().reason, 'uncertain');
+  assert.ok(Math.abs(clock.read().uncertaintyTicks - 5.00501) < 1e-9);
+  assert.deepEqual(clock.request(0xffff_ffff), [1, 7, 'clock', 0xffff_ffff]);
+  assert.equal(clock.request(), undefined); assert.equal(clock.read().reason, 'exhausted');
+});
+
+test('quiet clock projection grows drift uncertainty and retains it after sample expiry', () => {
+  let now = 0; const clock = DirectTickClock.follower(7, 100, () => now);
+  const probe = clock.request(1)!;
+  now = 100; assert.equal(clock.accept([1, 7, 'time', probe[3], 101]), 'accepted');
+  for (now = 600; now <= 2600; now += 500) {
+    const reading = clock.read(); assert.equal(reading.reason, 'ready');
+    assert.ok(Math.abs(reading.uncertaintyTicks - (1 + now * .00001)) < 1e-9);
+  }
+  now = 2601; const stale = clock.read(); assert.equal(stale.reason, 'stale');
+  assert.ok(stale.uncertaintyTicks > 1.026);
+  now = 3101; assert.ok(clock.read().uncertaintyTicks > stale.uncertaintyTicks);
+});
+
+
+test('drift during an asymmetric clock exchange remains inside the reported interval', () => {
+  let followerNow = 0;
+  const clock = DirectTickClock.follower(7, 100, () => followerNow);
+  const probe = clock.request()!;
+  // Request arrives immediately; the reply is delayed 500 ms while the remote
+  // oscillator advances 500 ppm faster than the observing follower's clock.
+  const tickAtReply = 100;
+  followerNow = 500;
+  const actualRemoteTick = tickAtReply + followerNow * 1.0005 / 50;
+  assert.equal(clock.accept([1, 7, 'time', probe[3], tickAtReply]), 'accepted');
+  const reading = clock.read();
+  assert.ok(Math.abs(actualRemoteTick - reading.fractionalTick) <= reading.uncertaintyTicks + 1e-10);
+  assert.equal(reading.reason, 'uncertain'); assert.equal(reading.canOriginate, false);
 });

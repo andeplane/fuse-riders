@@ -1,0 +1,55 @@
+TAP version 13
+# Subtest: six live segments independently advance and finalize continuous inputs under loss and reordering
+ok 1 - six live segments independently advance and finalize continuous inputs under loss and reordering
+  ---
+  duration_ms: 611.548834
+  ...
+# Subtest: shared TV is the only simulator while five controller origins send directly to it
+ok 2 - shared TV is the only simulator while five controller origins send directly to it
+  ---
+  duration_ms: 23.499583
+  ...
+# Subtest: coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+ok 3 - coordinator traffic is unnecessary for immediate peer actions, then clock/finality loss pauses safely
+  ---
+  duration_ms: 200.2575
+  ...
+# Subtest: provisional eliminations cannot publish death or placements before verified finality
+ok 4 - provisional eliminations cannot publish death or placements before verified finality
+  ---
+  duration_ms: 2.054958
+  ...
+# Subtest: controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+ok 5 - controller finality is coordinator-scoped and conflicting progress cannot overwrite the accepted fence
+  ---
+  duration_ms: 4.212542
+  ...
+# Subtest: asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+ok 6 - asymmetric clock samples and opposite follower errors retain valid future actions without executing early
+  ---
+  duration_ms: 345.26725
+  ...
+# Subtest: initial progress grace is bounded and replayed base cuts cannot postpone it
+ok 7 - initial progress grace is bounded and replayed base cuts cannot postpone it
+  ---
+  duration_ms: 91.393542
+  ...
+# Subtest: after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+ok 8 - after the first advancing cut, repeated old progress cannot extend the500ms silence deadline
+  ---
+  duration_ms: 38.136875
+  ...
+# Subtest: uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+ok 9 - uncertain clocks stop input, cuts and world advancement, and a failed release never revives
+  ---
+  duration_ms: 1.240125
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1469.052125

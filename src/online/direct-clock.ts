@@ -2,6 +2,9 @@ import { uint32, UINT32_MAX } from '../shared/direct-input.js';
 import { DIRECT_VERSION } from './direct-stream.js';
 
 export const MAX_CLOCK_UNCERTAINTY_TICKS = 5;
+export const CLOCK_FRESH_MS = 2500;
+/** Supported relative oscillator drift; physical-device qualification remains pending. */
+export const CLOCK_DRIFT_TICKS_PER_MS = 0.00001;
 export const MAX_ORIGIN_LEAD_TICKS = 4;
 export const FUTURE_RECORD_TICKS = 2 * MAX_CLOCK_UNCERTAINTY_TICKS + MAX_ORIGIN_LEAD_TICKS;
 
@@ -14,7 +17,7 @@ export interface DirectClockReading {
 }
 interface Sample { at: number; midpoint: number; rtt: number }
 const projected = (sample: Sample, now: number) => sample.midpoint + (now - sample.at) / 50;
-const radius = (sample: Sample) => sample.rtt / 100;
+const radius = (sample: Sample, now: number) => sample.rtt / 100 + (sample.rtt + now - sample.at) * CLOCK_DRIFT_TICKS_PER_MS;
 
 /** Independent segment time. Network replies tune the clock; they never step the world. */
 export class DirectTickClock {
@@ -45,10 +48,11 @@ export class DirectTickClock {
     const at = this.now(), elapsed = at - this.lastObserved;
     if (!Number.isFinite(at) || elapsed < 0 || elapsed > 1000) this.fault ??= 'clock-jump';
     if (this.fault) return this.lastObserved;
-    this.samples = this.samples.filter(s => at - s.at <= 1000);
+    this.uncertaintyTicks += this.leader ? 0 : elapsed * CLOCK_DRIFT_TICKS_PER_MS;
+    this.samples = this.samples.filter(s => at - s.at <= CLOCK_FRESH_MS);
     if (this.value !== undefined) {
       const baseline = this.value + elapsed / 50;
-      const best = this.best();
+      const best = this.best(at);
       const error = best ? projected(best, at) - baseline : 0;
       this.value = baseline + Math.max(-elapsed / 1000, Math.min(elapsed / 1000, error));
       if (this.value > UINT32_MAX) this.fault = 'exhausted';
@@ -58,27 +62,30 @@ export class DirectTickClock {
     for (const [id, sent] of this.pending) if (at - sent > 500) this.pending.delete(id);
     return at;
   }
-  private best(): Sample | undefined { return this.samples.reduce<Sample | undefined>((best, s) => !best || s.rtt < best.rtt ? s : best, undefined); }
+  private best(at: number): Sample | undefined { return this.samples.reduce<Sample | undefined>((best, s) => !best || radius(s, at) < radius(best, at) ? s : best, undefined); }
 
   private rememberUncertainty(at: number): void {
-    const best = this.best();
-    if (best) this.uncertaintyTicks = radius(best) + Math.abs(projected(best, at) - Math.max(this.baseTick, this.value ?? this.baseTick));
+    const best = this.best(at);
+    if (best) this.uncertaintyTicks = radius(best, at) + Math.abs(projected(best, at) - Math.max(this.baseTick, this.value ?? this.baseTick));
   }
 
   read(activeControls = false): DirectClockReading {
     const at = this.observe();
     const fractionalTick = Math.max(this.baseTick, this.value ?? this.baseTick);
-    const fresh = this.leader || at - this.lastValid <= 1000;
+    const fresh = this.leader || at - this.lastValid <= CLOCK_FRESH_MS;
     const uncertaintyTicks = this.uncertaintyTicks;
     const uncertain = uncertaintyTicks > MAX_CLOCK_UNCERTAINTY_TICKS;
     const reason = this.fault ?? (this.value === undefined ? 'sampling' : !this.started ? 'waiting' : uncertain ? 'uncertain' : !fresh ? 'stale' : 'ready');
     return { tick: Math.floor(fractionalTick), fractionalTick, canOriginate: reason === 'ready', canAdvance: !this.fault && !uncertain && this.started && (fresh || !activeControls), reason, uncertaintyTicks };
   }
-  request(): ClockProbe | undefined {
+  /** An external nonce binds the sample to its enclosing heartbeat attempt. */
+  request(nonce?: number): ClockProbe | undefined {
     const at = this.observe();
     if (this.leader || this.fault) return;
     if (this.nextId === UINT32_MAX) { this.fault = 'exhausted'; return; }
-    const id = ++this.nextId; this.pending.set(id, at);
+    const id = nonce ?? this.nextId + 1;
+    if (!uint32(id) || id <= this.nextId) return;
+    this.nextId = id; this.pending.set(id, at);
     while (this.pending.size > 8) this.pending.delete(this.pending.keys().next().value!);
     return [DIRECT_VERSION, this.segment, 'clock', id];
   }
@@ -96,9 +103,9 @@ export class DirectTickClock {
     this.pending.delete(raw[3]);
     if (raw[3] <= this.lastAccepted) return 'stale';
     const sample: Sample = { at, midpoint: raw[4] + (at - sent) / 100, rtt: at - sent };
-    const previous = this.best();
-    const difference = previous ? Math.abs(projected(previous, at) - sample.midpoint) - radius(previous) - radius(sample)
-      : this.value === undefined ? 0 : Math.abs(this.value - sample.midpoint) - radius(sample);
+    const previous = this.best(at);
+    const difference = previous ? Math.abs(projected(previous, at) - sample.midpoint) - radius(previous, at) - radius(sample, at)
+      : this.value === undefined ? 0 : Math.abs(this.value - sample.midpoint) - radius(sample, at);
     if (difference > 4) { this.fault = 'discrepancy'; return 'fault'; }
     this.samples.push(sample);
     if (this.samples.length > 8) this.samples.shift();

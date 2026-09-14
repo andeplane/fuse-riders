@@ -1,0 +1,29 @@
+{
+  "date": "2026-09-14",
+  "baseRevision": "0f2d096db20a8472d8935db6be72c0e37cbecf7e",
+  "scope": "ADR042 heartbeat and clock foundations; heartbeat runtime cutover remains pending. No browser traffic reduction or release claim.",
+  "sha256": {
+    "src/online/direct-clock.ts": "ed8617eb7579884953c79a1f5aec5a5ca84e301bc5c5404249152113b8634064",
+    "src/online/direct-heartbeat.ts": "102eaec9bf4474cb1a3f5f46c9b96ba649f3e360d12e4cc70ba7c97b9d13b822",
+    "src/online/direct-segment.ts": "f0340dbc11e2f5cc44696f710e40a5b3e92e5a091e14035a78d1072b312d0f6a",
+    "tests/direct-origin-clock.test.ts": "7cca2f7e3a52407a7f1978fdb2e32c3f0de410a0050d91d59d10dfa394f87961",
+    "tests/direct-heartbeat.test.ts": "6115a2879edb81370dd5b0b0a6eac97d5cf63056247b04e016462fd53e72a7e6",
+    "tests/direct-segment.test.ts": "4d267ba9fbcb5da7552ff52718acadc9d8ce522b31011413f2b5c110e4ca5305",
+    ".c8rc.json": "239cacc0eb3e4015d7828c1395a7189fc2114b2e5505f260b8bb661e074cdc30"
+  },
+  "checks": {
+    "fullSuite": "581 passed, zero failed; coverage 99.16% lines/statements, 94.00% branches, 98.82% functions. Final production source; before one additional clock/heartbeat integration test.",
+    "finalHeartbeat": "15 passed including additional real-clock integration test; all messages use the combined heartbeat.",
+    "typechecks": "Both main and Worker completed successfully.",
+    "build": "Completed successfully; usual bundle-size advisory.",
+    "independentReview": "41 focused tests; foundation findings closed, runtime integration pending.",
+    "sandboxAttempt": "Stopped after socket-listen EPERM prevented test completion. Also exposed old 1s clock-expiry assertion, replaced after review with explicit unchanged40tick-cap regression."
+  },
+  "commands": [
+    "node node_modules/c8/bin/c8.js node --import tsx --test tests/*.test.ts",
+    "node --import tsx --test tests/direct-heartbeat.test.ts",
+    "npm run typecheck",
+    "npm run typecheck:worker",
+    "npm run build"
+  ]
+}

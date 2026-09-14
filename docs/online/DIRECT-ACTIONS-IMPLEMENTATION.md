@@ -35,6 +35,8 @@ Both existing online room browser smokes passed after the transport change, usin
 
 ## Remaining implementation
 
+Wire the reviewed [ADR042](../adr/042-event-driven-coordination.md) heartbeat foundation into segment, finality/demand and transport orchestration, removing the separate steady bookkeeping loops. The standalone component is implemented; actual gameplay has not switched its cadence yet.
+
 Complete mixed-engine impairment, bot gameplay, reconnect/partial-mesh behavior and LAN regressions. The scripted mixed-engine full-match run below covers ordinary automatic round transitions. Checkpoint backpressure and bounded setup episodes now have the reviewed regressions described below. Source review closes the currently tested runtime defects; it does not qualify the complete replacement.
 
 Extend the five-rider-plus-TV application-byte measurement below to matched historical workloads, declared impairment profiles and a sustained soak, including input-to-render/finality latency, corrections, replay/frame time and memory. Preserve LAN regressions. Wire overhead, WAN routing and physical-phone behavior remain separately unverified. Do not reuse the prototype's 29→12.7 KB/s measurement as the expected or measured direct-mesh result.
@@ -108,3 +110,12 @@ ONLINE_URL=http://localhost:8812/ TRAFFIC_RUN=local node --import tsx scripts/di
 
 
 The first post-optimization WebKit UI flow failed during creator-refresh/shared-TV setup. A focused regression reproduced an inherited simulation recovery deadline expiring while the room intentionally waited without a display. Adopting a validated coordinator-null lobby now cancels that obsolete episode and pending delegated request, preserving corrupt-state history. The 20-second idle → TV join regression and all existing coordinator-bearing deadline cases pass independent review. The repeated WebKit room flow passed five personal views, start/settings/reset, guest/creator refresh, controller-only phones and shared-TV start/reset. This closes the reproduced idle-boundary defect; historical native RTC startup/send failures remain separately unqualified.
+
+
+## Event-driven coordination foundation
+
+[ADR042](../adr/042-event-driven-coordination.md) now specifies immediate action edges and acknowledgement-bounded repair, followed by one combined heartbeat exchange per pair per second during healthy quiet play. Outcomes and endangered rollback headroom request prompt confirmation. This replaces the current intended implementation's separate progress, receipt, clock and link-probe loops; a 20 Hz simulation does not require a 20 Hz network schedule.
+
+The reviewed standalone heartbeat component has exact bounded MessagePack tuples, pair election, fresh retry IDs, two-way acknowledgement evidence, nonce/role checks and callback-stop fences. Its real-clock integration test runs ten seconds with 22 messages total (11 request/reply exchanges) and no separate clock probes. This is deterministic component evidence, not measured runtime traffic. Clock samples now retain 2.5-second freshness with conservative 500 ppm drift uncertainty across both RTT and sample age; the five-tick uncertainty and 40-tick world cap remain. The full suite passed 581 tests at the final production source, and the final heartbeat test file passed 15 tests after one additional integration case. Both typechecks and build passed. See the [foundation manifest](direct-actions-evidence/heartbeat-foundation/manifest.json) and independent review.
+
+Runtime heartbeat adoption, atomic combined-body installation, demand/finality orchestration, probe-mode transition and protocol-rules cutover remain to implement and qualify. Current gameplay still sends separate 100 ms progress, 200 ms transport probes and 500 ms qualified clock probes. No new browser bandwidth result is claimed by this foundation checkpoint.

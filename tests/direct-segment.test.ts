@@ -96,7 +96,11 @@ test('coordinator traffic is unnecessary for immediate peer actions, then clock/
   assert.equal(room.peers.get('p2')!.world!.state.held.get(1)?.flags, 1);
   assert.equal(room.peers.get('p2')!.faultReason, undefined);
   room.advance(1200);
-  assert.ok(room.peers.get('p2')!.faultReason?.includes('clock'));
+  assert.equal(room.peers.get('p2')!.faultReason, undefined);
+  // ADR042's longer clock freshness does not extend the unchanged 40-tick world cap.
+  room.advance(700);
+  assert.equal(room.peers.get('p2')!.faultReason, 'World paused — synchronizing');
+  assert.ok(room.peers.get('p2')!.world!.state.game.tick <= room.peers.get('p2')!.finalizedTick + 40);
   assert.equal(room.peers.get('p1')!.input(1, { revision: 1, left: false, right: false, bomb: false, aim: null }), false);
 });
 
