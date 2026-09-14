@@ -41,6 +41,10 @@ jobs:
           done
           cat artifacts/worker.log
           exit 1
+      - name: Desktop keyboard steering and firing
+        run: npx tsx scripts/keyboard-smoke.ts
+        env:
+          HOME_URL: http://localhost:8787/
       # Keep five-peer functional assertions on Canvas; six software-GL views
       # overloaded the runner. Single-view Phaser remains a separate required gate.
       - name: Online WebRTC room smoke (Canvas)
@@ -60,10 +64,6 @@ jobs:
           BROWSER: webkit
       - name: Landing, offline solo and mobile menus
         run: npx tsx scripts/home-mobile-smoke.ts
-        env:
-          HOME_URL: http://localhost:8787/
-      - name: Desktop keyboard steering and firing
-        run: npx tsx scripts/keyboard-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
       - name: Landscape gameplay and touch zones
