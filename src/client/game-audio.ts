@@ -40,10 +40,10 @@ class WebAudioSynth implements GameSynth {
   stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); }
 }
 
-export function createGameAudio(): { director: AudioDirector; controls: HTMLElement; unlock: () => void } {
+export function createGameAudio(deviceLabel = 'TV'): { director: AudioDirector; controls: HTMLElement; unlock: () => void } {
   const enable = document.createElement('button');
   const showState = (ok: boolean) => {
-    const text = ok ? 'TV audio enabled · test sound' : 'Enable / resume TV audio';
+    const text = ok ? `${deviceLabel} audio enabled · test sound` : `Enable / resume ${deviceLabel} audio`;
     if (enable.textContent !== text) enable.textContent = text;
     enable.setAttribute('aria-pressed', String(ok));
   };
@@ -51,7 +51,7 @@ export function createGameAudio(): { director: AudioDirector; controls: HTMLElem
   const controls = document.createElement('details'); controls.className = 'audio-controls';
   const summary = document.createElement('summary'); summary.textContent = '♪ AUDIO'; controls.append(summary);
   const panel = document.createElement('div'); panel.className = 'audio-panel'; controls.append(panel);
-  enable.type = 'button'; enable.textContent = 'Enable TV audio'; panel.append(enable);
+  enable.type = 'button'; enable.textContent = `Enable ${deviceLabel} audio`; panel.append(enable);
   const unlock = (confirm = false) => { void director.unlock(confirm).then(showState); };
   enable.addEventListener('click', () => unlock(true));
   const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next tune (8 original tracks)';

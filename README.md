@@ -34,7 +34,9 @@ The room-creation home page requires a room service API. Use `/display` and `/co
 npm run dev:online
 ```
 
-Open **http://localhost:8787/**. Create a room, choose shared-screen or individual-device play, and share the invite link or QR code. The creator can join as a player on the same phone and use **START RACE**, **MAIN MENU**, and **ROOM SETTINGS**. **INVITE / TV** opens a separate display role for a shared screen. Use HTTPS for remote-device testing; local HTTP testing does not prove Internet connectivity.
+Open **http://localhost:8787/**. Create a room, choose shared-screen or individual-device play, and share its short code (for example **AB42**), invite link or QR code. A shared-TV lobby keeps its QR code visible until the race starts. The creator can join as a player on the same phone and use **START RACE**, **MAIN MENU**, and **ROOM SETTINGS**. **INVITE / TV** opens a separate display role for a shared screen. Use HTTPS for remote-device testing; local HTTP testing does not prove Internet connectivity.
+
+A room lasts for its hosted session, including rematches. **MENU → END ROOM** closes it immediately. If the host disconnects, it expires after a 90-second reconnect window; guests cannot keep it alive. Older ten-character links remain accepted during the transition.
 
 Room settings select first-to-N wins or a fixed number of rounds and adjust each powerup's relative weight. A weight of zero disables that drop; all zero means no random drops. Defaults and preferences are stored in the creator's browser under `fuse-riders-room-settings-v1`. Match format changes apply to the next match, and pickup-weight changes apply to the next round. Clearing browser storage loses saved preferences and room credentials.
 

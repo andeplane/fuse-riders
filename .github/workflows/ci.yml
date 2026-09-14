@@ -58,6 +58,10 @@ jobs:
         run: npx tsx scripts/phaser-browser.ts
         env:
           BROWSER: webkit
+      - name: Landing, offline solo and mobile menus
+        run: npx tsx scripts/home-mobile-smoke.ts
+        env:
+          HOME_URL: http://localhost:8787/
       - name: Incremental world consistency benchmark
         run: npx tsx scripts/benchmark-deltas.ts
       - name: Save coverage and browser evidence
