@@ -1,0 +1,20 @@
+[
+  {
+    "browser": "chrome",
+    "passed": true,
+    "shortCodePattern": true,
+    "hostQr": true,
+    "tvQr": true,
+    "startReset": true,
+    "endedWithoutReconnect": true
+  },
+  {
+    "browser": "webkit",
+    "passed": true,
+    "shortCodePattern": true,
+    "hostQr": true,
+    "tvQr": true,
+    "startReset": true,
+    "endedWithoutReconnect": true
+  }
+]

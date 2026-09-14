@@ -1,3 +1,4 @@
+import { generateRoomCode, reserveRoomCode, ROOM_RECONNECT_GRACE_MS } from '../src/shared/room-code.js';
 import { reserveAuthority, renewAuthority, type AuthorityGrant, type GrantIdentity } from '../src/online/authority.js';
 
 export interface RoomSocket {
@@ -11,6 +12,7 @@ export interface RoomStorage {
   put<T>(key:string,value:T):Promise<void>;
   setAlarm(at:number):Promise<void>;
   deleteAll():Promise<void>;
+  delete(key:string):Promise<boolean>;
   transaction<T>(callback:(storage:RoomStorage)=>Promise<T>):Promise<T>;
 }
 export interface RoomContext { storage:RoomStorage;getWebSockets():RoomSocket[];acceptWebSocket(socket:RoomSocket):void }
@@ -56,13 +58,11 @@ export default {
     if(url.pathname==='/api/rooms'&&request.method==='POST') {
       const rate=env.ROOMS.get(env.ROOMS.idFromName(`rate:${await peerId(request.headers.get('CF-Connecting-IP')??'local')}`));
       const allowance=await rate.fetch(new Request(`${url.origin}/create-limit`,{method:'POST'}));if(!allowance.ok)return allowance;
-      const code=secret().slice(0,10).toUpperCase(),token=secret();
-      const room=env.ROOMS.get(env.ROOMS.idFromName(code));
-      const result=await room.fetch(new Request(`${url.origin}/initialize`,{method:'POST',body:JSON.stringify({token})}));
-      if(!result.ok)return result;
-      return json({code,token},201);
+      const token=secret();
+      try{const code=await reserveRoomCode(async candidate=>{const room=env.ROOMS.get(env.ROOMS.idFromName(candidate));const result=await room.fetch(new Request(`${url.origin}/initialize`,{method:'POST',body:JSON.stringify({token})}));if(result.status===409)return false;if(!result.ok)throw new Error('Room initialization failed');return true;},generateRoomCode);
+      return code?json({code,token},201):json({error:'Room codes busy; please try again'},503);}catch{return json({error:'Room service unavailable'},503);}
     }
-    const match=url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{10})\/(ws|ice)$/);
+    const match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/(ws|ice|end)$/);
     if(match)return env.ROOMS.get(env.ROOMS.idFromName(match[1]!)).fetch(request);
     if(url.pathname.startsWith('/api/'))return json({error:'Not found'},404);
     return env.ASSETS.fetch(request);
@@ -84,14 +84,22 @@ export class SignalRoom {
       let body:unknown;try{body=await request.json();}catch{return json({error:'Invalid initialization'},400);}
       const token=(body as {token?:unknown}|null)?.token;
       if(typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))return json({error:'Invalid identity'},400);
+      const incarnation=this.dependencies.token();
       const initialized=await this.ctx.storage.transaction(async storage=>{
-        if(await storage.get('host'))return false;
-        await storage.put('host',token);await storage.put('incarnation',this.dependencies.token());await storage.put('connections',{});
-        await storage.setAlarm(now+24*60*60*1000);return true;
+        const deadline=await storage.get<number>('expiresAt');if(await storage.get('host')&&(deadline===undefined||deadline>now))return false;
+        await storage.delete('authority');
+        await storage.put('host',token);await storage.put('incarnation',incarnation);await storage.put('connections',{});
+        await storage.put('expiresAt',now+ROOM_RECONNECT_GRACE_MS);await storage.setAlarm(now+ROOM_RECONNECT_GRACE_MS);return true;
       });
       return initialized?json({ok:true}):json({error:'Room exists'},409);
     }
-    const host=await this.ctx.storage.get<string>('host');if(!host)return json({error:'Room expired or not found'},404);
+    const host=await this.ctx.storage.get<string>('host');if(!host)return this.expiredResponse(request);
+    if(url.pathname.endsWith('/end')&&request.method==='POST'){
+      const capability=request.headers.get('Authorization')?.replace(/^Bearer /,'')??'';
+      const ended=await this.ctx.storage.transaction(async storage=>{if(await storage.get<string>('host')!==capability)return false;await storage.put('expiresAt',now);await storage.setAlarm(now);return true;});
+      if(!ended)return json({error:'Only the host can end this room'},403);for(const socket of this.ctx.getWebSockets())socket.close(4004,'Room ended');return json({ok:true});
+    }
+    if(await this.expired(now))return this.expiredResponse(request);
     const token=url.searchParams.get('token')??'';
     if(!/^[a-f0-9]{64}$/.test(token))return json({error:'Invalid identity'},401);
     const id=await peerId(token);
@@ -104,18 +112,19 @@ export class SignalRoom {
       const body=await response.json() as {iceServers:unknown};return json({iceServers:body.iceServers,relayConfigured:true});
     }
     if(request.headers.get('Upgrade')!=='websocket')return json({error:'WebSocket required'},426);
-    const connectionId=this.dependencies.token(),hostId=await peerId(host);
+    const connectionId=this.dependencies.token(),hostId=await peerId(host),newIncarnation=this.dependencies.token(),grantId=this.dependencies.token();
     const admission=await this.ctx.storage.transaction(async storage=>{
+      if((await storage.get<number>('expiresAt')??0)<=this.dependencies.now()||await storage.get<string>('host')!==host)return;
       const members=await storage.get<Membership>('connections')??{};
       // A room created on a phone must retain its creator's connection slot
       // even when invitations are opened before the creator connects.
       const capacity=token===host||members[hostId]?6:5;
       if(Object.keys(members).length>=capacity&&!members[id])return;
       // Existing v1 rooms require a fresh incarnation on their first v2 connection.
-      const incarnation=await storage.get<string>('incarnation')??this.dependencies.token();
+      const incarnation=await storage.get<string>('incarnation')??newIncarnation;
       await storage.put('incarnation',incarnation);
       let grant=await storage.get<AuthorityGrant>('authority');
-      if(token===host){grant=reserveAuthority(grant,incarnation,connectionId,this.dependencies.token(),this.dependencies.now());await storage.put('authority',grant);}
+      if(token===host){grant=reserveAuthority(grant,incarnation,connectionId,grantId,this.dependencies.now());await storage.put('authority',grant);await storage.put('expiresAt',this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);await storage.setAlarm(this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);}
       members[id]=connectionId;await storage.put('connections',members);return{members,grant};
     });
     if(!admission)return json({error:'Room connection limit (5 players and TV)'},429);
@@ -133,7 +142,7 @@ export class SignalRoom {
     const sender=identity(ws);if(!sender){ws.close(4001,'Identity expired');return;}
     const members=await this.ctx.storage.get<Membership>('connections')??{};
     if(members[sender.id]!==sender.connectionId){ws.close(4001,'Reconnected elsewhere');return;}
-    const now=this.dependencies.now();
+    const now=this.dependencies.now();if(await this.expired(now)){ws.close(4004,'Room expired');return;}
     if(now-sender.window>=1000){sender.window=now;sender.count=0;sender.bytes=0;}
     sender.count++;sender.bytes+=new TextEncoder().encode(raw).byteLength;
     // A host fans out five world streams plus control/probe messages.
@@ -143,7 +152,8 @@ export class SignalRoom {
       if(!((typeof message.id==='string'&&message.id.length>0&&message.id.length<=64)||(typeof message.id==='number'&&Number.isSafeInteger(message.id)&&message.id>=0))||typeof message.sentAt!=='number'||!Number.isFinite(message.sentAt)||message.sentAt<0)return;
       const result=await this.ctx.storage.transaction(async storage=>{
         const currentMembers=await storage.get<Membership>('connections')??{};
-        if(currentMembers[sender.id]!==sender.connectionId)return;
+        if(currentMembers[sender.id]!==sender.connectionId||(await storage.get<number>('expiresAt')??0)<=this.dependencies.now())return;
+        if(sender.host){await storage.put('expiresAt',this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);await storage.setAlarm(this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);}
         let grant=await storage.get<AuthorityGrant>('authority'),renewed=false;
         if(sender.host&&grant&&grant.holder===sender.connectionId&&grantIdentity(message.renew)){
           const update=renewAuthority(grant,message.renew,this.dependencies.now());
@@ -169,16 +179,26 @@ export class SignalRoom {
     const members=await this.ctx.storage.transaction(async storage=>{
       const members=await storage.get<Membership>('connections')??{};
       if(members[departed.id]!==departed.connectionId)return;
-      delete members[departed.id];await storage.put('connections',members);return members;
+      delete members[departed.id];await storage.put('connections',members);const deadline=await storage.get<number>('expiresAt');if(departed.host&&deadline!==undefined&&deadline>this.dependencies.now()){await storage.put('expiresAt',this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);await storage.setAlarm(this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);}return members;
     });
     if(members)this.broadcast({type:'peer',id:departed.id,connectionId:departed.connectionId,online:false},members,ws);
   }
   async webSocketError(ws:RoomSocket):Promise<void>{await this.webSocketClose(ws);}
   private currentSockets(members:Membership):RoomSocket[]{return this.ctx.getWebSockets().filter(ws=>{const peer=identity(ws);return !!peer&&members[peer.id]===peer.connectionId;});}
   private broadcast(message:unknown,members:Membership,except?:RoomSocket){for(const ws of this.currentSockets(members))if(ws!==except)try{ws.send(JSON.stringify(message));}catch{}}
+  private expiredResponse(request:Request):Response{
+    if(request.headers.get('Upgrade')!=='websocket')return json({error:'Room expired or not found'},404);
+    const {client,server}=this.dependencies.pair();this.ctx.acceptWebSocket(server);server.close(4004,'Room ended or expired');return this.dependencies.upgrade(client);
+  }
+  private async expired(now:number):Promise<boolean>{
+    const deadline=await this.ctx.storage.get<number>('expiresAt');
+    if(deadline!==undefined)return deadline<=now;
+    // Legacy rooms acquire a bounded grace period on their first upgraded request.
+    await this.ctx.storage.put('expiresAt',now+ROOM_RECONNECT_GRACE_MS);await this.ctx.storage.setAlarm(now+ROOM_RECONNECT_GRACE_MS);return false;
+  }
   async alarm():Promise<void>{
-    const members=await this.ctx.storage.get<Membership>('connections')??{};
-    if(this.currentSockets(members).length){await this.ctx.storage.setAlarm(this.dependencies.now()+60*60*1000);return;}
-    await this.ctx.storage.deleteAll();
+    const deadline=await this.ctx.storage.get<number>('expiresAt');
+    if(deadline!==undefined&&deadline>this.dependencies.now()){await this.ctx.storage.setAlarm(deadline);return;}
+    for(const socket of this.ctx.getWebSockets())socket.close(4004,'Room expired');await this.ctx.storage.deleteAll();
   }
 }

@@ -11,6 +11,7 @@ class MemoryStorage implements RoomStorage {
   async put<T>(key:string,value:T):Promise<void>{this.values.set(key,structuredClone(value));}
   async setAlarm(at:number):Promise<void>{this.alarm=at;}
   async deleteAll():Promise<void>{this.values.clear();}
+  async delete(key:string):Promise<boolean>{return this.values.delete(key);}
   transaction<T>(callback:(storage:RoomStorage)=>Promise<T>):Promise<T>{
     const result=this.queue.then(async()=>{const before=structuredClone(this.values);try{return await callback(this);}catch(error){this.values=before;throw error;}});
     this.queue=result.catch(()=>undefined);return result;
@@ -129,3 +130,7 @@ test('Worker rejects gameplay relay even between valid host and guest sockets',a
   await f.room.webSocketMessage(guest,JSON.stringify({type:'relay',to:host.last('welcome')!.id,data:{type:'command'}}));
   assert.equal(host.last('relay'),undefined);
 });
+
+test('Worker expires at90seconds without host heartbeat even while guests keep sending',async()=>{const f=await fixture();await f.join(hostToken);const guest=await f.join(guestToken);const deadline=await f.storage.get<number>('expiresAt');for(let i=0;i<4;i++){f.advance(20_000);await f.time(guest);assert.equal(await f.storage.get('expiresAt'),deadline);}f.advance(10_000);const response=await f.room.fetch(new Request(`https://game.test/api/rooms/AB42/ws?token=${hostToken}`,{headers:{Upgrade:'websocket'}}));assert.equal(response.status,200);assert.equal(f.sockets.at(-1)?.closes.at(-1)?.code,4004);await f.room.webSocketMessage(guest,JSON.stringify({type:'time',id:99,sentAt:0}));assert.equal(guest.closes.at(-1)?.code,4004);await f.room.alarm();assert.equal(await f.storage.get('host'),undefined);});
+test('Worker end requires host capability and code reuse clears prior authority',async()=>{const f=await fixture();const host=await f.join(hostToken);const previous=grant(host);const end=(token:string)=>f.room.fetch(new Request('https://game.test/api/rooms/AB42/end',{method:'POST',headers:{Authorization:`Bearer ${token}`}}));assert.equal((await end(guestToken)).status,403);assert.equal((await end(hostToken)).status,200);assert.equal((await end(hostToken)).status,200);assert.equal((await f.initialize()).status,200);const next=await f.join(hostToken);assert.notEqual(grant(next).incarnation,previous.incarnation);assert.equal(grant(next).epoch,1);await f.room.webSocketClose(host);assert.equal(await f.storage.get('expiresAt'),f.now()+90_000);});
+test('Worker current host heartbeats extend deadline while stale closes do not',async()=>{const f=await fixture();const first=await f.join(hostToken);f.advance(20_000);await f.time(first,grant(first));assert.equal(await f.storage.get('expiresAt'),f.now()+90_000);const replacement=await f.join(hostToken);const deadline=await f.storage.get('expiresAt');f.advance(1000);await f.room.webSocketClose(first);assert.equal(await f.storage.get('expiresAt'),deadline);await f.room.webSocketClose(replacement);assert.equal(await f.storage.get('expiresAt'),f.now()+90_000);});

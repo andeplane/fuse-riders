@@ -1,3 +1,4 @@
+import { ROOM_RECONNECT_GRACE_MS, validRoomCode, reserveRoomCode, generateRoomCode } from '../shared/room-code.js';
 import { createHash } from 'node:crypto';
 import { isAuthorityGrant, reserveAuthority, renewAuthority, type AuthorityGrant, type GrantIdentity } from '../online/authority.js';
 
@@ -11,17 +12,25 @@ export interface RoomDatabase {
 }
 export interface RoomStoreDependencies { now:()=>number;id:()=>string }
 export const CONNECTION_TTL_MS=30_000;
-export const ROOM_TTL_MS=24*60*60*1000;
+export const ROOM_TTL_MS=ROOM_RECONNECT_GRACE_MS;
 export const digest=(token:string):string=>createHash('sha256').update(token).digest('hex');
 export const peerId=(token:string):string=>digest(token).slice(0,24);
 export const validToken=(token:string):boolean=>/^[a-f0-9]{64}$/.test(token);
-export const validCode=(code:string):boolean=>/^[A-Z0-9]{10}$/.test(code);
+export const validCode=validRoomCode;
 export class RoomError extends Error { constructor(readonly status:number,message:string){super(message);} }
 const clone=(room:RoomRecord):RoomRecord=>structuredClone(room);
 function live(room:RoomRecord|undefined,now:number):RoomRecord { if(!room||room.expiresAt<=now)throw new RoomError(404,'Room expired or not found');return clone(room); }
 function prune(room:RoomRecord,now:number):void {for(const [id,member] of Object.entries(room.members))if(member.expiresAt<=now)delete room.members[id];}
 export class RoomStore {
   constructor(readonly database:RoomDatabase,private dependencies:RoomStoreDependencies){}
+  async createAvailable(token:string,nextCode:()=>string=generateRoomCode):Promise<string>{
+    const code=await reserveRoomCode(async candidate=>{try{await this.create(candidate,token);return true;}catch(error){if(error instanceof RoomError&&error.status===409)return false;throw error;}},nextCode);
+    if(!code)throw new RoomError(503,'Room codes busy; please try again');return code;
+  }
+  async end(code:string,token:string):Promise<void>{
+    if(!validCode(code)||!validToken(token))throw new RoomError(401,'Invalid identity');
+    await this.database.transact(code,current=>{if(!current)throw new RoomError(404,'Room expired or not found');if(current.hostHash!==digest(token))throw new RoomError(403,'Only the host can end this room');const room=clone(current);room.expiresAt=Math.min(room.expiresAt,this.dependencies.now());room.revision++;return{room,result:undefined};});
+  }
   async create(code:string,token:string):Promise<void>{
     if(!validCode(code)||!validToken(token))throw new RoomError(400,'Invalid room identity');
     const incarnation=this.dependencies.id();
@@ -38,7 +47,7 @@ export class RoomStore {
       const host=digest(token)===room.hostHash,capacity=host||room.members[room.hostId]?6:5;
       if(Object.keys(room.members).length>=capacity&&!room.members[id])throw new RoomError(429,'Room full (five players and TV)');
       const member:Member={id,connectionId,gatewayId,host,expiresAt:now+CONNECTION_TTL_MS};
-      room.members[id]=member;room.revision++;room.expiresAt=now+ROOM_TTL_MS;
+      room.members[id]=member;room.revision++;if(host)room.expiresAt=now+ROOM_TTL_MS;
       if(host)room.grant=reserveAuthority(room.grant,room.incarnation,connectionId,grantId,now);
       return{room,result:{room:clone(room),member}};
     });
@@ -49,14 +58,14 @@ export class RoomStore {
       if(room.members[member.id]?.connectionId!==member.connectionId)throw new RoomError(409,'Reconnected elsewhere');
       const stored=room.members[member.id];if(stored.expiresAt<=now)throw new RoomError(410,'Connection lease expired');
       if(member.host&&renew&&room.grant){const updated=renewAuthority(room.grant,renew,now);if(updated)room.grant=updated;}
-      stored.expiresAt=now+CONNECTION_TTL_MS;room.expiresAt=now+ROOM_TTL_MS;room.revision++;
+      stored.expiresAt=now+CONNECTION_TTL_MS;if(stored.host)room.expiresAt=now+ROOM_TTL_MS;room.revision++;
       return{room,result:clone(room)};
     });
   }
   async leave(code:string,member:Member):Promise<void>{
     await this.database.transact(code,current=>{
       if(!current||current.members[member.id]?.connectionId!==member.connectionId)return{result:undefined};
-      const room=clone(current);delete room.members[member.id];room.revision++;return{room,result:undefined};
+      const room=clone(current);delete room.members[member.id];if(member.host&&room.expiresAt>this.dependencies.now())room.expiresAt=this.dependencies.now()+ROOM_TTL_MS;room.revision++;return{room,result:undefined};
     });
   }
   async get(code:string):Promise<RoomRecord>{return live(await this.database.read(code),this.dependencies.now());}

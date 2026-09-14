@@ -1,9 +1,9 @@
 import { RoomError, RoomStore, isGrantIdentity, type RoomRecord, type Member } from './room-store.js';
 import { BUS_FRAME_TTL_MS, type RoomBus, type RoutedMessage } from './room-bus.js';
 export interface GatewaySocket {send(raw:string):void;close(code:number,reason:string):void;bufferedAmount:number}
-export interface GatewayDependencies {now:()=>number;id:()=>string;error:(kind:string,error:unknown)=>void}
-interface Client {room:string;member:Member;socket:GatewaySocket;window:number;count:number;bytes:number;chain:Promise<void>;pending:number}
-interface View {room:RoomRecord;stop:()=>void}
+export interface GatewayDependencies {now:()=>number;id:()=>string;error:(kind:string,error:unknown)=>void;schedule?:(callback:()=>void,delayMs:number)=>()=>void}
+interface Client {room:string;incarnation:string;member:Member;socket:GatewaySocket;window:number;count:number;bytes:number;chain:Promise<void>;pending:number}
+interface View {room:RoomRecord;stop:()=>void;cancelExpiry?:()=>void}
 export type GatewayState='idle'|'starting'|'ready'|'draining'|'failed';
 /** Local sockets only; Firestore owns membership and the addressed bus reaches other processes. */
 export class RoomGateway {
@@ -24,15 +24,17 @@ export class RoomGateway {
         try{await this.bus.start(message=>this.deliver(message),error=>this.fail('bus',error));this.stateValue='ready';}
         catch(error){this.stateValue='failed';throw error;}
       }
+      const priorIncarnation=this.views.get(code)?.room.incarnation;
       let admission:Awaited<ReturnType<RoomStore['admit']>>;
       try{admission=await this.store.admit(code,token,this.id);}catch(error){if(this.clients.size===0)await this.drain();throw error;}
-      const {room,member}=admission,client:Client={room:code,member,socket,window:this.deps.now(),count:0,bytes:0,chain:Promise.resolve(),pending:0};
+      const currentView=this.views.get(code);if(priorIncarnation&&currentView&&currentView.room.incarnation!==priorIncarnation&&admission.room.incarnation===priorIncarnation)throw new RoomError(404,'Room ended during admission');
+      const {room,member}=admission,client:Client={room:code,incarnation:room.incarnation,member,socket,window:this.deps.now(),count:0,bytes:0,chain:Promise.resolve(),pending:0};
       this.clients.set(member.connectionId,client);
       this.send(client,{type:'welcome',protocol:2,id:member.id,hostId:room.hostId,connectionId:member.connectionId,peers:Object.values(room.members).filter(p=>p.connectionId!==member.connectionId&&p.expiresAt>this.deps.now()).map(p=>({id:p.id,connectionId:p.connectionId})),grant:room.grant});
       if(this.views.has(code))this.observe(code,room);
       else{
         const view:View={room,stop:()=>{}};this.views.set(code,view);
-        view.stop=this.store.database.watch(code,current=>this.observe(code,current),error=>this.fail('metadata',error));
+        this.watchView(code,view);this.scheduleExpiry(code,view);
       }
       return member.connectionId;
     });
@@ -44,7 +46,7 @@ export class RoomGateway {
     const now=this.deps.now();if(now-client.window>=1000){client.window=now;client.count=0;client.bytes=0;}
     if(++client.count>(client.member.host?400:100)||(client.bytes+=bytes)>(client.member.host?2_000_000:256_000)||++client.pending>64){client.socket.close(1008,'Rate limit');void this.disconnect(connectionId);return Promise.resolve();}
     const result=client.chain.then(()=>this.handle(client,raw));
-    client.chain=result.catch(error=>{this.deps.error('message',error);client.socket.close(error instanceof RoomError&&error.status===409?4001:4000,'Room connection interrupted');void this.disconnect(connectionId);}).finally(()=>{client.pending--;});
+    client.chain=result.catch(error=>{this.deps.error('message',error);client.socket.close(error instanceof RoomError&&error.status===404?4004:error instanceof RoomError&&error.status===409?4001:4000,'Room connection interrupted');void this.disconnect(connectionId);}).finally(()=>{client.pending--;});
     return client.chain;
   }
   private async handle(client:Client,raw:string):Promise<void>{
@@ -52,10 +54,12 @@ export class RoomGateway {
     let data:unknown;try{data=JSON.parse(raw);}catch{return;}
     if(!data||typeof data!=='object'||Array.isArray(data))return;const m=data as Record<string,unknown>;
     const room=this.views.get(client.room)?.room;
-    if(!room||room.members[client.member.id]?.connectionId!==client.member.connectionId||room.members[client.member.id].expiresAt<=this.deps.now())throw new RoomError(409,'Connection replaced');
+    if(!room||room.expiresAt<=this.deps.now())throw new RoomError(404,'Room expired');
+    if(room.members[client.member.id]?.connectionId!==client.member.connectionId||room.members[client.member.id].expiresAt<=this.deps.now())throw new RoomError(409,'Connection replaced');
     if(m.type==='time'){
       if(!((typeof m.id==='string'&&m.id.length>0&&m.id.length<=64)||(Number.isSafeInteger(m.id)&&Number(m.id)>=0))||typeof m.sentAt!=='number'||!Number.isFinite(m.sentAt)||m.sentAt<0)return;
       const current=await this.store.time(client.room,client.member,isGrantIdentity(m.renew)?m.renew:undefined);
+      if(this.clients.get(client.member.connectionId)!==client||this.views.get(client.room)?.room.incarnation!==client.incarnation||current.incarnation!==client.incarnation)return;
       this.observe(client.room,current);
       this.send(client,{type:'time',id:m.id,sentAt:m.sentAt,serviceTime:this.deps.now(),grant:current.grant});return;
     }
@@ -64,18 +68,18 @@ export class RoomGateway {
     if(!validSignal(m.data))return;
     let current=room,target=current.members[m.to];
     // Only a connection transition needs an authoritative metadata refresh; no database read per input.
-    if(!target||(m.targetConnectionId!==undefined&&target.connectionId!==m.targetConnectionId)){current=await this.store.get(client.room);this.observe(client.room,current);target=current.members[m.to];}
+    if(!target||(m.targetConnectionId!==undefined&&target.connectionId!==m.targetConnectionId)){current=await this.store.get(client.room);if(this.clients.get(client.member.connectionId)!==client||this.views.get(client.room)?.room.incarnation!==client.incarnation||current.incarnation!==client.incarnation)return;this.observe(client.room,current);target=current.members[m.to];}
     if(!target||target.expiresAt<=this.deps.now()||(m.targetConnectionId!==undefined&&m.targetConnectionId!==target.connectionId)||(!client.member.host&&!target.host)||current.members[client.member.id]?.connectionId!==client.member.connectionId)return;
     const routed:RoutedMessage={id:this.deps.id(),code:client.room,incarnation:current.incarnation,destination:target.gatewayId,from:client.member,to:target,expiresAt:this.deps.now()+BUS_FRAME_TTL_MS,wire:{type:'signal',from:client.member.id,connectionId:client.member.connectionId,data:m.data}};
     if(target.gatewayId===this.id)await this.deliver(routed);else await this.bus.publish(routed);
   }
   private observe(code:string,room:RoomRecord|undefined):void{
-    const view=this.views.get(code);if(!view)return;
+    let view=this.views.get(code);if(!view)return;
     if(room&&room.revision<=view.room.revision&&room.incarnation===view.room.incarnation)return;
     const previous=view.room;
-    if(room)view.room=room;
+    if(room){if(room.incarnation!==previous.incarnation){view.stop();view.cancelExpiry?.();view={room,stop:()=>{}};this.views.set(code,view);this.watchView(code,view);}else view.room=room;this.scheduleExpiry(code,view);}
     for(const client of this.clients.values())if(client.room===code){
-      if(!room||room.incarnation!==previous.incarnation||room.members[client.member.id]?.connectionId!==client.member.connectionId){client.socket.close(4001,'Reconnected elsewhere');void this.disconnect(client.member.connectionId);continue;}
+      if(!room||room.expiresAt<=this.deps.now()||room.incarnation!==client.incarnation||room.members[client.member.id]?.connectionId!==client.member.connectionId){client.socket.close(!room||room.expiresAt<=this.deps.now()?4004:4001,!room||room.expiresAt<=this.deps.now()?'Room ended or expired':'Reconnected elsewhere');void this.disconnect(client.member.connectionId);continue;}
       for(const old of Object.values(previous.members))if(old.id!==client.member.id&&!room.members[old.id])this.send(client,{type:'peer',id:old.id,connectionId:old.connectionId,online:false});
       for(const next of Object.values(room.members))if(next.id!==client.member.id&&previous.members[next.id]?.connectionId!==next.connectionId)this.send(client,{type:'peer',id:next.id,connectionId:next.connectionId,online:true});
       if(JSON.stringify(previous.grant)!==JSON.stringify(room.grant))this.send(client,{type:'authority',grant:room.grant});
@@ -88,18 +92,32 @@ export class RoomGateway {
     if(this.seen.has(message.id))return;
     if(this.seen.size>=4096){this.fail('bus-overflow',new Error('Deduplication capacity'));return;}
     let room=this.views.get(message.code)?.room;
-    if(!room||room.incarnation!==message.incarnation)return;
-    if(room.members[message.from.id]?.connectionId!==message.from.connectionId){room=await this.store.get(message.code);this.observe(message.code,room);}
-    if(room.incarnation!==message.incarnation||room.members[message.from.id]?.connectionId!==message.from.connectionId||room.members[message.to.id]?.connectionId!==message.to.connectionId||(!message.from.host&&!message.to.host))return;
+    if(!room||room.expiresAt<=this.deps.now()||room.incarnation!==message.incarnation)return;
+    if(room.members[message.from.id]?.connectionId!==message.from.connectionId){room=await this.store.get(message.code);if(this.clients.get(message.to.connectionId)!==client||this.views.get(message.code)?.room.incarnation!==message.incarnation||room.incarnation!==message.incarnation)return;this.observe(message.code,room);}
+    if(room.expiresAt<=this.deps.now()||room.incarnation!==message.incarnation||room.members[message.from.id]?.connectionId!==message.from.connectionId||room.members[message.to.id]?.connectionId!==message.to.connectionId||(!message.from.host&&!message.to.host))return;
     this.seen.set(message.id,message.expiresAt);
     // observe above sends peer connection replacement before this source's first frame.
     this.send(client,message.wire);
+  }
+  private watchView(code:string,view:View):void{view.stop=this.store.database.watch(code,current=>{if(this.views.get(code)===view)this.observe(code,current);},error=>{if(this.views.get(code)===view)this.fail('metadata',error);});}
+  private scheduleExpiry(code:string,view:View):void{
+    view.cancelExpiry?.();
+    const incarnation=view.room.incarnation;
+    const same=()=>this.views.get(code)===view&&view.room.incarnation===incarnation;
+    const close=(status:number)=>{if(!same())return;for(const client of this.clients.values())if(client.room===code&&client.incarnation===incarnation){client.socket.close(status,status===4004?'Room expired':'Room connection interrupted');void this.disconnect(client.member.connectionId);}};
+    const expire=()=>{
+      if(!same())return;if(view.room.expiresAt>this.deps.now()){this.scheduleExpiry(code,view);return;}
+      // One metadata recheck at expiry prevents a delayed watch from falsely terminating a renewed room.
+      void this.store.get(code).then(current=>{if(!same())return;if(current.incarnation!==incarnation){close(4004);return;}this.observe(code,current);if(same())this.scheduleExpiry(code,view);}).catch(error=>{close(error instanceof RoomError&&error.status===404?4004:1012);});
+    };
+    const delay=Math.max(0,view.room.expiresAt-this.deps.now());
+    if(this.deps.schedule)view.cancelExpiry=this.deps.schedule(expire,delay);else{const timer=setTimeout(expire,delay);timer.unref();view.cancelExpiry=()=>clearTimeout(timer);}
   }
   async disconnect(connectionId:string):Promise<void>{
     return this.serial(async()=>{
       const client=this.clients.get(connectionId);if(!client)return;this.clients.delete(connectionId);
       try{await this.store.leave(client.room,client.member);}catch(error){this.deps.error('leave',error);}
-      if(![...this.clients.values()].some(c=>c.room===client.room)){this.views.get(client.room)?.stop();this.views.delete(client.room);}
+      if(![...this.clients.values()].some(c=>c.room===client.room)){this.views.get(client.room)?.stop();this.views.get(client.room)?.cancelExpiry?.();this.views.delete(client.room);}
       if(this.clients.size===0)await this.drain();
     });
   }

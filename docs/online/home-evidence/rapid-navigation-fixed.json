@@ -1,0 +1,263 @@
+[
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/rider.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/bomb.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-stopwatch.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-gun.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-shell.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-target.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-blast.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-star.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-beer.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-ink.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-triple.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-five.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-orbitShield.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/neon-pixel/pickup-portal.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/rider.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/bomb.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-stopwatch.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-gun.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-shell.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-target.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-blast.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-star.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-beer.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-ink.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-triple.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-five.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-orbitShield.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-click",
+    "type": "xhr",
+    "path": "/themes/clean-neon/pickup-portal.svg",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  },
+  {
+    "kind": "requestfailed",
+    "phase": "rapid-solo-reload",
+    "type": "script",
+    "path": "/assets/arena-CN-ne1YF.js",
+    "failure": {
+      "errorText": "cancelled"
+    }
+  }
+]

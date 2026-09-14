@@ -56,7 +56,7 @@ try{
   const [a,b]=await Promise.all([gateway(),gateway()]);assert.notEqual(a,b);checked('two separate Node gateway processes started');
   const denied=await fetch(`${a}/api/rooms`,{method:'POST',headers:{Origin:'https://invalid.example'}});assert.equal(denied.status,403);
   const response=await fetch(`${a}/api/rooms`,{method:'POST',headers:{Origin:'http://localhost'}});assert.equal(response.status,201);assert.equal(response.headers.get('Access-Control-Allow-Origin'),'http://localhost');
-  const room=await response.json() as {code:string;token:string};assert.match(room.code,/^[A-Z0-9]{10}$/);checked('real Firestore room create and Origin boundary');
+  const room=await response.json() as {code:string;token:string};assert.match(room.code,/^[A-Z]{2}[0-9]{2}$/);checked('real Firestore room create and Origin boundary');
   const host=open(a,room.code,room.token),hostWelcome=await host.frame('welcome');assert.equal(hostWelcome.protocol,2);
   const guestToken=randomBytes(32).toString('hex'),guest=open(b,room.code,guestToken),guestWelcome=await guest.frame('welcome');
   await host.frame('peer',frame=>frame.connectionId===guestWelcome.connectionId);checked('cross-process membership watcher and v2 welcome');

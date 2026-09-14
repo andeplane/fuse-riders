@@ -1,3 +1,4 @@
+import { validRoomCode } from '../shared/room-code.js';
 import { startAttract } from './attract.js';
 import { LocalRuntime } from './local-runtime.js';
 import type { Callbacks } from './runtime.js';
@@ -42,11 +43,11 @@ export async function startOnline():Promise<void>{
       <aside class="landing-live"><span class="live-dot"></span> LIVE AI FREE-FOR-ALL <small>Real riders. Real explosions.</small></aside>
       <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
     const form=card.querySelector<HTMLElement>('.landing-multiplayer')!;
-    const mode=node('select');for(const [value,label] of [['devices','Everyone plays on their device'],['shared','We share a TV / big screen']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=loadRoomSettings(localStorage).mode;
+    const mode=node('select');for(const [value,label] of [['devices','Each device'],['shared','Shared TV']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=loadRoomSettings(localStorage).mode;
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
     const error=node('p');
     create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=mode.value as RoomSettings['mode'];save(SETTINGS_KEY,JSON.stringify(settings));location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
-    join.onclick=()=>{const value=input.value.trim().toUpperCase();if(/^[A-Z0-9]{10}$/.test(value))location.href=appUrl(`?room=${value}`);else error.textContent='Enter the 10-character room code';};
+    join.onclick=()=>{const value=input.value.trim().toUpperCase();if(validRoomCode(value))location.href=appUrl(`?room=${value}`);else error.textContent='Enter a room code, for example AB42';};
     mode.setAttribute('aria-label','Where will you play?');input.setAttribute('aria-label','Room code');error.setAttribute('role','alert');
     const createRow=node('div','','landing-create');createRow.append(mode,create);
     const joinRow=node('div','','landing-join');joinRow.append(input,join);input.onkeydown=event=>{if(event.key==='Enter')join.click();};
@@ -56,7 +57,7 @@ export async function startOnline():Promise<void>{
     window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
-  if(!solo&&!/^[A-Z0-9]{10}$/.test(code)){app.textContent='Invalid room code';return;}
+  if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
   const identityKey=`fuse-room-${code}`;const token=solo?'':displayOnlyToken();
   function displayOnlyToken(){if(url.searchParams.has('display'))return secret();const token=read(identityKey)??secret();save(identityKey,token);return token;}
   let id='',isHost=false,joined=false,avatar:AvatarId|undefined,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
@@ -70,6 +71,7 @@ export async function startOnline():Promise<void>{
   header.append(title,status,audioButton,menu);
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
   const notice=node('div','','online-notice');
+  const sharedLobby=node('section','','shared-lobby');sharedLobby.hidden=true;const lobbyQr=node('img');lobbyQr.alt='Scan to join this room';const lobbyInfo=node('div');lobbyInfo.append(node('p','SCAN. JOIN. RIDE.','landing-section-label'),node('strong',code,'shared-room-code'),node('p','Scan with your phone to join the game.'));sharedLobby.append(lobbyQr,lobbyInfo);if(!solo)void QRCode.toDataURL(new URL(appUrl(`?room=${code}`),location.origin).href).then(data=>{lobbyQr.src=data;}).catch(()=>{lobbyQr.hidden=true;});
   const joinPanel=node('form','','online-join');const name=node('input');name.placeholder='Your name';name.maxLength=20;const previousName=read('fuse-riders-player-name');name.value=previousName??'';
   const joinButton=node('button','JOIN AS PLAYER');joinPanel.append(name,joinButton);joinButton.disabled=true;
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);
@@ -81,8 +83,8 @@ export async function startOnline():Promise<void>{
   const shotNotice=node('p','','online-shot-error');shotNotice.setAttribute('role','alert');shotNotice.hidden=true;const shotFailure=new ShotFailureNotice(()=>performance.now());const updateShotNotice=()=>{const message=shotFailure.message();shotNotice.hidden=!message;if(message&&shotNotice.textContent!==message)shotNotice.textContent=message;};
   const scoreboard=node('div','','online-scoreboard');scoreboard.append(notice,roster);
   const footer=node('footer','','online-footer');footer.append(controls,hostControls);
-  app.replaceChildren(header,canvas,scoreboard,shotNotice,joinPanel,footer,dialog);
-  const audio=createGameAudio();audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
+  app.replaceChildren(header,canvas,sharedLobby,scoreboard,shotNotice,joinPanel,footer,dialog);
+  const audio=createGameAudio('Game');audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
   const callbacks:Callbacks={
     ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
     shotFailed:()=>{shotFailure.show();updateShotNotice();},
@@ -101,7 +103,8 @@ export async function startOnline():Promise<void>{
         for(const stats of state.matchStats){const row=node('section');row.append(node('h3',stats.name));for(const [key,value] of Object.entries(stats)){if(typeof value==='number')row.append(node('p',`${key.replace(/([A-Z])/g,' $1')}: ${Number.isInteger(value)?value:value.toFixed(1)}`));}dialogBody.append(row);}dialog.showModal();
       }
       if(state.phase==='lobby')lastRecap='';joined=Boolean(player);joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
-      canvas.hidden=settings.mode==='shared'&&!displayOnly&&joined;
+      sharedLobby.hidden=solo||settings.mode!=='shared'||state.phase!=='lobby'||!(displayOnly||(isHost&&!joined));
+      canvas.hidden=!sharedLobby.hidden||(settings.mode==='shared'&&!displayOnly&&joined);
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?'Join your friends, then start the race':state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`:state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
@@ -122,12 +125,12 @@ export async function startOnline():Promise<void>{
   joinPanel.onsubmit=event=>{event.preventDefault();save('fuse-riders-player-name',name.value);runtime.command({type:'join',name:name.value,avatarId:avatar});};
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
-  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p','Leave this room?'));const leave=node('button','LEAVE ROOM');leave.onclick=()=>{runtime.stop();location.href=appUrl();};dialogBody.append(leave);dialog.showModal();};
+  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}}location.href=appUrl();};dialogBody.append(leave);dialog.showModal();};
   avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(localStorage,chosen=>{avatar=chosen;if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
   share.onclick=async()=>{const link=new URL(appUrl(`?room=${code}`),location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=appUrl(`?room=${code}&display=1`);tv.target='_blank';dialogBody.append(tv);dialog.showModal();};
   settingsButton.onclick=()=>{
     const draft=structuredClone(settings);dialogBody.replaceChildren(node('h2','Room settings'));
-    const mode=node('select');for(const [value,label] of [['devices','Full game on each device'],['shared','Shared TV + phone controls']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=draft.mode;mode.disabled=solo;mode.setAttribute('aria-label','Screen layout');
+    const mode=node('select');for(const [value,label] of [['devices','Full game on each device'],['shared','Shared TV + phones']]){const option=node('option',label);option.value=value!;mode.append(option);}mode.value=draft.mode;mode.disabled=solo;mode.setAttribute('aria-label','Screen layout');
     const format=node('select');for(const [value,label] of [['wins','First to N wins'],['rounds','Play N rounds']]){const option=node('option',label);option.value=value!;format.append(option);}format.value=draft.match;format.setAttribute('aria-label','Match format');
     const length=node('input');length.type='number';length.min='1';length.max='20';length.value=String(draft.length);length.setAttribute('aria-label','Match length');dialogBody.append(mode,format,length,node('p','Powerup weights: 0 disables. Changes apply next round; match length applies next match.'));
     const percentages=new Map<string,HTMLElement>();
@@ -151,6 +154,6 @@ export async function startOnline():Promise<void>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;
     app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),ackMs:prediction.ackMs,correction:prediction.correction,tick:snapshot?.tick??0});
   });},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const delayTicks=prediction.clock.presentationDelayTicks();const buffered=worldBuffer.render(prediction.clock.estimate()?.tick,delayTicks);if(buffered&&!canvas.hidden){const predicted=prediction.render(buffered,id);presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',delayTicks,clock:prediction.clock.diagnostics(),epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const delayTicks=prediction.clock.presentationDelayTicks();const buffered=worldBuffer.render(prediction.clock.estimate()?.tick,delayTicks);if(buffered&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){const predicted=prediction.render(buffered,id);presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',delayTicks,clock:prediction.clock.diagnostics(),epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }

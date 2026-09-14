@@ -1,0 +1,94 @@
+[
+  {
+    "browser": "chrome",
+    "viewport": {
+      "width": 320,
+      "height": 568
+    },
+    "passed": true,
+    "network": {
+      "apiCalls": 0,
+      "webSockets": 0,
+      "rtcConstructors": 0
+    }
+  },
+  {
+    "browser": "chrome",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "passed": true,
+    "network": {
+      "apiCalls": 0,
+      "webSockets": 0,
+      "rtcConstructors": 0
+    }
+  },
+  {
+    "browser": "chrome",
+    "viewport": {
+      "width": 844,
+      "height": 390
+    },
+    "passed": true,
+    "network": {
+      "apiCalls": 0,
+      "webSockets": 0,
+      "rtcConstructors": 0
+    }
+  },
+  {
+    "browser": "chrome",
+    "case": "rapid-navigation-with-pending-XHR",
+    "passed": true,
+    "delayed": 56,
+    "cancelled": 0
+  },
+  {
+    "browser": "webkit",
+    "viewport": {
+      "width": 320,
+      "height": 568
+    },
+    "passed": true,
+    "network": {
+      "apiCalls": 0,
+      "webSockets": 0,
+      "rtcConstructors": 0
+    }
+  },
+  {
+    "browser": "webkit",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "passed": true,
+    "network": {
+      "apiCalls": 0,
+      "webSockets": 0,
+      "rtcConstructors": 0
+    }
+  },
+  {
+    "browser": "webkit",
+    "viewport": {
+      "width": 844,
+      "height": 390
+    },
+    "passed": true,
+    "network": {
+      "apiCalls": 0,
+      "webSockets": 0,
+      "rtcConstructors": 0
+    }
+  },
+  {
+    "browser": "webkit",
+    "case": "rapid-navigation-with-pending-XHR",
+    "passed": true,
+    "delayed": 56,
+    "cancelled": 28
+  }
+]
