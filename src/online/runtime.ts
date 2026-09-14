@@ -120,7 +120,11 @@ export class RoomRuntime {
         this.coordinatorPauseAt = this.environment.now(); this.recoveryEpisodeAt ??= this.coordinatorPauseAt;
         this.freeze();
       },
-      linkReset: id => { if (this.segment && this.plan?.members.some(m => m.id === id)) this.faultPending = 'Direct link replaced — synchronizing'; },
+      linkReset: id => {
+        // A retained old world is already frozen during preparation. New RTC
+        // links must finish binding that preparation, not start another recovery.
+        if (this.incoming?.activated && this.segment && this.plan?.members.some(m => m.id === id)) this.faultPending = 'Direct link replaced — synchronizing';
+      },
       message: (id, data) => this.receive(id, data), fast: (id, bytes) => { if (this.activationSafe()) return this.segment?.receiveFast(id, bytes); },
       status: text => { if (!this.recoveryRequired) this.status.recurring(text); },
       authorityChanged: () => { this.coordinatorPauseAt = undefined; this.freeze(); this.segmentPlan = undefined; this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planDelivery.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },

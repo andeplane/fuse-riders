@@ -136,6 +136,35 @@ test('creator refresh in a settled lobby preserves the checkpoint and can switch
 });
 
 
+test('recreated links during creator-refresh preparation do not restart recovery or lose queued TV settings', () => {
+  const room = setup(), oldCreator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  oldCreator.runtime.stop(); const creator = room.add('p0', false, oldCreator.storage);
+  for (const member of room.members.values()) {
+    member.transport.grant = { ...member.transport.grant!, epoch: 2, holder: creator.transport.connectionId };
+    member.callbacks.authorityChanged?.();
+  }
+  room.activation(from => from !== 'p1');
+  creator.runtime.start();
+  for (const [id, member] of room.members) if (id !== 'p0') member.callbacks.welcome(id, 'p0');
+  room.advance(200);
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, true);
+  const alias = guest.runtime.replicationDiagnostics.alias;
+  assert.ok(alias);
+  // Native RTC creates guest-to-guest links asynchronously after receiving the new plan.
+  guest.callbacks.linkReset?.('p2');
+  assert.equal(creator.runtime.command({ type: 'settings', settings: { ...defaultRoomSettings(), mode: 'shared' } }), true);
+  room.advance(20);
+  assert.equal(room.sends.some(send => send.from === 'p1' && send.type === 'directRecover'), false);
+  assert.equal(guest.runtime.replicationDiagnostics.alias, alias);
+  room.activation(() => true); room.advance(2000);
+  for (const member of room.members.values()) {
+    assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+    assert.equal(member.runtime.replicationDiagnostics.barrier, false);
+    assert.equal(member.runtime.replicationDiagnostics.simulator, false);
+    assert.equal(member.view?.players.length, 3);
+  }
+});
+
 test('a refreshed guest can rejoin with a fresh command sequence on its replacement connection', () => {
   const room = setup(); const old = room.members.get('p1')!;
   old.runtime.stop(); const guest = room.add('p1', false, old.storage);
