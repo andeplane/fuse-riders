@@ -52,3 +52,16 @@ The fair historical comparison uses fixed 200 ms pre-pointer windows, because th
 The sole local sample above33ms was independently inspected: pointer epoch1789349799801.9, preceding submitted frame at1789349799801.5999, and the very first following frame at1789349799836.0 already showed a changed heading (2.72159→2.78263 radians). The34.4ms frame interval yielded34.1ms input-to-heading latency; there was no unchanged post-input frame or extra prediction tick. This rules out delayed prediction in that sample, while preserving the measured candidate failure. With18validsamples, nearest-rankp95 equals the maximum, so a predeclared larger repeatability sample can estimate tail frequency without changing code or discarding the failed trial.
 
 A single unchanged180second follow-up was predeclared and independently approved after inspection of the34.4ms scheduling gap. It requires at least50eligible samples per view, keeps33/100ms limits and every timeout, and must also report the combined eligible samples from the original60seconds plus180seconds. The original failure remains. This is a fixed tail-estimation step, not repeat-until-pass. The bounded clock-observation capacity is8000 for the longer run; captured render frames remain capped at12000 per view with truncation treated as failure.
+
+## Fixed repeatability batch: response candidates passed
+
+The single predeclared 180-second follow-up completed at **2026-09-14 01:42:13 UTC**. The served game bundle was identical to the earlier 60-second experiment: `/assets/index-BGM4abos.js`, SHA256 `96ce4dbc70c4d2baf1257ef57f2f1773489e07d87348c6caec2a0719b6538809`. The script/document revision was `c3bb4cb`; no game behavior changed between runs. [Complete 180-second raw capture](evidence/response-c3bb4cb-180s.json) and [fixed-batch summary](evidence/response-fixed-batch-summary.json) retain all observations.
+
+| Dataset | Valid / rejected / timeouts per view | Local p50 / p95 / p99 | TV p50 / p95 / p99 | Unchanged candidate result |
+| --- | --- | --- | --- | --- |
+| Predeclared 180 seconds | 51 / 62 / 0 | 24.7 / 27.6 / 28.3 ms | 62.8 / 88.2 / 94.7 ms | PASS |
+| Combined 240 seconds, including original failure | 69 / 82 / 0 | 24.9 / 27.6 / 34.1 ms | 63.5 / 88.2 / 94.7 ms | PASS |
+
+The local 34.1 ms maximum remains in the combined data; it was not discarded. Both views exceed the predeclared 50-valid-sample minimum. There were zero browser errors, eligible timeouts or truncated captures. The secondary one-degree p95 across the combined batch was 51.8 ms local and 88.2 ms TV; the primary criterion remains first numerical departure, with that distinction explicit.
+
+Full TV continuity over the 180-second capture included 3,431 eligible frame intervals. Repeated presented ticks accounted for 3.41% of intervals (3.35% of observed time). Observed hold spans had p95 34.0 ms and maximum 51.2 ms. Frame interval p95 was 28.2 ms and maximum 45.4 ms; no eligible gap exceeded 100 ms. These establish the measured presentation tradeoff on this desktop fixture, not physical phone/scanout performance. The earlier 60-second failure and all unsuccessful tuning trials remain above. No further repeat-until-pass trials were performed.

@@ -1,0 +1,110 @@
+{
+  "date": "2026-09-14T01:42:13.591Z",
+  "revision": "c3bb4cb627f7b4e9655494a9f0623a1323819cbe",
+  "assets": [
+    {
+      "path": "/assets/index-BGM4abos.js",
+      "sha256": "96ce4dbc70c4d2baf1257ef57f2f1773489e07d87348c6caec2a0719b6538809"
+    }
+  ],
+  "run180": {
+    "local": {
+      "count": 51,
+      "p50": 24.699951171875,
+      "p95": 27.599853515625,
+      "p99": 28.300048828125,
+      "max": 28.300048828125,
+      "rejected": 62,
+      "timeouts": 0,
+      "candidateLimitMs": 33,
+      "passed": true,
+      "oneDegree": {
+        "count": 51,
+        "p50": 24.89990234375,
+        "p95": 51.800048828125,
+        "p99": 54.099853515625,
+        "max": 54.099853515625,
+        "rejected": 62,
+        "timeouts": 0
+      }
+    },
+    "tv": {
+      "count": 51,
+      "p50": 62.800048828125,
+      "p95": 88.199951171875,
+      "p99": 94.7001953125,
+      "max": 94.7001953125,
+      "rejected": 62,
+      "timeouts": 0,
+      "candidateLimitMs": 100,
+      "passed": true,
+      "oneDegree": {
+        "count": 51,
+        "p50": 62.800048828125,
+        "p95": 88.199951171875,
+        "p99": 94.7001953125,
+        "max": 94.7001953125,
+        "rejected": 62,
+        "timeouts": 0
+      }
+    }
+  },
+  "combined240": {
+    "local": {
+      "eligible": 69,
+      "rejected": 82,
+      "timeouts": 0,
+      "p50": 24.89990234375,
+      "p95": 27.599853515625,
+      "p99": 34.10009765625,
+      "max": 34.10009765625,
+      "oneDegreeP95": 51.800048828125,
+      "passed": true
+    },
+    "tv": {
+      "eligible": 69,
+      "rejected": 82,
+      "timeouts": 0,
+      "p50": 63.500244140625,
+      "p95": 88.199951171875,
+      "p99": 94.7001953125,
+      "max": 94.7001953125,
+      "oneDegreeP95": 88.199951171875,
+      "passed": true
+    }
+  },
+  "tvContinuity": {
+    "intervals": {
+      "count": 3431,
+      "p50": 25,
+      "p95": 28.199951171875,
+      "p99": 31.400146484375,
+      "max": 45.400146484375
+    },
+    "excludedGapsOver100ms": {
+      "count": 0,
+      "p50": null,
+      "p95": null,
+      "p99": null,
+      "max": null
+    },
+    "observedHoldSpansMs": {
+      "count": 112,
+      "p50": 24.89990234375,
+      "p95": 34,
+      "p99": 50.099853515625,
+      "max": 51.2001953125
+    },
+    "repeatedTickIntervals": 117,
+    "repeatedTickRatio": 0.034100845234625476,
+    "repeatedTickTimeRatio": 0.03351421967782475
+  },
+  "errors": [],
+  "truncated": [
+    0,
+    0,
+    0
+  ],
+  "passed180": true,
+  "passedCombined240": true
+}
