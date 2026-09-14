@@ -84,6 +84,8 @@ export async function startOnline():Promise<void>{
   const bootAt=performance.now();const bootTick=()=>{bootNote.textContent=connectHint(status.textContent??'',performance.now()-bootAt);};
   const bootPoll=setInterval(bootTick,1000);
   const bootDone=()=>{if(booting.isConnected){clearInterval(bootPoll);booting.remove();app.classList.remove('booting');}};
+  const overCard=node('div','','room-boot room-over-card'),overNote=node('p','Room ended — return to menu to start again','room-boot-note'),overHome=node('a','BACK TO MENU','room-over-home');
+  overCard.setAttribute('role','status');overHome.href=appUrl();overCard.append(node('p','ROOM CLOSED','room-boot-title'),node('strong',code,'shared-room-code'),overNote,overHome);
   app.classList.add('booting');
   app.replaceChildren(header,booting);
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
@@ -144,8 +146,8 @@ export async function startOnline():Promise<void>{
   const callbacks:Callbacks={
     ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
     shotFailed:()=>{shotFailure.show();updateShotNotice();},
-    status:text=>{status.textContent=text;status.title=text;if(booting.isConnected)bootTick();if(roomEnded)notice.textContent=text;},
-    ended:()=>{bootDone();roomEnded=true;clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
+    status:text=>{status.textContent=text;status.title=text;if(booting.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
+    ended:()=>{bootDone();roomEnded=true;clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     clock:clockSample=>{const accepted=prediction.observeClock(clockSample);if(responseBenchmark)sample({kind:'response-clock',epochAt:performance.timeOrigin+performance.now(),accepted,sample:clockSample,diagnostics:prediction.clock.diagnostics()});},
     state:(state,rules,ack,matchId,motion)=>{
