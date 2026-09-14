@@ -24,6 +24,10 @@ export class PredictionClock {
     if(!this.estimate()||!this.sample||this.now()-this.sample.localReceivedAt>1000){this.nearbySamples=0;return 2;}
     return this.nearbySamples>=3?1:2;
   }
+  /** Read-only opt-in measurement data; does not refresh or qualify a clock. */
+  diagnostics():{scope:InputControlScope;rttMs:number;sampleAgeMs:number;nearbySamples:number}|undefined {
+    const sample=this.sample;return sample?{scope:{...sample.scope},rttMs:sample.localReceivedAt-sample.localSentAt,sampleAgeMs:this.now()-sample.localReceivedAt,nearbySamples:this.nearbySamples}:undefined;
+  }
   estimate(scope?:InputControlScope):TickEstimate|undefined {
     const now=this.now(),sample=this.sample;
     if(this.lastRead!==undefined&&(now<this.lastRead||now-this.lastRead>500)){this.reset();return undefined;}

@@ -1,6 +1,6 @@
 /** Opt-in CPU render-submission evidence. These are not physical screen/scanout timestamps. */
 export interface ResponseActor {id:string;angle:number;alive:boolean;drunkUntilTick:number;invulnerableUntilTick:number;portalCooldownUntilTick:number;shielded:boolean}
-export interface ResponseFrame {kind:'response-render';epochAt:number;scope:string;phase:string;tick:number;powerupsDisabled:boolean;players:ResponseActor[]}
+export interface ResponseFrame {kind:'response-render';delayTicks?:1|2;clock?:{rttMs:number;sampleAgeMs:number;nearbySamples:number;scope:{matchId:string;round:number;controlEpoch:string}};epochAt:number;scope:string;phase:string;tick:number;powerupsDisabled:boolean;players:ResponseActor[]}
 export interface ResponsePointer {epochAt:number;actorId:string;direction:-1|1;trusted:boolean}
 export interface ResponseResult {status:'changed'|'rejected'|'timeout';reason?:string;latencyMs?:number;baseline?:ResponseFrame;changed?:ResponseFrame;frames:ResponseFrame[]}
 const delta=(a:number,b:number)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
