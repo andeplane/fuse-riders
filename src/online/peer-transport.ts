@@ -83,9 +83,8 @@ export class PeerTransport {
             if(previous!==message.connectionId){this.links.get(message.id)?.pc.close();this.links.delete(message.id);this.received.delete(message.id);}
             this.callbacks.peer(message.id,true);if(this.id===this.hostId)await this.offer(message.id);
           }else if(this.connections.get(message.id)===message.connectionId){
-            // The service retired this connection; the RTC channel may still report "open" (WebKit lags), so stop sending first.
-            this.links.get(message.id)?.gate.drainFrom('offline',performance.now());
-            if(this.links.get(message.id)?.channel?.readyState==='open')return;
+            // The service is the membership authority (ADR035): the connection is retired even if the RTC channel still reads "open".
+            this.links.get(message.id)?.gate.drain();
             this.connections.delete(message.id);this.callbacks.peer(message.id,false);this.links.get(message.id)?.pc.close();this.links.delete(message.id);
           }
         }else if(message.type==='signal'&&this.connections.get(message.from)===message.connectionId)await this.signal(message.from,message.data);
@@ -112,12 +111,12 @@ export class PeerTransport {
       if(!isCurrentLinkCallback(this.links.get(id),link))return;
       if(pc.connectionState==='connected')this.callbacks.status('Direct peer link connected');
       // "disconnected" may recover through fresh probes (ADR035); only terminal states drain the link.
-      if(pc.connectionState==='failed'||pc.connectionState==='closed')link.gate.drainFrom(pc.connectionState,performance.now());
+      if(pc.connectionState==='failed'||pc.connectionState==='closed')link.gate.drain();
       if(pc.connectionState==='failed'||pc.connectionState==='disconnected'){link.health.fail(performance.now());this.callbacks.status('Direct connection interrupted · retrying');}
     };
     pc.oniceconnectionstatechange=()=>{
       if(!isCurrentLinkCallback(this.links.get(id),link))return;
-      if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='closed')link.gate.drainFrom(pc.iceConnectionState,performance.now());
+      if(pc.iceConnectionState==='failed'||pc.iceConnectionState==='closed')link.gate.drain();
     };
     return link;
   }
@@ -125,9 +124,9 @@ export class PeerTransport {
     const link=this.link(id);link.channel=channel;
     channel.onmessage=event=>{if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
     channel.onopen=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))this.callbacks.status('Direct peer link connected');};
-    channel.onclosing=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drainFrom('closing',performance.now());};
-    channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drainFrom('closed',performance.now());};
-    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;link.gate.drainFrom('error',performance.now());this.callbacks.status('Direct connection failed · retrying');};
+    channel.onclosing=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
+    channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
+    channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;link.gate.drain();this.callbacks.status('Direct connection failed · retrying');};
   }
   private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
@@ -154,7 +153,13 @@ export class PeerTransport {
       if(probe.type==='linkProbe'||probe.type==='linkPong'){
         if(!direct||!Number.isSafeInteger(probe.probeId))return;
         if(probe.type==='linkPong')this.links.get(id)?.health.acknowledge(probe.probeId!,performance.now());
-        else this.sendDirectProbe(id,{type:'linkPong',probeId:probe.probeId!});
+        else{
+          // libwebrtc delivers the probe before the closing state change that follows it (WebKit posts OnMessage, then
+          // OnStateChange). Answering inside this onmessage task would hand the pong to an already-dead transport, so
+          // defer one macrotask: the queued state-change task runs first and readyState plus the gate refuse the send.
+          const link=this.links.get(id),probeId=probe.probeId!;
+          if(link)setTimeout(()=>{if(isCurrentLinkCallback(this.links.get(id),link))this.sendDirectProbe(id,{type:'linkPong',probeId});},0);
+        }
         return;
       }
     }
