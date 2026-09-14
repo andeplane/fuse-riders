@@ -1,0 +1,87 @@
+{
+  "revision": "85f8d5808e3f66dfb22bcbe4e3e53ec40ba1c8f8",
+  "dirty": false,
+  "method": "Three host-recorded five-bot 2400-tick traces (one explicit weapon/portal checkpoint), actual MessagePack checkpoint and action receiver, canonical comparison at every committed transaction. Desktop headless engines; not physical phones.",
+  "fixtures": [
+    {
+      "seed": 100,
+      "weapons": false,
+      "ticks": 2400,
+      "actionBytes": 26244,
+      "fullSnapshotBytes": 76241444,
+      "eventCounts": {
+        "bombPlaced": 43,
+        "playerEliminated": 30,
+        "explosion": 43,
+        "roundEnded": 7,
+        "pickupCollected": 5,
+        "matchEnded": 1
+      }
+    },
+    {
+      "seed": 701,
+      "weapons": false,
+      "ticks": 2400,
+      "actionBytes": 26321,
+      "fullSnapshotBytes": 79359668,
+      "eventCounts": {
+        "bombPlaced": 43,
+        "playerEliminated": 23,
+        "explosion": 36,
+        "roundEnded": 5,
+        "pickupCollected": 5,
+        "matchEnded": 1
+      }
+    },
+    {
+      "seed": 99,
+      "weapons": true,
+      "ticks": 2400,
+      "actionBytes": 26036,
+      "fullSnapshotBytes": 95391852,
+      "eventCounts": {
+        "bombPlaced": 44,
+        "explosion": 41,
+        "pickupCollected": 8,
+        "playerEliminated": 19,
+        "roundEnded": 4
+      }
+    }
+  ],
+  "results": {
+    "chromium": [
+      {
+        "ticks": 2400,
+        "elapsedMs": 1114.8000001907349,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1095.3000001907349,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1283.6999998092651,
+        "hashMismatches": 0
+      }
+    ],
+    "webkit": [
+      {
+        "ticks": 2400,
+        "elapsedMs": 1513,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1449,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1751,
+        "hashMismatches": 0
+      }
+    ]
+  }
+}

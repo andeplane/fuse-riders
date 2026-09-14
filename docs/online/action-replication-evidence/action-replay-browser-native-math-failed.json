@@ -1,0 +1,63 @@
+{
+  "revision": "a513b6ccef954d422e66862bc95c3f73fbf7ccbb",
+  "dirty": true,
+  "method": "Two host-recorded five-bot 2400-tick traces, actual MessagePack checkpoint and action receiver, canonical comparison at every committed transaction. Desktop headless engines; not physical phones.",
+  "fixtures": [
+    {
+      "seed": 100,
+      "ticks": 2400,
+      "actionBytes": 26244,
+      "fullSnapshotBytes": 76241458,
+      "eventCounts": {
+        "bombPlaced": 43,
+        "playerEliminated": 30,
+        "explosion": 43,
+        "roundEnded": 7,
+        "pickupCollected": 5,
+        "matchEnded": 1
+      }
+    },
+    {
+      "seed": 701,
+      "ticks": 2400,
+      "actionBytes": 26321,
+      "fullSnapshotBytes": 79359682,
+      "eventCounts": {
+        "bombPlaced": 43,
+        "playerEliminated": 23,
+        "explosion": 36,
+        "roundEnded": 5,
+        "pickupCollected": 5,
+        "matchEnded": 1
+      }
+    }
+  ],
+  "results": {
+    "chromium": [
+      {
+        "ticks": 2400,
+        "elapsedMs": 1081.7999997138977,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1052,
+        "hashMismatches": 0
+      }
+    ],
+    "webkit": [
+      {
+        "error": "resync",
+        "index": 62,
+        "tick": 63,
+        "hashMismatches": 1
+      },
+      {
+        "error": "resync",
+        "index": 62,
+        "tick": 63,
+        "hashMismatches": 1
+      }
+    ]
+  }
+}

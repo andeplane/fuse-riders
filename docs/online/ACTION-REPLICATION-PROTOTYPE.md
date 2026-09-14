@@ -43,7 +43,11 @@ The pinned numeric helper's standalone bundle is 45,144 bytes minified / 12,951 
 
 ## Verification and evidence
 
-The final committed-source check record and raw reports are appended after the final run. Reproduce with:
+Final runtime `85f8d58` passed all required checks. Browser harness `f8a7faa` adds negative negotiation tests; runtime/package/coverage sources are identical between those revisions. All 471 tests pass; coverage is 99.52% lines, 94.57% branches and 99.53% functions. The final mixed-engine room run passed 18 sample points, negotiation failure cases, wrong-sender rejection, the actual TV invite, impaired delivery, guest reconnect and both role transitions, with no recorded hash mismatches or page errors. Both LAN browser engines and the default snapshot online smoke also passed. These are local checks; no branch CI or public release is claimed.
+
+[Verification manifest and source/build hashes](action-replication-evidence/verification.json), [exact replay](action-replication-evidence/action-replay-browser.json), [payload comparison](action-replication-evidence/action-payload-benchmark.json), [live room samples](action-replication-evidence/action-room-browser.json), [numeric dependency graph](action-replication-evidence/action-math-dependencies.json), and [retained native-math failure](action-replication-evidence/action-replay-browser-native-math-failed.json). Completed check logs are gzip-compressed in the same directory.
+
+Reproduce with:
 
 ```sh
 npm run typecheck

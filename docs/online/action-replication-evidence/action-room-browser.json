@@ -1,0 +1,2708 @@
+{
+  "revision": "f8a7faa29d53ce75ca0050465bcf24b1527e6eae",
+  "dirty": false,
+  "method": "Local legacy Worker signalling, real reliable WebRTC channels, desktop Chromium host, mixed Chromium/WebKit guests and WebKit TV, Canvas renderer. Simulated application packet delay100/350ms, every7th binary send dropped, duplicate sends, max64 delayed. Not physical phones or WAN/UDP evidence.",
+  "samples": [
+    {
+      "label": "joined",
+      "at": 1789392540720,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 2209,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.4000000953674316
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 265827
+          },
+          "sentBytes": 329486,
+          "frameP95": 17.199999809265137,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 259
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 97,
+            "hashMismatches": 0,
+            "replicaTick": 251,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 19831
+          },
+          "sentBytes": 26294,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 251
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 212,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 89,
+            "hashMismatches": 0,
+            "replicaTick": 252,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 18202
+          },
+          "sentBytes": 23820,
+          "frameP95": 17.200000286102295,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 252
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 68,
+            "hashMismatches": 0,
+            "replicaTick": 254,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 13942
+          },
+          "sentBytes": 18465,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 254
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 211,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.5999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 48,
+            "hashMismatches": 0,
+            "replicaTick": 253,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 9901
+          },
+          "sentBytes": 13516,
+          "frameP95": 17.59999990463257,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 253
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 28,
+            "hashMismatches": 0,
+            "replicaTick": 256,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 5864
+          },
+          "sentBytes": 7975,
+          "frameP95": 18,
+          "inputP95": 0,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 256
+        }
+      ]
+    },
+    {
+      "label": "normal",
+      "at": 1789392545727,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 486,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.6999998092651367
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 585982
+          },
+          "sentBytes": 682334,
+          "frameP95": 17.09999990463257,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 356
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 194,
+            "hashMismatches": 0,
+            "replicaTick": 348,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 39676
+          },
+          "sentBytes": 50991,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 348
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 252,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 185,
+            "hashMismatches": 0,
+            "replicaTick": 348,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 37830
+          },
+          "sentBytes": 48404,
+          "frameP95": 17.200000286102295,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 348
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 164,
+            "hashMismatches": 0,
+            "replicaTick": 350,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 33547
+          },
+          "sentBytes": 42919,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 350
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 250,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 144,
+            "hashMismatches": 0,
+            "replicaTick": 349,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 29471
+          },
+          "sentBytes": 38062,
+          "frameP95": 17.300000190734863,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 349
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 124,
+            "hashMismatches": 0,
+            "replicaTick": 352,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 25408
+          },
+          "sentBytes": 32348,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 352
+        }
+      ]
+    },
+    {
+      "label": "normal",
+      "at": 1789392550732,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 213,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 917882
+          },
+          "sentBytes": 1056764,
+          "frameP95": 17.09999990463257,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 456
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 294,
+            "hashMismatches": 0,
+            "replicaTick": 448,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 60176
+          },
+          "sentBytes": 76784,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 448
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 212,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.299999713897705
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 285,
+            "hashMismatches": 0,
+            "replicaTick": 448,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 58330
+          },
+          "sentBytes": 74303,
+          "frameP95": 17.300000190734863,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 448
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 265,
+            "hashMismatches": 0,
+            "replicaTick": 451,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 54252
+          },
+          "sentBytes": 68915,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 451
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 212,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.6000003814697266
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 244,
+            "hashMismatches": 0,
+            "replicaTick": 449,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 49971
+          },
+          "sentBytes": 63946,
+          "frameP95": 17.40000009536743,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 449
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 225,
+            "hashMismatches": 0,
+            "replicaTick": 453,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 46093
+          },
+          "sentBytes": 57877,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 453
+        }
+      ]
+    },
+    {
+      "label": "normal",
+      "at": 1789392555736,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 486,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.900000095367432
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 1248847
+          },
+          "sentBytes": 1420512,
+          "frameP95": 17.09999990463257,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 556
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 395,
+            "hashMismatches": 0,
+            "replicaTick": 549,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 80881
+          },
+          "sentBytes": 102349,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 549
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 251,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.3000001907348633
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 385,
+            "hashMismatches": 0,
+            "replicaTick": 548,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 78830
+          },
+          "sentBytes": 99776,
+          "frameP95": 17.299999713897705,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 548
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 365,
+            "hashMismatches": 0,
+            "replicaTick": 551,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 74752
+          },
+          "sentBytes": 94275,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 551
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 263,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 344,
+            "hashMismatches": 0,
+            "replicaTick": 549,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 70471
+          },
+          "sentBytes": 89410,
+          "frameP95": 17.59999990463257,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 549
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 325,
+            "hashMismatches": 0,
+            "replicaTick": 553,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 66593
+          },
+          "sentBytes": 83227,
+          "frameP95": 23,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 553
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392560744,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 1643058
+          },
+          "sentBytes": 1856615,
+          "frameP95": 17,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 656
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 456,
+            "hashMismatches": 0,
+            "replicaTick": 647,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 98306
+          },
+          "sentBytes": 125067,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 647
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 213,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.699999809265137
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 445,
+            "hashMismatches": 0,
+            "replicaTick": 644,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 95845
+          },
+          "sentBytes": 122187,
+          "frameP95": 17.100000381469727,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 644
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 424,
+            "hashMismatches": 0,
+            "replicaTick": 648,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 91972
+          },
+          "sentBytes": 116788,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 648
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 213,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.799999713897705
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 404,
+            "hashMismatches": 0,
+            "replicaTick": 647,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 87691
+          },
+          "sentBytes": 112018,
+          "frameP95": 17.40000009536743,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 647
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 384,
+            "hashMismatches": 0,
+            "replicaTick": 651,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 83813
+          },
+          "sentBytes": 105297,
+          "frameP95": 21,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 651
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392565749,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 1310,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.799999713897705
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 2044551
+          },
+          "sentBytes": 2290931,
+          "frameP95": 17,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 756
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 205,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 513,
+            "hashMismatches": 0,
+            "replicaTick": 748,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 115731
+          },
+          "sentBytes": 147352,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 748
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 263,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.3000001907348633
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 503,
+            "hashMismatches": 0,
+            "replicaTick": 746,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 113475
+          },
+          "sentBytes": 144804,
+          "frameP95": 17,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 746
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 482,
+            "hashMismatches": 0,
+            "replicaTick": 750,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 109602
+          },
+          "sentBytes": 139278,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 750
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 461,
+            "hashMismatches": 0,
+            "replicaTick": 746,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 105321
+          },
+          "sentBytes": 134627,
+          "frameP95": 17.300000190734863,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 746
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 442,
+            "hashMismatches": 0,
+            "replicaTick": 752,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 101648
+          },
+          "sentBytes": 127982,
+          "frameP95": 25,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 752
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392570752,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 2443583
+          },
+          "sentBytes": 2726854,
+          "frameP95": 17,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 856
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 571,
+            "hashMismatches": 0,
+            "replicaTick": 848,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 133566
+          },
+          "sentBytes": 170067,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 848
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.9000000953674316
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 561,
+            "hashMismatches": 0,
+            "replicaTick": 846,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 131310
+          },
+          "sentBytes": 167645,
+          "frameP95": 17,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 846
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 540,
+            "hashMismatches": 0,
+            "replicaTick": 850,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 127437
+          },
+          "sentBytes": 161985,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 850
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.5999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 518,
+            "hashMismatches": 0,
+            "replicaTick": 847,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 122746
+          },
+          "sentBytes": 157038,
+          "frameP95": 17.199999809265137,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 847
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 499,
+            "hashMismatches": 0,
+            "replicaTick": 852,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 119278
+          },
+          "sentBytes": 150466,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 852
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392575756,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 476,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 6.700000286102295
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 2842588
+          },
+          "sentBytes": 3163409,
+          "frameP95": 29.40000009536743,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 956
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 628,
+            "hashMismatches": 0,
+            "replicaTick": 947,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 150991
+          },
+          "sentBytes": 192806,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 947
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 9.200000286102295
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 617,
+            "hashMismatches": 0,
+            "replicaTick": 945,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 148735
+          },
+          "sentBytes": 190468,
+          "frameP95": 34.19999980926514,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 945
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 596,
+            "hashMismatches": 0,
+            "replicaTick": 949,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 144862
+          },
+          "sentBytes": 184724,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 949
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 265,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.5999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 575,
+            "hashMismatches": 0,
+            "replicaTick": 946,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 140376
+          },
+          "sentBytes": 180075,
+          "frameP95": 29.299999713897705,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 946
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 555,
+            "hashMismatches": 0,
+            "replicaTick": 950,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 136498
+          },
+          "sentBytes": 172556,
+          "frameP95": 29,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 950
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392580762,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 5.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 3247230
+          },
+          "sentBytes": 3600797,
+          "frameP95": 31.90000009536743,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1056
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 686,
+            "hashMismatches": 0,
+            "replicaTick": 1049,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 169031
+          },
+          "sentBytes": 215726,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1049
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 674,
+            "hashMismatches": 0,
+            "replicaTick": 1046,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 166160
+          },
+          "sentBytes": 212359,
+          "frameP95": 51,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1046
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 654,
+            "hashMismatches": 0,
+            "replicaTick": 1051,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 162697
+          },
+          "sentBytes": 207439,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1051
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.700000286102295
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 632,
+            "hashMismatches": 0,
+            "replicaTick": 1046,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 157801
+          },
+          "sentBytes": 202481,
+          "frameP95": 31.300000190734863,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1046
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 614,
+            "hashMismatches": 0,
+            "replicaTick": 1053,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 154538
+          },
+          "sentBytes": 195466,
+          "frameP95": 19,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1053
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392585768,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 486,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 7.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 3651056
+          },
+          "sentBytes": 4037460,
+          "frameP95": 32.5,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1156
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 742,
+            "hashMismatches": 0,
+            "replicaTick": 1148,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 186251
+          },
+          "sentBytes": 237829,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1148
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.8000001907348633
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 732,
+            "hashMismatches": 0,
+            "replicaTick": 1146,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 183995
+          },
+          "sentBytes": 235168,
+          "frameP95": 52.19999980926514,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1146
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 711,
+            "hashMismatches": 0,
+            "replicaTick": 1150,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 180122
+          },
+          "sentBytes": 229744,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1150
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 265,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 5.400000095367432
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 690,
+            "hashMismatches": 0,
+            "replicaTick": 1147,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 175636
+          },
+          "sentBytes": 225321,
+          "frameP95": 32.10000038146973,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1147
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 671,
+            "hashMismatches": 0,
+            "replicaTick": 1152,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 171963
+          },
+          "sentBytes": 217761,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1152
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392590773,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 4055035
+          },
+          "sentBytes": 4474309,
+          "frameP95": 32.5,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1256
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 213,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 800,
+            "hashMismatches": 0,
+            "replicaTick": 1249,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 204086
+          },
+          "sentBytes": 260554,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1249
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 789,
+            "hashMismatches": 0,
+            "replicaTick": 1245,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 201420
+          },
+          "sentBytes": 257600,
+          "frameP95": 52.69999980926514,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1245
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 768,
+            "hashMismatches": 0,
+            "replicaTick": 1249,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 197752
+          },
+          "sentBytes": 252263,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1249
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.4000000953674316
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 747,
+            "hashMismatches": 0,
+            "replicaTick": 1247,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 193266
+          },
+          "sentBytes": 247451,
+          "frameP95": 32.5,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1247
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 729,
+            "hashMismatches": 0,
+            "replicaTick": 1254,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 190003
+          },
+          "sentBytes": 240676,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1254
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392595778,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 487,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 7.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 4460544
+          },
+          "sentBytes": 4912679,
+          "frameP95": 32.19999980926514,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1356
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 857,
+            "hashMismatches": 0,
+            "replicaTick": 1349,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 221511
+          },
+          "sentBytes": 282869,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1349
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.9000000953674316
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 846,
+            "hashMismatches": 0,
+            "replicaTick": 1346,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 219050
+          },
+          "sentBytes": 280227,
+          "frameP95": 53.59999990463257,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1346
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 826,
+            "hashMismatches": 0,
+            "replicaTick": 1351,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 215587
+          },
+          "sentBytes": 274988,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1351
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 265,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 6.299999713897705
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 803,
+            "hashMismatches": 0,
+            "replicaTick": 1345,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 210486
+          },
+          "sentBytes": 269663,
+          "frameP95": 32.19999980926514,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1345
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 785,
+            "hashMismatches": 0,
+            "replicaTick": 1353,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 207223
+          },
+          "sentBytes": 262776,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1353
+        }
+      ]
+    },
+    {
+      "label": "delayed-dropped-duplicated-reordered",
+      "at": 1789392600782,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 1051,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 4865390
+          },
+          "sentBytes": 5350423,
+          "frameP95": 30.90000009536743,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1456
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 916,
+            "hashMismatches": 0,
+            "replicaTick": 1451,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 239551
+          },
+          "sentBytes": 305799,
+          "frameP95": 18,
+          "inputP95": 8,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1451
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.0999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 903,
+            "hashMismatches": 0,
+            "replicaTick": 1446,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 236680
+          },
+          "sentBytes": 302844,
+          "frameP95": 51.30000019073486,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1446
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 883,
+            "hashMismatches": 0,
+            "replicaTick": 1452,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 233217
+          },
+          "sentBytes": 297508,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1452
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.8000001907348633
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 861,
+            "hashMismatches": 0,
+            "replicaTick": 1447,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 228116
+          },
+          "sentBytes": 292284,
+          "frameP95": 30.59999990463257,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1447
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 843,
+            "hashMismatches": 0,
+            "replicaTick": 1454,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 224853
+          },
+          "sentBytes": 285286,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1454
+        }
+      ]
+    },
+    {
+      "label": "guest-reconnect",
+      "at": 1789392602852,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 215,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.400000095367432
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 4994599
+          },
+          "sentBytes": 5513781,
+          "frameP95": 31,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1496
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 36,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 18,
+            "hashMismatches": 0,
+            "replicaTick": 1501,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 3857
+          },
+          "sentBytes": 6689,
+          "frameP95": 18,
+          "inputP95": 6,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1501
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.5999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 938,
+            "hashMismatches": 0,
+            "replicaTick": 1488,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 245085
+          },
+          "sentBytes": 313243,
+          "frameP95": 50,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1488
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 922,
+            "hashMismatches": 0,
+            "replicaTick": 1495,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 242032
+          },
+          "sentBytes": 308279,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1495
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.8999996185302734
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 896,
+            "hashMismatches": 0,
+            "replicaTick": 1489,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 236726
+          },
+          "sentBytes": 302888,
+          "frameP95": 30.700000286102295,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1489
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 882,
+            "hashMismatches": 0,
+            "replicaTick": 1497,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 233873
+          },
+          "sentBytes": 296258,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1497
+        }
+      ]
+    },
+    {
+      "label": "shared-tv-lightweight-controllers",
+      "at": 1789392608894,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 215,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 5.300000190734863
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 1,
+            "controllerPeers": 4,
+            "binarySentBytes": 5467501
+          },
+          "sentBytes": 6029866,
+          "frameP95": 21.59999990463257,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1616
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 22,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 4669
+          },
+          "sentBytes": 14126,
+          "frameP95": 18,
+          "inputP95": 6,
+          "ackMs": 0,
+          "correction": 8.816778784387111,
+          "tick": 1621
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3.5999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 955,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 248570
+          },
+          "sentBytes": 323546,
+          "frameP95": 17.300000190734863,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 14.265847744427317,
+          "tick": 1608
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 932,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 244082
+          },
+          "sentBytes": 317027,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 14.265847744427282,
+          "tick": 1615
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.3000001907348633
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 912,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 240006
+          },
+          "sentBytes": 313012,
+          "frameP95": 17.300000190734863,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 8.81677878438709,
+          "tick": 1609
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 1002,
+            "hashMismatches": 0,
+            "replicaTick": 1617,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 258473
+          },
+          "sentBytes": 326714,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1617
+        }
+      ]
+    },
+    {
+      "label": "shared-tv-lightweight-controllers",
+      "at": 1789392613898,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 486,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 5.699999809265137
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 1,
+            "controllerPeers": 4,
+            "binarySentBytes": 5861707
+          },
+          "sentBytes": 6469489,
+          "frameP95": 21.600000381469727,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1716
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 22,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 4669
+          },
+          "sentBytes": 19902,
+          "frameP95": 18,
+          "inputP95": 6,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1721
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.300000190734863
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 955,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 248570
+          },
+          "sentBytes": 329459,
+          "frameP95": 17.299999713897705,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1708
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 932,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 244082
+          },
+          "sentBytes": 322842,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1716
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.700000286102295
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 912,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 240006
+          },
+          "sentBytes": 318913,
+          "frameP95": 17.5,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1709
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 1103,
+            "hashMismatches": 0,
+            "replicaTick": 1718,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 279178
+          },
+          "sentBytes": 352299,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1718
+        }
+      ]
+    },
+    {
+      "label": "shared-tv-lightweight-controllers",
+      "at": 1789392618900,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 215,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.200000286102295
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 1,
+            "controllerPeers": 4,
+            "binarySentBytes": 6255567
+          },
+          "sentBytes": 6895653,
+          "frameP95": 21.600000381469727,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1816
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 22,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 4669
+          },
+          "sentBytes": 25102,
+          "frameP95": 18,
+          "inputP95": 6,
+          "ackMs": 0,
+          "correction": 8.816778784387157,
+          "tick": 1822
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.5999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 955,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 248570
+          },
+          "sentBytes": 334767,
+          "frameP95": 17.200000286102295,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 14.265847744427317,
+          "tick": 1808
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 932,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 244082
+          },
+          "sentBytes": 328073,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 14.265847744427317,
+          "tick": 1816
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 214,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.299999713897705
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 912,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 240006
+          },
+          "sentBytes": 324244,
+          "frameP95": 17.5,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 8.81677878438709,
+          "tick": 1809
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 1203,
+            "hashMismatches": 0,
+            "replicaTick": 1818,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 299678
+          },
+          "sentBytes": 377679,
+          "frameP95": 17,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1818
+        }
+      ]
+    },
+    {
+      "label": "full-view-restored",
+      "at": 1789392619906,
+      "values": [
+        {
+          "direct": 5,
+          "relayed": 0,
+          "buffered": 488,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4.200000286102295
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 0,
+            "hashMismatches": 0,
+            "replicaTick": null,
+            "fullViewPeers": 5,
+            "controllerPeers": 0,
+            "binarySentBytes": 6352656
+          },
+          "sentBytes": 7001390,
+          "frameP95": 21.699999809265137,
+          "inputP95": 8.199999809265137,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1836
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 4
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 38,
+            "hashMismatches": 0,
+            "replicaTick": 1842,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 8154
+          },
+          "sentBytes": 30333,
+          "frameP95": 18,
+          "inputP95": 6,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1842
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 2.5999999046325684
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 957,
+            "hashMismatches": 0,
+            "replicaTick": 1828,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 249185
+          },
+          "sentBytes": 337159,
+          "frameP95": 17.300000190734863,
+          "inputP95": 5.300000190734863,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1828
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 5
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 942,
+            "hashMismatches": 0,
+            "replicaTick": 1836,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 246337
+          },
+          "sentBytes": 332083,
+          "frameP95": 18,
+          "inputP95": 2,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1836
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 264,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 1.299999713897705
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 915,
+            "hashMismatches": 0,
+            "replicaTick": 1829,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 240826
+          },
+          "sentBytes": 326843,
+          "frameP95": 17.5,
+          "inputP95": 38.80000019073486,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1829
+        },
+        {
+          "direct": 1,
+          "relayed": 0,
+          "buffered": 0,
+          "authority": {
+            "reason": "permitted",
+            "roundTripMs": 3
+          },
+          "replication": {
+            "mode": "actions",
+            "acceptedBatches": 1223,
+            "hashMismatches": 0,
+            "replicaTick": 1838,
+            "fullViewPeers": 0,
+            "controllerPeers": 0,
+            "binarySentBytes": 303778
+          },
+          "sentBytes": 382755,
+          "frameP95": 18,
+          "inputP95": 14,
+          "ackMs": 0,
+          "correction": 0,
+          "tick": 1838
+        }
+      ]
+    }
+  ],
+  "errors": []
+}
