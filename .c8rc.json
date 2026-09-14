@@ -17,7 +17,8 @@
     "src/online/prediction.ts",
     "src/online/keyframe-delivery.ts",
     "src/online/room-lifecycle.ts",
-    "src/online/response-measurement.ts"
+    "src/online/response-measurement.ts",
+    "src/online/prediction-clock.ts"
   ],
   "reporter": [
     "text",

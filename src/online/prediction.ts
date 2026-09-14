@@ -104,10 +104,11 @@ export class RemoteWorldBuffer {
     if(this.frames.at(-1)&&state.tick<this.frames.at(-1)!.tick)return;
     if(this.frames.at(-1)?.tick===state.tick)this.frames.pop();this.frames.push(state);if(this.frames.length>32)this.frames.shift();
   }
-  render(authorityTick?:number):ViewSnapshot|undefined {
+  render(authorityTick?:number,delayTicks:1|2=2):ViewSnapshot|undefined {
     const newest=this.frames.at(-1);if(!newest)return undefined;
     // Freeze at newest available snapshot: no guessed bounce/collision trajectories.
-    const tick=Math.max(this.presented,Math.min(newest.tick,Math.max(this.frames[0]!.tick,(authorityTick??newest.tick+2)-2)));this.presented=tick;
+    const delay=delayTicks===1?1:2;
+    const tick=Math.max(this.presented,Math.min(newest.tick,Math.max(this.frames[0]!.tick,(authorityTick??newest.tick+delay)-delay)));this.presented=tick;
     const upper=this.frames.findIndex(state=>state.tick>=tick);if(upper<=0)return this.frames[0];
     const a=this.frames[upper-1]!,b=this.frames[upper]!;return interpolateWorld(a,b,(tick-a.tick)/(b.tick-a.tick));
   }

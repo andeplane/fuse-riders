@@ -1,0 +1,42 @@
+# ADR 037: faster publication and conservative nearby presentation delay
+
+Status: design accepted 2026-09-14 after independent root and room_security_review approval. Implementation and measured acceptance remain pending.
+
+## Problem and evidence
+
+The actual heading benchmark on d715642 measured local p95 28ms, TV p95 162.5ms (one-degree departure174.6ms), with17valid observations,21rejected/confounded observations and0eligible timeouts. The proposed nearby TV target100ms failed. Full raw failure remains in `docs/online/evidence/response-d715642.json`. A valid CPU render-submission benchmark is not physical touch-to-photon evidence.
+
+Runtime currently publishes on even simulation ticks only (10Hz), while RemoteWorldBuffer renders estimated authority tick minus2 (100ms at20Hz physics). Those independent waits explain a substantial avoidable response budget. This change must preserve authority, direct-only communication, monotonic presentation and realistic regional buffering.
+
+## Proposed bounded decision
+
+1. Publish a snapshot after every completed authoritative50ms tick (20Hz). Physics/input scheduling remain20Hz. Event delivery, generations, keyframe receipts, encoder deltas, per-peer motion ledger and existing backpressure remain unchanged. Do not send a full keyframe on every tick. The host already checkpoints only tick%20; no doubled durable writes.
+2. Keep the default remote presentation delay at2ticks. Permit1tick only after three consecutive accepted unpaused tick-clock samples with measured RTT<=20ms, same complete control scope, strictly increasing received timestamps and no sample gap over1000ms. RTT includes host handling time, so this is a conservative nearby classification, not a network-distance estimate.
+3. Revert immediately to2ticks on any finite observed RTT>20ms, including samples rejected for excessive RTT, paused clock, scope reset, time discontinuity, or sample age>1000ms. Three-sample entry and immediate conservative exit provide temporal hysteresis. Invalid/stale samples cannot qualify a link; no lowest-ever-RTT heuristic. Classification reads the same injected monotonic clock used by PredictionClock. No new clock protocol, probes, browser geolocation or RTT inference from replication arrivals.
+4. PredictionClock will expose a presentation-delay getter returning only1or2. Only samples passing its existing validity/time-order checks can improve quality; finite high-RTT observations can only downgrade it. Clock reset also resets quality. A rejected sample cannot renew freshness or advance the qualifying streak. A scope change restarts qualification even when there was no explicit reset.
+5. RemoteWorldBuffer accepts an optional delay argument default2, bounded to1or2. Without an authority-clock estimate, preserve the existing newest-available-snapshot fallback; this is not a confirmed100ms history delay. With an estimate its target remains clamped to available snapshots and never below its already-presented tick. Reducing delay may advance presentation within known snapshots; increasing delay holds the current presentation until the deeper buffer catches up. Never extrapolate riders/projectiles, rewind within scope, interpolate portal crossings, or expose future discrete state. Existing scope/phase resets remain intact.
+6. UI passes the clock's current qualified delay to the remote buffer. Local prediction, command timestamps, host authority leases and gameplay collision outcomes are untouched. The host's RTT0 samples qualify after the same policy; no special identity bypass.
+
+## Why this variant
+
+Universal50ms buffering can starve on the existing regional80msRTT profile:40msone-way plus up to50ms publication spacing exceeds50ms. Keeping100ms there protects interpolation coverage. Always100ms buffering plus20Hz helps but leaves avoidable nearby latency. Zero-delay/extrapolation introduces guessed collisions and is outside this change. Adaptive per-packet jitter estimation or a new unreliable channel would add unrelated mechanisms; this two-level policy is deliberately narrow.
+
+The20Hz publication cost is additional JSON envelope/player state traffic and host encoding work. Existing delta compression limits world geometry retransmission, but that is not proof the new bandwidth passes. Existing backpressure continues to fail visibly instead of unbounded queues.
+
+## Required tests and review
+
+- Injected clock: three fresh same-scope low-RTT samples qualify; one/two do not; highRTT, stale samples, pause, explicit reset, backwards time and changed scope fall back. Invalid/replayed probes cannot qualify or extend freshness.
+- Remote buffer:1tick target differs by exactly1tick where available; shifting1→2never rewinds;2→1never exceeds newest; unknown clock remains newest-only/no extrapolation and omitted delay with valid clock remains2ticks; portal/death/discrete interpolation guards retained.
+- Browser host snapshot-tick trace checks publication on each completed simulation tick rather than introducing a loop helper solely to mirror implementation. No physics-rate or keyframe-ack contract change; checkpoint cadence remains one second.
+- Full tests/typecheck and unchanged coverage gates before client release. Independent implementation review.
+
+## Before/after evidence and release decision
+
+Serialize all browser runs, using the exact built source/asset hash. Preserve the original failed artifact.
+
+1. Repeat60second actual response benchmark: localp95<=33ms, nearbyTVp95<=100ms, >=10eligible samples per view and0eligible timeouts. Keep every confounded/rejected attempt and one-degree metric; insufficient sample count is not a pass.
+2. Repeat regional impaired network benchmark with20Hz. Check accepted-world freshness/recovery, monotonicity, correction distribution, no errors, bounded queues and zero gameplay relay. Verify clocks stay at2tick policy for regionalRTT (expose opt-in diagnostic delay if needed).
+3. Record actual serialized gameplay payload egress average and p95 one-second windows for every peer, especially total host egress. Proposed budget inherited from ADR032: <=0.5Mbps average and <=1Mbps p95 per full-view downlink; report host aggregate separately. Payload excludes SCTP/DTLS/IP overhead. Compare to the archived10Hz regional result. Do not claim full wire budget.
+4. If TV response still fails, buffering becomes unstable or bandwidth exceeds budget, retain failed evidence and investigate the measured cause before further tuning. Do not silently lower sample requirements, delete the old failure or mark the candidate target passed by code inspection.
+
+No browser runs occur concurrently with the already queued public/mobile acceptance runs. This ADR changes no service infrastructure or deployment permissions.

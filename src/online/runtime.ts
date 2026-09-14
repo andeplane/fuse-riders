@@ -128,7 +128,7 @@ export class RoomRuntime {
       for(const event of this.session.advance()){
         const {matchId,round,tick}=this.session.game;this.callbacks.event(event,matchId,round,tick);for(const id of this.peers)this.transport.send(id,{type:'event',event,matchId,round,tick});
       }
-      if(this.session.game.tick%2===0)this.publish(false);
+      this.publish(false);
     }
   }
   private publish(paused:boolean):void {
