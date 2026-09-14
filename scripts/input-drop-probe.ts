@@ -13,12 +13,12 @@ import { execFileSync } from 'node:child_process';
 const base=new URL(process.env.ONLINE_URL??'http://localhost:8787/');
 const seconds=Number(process.env.PROBE_SECONDS??60),room=process.env.PROBE_ROOM?.toUpperCase();
 const impairment={downDelay:Number(process.env.PROBE_DOWN_DELAY_MS??(room?0:100)),downJitter:Number(process.env.PROBE_DOWN_JITTER_MS??(room?0:200)),upDelay:Number(process.env.PROBE_UP_DELAY_MS??(room?0:30))};
-const hideMs=Number(process.env.PROBE_HIDE_MS??(room?0:1500)),maxLocalRejectPercent=Number(process.env.PROBE_MAX_LOCAL_REJECT_PCT??2);
+const hideMs=Number(process.env.PROBE_HIDE_MS??(room?0:1500)),maxLocalRejectPercent=Number(process.env.PROBE_MAX_LOCAL_REJECT_PCT??2),minHostProcessedPercent=Number(process.env.PROBE_MIN_HOST_PROCESSED_PCT??90),maxHostExpiredPercent=Number(process.env.PROBE_MAX_HOST_EXPIRED_PCT??3),recoveryMs=Number(process.env.PROBE_RECOVERY_MS??2000);
 assert.ok(seconds>=10&&seconds<=1800,'PROBE_SECONDS must be 10–1800');
 if(!['localhost','127.0.0.1'].includes(base.hostname)&&process.env.BENCH_ALLOW_REMOTE!=='1')throw new Error('Remote probe requires BENCH_ALLOW_REMOTE=1 and an isolated authorized room');
 
 interface InputSample {kind:'input';at:number;seq:number;left:boolean;right:boolean;bomb:boolean;bombAction?:string;scheduled:boolean;intendedTick?:number;sent:boolean;estimate?:{lower:number;upper:number;tick:number};baseTick?:number;pending:number}
-interface SnapshotSample {kind:'snapshot';at:number;tick:number;phase:string;authorityScope:string;motionResults?:Array<{seq:number;status:string;appliedTick?:number}>}
+interface SnapshotSample {kind:'snapshot';at:number;tick:number;phase:string;authorityScope:string;controlEpoch?:string;motionResults?:Array<{seq:number;status:string;appliedTick?:number}>}
 type Sample=InputSample|SnapshotSample;
 /** Ordered per-channel application send delay: a slow but in-order path, not IP shaping. */
 function installDelay(config:{delay:number;jitter:number;seed:number}){
@@ -38,7 +38,7 @@ function installGuestHooks(){
  window.addEventListener('fuse-benchmark',event=>{
   const detail=(event as CustomEvent<Record<string,unknown>>).detail;if(!detail||typeof detail!=='object')return;
   if(detail.kind==='input')void Reflect.get(window,'recordProbe')(detail);
-  else if(detail.kind==='snapshot')void Reflect.get(window,'recordProbe')({kind:'snapshot',at:detail.at,tick:detail.tick,phase:detail.phase,authorityScope:detail.authorityScope,motionResults:detail.motionResults});
+  else if(detail.kind==='snapshot')void Reflect.get(window,'recordProbe')({kind:'snapshot',at:detail.at,tick:detail.tick,phase:detail.phase,authorityScope:detail.authorityScope,controlEpoch:detail.controlEpoch,motionResults:detail.motionResults});
  });
 }
 const prelude=(fn:(config:never)=>void,config:unknown)=>({content:`globalThis.__name=(f)=>f;(${fn.toString()})(${JSON.stringify(config)});`});
@@ -94,7 +94,7 @@ try{
   while(Date.now()-startedAt<seconds*1000){
    const elapsed=Date.now()-startedAt;
    if(host&&(await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){await touch.clear();await host.keyboard.press('Escape');await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();await host.getByRole('button',{name:'START RACE',exact:true}).click();restarts++;}
-   if(hideMs&&!hiddenWindow&&elapsed>seconds*500){
+   if(hideMs&&!hiddenWindow&&elapsed>seconds*500&&latest()?.phase==='playing'){
     await touch.clear();hiddenWindow={from:await guest.evaluate(()=>performance.now()),to:0};
     const cdp=await guestContext.newCDPSession(guest);
     await guest.evaluate(()=>Reflect.get(window,'__probeSetHidden')(true));
@@ -119,15 +119,27 @@ try{
  const playing=inputs.filter(input=>phaseAt(input.at)==='playing'&&!(hiddenWindow&&input.at>=hiddenWindow.from&&input.at<=hiddenWindow.to+500));
  const fireEdges=playing.filter(input=>input.bombAction==='press'||input.bombAction==='release');
  const summary={cycles,restarts,inputs:inputs.length,playingInputs:playing.length,playing:bucket(playing),fireEdges:fireEdges.length,fire:bucket(fireEdges),afterHidden:hiddenWindow?{phase:phaseAt(hiddenWindow.to),...bucket(inputs.filter(input=>input.at>hiddenWindow!.to&&input.at<=hiddenWindow!.to+3000&&phaseAt(input.at)==='playing'))}:null,otherPhases:bucket(inputs.filter(input=>!playing.includes(input))),shotNotices:shotNotices.length,statuses:Object.fromEntries(statuses),errors};
- const localRejected=Object.entries(summary.playing).filter(([key])=>key.startsWith('local-rejected')).reduce((sum,[,count])=>sum+count,0);
- const localRejectPercent=playing.length?100*localRejected/playing.length:0;
+ const count=(counts:Record<string,number>,prefix:string)=>Object.entries(counts).filter(([key])=>key.startsWith(prefix)).reduce((sum,[,value])=>sum+value,0);
+ const localRejectPercent=playing.length?100*count(summary.playing,'local-rejected')/playing.length:0;
  const quantiles=(values:number[])=>{const sorted=[...values].sort((a,b)=>a-b);return {count:sorted.length,p50:sorted[Math.floor((sorted.length-1)*.5)]??0,p95:sorted[Math.floor((sorted.length-1)*.95)]??0,max:sorted.at(-1)??0};};
  const appliedReportMs=quantiles(playing.flatMap(input=>{const result=results.get(input.seq);return result?.status==='applied'?[result.at-input.at]:[];}));
- report={...report,summary,localRejectPercent,appliedReportMs,hiddenWindow,samplesRetained:samples.length};
- console.log(JSON.stringify({...summary,localRejectPercent:Number(localRejectPercent.toFixed(2)),appliedReportMs},null,1));
+ // Authority gate: over inputs that were actually sent, excluding the second before each authority scope change (lifecycle fencing, not loss).
+ const scopeChanges=snapshots.filter((snapshot,index)=>index>0&&snapshot.authorityScope!==snapshots[index-1]!.authorityScope).map(snapshot=>snapshot.at);
+ const controlScopeChanges=snapshots.filter((snapshot,index)=>index>0&&snapshot.controlEpoch!==snapshots[index-1]!.controlEpoch&&snapshot.authorityScope===snapshots[index-1]!.authorityScope).length;
+ const judged=bucket(playing.filter(input=>input.scheduled&&input.sent&&!scopeChanges.some(at=>input.at>=at-1000&&input.at<at)));
+ const judgedTotal=Object.values(judged).reduce((sum,value)=>sum+value,0);
+ const hostProcessedPercent=judgedTotal?100*(count(judged,'host-applied')+count(judged,'host-superseded'))/judgedTotal:0,hostExpiredPercent=judgedTotal?100*count(judged,'host-expired')/judgedTotal:0;
+ // Recovery: once the guest is back in play after the hidden window, the authority must apply its input again promptly.
+ const playingAgainAt=hiddenWindow?snapshots.find(snapshot=>snapshot.at>=hiddenWindow!.to&&snapshot.phase==='playing')?.at:undefined;
+ const recoveredAfterMs=playingAgainAt===undefined?null:(inputs.find(input=>input.at>=playingAgainAt&&results.get(input.seq)?.status==='applied')?.at??Infinity)-playingAgainAt;
+ report={...report,summary,localRejectPercent,judged,controlScopeChanges,hostProcessedPercent,hostExpiredPercent,recoveredAfterMs,appliedReportMs,hiddenWindow,samplesRetained:samples.length};
+ console.log(JSON.stringify({...summary,localRejectPercent:Number(localRejectPercent.toFixed(2)),hostProcessedPercent:Number(hostProcessedPercent.toFixed(2)),hostExpiredPercent:Number(hostExpiredPercent.toFixed(2)),judged,controlScopeChanges,recoveredAfterMs,appliedReportMs},null,1));
  assert.equal(errors.length,0,'Browser errors');
  assert.ok(playing.length>=100,'Probe needs at least 100 playing-phase inputs');
  assert.ok(localRejectPercent<=maxLocalRejectPercent,`Local rejection ${localRejectPercent.toFixed(1)}% exceeds ${maxLocalRejectPercent}% while connected`);
+ assert.ok(hostProcessedPercent>=minHostProcessedPercent,`Authority applied or superseded only ${hostProcessedPercent.toFixed(1)}% (need ${minHostProcessedPercent}%)`);
+ assert.ok(hostExpiredPercent<=maxHostExpiredPercent,`Authority expired ${hostExpiredPercent.toFixed(1)}% (limit ${maxHostExpiredPercent}%)`);
+ if(hideMs){assert.ok(recoveredAfterMs!==null,'No hidden window opened while playing, so recovery could not be measured');assert.ok(recoveredAfterMs<=recoveryMs,`Input not applied within ${recoveryMs} ms of playing again after the hidden window (${recoveredAfterMs} ms)`);}
  report.passed=true;
 }catch(error){report.failure=error instanceof Error?error.message:String(error);throw error;}
 finally{await mkdir('artifacts',{recursive:true});await writeFile('artifacts/input-drop-probe.json',JSON.stringify({...report,samples:samples.slice(-6000)},null,1)+'\n');await Promise.all(contexts.map(context=>context.close()));await browser.close();}

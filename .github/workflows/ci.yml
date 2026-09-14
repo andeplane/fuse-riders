@@ -75,6 +75,15 @@ jobs:
         run: npx tsx scripts/mobile-phase-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
+      - name: Chrome end-of-match recap
+        run: npx tsx scripts/match-recap-smoke.ts
+        env:
+          HOME_URL: http://localhost:8787/
+      - name: WebKit end-of-match recap
+        run: npx tsx scripts/match-recap-smoke.ts
+        env:
+          HOME_URL: http://localhost:8787/
+          BROWSER: webkit
       - name: Shared QR lobby and room termination regression
         run: npx tsx scripts/shared-room-smoke.ts
         env:

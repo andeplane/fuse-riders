@@ -3,7 +3,7 @@ import { advanceRiderPose, type RiderPose, type MotionControls } from '../shared
 import { drunkHeadingOffset } from '../shared/drunk.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import { sameControlScope, type AppliedMotionState, type ScheduledMotionInput, type TickClockSample } from './prediction-contract.js';
-import { PredictionClock } from './prediction-clock.js';
+import { PredictionClock, type TickEstimate } from './prediction-clock.js';
 export { PredictionClock } from './prediction-clock.js';
 interface Pending extends ScheduledMotionInput { at:number }
 const NEUTRAL:MotionControls={left:false,right:false};
@@ -20,13 +20,14 @@ export class LocalPrediction {
   constructor(private readonly now:()=>number){this.clock=new PredictionClock(now);}
   resetExternalScope():void {this.base=undefined;this.pending=[];this.shown=undefined;this.offset={x:0,y:0};this.clock.reset();}
   observeClock(sample:TickClockSample):boolean{return this.clock.observe(sample);}
-  /** Read-only opt-in measurement data for the input probe. */
-  diagnostics():{baseTick?:number;pending:number}{return {baseTick:this.base?.state.tick,pending:this.pending.length};}
+  /** Opt-in measurement data for the input probe; reads the scoped clock (refreshing its freshness), so call only alongside input(). */
+  diagnostics():{baseTick?:number;pending:number;estimate?:TickEstimate}{return {baseTick:this.base?.state.tick,pending:this.pending.length,estimate:this.base?this.clock.estimate(this.base.ledger.scope):undefined};}
   /** Only the host's admission window decides; a slow clock or lagging snapshot limits the local preview, never the send. */
   input(seq:number,left:boolean,right:boolean):ScheduledMotionInput|undefined {
     const base=this.base,estimate=base&&this.clock.estimate(base.ledger.scope);
     if(!base||!estimate)return undefined;
-    if(this.pending.length>=128)this.pending=[]; // Unreported backlog is stale; never block fresh input.
+    // Overflow: first drop what the host can no longer apply; a full window of unreported input is stale as a whole.
+    if(this.pending.length>=128){this.pending=this.pending.filter(input=>input.intendedTick>=base.state.tick-4);if(this.pending.length>=128)this.pending=[];}
     const intendedTick=Math.floor(estimate.tick)+1;
     const input={seq,left,right,intendedTick,scope:{...base.ledger.scope},resultAcks:base.ledger.results.map(result=>result.seq)};
     this.pending.push({...input,at:this.now()});return input;

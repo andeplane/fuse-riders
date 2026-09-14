@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { durationText } from '../src/client/duration-text.js';
+import { durationText } from '../src/shared/duration-text.js';
 
 test('durationText rounds whole seconds before splitting minutes so 59.95s never renders as "60s"', () => {
   assert.equal(durationText(1199), '1m 0s'); // 59.95s rounds up to a full minute, not "60s"
