@@ -1,0 +1,20 @@
+{
+  "revision": "2c02750a437906a21c4874c214b88b760c01d11d",
+  "rules": "fuse-actions-3",
+  "scope": "Absolute per-action timestamps; no transport/cadence/mesh runtime changes.",
+  "checks": {
+    "typecheck": "passed",
+    "typecheckWorker": "passed",
+    "unitAndCoverage": "474 passed, 0 failed",
+    "build": "passed",
+    "chromiumReplay": "7200 ticks, zero mismatches",
+    "webkitReplay": "7200 ticks, zero mismatches"
+  },
+  "coverage": {
+    "lines": 99.52,
+    "branches": 94.56,
+    "functions": 99.53
+  },
+  "compatibility": "Old replay rules rejected; fuse-simulation-2 host save format unchanged.",
+  "release": "Not deployed. Existing room/LAN browser evidence remains historical; this change reruns exact browser replay, not the entire live-room release suite."
+}

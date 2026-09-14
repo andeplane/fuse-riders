@@ -1,0 +1,87 @@
+{
+  "revision": "2c02750a437906a21c4874c214b88b760c01d11d",
+  "dirty": false,
+  "method": "Three host-recorded five-bot 2400-tick traces (one explicit weapon/portal checkpoint), actual MessagePack checkpoint and action receiver, canonical comparison at every committed transaction. Desktop headless engines; not physical phones.",
+  "fixtures": [
+    {
+      "seed": 100,
+      "weapons": false,
+      "ticks": 2400,
+      "actionBytes": 28518,
+      "fullSnapshotBytes": 76241444,
+      "eventCounts": {
+        "bombPlaced": 43,
+        "playerEliminated": 30,
+        "explosion": 43,
+        "roundEnded": 7,
+        "pickupCollected": 5,
+        "matchEnded": 1
+      }
+    },
+    {
+      "seed": 701,
+      "weapons": false,
+      "ticks": 2400,
+      "actionBytes": 28780,
+      "fullSnapshotBytes": 79359668,
+      "eventCounts": {
+        "bombPlaced": 43,
+        "playerEliminated": 23,
+        "explosion": 36,
+        "roundEnded": 5,
+        "pickupCollected": 5,
+        "matchEnded": 1
+      }
+    },
+    {
+      "seed": 99,
+      "weapons": true,
+      "ticks": 2400,
+      "actionBytes": 28528,
+      "fullSnapshotBytes": 95391852,
+      "eventCounts": {
+        "bombPlaced": 44,
+        "explosion": 41,
+        "pickupCollected": 8,
+        "playerEliminated": 19,
+        "roundEnded": 4
+      }
+    }
+  ],
+  "results": {
+    "chromium": [
+      {
+        "ticks": 2400,
+        "elapsedMs": 1110.6000003814697,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1090.5,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1263.5,
+        "hashMismatches": 0
+      }
+    ],
+    "webkit": [
+      {
+        "ticks": 2400,
+        "elapsedMs": 1542,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1508,
+        "hashMismatches": 0
+      },
+      {
+        "ticks": 2400,
+        "elapsedMs": 1829,
+        "hashMismatches": 0
+      }
+    ]
+  }
+}

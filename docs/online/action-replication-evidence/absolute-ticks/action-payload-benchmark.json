@@ -1,0 +1,43 @@
+{
+  "revision": "2c02750a437906a21c4874c214b88b760c01d11d",
+  "dirty": false,
+  "method": "Same five-bot host state,120seconds per seed,20Hz. Real WorldEncoder JSON delta vs real ActionSender MessagePack for one full-view player, including representative outer envelope, settings, prediction metadata and initial baselines. No loss/backpressure. Counts host downlink application bytes only; excludes upstream inputs, receipts, clock probes, signalling, authoritative effects and protocol/wire headers. Action records alone are a separate subset, not total traffic.",
+  "results": [
+    {
+      "seed": 100,
+      "seconds": 120,
+      "ticks": 2400,
+      "actionRecordsBytes": 28063,
+      "actionDownlinkBytes": 1530433,
+      "snapshotDeltaDownlinkBytes": 3497525,
+      "actionRecordsBytesPerSecond": 233.85833333333332,
+      "actionDownlinkBytesPerSecond": 12753.608333333334,
+      "snapshotDeltaDownlinkBytesPerSecond": 29146.041666666668,
+      "reductionPercent": 56.242399982845015
+    },
+    {
+      "seed": 701,
+      "seconds": 120,
+      "ticks": 2400,
+      "actionRecordsBytes": 27683,
+      "actionDownlinkBytes": 1529668,
+      "snapshotDeltaDownlinkBytes": 3457173,
+      "actionRecordsBytesPerSecond": 230.69166666666666,
+      "actionDownlinkBytesPerSecond": 12747.233333333334,
+      "snapshotDeltaDownlinkBytesPerSecond": 28809.775,
+      "reductionPercent": 55.75379074174188
+    },
+    {
+      "seed": 99,
+      "seconds": 120,
+      "ticks": 2400,
+      "actionRecordsBytes": 27865,
+      "actionDownlinkBytes": 1525102,
+      "snapshotDeltaDownlinkBytes": 3449850,
+      "actionRecordsBytesPerSecond": 232.20833333333334,
+      "actionDownlinkBytesPerSecond": 12709.183333333332,
+      "snapshotDeltaDownlinkBytesPerSecond": 28748.75,
+      "reductionPercent": 55.79222285026886
+    }
+  ]
+}

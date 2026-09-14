@@ -64,6 +64,10 @@ BROWSER=webkit node --import tsx scripts/browser-smoke.ts
 
 Coverage retains the existing thresholds and adds the action protocol module. Runtime/transport/UI browser integration remains outside the named unit-coverage surface. Browser reports identify revision, dirty state, seeds and scope. Earlier native-math failures are retained alongside passing evidence.
 
+## Absolute-tick amendment verification
+
+Runtime `2c02750` uses full absolute applied ticks in action tuples under `fuse-actions-3`. Its independent schema review passed; both typechecks, all 474 unit tests with enforced coverage, production build, and 7,200 exact replay ticks per engine in Chromium/WebKit passed. Old replay-rule checkpoints are rejected and host-save compatibility remains unchanged. [New verification and raw evidence](action-replication-evidence/absolute-ticks/verification.json) are separate from the original prototype evidence above. On the same payload benchmark, action records increase to 231–234 B/s and total downlink remains about 12.7 KB/s; timestamps are still a small part of the traffic. This amendment does not implement direct peer streams, continuous speculative world simulation or event-driven network sends.
+
 ## Target architecture after user clarification
 
 The intended online architecture is direct per-player action streams and continuous full-world simulation on every viewing device, including bounded rollback for late input. A coordinator handles setup, membership, finality and recovery without being a normal-input relay. The existing host-star, 20 Hz publication and opt-in snapshot compatibility are transitional prototype choices, not permanent requirements. See the revised [brief](DETERMINISTIC-ACTION-LOG-BRIEF.md). Controller-only phones remain lightweight, and the separate LAN path is preserved.
