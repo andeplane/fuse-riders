@@ -1,3 +1,4 @@
+import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
 import { apiUrl } from './endpoints.js';
@@ -8,6 +9,7 @@ export interface TransportCallbacks {
   message:(id:string,data:unknown)=>void;
   status:(status:string)=>void;
   revoked?:()=>void;
+  ended?:()=>void;
   authorityChanged?:()=>void;
 }
 interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;ice:RTCIceCandidateInit[];seen:Set<number>;health:LinkHealth;restartAt:number;restarting:boolean }
@@ -88,9 +90,7 @@ export class PeerTransport {
     };
     ws.onclose=event=>{
       if(ws!==this.socket)return;
-      this.callbacks.status(event.code===4001?'Room opened in another tab':'Signalling disconnected · retrying');
-      if(event.code===4001){this.close();this.callbacks.revoked?.();return;}
-      if(!this.stopped)this.retry=setTimeout(()=>this.connect(),1500);
+      handleRoomSocketClose(event.code,{stopped:()=>this.stopped,stop:()=>this.close(),revoked:()=>this.callbacks.revoked?.(),ended:()=>this.callbacks.ended?.(),status:this.callbacks.status,retry:()=>{this.retry=setTimeout(()=>this.connect(),1500);}});
     };
     ws.onerror=()=>ws.close();
   }

@@ -21,8 +21,8 @@ class Peer {
 }
 export async function runPublicSmoke(options:PublicSmokeOptions):Promise<PublicSmokeReport>{
  const origin=validateOrigin(options.origin,options.allowLoopback),browserOrigin=validateOrigin(options.browserOrigin??'https://andeplane.github.io',options.allowLoopback),timeout=options.timeoutMs??25_000;
- const peers:Peer[]=[],checks:Check[]=[];let current='health and readiness',start=performance.now(),heartbeat:ReturnType<typeof setInterval>|undefined;
- const report:PublicSmokeReport={date:new Date().toISOString(),origin,passed:false,checks,limits:'Public HTTPS/WSS and synthetic SDP only. Proves provider-backed room transactions and subscription creation with the deployed identity, not its exact email, cross-instance PubSub routing, real RTC, Pages or physical phones.',cleanup:'All test sockets closed. No public room deletion/namespace override exists; one random room and creation-limit record remain until configured Firestore TTL cleanup. No existing room is used.'};
+ const peers:Peer[]=[],checks:Check[]=[];let createdRoom:{code:string;token:string}|undefined;let current='health and readiness',start=performance.now(),heartbeat:ReturnType<typeof setInterval>|undefined;
+ const report:PublicSmokeReport={date:new Date().toISOString(),origin,passed:false,checks,limits:'Public HTTPS/WSS and synthetic SDP only. Proves provider-backed room transactions and subscription creation with the deployed identity, not its exact email, cross-instance PubSub routing, real RTC, Pages or physical phones.',cleanup:'No room created; all test sockets are closed.'};
  const checked=(next:string)=>{checks.push({name:current,milliseconds:Math.round(performance.now()-start)});start=performance.now();current=next;};
  const request=(path:string,init:RequestInit={})=>fetch(origin+path,{...init,headers:{Origin:browserOrigin,...init.headers},signal:AbortSignal.timeout(timeout)});
  const open=(code:string,token:string)=>{const u=new URL(`/api/rooms/${code}/ws`,origin);u.protocol=u.protocol==='https:'?'wss:':'ws:';u.searchParams.set('token',token);const peer=new Peer(u.href,browserOrigin,timeout);peers.push(peer);return peer;};
@@ -32,7 +32,7 @@ export async function runPublicSmoke(options:PublicSmokeOptions):Promise<PublicS
   assert.equal((await request('/api/rooms',{method:'POST',headers:{Origin:'https://denied.invalid'}})).status,403);
   const preflight=await request('/api/rooms',{method:'OPTIONS',headers:{'Access-Control-Request-Method':'POST'}});assert.equal(preflight.status,204);assert.equal(preflight.headers.get('Access-Control-Allow-Origin'),browserOrigin);
   checked('anonymous room creation backed by deployed database identity');
-  const response=await request('/api/rooms',{method:'POST'});assert.equal(response.status,201);assert.equal(response.headers.get('Access-Control-Allow-Origin'),browserOrigin);const room=await response.json() as {code:string;token:string};assert.match(room.code,/^[A-Z0-9]{10}$/);assert.match(room.token,/^[a-f0-9]{64}$/);
+  const response=await request('/api/rooms',{method:'POST'});assert.equal(response.status,201);assert.equal(response.headers.get('Access-Control-Allow-Origin'),browserOrigin);const room=await response.json() as {code:string;token:string};createdRoom=room;assert.match(room.code,/^[A-Z]{2}[0-9]{2}$/);assert.match(room.token,/^[a-f0-9]{64}$/);
   checked('host WSS admission creates provider subscription and authority');
   const host=open(room.code,room.token),welcome=await host.frame('welcome');assert.equal(welcome.protocol,2);assert.ok(isAuthorityGrant(welcome.grant));let grant:AuthorityGrant=welcome.grant;
   heartbeat=setInterval(()=>host.send({type:'time',id:'heartbeat',sentAt:performance.now(),renew:grant}),750);
@@ -49,9 +49,10 @@ export async function runPublicSmoke(options:PublicSmokeOptions):Promise<PublicS
   host.send({type:'time',id:'verify-renew',sentAt:1,renew:{incarnation:grant.incarnation,epoch:grant.epoch,holder:grant.holder,grantId:grant.grantId}});const time=await host.frame('time',f=>f.id==='verify-renew');assert.equal(time.sentAt,1);assert.ok(isAuthorityGrant(time.grant));assert.equal(time.grant.grantId,grant.grantId);assert.ok(time.grant.expiresAt>=grant.expiresAt);grant=time.grant;
   checked('host replacement advances fenced authority and closes old socket');
   clearInterval(heartbeat);heartbeat=undefined;const replacement=open(room.code,room.token),next=await replacement.frame('welcome');assert.ok(isAuthorityGrant(next.grant));assert.equal(next.grant.epoch,grant.epoch+1);assert.equal(next.grant.holder,next.connectionId);assert.ok(next.grant.validFrom>=grant.expiresAt+250);assert.equal(await host.wait(()=>host.closed),4001);
+  checked('host-only explicit room end');assert.equal((await request(`/api/rooms/${room.code}/end`,{method:'POST',headers:{Authorization:`Bearer ${guestToken}`}})).status,403);assert.equal((await request(`/api/rooms/${room.code}/end`,{method:'POST',headers:{Authorization:`Bearer ${room.token}`}})).status,200);
   assert.equal(peers.some(peer=>peer.overflow),false);checked('complete');report.passed=true;
  }catch(error){report.failedCheck=current;report.errorType=error instanceof Error?error.name:'UnknownError';}
- finally{if(heartbeat)clearInterval(heartbeat);await Promise.all(peers.map(peer=>peer.close()));}
+ finally{if(heartbeat)clearInterval(heartbeat);if(createdRoom){try{const ended=await request(`/api/rooms/${createdRoom.code}/end`,{method:'POST',headers:{Authorization:`Bearer ${createdRoom.token}`}});report.cleanup=ended.ok?'Test room explicitly ended; expired metadata and creation-limit record await TTL cleanup. All sockets closed.':'Room end was not confirmed; sockets closed and host reconnect grace bounds its lifetime.';}catch{report.cleanup='Room end was not confirmed; sockets closed and host reconnect grace bounds its lifetime.';}}await Promise.all(peers.map(peer=>peer.close()));}
  return report;
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){

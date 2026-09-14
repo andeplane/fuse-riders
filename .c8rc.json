@@ -20,7 +20,8 @@
     "src/online/room-lifecycle.ts",
     "src/online/response-measurement.ts",
     "src/online/prediction-clock.ts",
-    "src/online/local-runtime.ts"
+    "src/online/local-runtime.ts",
+    "src/online/room-socket-close.ts"
   ],
   "reporter": [
     "text",

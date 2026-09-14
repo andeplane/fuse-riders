@@ -30,7 +30,7 @@ const server=createServer(async(req,res)=>{
   if(origin&&!origins.has(origin)){res.writeHead(403);res.end('Origin denied');return;}
   if(origin){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');}
   res.setHeader('Cache-Control','no-store');
-  if(req.method==='OPTIONS'){res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type');res.writeHead(204);res.end();return;}
+  if(req.method==='OPTIONS'){res.setHeader('Access-Control-Allow-Methods','GET, POST, OPTIONS');res.setHeader('Access-Control-Allow-Headers','Content-Type, Authorization');res.writeHead(204);res.end();return;}
   const json=(value:unknown,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(value));};
   try{
     const url=new URL(req.url??'/','http://gateway');
@@ -40,16 +40,18 @@ const server=createServer(async(req,res)=>{
       // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
       const forwarded=req.headers['x-forwarded-for'];const ip=(typeof forwarded==='string'?forwarded.split(',').at(-1)?.trim():undefined)??req.socket.remoteAddress??'unknown';
       if(!await database.allowance(digest(ip),Date.now(),30)){json({error:'Room creation limit; try later'},429);return;}
-      const code=randomBytes(5).toString('hex').toUpperCase(),token=randomBytes(32).toString('hex');await store.create(code,token);json({code,token},201);return;
+      const token=randomBytes(32).toString('hex'),code=await store.createAvailable(token);json({code,token},201);return;
     }
-    const match=url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{10})\/ice$/);
+    const end=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/end$/);
+    if(end&&req.method==='POST'){await store.end(end[1]!,req.headers.authorization?.replace(/^Bearer /,'')??'');json({ok:true});return;}
+    const match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/ice$/);
     if(match){const token=url.searchParams.get('token')??'';if(!validToken(token)){json({error:'Invalid identity'},401);return;}const room=await store.get(match[1]);if(!room.members[peerId(token)]||room.members[peerId(token)].expiresAt<=Date.now()){json({error:'Join the room first'},403);return;}json({iceServers:[{urls:'stun:stun.cloudflare.com:3478'}],relayConfigured:false});return;}
     json({error:'Not found'},404);
   }catch(error){console.error(JSON.stringify({kind:'http-operation',errorType:error instanceof Error?error.name:'unknown',code:(error as {code?:unknown})?.code}));json({error:error instanceof RoomError?error.message:'Room service unavailable'},error instanceof RoomError?error.status:503);}
 });
 const sockets=new WebSocketServer({noServer:true,maxPayload:32_000,perMessageDeflate:false});
 server.on('upgrade',(req,socket,head)=>{
-  const origin=req.headers.origin,url=new URL(req.url??'/','http://gateway'),match=url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{10})\/ws$/),token=url.searchParams.get('token')??'';
+  const origin=req.headers.origin,url=new URL(req.url??'/','http://gateway'),match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/ws$/),token=url.searchParams.get('token')??'';
   if(!origin||!origins.has(origin)||!match||!validCode(match[1])||!validToken(token)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
   sockets.handleUpgrade(req,socket,head,ws=>{
     let connectionId:string|undefined,closed=false;let pending:string[]=[];
