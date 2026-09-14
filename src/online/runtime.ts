@@ -155,12 +155,18 @@ export class RoomRuntime {
     const members = [...this.roles].filter(([id, role]) => role.connection === this.transport.connectionOf(id)).map(([id, role]) => ({ id, connection: role.connection, display: role.display, view: role.display || settings.mode === 'devices' })).sort((a, b) => a.id.localeCompare(b.id));
     if (!members.some(m => m.id === this.transport.id)) return;
     const previous = this.plan?.coordinator;
+    // Naming a coordinator in an initial plan does not mean it has installed a
+    // world yet. Preserve only this creator's validated, still-pending lobby base.
+    const initializing = !this.segment && this.plan?.initialize && this.plan.source === this.transport.id
+      && this.plan.incarnation === this.transport.grant?.incarnation && this.plan.epoch === this.transport.grant?.epoch
+      && this.plan.members.some(m => m.id === this.transport.id && m.connection === this.transport.connectionId)
+      && this.outgoing?.header.status.phase === 'lobby' && !!this.outgoing.header.lobby;
     const coordinator = members.find(m => m.id === previous && m.view)?.id ?? members.find(m => m.id === this.transport.hostId && m.view)?.id ?? members.find(m => m.view)?.id ?? null;
-    const source = previous ?? this.transport.id;
+    const source = initializing ? this.transport.id : previous ?? this.transport.id;
     if (!members.some(m => m.id === source)) { this.recoveryRequired = true; this.status.notice('The simulation coordinator left — choose MAIN MENU for a fresh lobby'); return; }
     if (!force && this.plan && canonical([members, coordinator, settings]) === canonical([this.plan.members, this.plan.coordinator, this.plan.settings])) return;
     if (++this.planCounter > 0xffffffff) { this.terminal('Room sequence exhausted — create a new room'); return; }
-    const plan: RoomPlan = { type: 'directPlan', rules: DIRECT_RULES, revision: this.planCounter, initialize: !previous, incarnation: this.transport.grant!.incarnation, epoch: this.transport.grant!.epoch, source, coordinator, members, settings: structuredClone(settings) };
+    const plan: RoomPlan = { type: 'directPlan', rules: DIRECT_RULES, revision: this.planCounter, initialize: !previous || !!initializing, incarnation: this.transport.grant!.incarnation, epoch: this.transport.grant!.epoch, source, coordinator, members, settings: structuredClone(settings) };
     this.adoptPlan(plan);
     this.sendPlans();
   }

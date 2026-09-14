@@ -165,6 +165,62 @@ test('recreated links during creator-refresh preparation do not restart recovery
   }
 });
 
+test('creator refresh can retry initial preparation before the coordinator installs its first world', () => {
+  const room = setup(), oldCreator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  oldCreator.runtime.stop(); const creator = room.add('p0', false, oldCreator.storage);
+  for (const member of room.members.values()) {
+    member.transport.grant = { ...member.transport.grant!, epoch: 2, holder: creator.transport.connectionId };
+    member.callbacks.authorityChanged?.();
+  }
+  room.activation(from => from !== 'p0'); creator.runtime.start();
+  for (const [id, member] of room.members) if (id !== 'p0') member.callbacks.welcome(id, 'p0');
+  room.advance(200);
+  assert.equal(creator.runtime.replicationDiagnostics.simulator, false);
+  assert.equal(creator.runtime.replicationDiagnostics.barrier, true);
+  assert.equal(guest.runtime.replicationDiagnostics.barrier, false);
+  const firstAlias = creator.runtime.replicationDiagnostics.alias!;
+  // An already activated follower needs a fresh plan while the creator still awaits its bindings.
+  guest.callbacks.linkReset?.('p2'); room.advance(30);
+  assert.ok(creator.runtime.replicationDiagnostics.alias! > firstAlias);
+  assert.equal(creator.runtime.replicationDiagnostics.recoveryRequired, false);
+  room.activation(() => true); room.advance(2000);
+  for (const member of room.members.values()) {
+    assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+    assert.equal(member.runtime.replicationDiagnostics.barrier, false);
+    assert.equal(member.view?.phase, 'lobby');
+    assert.equal(member.view?.players.length, 3);
+    assert.equal(member.runtime.replicationDiagnostics.finalizedHash, creator.runtime.replicationDiagnostics.finalizedHash);
+  }
+});
+
+test('an initial shared-TV retry keeps the unactivated creator as its lobby source', () => {
+  const room = setup(true), oldCreator = room.members.get('p0')!;
+  oldCreator.runtime.stop(); const creator = room.add('p0', false, oldCreator.storage);
+  for (const member of room.members.values()) {
+    member.transport.grant = { ...member.transport.grant!, epoch: 2, holder: creator.transport.connectionId };
+    member.callbacks.authorityChanged?.();
+  }
+  const plans: RoomPlan[] = [];
+  room.accept((from, _to, raw) => { if (from === 'p0' && isPlan(raw)) plans.push(structuredClone(raw)); return true; });
+  room.activation(() => false); creator.runtime.start();
+  for (const [id, member] of room.members) if (id !== 'p0') member.callbacks.welcome(id, 'p0');
+  room.advance(200);
+  assert.equal(creator.runtime.replicationDiagnostics.simulator, false);
+  assert.equal(creator.runtime.replicationDiagnostics.barrier, true);
+  room.members.get('tv')!.transport.send('p0', { type: 'directPlanRequest', request: 1, settings: { ...defaultRoomSettings(), mode: 'shared' } });
+  room.advance(20);
+  assert.equal(plans.at(-1)?.initialize, true);
+  assert.equal(plans.at(-1)?.source, 'p0');
+  assert.equal(plans.at(-1)?.coordinator, 'tv');
+  room.activation(() => true); room.advance(2000);
+  for (const [id, member] of room.members) {
+    assert.equal(member.runtime.replicationDiagnostics.recoveryRequired, false);
+    assert.equal(member.runtime.replicationDiagnostics.barrier, false);
+    assert.equal(member.runtime.replicationDiagnostics.simulator, id === 'tv');
+    assert.equal(member.view?.players.length, 2);
+  }
+});
+
 test('a refreshed guest can rejoin with a fresh command sequence on its replacement connection', () => {
   const room = setup(); const old = room.members.get('p1')!;
   old.runtime.stop(); const guest = room.add('p1', false, old.storage);
