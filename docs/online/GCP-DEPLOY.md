@@ -77,6 +77,49 @@ docker run --rm -p 8080:8080 --env-file /absolute/path/to/local-emulators.env fu
 
 The image deliberately retains the lockfile's dev dependencies because `tsx` is currently declared there and executes the TypeScript entrypoint. It runs as the unprivileged Node user. A compiled/pruned runtime is a later image-size optimization, not an excuse to change runtime dependencies without testing.
 
+## Backend pipeline
+
+`.github/workflows/backend.yml` runs the same `scripts/deploy-cloud.sh` after a successful `CI` push run on this repository's `main`, so an automatic deployment obeys the same clean-checkout, current-main and green-CI gates as a manual one. It authenticates with workload identity federation and uploads `artifacts/cloud-release-<commit>.json` as run evidence. Deploying is not acceptance: the smoke field still reads **NOT YET VERIFIED**, and the documented public smoke and network gates remain manual.
+
+One-time provisioning (owner-level, deliberately outside the deploy script). The pool, provider and deployer account already exist; the bindings below are what federation needs:
+
+```sh
+P=andershaf-87
+DEP=fuse-riders-deployer@$P.iam.gserviceaccount.com
+POOL=$(gcloud iam workload-identity-pools describe github --project=$P --location=global --format='value(name)')
+
+gcloud iam workload-identity-pools providers create-oidc fuse-riders \
+  --project=$P --location=global --workload-identity-pool=github \
+  --issuer-uri=https://token.actions.githubusercontent.com \
+  --attribute-mapping='google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref' \
+  --attribute-condition="assertion.repository=='andeplane/fuse-riders' && assertion.ref=='refs/heads/main'"
+
+gcloud iam service-accounts add-iam-policy-binding "$DEP" --project=$P \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/$POOL/attribute.repository/andeplane/fuse-riders"
+
+gcloud projects add-iam-policy-binding $P --member="serviceAccount:$DEP" --condition=None \
+  --role=roles/cloudbuild.builds.editor
+gcloud artifacts repositories add-iam-policy-binding fuse-riders --location=europe-west1 --project=$P \
+  --member="serviceAccount:$DEP" --role=roles/artifactregistry.reader
+gcloud storage buckets add-iam-policy-binding gs://andershaf-87-fuse-riders-build \
+  --member="serviceAccount:$DEP" --role=roles/storage.objectAdmin
+for SA in fuse-riders-build fuse-riders-runtime; do
+  gcloud iam service-accounts add-iam-policy-binding "$SA@$P.iam.gserviceaccount.com" --project=$P \
+    --member="serviceAccount:$DEP" --role=roles/iam.serviceAccountUser
+done
+gcloud run services add-iam-policy-binding fuse-riders-gateway --project=$P --region=europe-west1 \
+  --member="serviceAccount:$DEP" --role=roles/run.admin
+
+# Metadata only, for the script's read-only prerequisite checks.
+gcloud pubsub topics add-iam-policy-binding fuse-riders-signalling --project=$P \
+  --member="serviceAccount:$DEP" --role=roles/pubsub.viewer
+gcloud projects add-iam-policy-binding $P --member="serviceAccount:$DEP" --role=roles/datastore.viewer \
+  --condition='title=fuse-riders-database-only,expression=resource.name=="projects/andershaf-87/databases/fuse-riders"'
+```
+
+The attribute condition is the authorization boundary: only tokens issued to `andeplane/fuse-riders` on `refs/heads/main` can impersonate the deployer, so forks and pull-request branches cannot deploy. `roles/run.admin` is scoped to the one service rather than the project because redeploying a public service reads and rewrites that service's IAM policy.
+
 ## Pages pipeline
 
 Set repository variable **`VITE_API_ORIGIN`** to the verified Cloud Run HTTPS origin, without a path or trailing slash. It is public configuration, not a secret. Choose GitHub Actions as the Pages source. The `github-pages` environment should permit only `main`.
@@ -95,7 +138,7 @@ Use dedicated runtime and build accounts. Neither needs project Owner, Editor, F
 - **Build account:** Artifact Registry Writer on the designated Docker repository, Logs Writer for Cloud Build logs, and read access to the selected source staging bucket. No runtime database or signalling permissions.
 - **Deployer:** Cloud Build build submission/read permissions; Artifact Registry image/repository read permissions; Cloud Run service create/update/read; Service Account User on the specific build/runtime accounts. Making the service public additionally requires service IAM policy permission; let a reviewed bootstrap principal grant public invocation if regular deployers should not have that permission. Read-only prerequisite checks need database/topic metadata access.
 - **Cloud Run service agent:** retain the provider-managed artifact-pull/service-agent role; do not use it as the application runtime account.
-- **GitHub Actions:** this workflow deploys Pages only. It requires no GCP key or GCP IAM role. A future automatic backend workflow should use workload identity federation, not committed credentials.
+- **GitHub Actions:** `pages.yml` deploys Pages only and needs no GCP access. `backend.yml` impersonates `fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com` through workload identity federation; no service-account key exists in the repository. The deployer holds build submission, Artifact Registry read, source-bucket object access, Service Account User on the build/runtime accounts, `roles/run.admin` on the single `fuse-riders-gateway` service, and metadata-only read on the signalling topic and the `fuse-riders` database for the script's prerequisite checks. It can write no room data.
 
 Role bindings/resource creation are deliberately not embedded in the deploy script. Record actual custom role definitions and scopes in the release inventory after review.
 
