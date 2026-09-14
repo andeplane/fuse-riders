@@ -19,6 +19,8 @@ import { createGameAudio } from '../client/game-audio.js';
 import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
+import type { MatchPlayerStats } from '../shared/match-stats.js';
+import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
 import { RoomRuntime } from './runtime.js';
 import type { AvatarId } from '../shared/avatars.js';
 import QRCode from 'qrcode';
@@ -74,8 +76,8 @@ export async function startOnline():Promise<void>{
   const displayOnly=!solo&&url.searchParams.has('display');
   // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
   let roomEnded=false;
-  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…'),audioButton=node('button','♫ AUDIO'),menu=node('button','MENU');
-  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);header.append(title,status,audioButton,menu);
+  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…'),audioButton=node('button','♫ AUDIO'),results=node('button','RESULTS'),menu=node('button','MENU');
+  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,results,menu);
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
@@ -94,12 +96,26 @@ export async function startOnline():Promise<void>{
   const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','INVITE / TV'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
   const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;remove:HTMLButtonElement}>();
   const avatarButton=node('button','HEAD'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');fullscreen.onclick=()=>void document.documentElement.requestFullscreen?.();header.append(avatarButton,fullscreen);
-  const dialog=node('dialog','','game-dialog');dialog.setAttribute('aria-label','Game menu');const close=node('button','✕  CLOSE');close.type='button';close.setAttribute('aria-label','CLOSE');close.onclick=()=>dialog.close();const dialogBar=node('header','','dialog-bar');dialogBar.append(node('strong','GAME MENU'),close);const dialogBody=node('div','','dialog-body');dialog.append(dialogBar,dialogBody);dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
+  const dialog=node('dialog','','game-dialog');dialog.setAttribute('aria-label','Game menu');const close=node('button','✕  CLOSE');close.type='button';close.setAttribute('aria-label','CLOSE');close.onclick=()=>dialog.close();const dialogBar=node('header','','dialog-bar'),dialogTitle=node('strong','GAME MENU');dialogBar.append(dialogTitle,close);const dialogBody=node('div','','dialog-body');dialog.append(dialogBar,dialogBody);dialog.addEventListener('close',()=>{dialog.classList.remove('recap-dialog');dialogTitle.textContent='GAME MENU';});dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
   const shotNotice=node('p','','online-shot-error');shotNotice.setAttribute('role','alert');shotNotice.hidden=true;const shotFailure=new ShotFailureNotice(()=>performance.now());const updateShotNotice=()=>{const message=shotFailure.message();shotNotice.hidden=!message;if(message&&shotNotice.textContent!==message)shotNotice.textContent=message;};
   const scoreboard=node('div','','online-scoreboard');scoreboard.append(notice,roster);
   const footer=node('footer','','online-footer');footer.append(controls,hostControls);
   app.replaceChildren(header,canvas,sharedLobby,scoreboard,shotNotice,joinPanel,footer,dialog);
   const audio=createGameAudio('Game');audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
+  /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
+  const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
+    const recap=buildMatchRecap(stats);const root=node('section','','match-recap-report');
+    const heading=node('header','','recap-heading'),copy=node('div');copy.append(node('p',RECAP_KICKER,'kicker'),node('h2',RECAP_TITLE));heading.append(copy);root.append(heading);
+    if(!recap.comparison.length){root.append(node('p',RECAP_EMPTY_MESSAGE,'recap-empty'));return root;}
+    const podium=node('div','','recap-podium');for(const entry of recap.podium){const card=node('article','',`podium-card podium-place-${entry.placement}`);card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.placeLabel,'podium-place'),node('strong',entry.name),node('small',entry.winsLabel));podium.append(card);}
+    const totals=node('div','','recap-totals');for(const total of recap.totals){const cell=node('div','','recap-total');cell.append(node('strong',total.value),node('small',total.label));totals.append(cell);}
+    const awards=node('div','','recap-awards');for(const award of recap.awards){const card=node('article','','award-card');card.append(node('span',award.icon,'award-icon'),node('small',award.title),node('strong',award.winnerText),node('em',award.detail));awards.append(card);}
+    const comparison=node('div','','recap-comparison');comparison.append(node('p',COMPARISON_KEY,'comparison-key'));const columns=node('div','','comparison-row comparison-header');for(const label of ['RIDER',...COMPARISON_COLUMNS.map(column=>column.label)])columns.append(node('span',label));comparison.append(columns);
+    for(const entry of recap.comparison){const row=node('div','','comparison-row');row.style.setProperty('--player-color',entry.color);const rider=node('span','','comparison-rider'),riderCopy=node('span');riderCopy.append(node('b',entry.riderLabel),node('small',entry.riderNote));rider.append(node('i'),riderCopy);row.append(rider);for(const column of COMPARISON_COLUMNS)row.append(node(column.key==='wins'?'strong':'span',entry[column.key],column.key==='pickups'?'pickup-counts':column.key==='deaths'?'death-counts':''));comparison.append(row);}
+    root.append(podium,totals);if(recap.awards.length)root.append(awards);root.append(comparison);return root;
+  };
+  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.classList.add('recap-dialog');dialogBody.scrollTop=0;dialog.showModal();};
+  results.onclick=openRecap;
   const callbacks:Callbacks={
     ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
     shotFailed:()=>{shotFailure.show();updateShotNotice();},
@@ -115,10 +131,9 @@ export async function startOnline():Promise<void>{
       sample({kind:'snapshot',at:performance.now(),presentationDelayTicks:prediction.clock.presentationDelayTicks(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,motionResults:motion?.results,heldMotion:motion?.held,correction:prediction.correction,ackMs:prediction.ackMs});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
-      if(state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0)&&lastRecap!==String(state.phaseEndsAtTick)){
-        lastRecap=String(state.phaseEndsAtTick);dialogBody.replaceChildren(node('h2','Match statistics'));
-        for(const stats of state.matchStats){const row=node('section');row.append(node('h3',stats.name));for(const [key,value] of Object.entries(stats)){if(typeof value==='number')row.append(node('p',`${key.replace(/([A-Z])/g,' $1')}: ${Number.isInteger(value)?value:value.toFixed(1)}`));}dialogBody.append(row);}dialog.showModal();
-      }
+      // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
+      const recapReady=state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0);results.hidden=!recapReady;
+      if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();}
       if(state.phase==='lobby')lastRecap='';joined=Boolean(player);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost});joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
       sharedLobby.hidden=solo||state.phase!=='lobby'||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active();app.classList.toggle('room-waiting',!sharedLobby.hidden);
       lobbyCount.textContent=`${state.players.filter(p=>p.connected).length} riders ready`;lobbyEmpty.hidden=state.players.length>0;

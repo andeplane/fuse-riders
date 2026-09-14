@@ -15,6 +15,7 @@ import { ControllerInputState } from './controller-state.js';
 import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortalPair, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
+import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
 import { durationText } from './duration-text.js';
 import { legendSrc } from './legend-src.js';
@@ -493,7 +494,7 @@ function startDisplay(): void {
   const matchRecap = element('section', 'match-recap hidden');
   const recapHeading = element('header', 'recap-heading');
   const recapTitle = element('div');
-  recapTitle.append(element('p', 'kicker', 'MATCH COMPLETE // AFTER ACTION REPORT'), element('h2', '', 'Grid legends'));
+  recapTitle.append(element('p', 'kicker', RECAP_KICKER), element('h2', '', RECAP_TITLE));
   const recapAction = element('button', 'host-action recap-rematch', 'REMATCH'); recapAction.type = 'button';
   recapHeading.append(recapTitle, recapAction);
   const podium = element('div', 'recap-podium');
@@ -603,66 +604,39 @@ function startDisplay(): void {
   }
 
   function renderMatchRecap(snapshot: ScoredSnapshot): void {
-    const stats = [...(snapshot.matchStats ?? [])].sort((a, b) => a.matchPlacement - b.matchPlacement || a.slot - b.slot);
-    const signature = stats.map((entry) => [entry.playerId, entry.matchPlacement, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
-      entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected, entry.invulnerableTicks,
-      entry.wallBounces, entry.earlyExits, entry.beerPickups, entry.inkPickups, entry.triplePickups, entry.fivePickups, entry.targetPickups,  entry.shieldPickups, entry.portalPickups, entry.portalTransits,
-      ...Object.values(entry.deathsByCause)].join(':')).join('|');
-    if (signature === recapSignature) return;
-    recapSignature = signature;
+    const recap = buildMatchRecap(snapshot.matchStats ?? []);
+    if (recap.signature === recapSignature) return;
+    recapSignature = recap.signature;
     podium.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
-    if (!stats.length) {
-      podium.append(element('p', 'recap-empty', 'Compiling the after action report…'));
+    if (!recap.comparison.length) {
+      podium.append(element('p', 'recap-empty', RECAP_EMPTY_MESSAGE));
       return;
     }
-
-    const podiumEntries = stats.filter((candidate) => candidate.matchPlacement <= 3);
-    const champions = podiumEntries.filter((entry) => entry.matchPlacement === 1);
-    const runners = podiumEntries.filter((entry) => entry.matchPlacement !== 1);
-    const centerAt = Math.ceil(runners.length / 2);
-    const podiumOrder = [...runners.slice(0, centerAt), ...champions, ...runners.slice(centerAt)];
-    for (const entry of podiumOrder) {
-      const card = element('article', `podium-card podium-place-${entry.matchPlacement}`);
+    for (const entry of recap.podium) {
+      const card = element('article', `podium-card podium-place-${entry.placement}`);
       card.style.setProperty('--player-color', escapeColor(entry.color));
-      card.append(
-        element('span', 'podium-place', entry.matchPlacement === 1 ? '♛  #1' : `#${entry.matchPlacement}`),
-        element('strong', '', entry.name),
-        element('small', '', `${entry.roundWins} ROUND ${entry.roundWins === 1 ? 'WIN' : 'WINS'}`),
-      );
+      card.append(element('span', 'podium-place', entry.placeLabel), element('strong', '', entry.name), element('small', '', entry.winsLabel));
       podium.append(card);
     }
-
-    const awardMetrics: Array<{ title: string; icon: string; value: (entry: MatchPlayerStats) => number; detail: (value: number) => string }> = [
-      { title: 'DEMOLITION EXPERT', icon: '✹', value: (entry) => entry.bombsExploded, detail: (value) => `${value} BOMBS BOOMED` },
-      { title: 'TRAILBLAZER', icon: '⌁', value: (entry) => entry.distanceUnits, detail: (value) => `${Math.round(value)}u TRAVELLED` },
-      { title: 'UNTOUCHABLE', icon: '✦', value: (entry) => entry.survivalTicks, detail: (value) => `${durationText(value)} ALIVE` },
-      { title: 'COLLECTOR', icon: '◆', value: (entry) => entry.pickupsCollected, detail: (value) => `${value} POWER-UPS` },
-    ];
-    for (const metric of awardMetrics) {
-      const best = Math.max(...stats.map(metric.value));
-      if (best <= 0) continue;
-      const winners = stats.filter((entry) => metric.value(entry) === best);
+    for (const award of recap.awards) {
       const card = element('article', 'award-card');
-      card.append(element('span', 'award-icon', metric.icon), element('small', '', metric.title), element('strong', '', winners.map((entry) => entry.name).join(' + ')), element('em', '', metric.detail(best)));
+      card.append(element('span', 'award-icon', award.icon), element('small', '', award.title), element('strong', '', award.winnerText), element('em', '', award.detail));
       awards.append(card);
     }
-
-    comparison.append(element('p', 'comparison-key', 'BOMBS = EXPLODED / PLACED   ·   DEATHS = WALL / TRAIL / BLAST / RIDER'));
+    comparison.append(element('p', 'comparison-key', COMPARISON_KEY));
     const header = element('div', 'comparison-row comparison-header');
-    for (const label of ['RIDER', 'WINS', 'SURVIVED', 'BEST', 'DIST', 'BOMBS', 'KOs', 'PICKUPS', 'STAR', 'DEATHS']) header.append(element('span', '', label));
+    for (const label of ['RIDER', ...COMPARISON_COLUMNS.map((column) => column.label)]) header.append(element('span', '', label));
     comparison.append(header);
-    for (const entry of stats) {
+    for (const entry of recap.comparison) {
       const row = element('div', 'comparison-row'); row.style.setProperty('--player-color', escapeColor(entry.color));
       const rider = element('span', 'comparison-rider');
       const riderCopy = element('span');
-      riderCopy.append(element('b', '', `#${entry.matchPlacement} ${entry.name}`), element('small', '', `${entry.wallBounces} BOUNCE · ${entry.earlyExits} EXIT`));
+      riderCopy.append(element('b', '', entry.riderLabel), element('small', '', entry.riderNote));
       rider.append(element('i'), riderCopy);
-      const deaths = entry.deathsByCause;
-      row.append(rider, element('strong', '', String(entry.roundWins)), element('span', '', durationText(entry.survivalTicks)),
-        element('span', '', durationText(entry.longestSurvivalTicks)), element('span', '', `${Math.round(entry.distanceUnits)}u`),
-        element('span', '', `${entry.bombsExploded}/${entry.bombsPlaced}`), element('span', '', String(entry.eliminations)),
-        element('span', 'pickup-counts', `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} I${entry.inkPickups} T${entry.triplePickups} F${entry.fivePickups} A${entry.targetPickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`), element('span', '', durationText(entry.invulnerableTicks)),
-        element('span', 'death-counts', `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`));
+      row.append(rider);
+      for (const column of COMPARISON_COLUMNS) {
+        row.append(element(column.key === 'wins' ? 'strong' : 'span', column.key === 'pickups' ? 'pickup-counts' : column.key === 'deaths' ? 'death-counts' : '', entry[column.key]));
+      }
       comparison.append(row);
     }
   }
