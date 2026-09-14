@@ -1,4 +1,5 @@
 import { authorityTransitionStatus } from './authority-status.js';
+import { AuthorityGrace } from './authority-grace.js';
 import { KeyframeDelivery, AcceptedKeyframe, type KeyframeReceipt } from './keyframe-delivery.js';
 import { recipientAcknowledgements } from './recipient-ack.js';
 import { isShotTransition } from './shot-failure.js';
@@ -34,6 +35,7 @@ export class RoomRuntime {
   private accumulator=0;
   private announced=false;
   private authorityActive=false;
+  private readonly authorityGrace=new AuthorityGrace();
   private recovering=false;
   private lastPausedPublish=0;
   private readonly joinRequest=new JoinRequest<Extract<RoomCommand,{type:'join'}>>();
@@ -55,7 +57,7 @@ export class RoomRuntime {
       message:(id,data)=>this.receive(id,data),status:callbacks.status,
       ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.callbacks.ended?.();},
       revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.callbacks.status('This host tab was replaced — use the newer tab');},
-      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.session?.clear();this.accumulator=0;},
+      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.session?.clear();this.authorityGrace.reset();this.accumulator=0;},
     });
   }
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
@@ -108,7 +110,9 @@ export class RoomRuntime {
     const deferred=this.deferredHost.drain(now,permitted);
     if(deferred.status==='ready')this.command(deferred.value);
     else if(deferred.status==='expired')this.callbacks.status('Room action timed out — please try again');
-    if(!permitted){this.accumulator=0;if(this.authorityActive)this.session?.clear();this.authorityActive=false;return;}
+    // A non-permitted clock pauses advancing at once; seats keep their control scope through a bounded gap (#48).
+    if(this.authorityGrace.clearSeats(now,permitted))this.session?.clear();
+    if(!permitted){this.accumulator=0;this.authorityActive=false;return;}
     this.authorityActive=true;
     if(now-this.lastClockProbe>=500){
       this.lastClockProbe=now;
