@@ -37,6 +37,17 @@
         "pointerEvents": "auto"
       },
       {
+        "tag": "BUTTON",
+        "className": "mobile-tools-toggle",
+        "label": "☰ MENU",
+        "x": 771,
+        "y": 8,
+        "width": 65,
+        "height": 40,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
         "tag": "SPAN",
         "className": "",
         "label": "HOLD LEFT",
@@ -68,17 +79,6 @@
         "height": 50,
         "display": "block",
         "pointerEvents": "none"
-      },
-      {
-        "tag": "BUTTON",
-        "className": "mobile-tools-toggle",
-        "label": "☰ MENU",
-        "x": 771,
-        "y": 8,
-        "width": 65,
-        "height": 40,
-        "display": "block",
-        "pointerEvents": "auto"
       }
     ],
     "phases": [
@@ -127,6 +127,17 @@
         "pointerEvents": "auto"
       },
       {
+        "tag": "BUTTON",
+        "className": "mobile-tools-toggle",
+        "label": "☰ MENU",
+        "x": 770,
+        "y": 8,
+        "width": 66,
+        "height": 40,
+        "display": "block",
+        "pointerEvents": "auto"
+      },
+      {
         "tag": "SPAN",
         "className": "",
         "label": "HOLD LEFT",
@@ -158,17 +169,6 @@
         "height": 49,
         "display": "block",
         "pointerEvents": "none"
-      },
-      {
-        "tag": "BUTTON",
-        "className": "mobile-tools-toggle",
-        "label": "☰ MENU",
-        "x": 770,
-        "y": 8,
-        "width": 66,
-        "height": 40,
-        "display": "block",
-        "pointerEvents": "auto"
       }
     ],
     "phases": [

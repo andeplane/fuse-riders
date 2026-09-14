@@ -114,7 +114,7 @@ export async function startOnline():Promise<void>{
         lastRecap=String(state.phaseEndsAtTick);dialogBody.replaceChildren(node('h2','Match statistics'));
         for(const stats of state.matchStats){const row=node('section');row.append(node('h3',stats.name));for(const [key,value] of Object.entries(stats)){if(typeof value==='number')row.append(node('p',`${key.replace(/([A-Z])/g,' $1')}: ${Number.isInteger(value)?value:value.toFixed(1)}`));}dialogBody.append(row);}dialog.showModal();
       }
-      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);mobileLayout.update({joined,phase:state.phase,displayOnly});joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
+      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost});joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
       sharedLobby.hidden=solo||state.phase!=='lobby'||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active();app.classList.toggle('room-waiting',!sharedLobby.hidden);
       lobbyCount.textContent=`${state.players.filter(p=>p.connected).length} riders ready`;lobbyEmpty.hidden=state.players.length>0;
       for(const [playerId,row] of lobbyEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();lobbyEntries.delete(playerId);}
