@@ -39,6 +39,8 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
   });
   const onLost = (event: Event) => { event.preventDefault(); lost = true; scene.resetEffects(); options.onStatus?.('context-lost'); };
   const onRestored = () => { lost = false; scene.invalidate(); scene.resetEffects(); options.onStatus?.('restored'); };
+  const onLeaving=()=>scene.cancelPreload();
+  window.addEventListener('beforeunload',onLeaving);
   canvas.addEventListener('webglcontextlost', onLost);
   canvas.addEventListener('webglcontextrestored', onRestored);
   return {
@@ -57,6 +59,8 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
     destroy() {
       if (destroyed) return; destroyed = true;
       canvas.removeEventListener('webglcontextlost', onLost); canvas.removeEventListener('webglcontextrestored', onRestored);
+      window.removeEventListener('beforeunload',onLeaving);
+      scene.cancelPreload();
       if (!booted) rejectReady(new Error('Renderer disposed before loading'));
       game.destroy(false); // caller owns the DOM node
       if (game.isBooted) game.step(0, 0); // flush Phaser's deferred destruction without another RAF
@@ -82,6 +86,17 @@ class ArenaScene extends Phaser.Scene {
   private trailKey = ''; private floorKey = '';
   private transitions = new EffectTransitions();
   constructor(private readonly particleLimit: number, private readonly loaded: () => void) { super('arena'); }
+  /** Phaser reset clears its sets, but does not detach pending XHR callbacks. */
+  cancelPreload(): void {
+    const loader=this.load;
+    if(!loader?.inflight)return;
+    loader.inflight.iterate((file:Phaser.Loader.File)=>{
+      file.resetXHR();
+      if(file.xhrLoader){file.xhrLoader.ontimeout=null;file.xhrLoader.abort();}
+      return true;
+    });
+    loader.reset();
+  }
   preload(): void {
     this.load.image('avatars', assetUrl(AVATAR_ATLAS_URL));
     for (const theme of Object.values(themes)) {
