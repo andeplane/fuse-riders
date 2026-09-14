@@ -19,3 +19,15 @@ HOME_URL=http://127.0.0.1:4188/ npx tsx scripts/home-mobile-smoke.ts
 npx tsx scripts/phaser-browser.ts
 BROWSER=webkit npx tsx scripts/phaser-browser.ts
 ```
+
+## Shared QR lobby and avatar bounds follow-up
+
+The follow-up [eight-case mobile matrix](home-evidence/passing-matrix-avatar-bounds.json) adds explicit dialog body `scrollWidth <= clientWidth` and avatar text bounds. Chrome/WebKit pass at all three viewport sizes, including cold rapid navigation. The [320px WebKit avatar screenshot](home-evidence/avatars-320-webkit.png) was visually inspected: all ten names and the fixed Close control fit.
+
+A separate [short-room smoke](home-evidence/shared-room-smoke.json) passed Chrome and WebKit against isolated local Worker port8796. The host creates shared mode with a two-letter/two-digit code, retains a loaded QR while unjoined, admits a phone guest, and shows the same persistent QR on a separate TV. Starting hides the QR and exposes the rendered arena; reset restores QR. Host MENU → END ROOM returns home, while the guest receives terminal room-ended status and opens no new socket across the existing retry interval. [Actual shared lobby](home-evidence/shared-qr-webkit.png).
+
+Both regressions are required CI steps against the isolated local Worker. Existing online/public smoke expectations now distinguish QR lobby presentation from the active arena rather than requiring a canvas to render in the shared lobby. This evidence predates public publication of this follow-up; it is not a public deployment claim.
+
+```sh
+ONLINE_URL=http://127.0.0.1:8796/ npx tsx scripts/shared-room-smoke.ts
+```
