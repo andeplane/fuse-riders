@@ -4,7 +4,7 @@ import { chromium, webkit } from 'playwright';
 const server=await createServer({server:{port:0,host:'127.0.0.1',hmr:false}});await server.listen();
 const address=server.httpServer!.address();if(!address||typeof address==='string')throw Error('No server');
 const browser=process.env.BROWSER==='webkit'?await webkit.launch():await chromium.launch({channel:'chrome'});
-const page=await browser.newPage({viewport:{width:1600,height:1000}});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+const page=await browser.newPage({viewport:{width:1600,height:1000}});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.stack ?? e.message));
 try{
  await page.addInitScript('window.__name = value => value');await page.goto(`http://127.0.0.1:${address.port}/`);
  const result=await page.evaluate(async()=>{
@@ -12,6 +12,15 @@ try{
   const {visualFixture}=await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
   const {themes}=await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
   const results=[];
+  // Game boot precedes asynchronous default textures and SceneManager boot.
+  // Disposal in that gap must reject readiness without touching a missing system scene.
+  for(const backend of ['auto','canvas'] as const){
+   const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;document.body.append(canvas);
+   const arena=createPhaserArena(canvas,{renderer:backend});const outcome=arena.ready.then(()=>false,()=>true);
+   arena.destroy();arena.destroy();if(!await outcome)throw Error('Disposed renderer reported readiness');
+   await new Promise<void>(resolve=>setTimeout(resolve,100));canvas.remove();
+  }
+
   for(const backend of ['auto','canvas'] as const){
    const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=900;document.body.append(canvas);
    const arena=createPhaserArena(canvas,{renderer:backend});await arena.ready;
