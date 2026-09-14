@@ -1,4 +1,5 @@
 import { authorityTransitionStatus } from './authority-status.js';
+import { StatusNotices } from './status-notices.js';
 import { AuthorityGrace } from './authority-grace.js';
 import { KeyframeDelivery, AcceptedKeyframe, type KeyframeReceipt } from './keyframe-delivery.js';
 import { recipientAcknowledgements } from './recipient-ack.js';
@@ -40,12 +41,14 @@ export class RoomRuntime {
   private lastPausedPublish=0;
   private readonly joinRequest=new JoinRequest<Extract<RoomCommand,{type:'join'}>>();
   readonly transport:PeerTransport;
+  private readonly status:StatusNotices;
   constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks){
+    this.status=new StatusNotices(()=>performance.now(),text=>callbacks.status(text));
     this.transport=new PeerTransport(code,token,{
       welcome:(id,hostId)=>{
         if(id===hostId&&!this.session){
           this.session=new HostSession(id,settings,{token:()=>crypto.randomUUID()});
-          try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.callbacks.status('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
+          try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.status.notice('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
         }
         this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.callbacks.ready(id,id===hostId);
         if(id!==hostId)this.transport.send(hostId,{type:'resync'});
@@ -54,21 +57,24 @@ export class RoomRuntime {
         if(online){this.peers.add(id);this.encoders.delete(id);this.keyframes.delete(id);if(id===this.transport.hostId&&!this.session){this.decoder.reset();this.acceptedKeyframe.clear();this.transport.send(id,{type:'resync'});}}
         else{this.peers.delete(id);this.encoders.delete(id);this.keyframes.delete(id);this.session?.disconnect(id);}
       },
-      message:(id,data)=>this.receive(id,data),status:callbacks.status,
+      message:(id,data)=>this.receive(id,data),status:text=>this.status.recurring(text),
       ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.callbacks.ended?.();},
-      revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.callbacks.status('This host tab was replaced — use the newer tab');},
+      revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.interval=undefined;this.session?.clear();this.session=undefined;this.status.terminal('This host tab was replaced — use the newer tab');},
+      // A protocol mismatch closes the transport; the tick interval has to stop too, or it would keep restating
+      // connection status over the reload notice (#23).
+      terminated:text=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.interval=undefined;this.status.terminal(text);},
       authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.session?.clear();this.authorityGrace.reset();this.accumulator=0;},
     });
   }
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
   private receive(id:string,raw:unknown):void {
     if(!raw||typeof raw!=='object')return;
-    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;shotRejected?:boolean;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope;receipt?:KeyframeReceipt};
+    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;transient?:boolean;shotRejected?:boolean;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope;receipt?:KeyframeReceipt};
     if(this.session){
       if(data.type==='tickProbe'&&Number.isSafeInteger(data.probeId)&&Number.isFinite(data.localSentAt)){
         const scope=this.session.controlScope(id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.transport.send(id,{type:'tickPong',probeId:data.probeId,localSentAt:data.localSentAt,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing',scope});return;
       }
-      if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(isShotTransition(data.command)?{shotRejected:true}:{})});this.peers.add(id);}
+      if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(data.command?.type==='input'?{transient:true}:{}),...(isShotTransition(data.command)?{shotRejected:true}:{})});this.peers.add(id);}
       if(data.type==='worldReceipt'){this.keyframes.get(id)?.acknowledge(data.receipt);return;}
       if(data.type==='resync'){this.peers.add(id);if(!this.keyframes.get(id)?.waiting)this.encoders.delete(id);}
       return;
@@ -88,17 +94,17 @@ export class RoomRuntime {
       this.lastState=performance.now();
       if(isAppliedMotionState(data.motion)){const scope=JSON.stringify(data.motion.scope);if(scope!==this.lastMotionScope){this.lastMotionScope=scope;this.lastClockProbe=-Infinity;}}
     this.callbacks.state({...snapshot,tick:data.frame.tick,round:data.frame.round},data.settings,data.ack?.[this.transport.id]??-1,data.frame.matchId,isAppliedMotionState(data.motion)&&data.motion.tick===data.frame.tick&&data.motion.scope.matchId===data.frame.matchId&&data.motion.scope.round===data.frame.round?data.motion:undefined);
-      this.callbacks.status(data.paused?'Paused — host is in the background':'Connected · direct game link');
+      this.status.recurring(data.paused?'Paused — host is in the background':'Connected · direct game link');
     }else if(data.type==='event'&&data.event)this.callbacks.event(data.event,data.matchId??'',data.round??0,data.tick??0);
-    else if(data.type==='error'){this.callbacks.status(data.error??'Room error');if(data.shotRejected===true)this.callbacks.shotFailed?.();}
+    else if(data.type==='error'){const text=data.error??'Room error';if(data.transient===true)this.status.transient(text);else this.status.notice(text);if(data.shotRejected===true)this.callbacks.shotFailed?.();}
   }
   command(command:RoomCommand):boolean {
     if(command.type==='join'){this.joinRequest.request(command);return true;}
     if(!this.transport.authorityPermitted()){
-      if(this.session&&['action','settings','bot'].includes(command.type)){this.deferredHost.offer(command,performance.now());this.callbacks.status('Applying when the room connection is confirmed');return true;}
-      this.callbacks.status('Waiting for room authority — try again when connected');if(isShotTransition(command))this.callbacks.shotFailed?.();return false;
+      if(this.session&&['action','settings','bot'].includes(command.type)){this.deferredHost.offer(command,performance.now());this.status.notice('Applying when the room connection is confirmed');return true;}
+      this.status.notice('Waiting for room authority — try again when connected');if(isShotTransition(command))this.callbacks.shotFailed?.();return false;
     }
-    if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){this.callbacks.status(error);if(isShotTransition(command))this.callbacks.shotFailed?.();}return !error;}
+    if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){if(command.type==='input')this.status.transient(error);else this.status.notice(error);if(isShotTransition(command))this.callbacks.shotFailed?.();}return !error;}
     const sent=this.transport.send(this.transport.hostId,{type:'command',command});
     if(!sent&&isShotTransition(command))this.callbacks.shotFailed?.();return sent;
   }
@@ -106,10 +112,11 @@ export class RoomRuntime {
     const now=performance.now(),elapsed=now-this.lastTick;this.lastTick=now;
     const permitted=this.transport.authorityPermitted();
     const transitionStatus=authorityTransitionStatus(this.authorityActive,permitted);
-    if(transitionStatus)this.callbacks.status(transitionStatus);
+    if(transitionStatus)this.status.recurring(transitionStatus);
+    this.status.refresh();
     const deferred=this.deferredHost.drain(now,permitted);
     if(deferred.status==='ready')this.command(deferred.value);
-    else if(deferred.status==='expired')this.callbacks.status('Room action timed out — please try again');
+    else if(deferred.status==='expired')this.status.notice('Room action timed out — please try again');
     // A non-permitted clock pauses advancing at once; seats keep their control scope through a bounded gap (#48).
     if(this.authorityGrace.clearSeats(now,permitted))this.session?.clear();
     if(!permitted){this.accumulator=0;this.authorityActive=false;return;}
@@ -120,13 +127,13 @@ export class RoomRuntime {
       else this.transport.send(this.transport.hostId,{type:'tickProbe',...this.tickProbes.request()});
     }
     this.joinRequest.retry(now,true,command=>{
-      if(this.session){const error=this.session.command(this.transport.id,command);this.joinRequest.confirm();if(error)this.callbacks.status(error);else this.save();}
+      if(this.session){const error=this.session.command(this.transport.id,command);this.joinRequest.confirm();if(error)this.status.notice(error);else this.save();}
       else this.transport.send(this.transport.hostId,{type:'command',command});
     });
-    if(!this.session){if(now-this.lastState>2000)this.callbacks.status(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);return;}
+    if(!this.session){if(now-this.lastState>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);return;}
     if(this.recovering){
       if(this.session.game.phase==='lobby'||[...this.session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
-      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(true);this.lastPausedPublish=now;}this.callbacks.status('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
+      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
     }
     this.accumulator+=Math.min(elapsed,100);
     if(document.hidden){

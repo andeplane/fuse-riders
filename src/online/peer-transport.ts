@@ -16,6 +16,8 @@ export interface TransportCallbacks {
   status:(status:string)=>void;
   revoked?:()=>void;
   ended?:()=>void;
+  /** The link is unrecoverable for this page: the transport is closed and the notice must stay on screen. */
+  terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
 interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
@@ -70,7 +72,7 @@ export class PeerTransport {
       try {
         const message=JSON.parse(event.data);
         if(message.type==='welcome'){
-          if(message.protocol!==2||typeof message.connectionId!=='string'){this.callbacks.status('Game protocol changed — reload this page');this.close();return;}
+          if(message.protocol!==2||typeof message.connectionId!=='string'){this.terminate('Game protocol changed — reload this page');this.close();return;}
           this.received.clear();
           // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
           const roster=new Set<string>(message.peers.map((peer:{id:string})=>peer.id));
@@ -108,7 +110,7 @@ export class PeerTransport {
     };
     ws.onclose=event=>{
       if(ws!==this.socket)return;
-      handleRoomSocketClose(event.code,{stopped:()=>this.stopped,stop:()=>this.close(),revoked:()=>this.callbacks.revoked?.(),ended:()=>this.callbacks.ended?.(),status:this.callbacks.status,retry:()=>{this.retry=setTimeout(()=>this.connect(),1500);}});
+      handleRoomSocketClose(event.code,{stopped:()=>this.stopped,stop:()=>this.close(),revoked:()=>this.callbacks.revoked?.(),ended:()=>this.callbacks.ended?.(),status:this.callbacks.status,terminated:message=>this.terminate(message),retry:()=>{this.retry=setTimeout(()=>this.connect(),1500);}});
     };
     ws.onerror=()=>ws.close();
   }
@@ -240,6 +242,8 @@ export class PeerTransport {
       }else void this.restartIce(id,link);
     }
   }
+  /** Terminal for this page: report it as a notice the room runtime keeps on screen over recurring status. */
+  private terminate(status:string):void{if(this.callbacks.terminated)this.callbacks.terminated(status);else this.callbacks.status(status);}
   close():void{this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
   private summary(id:string,link:Link,now:number):LinkDiagnostic {
     return{peer:id===this.hostId?'host':'guest',local:link.local,remote:link.remoteTypes,gathering:link.pc.iceGatheringState,ice:link.pc.iceConnectionState,connection:link.pc.connectionState,signaling:link.pc.signalingState,channel:link.gate.draining?'drained':link.channel?.readyState??'none',
