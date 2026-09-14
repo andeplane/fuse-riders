@@ -221,6 +221,7 @@ test('conflicting metadata for an installed preparation charges one corrupt reco
 
 test('checkpoint backpressure pauses preparation and resumes the same transfer after drain', () => {
   const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  guest.callbacks.authorityChanged?.(); // Retain the fence, but require transfer after authority-scope invalidation.
   room.checkpointBlocked.add('p1');
   const sentBefore = room.sends.filter(m => m.to === 'p1' && m.type === 'directChunk').length;
   const headersBefore=room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length;
@@ -240,6 +241,7 @@ test('checkpoint backpressure pauses preparation and resumes the same transfer a
 
 test('header and header-ACK enqueue failures retry delivery without substituting for readiness',()=>{
  const room=setup(),creator=room.members.get('p0')!,guest=room.members.get('p1')!;
+  guest.callbacks.authorityChanged?.(); // Retain the fence, but require transfer after authority-scope invalidation.
  let headerFailed=false,ackFailed=false;
  room.accept((from,to,raw)=>{
   if(raw&&typeof raw==='object'&&'type' in raw){
@@ -257,18 +259,20 @@ test('header and header-ACK enqueue failures retry delivery without substituting
 
 test('stale or malformed header acknowledgements cannot stop preparation delivery',()=>{
  const room=setup(),creator=room.members.get('p0')!,guest=room.members.get('p1')!;
+  guest.callbacks.authorityChanged?.(); // Retain the fence, but require transfer after authority-scope invalidation.
  room.accept((from,_to,raw)=>!(from==='p1'&&raw&&typeof raw==='object'&&'type' in raw&&raw.type==='directHeader'));
  room.checkpointBlocked.add('p1');creator.runtime.command({type:'action',action:'start'});room.advance(200);
  const revision=guest.runtime.replicationDiagnostics.alias!;
  const headers=()=>room.sends.filter(m=>m.to==='p1'&&m.type==='directPrepare').length;
  creator.callbacks.message('p1',{type:'directHeader',revision:revision-1});creator.callbacks.message('p1',{type:'directHeader',revision,extra:true});
  const before=headers();room.advance(200);assert.ok(headers()>before);
- creator.callbacks.message('p1',{type:'directHeader',revision});const acknowledged=headers();room.advance(400);assert.equal(headers(),acknowledged);
+ creator.callbacks.message('p1',{type:'directHeader',revision,needsPayload:true});const acknowledged=headers();room.advance(400);assert.equal(headers(),acknowledged);
  assert.equal(guest.runtime.replicationDiagnostics.barrier,true);
 });
 
 test('checkpoint chunks alternate eligible recipients with one successful enqueue per scheduler tick',()=>{
  const room=setup(),creator=room.members.get('p0')!;
+ for (const id of ['p1', 'p2']) room.members.get(id)!.callbacks.authorityChanged?.();
  const chunks:{to:string;at:number;offset:number;bytes:number}[]=[];
  room.accept((from,to,raw)=>{
   if(from==='p0'&&raw&&typeof raw==='object'&&'type' in raw&&raw.type==='directChunk'&&'offset' in raw&&typeof raw.offset==='number'&&'data' in raw&&raw.data instanceof Uint8Array)chunks.push({to,at:room.now(),offset:raw.offset,bytes:raw.data.byteLength});
@@ -282,6 +286,7 @@ test('checkpoint chunks alternate eligible recipients with one successful enqueu
 
 test('synchronous authority replacement during a chunk send retires the old transfer immediately',()=>{
  const room=setup(),creator=room.members.get('p0')!;let chunks=0;
+ for (const id of ['p1', 'p2']) room.members.get(id)!.callbacks.authorityChanged?.();
  room.accept((from,_to,raw)=>{
   if(from==='p0'&&raw&&typeof raw==='object'&&'type' in raw&&raw.type==='directChunk'){chunks++;creator.callbacks.authorityChanged?.();}
   return true;
@@ -305,6 +310,7 @@ test('synchronous end during a header send stops other recipient sends in the sa
 
 test('persistent checkpoint backpressure cannot extend the recovery deadline indefinitely', () => {
   const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  guest.callbacks.authorityChanged?.(); // Retain the fence, but require transfer after authority-scope invalidation.
   room.checkpointBlocked.add('p1');
   creator.runtime.command({ type: 'action', action: 'start' }); room.advance(22000);
   assert.equal(creator.runtime.replicationDiagnostics.recoveryRequired, true);
@@ -317,6 +323,7 @@ test('persistent checkpoint backpressure cannot extend the recovery deadline ind
 
 test('new creator plans cannot postpone an unfinished guest recovery episode indefinitely', () => {
   const room = setup(), creator = room.members.get('p0')!, guest = room.members.get('p1')!;
+  guest.callbacks.authorityChanged?.(); // Retain the fence, but require transfer after authority-scope invalidation.
   let plan: RoomPlan | undefined, header: Preparation | undefined;
   room.accept((from, to, raw) => {
     if (from === 'p0' && to === 'p1') {
@@ -474,4 +481,41 @@ test('freezing a runtime deactivates its installed alias before another preparat
   assert.ok(room.sends.some(m=>m.from==='p0'&&m.type===`deactivate:${alias}`));
   room.advance(2000);assert.equal(creator.runtime.replicationDiagnostics.barrier,false);
   assert.ok(room.sends.some(m=>m.from==='p0'&&m.type.startsWith('activate:')&&m.type!==`activate:${alias}`));
+});
+
+
+test('exact lifecycle bases activate without checkpoint chunks even when the bulk lane is blocked', () => {
+  const room = setup(), creator = room.members.get('p0')!;
+  for (const id of ['p1', 'p2']) room.checkpointBlocked.add(id);
+  const before = room.sends.filter(m => m.type === 'directChunk').length;
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4300);
+  assert.equal(room.sends.filter(m => m.type === 'directChunk').length, before);
+  for (const member of room.members.values()) {
+    assert.equal(member.view?.phase, 'playing');
+    assert.equal(member.runtime.replicationDiagnostics.barrier, false);
+    assert.equal(member.runtime.replicationDiagnostics.lastFault, undefined);
+  }
+});
+
+test('only a peer without an eligible base downloads the lifecycle payload', () => {
+  const room = setup(), creator = room.members.get('p0')!;
+  room.members.get('p1')!.callbacks.authorityChanged?.();
+  const chunks: string[] = [];
+  room.accept((_from, to, raw) => { if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directChunk') chunks.push(to); return true; });
+  room.checkpointBlocked.add('p2');
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(4300);
+  assert.ok(chunks.length > 0); assert.deepEqual([...new Set(chunks)], ['p1']);
+  for (const member of room.members.values()) assert.equal(member.view?.phase, 'playing');
+});
+
+test('a conflicting payload ACK fails the current preparation without accepting a new transfer mode', () => {
+  const room = setup(), creator = room.members.get('p0')!;
+  let ack: unknown;
+  room.accept((from, _to, raw) => { if (from === 'p1' && raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directHeader') ack = structuredClone(raw); return !(raw && typeof raw === 'object' && 'type' in raw && raw.type === 'directReady'); });
+  creator.runtime.command({ type: 'action', action: 'start' }); room.advance(200);
+  assert.ok(ack && typeof ack === 'object' && 'needsPayload' in ack);
+  const before = room.sends.filter(m => m.type === 'directChunk').length;
+  creator.callbacks.message('p1', { ...ack, needsPayload: !ack.needsPayload }); room.advance(10);
+  assert.equal(room.sends.filter(m => m.type === 'directChunk').length, before);
+  assert.match(creator.runtime.replicationDiagnostics.lastFault ?? '', /Conflicting checkpoint requirement/);
 });

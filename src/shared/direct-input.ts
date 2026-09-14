@@ -1,7 +1,7 @@
 import { validAim, type AimTuple, type BombTuple, type ControlChange, type ReplayState, applyOperation } from './action-log.js';
 import type { GameEvent } from './protocol.js';
 
-export const DIRECT_RULES = 'fuse-direct-3';
+export const DIRECT_RULES = 'fuse-direct-4';
 export const UINT32_MAX = 0xffff_ffff;
 export const uint32 = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= UINT32_MAX && !Object.is(value, -0);
 /** Independent player stream. Sequence order breaks ties only within that player. */

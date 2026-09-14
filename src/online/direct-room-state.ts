@@ -8,13 +8,41 @@ import { encodeCheckpoint, isGameSnapshot } from './checkpoint.js';
 import { packBootstrap, RollbackWorld } from './rollback-world.js';
 import { packMessage, unpackMessage } from './action-replication.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
+import { COORDINATION_BUFFER_LIMIT } from './link-send-gate.js';
 
 export interface LobbyCatalog { matchId: string; seed: number; tick: number; leaderboard: ViewSnapshot['leaderboard']; settings: RoomSettings; players: PlayerIdentity[] }
 export interface RoomMember { id: string; connection: string; display: boolean; view: boolean }
 export interface RoomPlan { type: 'directPlan'; rules: typeof DIRECT_RULES; revision: number; initialize: boolean; incarnation: string; epoch: number; source: string; coordinator: string | null; members: RoomMember[]; settings: RoomSettings }
-export interface Preparation { type: 'directPrepare'; revision: number; alias: number; bytes: number; hash: string; matchId: string; tick: number; round: number; status: ViewSnapshot; lobby?: LobbyCatalog; owners: [number, string][] }
+export type TransitionReference = [alias: number, tick: number, hash: string, operations: GameOperation[]];
+export interface Preparation { type: 'directPrepare'; revision: number; alias: number; bytes: number; hash: string; matchId: string; tick: number; round: number; status: ViewSnapshot; lobby?: LobbyCatalog; owners: [number, string][]; reference?: TransitionReference }
+export interface PreparationAck { type: 'directHeader'; revision: number; needsPayload: boolean }
 export const textId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 128;
 export const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+export function isPreparationAck(raw: unknown): raw is PreparationAck {
+  return record(raw) && Object.keys(raw).length === 3 && raw.type === 'directHeader' && uint32(raw.revision) && raw.revision > 0 && typeof raw.needsPayload === 'boolean';
+}
+function validOperations(raw: unknown): raw is GameOperation[] {
+  return Array.isArray(raw) && raw.length <= 64 && raw.every(op => validOperation(op) && op[0] !== 0);
+}
+export function isTransitionReference(raw: unknown): raw is TransitionReference {
+  if (!Array.isArray(raw) || raw.length !== 4 || !uint32(raw[0]) || !raw[0] || !uint32(raw[1]) || typeof raw[2] !== 'string' || !/^[a-f0-9]{16}$/.test(raw[2]) || !validOperations(raw[3])) return false;
+  try { return packMessage(raw).byteLength <= 4096; } catch { return false; }
+}
+/** Choose one header for every recipient, independently of transient send-buffer pressure. */
+export function referencePreparation(header: Preparation, base: RollbackWorld, operations: GameOperation[], plan: RoomPlan): Preparation {
+  const reference: TransitionReference = [base.segment, base.finalizedTick, base.finalizedHash, structuredClone(operations)];
+  if (!isTransitionReference(reference)) return header;
+  const candidate = { ...header, reference }, sender = plan.members.find(m => m.id === plan.source)!.connection;
+  if (plan.members.some(m => packMessage({ id: Number.MAX_SAFE_INTEGER, data: candidate, incarnation: plan.incarnation, epoch: plan.epoch, sender, receiver: m.connection }).byteLength > COORDINATION_BUFFER_LIMIT)) return header;
+  return candidate;
+}
+/** A new roster must not relabel an old world's authenticated source or local connection. */
+export function canReuseBase(installed: RoomPlan | undefined, plan: RoomPlan, local: string): boolean {
+  return !!installed && installed.incarnation === plan.incarnation && installed.epoch === plan.epoch && [local, plan.source].every(id => {
+    const old = installed.members.find(m => m.id === id), current = plan.members.find(m => m.id === id);
+    return !!old && !!current && old.connection === current.connection;
+  });
+}
 export function isPlan(raw: unknown): raw is RoomPlan {
   if (!record(raw) || raw.type !== 'directPlan' || raw.rules !== DIRECT_RULES || typeof raw.initialize !== 'boolean' || !uint32(raw.revision) || !raw.revision || !textId(raw.incarnation) || !uint32(raw.epoch) || !textId(raw.source) || (raw.coordinator !== null && !textId(raw.coordinator)) || !parseRoomSettings(raw.settings) || !Array.isArray(raw.members) || raw.members.length < 1 || raw.members.length > 6) return false;
   const members = raw.members;
@@ -59,6 +87,7 @@ export function ownersFor(game: { players: ReadonlyMap<string, PlayerIdentity> }
   return [...game.players.values()].map(p => [p.slot, !p.id.startsWith(BOT_ID_PREFIX) && p.connected && plan.members.some(m => m.id === p.id) ? p.id : plan.coordinator!]);
 }
 export function isPreparation(raw: unknown, plan: RoomPlan): raw is Preparation {
+  if (record(raw) && raw.reference !== undefined && !isTransitionReference(raw.reference)) return false;
   if (!record(raw) || raw.type !== 'directPrepare' || raw.revision !== plan.revision || raw.alias !== plan.revision || !uint32(raw.bytes) || raw.bytes < 1 || raw.bytes > 2_000_000 || !textId(raw.matchId) || !uint32(raw.tick) || !uint32(raw.round) || typeof raw.hash !== 'string' || !/^[a-f0-9]{16}$/.test(raw.hash) || !isThinView(raw.status) || raw.status.tick !== raw.tick || raw.status.round !== raw.round || !Array.isArray(raw.owners) || raw.owners.length !== raw.status.players.length) return false;
   if (raw.status.phase === 'lobby' ? !isCatalog(raw.lobby) || raw.lobby.matchId !== raw.matchId || raw.lobby.tick !== raw.tick : raw.lobby !== undefined) return false;
   const slots = new Set(raw.status.players.map(p => p.slot));
@@ -71,18 +100,25 @@ export function transitionBytes(base: RollbackWorld, operations: GameOperation[]
   if (bytes.byteLength > 2_000_000) throw new Error('Lifecycle checkpoint exceeds its bound');
   return bytes;
 }
-export function deriveTransition(bytes: Uint8Array, alias: number, fence?: RollbackWorld): { state: DirectState; bootstrap: Uint8Array; hash: string } | undefined {
+interface DerivedTransition { state: DirectState; bootstrap: Uint8Array; hash: string }
+function deriveBase(base: RollbackWorld, operations: GameOperation[], alias: number, fence?: RollbackWorld, reference?: TransitionReference): DerivedTransition | undefined {
+  if (!uint32(alias) || !alias || !validOperations(operations)) return;
+  const finalized = base.finalizedState(), hash = replayHash(finalized);
+  if (reference && (base.segment !== reference[0] || base.finalizedTick !== reference[1] || hash !== reference[2] || canonical(operations) !== canonical(reference[3]))) return;
+  if (fence && finalized.game.matchId === fence.state.game.matchId && (base.finalizedTick < fence.finalizedTick || base.finalizedTick === fence.finalizedTick && hash !== replayHash(fence.finalizedState()))) return;
+  const state = neutral(finalized);
+  for (const op of operations) applyOperation(state, op);
+  const bootstrap = packBootstrap(alias, state, [...state.game.players.values()].map(p => [p.slot, 0]));
+  if (!RollbackWorld.open(bootstrap, alias)) return;
+  return { state, bootstrap, hash: replayHash(state) };
+}
+export function deriveTransition(bytes: Uint8Array, alias: number, fence?: RollbackWorld, reference?: TransitionReference): DerivedTransition | undefined {
   if (bytes.byteLength > 2_000_000 || !uint32(alias) || !alias) return;
   try {
     const raw = unpackMessage(bytes);
-    if (!Array.isArray(raw) || raw.length !== 3 || !uint32(raw[0]) || !(raw[1] instanceof Uint8Array) || !Array.isArray(raw[2]) || raw[2].length > 64 || raw[2].some(op => !validOperation(op) || op[0] === 0)) return;
+    if (!Array.isArray(raw) || raw.length !== 3 || !uint32(raw[0]) || !raw[0] || !(raw[1] instanceof Uint8Array) || !validOperations(raw[2])) return;
     const base = RollbackWorld.open(raw[1], raw[0]); if (!base) return;
-    if (fence && base.state.game.matchId === fence.state.game.matchId && (base.finalizedTick < fence.finalizedTick || base.finalizedTick === fence.finalizedTick && replayHash(base.state) !== replayHash(fence.finalizedState()))) return;
-    const state = neutral(base.finalizedState());
-    for (const op of raw[2] as GameOperation[]) applyOperation(state, op);
-    const bootstrap = packBootstrap(alias, state, [...state.game.players.values()].map(p => [p.slot, 0]));
-    if (!RollbackWorld.open(bootstrap, alias)) return;
-    return { state, bootstrap, hash: replayHash(state) };
+    return deriveBase(base, raw[2], alias, fence, reference);
   } catch { return; }
 }
 export function initialWorld(value: LobbyCatalog, alias: number): RollbackWorld {
@@ -94,7 +130,14 @@ export function catalogView(value: LobbyCatalog): ViewSnapshot { const game = lo
 /** Full views verify every activation field against the derived, hash-checked state. */
 export function prepareWorld(payload: Uint8Array, header: Preparation, plan: RoomPlan, fence?: RollbackWorld): Uint8Array | undefined {
   if (!isPreparation(header, plan) || payload.length !== header.bytes) return;
-  const derived = deriveTransition(payload, plan.revision, fence);
+  return validatedPreparation(deriveTransition(payload, plan.revision, fence, header.reference), header, plan);
+}
+/** Reuse and transfer share derivation and every output-field check; neither mutates the retained world. */
+export function reuseWorld(base: RollbackWorld, header: Preparation, plan: RoomPlan): Uint8Array | undefined {
+  if (!isPreparation(header, plan) || !header.reference) return;
+  try { return validatedPreparation(deriveBase(base, header.reference[3], plan.revision, base, header.reference), header, plan); } catch { return; }
+}
+function validatedPreparation(derived: DerivedTransition | undefined, header: Preparation, plan: RoomPlan): Uint8Array | undefined {
   if (!derived) return;
   const game = derived.state.game, view = thinSnapshot({ ...toSnapshot(game), tick: game.tick, round: game.round });
   if (derived.hash !== header.hash || game.matchId !== header.matchId || canonical(view) !== canonical(header.status) || canonical(ownersFor(game, plan)) !== canonical(header.owners) || header.lobby && canonical(catalog(game, plan.settings)) !== canonical(header.lobby)) return;

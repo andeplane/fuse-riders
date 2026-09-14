@@ -1,0 +1,63 @@
+{
+  "date": "2026-09-14",
+  "baseRevision": "36c15068e29cd4fb8ae895fa8c364c16a25a400c",
+  "scope": "ADR043 first implementation: exact finalized-base reuse and selective checkpoint fallback, fuse-direct-4. Short regional browser fixture now passes; not a release.",
+  "sourceSha256": {
+    "src/shared/direct-input.ts": "8b9bcba113e2243692829fca0872822386397b744122ce971dff213d13a797f9",
+    "src/online/direct-room-state.ts": "146f8276e8fb77f5c2476a8df748724907db2d3d8b2ca08464c5d70e42c5e6f8",
+    "src/online/runtime.ts": "dbf109fbd41be6ef8ccdca3516b2acc9878a2149be1a3fbfd956c39b66c6e666",
+    "tests/direct-room-state.test.ts": "bb0e6779df0f134e86633802f71f844481c1b4338bbeff9452cf9963244a20b6",
+    "tests/direct-runtime.test.ts": "e4dabc35119da351c6bcb4c295a4b6e7663944f0ef4c494e710c67d86aec3b11"
+  },
+  "regional": {
+    "run": "regional-07",
+    "passed": true,
+    "seconds": 47.207,
+    "profile": {
+      "name": "regional",
+      "delayMs": 40,
+      "jitterMs": 20,
+      "fastLoss": 0.02,
+      "kilobitsPerSecond": 512
+    },
+    "bundleSha256": "898a809e344723df547cde000a86d2487c889a8d686a0d9c2945484fc6e24b8e",
+    "scope": "Real RoomRuntime and PeerTransport, five scripted human origins plus display, six simulators alternating Chromium/WebKit. Three-round default-pickup match; window starts before start command and includes countdowns, automatic round transitions and match completion. Native accepted-send and delivered-message application bytes classified for every RTC/WS payload. Excludes room-join bootstrap, HTTP requests/handshakes, SCTP/DTLS/IP headers, retransmission wire cost and rendering. Local native RTC with the declared application impairment profile. This workload is not matched to the historical five-bot serializer benchmark.",
+    "impairmentMethod": "Seeded application-send queue enabled after room join. Delay/jitter and a shared aggregate sender bandwidth budget apply to both lanes. Reliable messages preserve per-channel ordering and are not dropped. Fast messages can drop/reorder. This does not model IP packets or SCTP retransmission. Synthetic unsent serialization bytes are included in native bufferedAmount; propagation-delayed entries stay memory-bounded but no longer count as unsent. Fast drops happen before serialization and consume no shaped bandwidth. Impairment continues through teardown to preserve FIFO; native byte counters use the declared start/end window, while queue stats include the short collection tail. Queued bytes at window end and cancelled bytes at stop are reported. Fixture queue bounds are 2048 messages and 512 KiB, overflow fails the run. First-arrival age uses the receiver simulation tick before application, deduplicated per alias/slot/sequence; it is not input-to-render latency. Samples are bounded and truncation fails the run."
+  },
+  "checks": {
+    "focused": "45 passed",
+    "tests": "615 passed; coverage99.20%lines/statements,94.04%branches,98.89%functions; unchanged thresholds.",
+    "typecheck": "Passed",
+    "build": "Passed; existing chunk-size advisory."
+  },
+  "pending": [
+    "Implementation review before release",
+    "Additional envelope-boundary and explicit no-reference ACK cases",
+    "Adaptive remote presentation",
+    "Sustained impairment and physical-device qualification"
+  ],
+  "commands": [
+    "node --import tsx --test tests/direct-room-state.test.ts tests/direct-runtime.test.ts",
+    "npm run typecheck",
+    "npm run test:coverage",
+    "npm run build",
+    "ONLINE_URL=http://localhost:8812/ TRAFFIC_PROFILE=regional TRAFFIC_RUN=regional-07 node --import tsx scripts/direct-traffic-browser.ts",
+    "ONLINE_URL=http://localhost:8812/ TRAFFIC_RUN=reuse-local-01 node --import tsx scripts/direct-traffic-browser.ts"
+  ],
+  "evidenceSha256": {
+    "coverage.log": "88b5be74ba895c56d8624daebec4a6b1f719f9a27848eb29e4a482d7ff6f10a0",
+    "direct-traffic-regional-07.json.gz": "86d94c9e9ddf1b0dce087750d7ee504e2a3653fa5a11bcaf3a3d1ad33ed46011",
+    "local.log": "ba5e89077cf8e92eaa4bdfd5f00b4055cee93e365e57ee8bb995b8cd599e9676",
+    "direct-traffic-reuse-local-01.json.gz": "b6647667f88f609cc4d7e763acc5d92a2dd49d6f3b5f6de050dfb01492dfa226",
+    "regional-07.log": "e19bc4d99fec151f9287348ca522db945f39bc79cda683b58781af0b7761d24b",
+    "focused.log": "357639b68f23dd689dbe0bd5c4e082953cd130a75204b43b77454a6a667feedb",
+    "build.log": "782eec0bf012877fa2d4d0a14c17be73e1b2ba4945cbd34b3249d3fe96b298f4"
+  },
+  "local": {
+    "run": "reuse-local-01",
+    "passed": true,
+    "seconds": 36.136,
+    "bundleSha256": "898a809e344723df547cde000a86d2487c889a8d686a0d9c2945484fc6e24b8e",
+    "scope": "Real RoomRuntime and PeerTransport, five scripted human origins plus display, six simulators alternating Chromium/WebKit. Three-round default-pickup match; window starts before start command and includes countdowns, automatic round transitions and match completion. Native accepted-send and delivered-message application bytes classified for every RTC/WS payload. Excludes room-join bootstrap, HTTP requests/handshakes, SCTP/DTLS/IP headers, retransmission wire cost and rendering. Local native RTC with the declared application impairment profile. This workload is not matched to the historical five-bot serializer benchmark."
+  }
+}

@@ -14,14 +14,14 @@ import { StatusNotices } from './status-notices.js';
 import { CHECKPOINT_CHUNK_BYTES } from './link-send-gate.js';
 import { DirectSegment } from './direct-segment.js';
 import { RollbackWorld, type CommittedEvent } from './rollback-world.js';
-import { catalog, catalogView, deriveTransition, initialWorld, isCatalog, isPlan, isPreparation, isView, isThinView, manager, neutral, ownersFor, prepareWorld, record, thinSnapshot, transitionBytes, type LobbyCatalog, type Preparation, type RoomPlan } from './direct-room-state.js';
+import { canReuseBase, catalog, catalogView, deriveTransition, initialWorld, isCatalog, isPlan, isPreparation, isPreparationAck, isView, isThinView, manager, neutral, ownersFor, prepareWorld, record, referencePreparation, reuseWorld, thinSnapshot, transitionBytes, type LobbyCatalog, type Preparation, type RoomPlan } from './direct-room-state.js';
 
 export interface Callbacks { controlsReset?:()=>void;shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void;ended?:()=>void }
 export type OnlineInput = Omit<Extract<RoomCommand, { type: 'input' }>, 'scope' | 'intendedTick' | 'resultAcks'>;
 type Management = Exclude<RoomCommand, { type: 'input' }>;
 interface PendingCommand { request: number; command: Management; expires: number; sent: number }
-interface Incoming { header: Preparation; at: number; buffer?: Uint8Array; received: number; candidate?: Uint8Array; ready: boolean; activated: boolean; lastAck: number }
-interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean;nextPeer:number }
+interface Incoming { header: Preparation; needsPayload: boolean; at: number; buffer?: Uint8Array; received: number; candidate?: Uint8Array; ready: boolean; activated: boolean; lastAck: number }
+interface Outgoing { header: Preparation; payload: Uint8Array; at: number; peers: Map<string, { header: boolean; needsPayload?: boolean; offset: number; ready: boolean; applied: boolean; lastMeta: number; lastChunk: number }>; activating: boolean;nextPeer:number }
 
 export type RuntimeTransport = Pick<PeerTransport, 'id' | 'hostId' | 'connectionId' | 'grant' | 'sentBytes' | 'fastSentBytes' | 'binarySentBytes' | 'connectionOf' | 'members' | 'authorityPermitted' | 'connect' | 'close' | 'send' | 'sendCheckpoint' | 'bindFast' | 'boundReady' | 'sendFast' | 'sendPulse' | 'activatePulse' | 'deactivatePulse' | 'sendBound' | 'stats' | 'diagnostics'>;
 export interface RuntimeEnvironment {
@@ -54,6 +54,7 @@ export class RoomRuntime {
   private acceptedCommands = new Map<string, number>();
   private localCommand?: PendingCommand;
   private segment?: DirectSegment;
+  private segmentPlan?: RoomPlan;
   private incoming?: Incoming;
   private outgoing?: Outgoing;
   private change?: { base: RollbackWorld; ops: GameOperation[]; settings: RoomSettings };
@@ -110,7 +111,7 @@ export class RoomRuntime {
       linkReset: id => { if (this.segment && this.plan?.members.some(m => m.id === id)) this.faultPending = 'Direct link replaced — synchronizing'; },
       message: (id, data) => this.receive(id, data), fast: (id, bytes) => { if (this.activationSafe()) return this.segment?.receiveFast(id, bytes); },
       status: text => { if (!this.recoveryRequired) this.status.recurring(text); },
-      authorityChanged: () => { this.freeze(); this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planDelivery.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
+      authorityChanged: () => { this.freeze(); this.segmentPlan = undefined; this.plan = undefined; this.recoveryRequest = undefined; this.incoming = undefined; this.outgoing = undefined; this.change = undefined; this.roles.clear(); this.planDelivery.clear(); this.planCounter = 0; this.requestedPlans.clear(); this.acceptedCommands.clear(); this.statusKeys.clear(); this.lastHello = -Infinity; },
       ended: () => { this.stop(); callbacks.ended?.(); },
       revoked: () => this.terminal('This creator tab was replaced — use the newer tab'),
       terminated: text => this.terminal(text),
@@ -161,7 +162,7 @@ export class RoomRuntime {
     if (!plan.coordinator) {
       // Waiting for a display is an explicit idle lobby, not an unfinished simulation attempt.
       this.recoveryEpisodeAt = undefined; this.pendingPlan = undefined;
-      this.segment = undefined; this.change = undefined; this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish();
+      this.segment = undefined; this.segmentPlan = undefined; this.change = undefined; this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish();
       if (this.transport.id === this.transport.hostId) this.broadcastLobby();
       this.status.recurring('Open TV view to start · phones are controllers'); return;
     }
@@ -179,19 +180,22 @@ export class RoomRuntime {
       if (!derived) throw new Error('Lifecycle base could not be validated');
       const game = derived.state.game;
       const view = { ...toSnapshot(game), tick: game.tick, round: game.round };
-      const header: Preparation = { type: 'directPrepare', revision: plan.revision, alias: plan.revision, bytes: payload.byteLength, hash: derived.hash, matchId: game.matchId, tick: game.tick, round: game.round, status: thinSnapshot(view), ...(game.phase === 'lobby' ? { lobby: catalog(game, plan.settings) } : {}), owners: ownersFor(game, plan) };
+      const header = referencePreparation({ type: 'directPrepare', revision: plan.revision, alias: plan.revision, bytes: payload.byteLength, hash: derived.hash, matchId: game.matchId, tick: game.tick, round: game.round, status: thinSnapshot(view), ...(game.phase === 'lobby' ? { lobby: catalog(game, plan.settings) } : {}), owners: ownersFor(game, plan) }, base, ops, plan);
       this.outgoing = { header, payload, at: this.environment.now(), activating: false, nextPeer:0, peers: new Map(plan.members.map(m => [m.id, { header: false, offset: 0, ready: false, applied: false, lastMeta: -Infinity, lastChunk: -Infinity }])) };
       this.acceptPreparation(header);
-      if (plan.members.find(m => m.id === this.transport.id)!.view) { this.incoming!.buffer = payload; this.incoming!.received = payload.length; this.finishPreparation(); }
+      if (this.incoming?.needsPayload) { this.incoming.buffer = payload; this.incoming!.received = payload.length; this.finishPreparation(); }
     } catch (error) { this.lastFault = error instanceof Error ? error.message : 'Lifecycle preparation failed'; this.requireLobby(this.lastFault); const message = { type: 'directBaseUnavailable', revision: plan.revision }; if (this.transport.id === this.transport.hostId) { for (const member of plan.members) if (member.id !== this.transport.id) this.send(member.id, message); } else this.send(this.transport.hostId, message); }
   }
   private acceptPreparation(header: Preparation): void {
     const plan = this.plan!;
     if (!isPreparation(header, plan)) return;
-    if (this.incoming) { if (canonical(this.incoming.header) !== canonical(header)) { this.faultPending = 'Conflicting lifecycle preparation'; this.corruptionPending = true; } else this.send(plan.source, { type: 'directHeader', revision: plan.revision }); return; }
+    if (this.incoming) { if (canonical(this.incoming.header) !== canonical(header)) { this.faultPending = 'Conflicting lifecycle preparation'; this.corruptionPending = true; } else this.send(plan.source, { type: 'directHeader', revision: plan.revision, needsPayload: this.incoming.needsPayload }); return; }
     const full = plan.members.find(m => m.id === this.transport.id)!.view;
-    this.incoming = { header: structuredClone(header), at: this.environment.now(), ...(full ? { buffer: new Uint8Array(header.bytes) } : {}), received: 0, ready: false, activated: false, lastAck: -Infinity };
-    this.send(plan.source, { type: 'directHeader', revision: plan.revision });
+    const base = this.segment?.world;
+    const candidate = full && base && this.segmentPlan?.revision === base.segment && canReuseBase(this.segmentPlan, plan, this.transport.id) ? reuseWorld(base, header, plan) : undefined;
+    const needsPayload = full && !candidate;
+    this.incoming = { header: structuredClone(header), needsPayload, candidate, at: this.environment.now(), ...(needsPayload ? { buffer: new Uint8Array(header.bytes) } : {}), received: 0, ready: false, activated: false, lastAck: -Infinity };
+    this.send(plan.source, { type: 'directHeader', revision: plan.revision, needsPayload });
   }
   private finishPreparation(): void {
     const incoming = this.incoming!, plan = this.plan!;
@@ -220,6 +224,7 @@ export class RoomRuntime {
         now: () => this.environment.now(), pulse: (peer, bytes) => this.transport.sendPulse(peer, bytes), fast: (peer, bytes) => this.transport.sendFast(peer, bytes), reliable: (peer, tuple) => this.transport.sendBound(peer, tuple),
         events: events => this.events(events), fault: (reason, corrupt) => { this.faultPending = reason; this.corruptionPending = !!corrupt; },
       });
+      this.segmentPlan = structuredClone(plan);
       for (const member of plan.members) if (member.id !== this.transport.id && !this.transport.activatePulse(member.id, plan.revision)) { this.faultPending = 'Direct heartbeat activation failed — synchronizing'; return; }
       incoming.activated = true; this.view = this.segment.snapshot() ?? incoming.header.status; this.matchId = incoming.header.matchId; if (incoming.header.lobby) this.lobby = structuredClone(incoming.header.lobby); incoming.candidate = undefined; this.change = undefined; this.pendingPlan = undefined;
       this.lastPublish = ''; this.publish(); this.lastBotTick = -1; this.applied.add(this.transport.id);
@@ -267,14 +272,20 @@ export class RoomRuntime {
     }
     if (raw.type === 'directLobby' && id === this.transport.hostId && !plan.coordinator && isCatalog(raw.catalog)) { this.lobby = structuredClone(raw.catalog); this.view = catalogView(this.lobby); this.matchId = this.lobby.matchId; this.publish(); return; }
     if (raw.type === 'directPrepare' && id === plan.source && isPreparation(raw, plan)) { this.acceptPreparation(raw); return; }
-    if (raw.type === 'directHeader' && this.outgoing && Object.keys(raw).length === 2) { const peer = this.outgoing.peers.get(id); if (peer) peer.header = true; return; }
+    if (isPreparationAck(raw) && this.outgoing) {
+      const peer = this.outgoing.peers.get(id), full = plan.members.find(m => m.id === id)!.view;
+      if (!peer) return;
+      if (peer.header && peer.needsPayload !== raw.needsPayload) { this.faultPending = 'Conflicting checkpoint requirement'; this.corruptionPending = true; return; }
+      if (full ? !raw.needsPayload && !this.outgoing.header.reference : raw.needsPayload) return;
+      peer.header = true; peer.needsPayload = raw.needsPayload; return;
+    }
     if (raw.type === 'directChunk' && id === plan.source && this.incoming?.buffer && uint32(raw.offset) && raw.data instanceof Uint8Array && raw.data.length <= 12_000) {
       const incoming = this.incoming;
       if (raw.offset < incoming.received) return;
       if (raw.offset !== incoming.received || raw.offset + raw.data.length > incoming.header.bytes || !raw.data.length) { this.faultPending = 'Invalid checkpoint chunk'; return; }
       incoming.buffer!.set(raw.data, raw.offset); incoming.received += raw.data.length; this.finishPreparation(); return;
     }
-    if (raw.type === 'directReady' && this.outgoing) { const peer = this.outgoing.peers.get(id); if (peer) peer.ready = true; return; }
+    if (raw.type === 'directReady' && this.outgoing) { const peer = this.outgoing.peers.get(id); if (peer?.header) peer.ready = true; return; }
     if (raw.type === 'directActivate' && id === plan.source && this.incoming) { this.activate(); return; }
     if (raw.type === 'directApplied') { this.applied.add(id); const peer = this.outgoing?.peers.get(id); if (peer) peer.applied = true; return; }
     if (raw.type === 'directRecover' && id !== this.transport.id && plan.coordinator === this.transport.id) { this.faultPending ??= 'A participant requested synchronization'; return; }
@@ -389,7 +400,7 @@ export class RoomRuntime {
       const recipients=[...outgoing.peers];
       for(let offset=0;offset<recipients.length;offset++){
         const index=(outgoing.nextPeer+offset)%recipients.length,[id,peer]=recipients[index];
-        if (id !== this.transport.id && peer.header && plan.members.find(m => m.id === id)!.view && peer.offset < outgoing.payload.length && now - peer.lastChunk >= 50) {
+        if (id !== this.transport.id && peer.header && peer.needsPayload && peer.offset < outgoing.payload.length && now - peer.lastChunk >= 50) {
           peer.lastChunk = now;
           const data=outgoing.payload.slice(peer.offset,peer.offset+CHECKPOINT_CHUNK_BYTES);
           const queued=this.transport.sendCheckpoint(id,{type:'directChunk',revision:plan.revision,offset:peer.offset,data});

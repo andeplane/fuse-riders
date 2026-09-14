@@ -1,0 +1,245 @@
+Measuring a three-round match: five scripted player origins, six simulators, mixed Chromium/WebKit, real local WebRTC; regional profile, seed 12345.
+{"elapsed":4.53,"phase":"countdown","round":1,"tick":50,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":5,"simulator":true,"replicaTick":50,"finalizedTick":42,"finalizedHash":"865cd81d86631431","retainedRecords":0,"rollbackCount":0,"fastSentBytes":3235,"binarySentBytes":105815,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":9.547,"phase":"playing","round":1,"tick":151,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":5,"simulator":true,"replicaTick":151,"finalizedTick":143,"finalizedHash":"94cf6421f9bf11c5","retainedRecords":0,"rollbackCount":13,"fastSentBytes":7005,"binarySentBytes":111412,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":14.575,"phase":"roundOver","round":1,"tick":251,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":5,"simulator":true,"replicaTick":251,"finalizedTick":245,"finalizedHash":"491ab3005416b524","retainedRecords":0,"rollbackCount":30,"fastSentBytes":10453,"binarySentBytes":114752,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":19.582,"phase":"countdown","round":2,"tick":309,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":6,"simulator":true,"replicaTick":309,"finalizedTick":287,"finalizedHash":"2ad41e97bc44fe8b","retainedRecords":0,"rollbackCount":0,"fastSentBytes":13133,"binarySentBytes":161418,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":24.626,"phase":"roundOver","round":2,"tick":409,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":6,"simulator":true,"replicaTick":409,"finalizedTick":406,"finalizedHash":"86353afce1903098","retainedRecords":0,"rollbackCount":15,"fastSentBytes":17168,"binarySentBytes":167096,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":29.616,"phase":"countdown","round":3,"tick":470,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":7,"simulator":true,"replicaTick":470,"finalizedTick":470,"finalizedHash":"1fc1514007cfb204","retainedRecords":0,"rollbackCount":0,"fastSentBytes":19846,"binarySentBytes":214662,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":34.609,"phase":"playing","round":3,"tick":564,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":7,"simulator":true,"replicaTick":564,"finalizedTick":557,"finalizedHash":"40c13e46762d143a","retainedRecords":4,"rollbackCount":7,"fastSentBytes":22958,"binarySentBytes":218035,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":39.633,"phase":"playing","round":3,"tick":664,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":7,"simulator":true,"replicaTick":664,"finalizedTick":656,"finalizedHash":"ad4d7b5722c973fb","retainedRecords":0,"rollbackCount":20,"fastSentBytes":27187,"binarySentBytes":223376,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{"elapsed":44.652,"phase":"playing","round":3,"tick":764,"diagnostics":{"mode":"direct","coordinator":"1ee4cba1abde57462822b2f7","alias":7,"simulator":true,"replicaTick":764,"finalizedTick":741,"finalizedHash":"d51d163fd69c6663","retainedRecords":5,"rollbackCount":45,"fastSentBytes":31437,"binarySentBytes":226412,"recoveryRequired":false,"corruptRecoveryAttempts":0,"barrier":false}}
+{
+  "passed": true,
+  "seconds": 47.207,
+  "totals": [
+    {
+      "index": 0,
+      "actionArrivalAgeTicks": {
+        "count": 161,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 883,
+        "p50": 8,
+        "p95": 21,
+        "p99": 23,
+        "max": 23
+      },
+      "network": {
+        "attempted": 2633,
+        "delivered": 2592,
+        "fastDropped": 41,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 11814,
+        "maxQueuedBytes": 14131,
+        "maxQueuedPackets": 23,
+        "maxScheduledDelayMs": 218.51477333158255,
+        "maxResidenceMs": 220.2999997138977
+      },
+      "engine": "chromium",
+      "rtcUpload": 223913,
+      "rtcDownload": 58372,
+      "signallingUpload": 7621,
+      "signallingDownload": 20101,
+      "rtcUploadBytesPerSecond": 4743.216048467389,
+      "rtcDownloadBytesPerSecond": 1236.5115343063528
+    },
+    {
+      "index": 1,
+      "actionArrivalAgeTicks": {
+        "count": 157,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 872,
+        "p50": 9,
+        "p95": 22,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1732,
+        "delivered": 1693,
+        "fastDropped": 39,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1493,
+        "maxQueuedBytes": 1929,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 76.70906907878816,
+        "maxResidenceMs": 84
+      },
+      "engine": "webkit",
+      "rtcUpload": 41413,
+      "rtcDownload": 68057,
+      "signallingUpload": 1773,
+      "signallingDownload": 19331,
+      "rtcUploadBytesPerSecond": 877.2639650899231,
+      "rtcDownloadBytesPerSecond": 1441.671785963946
+    },
+    {
+      "index": 2,
+      "actionArrivalAgeTicks": {
+        "count": 159,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 2
+      },
+      "speculationTicks": {
+        "count": 896,
+        "p50": 9,
+        "p95": 22,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1698,
+        "delivered": 1680,
+        "fastDropped": 18,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1284,
+        "maxQueuedBytes": 1715,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 74.54873098060489,
+        "maxResidenceMs": 77.90000009536743
+      },
+      "engine": "chromium",
+      "rtcUpload": 36821,
+      "rtcDownload": 63215,
+      "signallingUpload": 2229,
+      "signallingDownload": 19787,
+      "rtcUploadBytesPerSecond": 779.99025568242,
+      "rtcDownloadBytesPerSecond": 1339.102251784693
+    },
+    {
+      "index": 3,
+      "actionArrivalAgeTicks": {
+        "count": 163,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 857,
+        "p50": 9,
+        "p95": 22,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1660,
+        "delivered": 1617,
+        "fastDropped": 41,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 49,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1296,
+        "maxQueuedBytes": 1718,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 76.51640208438039,
+        "maxResidenceMs": 79
+      },
+      "engine": "webkit",
+      "rtcUpload": 35630,
+      "rtcDownload": 59789,
+      "signallingUpload": 1773,
+      "signallingDownload": 19331,
+      "rtcUploadBytesPerSecond": 754.7609464698032,
+      "rtcDownloadBytesPerSecond": 1266.5282691126315
+    },
+    {
+      "index": 4,
+      "actionArrivalAgeTicks": {
+        "count": 160,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 923,
+        "p50": 10,
+        "p95": 22,
+        "p99": 24,
+        "max": 25
+      },
+      "network": {
+        "attempted": 1748,
+        "delivered": 1720,
+        "fastDropped": 28,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 0,
+        "bufferedBytes": 0,
+        "maxBufferedBytes": 1499,
+        "maxQueuedBytes": 1929,
+        "maxQueuedPackets": 14,
+        "maxScheduledDelayMs": 72.6398585550487,
+        "maxResidenceMs": 75.09999990463257
+      },
+      "engine": "chromium",
+      "rtcUpload": 47296,
+      "rtcDownload": 74763,
+      "signallingUpload": 2254,
+      "signallingDownload": 19812,
+      "rtcUploadBytesPerSecond": 1001.885313618743,
+      "rtcDownloadBytesPerSecond": 1583.7269896413668
+    },
+    {
+      "index": 5,
+      "actionArrivalAgeTicks": {
+        "count": 200,
+        "p50": 0,
+        "p95": 0,
+        "p99": 1,
+        "max": 1
+      },
+      "speculationTicks": {
+        "count": 873,
+        "p50": 10,
+        "p95": 23,
+        "p99": 25,
+        "max": 26
+      },
+      "network": {
+        "attempted": 1067,
+        "delivered": 1053,
+        "fastDropped": 13,
+        "closed": 0,
+        "overflow": 0,
+        "queuedBytes": 14,
+        "bufferedBytes": 14,
+        "maxBufferedBytes": 1085,
+        "maxQueuedBytes": 1507,
+        "maxQueuedPackets": 13,
+        "maxScheduledDelayMs": 72.38736618310213,
+        "maxResidenceMs": 78
+      },
+      "engine": "webkit",
+      "rtcUpload": 28059,
+      "rtcDownload": 88936,
+      "signallingUpload": 1773,
+      "signallingDownload": 19331,
+      "rtcUploadBytesPerSecond": 594.3821890821276,
+      "rtcDownloadBytesPerSecond": 1883.957887601415
+    }
+  ],
+  "errors": []
+}

@@ -1,6 +1,6 @@
 # ADR043: Reuse validated local state at lifecycle transitions
 
-Date: 2026-09-14. Status: independently approved for implementation; implementation and acceptance remain pending. Extends ADR041/042 on `codex/deterministic-action-log`, tracking #82. No release authorization.
+Date: 2026-09-14. Status: independently approved design; first implementation passes unit regressions and the regional browser fixture. Implementation review and remaining acceptance are pending. Extends ADR041/042 on `codex/deterministic-action-log`, tracking #82. No release authorization.
 
 ## Problem and alternatives
 
@@ -42,3 +42,7 @@ All existing five-second preparation and 15-second unsuccessful-episode bounds r
 4. Serialized runtime tests proving zero checkpoint chunks for exact cache hits, selective transfer for a missing or mismatched participant, no full-world retention on controllers, retry after lost header/ACK, and unchanged ready/applied/timeouts. Include source/authority replacement during send and atomic rejection.
 5. Repeat the current mixed Chromium/WebKit three-round local and regional fixtures under unchanged network profiles and deadlines; count setup/transition bytes separately and assert no hidden recovery, browser errors or divergent outcomes. Preserve failed runs and exact loaded-source hashes.
 6. Then continue sustained impairment, reconnect/TV/LAN and latency/resource qualification. The adaptive 50–100 ms presentation proposal remains separate; this change does not implement rendering delay.
+
+## Implementation checkpoint
+
+The `fuse-direct-4` candidate implements reference-based preparation and selective payload acknowledgements. All 615 tests pass. `regional-07` completes three rounds across six Chromium/WebKit simulators under the unchanged regional profile, with matching outcomes and no hidden recovery or browser errors. This is a short application-impairment result, not full release or physical-phone qualification. See [implementation evidence](../online/direct-actions-evidence/lifecycle-reuse/manifest.json).
