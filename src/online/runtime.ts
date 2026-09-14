@@ -1,4 +1,5 @@
 import { KeyframeDelivery, AcceptedKeyframe, type KeyframeReceipt } from './keyframe-delivery.js';
+import { recipientAcknowledgements } from './recipient-ack.js';
 import { isShotTransition } from './shot-failure.js';
 import { isAppliedMotionState, isInputControlScope } from './prediction-validation.js';
 import { DeferredCommand } from './deferred-command.js';
@@ -144,7 +145,7 @@ export class RoomRuntime {
       if(pending==='waiting')continue;if(pending==='expired')this.encoders.delete(id);
       let encoder=this.encoders.get(id);const fresh=!encoder;if(!encoder){const generation=(this.generations.get(id)??0)+1;this.generations.set(id,generation);encoder=new WorldEncoder(generation);this.encoders.set(id,encoder);}
       const frame=encoder.encode(snapshot,game.matchId,game.round,game.tick,fresh||game.tick%300===0);
-      const world:WorldEnvelope={type:'world',frame,settings:session.settings,ack,paused,motion:session.appliedMotion(id)};
+      const world:WorldEnvelope={type:'world',frame,settings:session.settings,ack:recipientAcknowledgements(ack,id),paused,motion:session.appliedMotion(id)};
       if(frame.base===0){delivery.hold(world,at);delivery.pump(at,payload=>this.transport.send(id,payload));}
       else if(!this.transport.send(id,world))this.encoders.delete(id);
     }
