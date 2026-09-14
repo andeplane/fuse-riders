@@ -42,6 +42,11 @@ export class PeerTransport {
   }
   private socket?:WebSocket;
   private links=new Map<string,Link>();
+  // Macrotask deferral that background timer throttling cannot delay (a throttled setTimeout would pong a
+  // screen-off phone a second late, fail LinkHealth and force-re-offer a healthy channel every 8 s).
+  private readonly deferred:Array<()=>void>=[];
+  private readonly deferPort=(()=>{const channel=new MessageChannel();channel.port1.onmessage=()=>this.deferred.shift()?.();return channel.port2;})();
+  private defer(task:()=>void):void{this.deferred.push(task);this.deferPort.postMessage(null);}
   private seq=0;
   private stopped=false;
   private retry?:ReturnType<typeof setTimeout>;
@@ -61,6 +66,9 @@ export class PeerTransport {
         if(message.type==='welcome'){
           if(message.protocol!==2||typeof message.connectionId!=='string'){this.callbacks.status('Game protocol changed — reload this page');this.close();return;}
           this.received.clear();
+          // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
+          const roster=new Set<string>(message.peers.map((peer:{id:string})=>peer.id));
+          for(const id of this.connections.keys())if(!roster.has(id))this.callbacks.peer(id,false);
           for(const link of this.links.values())link.pc.close();this.links.clear();this.connections.clear();
           this.id=message.id;this.hostId=message.hostId;this.connectionId=message.connectionId;this.readyScope='';
           for(const peer of message.peers)this.connections.set(peer.id,peer.connectionId);
@@ -158,7 +166,7 @@ export class PeerTransport {
           // OnStateChange). Answering inside this onmessage task would hand the pong to an already-dead transport, so
           // defer one macrotask: the queued state-change task runs first and readyState plus the gate refuse the send.
           const link=this.links.get(id),probeId=probe.probeId!;
-          if(link)setTimeout(()=>{if(isCurrentLinkCallback(this.links.get(id),link))this.sendDirectProbe(id,{type:'linkPong',probeId});},0);
+          if(link)this.defer(()=>{if(isCurrentLinkCallback(this.links.get(id),link))this.sendDirectProbe(id,{type:'linkPong',probeId});});
         }
         return;
       }
@@ -192,7 +200,7 @@ export class PeerTransport {
       }
     }
   }
-  close():void{this.stopped=true;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
+  close():void{this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
   async stats():Promise<{direct:number;relayed:number;buffered:number;authority:{reason:string;roundTripMs?:number}}>{
     let direct=0,relayed=0,buffered=this.socket?.bufferedAmount??0;
     for(const link of this.links.values()){

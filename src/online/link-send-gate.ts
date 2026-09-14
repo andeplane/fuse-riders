@@ -7,9 +7,10 @@ export interface SendChannelFacts { readyState:RTCDataChannelState;bufferedAmoun
 export const GAMEPLAY_BUFFER_LIMIT=64000;
 export const PROBE_BUFFER_LIMIT=4096;
 export class LinkSendGate {
-  draining=false;
+  private drained=false;
   /** Monotonic: nothing revives a drained link; a replacement link gets a new gate. */
-  drain():void { this.draining=true; }
+  drain():void { this.drained=true; }
+  get draining():boolean { return this.drained; }
   /** A permitted send means queued in the browser, never applied by the peer. */
   permits(channel:SendChannelFacts|undefined,bufferLimit:number):boolean {
     return !this.draining&&channel?.readyState==='open'&&channel.bufferedAmount<bufferLimit;
