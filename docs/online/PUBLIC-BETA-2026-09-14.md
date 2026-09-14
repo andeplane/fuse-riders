@@ -4,7 +4,13 @@
 
 The creator's browser runs the game and must remain in the foreground. Gameplay requires direct WebRTC; no TURN or backend gameplay relay is configured. Failed direct connections produce retry states. These are deliberate product limits, not guarantees that every network can connect.
 
-## Verified releases
+## Final runtime release
+
+Runtime source **6c1673b1ba7121d03b6184461c354d8f453ec33a** passed CI **34796940787** and Pages **34797212683**. Root independently fetched its public manifest and healthy backend. [Final public Chrome/WebKit evidence](PUBLIC-ACCEPTANCE.md#final-latency-candidate-6c1673b) verifies the actual deployed bundle with zero page errors or failed HTTP responses. Both browser runs completed phone hosting, AI, guest RTC/scoring, reset, saved settings and separate-TV controls. Subsequent documentation-only commits preserve this exact tested runtime identity.
+
+Local final validation also passed 321 tests, both type checks, the production build and enforced coverage (99.47% lines across the configured coverage modules). The isolated local benchmark service and all automated test browsers were closed; the user’s LAN game was not restarted.
+
+## Release history
 
 | Check | Exact evidence |
 | --- | --- |
@@ -22,7 +28,7 @@ The expanded public check exercised a phone-sized host creating and joining a ro
 - [AI riders](AI-RIDERS.md): ordinary input/physics, five combined human/AI slots, mid-race additions join next round; deterministic tests and browser scoring checks passed.
 - [Phaser benchmarks](../PHASER.md): desktop and mobile-sized views measured with production backing resolution. Mobile-sized frame p95 was 16.7 ms in Chrome and 18 ms in WebKit; physical hardware remains unverified.
 - [Network evidence](NETWORK-EVIDENCE-2026-09-14.md): a 30-minute soak passed its documented scope at source `66f67bd`. Later 20 Hz regional and poor profiles passed recovery/freshness checks, but poor-network correction tails remain large. Application-message impairment is not OS-level packet loss.
-- [Actual response benchmark](RESPONSE-BENCHMARK.md): the reviewed nearby-buffer candidate passes the predeclared 180-second run and combined 240-second batch: local p95 27.6 ms, TV p95 88.2 ms. Earlier failures remain in the report. The longer run observed 3.41% repeated TV ticks, with hold p95 34 ms and maximum 51.2 ms. Final candidate publication and public-browser checks are pending.
+- [Actual response benchmark](RESPONSE-BENCHMARK.md): the reviewed nearby-buffer candidate passes the predeclared 180-second run and combined 240-second batch: local p95 27.6 ms, TV p95 88.2 ms. Earlier failures remain in the report. The longer run observed 3.41% repeated TV ticks, with hold p95 34 ms and maximum 51.2 ms. The final 6c1673b candidate subsequently passed CI, Pages deployment and both public browser checks.
 
 Physical touch-to-photon, background/lock and network-transition behavior are not established by phone-sized browser tests. Each linked report identifies its tested artifact; newer commits and running CI are not evidence of a completed test.
 
