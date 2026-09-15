@@ -91,8 +91,8 @@ jobs:
         run: npx tsx scripts/shared-room-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
-      - name: Incremental world consistency benchmark
-        run: npx tsx scripts/benchmark-deltas.ts
+      - name: Action replication traffic benchmark
+        run: npx tsx scripts/benchmark-actions.ts
       - name: Save coverage and browser evidence
         if: always()
         uses: actions/upload-artifact@v4
