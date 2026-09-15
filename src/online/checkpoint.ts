@@ -122,6 +122,9 @@ function gameInvariants(game: GameState): boolean {
   for (const b of game.blasts) if (b.bombId >= game.nextBombId || !game.matchStats.has(b.ownerId)) return false;
   const pickupIds = new Set<number>();
   for (const p of game.pickups) { if (pickupIds.has(p.id) || p.id >= game.nextPickupId) return false; pickupIds.add(p.id); }
+  // Transit exit safety exempts the pair in use by id, so duplicate ids would exempt a foreign wall.
+  const portalIds = new Set<string>();
+  for (const pair of game.portalPairs) { if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false; portalIds.add(pair.id); }
   return true;
 }
 

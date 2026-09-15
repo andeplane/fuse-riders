@@ -265,7 +265,7 @@ try {
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');
   app.game.pickups.push({ id: 9_007, type: 'portal', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_007), false, 'portal pickup consumed authoritatively');
-  assert.ok(app.game.portalPair, 'portal pickup opens an authoritative gate pair');
+  assert.equal(app.game.portalPairs.length, 1, 'portal pickup opens an authoritative gate pair');
   // Placement was exercised above. Isolate transit from the random board left by
   // earlier weapons: a valid pair can correctly refuse an obstructed linked exit.
   app.game.bombs.clear(); app.game.blasts = [];
@@ -273,11 +273,11 @@ try {
     player.trail = [];
     if (player !== poweredRider) { player.x = app.game.width / 2; player.y = 80 + player.slot * 35; player.angle = 0; }
   }
-  app.game.portalPair!.gates = [
+  app.game.portalPairs[0]!.gates = [
     { x: app.game.width * .3, y: app.game.height / 2, halfLength: 100 },
     { x: app.game.width * .7, y: app.game.height / 2, halfLength: 100 },
   ];
-  const entryGate = app.game.portalPair!.gates[0];
+  const entryGate = app.game.portalPairs[0]!.gates[0];
   poweredRider.x = entryGate.x + 15; poweredRider.y = entryGate.y;
   poweredRider.angle = Math.PI; poweredRider.portalCooldownUntilTick = 0; poweredRider.portalGraceUntilTick = 0;
   assert.equal(poweredRider.alive, true, 'transit fixture rider remains alive');

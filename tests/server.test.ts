@@ -19,7 +19,7 @@ test('controller snapshots strip the full match statistics table', () => {
   };
   const compact = controllerSnapshot({
     phase: 'matchOver', bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20,
-    players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [], matchStats: [matchStats],
+    players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], leaderboard: [], roundPlacements: [], matchStats: [matchStats],
   });
   assert.deepEqual(compact.matchStats, []);
   assert.equal(JSON.stringify(compact).includes('Private recap'), false);

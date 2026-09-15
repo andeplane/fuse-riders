@@ -139,27 +139,43 @@ export function drawOrbitShield(ctx: CanvasRenderingContext2D, player: GameSnaps
   ctx.restore();
 }
 
-export function drawPortalPair(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {
-  const pair = snapshot.portalPair;
-  if (!pair || pair.expiresAtTick <= tick) return;
-  const colors = ['#b968ff', '#ff9b32'] as const;
-  ctx.save(); ctx.globalAlpha = .2; ctx.strokeStyle = '#d697ff'; ctx.lineWidth = 2; ctx.setLineDash([5, 12]);
-  ctx.beginPath(); ctx.moveTo(pair.gates[0].x, pair.gates[0].y); ctx.lineTo(pair.gates[1].x, pair.gates[1].y); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
-  pair.gates.forEach((gate, index) => {
-    ctx.save(); ctx.translate(gate.x, gate.y);
-    ctx.strokeStyle = colors[index]; ctx.shadowColor = colors[index]; ctx.shadowBlur = 16; ctx.lineWidth = 8;
-    ctx.beginPath(); ctx.moveTo(0, -gate.halfLength); ctx.lineTo(0, gate.halfLength); ctx.stroke();
-    ctx.lineWidth = 2; ctx.strokeStyle = '#effcff'; ctx.setLineDash([8, 5]); ctx.lineDashOffset = (index ? -1 : 1) * now / 40;
-    ctx.beginPath(); ctx.moveTo(0, -gate.halfLength); ctx.lineTo(0, gate.halfLength); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = colors[index];
-    for (const y of [-gate.halfLength, gate.halfLength]) ctx.fillRect(-8, y - 4, 16, 8);
-    ctx.lineWidth = 2; ctx.strokeStyle = colors[1 - index]; ctx.globalAlpha = .75;
-    for (let y = -gate.halfLength + 20; y < gate.halfLength; y += 40) {
-      ctx.beginPath(); ctx.moveTo(-9, y - 5); ctx.lineTo(-14, y); ctx.lineTo(-9, y + 5);
-      ctx.moveTo(9, y - 5); ctx.lineTo(14, y); ctx.lineTo(9, y + 5); ctx.stroke();
-    }
-    ctx.restore();
-  });
+/**
+ * One two-tone palette per simultaneous pair: the two gates of a pair always differ from each other,
+ * so a rider can still read which end leads where, and pairs differ from one another.
+ */
+export const PORTAL_PALETTES = [['#b968ff', '#ff9b32'], ['#39ff9e', '#2f9bff'], ['#ff4f9b', '#ffe24f']] as const;
+/**
+ * Keyed off the pair id rather than its position, so retiring the oldest pair at the cap does not
+ * recolour the survivors mid-flight.
+ */
+export function portalPalette(id: string): readonly [string, string] {
+  let hash = 0;
+  for (let index = 0; index < id.length; index += 1) hash = (hash * 31 + id.charCodeAt(index)) >>> 0;
+  return PORTAL_PALETTES[hash % PORTAL_PALETTES.length]!;
+}
+
+export function drawPortals(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {
+  for (const pair of snapshot.portalPairs) {
+    if (pair.expiresAtTick <= tick) continue;
+    const colors = portalPalette(pair.id);
+    ctx.save(); ctx.globalAlpha = .2; ctx.strokeStyle = colors[0]; ctx.lineWidth = 2; ctx.setLineDash([5, 12]);
+    ctx.beginPath(); ctx.moveTo(pair.gates[0].x, pair.gates[0].y); ctx.lineTo(pair.gates[1].x, pair.gates[1].y); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    pair.gates.forEach((gate, index) => {
+      ctx.save(); ctx.translate(gate.x, gate.y);
+      ctx.strokeStyle = colors[index]; ctx.shadowColor = colors[index]; ctx.shadowBlur = 16; ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(0, -gate.halfLength); ctx.lineTo(0, gate.halfLength); ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#effcff'; ctx.setLineDash([8, 5]); ctx.lineDashOffset = (index ? -1 : 1) * now / 40;
+      ctx.beginPath(); ctx.moveTo(0, -gate.halfLength); ctx.lineTo(0, gate.halfLength); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = colors[index];
+      for (const y of [-gate.halfLength, gate.halfLength]) ctx.fillRect(-8, y - 4, 16, 8);
+      ctx.lineWidth = 2; ctx.strokeStyle = colors[1 - index]!; ctx.globalAlpha = .75;
+      for (let y = -gate.halfLength + 20; y < gate.halfLength; y += 40) {
+        ctx.beginPath(); ctx.moveTo(-9, y - 5); ctx.lineTo(-14, y); ctx.lineTo(-9, y + 5);
+        ctx.moveTo(9, y - 5); ctx.lineTo(14, y); ctx.lineTo(9, y + 5); ctx.stroke();
+      }
+      ctx.restore();
+    });
+  }
 }
 
 export function drawPortalGrace(ctx: CanvasRenderingContext2D, player: GameSnapshot['players'][number], tick: number, now: number): void {

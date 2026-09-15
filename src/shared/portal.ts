@@ -18,6 +18,8 @@ export interface PortalPair {
   expiresAtTick: number;
 }
 export type PortalSafetyCheck = (point: PortalPoint, radius: number) => boolean;
+/** Exit safety also names the pair in use, whose own walls the exit is allowed to hug. */
+export type PortalExitCheck = (point: PortalPoint, radius: number, pairId: string) => boolean;
 
 export interface PortalPlacementOptions {
   id: string;
@@ -65,7 +67,7 @@ export interface PortalTransitOptions {
   cooldownUntilTick: number;
   bounds: PortalBounds;
   riderRadius: number;
-  isSafeExit: PortalSafetyCheck;
+  isSafeExit: PortalExitCheck;
 }
 export interface PortalTransit {
   pairId: string;
@@ -155,7 +157,7 @@ export function findPortalTransit(options: PortalTransitOptions): PortalTransit 
   };
   if (exitPoint.x < bounds.minX + riderRadius || exitPoint.x > bounds.maxX - riderRadius ||
       exitPoint.y < bounds.minY + riderRadius || exitPoint.y > bounds.maxY - riderRadius) return undefined;
-  if (!options.isSafeExit(exitPoint, riderRadius)) return undefined;
+  if (!options.isSafeExit(exitPoint, riderRadius, entry.pair.id)) return undefined;
   return {
     pairId: entry.pair.id,
     entryGateIndex: entry.index,

@@ -7,7 +7,7 @@ import { bombPreviewDistance } from '../src/client/bomb-preview.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
-  return { phase: 'lobby', bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [], matchStats: [] };
+  return { phase: 'lobby', bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], leaderboard: [], roundPlacements: [], matchStats: [] };
 }
 
 function playingFrame(tick: number, receivedAt: number, x: number, alive = true): SnapshotFrame {

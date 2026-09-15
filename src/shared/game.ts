@@ -245,6 +245,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     bombs: new Map(),
     blasts: [],
     pickups: [],
+    portalPairs: [],
     nextBombId: 1,
     nextPickupId: 1,
     nextPickupSpawnTick: 0,
@@ -582,7 +583,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       from: { x: movement.oldX, y: movement.oldY }, to: movement,
       heading: movement.angle, cooldownUntilTick: movement.player.portalCooldownUntilTick,
       bounds: portalBounds(state), riderRadius: RIDER_RADIUS,
-      isSafeExit: (point, radius) => isSafePortalPosition(state, point, radius, movements, movement.player.id, causes, transits),
+      isSafeExit: (point, radius, pairId) => isSafePortalPosition(state, point, radius, movements, movement.player.id, causes, transits) &&
+        isClearOfPortalWalls(state, point, radius, pairId),
     });
     if (transit) transits.set(movement.player.id, transit);
   }
@@ -879,9 +881,14 @@ function portalBounds(state: GameState) {
     maxX: state.width - state.boundaryInset, maxY: state.height - state.boundaryInset };
 }
 
-/** Keeps a freshly opened pair off the walls of the live ones, so no exit lands inside another gate. */
-function isClearOfPortalWalls(state: GameState, point: PortalPoint, radius: number): boolean {
-  return state.portalPairs.every((pair) => pair.gates.every((gate) =>
+/**
+ * Clearance from live portal walls, for two callers with different exemptions. Placement passes no
+ * exemption, so a new pair is never laid over a running one. A transit exempts the pair being used,
+ * whose own gate the exit deliberately hugs at PORTAL_WALL_HALF_WIDTH + RIDER_RADIUS + 1, and so
+ * covers the foreign walls that placement clearance alone does not put out of an exit's reach.
+ */
+function isClearOfPortalWalls(state: GameState, point: PortalPoint, radius: number, exemptPairId?: string): boolean {
+  return state.portalPairs.every((pair) => pair.id === exemptPairId || pair.gates.every((gate) =>
     pointSegmentDistanceSquared(point.x, point.y, gate.x, gate.y - gate.halfLength, gate.x, gate.y + gate.halfLength) >
       square(radius + PORTAL_WALL_HALF_WIDTH)));
 }

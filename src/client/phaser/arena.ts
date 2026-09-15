@@ -6,6 +6,7 @@ import { AVATARS, AVATAR_ATLAS_URL } from '../../shared/avatars.js';
 import { bombPreviewDistance } from '../bomb-preview.js';
 import { volleyAngles } from '../../shared/launch-modifiers.js';
 import { drawInkClouds } from '../ink-renderer.js';
+import { portalPalette } from '../pickup-renderer.js';
 import { EffectTransitions, bombPose } from './effects.js';
 import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { observeArenaDisplay } from './viewport.js';
@@ -239,11 +240,17 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(`${theme.id}:${p.type}`,p.x,p.y,34*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
       this.label(p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
     }
-    if(s.portalPair && s.portalPair.expiresAtTick>s.tick) for(const [index,gate] of s.portalPair.gates.entries()) {
-      const tint=index?0xff9b32:0xb968ff;
-      g.lineStyle(22,tint,.12).lineBetween(gate.x,gate.y-gate.halfLength,gate.x,gate.y+gate.halfLength).lineStyle(8,tint,.9).lineBetween(gate.x,gate.y-gate.halfLength,gate.x,gate.y+gate.halfLength);
-      for(let y=-gate.halfLength;y<gate.halfLength;y+=20) { const offset=(now/35)%20; g.fillStyle(0xffffff,.75).fillRect(gate.x-1,gate.y+y+offset,2,8); }
-      for(let y=-gate.halfLength+20;y<gate.halfLength;y+=40) { g.lineStyle(2,tint).lineBetween(gate.x-8,gate.y+y-5,gate.x-14,gate.y+y).lineBetween(gate.x-14,gate.y+y,gate.x-8,gate.y+y+5).lineBetween(gate.x+8,gate.y+y-5,gate.x+14,gate.y+y).lineBetween(gate.x+14,gate.y+y,gate.x+8,gate.y+y+5); }
+    for(const pair of s.portalPairs) {
+      if(pair.expiresAtTick<=s.tick) continue;
+      const tints=portalPalette(pair.id).map(color) as [number,number];
+      // The faint tether keeps the two ends of one pair readable when several pairs are open.
+      g.lineStyle(2,tints[0],.18).lineBetween(pair.gates[0].x,pair.gates[0].y,pair.gates[1].x,pair.gates[1].y);
+      for(const [index,gate] of pair.gates.entries()) {
+        const tint=tints[index]!;
+        g.lineStyle(22,tint,.12).lineBetween(gate.x,gate.y-gate.halfLength,gate.x,gate.y+gate.halfLength).lineStyle(8,tint,.9).lineBetween(gate.x,gate.y-gate.halfLength,gate.x,gate.y+gate.halfLength);
+        for(let y=-gate.halfLength;y<gate.halfLength;y+=20) { const offset=(now/35)%20; g.fillStyle(0xffffff,.75).fillRect(gate.x-1,gate.y+y+offset,2,8); }
+        for(let y=-gate.halfLength+20;y<gate.halfLength;y+=40) { g.lineStyle(2,tints[1-index]!).lineBetween(gate.x-8,gate.y+y-5,gate.x-14,gate.y+y).lineBetween(gate.x-14,gate.y+y,gate.x-8,gate.y+y+5).lineBetween(gate.x+8,gate.y+y-5,gate.x+14,gate.y+y).lineBetween(gate.x+14,gate.y+y,gate.x+8,gate.y+y+5); }
+      }
     }
     for(const bomb of s.bombs) {
       if(bomb.shell) { const gun=!!bomb.shell.gun; this.sprite(gun?'gun':'shell',bomb.x,bomb.y,gun?48:34,gun?Math.atan2(bomb.shell.vy,bomb.shell.vx):now/130);
