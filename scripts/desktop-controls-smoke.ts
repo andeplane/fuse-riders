@@ -45,7 +45,9 @@ try {
   await page.getByRole('button', { name: 'Keyboard controls', exact: true }).click();
   // Assert the rendered help against the module that owns the copy, so a wording change cannot rot this smoke again (#169).
   const shortcuts = page.getByRole('dialog');
-  const driving = keyboardShortcuts({ mac: false, canConfigure: true, solo: true }).find(group => group.title === 'Driving')!;
+  // Ask the module for the same platform the page renders, or a mac-only driving key would pass on CI and fail on a Mac.
+  const mac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
+  const driving = keyboardShortcuts({ mac, canConfigure: true, solo: true }).find(group => group.title === 'Driving')!;
   await shortcuts.getByText('Driving', { exact: true }).waitFor();
   for (const [keys, action] of driving.entries) {
     await shortcuts.getByText(keys, { exact: true }).waitFor();
@@ -108,6 +110,7 @@ try {
   await page.locator('.desktop-game').waitFor();
   assert.equal(await page.locator('.online-controls').isVisible(), false);
   const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+  phone.setDefaultTimeout(smokeTimeout(30000));
   phone.on('pageerror', error => errors.push(error.message));
   await phone.goto(`${base}?solo=1`);
   await phone.locator('.online-controls').waitFor({ state: 'visible' });
