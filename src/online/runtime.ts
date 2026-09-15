@@ -165,10 +165,11 @@ export class RoomRuntime {
     const echo=message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS;
     if(echo)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt!));else if(!this.clock.live)this.clock.observe(message.tick,0);
     this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;
-    this.telemetry.log('recv',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,hash:message.hash!==null,streams:message.streams.map(s=>[s.member,s.lastSeq,s.entries.length]),simTick:this.sim?.tick??null,clock:Math.round(this.clock.tick()*10)/10});
-    if(message.type==='heartbeat'){const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim)this.showFrame(frame);return;}
+    if(message.type==='heartbeat'){this.telemetry.log('heartbeat',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null});const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim)this.showFrame(frame);return;}
     // Streams with no fold to put them in: the host thinks we are a full view again, so ask for the baseline that starts one.
-    const sim=this.sim;if(!sim){if(this.controllerView.ready)this.requestResync();return;}    const lastSeq=new Map<string,number>(),hostStream=hashText(this.transport.hostId);
+    const sim=this.sim;if(!sim){if(this.controllerView.ready)this.requestResync();return;}
+    this.telemetry.log('recv',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,hash:message.hash!==null,streams:message.streams.map(s=>[s.member,s.lastSeq,s.entries.length]),simTick:this.sim?.tick??null,clock:Math.round(this.clock.tick()*10)/10});
+    const lastSeq=new Map<string,number>(),hostStream=hashText(this.transport.hostId);
     for(const stream of message.streams){
       // Only the host's own stream carries management, so only it may name a member; anything else is unverified.
       if(stream.member===hostStream)for(const entry of stream.entries)if(entry[2]===10)this.members.set(hashText(entry[3] as string),entry[3] as string);
