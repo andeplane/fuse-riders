@@ -2,7 +2,6 @@
  *  game-audio.ts and controller-keyboard.ts, and this list is what a player is told they can press. */
 export interface ShortcutGroup { title:string; entries:readonly (readonly [keys:string,action:string])[] }
 export interface ShortcutContext { mac:boolean; canConfigure:boolean; solo:boolean }
-/** A group with nothing left to say is dropped: a solo run has neither a room dialog nor a network panel. */
 /** ⌘ on a Mac only where the handler accepts it: the radio keys require a real Ctrl, so they stay Ctrl everywhere. */
 export function keyboardShortcuts({mac,canConfigure,solo}:ShortcutContext):ShortcutGroup[]{
   const groups:ShortcutGroup[]=[
@@ -18,5 +17,5 @@ export function keyboardShortcuts({mac,canConfigure,solo}:ShortcutContext):Short
     ]},
     {title:'Left to the browser',entries:[[mac?'⌥⌘I':'F12 · Ctrl+Shift+I','Developer tools'],[mac?'⌘R':'Ctrl+R',solo?'Reload — a solo run starts over':'Reload — a room rejoins by itself']]},
   ];
-  return groups.filter(group=>group.entries.length>0);
+  return groups.filter(group=>group.entries.length>0); // a solo run has neither a room dialog nor a network panel, so that group goes entirely
 }

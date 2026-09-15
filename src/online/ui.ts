@@ -16,7 +16,7 @@ import { drawArena } from '../client/main.js';
 import { createAvatarPicker, createAvatarPortrait } from '../client/avatar-heads.js';
 import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from '../client/themes.js';
 import { createGameAudio } from '../client/game-audio.js';
-import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
+import { defaultRoomSettings, loadRoomSettings, parseRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
@@ -94,7 +94,8 @@ export async function startOnline():Promise<void>{
     landingDialog.addEventListener('click',event=>{if(event.target===landingDialog){const r=landingDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)landingDialog.close();}});
     // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
     // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
-    landingSettings.onclick=()=>{showRoomSettings(landingBody,loadRoomSettings(localStorage),true,labels,draft=>{save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
+    landingSettings.onclick=()=>{showRoomSettings(landingBody,loadRoomSettings(localStorage),true,labels,draft=>{if(!parseRoomSettings(draft))return false; // no room authority behind this save: a draft the loader would reject later must never reach storage, or every setting resets on the next load
+      save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
     card.querySelector('.landing-top-end')!.append(landingSettings);card.append(landingDialog);
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }

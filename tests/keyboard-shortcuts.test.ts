@@ -30,9 +30,11 @@ test('a solo run is not pointed at a room dialog or a network panel it does not 
 // The list is hand-written prose; this is what keeps it honest about the keys the audio handler actually claims.
 test('every advertised radio key is one the radio handler answers',()=>{
   const radio=keyboardShortcuts({mac:false,canConfigure:true,solo:false}).find(group=>group.title==='Radio')!;
+  const expected:Record<string,string>={'Ctrl+A':'radio','Ctrl+M':'muteAll','Ctrl+Alt+M':'muteMusic','Ctrl+Alt+E':'muteEffects'};
+  assert.deepEqual(radio.entries.map(([keys])=>keys),Object.keys(expected),'the advertised radio keys are the ones checked here');
   for(const [keys] of radio.entries){
     const parts=keys.split('+');
-    const event={code:`Key${parts[parts.length-1]}`,ctrlKey:parts.includes('Ctrl'),altKey:parts.includes('Alt'),shiftKey:false,metaKey:false,repeat:false,preventDefault(){}};
-    assert.ok(radioShortcut(event)!==undefined,`${keys} is advertised but the handler ignores it`);
+    const event={code:`Key${parts[parts.length-1]}`,ctrlKey:parts.includes('Ctrl'),altKey:parts.includes('Alt'),shiftKey:parts.includes('Shift'),metaKey:false,repeat:false,preventDefault(){}};
+    assert.equal(radioShortcut(event),expected[keys],`${keys} is advertised as "${expected[keys]}" but the handler answers differently`);
   }
 });
