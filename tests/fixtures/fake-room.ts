@@ -105,7 +105,7 @@ export class FakeTransport implements RoomTransport {
   constructor(private readonly network: FakeNetwork, id: string, readonly events: TransportEvents) { this.id = id; this.hostId = network.hostId; network.transports.set(id, this); }
   connect(): void { this.network.connect(this.id); }
   close(): void { this.network.disconnect(this.id); }
-  send(id: string, data: unknown): boolean { const sent = this.network.sendReliable(this.id, id, data); if (sent) this.sentBytes += JSON.stringify(data).length; return sent; }
+  send(id: string, data: unknown, _bufferLimit?: number): boolean { const sent = this.network.sendReliable(this.id, id, data); if (sent) this.sentBytes += JSON.stringify(data).length; return sent; }
   sendFast(id: string, bytes: Uint8Array): boolean { const sent = this.network.sendFast(this.id, id, bytes); if (sent) this.sentBytes += bytes.byteLength; return sent; }
   linked(id: string): boolean { return this.links.has(id); }
   linkedWith(id: string): boolean { return this.links.has(id); }

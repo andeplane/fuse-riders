@@ -25,7 +25,8 @@ export type RoomCommand =
 export interface RoomTransport {
   readonly id: string; readonly hostId: string; readonly sentBytes: number;
   connect(): void; close(): void;
-  send(id: string, data: unknown): boolean;
+  /** Reliable, ordered. `bufferLimit` lets a snapshot transfer queue more than the room-control default. */
+  send(id: string, data: unknown, bufferLimit?: number): boolean;
   sendFast(id: string, bytes: Uint8Array): boolean;
   linked(id: string): boolean;
   explain(id: string): string;
@@ -42,7 +43,8 @@ export interface RuntimeOptions { transport?: (events: TransportEvents) => RoomT
 interface Member { generation: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; presence?: { connected: boolean; tick: number; at: number } }
 
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
-export const HASH_INTERVAL = 20, HASH_LAG = 40, CATCHUP_TICKS = 8, BEHIND_TICKS = 60, NACK_INTERVAL_MS = 100, DIVERGENCE_WINDOW_MS = 60_000, DIVERGENCE_LIMIT = 3, FRESH_WORLD_WAIT_MS = 3000;
+export const SNAPSHOT_BUFFER_LIMIT = 4_000_000;
+export const HASH_INTERVAL = 20, HASH_LAG = 40, CATCHUP_TICKS = 8, BEHIND_TICKS = 400, NACK_INTERVAL_MS = 100, DIVERGENCE_WINDOW_MS = 60_000, DIVERGENCE_LIMIT = 3, FRESH_WORLD_WAIT_MS = 3000;
 const browserDependencies: RuntimeDependencies = {
   now: () => performance.now(), hidden: () => document.hidden, token: () => crypto.randomUUID(), generation: () => Math.floor(Date.now() / 1000) >>> 0,
   schedule: (callback, ms) => { const timer = setInterval(callback, ms); return () => clearInterval(timer); },
@@ -152,7 +154,7 @@ export class RoomRuntime {
         if (typeof data.generation === 'number' && Number.isSafeInteger(data.generation) && data.generation >= 0) this.bump(id, member, data.generation);
         member.full = data.full === true; return;
       case 'join': if (this.creator && typeof data.name === 'string') { const error = this.join(id, data.name, isAvatarId(data.avatarId) ? data.avatarId : undefined); if (error) this.transport!.send(id, { type: 'error', error }); } return;
-      case 'snapshotRequest': if (this.world) { for (const chunk of encodeSnapshot(this.world, this.room)) this.transport!.send(id, chunk); } else this.transport!.send(id, { type: 'noWorld' }); return;
+      case 'snapshotRequest': if (this.world) { for (const chunk of encodeSnapshot(this.world, this.room)) if (!this.transport!.send(id, chunk, SNAPSHOT_BUFFER_LIMIT)) break; } else this.transport!.send(id, { type: 'noWorld' }); return;
       case 'noWorld': this.noWorld.add(id); return;
       case 'snapshot': this.acceptSnapshotChunk(id, raw); return;
       case 'error': if (typeof data.error === 'string') this.status.notice(data.error.slice(0, 120)); return;
@@ -414,9 +416,13 @@ export class RoomRuntime {
     if (this.needsWorld()) {
       if (!this.snapshotRequest && !this.creator) this.requestSnapshot();
       if (this.creator && this.transport && !this.snapshotRequest) {
+        // A fresh world is opened only when nobody can have one: the room is empty, or every linked member answered
+        // that it holds none. A returning creator with peers waits for their snapshot however long the links take;
+        // opening a lobby on a timer would let the authority serve that lobby over the match its peers are playing.
         const linked = [...this.members.keys()].filter(id => this.transport!.linked(id));
         const nobodyHasIt = linked.length > 0 && linked.every(id => this.noWorld.has(id));
-        if (this.members.size === 0 || nobodyHasIt || now - this.welcomeAt > FRESH_WORLD_WAIT_MS) { this.createWorld(this.settings); this.publish(); }
+        if (this.members.size === 0 || nobodyHasIt) { this.createWorld(this.settings); this.publish(); }
+        else if (now - this.welcomeAt > FRESH_WORLD_WAIT_MS) this.status.recurring(`Recovering the room from ${linked.length ? 'a rider' : 'the riders'} — ${this.transport.explain([...this.members.keys()].sort()[0]!)}`);
       }
       if (this.snapshotRequest && now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS) this.retrySnapshot();
       else if (!this.snapshotRequest && !this.creator && now - this.welcomeAt > SNAPSHOT_RETRY_MS) this.status.recurring(`Waiting for the game — ${this.transport!.explain(this.hostId)}`);
@@ -427,7 +433,10 @@ export class RoomRuntime {
     if (this.snapshotRequest && now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS) this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
     if (!this.hiddenState && tick > world.tick) {
-      if (this.transport && tick - world.tick > BEHIND_TICKS && this.members.size > 0) { if (!this.snapshotRequest) this.requestSnapshot(); }
+      // Only ticks the stall rule lets us reach count as a backlog: a world waiting on a rider is not behind, and a
+      // long stall must end by catching up, never by fetching a snapshot from a peer that waited just as long.
+      const reachable = Math.min(tick, world.stallBound().tick);
+      if (this.transport && reachable - world.tick > BEHIND_TICKS && this.members.size > 0) { if (!this.snapshotRequest) this.requestSnapshot(); }
       else {
         const result = world.advance(Math.min(tick, world.tick + CATCHUP_TICKS));
         for (const event of result.events) this.callbacks.event(event.event, event.matchId, event.round, event.tick);
@@ -482,7 +491,8 @@ export class RoomRuntime {
     const player = this.player(), controls = { left: (this.held.flags & 1) === 1, right: (this.held.flags & 2) === 2 };
     return presentWorld(older, newer, presentation, player && this.held.flags >= 0 ? { id: this.id, controls, lead: Math.max(0, Math.min(1, clock - presentation)) } : undefined);
   }
-  metrics(): { tick: number; clockTick: number; rollbacks: number; rollbackTicks: number; rtt: Record<string, number>; clock: ReturnType<TickClock['diagnostics']>; sentBytes: number; snapshotRequest: boolean; mismatches: number } {
-    return { tick: this.tick, clockTick: this.clock.tick(), rollbacks: this.world?.rollbacks ?? 0, rollbackTicks: this.world?.rollbackTicks ?? 0, rtt: Object.fromEntries([...this.members].filter(([, member]) => member.rttMs !== undefined).map(([id, member]) => [id, member.rttMs!])), clock: this.clock.diagnostics(), sentBytes: this.transport?.sentBytes ?? 0, snapshotRequest: this.snapshotRequest !== undefined, mismatches: this.mismatches.length };
+  metrics(): { tick: number; clockTick: number; rollbacks: number; rollbackTicks: number; rtt: Record<string, number>; clock: ReturnType<TickClock['diagnostics']>; sentBytes: number; snapshotRequest: boolean; mismatches: number; stall: { tick: number; waitingFor?: string }; streams: Record<string, { generation: number; contiguous: number; lastSeq: number; through: number; complete: number; gap: boolean; base: number }> } {
+    const streams = Object.fromEntries([...(this.world?.streams ?? [])].map(([id, stream]) => [id, { generation: stream.generation, contiguous: stream.contiguous, lastSeq: stream.lastSeq, through: stream.through, complete: stream.completeThrough(), gap: stream.gap, base: stream.baseTick }]));
+    return { tick: this.tick, clockTick: this.clock.tick(), rollbacks: this.world?.rollbacks ?? 0, rollbackTicks: this.world?.rollbackTicks ?? 0, rtt: Object.fromEntries([...this.members].filter(([, member]) => member.rttMs !== undefined).map(([id, member]) => [id, member.rttMs!])), clock: this.clock.diagnostics(), sentBytes: this.transport?.sentBytes ?? 0, snapshotRequest: this.snapshotRequest !== undefined, mismatches: this.mismatches.length, stall: this.world?.stallBound() ?? { tick: Infinity }, streams };
   }
 }

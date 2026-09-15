@@ -224,10 +224,10 @@ export class PeerTransport implements RoomTransport {
     this.callbacks.message(id,envelope.data);
   }
   /** Reliable, ordered: room control, snapshots and hellos. A permitted send means queued in the browser, never applied by the peer. */
-  send(id:string,data:unknown):boolean {
+  send(id:string,data:unknown,bufferLimit=GAMEPLAY_BUFFER_LIMIT):boolean {
     if(this.stopped||!this.connections.has(id))return false;
     const envelope={id:++this.seq,data,sender:this.connectionId,receiver:this.connections.get(id)!};const link=this.links.get(id);
-    if(!this.relayOnly&&link?.gate.permits(link.game,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
+    if(!this.relayOnly&&link?.gate.permits(link.game,bufferLimit)&&link.pc.connectionState==='connected'&&link.health.direct(performance.now())){
       try{const text=JSON.stringify(envelope);link.game!.send(text);this.sentBytes+=text.length;return true;}catch{}
     }
     return false;
@@ -236,7 +236,9 @@ export class PeerTransport implements RoomTransport {
   sendFast(id:string,bytes:Uint8Array):boolean {
     if(this.stopped||!this.connections.has(id)||bytes.byteLength>MAX_PACKET_BYTES)return false;
     const link=this.links.get(id);
-    if(!link||link.gate.draining||link.input?.readyState!=='open'||link.input.bufferedAmount>=FAST_BUFFER_LIMIT)return false;
+    // WebKit keeps a channel "open" for a task hop after its transport died and reports the send as a page error, so the
+    // connection state is checked as well as the channel state.
+    if(!link||link.gate.draining||link.pc.connectionState!=='connected'||link.input?.readyState!=='open'||link.input.bufferedAmount>=FAST_BUFFER_LIMIT)return false;
     try{link.input.send(bytes as Uint8Array<ArrayBuffer>);this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
   linked(id:string):boolean{const link=this.links.get(id);return !!link&&!link.gate.draining&&link.game?.readyState==='open'&&link.health.direct(performance.now());}

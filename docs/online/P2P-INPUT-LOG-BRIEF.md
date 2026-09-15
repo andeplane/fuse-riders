@@ -1,6 +1,6 @@
 # Brief: peer-to-peer input-log networking for online rooms
 
-Date: 2026-09-15. Status: implementation brief for `main`. Supersedes the online design in ADRs 028–032 and 035 and the discarded `codex/deterministic-action-log` branch. LAN `/display` and `/controller` are out of scope and must keep working unchanged.
+Date: 2026-09-15. Status: implemented on the `p2p` branch; results and deviations are in §15. Supersedes the online design in ADRs 028–032 and 035 and the discarded `codex/deterministic-action-log` branch. LAN `/display` and `/controller` are out of scope and must keep working unchanged.
 
 ## 1. Goal
 
@@ -206,3 +206,34 @@ All phases accepted; the public deployment still runs the old protocol until the
 ## 14. Follow-ups this design enables
 
 Idle cadence throttle (20 Hz active, 5 Hz idle). Adaptive input delay from measured RTT. Simulation at 40 or 60 Hz, which needs the per-tick constants in `game.ts` re-derived from per-second values. Replay export, since the log plus seed is the replay.
+
+## 15. Results (2026-09-15)
+
+Implemented in `src/shared/input-log.ts`, `apply-tick.ts`, `deterministic-math.ts` and `src/online/stream.ts`, `rollback.ts`, `clock.ts`, `packet.ts`, `snapshot.ts`, `room-runtime.ts`, with `peer-transport.ts`, `ui.ts`, `attract.ts`, `src/service/gateway.ts` and `worker/index.ts` changed and the host-star modules deleted. The networking layer (`stream`, `rollback`, `clock`, `packet`, `snapshot`, `room-runtime`) is about 1,050 lines; with the shared log and reducer about 1,300.
+
+### Deviations from §3–§8, and why
+
+- **Bots are simulated on every replica, not logged.** `BotController` is a pure function of the state with its own seeded random stream, and §4 already pins its trigonometry. Running it inside `applyTick` removes bot streams, bot packets and the bot-input latency entirely; the determinism replay and the divergence hash cover it.
+- **Every member simulates, including controller-only phones.** The world costs a few hundred microseconds per tick, so there is no thin status packet and no separate role table. Shared-mode phones simply do not render the arena. This removes one packet type and the "waiting for a display" simulation gate; the phone shows that notice while no full view is live.
+- **The time authority is the creator**, or the lowest live member while the creator is silent for five seconds. Snapshots are served by any linked peer (the returning creator needs one from a guest), rotating on retry.
+- **Packets carry the sender's member id instead of a roster index**, since the roster is not a log entry and indices would not agree during joins. Cost is about 25 bytes per packet.
+- **Management entries are accepted from any stream at the receiver and filtered in the reducer** (`permitted`): the creator always; the delegate (lowest connected human other than the creator) only while the creator is marked absent, plus the single `presence(creator,false)` entry that starts the delegation. This keeps delegation a pure function of the log.
+- **`join` carries the member's generation** and there are no roster indices in `presence`; `hello` on the reliable channel announces `generation`, `full` and `RULES`.
+- **Snapshot requests and hellos are retried from the tick loop** rather than only on the link-open event, because the transport admits sends only after its own probes confirm the path.
+- **A snapshot re-install (divergence or falling more than 60 ticks behind) keeps the member's own stream numbering** and re-applies its own entries after the snapshot tick, so peers keep folding the same log.
+- **Divergence hashes are exchanged and compared only for ticks that are complete on both sides** (every connected rider's stream past the tick); a speculative hash would flag every late packet as divergence.
+- **The local checkpoint in `localStorage` was not kept.** A refreshed creator recovers the running match from a peer.
+
+### Phase gates
+
+- **Phase 0** `scripts/determinism-replay.ts`: one seeded 3,000-tick log with two scripted riders and three AI riders folds to identical state hashes on every tick in Node, Chromium and WebKit. Existing `game.test.ts` and LAN tests pass unchanged.
+- **Phase 1** `tests/input-log.test.ts`, `stream.test.ts`, `clock.test.ts`, `rollback.test.ts`: every entry kind, gesture replacement, mismatched release, arrival-order convergence, a late entry rolling back, the 40-tick stall, rejected management entries, and six replicas on a 5% loss reordering fake network agreeing on every retained tick. Solo is `RoomRuntime` with no transport.
+- **Phase 2** `tests/packet.test.ts`, `snapshot.test.ts`, `room-runtime.test.ts`: five riders and a TV through 5% loss, 100 ms jitter and reordering with no gap open longer than 600 ms and one hash at the end; malformed, foreign and oversized packets change nothing; the follower clock stays within one tick of the authority under 90/10 ms asymmetric delay.
+- **Phase 3** `scripts/p2p-mesh-browser.ts`: six contexts alternating Chromium and WebKit, fifteen links, thirty send directions, recovery about 1.1 s after a three-second send blackhole, a closed input channel rebuilt by the initiator, zero page errors.
+- **Phase 4** `scripts/online-smoke.ts` in Chromium and WebKit: create, five joins, start, three rounds, guest refresh mid-round, creator refresh mid-round, settings change, an AI rider round, shared TV with two controller phones. Typecheck, worker typecheck, tests, coverage thresholds and build pass.
+- **Phase 5** `scripts/p2p-measure.ts`: see the summary below; raw output in `artifacts/p2p-measure.json`.
+
+### Phase 5 summary
+
+_(filled in after the measurement run)_
+
