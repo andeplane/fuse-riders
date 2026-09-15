@@ -1,10 +1,13 @@
 import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
+import { smokeTimeout } from './smoke-timeout.js';
+import { keyboardShortcuts } from '../src/online/keyboard-shortcuts.js';
 
 // Isolated offline solo game: never joins or disturbs an occupied online room.
 const browser = await (process.env.BROWSER === 'webkit' ? webkit : chromium).launch({ headless: true, ...(process.env.BROWSER === 'webkit' ? {} : { channel: 'chrome' }) });
 try {
   const page = await browser.newPage({ viewport: { width: 1723, height: 997 } });
+  page.setDefaultTimeout(smokeTimeout(30000));
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   const base = process.env.ONLINE_URL ?? 'http://127.0.0.1:5179/';
@@ -40,10 +43,14 @@ try {
   assert.ok(arena && arena.height > 997 * .8, 'desktop arena should use over 80% of viewport height');
   assert.equal(pads, null, 'desktop pads are hidden behind keyboard help');
   await page.getByRole('button', { name: 'Keyboard controls', exact: true }).click();
+  // Assert the rendered help against the module that owns the copy, so a wording change cannot rot this smoke again (#169).
   const shortcuts = page.getByRole('dialog');
+  const driving = keyboardShortcuts({ mac: false, canConfigure: true, solo: true }).find(group => group.title === 'Driving')!;
   await shortcuts.getByText('Driving', { exact: true }).waitFor();
-  await shortcuts.locator('dt', { hasText: /^Space$/ }).waitFor();
-  await shortcuts.getByText('Hold to charge, release to fire', { exact: true }).waitFor();
+  for (const [keys, action] of driving.entries) {
+    await shortcuts.getByText(keys, { exact: true }).waitFor();
+    await shortcuts.getByText(action, { exact: true }).waitFor();
+  }
   await page.getByRole('button', { name: 'CLOSE', exact: true }).click();
   assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
   // Check the real playing path too: steering must change the rendered rider

@@ -95,6 +95,11 @@ jobs:
         run: npx tsx scripts/keyboard-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
+      # Compact desktop bar, ultrawide fit, resize recovery and the ? help — uncovered until #166 found it broken.
+      - name: Desktop control bar and keyboard help
+        run: npx tsx scripts/desktop-controls-smoke.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
       # Keep five-peer functional assertions on Canvas; six software-GL views
       # overloaded the runner. Single-view Phaser remains a separate required gate.
       - name: Online WebRTC room smoke (Canvas)

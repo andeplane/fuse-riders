@@ -156,7 +156,7 @@ quality.
    control surface, the ☰ MENU overlay auto-opened for the phone host with
    REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
-7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ☰ MENU → ROOM → END ROOM.
+7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → END ROOM — behind ☰ MENU while the phone is the controller, in the header on the lobby screen.
 
 **Capture**: revision, device/OS/browser, one screenshot per phase (lobby
 portrait + landscape, countdown, playing, matchOver), and a short note of

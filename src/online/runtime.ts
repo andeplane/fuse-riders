@@ -295,7 +295,7 @@ export class RoomRuntime {
     const session=this.session!;
     if(this.recovering){
       if(session.game.phase==='lobby'||[...session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
-      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(now,true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
+      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(now,true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or use BACK TO LOBBY');return;}
     }
     this.accumulator+=Math.min(elapsed,100);
     if(this.dependencies.hidden()){if(!this.announced){this.publish(now,true);this.announced=true;}this.accumulator=0;return;}
