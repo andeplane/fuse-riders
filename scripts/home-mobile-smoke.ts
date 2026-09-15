@@ -27,6 +27,8 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
   try{
    await page.goto(base);await ready(page);await page.waitForFunction(()=>Number(document.querySelector('canvas')?.getAttribute('data-attract-tick'))>2);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'landing horizontal overflow');
+   // The landing clips overflow, so a crowded top bar hides controls instead of scrolling: each must be fully on screen.
+   for(const control of ['.landing-brand','.landing-top .audio-controls summary','.landing-audio'])await inside(page,page.locator(control));
    const guide=page.getByRole('region',{name:'POWER-UPS'});assert.equal(await guide.getByRole('listitem').count(),12,'power-up guide lists every pickup');
    await guide.getByText('STAR',{exact:true}).scrollIntoViewIfNeeded();await page.waitForFunction(()=>[...document.querySelectorAll<HTMLImageElement>('.landing-powerups img')].every(image=>image.complete&&image.naturalWidth>0),undefined,{timeout:smokeTimeout(10000)});
    const soloBox=await page.getByRole('link',{name:/PLAY SOLO/}).boundingBox(),createBox=await page.getByRole('button',{name:'CREATE ROOM'}).boundingBox(),guideBox=await guide.boundingBox();
@@ -40,7 +42,7 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    // Avoid spontaneous end-of-match recaps while reviewing modal layouts.
    if(await page.locator('.mobile-tools-toggle').isVisible())await page.locator('.mobile-tools-toggle').click();
    await page.getByRole('button',{name:'MAIN MENU',exact:true}).click();
-   for(const name of ['ROOM SETTINGS','♫ AUDIO','HEAD','MENU']){
+   for(const name of ['ROOM SETTINGS','♫ RADIO','HEAD','MENU']){
     await page.getByRole('button',{name,exact:true}).click();const dialog=page.getByRole('dialog');await dialog.waitFor({state:'visible'});await inside(page,dialog);assert.ok(await page.locator('.dialog-body').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'dialog body horizontal overflow');
     if(name==='ROOM SETTINGS'){
       assert.equal(await dialog.locator('select').count(),0,'room settings use styled choices');
@@ -68,8 +70,8 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
       await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
     }
     if(name==='HEAD'){for(const option of await dialog.locator('.avatar-option').all()){await inside(page,option);assert.ok(await option.evaluate(e=>{const text=e.lastElementChild!,a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&text.scrollWidth<=text.clientWidth+1;}),'avatar name clipped');}}
-    if(name==='♫ AUDIO'){await page.locator('.audio-panel').waitFor({state:'visible'});for(const slider of await page.locator('.audio-panel input[type=range]').all())await inside(page,slider);}
-    await page.locator('.dialog-body').evaluate(e=>{e.scrollTop=e.scrollHeight;});await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));await page.screenshot({path:`artifacts/menu-${tag}-${name==='♫ AUDIO'?'audio':name.replaceAll(' ','-')}.png`});await page.getByRole('button',{name:'CLOSE',exact:true}).click();await dialog.waitFor({state:'hidden'});
+    if(name==='♫ RADIO'){await page.locator('.audio-panel').waitFor({state:'visible'});for(const slider of await page.locator('.audio-panel input[type=range]').all())await inside(page,slider);}
+    await page.locator('.dialog-body').evaluate(e=>{e.scrollTop=e.scrollHeight;});await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));await page.screenshot({path:`artifacts/menu-${tag}-${name==='♫ RADIO'?'audio':name.replaceAll(' ','-')}.png`});await page.getByRole('button',{name:'CLOSE',exact:true}).click();await dialog.waitFor({state:'hidden'});
    }
    await page.reload();await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);assert.equal(await page.locator('.online-roster>span').count(),5);
    const solo=new URL(base);solo.search='?solo=1&display=1';await page.goto(solo.href);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);assert.equal(await page.locator('.online-arena').isVisible(),true);
