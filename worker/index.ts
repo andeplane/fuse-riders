@@ -117,7 +117,8 @@ export class SignalRoom {
       // even when invitations are opened before the creator connects.
       const capacity=token===host||members[hostId]?6:5;
       if(Object.keys(members).length>=capacity&&!members[id])return;
-      const incarnation=(await storage.get<string>('incarnation'))!;
+      // /initialize always writes incarnation with host; reject rather than assert if that invariant is ever broken.
+      const incarnation=await storage.get<string>('incarnation');if(!incarnation)return;
       let grant=await storage.get<AuthorityGrant>('authority');
       if(token===host){grant=reserveAuthority(grant,incarnation,connectionId,grantId,this.dependencies.now());await storage.put('authority',grant);await storage.put('expiresAt',this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);await storage.setAlarm(this.dependencies.now()+ROOM_RECONNECT_GRACE_MS);}
       members[id]=connectionId;await storage.put('connections',members);return{members,grant};
