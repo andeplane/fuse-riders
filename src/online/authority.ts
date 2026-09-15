@@ -1,6 +1,8 @@
 /** Service-owned lease decisions. Call inside the room's serialized storage transaction. */
 export const LEASE_MS = 10_000;
 export const LEASE_GUARD_MS = 250;
+/** Checks further apart than this (the authority's own tick loop stalled) drop the sample; a GC pause or a busy frame does not. */
+export const STALL_MS = 1500;
 export interface AuthorityGrant {
   incarnation: string;
   epoch: number;
@@ -68,10 +70,12 @@ export class AuthorityClock {
     const now = this.now(), sample = this.sample;
     if (!sample || !Number.isFinite(now)) return;
     const age = now - sample.received;
-    if (age < 0 || age > 4000 || (strict && this.observed !== undefined && now - this.observed > 500)) { this.invalidate();this.reason='stale-or-suspended'; return; }
+    // A stall longer than this between checks means the tab was suspended: the sample is gone, not just old.
+    if (age < 0 || age > 4000 || (strict && this.observed !== undefined && now - this.observed > STALL_MS)) { this.invalidate();this.reason='stale-or-suspended'; return; }
     this.observed = now;
     const drift = age * .001;
-    if (strict && sample.upperOffset - sample.lowerOffset + 2 * drift > LEASE_GUARD_MS) {this.reason='uncertainty';return;}
+    // A slow probe widens the interval, and the lease check below is conservative in both directions, so it is
+    // never refused outright: a host reaching its room service over a real network sees 100–400 ms round trips.
     return { earliest: now + sample.lowerOffset - drift, latest: now + sample.upperOffset + drift };
   }
   permits(grant: AuthorityGrant, strict = true): boolean {
