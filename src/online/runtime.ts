@@ -63,7 +63,8 @@ export class RoomRuntime {
   private pendingHash?:{tick:number;hash:string;lastSeq:Map<string,number>};
   private mismatches:number[]=[];
   private gapSince=new Map<string,number>();
-  private pendingJoin?:{command:Extract<RoomCommand,{type:'join'}>;sentAt:number};
+  private pendingJoin?:{command:Extract<RoomCommand,{type:'join'}>;sentAt:number;delivered:boolean};
+  private absentSeen=false;
   private settings:RoomSettings;
   // Presentation.
   private previous?:ViewSnapshot;
@@ -181,9 +182,6 @@ export class RoomRuntime {
       for(const entry of stream.entries){
         const result=sim.insert(member,entry);
         if(result==='invalid'){this.telemetry.log('invalid',{member,entry});this.requestResync();return;}
-        // Absence zeroes our held controls in every fold, but our edge encoder still believes they are held: when
-        // the host marks us present again it has to forget, so the next resend restates the whole controller.
-        if(result!=='duplicate'&&entry[2]===12&&entry[3]===this.transport.id&&entry[4]===true&&sim.state.game.players.get(this.transport.id)?.connected===false)this.edges.reset();
       }
     }
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
@@ -234,7 +232,7 @@ export class RoomRuntime {
     return undefined;
   }
   command(command:RoomCommand):boolean {
-    if(command.type==='join'){this.pendingJoin={command,sentAt:-Infinity};return true;}
+    if(command.type==='join'){this.pendingJoin={command,sentAt:-Infinity,delivered:false};return true;}
     if(!this.transport.authorityPermitted()){this.status.notice('Waiting for room authority — try again when connected');return false;}
     if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){if(command.type==='input')this.status.transient(error);else this.status.notice(error);}return !error;}
     // A controller phone has no simulation to fold its own entries into; they still go to the host under the same numbering.
@@ -265,7 +263,8 @@ export class RoomRuntime {
     if(this.pendingJoin&&now-this.pendingJoin.sentAt>=JOIN_RETRY_MS){
       this.pendingJoin.sentAt=now;
       if(this.session){const error=this.session.command(this.transport.id,this.pendingJoin.command);this.pendingJoin=undefined;if(error)this.status.notice(error);else this.save();}
-      else this.transport.send(this.transport.hostId,{type:'command',command:this.pendingJoin.command});
+      // A refused send (channel still opening) is not an attempt the roster can answer: try again soon, not in two seconds.
+      else if(this.transport.send(this.transport.hostId,{type:'command',command:this.pendingJoin.command}))this.pendingJoin.delivered=true;else this.pendingJoin.sentAt=now-JOIN_RETRY_MS+200;
     }
     if(this.session)this.hostTick(now,elapsed);else this.guestTick(now,elapsed);
   }
@@ -314,11 +313,12 @@ export class RoomRuntime {
   private guestTick(now:number,elapsed:number):void {
     const sim=this.sim,controller=!sim&&this.controllerView.ready;
     if(!sim&&!controller){if(now-this.hostHeardAt>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);this.requestResync();return;}
-    if(now-this.hostHeardAt>SILENCE_MS){this.status.recurring('Waiting for the host…');this.sendAccumulator=0;return;}
-    this.status.recurring(controller?'Connected · phone controls':'Connected · direct game link');
+    // A silent host freezes what we show, not what we send: our own packets are what keeps the host from logging us absent.
+    const silent=now-this.hostHeardAt>SILENCE_MS;
+    this.status.recurring(silent?'Waiting for the host…':controller?'Connected · phone controls':'Connected · direct game link');
     const target=Math.floor(this.clock.tick());
     // A hidden tab keeps folding (its timer runs at 1 Hz, advanceTo caps the catch-up), or every relayed entry would be 'future' and force a baseline.
-    if(sim&&target>sim.tick){
+    if(sim&&!silent&&target>sim.tick){
       const {matchId,round}=sim.state.game;
       const result=sim.advanceTo(target,(event,tick)=>this.callbacks.event(event,matchId,round,tick));
       if(result.status==='baseline'){this.requestResync();return;}
@@ -332,14 +332,27 @@ export class RoomRuntime {
   /** A heartbeat arrives every tick; the phone's DOM is rebuilt at most this often, the rest only feed the clock. */
   private showFrame(frame:ControllerFrame):void {
     this.lastFrameShownAt=this.dependencies.now();this.joined(frame.snapshot.players);
+    this.reconcileEdges(frame.snapshot.players.find(p=>p.id===this.transport.id)?.connected,false);
     this.previous=undefined;this.current=frame.snapshot;this.settings=frame.settings;this.callbacks.state(this.current,this.settings,frame.matchId);
   }
   /** The join is answered by the roster, not by an ack: once this view folds itself in, stop repeating it — a repeated join re-authors the member and used to reset its edges mid-hold. */
   private joined(players:{has(id:string):boolean}|ReadonlyArray<{id:string}>):void {
-    if(this.pendingJoin&&this.pendingJoin.sentAt!==-Infinity&&('has' in players?players.has(this.transport.id):players.some(p=>p.id===this.transport.id)))this.pendingJoin=undefined;
+    if(this.pendingJoin?.delivered&&('has' in players?players.has(this.transport.id):players.some(p=>p.id===this.transport.id)))this.pendingJoin=undefined;
+  }
+  /**
+   * Absence zeroes our held controls in every fold while the edge encoder still believes they are held; the fold is
+   * the truth, so once it disagrees with the encoder (presence came back, whether by packet, baseline or a catch-up
+   * that skipped the absent tick) the encoder forgets and the controller's next resend restates everything.
+   */
+  private reconcileEdges(connected:boolean|undefined,neutral:boolean):void {
+    if(connected===false)this.absentSeen=true;
+    else if(connected&&(this.absentSeen||neutral&&this.edges.holding)){this.absentSeen=false;this.edges.reset();}
   }
   private publishView():void {
     const sim=this.sim!,game=sim.state.game;this.joined(game.players);
+    const me=game.players.get(this.transport.id),s=sim.state.streams.get(this.transport.id);
+    const inFlight=this.own.retained.some(e=>e[1]>sim.tick);
+    this.reconcileEdges(me?.connected,!inFlight&&(!s||s.flags===0&&s.gesture===undefined));
     this.previous=this.current;this.current={...toSnapshot(game),tick:game.tick,round:game.round};
     this.settings=sim.state.pending;this.callbacks.state(this.current,this.settings,game.matchId);
   }
