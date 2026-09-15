@@ -40,7 +40,10 @@ try {
   assert.ok(arena && arena.height > 997 * .8, 'desktop arena should use over 80% of viewport height');
   assert.equal(pads, null, 'desktop pads are hidden behind keyboard help');
   await page.getByRole('button', { name: 'Keyboard controls', exact: true }).click();
-  await page.getByText('SPACE — hold to charge, release to fire', { exact: true }).waitFor();
+  const shortcuts = page.getByRole('dialog');
+  await shortcuts.getByText('Driving', { exact: true }).waitFor();
+  await shortcuts.locator('dt', { hasText: /^Space$/ }).waitFor();
+  await shortcuts.getByText('Hold to charge, release to fire', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'CLOSE', exact: true }).click();
   assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
   // Check the real playing path too: steering must change the rendered rider
