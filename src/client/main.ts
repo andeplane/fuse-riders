@@ -987,6 +987,12 @@ else {
     const message = error instanceof Error ? error.message : String(error);
     // Only a page that never got as far as its header is replaced; a later error must not cover a running game.
     if (app.querySelector('.boot-failure') || app.querySelector('.online-header')) return;
+    // A blank page reports nothing by itself. Imported lazily so the LAN controller and display bundles stay free of
+    // Mixpanel, and best-effort: a failure that also stopped this module from loading is one we simply do not hear about.
+    void import('../online/analytics.js').then((analytics) => {
+      analytics.startAnalytics({ role: 'boot' });
+      analytics.track('Boot Failed', { message });
+    }).catch(() => { /* analytics never breaks the game */ });
     const card = document.createElement('section'); card.className = 'boot-failure'; card.setAttribute('role', 'alert');
     card.style.cssText = 'position:fixed;inset:0;display:grid;place-content:center;gap:16px;padding:24px;text-align:center;background:#03060f;color:#e8ecff;font:14px/1.6 monospace;z-index:1000';
     const title = document.createElement('h1'); title.textContent = 'Fuse Riders could not load'; title.style.cssText = 'font-size:16px;margin:0';
