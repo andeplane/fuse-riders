@@ -28,6 +28,7 @@ import './online.css';
 import { installMobilePlayLayout } from './mobile-play-layout.js';
 import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
+import { createJoinForm } from './join-form.js';
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
 const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
@@ -66,41 +67,47 @@ export async function startOnline():Promise<void>{
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
   if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
-  const identityKey=`fuse-room-${code}`;const token=solo?'':displayOnlyToken();
-  function displayOnlyToken(){if(url.searchParams.has('display'))return secret();const token=read(identityKey)??secret();save(identityKey,token);return token;}
+  const displayOnly=!solo&&url.searchParams.has('display');
+  // CREATE ROOM is the only writer of fuse-room-<code>: its presence makes this browser the host's. Everyone else is a joiner with a separate peer identity.
+  const hostToken=solo||displayOnly?null:read(`fuse-room-${code}`);
+  const role:'solo'|'display'|'host'|'joiner'=solo?'solo':displayOnly?'display':hostToken?'host':'joiner';
+  const token=solo?'':displayOnly?secret():hostToken??peerToken();
+  function peerToken(){const key=`fuse-peer-${code}`;const token=read(key)??secret();save(key,token);return token;}
   let id='',isHost=false,joined=false,avatar:AvatarId|undefined,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
   const prediction=new LocalPrediction(()=>performance.now());const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;const worldBuffer=new RemoteWorldBuffer();
-  let seq=0,lastRecap='';
+  let seq=0,lastRecap='',rejoinPending=false;
   const responseBenchmark=url.searchParams.get('responseBenchmark')==='1';
   const benchmark=url.searchParams.get('benchmark')==='1'||responseBenchmark;let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
   const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
-  const displayOnly=!solo&&url.searchParams.has('display');
   // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
   let roomEnded=false;
   const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ AUDIO'),results=node('button','RESULTS'),menu=node('button','MENU');
   title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,results,menu);
-  const booting=node('div','','room-boot'),bootNote=node('p','Warming up the arena…','room-boot-note');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'),bootNote);
+  const joinForm=createJoinForm(localStorage,(playerName,avatarId)=>{avatar=avatarId;runtime.command({type:'join',name:playerName,avatarId});});
+  const bootNote=node('p','Warming up the arena…','room-boot-note');
+  const booting=node('div','','room-boot');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'));
+  // A joiner never mounts the host's boot card or QR lobby: until it holds a seat its whole page is the join card, with the same connect hint under the form.
+  const joinCard=node('section','','room-join');joinCard.setAttribute('aria-label',`Join room ${code}`);joinCard.append(node('p','JOIN THE ROOM','room-eyebrow'),node('strong',code,'shared-room-code'),joinForm.element);
+  const joinPanel=role==='joiner'?joinCard:joinForm.element;(role==='joiner'?joinCard:booting).append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt=performance.now();const bootTick=()=>{bootNote.textContent=connectHint(status.textContent??'',performance.now()-bootAt);};
-  const bootPoll=setInterval(bootTick,1000);
-  const bootDone=()=>{if(booting.isConnected){clearInterval(bootPoll);booting.remove();app.classList.remove('booting');}};
+  const bootPoll=setInterval(bootTick,1000);let booted=false;
+  const bootDone=()=>{if(booted)return;booted=true;clearInterval(bootPoll);booting.remove();bootNote.remove();app.classList.remove('booting');};
   const overCard=node('div','','room-boot room-over-card'),overNote=node('p','Room ended — return to menu to start again','room-boot-note'),overHome=node('a','BACK TO MENU','room-over-home');
   overCard.setAttribute('role','status');overHome.href=appUrl();overCard.append(node('p','ROOM CLOSED','room-boot-title'),node('strong',code,'shared-room-code'),overNote,overHome);
-  app.classList.add('booting');
-  app.replaceChildren(header,booting);
+  app.classList.toggle('booting',role!=='joiner');app.classList.toggle('joining',role==='joiner');
+  app.replaceChildren(header,role==='joiner'?joinPanel:booting);
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
   lobbyCopy.append(node('p','PHONE PARTY // 2–5 RIDERS','room-eyebrow'),lobbyHeading,node('p','Pick your head. Grab your phone. Carve neon trails and blow up your friends’ plans.','room-intro'),node('p','STEER  ◀ ▶     HOLD · AIM · RELEASE','room-howto'));
-  const qrCard=node('div','','room-qr-card'),lobbyQr=node('img');lobbyQr.alt='Scan to join this room';qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'));
+  const qrCard=node('div','','room-qr-card'),lobbyQr=node('img');lobbyQr.alt='Scan to join this room';qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'));qrCard.hidden=role==='joiner';
   const lobbyRiders=node('div','','room-riders');const lobbyEmpty=node('p','Your crew belongs here. Share the code to get started.','room-empty');lobbyRiders.append(lobbyEmpty);
   const lobbyFooter=node('footer','','room-lobby-footer'),lobbyCount=node('span','Waiting for riders');lobbyFooter.append(lobbyCount);
   sharedLobby.append(lobbyCopy,qrCard,lobbyRiders,lobbyFooter);
   const lobbyEntries=new Map<string,{entry:HTMLElement;head:HTMLElement;name:HTMLElement;status:HTMLElement;avatar:AvatarId}>();
-  if(!solo)void QRCode.toDataURL(new URL(appUrl(`?room=${code}`),location.origin).href).then(data=>{lobbyQr.src=data;}).catch(()=>{lobbyQr.hidden=true;});
-  const joinPanel=node('form','','online-join');const name=node('input');name.placeholder='Your name';name.maxLength=20;const previousName=read('fuse-riders-player-name');name.value=previousName??'';
-  const joinButton=node('button','JOIN AS PLAYER');joinPanel.append(name,joinButton);joinButton.disabled=true;
+  if(role==='host'||role==='display')void QRCode.toDataURL(new URL(appUrl(`?room=${code}`),location.origin).href).then(data=>{lobbyQr.src=data;}).catch(()=>{lobbyQr.hidden=true;});
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);controls.addEventListener('selectstart',event=>event.preventDefault());controls.addEventListener('contextmenu',event=>event.preventDefault());
   for(const [button,key,label] of [[leftButton,'ArrowLeft A','Steer left'],[fireButton,'Space','Hold to charge, release to fire'],[rightButton,'ArrowRight D','Steer right']] as const){button.setAttribute('aria-keyshortcuts',key);button.title=`${label} (${key})`;}
   const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','INVITE / TV'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
@@ -111,12 +118,12 @@ export async function startOnline():Promise<void>{
   const shotNotice=node('p','','online-shot-error');shotNotice.setAttribute('role','alert');shotNotice.hidden=true;const shotFailure=new ShotFailureNotice(()=>performance.now());const updateShotNotice=()=>{const message=shotFailure.message();shotNotice.hidden=!message;if(message&&shotNotice.textContent!==message)shotNotice.textContent=message;};
   const scoreboard=node('div','','online-scoreboard');scoreboard.append(notice,roster);
   const footer=node('footer','','online-footer');footer.append(controls,hostControls);
-  app.replaceChildren(header,booting,canvas,sharedLobby,scoreboard,shotNotice,joinPanel,footer,dialog);
+  app.replaceChildren(header,...(role==='joiner'?[]:[booting]),canvas,sharedLobby,scoreboard,shotNotice,joinPanel,footer,dialog);
   help.onclick=()=>{dialogBody.replaceChildren(node('h2','Keyboard controls'),node('p','← / A — steer left'),node('p','→ / D — steer right'),node('p','SPACE — hold to charge, release to fire'));dialog.showModal();};
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
   const desktopQuery=matchMedia('(min-width: 1000px) and (hover: hover) and (pointer: fine)');
   const updateDesktopLayout=()=>{
-    const desktop=desktopQuery.matches&&!app.classList.contains('mobile-play')&&!app.classList.contains('controller-only')&&sharedLobby.hidden;
+    const desktop=desktopQuery.matches&&!app.classList.contains('mobile-play')&&!app.classList.contains('controller-only')&&!app.classList.contains('joining')&&sharedLobby.hidden;
     app.classList.toggle('desktop-game',desktop);
     const rosterParent=desktop?header:scoreboard;
     if(roster.parentElement!==rosterParent){if(desktop)header.insertBefore(roster,audioButton);else scoreboard.append(roster);}
@@ -144,9 +151,9 @@ export async function startOnline():Promise<void>{
   const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');dialog.showModal();dialogBody.scrollTop=0;};
   results.onclick=openRecap;
   const callbacks:Callbacks={
-    ready:(peerId,host)=>{id=peerId;isHost=host;joinButton.disabled=false;hostControls.hidden=!host;if((joined||previousName)&&!displayOnly)runtime.command({type:'join',name:name.value,avatarId:avatar});},
+    ready:(peerId,host)=>{id=peerId;isHost=host;joinForm.ready(true);hostControls.hidden=!host;if(role==='host'&&!host)try{localStorage.removeItem(`fuse-room-${code}`);}catch{}const me=snapshot?.players.find(p=>p.id===peerId);if(joined&&me&&!displayOnly)runtime.command({type:'join',name:me.name,avatarId:me.avatarId});},
     shotFailed:()=>{shotFailure.show();updateShotNotice();},
-    status:text=>{status.textContent=text;status.title=text;if(booting.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
+    status:text=>{status.textContent=text;status.title=text;if(!booted)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
     ended:()=>{bootDone();roomEnded=true;clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     clock:clockSample=>{const accepted=prediction.observeClock(clockSample);if(responseBenchmark)sample({kind:'response-clock',epochAt:performance.timeOrigin+performance.now(),accepted,sample:clockSample,diagnostics:prediction.clock.diagnostics()});},
@@ -162,14 +169,16 @@ export async function startOnline():Promise<void>{
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
       const recapReady=state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0);results.hidden=!recapReady;
       if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();}
-      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost});joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
-      sharedLobby.hidden=solo||state.phase!=='lobby'||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active();app.classList.toggle('room-waiting',!sharedLobby.hidden);
+      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost});joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
+      // A rider the host still lists as offline (page reload mid-round, host checkpoint restore) reconnects by itself; anyone absent goes through the join card.
+      if(player&&!player.connected&&!displayOnly){if(!rejoinPending){rejoinPending=true;runtime.command({type:'join',name:player.name,avatarId:player.avatarId});}}else rejoinPending=false;
+      sharedLobby.hidden=solo||state.phase!=='lobby'||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active()||joining;app.classList.toggle('room-waiting',!sharedLobby.hidden);
       lobbyCount.textContent=`${state.players.filter(p=>p.connected).length} riders ready`;lobbyEmpty.hidden=state.players.length>0;
       for(const [playerId,row] of lobbyEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();lobbyEntries.delete(playerId);}
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined;app.classList.toggle('controller-only',controllerOnly);
-      canvas.hidden=!sharedLobby.hidden||controllerOnly;updateDesktopLayout();
+      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;updateDesktopLayout();
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`:state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
@@ -188,14 +197,13 @@ export async function startOnline():Promise<void>{
     }
   };
   const runtime=solo?new LocalRuntime(settings,callbacks):new RoomRuntime(code,token,settings,callbacks);
-  if(solo){share.hidden=true;joinButton.textContent='PLAY SOLO';}
-  joinPanel.onsubmit=event=>{event.preventDefault();save('fuse-riders-player-name',name.value);runtime.command({type:'join',name:name.value,avatarId:avatar});};
+  if(solo)share.hidden=true;
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}}location.href=appUrl();};dialogBody.append(leave);
     if(!solo){const diagnostics=node('pre','','link-diagnostics');diagnostics.textContent=app.dataset.linkDiagnostics??'collecting link diagnostics…';dialogBody.append(node('p','LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)'),diagnostics);const refresh=setInterval(()=>{if(!dialog.open){clearInterval(refresh);return;}diagnostics.textContent=app.dataset.linkDiagnostics??diagnostics.textContent;},1000);}
     dialog.showModal();};
-  avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(localStorage,chosen=>{avatar=chosen;if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
+  avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(localStorage,chosen=>{avatar=chosen;joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
   share.onclick=async()=>{const link=new URL(appUrl(`?room=${code}`),location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=appUrl(`?room=${code}&display=1`);tv.target='_blank';dialogBody.append(tv);dialog.showModal();};
   settingsButton.onclick=()=>{
     showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>dialog.close());

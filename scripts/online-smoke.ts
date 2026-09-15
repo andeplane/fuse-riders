@@ -12,8 +12,10 @@ try{
   const url=host.url();
   await host.getByPlaceholder('Your name').fill('Host');await host.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
   const b=await browser.newContext({viewport:{width:844,height:390},isMobile:true,hasTouch:true});b.setDefaultTimeout(30000);const guest=await b.newPage();guest.on('pageerror',error=>console.error('GUEST ERROR',error));
-  await guest.goto(url);await guest.getByPlaceholder('Your name').fill('Guest');await guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
-  await host.locator(':is(.online-roster,.room-riders):visible').getByText('Guest',{exact:false}).waitFor();console.log('Guest roster confirmed');
+  // A joiner gets its own page: name + head + JOIN, never the host's PREPARING ROOM card or the QR lobby.
+  await guest.goto(url);await guest.locator('.room-join').waitFor({state:'visible'});assert.equal(await guest.locator('.room-boot').count(),0,'joiner never mounts the boot card');assert.equal(await guest.locator('.shared-lobby').isVisible(),false,'joiner never sees the QR lobby');assert.equal(await guest.locator('.room-join .avatar-option').count(),10,'joiner picks a head before joining');
+  await guest.getByPlaceholder('Your name').fill('Guest');await guest.getByRole('button',{name:'Fox',exact:true}).click();await guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
+  await host.locator(':is(.online-roster,.room-riders):visible').getByText('Guest',{exact:false}).waitFor();await host.locator(':is(.online-roster,.room-riders):visible .avatar-portrait[data-avatar-id=fox]').waitFor();console.log('Guest roster confirmed');
   for(let i=2;i<5;i++){const context=await browser.newContext({viewport:{width:844,height:390},isMobile:true,hasTouch:true});context.setDefaultTimeout(30000);const page=await context.newPage();await page.goto(url);await page.getByPlaceholder('Your name').fill(`Rider ${i}`);await page.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();await host.locator(':is(.online-roster,.room-riders):visible').getByText(`Rider ${i}`,{exact:false}).waitFor();}
   console.log('Five riders joined');
   const startButton=host.getByRole('button',{name:'START RACE',exact:true});const startBounds=await startButton.boundingBox();assert.ok(startBounds);await host.mouse.move(startBounds.x+startBounds.width/2,startBounds.y+startBounds.height/2);await host.mouse.down();await new Promise(resolve=>setTimeout(resolve,180));await host.mouse.up();
@@ -27,6 +29,8 @@ try{
   await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.startsWith('Waiting for the host'));await guest.locator('.mobile-play').waitFor({state:'visible'});assert.equal(await guest.locator('.shared-lobby').isVisible(),false);
   await guest.locator('.online-roster:visible').getByText('Guest',{exact:false}).waitFor();
   console.log('Settings/reset confirmed');await guest.reload();
+  // A lobby reload frees the seat, so the rider confirms the remembered name and head instead of being joined silently.
+  await guest.locator('.room-join').waitFor({state:'visible'});assert.equal(await guest.getByPlaceholder('Your name').inputValue(),'Guest','remembered name prefills the join card');await guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
   await guest.locator('.online-roster:visible').getByText('Guest',{exact:false}).waitFor();await guest.locator('.mobile-tools-toggle').click();
   console.log('Guest refresh confirmed');await host.reload();
   await host.locator(':is(.online-roster,.room-riders):visible').getByText('Guest',{exact:false}).waitFor();console.log('Guest roster confirmed');
