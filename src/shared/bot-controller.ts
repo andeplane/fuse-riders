@@ -1,3 +1,4 @@
+import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
 import { RIDER_RADIUS, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
@@ -22,7 +23,7 @@ function distanceToSegmentSquared(x:number,y:number,segment:TrailSegment):number
   const fraction=length?Math.max(0,Math.min(1,((x-segment.x1)*dx+(y-segment.y1)*dy)/length)):0;
   return squared(x-segment.x1-fraction*dx)+squared(y-segment.y1-fraction*dy);
 }
-function angleDifference(a:number,b:number):number{return Math.atan2(Math.sin(a-b),Math.cos(a-b));}
+function angleDifference(a:number,b:number):number{return atan2(sin(a-b),cos(a-b));}
 
 /** A bounded controller which can only ask the normal simulation to steer/fire. */
 export class BotController {
@@ -31,8 +32,8 @@ export class BotController {
     const player=game.players.get(id);
     if(game.phase!=='playing'||!player?.alive||!player.connected)return{...NEUTRAL};
     const enemies=[...game.players.values()].filter(candidate=>candidate.id!==id&&candidate.alive);
-    const nearest=enemies.reduce<PlayerState|undefined>((best,candidate)=>!best||Math.hypot(candidate.x-player.x,candidate.y-player.y)<Math.hypot(best.x-player.x,best.y-player.y)?candidate:best,undefined);
-    const pickup=game.pickups.reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||Math.hypot(candidate.x-player.x,candidate.y-player.y)<Math.hypot(best.x-player.x,best.y-player.y)?candidate:best,undefined);
+    const nearest=enemies.reduce<PlayerState|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
+    const pickup=game.pickups.reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const target=pickup??nearest;
     const reach=BOT_LOOKAHEAD_TICKS*RIDER_SPEED/20+RIDER_RADIUS+TRAIL_WIDTH;
     const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
@@ -50,21 +51,21 @@ export class BotController {
         const clearance=Math.min(x-game.boundaryInset,game.width-game.boundaryInset-x,y-game.boundaryInset,game.height-game.boundaryInset-y)-RIDER_RADIUS;
         if(clearance<2)break;
         if(trails.some(({trail,own})=>trail.expiresAtTick>tick&&!(own&&trail.createdTick>tick-SELF_TRAIL_GRACE_TICKS)&&distanceToSegmentSquared(x,y,trail)<=squared(RIDER_RADIUS+TRAIL_WIDTH/2+2)))break;
-        if(enemies.some(enemy=>squared(x-(enemy.x+Math.cos(enemy.angle)*RIDER_SPEED*future/20))+squared(y-(enemy.y+Math.sin(enemy.angle)*RIDER_SPEED*future/20))<squared(RIDER_RADIUS*2+3)))break;
-        if(game.blasts.some(blast=>blast.expiresAtTick>tick&&Math.hypot(x-blast.circle.x,y-blast.circle.y)<blast.circle.radius+RIDER_RADIUS))break;
+        if(enemies.some(enemy=>squared(x-(enemy.x+cos(enemy.angle)*RIDER_SPEED*future/20))+squared(y-(enemy.y+sin(enemy.angle)*RIDER_SPEED*future/20))<squared(RIDER_RADIUS*2+3)))break;
+        if(game.blasts.some(blast=>blast.expiresAtTick>tick&&hypot2(x-blast.circle.x,y-blast.circle.y)<blast.circle.radius+RIDER_RADIUS))break;
         if([...game.bombs.values()].some(bomb=>bomb.shell
-          ?Math.hypot(x-(bomb.x+bomb.shell.vx*future/20),y-(bomb.y+bomb.shell.vy*future/20))<RIDER_RADIUS+18
-          :bomb.explodeAtTick<=tick&&Math.hypot(x-bomb.x,y-bomb.y)<bomb.blastRange+RIDER_RADIUS))break;
+          ?hypot2(x-(bomb.x+bomb.shell.vx*future/20),y-(bomb.y+bomb.shell.vy*future/20))<RIDER_RADIUS+18
+          :bomb.explodeAtTick<=tick&&hypot2(x-bomb.x,y-bomb.y)<bomb.blastRange+RIDER_RADIUS))break;
         score+=100+Math.min(80,clearance)*.05;survived++;
       }
-      if(target)score-=Math.hypot(target.x-x,target.y-y)*.025;
+      if(target)score-=hypot2(target.x-x,target.y-y)*.025;
       if(direction===0&&survived===BOT_LOOKAHEAD_TICKS)score+=1;
       if(score>best){best=score;chosen=direction;}
     }
     const intent:InputIntent={left:chosen<0,right:chosen>0,bomb:false};
     if(!nearest||game.tick<player.bombReadyAtTick)return intent;
-    const distance=Math.hypot(nearest.x-player.x,nearest.y-player.y);
-    const bearing=Math.atan2(nearest.y-player.y,nearest.x-player.x);
+    const distance=hypot2(nearest.x-player.x,nearest.y-player.y);
+    const bearing=atan2(nearest.y-player.y,nearest.x-player.x);
     const aimed=player.targetBombArmed&&!player.gunArmed&&!player.shellArmed;
     const aim=aimed?{x:Math.max(0,Math.min(1,nearest.x/game.width)),y:Math.max(0,Math.min(1,nearest.y/game.height))}:undefined;
     const wantedCharge=aimed||player.gunArmed||player.shellArmed?1:Math.max(1,Math.min(BOMB_MAX_CHARGE_TICKS,Math.round((distance-BOMB_MIN_LAUNCH_DISTANCE)/(BOMB_MAX_LAUNCH_DISTANCE-BOMB_MIN_LAUNCH_DISTANCE)*BOMB_MAX_CHARGE_TICKS)));

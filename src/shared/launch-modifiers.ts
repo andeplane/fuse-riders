@@ -1,3 +1,4 @@
+import { sin, cos } from './deterministic-math.js';
 export const FIVE_SHOT_ANGLES = [-0.44, -0.22, 0, 0.22, 0.44] as const;
 export const TRIPLE_SHOT_ANGLES = [-0.22, 0, 0.22] as const;
 export const VOLLEY_FLIGHT_STEPS = 6;
@@ -34,8 +35,8 @@ export function createVolleyFlightPaths(
   if (![start.x, start.y, distance, bounds.minX, bounds.maxX, bounds.minY, bounds.maxY].every(Number.isFinite) || distance < 0) throw new RangeError('invalid volley flight inputs');
   if (bounds.minX > bounds.maxX || bounds.minY > bounds.maxY) throw new RangeError('invalid launch bounds');
   return volleyAngles(baseAngle, count).map(angle => Array.from({ length: VOLLEY_FLIGHT_STEPS + 1 }, (_, step) => ({
-      x: clamp(start.x + Math.cos(angle) * distance * step / VOLLEY_FLIGHT_STEPS, bounds.minX, bounds.maxX),
-      y: clamp(start.y + Math.sin(angle) * distance * step / VOLLEY_FLIGHT_STEPS, bounds.minY, bounds.maxY),
+      x: clamp(start.x + cos(angle) * distance * step / VOLLEY_FLIGHT_STEPS, bounds.minX, bounds.maxX),
+      y: clamp(start.y + sin(angle) * distance * step / VOLLEY_FLIGHT_STEPS, bounds.minY, bounds.maxY),
       angle,
     })));
 }

@@ -7,7 +7,7 @@ import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 
 /** Bump compatibility whenever persisted simulation semantics or required fields change. No implicit migration. */
 export const CHECKPOINT_VERSION = 3;
-export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-1';
+export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-2';
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
 const MAX_HISTORY = 128;
@@ -25,13 +25,12 @@ const array = (guard: Guard, max: number): Guard => v => Array.isArray(v) && v.l
 const shape = (fields: Record<string, Guard>): Guard => v => record(v) && Object.keys(v).every(key => Object.hasOwn(fields, key)) && Object.entries(fields).every(([key, guard]) => guard(v[key]));
 const map = (keyGuard: Guard, valueGuard: Guard, max: number): Guard => v => v instanceof Map && v.size <= max && [...v].every(([key, value]) => keyGuard(key) && valueGuard(value));
 const position = range(-1000, ARENA_WIDTH + 1000);
-const aim = shape({ x: range(0, 1), y: range(0, 1) });
 const trail: Guard = v => shape({ x1: position, y1: position, x2: position, y2: position, createdTick: integer, expiresAtTick: integer })(v) && record(v) && (v.expiresAtTick as number) > (v.createdTick as number);
 const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
-  bombTarget: optional(aim), fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
+  bombTarget: optional(shape({x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT)})), fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
   drunkStartedTick: integer, drunkHeadingOffset: range(-Math.PI, Math.PI), tripleShotArmed: boolean, fiveShotArmed: boolean,
   shielded: boolean, shieldGraceUntilTick: integer, portalCooldownUntilTick: integer, portalGraceUntilTick: integer, trail: array(trail, MAX_CHECKPOINT_TRAILS),
 } satisfies Record<keyof PlayerState, Guard>;
@@ -75,6 +74,7 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
     return value.map(item => decodeTree(item, depth + 1, budget));
   }
   if (!record(value)) return value;
+  if (Object.keys(value).length===1&&value.$number==='-0')return -0;
   if (Object.hasOwn(value, '$map')) {
     if (Object.keys(value).length !== 1 || !Array.isArray(value.$map) || value.$map.length > 256) throw new Error('Invalid map');
     const result = new Map<unknown, unknown>();
@@ -123,8 +123,22 @@ function gameInvariants(game: GameState): boolean {
 }
 
 export interface RestoredCheckpoint { game: GameState; settings: RoomSettings; sequences: Map<string, number>; botIds: Set<string> }
+/** Replica restore preserves active inputs/connection state; host recovery sanitization is separate. */
+export function encodeGameState(game: GameState): string {
+  return JSON.stringify(game, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : Object.is(value,-0) ? { $number: '-0' } : value);
+}
+export function isGameState(value:unknown):value is GameState { return gameShape(value) && gameInvariants(value as GameState); }
+export function decodeGameState(raw: string): GameState | undefined {
+  if (raw.length > MAX_CHECKPOINT_BYTES || new TextEncoder().encode(raw).byteLength > MAX_CHECKPOINT_BYTES) return;
+  try {
+    const value: unknown = decodeTree(JSON.parse(raw));
+    if (!gameShape(value)) return;
+    const game = value as GameState;
+    return gameInvariants(game) ? game : undefined;
+  } catch { return; }
+}
 export function encodeCheckpoint(host: string, game: GameState, roomSettings: RoomSettings, sequences: Iterable<readonly [string, number]>, botIds: Iterable<string> = []): string {
-  return JSON.stringify({ version: CHECKPOINT_VERSION, compatibility: CHECKPOINT_COMPATIBILITY, host, settings: roomSettings, game, sequences: [...sequences], botIds: [...botIds] }, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : value);
+  return JSON.stringify({ version: CHECKPOINT_VERSION, compatibility: CHECKPOINT_COMPATIBILITY, host, settings: roomSettings, game, sequences: [...sequences], botIds: [...botIds] }, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : Object.is(value,-0) ? { $number: '-0' } : value);
 }
 export function decodeCheckpoint(raw: string, host: string): RestoredCheckpoint | undefined {
   if (raw.length > MAX_CHECKPOINT_BYTES || new TextEncoder().encode(raw).byteLength > MAX_CHECKPOINT_BYTES) return;

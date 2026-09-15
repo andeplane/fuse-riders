@@ -2,7 +2,7 @@ import { sameControlScope, type InputControlScope, type AppliedMotionState, type
 import { BotController, BOT_ID_PREFIX, type BotDependencies } from '../shared/bot-controller.js';
 import { encodeCheckpoint, decodeCheckpoint } from './checkpoint.js';
 import { addPlayer, createGame, removePlayer, resetMatch, returnToLobby, setPlayerConnected, SLOT_COLORS, startMatch, startNextRound, step, toSnapshot, type GameState, type InputIntent } from '../shared/game.js';
-import { BombInputBuffer } from '../server/bomb-input.js';
+import { BombInputBuffer } from '../shared/bomb-input.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { AvatarId } from '../shared/avatars.js';
