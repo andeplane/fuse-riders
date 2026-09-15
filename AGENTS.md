@@ -18,12 +18,12 @@ These workflow rules replace older process requirements in ADRs, review notes an
 ## Code and gameplay
 
 - Keep the LAN `/display` and `/controller` paths and the neon/pixel aesthetic. Cosmetic changes must not alter simulation geometry, timing or player identity.
-- `src/shared/` owns deterministic rules and simulation; `src/server/` owns LAN authority; `src/online/` owns online simulation coordination and transports; `src/service/` owns GCP signalling; `worker/` is the legacy/local Cloudflare adapter; `src/client/` owns presentation and controls.
+- `src/shared/` owns deterministic rules and simulation; `src/server/` owns LAN authority; `src/online/` owns online simulation coordination and transports; `src/service/` owns room signalling (Cloud Run in production, `src/service/dev.ts` in-memory locally and in CI); `src/client/` owns presentation and controls.
 - `src/shared/rider-motion.ts` is the shared pure motion kernel. Preserve turn-then-move fixed-step behavior and atomic agreement between applied-tick records and snapshots. Bots in `src/shared/bot-controller.ts` emit ordinary inputs and get no privileged physics.
 - Keep simulation ticks and clocks separate from rendering. Phaser may render fractional snapshot time but must not run authoritative physics, game timers or a competing render loop. Consult `docs/PHASER.md` when changing presentation timing.
 - Keep ownership and ordering of actions and outcomes explicit. Prediction or rollback must converge on consistent collisions, pickups, scores and results. When changing delivery, account for action age, sequence, authority epoch, acknowledgements, retries and cancellation. A queued send is not proof the receiver applied it.
-- Validate data at service/Worker, WebRTC, checkpoint and storage boundaries; TypeScript types are not runtime validation. Scope actions and events to the room, authority, match and round so old messages cannot affect new play. Restore validated state atomically, leaving healthy state unchanged on rejection. Bound queues, parsers, history and recovery attempts.
-- The GCP and legacy Worker backends coordinate rooms; they do not simulate or relay gameplay. Direct WebRTC failure needs an explicit retry state. Browser-host suspension and host trust remain product limitations; local checkpoints are not durable failover. Do not silently add a gameplay relay or a paid service.
+- Validate data at room service, WebRTC, checkpoint and storage boundaries; TypeScript types are not runtime validation. Scope actions and events to the room, authority, match and round so old messages cannot affect new play. Restore validated state atomically, leaving healthy state unchanged on rejection. Bound queues, parsers, history and recovery attempts.
+- The room service (Cloud Run in production, `src/service/dev.ts` locally) coordinates rooms; it does not simulate or relay gameplay. Direct WebRTC failure needs an explicit retry state. Browser-host suspension and host trust remain product limitations; local checkpoints are not durable failover. Do not silently add a gameplay relay or a paid service.
 
 ## Verification
 
@@ -40,7 +40,6 @@ Before production deployment, run the release suite plus browser checks relevant
 
 ```sh
 npm run typecheck
-npm run typecheck:worker
 npm test
 npm run test:coverage
 npm run build
@@ -50,5 +49,5 @@ npm run build
 
 - Update documentation directly affected by the change. Keep release history in release documents rather than duplicating it here. Consult `docs/online/PUBLIC-BETA-2026-09-14.md` and the deployment inventory when reporting release status, and verify current external state before claiming publication or CI success.
 - Use README for onboarding, `docs/online/PROTOCOL.md` and relevant ADRs for protocol context, and the roadmap for planned work. Historical `docs/architecture.md` has old LAN/balance details; verify game constants from source and link to current rule definitions instead of copying balance tables. Proposed designs and review findings are not completed features.
-- For production deployment, follow `docs/online/GCP-DEPLOY.md`. `npm run deploy` targets legacy Cloudflare, not the GCP/Pages production path. Preserve exact-source verification and distinguish local verification from CI. Check client compatibility and rollback implications for protocol releases.
+- For production deployment, follow `docs/online/GCP-DEPLOY.md`. Preserve exact-source verification and distinguish local verification from CI. Check client compatibility and rollback implications for protocol releases.
 - Never commit or expose bearer tokens, TURN secrets, credential files or unredacted logs. Public invites must not carry host capabilities; Origin checks are not authentication. Do not enable paid services without user authorization.

@@ -13,7 +13,7 @@ Validation commands:
 ```sh
 npx tsx --test tests/bot-controller.test.ts tests/server-bots.test.ts
 npx tsx scripts/benchmark-bots.ts
-# Run against an isolated Worker/online service serving the current build.
+# Run against an isolated local room service serving the current build (`npm run dev:online`).
 ONLINE_URL=http://localhost:8787/ BUILD_DIRECTORY=dist npx tsx scripts/ai-browser.ts
 BROWSER=webkit ONLINE_URL=http://localhost:8787/ BUILD_DIRECTORY=dist npx tsx scripts/ai-browser.ts
 ```

@@ -29,7 +29,7 @@ Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host d
 
 `npm start` builds the latest browser assets before starting the server. For development, use `PORT=3030 npm run dev`: Vite serves current browser code and updates it as you edit, with no separate build needed. Changes to server code or its shared dependencies automatically restart the Node process. Each restart clears the in-memory game and session scores; open the new printed host link and refresh/rejoin phones. Production does not watch files or automatically refresh; stop and run `npm start` again between matches to pick up changes. The default port is 3000 when `PORT` is omitted; if that port is taken the server walks upward (3001, 3002, …) and prints the links for the port it actually got, so parallel worktrees and stale processes never collide. Vite's HMR shares the same port instead of its fixed 24678.
 
-`npm run dev` also starts the local room service (`wrangler dev` on 127.0.0.1:8787) and proxies `/api` to it, so the home page's CREATE ROOM and JOIN ROOM work on the same LAN address as `/display` and `/controller`; set `ROOM_API=http://host:port` to use another room service instead. To run only the built app on the Worker, use the following command.
+`npm run dev` also starts the local room service in the same process (the production `src/service` protocol over in-memory rooms, on 127.0.0.1:8787 or the next free port) and proxies `/api` to it, so the home page's CREATE ROOM and JOIN ROOM work on the same LAN address as `/display` and `/controller`; set `ROOM_API=http://host:port` to use another room service instead. To run only the built app with that room service, use the following command.
 
 ## Try online rooms locally
 
@@ -87,9 +87,7 @@ The shared deterministic simulation advances at 20 Hz. Online replication publis
 | `src/online/peer-transport.ts` | Direct WebRTC negotiation, generation fencing, signalling and link recovery |
 | `src/online/runtime.ts`, `authority.ts`, `checkpoint.ts` | Fixed-step scheduling, authority lease checks and atomic validated restore |
 | `src/online/prediction*.ts`, `tick-probes.ts`, `ui.ts` | Applied-tick replay, conservative tick clock, buffered presentation and room UI |
-| `src/service/` | GCP room API/WebSocket gateway, Firestore transactions and Pub/Sub signalling |
-| `worker/index.ts` | Local/legacy Cloudflare room API and coordination adapter; not the production target |
-| `wrangler.jsonc` | Local/legacy Worker assets and room Durable Object binding |
+| `src/service/` | Room API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`) with Firestore transactions and Pub/Sub signalling in production (`index.ts`) and in-memory metadata for local development and CI (`dev.ts`) |
 | `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines |
 | `tests/`, `scripts/` | Deterministic tests, browser checks and benchmark runners |
 
@@ -101,7 +99,6 @@ Phaser is presentation only: the caller supplies snapshots to one render loop, p
 
 ```sh
 npm run typecheck
-npm run typecheck:worker
 npm test
 npm run test:coverage
 npm run build
@@ -110,7 +107,7 @@ npm run test:browser
 BROWSER=webkit npm run test:browser
 ```
 
-LAN browser smoke starts its own isolated server. It uses installed Chrome by default and WebKit with `BROWSER=webkit`. Online smoke uses bundled Chromium by default and needs Wrangler running in another terminal:
+LAN browser smoke starts its own isolated server. It uses installed Chrome by default and WebKit with `BROWSER=webkit`. Online smoke uses bundled Chromium by default and needs `npm run dev:online` running in another terminal:
 
 ```sh
 mkdir -p artifacts
@@ -132,14 +129,14 @@ The end-of-match report (podium, totals, awards and rider comparison) is built b
 
 [CI](.github/workflows/ci.yml) splits into two jobs. `verify` runs on every pull request: type checks, unit coverage and the build, about a minute. `e2e` runs the browser matrix and runs on a push to main, on a manual dispatch, or on a pull request labelled `full-ci`; a push to main deploys only once both pass. Label a pull request `full-ci`, or run `scripts/ci-local.sh`, before merging a change to the renderer, the online runtime, the controller or any other browser-facing path, because otherwise a browser regression first shows up on main.
 
-To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts Wrangler itself (log in `artifacts/worker.log`) and always stops it on exit. `PORT` chooses the Wrangler port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `worker`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `deltas`; `core` expands to the first four) and starts Wrangler only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the Wrangler-backed steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `deltas`; `core` expands to the first three) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh
 ONLY=core,keyboard PORT=8801 scripts/ci-local.sh
 ```
 
-Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser/Worker path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
+Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
 
 The delta benchmark asserts exact reconstruction for every measured update. The [browser network harness](docs/online/NETWORK-HARNESS.md) uses five players plus a TV and seeded application-level delay, jitter, loss/reordering, bandwidth queues and a one-way blackhole. Opt-in `?benchmark=1` events expose accepted snapshots and predicted poses without capabilities. Application-message injection is not real IP packet loss, and desktop animation timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
 
@@ -147,12 +144,12 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Hosting and deployment status
 
-The online beta is deployed on **GitHub Pages, Cloud Run, Firestore room metadata and Pub/Sub signalling only**. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). The older local Cloudflare adapter remains available through `dev:online`. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
+The online beta is deployed on **GitHub Pages, Cloud Run, Firestore room metadata and Pub/Sub signalling only**. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
 
 A temporary experimental preview was reported at **https://fuse-riders.vagabond-walk.workers.dev**. This is not a declared production endpoint: current reachability, account ownership, claim status and expiry must be verified before relying on it. The supported beta uses the GitHub Pages and Cloud Run endpoints in the verified inventory; the old Cloudflare preview is not its backend. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
 See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://andeplane.github.io/fuse-riders/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. The [deployment inventory](docs/online/GCP-INVENTORY.md) records the exact frontend/backend source, immutable image, runtime identity and completed public service checks.
 
-`npm run deploy` builds and invokes Wrangler against the older local Cloudflare adapter. **It is not the production path and runs no release gates**; release through the GCP/Pages flow above. Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting anything to production. See [the browser-hosted topology and the local stack](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, `.dev.vars`, Wrangler credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
+Release only through the GCP/Pages flow above. Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting anything to production. See [the browser-hosted topology and the local stack](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, cloud credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
 Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.
