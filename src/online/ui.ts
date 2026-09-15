@@ -130,7 +130,7 @@ export async function startOnline():Promise<void>{
   const notice=node('div','','online-notice');
   // In-arena moments (countdown, round result, overtime, final) and the elimination feed, shared by desktop, solo and the phone thirds.
   const announcer=node('div','','online-announce');announcer.hidden=true;announcer.setAttribute('aria-live','polite');
-  const announceSmall=node('span','','announce-small'),announceBig=node('strong'),announceRows=node('div','','announce-rows'),announceHint=node('p','','announce-hint'),announceAction=node('button','REMATCH','announce-action');announceAction.hidden=true;
+  const announceSmall=node('span','','announce-small'),announceBig=node('strong'),announceRows=node('div','','announce-rows'),announceHint=node('p','','announce-hint'),announceAction=node('button','PLAY AGAIN','announce-action');announceAction.hidden=true;
   announcer.append(announceSmall,announceBig,announceRows,announceHint,announceAction);
   const feed=node('div','','online-feed');feed.setAttribute('aria-live','polite');
   const hud=node('div','','mobile-hud');const hudWho=node('span','','hud-who'),hudFire=node('span','','hud-fire'),hudWins=node('span','','hud-wins'),hudRound=node('span','','hud-round');hud.append(hudWho,hudFire,hudWins,hudRound);
