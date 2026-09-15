@@ -18,10 +18,10 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const
      for(const action of ['START RACE','ROOM SETTINGS','TV VIEW','ADD AI'])await onScreen(action,phone.getByRole('button',{name:action,exact:true}));
      // #142: the yellow hint clears the lobby card, the avatar grid stays folded behind CHANGE, no truncated URL, and ⛶ only where fullscreen exists.
      const hintBox=(await phone.locator('.online-notice').boundingBox())!,lobbyBox=(await phone.locator('.phone-lobby>.room-lobby').boundingBox())!;assert.ok(hintBox.height>=12&&hintBox.y+hintBox.height<=lobbyBox.y+1,`lobby hint must sit above the lobby card: ${JSON.stringify({hintBox,lobbyBox})}`);
-     assert.equal(await phone.locator('.online-join .avatar-options').isVisible(),false,'avatar grid folded');assert.equal(await phone.locator('.room-qr-url').isVisible(),false,'no truncated join URL on a phone');
+     assert.equal(await phone.locator('.online-join .avatar-options').isVisible(),false,'avatar grid folded');assert.equal(await phone.locator('.online-controls').isVisible(),false,'no ◀ FIRE ▶ controls before a seat');assert.equal(await phone.locator('.room-qr-url').isVisible(),false,'no truncated join URL on a phone');
      assert.equal(await phone.getByRole('button',{name:'Fullscreen',exact:true}).isVisible(),await phone.evaluate(()=>Boolean(document.fullscreenEnabled)),'fullscreen button only where fullscreen exists');
      await phone.screenshot({path:`artifacts/shared-phone-host-${name}-${viewport.width}x${viewport.height}.png`});}
-    await phone.getByRole('button',{name:/^Change avatar/}).click();await phone.getByRole('button',{name:'Owl',exact:true}).click();await phone.getByRole('button',{name:'Change avatar (Owl)'}).waitFor();assert.equal(await phone.locator('.online-join .avatar-options').isVisible(),false,'a pick folds the grid again');
+    await phone.getByRole('button',{name:/^Avatar · .*, change$/}).click();await phone.getByRole('button',{name:'Owl',exact:true}).click();await phone.getByRole('button',{name:'Avatar · Owl, change'}).waitFor();assert.equal(await phone.locator('.online-join .avatar-options').isVisible(),false,'a pick folds the grid again');
     // An empty JOIN says what is missing instead of doing nothing (#132).
     await phone.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();await phone.getByRole('alert').filter({hasText:'Enter your name to join'}).waitFor();
    }finally{await pc.close();}}
