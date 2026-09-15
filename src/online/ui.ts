@@ -142,7 +142,10 @@ export async function startOnline():Promise<void>{
   const dialog=node('dialog','','game-dialog');dialog.setAttribute('aria-label','Game menu');const close=node('button','✕  CLOSE');close.type='button';close.setAttribute('aria-label','CLOSE');close.onclick=()=>dialog.close();const rematch=node('button','REMATCH');rematch.type='button';rematch.hidden=true;rematch.title='Play the same match again';const dialogActions=node('span','','dialog-actions');dialogActions.append(rematch,close);const dialogBar=node('header','','dialog-bar'),dialogTitle=node('strong','GAME MENU');dialogBar.append(dialogTitle,dialogActions);const dialogBody=node('div','','dialog-body');dialog.append(dialogBar,dialogBody);dialog.addEventListener('close',()=>{rematch.hidden=true;close.textContent='✕  CLOSE';close.setAttribute('aria-label','CLOSE');dialog.classList.remove('recap-dialog');dialogTitle.textContent='GAME MENU';dialog.setAttribute('aria-label','Game menu');});dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
   const scoreboard=node('div','','online-scoreboard');scoreboard.append(notice,roster);
   const footer=node('footer','','online-footer');footer.append(controls,hostControls);
-  app.replaceChildren(header,...(role==='joiner'?[]:[booting]),canvas,sharedLobby,scoreboard,joinPanel,footer,dialog);
+  // A joiner's card is already on screen and may hold focus with a half-typed name (#132): build the room around it. Detaching a focused
+  // input blurs it, and keystrokes that follow land nowhere, so an early typist lost their name and JOIN sent nothing.
+  if(role==='joiner'){header.after(canvas,sharedLobby,scoreboard);joinPanel.after(footer,dialog);}
+  else app.replaceChildren(header,booting,canvas,sharedLobby,scoreboard,joinPanel,footer,dialog);
   help.onclick=()=>{dialogBody.replaceChildren(node('h2','Keyboard controls'),node('p','← / A — steer left'),node('p','→ / D — steer right'),node('p','SPACE — hold to charge, release to fire'));dialog.showModal();};
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
   const desktopQuery=matchMedia('(min-width: 1000px) and (hover: hover) and (pointer: fine)');
