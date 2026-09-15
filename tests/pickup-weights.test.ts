@@ -20,7 +20,8 @@ test('weighted table gives Five one third Triple probability with deterministic 
 test('Star is removed while remaining relative weights are preserved', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const weight = (type: string) => PICKUP_WEIGHTS.find(row => row.type === type)!.weight;
-  assert.ok(Math.abs((weight('target') / (total - weight('stopwatch') + 1599)) / (3536 / 28090) - .5) < .001);
+  const beforeBoost = total - weight('boost');
+  assert.ok(Math.abs((weight('target') / beforeBoost) / (3536 / 28090) - .5) < .001);
   assert.equal(PICKUP_WEIGHTS.some(row => row.type === 'star'), false);
   assert.equal(weight('triple') / weight('five'), 3);
   assert.equal(weight('blast') / weight('beer'), 4);

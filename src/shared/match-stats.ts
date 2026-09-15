@@ -121,7 +121,7 @@ export function recordBombExploded(stats: MatchStatsState, playerId: string): vo
 export function recordPickup(
   stats: MatchStatsState,
   playerId: string,
-  type: 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal',
+  type: 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal' | 'boost',
 ): void {
   const entry = requireEntry(stats, playerId);
   entry.pickupsCollected += 1;

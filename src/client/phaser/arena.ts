@@ -12,7 +12,7 @@ import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 
-const pickups = ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal'] as const;
+const pickups = ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal','boost'] as const;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
 const clamp = Phaser.Math.Clamp;
 export interface ArenaOptions { renderer?: 'auto' | 'canvas'; quality?: 'high' | 'low'; resolution?: 'display' | 'world'; onStatus?: (status: 'ready' | 'context-lost' | 'restored') => void }

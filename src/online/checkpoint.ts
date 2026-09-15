@@ -8,7 +8,7 @@ import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 
 /** Bump compatibility whenever persisted simulation semantics or required fields change. No implicit migration. */
-export const CHECKPOINT_VERSION = 4;
+export const CHECKPOINT_VERSION = 5;
 export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-2';
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
@@ -33,7 +33,7 @@ const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
-  bombTarget: optional(shape({x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT)})), fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
+  bombTarget: optional(shape({x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT)})), fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, boostUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
   drunkStartedTick: integer, drunkHeadingOffset: range(-Math.PI, Math.PI), tripleShotArmed: boolean, fiveShotArmed: boolean,
   shielded: boolean, shieldGraceUntilTick: integer, portalCooldownUntilTick: integer, portalGraceUntilTick: integer, trail: array(trail, MAX_CHECKPOINT_TRAILS),
 } satisfies Record<keyof PlayerState, Guard>;
@@ -46,7 +46,7 @@ const bombFields = {
 } satisfies Record<keyof BombState, Guard>;
 const bomb = shape(bombFields);
 const blast = shape({ bombId: integer, ownerId: text, circle: shape({ x: position, y: position, radius: range(0, 1000) }), expiresAtTick: integer } satisfies Record<keyof BlastState, Guard>);
-const pickup = shape({ id: integer, type: v => typeof v === 'string' && ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal'].includes(v), x: position, y: position, expiresAtTick: integer } satisfies Record<keyof PickupState, Guard>);
+const pickup = shape({ id: integer, type: v => typeof v === 'string' && ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal','boost'].includes(v), x: position, y: position, expiresAtTick: integer } satisfies Record<keyof PickupState, Guard>);
 const statsFields = {
   playerId: text, name, slot: count(4), color: text, roundsPlayed: integer, roundWins: integer, roundsDrawn: integer,
   survivalTicks: integer, longestSurvivalTicks: integer, distanceUnits: range(0, Number.MAX_SAFE_INTEGER), bombsPlaced: integer, bombsExploded: integer, eliminations: integer,
