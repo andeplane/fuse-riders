@@ -24,9 +24,9 @@ test('older future slot cannot undo newer applied movement and exact result ackn
  const s=playing();s.command('host',input(s,1,{left:true,intendedTick:s.game.tick+3}));s.command('host',input(s,2,{right:true}));s.advance();assert.equal(s.acknowledgeMotion('host',s.controlScope('host')!,[2]),true);s.advance();s.advance();
  assert.equal(s.appliedMotion('host')!.appliedSeq,2);assert.deepEqual(s.appliedMotion('host')!.held,{left:false,right:true});assert.deepEqual(s.appliedMotion('host')!.results,[{seq:1,status:'superseded'}]);
 });
-test('held acknowledged steering continues then expires at ten ticks without fresh application',()=>{
+test('held acknowledged steering continues then expires at twenty ticks without fresh application',()=>{
  const s=playing();s.command('host',input(s,1,{left:true}));s.advance();const applied=s.game.tick;s.acknowledgeMotion('host',s.controlScope('host')!,[1]);
- for(let i=0;i<9;i++)s.advance();assert.equal(s.appliedMotion('host')!.held.left,true);assert.equal(s.appliedMotion('host')!.results.length,0);s.advance();assert.equal(s.game.tick,applied+10);assert.equal(s.appliedMotion('host')!.held.left,false);assert.equal(s.appliedMotion('host')!.appliedTick,applied);
+ for(let i=0;i<19;i++)s.advance();assert.equal(s.appliedMotion('host')!.held.left,true);assert.equal(s.appliedMotion('host')!.results.length,0);s.advance();assert.equal(s.game.tick,applied+20);assert.equal(s.appliedMotion('host')!.held.left,false);assert.equal(s.appliedMotion('host')!.appliedTick,applied);
 });
 test('same-tick press/release survives steering supersession, duplicates cannot launch twice',()=>{
  const s=playing();s.command('host',input(s,0));s.command('host',input(s,1,{left:true,bomb:true,bombAction:'press'}));const release=input(s,2,{right:true,bombAction:'release'});s.command('host',release);s.advance();assert.equal(s.game.bombs.size,1);s.command('host',release);s.advance();assert.equal(s.game.bombs.size,1);

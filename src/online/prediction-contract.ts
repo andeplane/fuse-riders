@@ -1,5 +1,7 @@
 import type { MotionControls } from '../shared/rider-motion.js';
 
+/** Ticks without a fresh applied input before the host neutralizes held controls; the predictor mirrors it. */
+export const CONTROL_FRESHNESS_TICKS = 20;
 /** Scope is additional to the transport's authority incarnation/epoch fencing. */
 export interface InputControlScope { matchId: string; round: number; controlEpoch: string }
 export interface ScheduledMotionInput extends MotionControls { seq: number; intendedTick: number; scope: InputControlScope; resultAcks?: number[] }

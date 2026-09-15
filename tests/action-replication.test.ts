@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HostSession } from '../src/online/host-session.js';
-import { ActionReceiver, ActionSender, HASH_INTERVAL_TICKS, type ActionMessage, type ReceiveResult } from '../src/online/action-replication.js';
+import { ActionReceiver, ActionSender, HASH_INTERVAL_TICKS, REDUNDANT_BATCHES, type ActionMessage, type ReceiveResult } from '../src/online/action-replication.js';
 import { replayHash } from '../src/shared/action-log.js';
 import { toSnapshot } from '../src/shared/game.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
@@ -46,18 +46,18 @@ test('refused sends are retried from the same sequence without a baseline; a pee
   assert.equal(f.wire[0]!.type,'baseline','history older than the journal forces a baseline');
   assert.deepEqual(f.drain().map(r=>r.status),['accepted']);assert.equal(f.view(),f.truth());
 });
-test('a lost batch makes the receiver ask for a baseline; a new sender repairs it; duplicates and old batches are stale',()=>{
+test('single lost fast packets are covered by overlap; a longer gap is repaired from the journal; beyond it a baseline follows',()=>{
   const f=fixture();f.publish();f.drain();f.host.command('host',{type:'action',action:'start'});
-  f.host.advance();f.publish();const [first]=f.wire;f.drain();
-  f.deliver(false);f.host.advance();f.publish();f.drain();f.deliver(true);
-  f.host.advance();f.publish();assert.deepEqual(f.drain().map(r=>r.status),['resync']);
-  assert.equal(f.receiver.receive(first).status,'stale','the last good state stays on screen until the baseline arrives');
-  const fresh=new ActionSender();let hashed:string|undefined;
-  fresh.publish(f.host.journal,f.host.settings,{ack:-1,paused:false},()=>hashed??=replayHash(f.host.journal.state),m=>{f.wire.push(JSON.parse(JSON.stringify(m)));return true;});
-  assert.equal(f.wire[0]!.type,'baseline');assert.deepEqual(f.drain().map(r=>r.status),['accepted']);assert.equal(f.view(),f.truth());
-  assert.equal(f.receiver.receive(first).status,'stale');assert.equal(f.view(),f.truth());
-  f.host.advance();fresh.publish(f.host.journal,f.host.settings,{ack:-1,paused:false},()=>'',m=>{f.wire.push(JSON.parse(JSON.stringify(m)));return true;});
-  const [batch]=f.wire;assert.deepEqual(f.drain().map(r=>r.status),['accepted']);assert.equal(f.receiver.receive(batch).status,'stale');assert.equal(f.view(),f.truth());
+  for(let i=0;i<40;i++){f.host.advance();f.publish();f.deliver(i%2===0);for(const r of f.drain())assert.equal(r.status,'accepted',`tick ${i}`);}
+  f.deliver(true);f.host.advance();f.publish();f.drain();assert.equal(f.view(),f.truth(),'every other packet lost costs nothing');
+  f.deliver(false);for(let i=0;i<REDUNDANT_BATCHES;i++){f.host.advance();f.publish();f.drain();}f.deliver(true);
+  f.host.advance();f.publish();const [gap]=f.drain();assert.equal(gap!.status,'gap');
+  const from=(gap as {from:number}).from,meta={ack:-1,paused:false};
+  assert.equal(f.sender.repair(f.host.journal,meta,from,m=>{f.wire.push(JSON.parse(JSON.stringify(m)));return true;}),true);
+  assert.deepEqual(f.drain().map(r=>r.status),['accepted']);assert.equal(f.view(),f.truth());
+  f.host.advance();f.publish();assert.deepEqual(f.drain().map(r=>r.status),['accepted'],'the overlapping live batch is now contiguous');
+  assert.equal(f.sender.repair(f.host.journal,meta,f.host.journal.sequence+1,()=>true),false,'history the journal never had cannot be repaired');
+  f.host.advance();f.publish();assert.equal(f.wire[0]!.type,'baseline');assert.deepEqual(f.drain().map(r=>r.status),['accepted']);assert.equal(f.view(),f.truth());
 });
 test('a diverged replica is caught by the periodic hash and asks for a baseline',()=>{
   const f=fixture();f.publish();f.drain();f.host.command('host',{type:'action',action:'start'});

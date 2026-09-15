@@ -6,6 +6,8 @@ import type { AppliedMotionState } from './prediction-contract.js';
 
 export const ACTION_PROTOCOL=1;
 export const MAX_BATCH_OPERATIONS=400;
+/** Each fast batch restarts from the sequence sent this many publishes ago, so up to three consecutive lost packets cost nothing. */
+export const REDUNDANT_BATCHES=4;
 /** Ticks between replica hash comparisons. */
 export const HASH_INTERVAL_TICKS=20;
 /** `motion` is omitted while unchanged apart from its tick and null when the recipient has no ledger. */
@@ -24,29 +26,37 @@ function motionMatches(meta:ActionMetadata,state:ReplayState):boolean {
   return !meta.motion||meta.motion.tick===state.game.tick&&meta.motion.scope.matchId===state.game.matchId&&meta.motion.scope.round===state.game.round;
 }
 
-/** One peer's view of the host journal on an ordered reliable channel. A refused send is retried from the same
- * sequence at the next publish; a peer behind the journal's memory, or one asking to resync, gets a fresh baseline.
- * ponytail: no receipts; ordered reliable delivery either delivers or the link dies and gets a new sender. */
+/** One peer's view of the host journal. Batches overlap by REDUNDANT_BATCHES publishes instead of using receipts,
+ * a refused send is retried from the same sequence, a gap the peer reports is repaired from the journal, and a
+ * peer behind the journal's memory, or one asking to resync, gets a fresh baseline. */
 export class ActionSender {
   private sent=-1;
+  private recent:number[]=[];
   private hashedTick=-Infinity;
   private lastSettings='';
   private lastMotion='';
   publish(journal:ActionJournal,settings:RoomSettings,meta:ActionMetadata,hash:()=>string,send:(message:ActionMessage)=>boolean):void {
     const state=journal.state,tick=state.game.tick,settingsJson=JSON.stringify(settings),motionKey=meta.motion?JSON.stringify({...meta.motion,tick:0}):'null';
-    const ops=this.sent<0?undefined:journal.since(this.sent);
+    const from=this.recent[0]??this.sent;
+    const ops=this.sent<0?undefined:journal.since(from);
     if(!ops){
       const baseline:ActionBaseline={type:'baseline',protocol:ACTION_PROTOCOL,rules:REPLAY_RULES,seq:journal.sequence,game:encodeGameState(state.game),held:[...state.held].map(([slot,h])=>[slot,h.at,h.flags,h.aim]),hash:hash(),settings,meta};
-      if(send(baseline)){this.sent=journal.sequence;this.hashedTick=tick;this.lastSettings=settingsJson;this.lastMotion=motionKey;}
+      if(send(baseline)){this.sent=journal.sequence;this.recent=[journal.sequence];this.hashedTick=tick;this.lastSettings=settingsJson;this.lastMotion=motionKey;}
       return;
     }
     const compared=tick-this.hashedTick>=HASH_INTERVAL_TICKS?hash():null,changed=settingsJson!==this.lastSettings,moved=motionKey!==this.lastMotion;
-    const batch:ActionBatch={type:'actions',from:this.sent,tick,ops,hash:compared,meta:{ack:meta.ack,paused:meta.paused,...(moved?{motion:meta.motion??null}:{}),...(changed?{settings}:{})}};
-    if(send(batch)){this.sent=journal.sequence;if(compared!==null)this.hashedTick=tick;if(changed)this.lastSettings=settingsJson;if(moved)this.lastMotion=motionKey;}
+    const batch:ActionBatch={type:'actions',from,tick,ops,hash:compared,meta:{ack:meta.ack,paused:meta.paused,...(moved?{motion:meta.motion??null}:{}),...(changed?{settings}:{})}};
+    if(send(batch)){this.sent=journal.sequence;this.recent.push(journal.sequence);if(this.recent.length>REDUNDANT_BATCHES)this.recent.shift();if(compared!==null)this.hashedTick=tick;if(changed)this.lastSettings=settingsJson;if(moved)this.lastMotion=motionKey;}
+  }
+  /** Answers a reported gap from the journal; false means the history is gone and the next publish sends a baseline. */
+  repair(journal:ActionJournal,meta:ActionMetadata,from:number,send:(message:ActionMessage)=>boolean):boolean {
+    const ops=Number.isSafeInteger(from)&&from>=0?journal.since(from):undefined;
+    if(!ops){this.sent=-1;this.recent=[];return false;}
+    return send({type:'actions',from,tick:journal.state.game.tick,ops,hash:null,meta:{ack:meta.ack,paused:meta.paused}});
   }
 }
 
-export type ReceiveResult={status:'accepted';state:ReplayState;meta:ActionMetadata;settings:RoomSettings}|{status:'stale'}|{status:'resync'};
+export type ReceiveResult={status:'accepted';state:ReplayState;meta:ActionMetadata;settings:RoomSettings}|{status:'stale'}|{status:'gap';from:number}|{status:'resync'};
 /** Applies committed operations in journal order; anything it cannot place exactly asks for a baseline. */
 export class ActionReceiver {
   private current?:ReplayState;
@@ -65,7 +75,7 @@ export class ActionReceiver {
       if(!integer(v.from)||!integer(v.tick)||!Array.isArray(v.ops)||v.ops.length>MAX_BATCH_OPERATIONS||!v.ops.every(validOperation)||!metadata(v.meta)||!(v.hash===null||hashText(v.hash)))return {status:'resync'};
       const end=v.from+v.ops.length;
       if(v.from<this.sequence&&end<=this.sequence)return {status:'stale'};
-      if(v.from>this.sequence)return {status:'resync'};
+      if(v.from>this.sequence)return {status:'gap',from:this.sequence};
       for(const op of v.ops.slice(this.sequence-v.from))applyOperation(current,op);
       this.sequence=end;
       if(current.game.tick!==v.tick||!motionMatches(v.meta,current)||(v.hash!==null&&replayHash(current)!==v.hash)){this.current=undefined;return {status:'resync'};}

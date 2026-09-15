@@ -2,7 +2,7 @@ import { RIDER_SPEED, RIDER_TURN_RATE } from '../shared/game.js';
 import { advanceRiderPose, type RiderPose, type MotionControls } from '../shared/rider-motion.js';
 import { drunkHeadingOffset } from '../shared/drunk.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
-import { sameControlScope, type AppliedMotionState, type ScheduledMotionInput, type TickClockSample } from './prediction-contract.js';
+import { CONTROL_FRESHNESS_TICKS, sameControlScope, type AppliedMotionState, type ScheduledMotionInput, type TickClockSample } from './prediction-contract.js';
 import { PredictionClock, type TickEstimate } from './prediction-clock.js';
 export { PredictionClock } from './prediction-clock.js';
 interface Pending extends ScheduledMotionInput { at:number }
@@ -70,7 +70,7 @@ export class LocalPrediction {
     for(let tick=base.state.tick+1;tick<=Math.ceil(end);tick++){
       const eligible=this.pending.filter(input=>input.intendedTick<=tick&&input.seq>seq).sort((a,b)=>b.seq-a.seq)[0];
       if(eligible){held=eligible;seq=eligible.seq;appliedTick=tick;}
-      if(tick-appliedTick>=10)held=NEUTRAL;
+      if(tick-appliedTick>=CONTROL_FRESHNESS_TICKS)held=NEUTRAL;
       const fraction=Math.min(1,end-(tick-1));if(fraction<=0)break;
       const motion=base.ledger.motion;
       pose=advanceRiderPose(pose,held,{distance:RIDER_SPEED/20*fraction,turn:RIDER_TURN_RATE/20*fraction,drunkHeadingOffset:drunkHeadingOffset(motion.seed,base.id,tick-1+fraction,motion.drunkStartedTick,motion.drunkUntilTick)});

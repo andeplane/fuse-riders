@@ -25,7 +25,10 @@ export class ControllerInputState {
   private finished?: { gesture: number; bombAction: 'release' | 'cancel'; aim?: ControllerPoint };
   private trailing = 0;
 
-  constructor(private readonly transport: InputTransport, private readonly now: () => number = () => performance.now()) {}
+  private lastSentAt = -Infinity;
+
+  /** `heartbeatMs` throttles held-state resends once the trailing resends are spent; 0 keeps every resend call (LAN). */
+  constructor(private readonly transport: InputTransport, private readonly now: () => number = () => performance.now(), private readonly heartbeatMs = 0) {}
 
   configureTargetAim(origin?: ControllerPoint): void {
     this.targetOrigin = origin;
@@ -107,9 +110,8 @@ export class ControllerInputState {
   forgetFinishedGesture(): void { this.finished = undefined; }
 
   resend(): boolean {
-    if (this.hasHeld()) return this.send();
-    if (this.trailing <= 0) return false;
-    this.trailing -= 1;
+    if (this.trailing > 0) { this.trailing -= 1; return this.emit(); }
+    if (!this.hasHeld() || this.now() - this.lastSentAt < this.heartbeatMs) return false;
     return this.emit();
   }
   isTargetAiming(pointerId: number): boolean { return this.aimPointer === pointerId && this.aim !== undefined; }
@@ -130,6 +132,7 @@ export class ControllerInputState {
   /** Full control state every time: the held gesture, or the last finished one until the next press. */
   private emit(bombAction?: ControllerInputMessage['bombAction']): boolean {
     if (this.aim) this.lastAimSentAt = this.now();
+    this.lastSentAt = this.now();
     const gesture = this.held.bomb && this.gesture !== undefined ? { gesture: this.gesture }
       : this.finished ? { gesture: this.finished.gesture, bombAction: this.finished.bombAction, ...(this.finished.aim ? { aim: { ...this.finished.aim } } : {}) } : {};
     return this.transport.send({ ...(this.aim ? { aim: { ...this.aim } } : {}), type: 'input', seq: this.sequence++, ...this.held, ...(bombAction ? { bombAction } : {}), ...gesture });

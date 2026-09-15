@@ -41,7 +41,7 @@ test('steady held input records only changes; bomb edges never persist into late
   for(let i=0;i<8;i++){host.command('guest',{type:'input',scope:host.controlScope('guest')!,intendedTick:host.game.tick+1,seq:i,left:true,right:false,bomb:true,gesture:1});host.advance();}
   const records=host.journal.since(before)!;assert.equal(records.filter(op=>op[0]===0&&op[2].some(c=>c[0]===1)).length,1);
   assert.equal(host.game.players.get('guest')!.bombChargeStartedTick,66);
-  for(let i=0;i<10;i++)host.advance();assert.equal(host.game.players.get('guest')!.bombChargeStartedTick,undefined);
+  for(let i=0;i<20;i++)host.advance();assert.equal(host.game.players.get('guest')!.bombChargeStartedTick,undefined);
 });
 test('malformed operations are rejected and the journal is bounded',()=>{
   for(const v of [null,{},[],[9],[0,1,[[0,1,8,null,[]]]],[0,1,[[0,1,0,[2,0],[]]]],[1,{}],[2,''],[3,'x',3],[4,{}],[5,2,''],[6,'x','bad']])assert.equal(validOperation(v),false);

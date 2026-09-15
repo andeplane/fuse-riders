@@ -1,5 +1,5 @@
 import { ActionJournal } from '../shared/action-log.js';
-import { sameControlScope, type InputControlScope, type AppliedMotionState, type MotionApplicationResult } from './prediction-contract.js';
+import { CONTROL_FRESHNESS_TICKS, sameControlScope, type InputControlScope, type AppliedMotionState, type MotionApplicationResult } from './prediction-contract.js';
 import { BotController, BOT_ID_PREFIX, type BotDependencies } from '../shared/bot-controller.js';
 import { encodeCheckpoint, decodeCheckpoint } from './checkpoint.js';
 import { createGame, SLOT_COLORS, toSnapshot, type GameState, type InputIntent } from '../shared/game.js';
@@ -154,7 +154,7 @@ export class HostSession {
       }
       if(newest){seat.input={left:newest.left,right:newest.right,bomb:newest.bomb,...(newest.aim?{aim:newest.aim}:{})};seat.tick=nextTick;seat.appliedSeq=newest.seq;seat.appliedTick=nextTick;}
       // Freshness expiry neutralizes and forgets the held gesture, so the same gesture re-presses when packets resume.
-      if(nextTick-seat.tick>=10){seat.input={left:false,right:false,bomb:false};seat.bombs=new BombInputBuffer();seat.bombs.cancel();seat.gesture=undefined;}
+      if(nextTick-seat.tick>=CONTROL_FRESHNESS_TICKS){seat.input={left:false,right:false,bomb:false};seat.bombs=new BombInputBuffer();seat.bombs.cancel();seat.gesture=undefined;}
       inputs.set(id,{...seat.input,bombCommands:seat.bombs.drainCommands()});
     }
     const before=this.game.phase;const events=this.journal.advance(inputs);

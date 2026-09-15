@@ -14,6 +14,8 @@ Clock mapping uses service ping samples with local monotonic send/receive timest
 
 ## World replication ([ADR042](../adr/042-action-replication.md))
 
+**Fast channel ([ADR043](../adr/043-compact-unreliable-delivery.md)):** committed batches, input samples and tick probes travel on the unordered, no-retransmit `fast` data channel as MessagePack tuples inside a `[id, epoch, incarnationHash, payload]` envelope; batches overlap by four publishes, a persistent gap requests `repair` and the host answers from its journal on the reliable channel. Held input repeats at 4 Hz and the freshness window is 20 ticks.
+
 The host no longer sends world snapshots or deltas. A full view receives one `baseline` (exact game state, held controls, journal sequence, hash, settings) and then `actions` batches `{from, tick, ops, hash|null, meta}` on the ordered reliable channel, where `ops` are the shared journal operations since `from`. The view replays them with the shared reducer; a hash every 20 ticks detects divergence, and any gap, mismatch or malformed batch makes the view request `resync`, which yields a fresh baseline. `meta` carries the recipient's input acknowledgement, pause flag, movement ledger and, only when changed, room settings. Events are still sent by the host.
 
 ## Input schedule and ledger

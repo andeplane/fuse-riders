@@ -60,7 +60,7 @@ test('a finished gesture is forgotten with the control scope, so a reset cannot 
 });
 test('a held gesture blacked out past the freshness window re-presses when packets resume',()=>{
  const f=fixture();f.controller.pointerDown(1,'bomb');f.session.advance();f.drop(()=>true);
- pump(f,10);assert.equal(f.player().bombChargeStartedTick,undefined,'freshness expiry cancels the charge');
+ pump(f,20);assert.equal(f.player().bombChargeStartedTick,undefined,'freshness expiry cancels the charge');
  f.drop(()=>false);pump(f,1);assert.notEqual(f.player().bombChargeStartedTick,undefined);
  f.controller.pointerRelease(1);f.session.advance();assert.equal(f.bombs(),1);
 });

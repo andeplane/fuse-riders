@@ -9,6 +9,8 @@ import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
 import { ControllerInputState } from '../client/controller-state.js';
+/** Held controls repeat at 4 Hz after the trailing resends; the host's freshness window is 20 ticks. */
+const INPUT_HEARTBEAT_MS=250;
 import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
 import { LocalPrediction, RemoteWorldBuffer } from './prediction.js';
@@ -201,7 +203,7 @@ export async function startOnline():Promise<void>{
     showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>dialog.close());
     dialog.showModal();
   };
-  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);const sent=scheduled?runtime.command({...message,...scheduled}):false;if(scheduled&&!sent)prediction.discard(message.seq);if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,scheduled:Boolean(scheduled),intendedTick:scheduled?.intendedTick,sent,...prediction.diagnostics()});if(!scheduled&&isShotTransition(message)){shotFailure.show();updateShotNotice();}return sent;}});
+  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);const sent=scheduled?runtime.command({...message,...scheduled}):false;if(scheduled&&!sent)prediction.discard(message.seq);if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,scheduled:Boolean(scheduled),intendedTick:scheduled?.intendedTick,sent,...prediction.diagnostics()});if(!scheduled&&isShotTransition(message)){shotFailure.show();updateShotNotice();}return sent;}},()=>performance.now(),INPUT_HEARTBEAT_MS);
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });

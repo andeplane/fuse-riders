@@ -49,7 +49,8 @@
     "src/service/room-store.ts",
     "src/service/gateway.ts",
     "src/service/room-bus.ts",
-    "src/online/action-replication.ts"
+    "src/online/action-replication.ts",
+    "src/online/wire.ts"
   ],
   "reporter": [
     "text",

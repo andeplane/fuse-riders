@@ -9,6 +9,7 @@ import { candidateType, sameCertificate } from './ice-signal.js';
 import { RemoteSignal } from './remote-signal.js';
 import { LinkRestartPolicy } from './link-restart.js';
 import { explainLink, type LinkDiagnostic } from './link-diagnostics.js';
+import { decodeFast, encodeFast, hashText, FAST_MESSAGE_BYTES } from './wire.js';
 export interface TransportCallbacks {
   welcome:(id:string,hostId:string)=>void;
   peer:(id:string,online:boolean)=>void;
@@ -23,7 +24,6 @@ export interface TransportCallbacks {
 interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 const RESTART_ATTEMPTS=4;
 const FAST_CHANNEL='fast';
-const FAST_MESSAGE_LIMIT=4096;
 export class PeerTransport {
   id='';hostId='';connectionId='';sentBytes=0;
   grant?:AuthorityGrant;
@@ -161,8 +161,8 @@ export class PeerTransport {
    * interval instead of stalling everything queued behind it on the reliable channel. Loss of this channel
    * itself is harmless: sends fall back to the reliable channel. */
   private fastChannel(id:string,link:Link,channel:RTCDataChannel):void {
-    link.fast=channel;
-    channel.onmessage=event=>{if(this.links.get(id)!==link||link.fast!==channel||typeof event.data!=='string'||event.data.length>FAST_MESSAGE_LIMIT)return;try{this.receive(id,JSON.parse(event.data),true);}catch{}};
+    link.fast=channel;channel.binaryType='arraybuffer';
+    channel.onmessage=event=>{if(this.links.get(id)!==link||link.fast!==channel||!(event.data instanceof ArrayBuffer))return;this.receiveFast(id,event.data);};
     const drop=()=>{if(link.fast===channel)link.fast=undefined;};
     channel.onclosing=drop;channel.onclose=drop;channel.onerror=event=>{event.preventDefault();drop();};
   }
@@ -226,12 +226,22 @@ export class PeerTransport {
     this.callbacks.message(id,envelope.data);
   }
   /** `fast` prefers the unreliable channel; the caller's data must be safe to lose and to reorder. */
+  /** Bytes on the fast channel carry only the authority fence; the link itself names sender and receiver. */
+  private receiveFast(id:string,bytes:ArrayBuffer):void {
+    const envelope=decodeFast(bytes),grant=this.grant;
+    if(!envelope||!grant||!this.authorityPermitted()||envelope.epoch!==grant.epoch||envelope.incarnation!==hashText(grant.incarnation)||!this.connections.has(id))return;
+    const seen=this.received.get(id)??new Set<number>();if(seen.has(envelope.id))return;
+    seen.add(envelope.id);if(seen.size>1000)seen.delete(seen.values().next().value!);this.received.set(id,seen);
+    this.callbacks.message(id,envelope.data);
+  }
   send(id:string,data:unknown,fast=false):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
-    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const link=this.links.get(id);
+    const link=this.links.get(id),messageId=++this.seq;
     if(fast&&!document.hidden&&link&&!link.gate.draining&&link.fast?.readyState==='open'&&link.fast.bufferedAmount<PROBE_BUFFER_LIMIT){
-      try{link.fast.send(JSON.stringify(envelope));return true;}catch{}
+      const bytes=encodeFast({id:messageId,epoch:this.grant!.epoch,incarnation:hashText(this.grant!.incarnation),data});
+      if(bytes.byteLength<=FAST_MESSAGE_BYTES){this.sentBytes+=bytes.byteLength;try{link.fast.send(bytes.slice().buffer as ArrayBuffer);return true;}catch{}}
     }
+    const envelope={id:messageId,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;
     if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
       try{link.channel!.send(JSON.stringify(envelope));return true;}catch{}
     }
