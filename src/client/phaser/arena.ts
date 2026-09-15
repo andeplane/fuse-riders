@@ -34,10 +34,15 @@ export interface PhaserArena {
 function guardDefaultTextures(game: Phaser.Game, failed: () => void): void {
   const textures = game.textures; const READY = Phaser.Textures.Events.READY;
   const renderer = game.renderer as unknown as { boot?: () => void } | null; const internal = game as unknown as { texturesReady?: () => void };
-  if (textures.listenerCount(READY) !== 2 || typeof renderer?.boot !== 'function' || typeof internal.texturesReady !== 'function') return;
+  const listeners = textures.listeners(READY);
+  if (listeners.length !== 2 || !renderer || listeners[0] !== renderer.boot || listeners[1] !== internal.texturesReady) return;
   textures.off(READY);
   textures.once(READY, () => {
-    if (!['__DEFAULT', '__MISSING', '__WHITE'].every(key => textures.exists(key))) { failed(); return; }
+    if (!['__DEFAULT', '__MISSING', '__WHITE'].every(key => textures.exists(key))) {
+      // This game never starts, and game.destroy() only completes on a step it will never take: release the window
+      // resize/orientation listeners its ScaleManager added at boot so the game and its GL context can be collected.
+      game.scale.stopListeners(); failed(); return;
+    }
     renderer.boot!.call(renderer); internal.texturesReady!.call(game);
   });
 }
