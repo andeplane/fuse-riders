@@ -174,7 +174,10 @@ export async function createGameServer(options: ServerOptions = {}) {
       if (range) res.writeHead(206, { ...headers, 'Content-Range': `bytes ${range.start}-${range.end}/${fileStat.size}`, 'Content-Length': range.end - range.start + 1 });
       else res.writeHead(200, { ...headers, 'Content-Length': fileStat.size });
       if (req.method === 'HEAD') { res.end(); return; }
-      createReadStream(filename, range || undefined).pipe(res);
+      // Headers are already sent by the time a read can fail (e.g. the file vanishes mid-request), so the only
+      // way back to `catch` below is destroying the response; letting the stream's 'error' go unhandled would
+      // otherwise be an uncaught exception that crashes the whole game server.
+      createReadStream(filename, range || undefined).on('error', () => res.destroy()).pipe(res);
     } catch { res.writeHead(404); res.end('Not found'); }
   });
   // HMR rides this http server instead of Vite's fixed 24678, so parallel dev servers never collide.
