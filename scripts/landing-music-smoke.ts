@@ -2,8 +2,9 @@
  * Landing-page music smoke: the soundtrack plays on the landing page itself, alt-tabbing away never
  * restarts it, and the top-bar toggle turns it off in a way that survives the page load into a room.
  *
- * Music is a plain media element (so a phone's silent switch and volume keys reach it), so "is it
- * playing" is read off that element rather than inferred from network traffic.
+ * Music is a plain media element (so a phone's volume keys reach it), so "is it playing" is read off
+ * that element rather than inferred from network traffic. The toggle labels what is audible, so a
+ * page that has not been clicked yet reads OFF; the smoke clicks first, as a visitor would.
  *
  * Run against a dev server: LANDING_URL=http://127.0.0.1:5173/ npx tsx scripts/landing-music-smoke.ts
  */

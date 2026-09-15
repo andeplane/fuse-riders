@@ -139,13 +139,17 @@ export class AudioDirector {
     this.seen.add(key); if (this.seen.size > 100) this.seen.delete(this.seen.values().next().value!);
     this.cue(message.event.type === 'bombPlaced' && message.event.gun ? 'cannon' : message.event.type);
   }
-  /** Starts the radio's track once audio is unlocked and something wants music; safe to call every frame. */
+  /**
+   * Hands the radio's track to the synth as soon as something wants music, unlocked or not, and is safe to call
+   * every frame. The synth retries a refused track inside every later gesture; waiting for an unlock here meant
+   * the first tap on a phone only unlocked, and a second one was needed to play.
+   */
   update(): void {
     if (this.radio.paused) {
       if (this.musicPath) { this.radio.position = this.position(); this.synth.pauseMusic(); this.musicPath = ''; }
       return;
     }
-    if (!this.unlocked || !this.playing) return;
+    if (!this.playing) return;
     const { path } = trackById(this.radio.track);
     if (path !== this.musicPath) { this.musicPath = path; this.synth.music(path, this.radio.position); }
   }
