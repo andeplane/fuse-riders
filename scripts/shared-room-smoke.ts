@@ -53,7 +53,7 @@ const hc=await browser.newContext({viewport:{width:1280,height:800},...(name==='
  assert.equal(await guest.locator('.mobile-play').count(),0,'ended room must leave the phone thirds controller');
  assert.equal(await guest.locator('.online-controls').isVisible(),false,'ended room must not keep live-looking controls');
  await guest.getByRole('button',{name:'MENU',exact:true}).waitFor({state:'visible'});await guest.screenshot({path:`artifacts/shared-ended-phone-${name}.png`});
- const socketCount=guestSockets;await new Promise(resolve=>setTimeout(resolve,1800));assert.equal(guestSockets,socketCount,'ended room must not auto-rejoin');assert.deepEqual(errors,[]);results.push({browser:name,passed:true,joinRetries,shortCodePattern:true,hostQr:true,tvQr:true,joinLink:joinUrl,copyLabel,clipboard,startReset:true,endedWithoutReconnect:true,endedVisibleOnPhone:endedBox,controlBounds,inputApplied:true});console.log(`PASS ${name} shared QR/end room`);
+ const socketCount=guestSockets;await new Promise(resolve=>setTimeout(resolve,1800));assert.equal(guestSockets,socketCount,'ended room must not auto-rejoin');assert.deepEqual(errors,[]);results.push({browser:name,passed:true,joinRetries,guestNavigations,shortCodePattern:true,hostQr:true,tvQr:true,joinLink:joinUrl,copyLabel,clipboard,startReset:true,endedWithoutReconnect:true,endedVisibleOnPhone:endedBox,controlBounds,inputApplied:true});console.log(`PASS ${name} shared QR/end room`);
  }catch(error){console.error(`shared room smoke failed (${name}):`,String(error));
   // Every page's own status and link diagnostics (the MENU text), so a failure says which leg stalled (#132). Each read is
   // bounded: evaluate ignores the page timeout, and a stuck renderer must not hang the job and hide the error above.
