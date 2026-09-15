@@ -64,14 +64,30 @@ test('a silent member is neutralized by presence and a between-rounds leave free
   s.presence('guest',true);s.advance();assert.equal(s.game.players.get('guest')!.connected,true);
   s.command('host',{type:'action',action:'lobby'});s.advance();s.disconnect('guest');s.advance();assert.equal(s.game.players.has('guest'),false);
 });
+/** What a full view does with a baseline: exact state, per-stream positions, retained entries. */
+function installed(s:HostSession){
+  const baseline=s.baseline('viewer');
+  const game=decodeGameState(baseline.game)!;const state:ReplayState={game,pending:baseline.pending,streams:new Map()};
+  for(const [member,,streamState] of baseline.streams)if(streamState)state.streams.set(member,{flags:streamState.flags,...(streamState.aim?{aim:streamState.aim}:{}),...(streamState.gesture===null?{}:{gesture:streamState.gesture}),bombs:BombInputBuffer.fromJSON(streamState.bombs)!});
+  assert.equal(replayHash(state),baseline.hash);
+  const view=new Simulation(state,'host');view.install(state,new Map(baseline.streams.map(([member,folded])=>[member,folded])));
+  return {baseline,view};
+}
+test('a restored host whose only stream is management sends a baseline a view can install',()=>{
+  const s=playing();s.command('host',{type:'action',action:'lobby'});s.advance();
+  const r=new HostSession('host',defaultRoomSettings(),{token:()=>'match'});assert.equal(r.restore(s.checkpoint()),true);
+  r.reconnect('guest');r.advance();
+  assert.equal(r.sim.state.streams.size,0,'no input has folded since the restore');
+  const {baseline,view}=installed(r);
+  assert.equal(baseline.streams.find(([member])=>member==='host')![2],null);
+  r.command('host',{type:'settings',settings:{...defaultRoomSettings(),mode:'shared'}});r.advance();
+  for(const e of r.senders.get('host')!.retained)view.insert('host',e);
+  assert.equal(view.advanceTo(r.tick,()=>{}).status,'ok');assert.equal(view.state.pending.mode,'shared');assert.equal(replayHash(view.state),r.hash());
+});
 test('a baseline installs into a fresh simulation that then matches the host tick for tick',()=>{
   const s=playing(),g=guest(s);s.command('host',{type:'bot',action:'add'});s.advance();
   g.deliver(g.packet({left:true,right:false,bomb:true,bombAction:'press'}));for(let i=0;i<5;i++)s.advance();
-  const baseline=s.baseline('viewer');
-  const game=decodeGameState(baseline.game)!;const state:ReplayState={game,pending:baseline.pending,streams:new Map()};
-  for(const [member,,streamState] of baseline.streams)state.streams.set(member,{flags:streamState.flags,...(streamState.aim?{aim:streamState.aim}:{}),...(streamState.gesture===null?{}:{gesture:streamState.gesture}),bombs:BombInputBuffer.fromJSON(streamState.bombs)!});
-  assert.equal(replayHash(state),baseline.hash);
-  const view=new Simulation(state,'host');view.install(state,new Map(baseline.streams.map(([member,folded])=>[member,folded])));
+  const {baseline,view}=installed(s);
   for(const [member,,,retained] of baseline.streams)for(const e of retained)view.insert(member,e);
   const before=s.tick;
   for(let i=0;i<40;i++){g.deliver(g.packet({left:i%2===0,right:i%2===1,bomb:i<20}));s.advance();}

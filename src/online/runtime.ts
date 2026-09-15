@@ -149,11 +149,13 @@ export class RoomRuntime {
       const state:ReplayState={game,pending,streams:new Map()};const folded=new Map<string,number>(),retained:[string,LogEntry[]][]=[];
       for(const raw of message.streams){
         if(!Array.isArray(raw)||raw.length!==4)return;const [member,position,streamState,entries]=raw;
-        if(typeof member!=='string'||!member||member.length>128||!Number.isSafeInteger(position)||position<0||!streamState||typeof streamState!=='object'||!Array.isArray(entries)||entries.length>512||!entries.every(validEntry))return;
-        const bombs=BombInputBuffer.fromJSON(streamState.bombs);if(!bombs||!Number.isSafeInteger(streamState.flags)||streamState.flags<0||streamState.flags>3)return;
-        const aim=streamState.aim;if(aim!==null&&!(aim&&typeof aim==='object'&&[aim.x,aim.y].every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1)))return;
-        if(streamState.gesture!==null&&!Number.isSafeInteger(streamState.gesture))return;
-        state.streams.set(member,{flags:streamState.flags,...(aim?{aim:{x:aim.x,y:aim.y}}:{}),...(streamState.gesture===null?{}:{gesture:streamState.gesture}),bombs});
+        if(typeof member!=='string'||!member||member.length>128||!Number.isSafeInteger(position)||position<0||!(streamState===null||typeof streamState==='object')||!Array.isArray(entries)||entries.length>512||!entries.every(validEntry))return;
+        if(streamState){
+          const bombs=BombInputBuffer.fromJSON(streamState.bombs);if(!bombs||!Number.isSafeInteger(streamState.flags)||streamState.flags<0||streamState.flags>3)return;
+          const aim=streamState.aim;if(aim!==null&&!(aim&&typeof aim==='object'&&[aim.x,aim.y].every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1)))return;
+          if(streamState.gesture!==null&&!Number.isSafeInteger(streamState.gesture))return;
+          state.streams.set(member,{flags:streamState.flags,...(aim?{aim:{x:aim.x,y:aim.y}}:{}),...(streamState.gesture===null?{}:{gesture:streamState.gesture}),bombs});
+        }
         folded.set(member,position);retained.push([member,entries as LogEntry[]]);this.members.set(hashText(member),member);
       }
       if(replayHash(state)!==message.hash)return;

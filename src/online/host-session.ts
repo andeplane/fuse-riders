@@ -2,7 +2,6 @@ import { Simulation } from './rollback.js';
 import { StreamSender } from './stream.js';
 import { InputEdges } from './input-edges.js';
 import { createReplayState, edgesFrom, replayHash, validEntry, type EntryBody, type LogEntry, type ReplayState } from '../shared/action-log.js';
-import { BombInputBuffer } from '../shared/bomb-input.js';
 import { BotController, BOT_ID_PREFIX, type BotDependencies } from '../shared/bot-controller.js';
 import { createGame, toSnapshot, SLOT_COLORS, type GameState } from '../shared/game.js';
 import { decodeCheckpoint, encodeCheckpoint, encodeGameState } from './checkpoint.js';
@@ -21,7 +20,8 @@ export type RoomCommand =
 export interface HostDependencies { token: () => string; botRandom?: BotDependencies['random'] }
 /** A guest's stream as the host tracks it: the guest's own numbering, deduplicated and kept contiguous before relay. */
 interface Ingress { expected: number; buffered: Map<number, LogEntry> }
-export interface BaselineMessage { type: 'baseline'; rules: string; tick: number; game: string; pending: RoomSettings; streams: [member: string, folded: number, state: { flags: number; aim: { x: number; y: number } | null; gesture: number | null; bombs: unknown }, retained: LogEntry[]][]; hash: string }
+/** A stream's `state` is null while no entry of it has folded yet (a sender that only relays, or a restored host): the view must not invent one, the hash covers the map. */
+export interface BaselineMessage { type: 'baseline'; rules: string; tick: number; game: string; pending: RoomSettings; streams: [member: string, folded: number, state: { flags: number; aim: { x: number; y: number } | null; gesture: number | null; bombs: unknown } | null, retained: LogEntry[]][]; hash: string }
 
 /**
  * The creator's authority. It authors management and bot entries, folds every stream through the same rollback
@@ -158,7 +158,7 @@ export class HostSession {
     for (const id of new Set([...state.streams.keys(), ...this.senders.keys()])) {
       if (id === forMember) continue;
       const s = state.streams.get(id), folded = this.sim.folded(id);
-      streams.push([id, folded, { flags: s?.flags ?? 0, aim: s?.aim ?? null, gesture: s?.gesture ?? null, bombs: s ? s.bombs.toJSON() : new BombInputBuffer().toJSON() }, (this.senders.get(id)?.retained ?? []).filter(e => e[0] > folded)]);
+      streams.push([id, folded, s ? { flags: s.flags, aim: s.aim ?? null, gesture: s.gesture ?? null, bombs: s.bombs.toJSON() } : null, (this.senders.get(id)?.retained ?? []).filter(e => e[0] > folded)]);
     }
     return { type: 'baseline', rules: 'fuse-rollback-1', tick: this.tick, game: encodeGameState(state.game), pending: state.pending, streams, hash: this.hash() };
   }
