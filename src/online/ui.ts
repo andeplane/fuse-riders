@@ -50,7 +50,9 @@ const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
 // reloading (a page load costs the soundtrack: no browser will autoplay before the new page has been tapped), so a
 // second createGameAudio would leave two <audio> elements playing the same track. Ctrl+A goes to whichever view is up.
 let pageAudio:GameAudio|undefined,radioToggle:(()=>void)|undefined;
-const sharedAudio=(deviceLabel:string):GameAudio=>pageAudio??=createGameAudio(deviceLabel,{background:true,toggleRadio:()=>radioToggle?.()});
+// One wording for both views, since the same instance now serves whichever one is up: a room entered from the landing
+// page would otherwise keep the label the landing page created it with.
+const sharedAudio=():GameAudio=>pageAudio??=createGameAudio('Game',{background:true,toggleRadio:()=>radioToggle?.()});
 export async function startOnline():Promise<void>{
   const app=document.querySelector<HTMLElement>('#app')!;app.className='online-app';
   const url=new URL(location.href);const solo=url.searchParams.get('solo')==='1';const code=solo?'SOLO':url.searchParams.get('room')?.toUpperCase();
@@ -87,7 +89,7 @@ export async function startOnline():Promise<void>{
     window.addEventListener('pagehide',()=>{ended=true;cleanup?.();},{once:true});
     window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
     // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
-    const landingAudio=sharedAudio('Site');landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
+    const landingAudio=sharedAudio();landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
     card.querySelector('.landing-audio')!.before(landingAudio.controls);radioToggle=()=>landingAudio.controls.toggleAttribute('open');
     // PLAY SOLO is a real link for a new tab or a bookmark; a plain click takes the in-place route with the music.
     card.querySelector<HTMLAnchorElement>('.solo-cta')!.addEventListener('click',event=>{if(event.button||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();enter('?solo=1');});
@@ -174,7 +176,7 @@ export async function startOnline():Promise<void>{
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
   const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
-  const audio=sharedAudio('Game');radioToggle=()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */};audioButton.onclick=openRadio;
+  const audio=sharedAudio();radioToggle=()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */};audioButton.onclick=openRadio;
   audio.bindMusicToggle(musicButton); // The same ♫ MUSIC ON / OFF toggle as the landing page, next to the same ♫ RADIO button.
   /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
