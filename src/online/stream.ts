@@ -1,8 +1,9 @@
 import { isEntry, PRESS, uint32, type Entry } from '../shared/input-log.js';
 
 export const ROLLBACK_TICKS = 40;
-/** Entries stamped further ahead than this are rejected: a clock cannot be that far off a live peer. */
-export const FUTURE_TICKS = 14;
+/** Entries stamped further ahead than this are rejected. Clocks converge by slewing, so a live peer may legitimately
+ * stamp a few seconds ahead for a while; the bound only keeps an absurd tick from parking entries forever. */
+export const FUTURE_TICKS = 400;
 export const RETAINED_ENTRIES = 64, RETAINED_TICKS = 40, PACKET_ENTRIES = 6, BUFFERED_ENTRIES = 256;
 export type ReceiveStatus = 'accepted' | 'invalid' | 'unrepairable';
 export interface ReceiveResult { status: ReceiveStatus; added: Entry[]; rollbackTo?: number }

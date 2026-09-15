@@ -40,7 +40,7 @@ export interface TransportEvents {
 export interface RuntimeDependencies { now(): number; hidden(): boolean; token(): string; generation(): number; schedule(callback: () => void, intervalMs: number): () => void; onVisibilityChange(callback: () => void): () => void }
 export interface Callbacks { state(frame: Frame, settings: RoomSettings): void; event(event: GameEvent, matchId: string, round: number, tick: number): void; status(text: string): void; ready(id: string, host: boolean): void; ended?(): void }
 export interface RuntimeOptions { transport?: (events: TransportEvents) => RoomTransport; displayOnly?: boolean; humanName?: string; dependencies?: RuntimeDependencies }
-interface Member { generation: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; presence?: { connected: boolean; tick: number; at: number } }
+interface Member { generation: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; clockTick?: number; gapSince: number; rejected: number; presence?: { connected: boolean; tick: number; at: number } }
 
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
 export const SNAPSHOT_BUFFER_LIMIT = 4_000_000, STALLED_GAP_MS = 1500;
@@ -126,7 +126,7 @@ export class RoomRuntime {
     this.callbacks.ready(id, id === hostId);
   }
   private peer(id: string, online: boolean): void {
-    if (online) { if (!this.members.has(id)) this.members.set(id, { generation: 0, lastPacketAt: -Infinity, lastSentAt: 0, lastSentReceivedAt: 0, full: true, nackAt: -Infinity, helloed: false }); return; }
+    if (online) { if (!this.members.has(id)) this.members.set(id, { generation: 0, lastPacketAt: -Infinity, lastSentAt: 0, lastSentReceivedAt: 0, full: true, nackAt: -Infinity, helloed: false, gapSince: -Infinity, rejected: 0 }); return; }
     this.members.delete(id); this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
     if (this.creator && this.world?.state.game.players.has(id)) this.append(LEAVE, id);
@@ -174,7 +174,7 @@ export class RoomRuntime {
     if (packet.room !== this.room || packet.from !== id) return;
     if (packet.generation < member.generation) return;
     this.bump(id, member, packet.generation);
-    member.lastPacketAt = now; member.lastSentAt = packet.sentAt; member.lastSentReceivedAt = now;
+    member.lastPacketAt = now; member.lastSentAt = packet.sentAt; member.lastSentReceivedAt = now; member.clockTick = packet.clockTick + (member.rttMs ?? 0) / 2 / 50;
     if (packet.echoSentAt !== 0) {
       const rtt = wrapDelta(wrapMs(now), packet.echoSentAt) - packet.echoHeld;
       if (rtt >= 0 && rtt < 10_000) { member.rttMs = rtt; if (id === this.authority()) this.clock.sample(packet.clockTick, rtt); }
@@ -182,7 +182,7 @@ export class RoomRuntime {
     if (!this.world) return;
     const result = this.world.receive(id, packet.entries, packet.lastSeq, packet.through, Math.floor(this.clock.tick()));
     if (result.status === 'unrepairable') { this.requestSnapshot(); return; }
-    if (result.status === 'invalid') return;
+    if (result.status === 'invalid') { member.rejected++; return; }
     if (result.rollbackTicks > 0) this.lastFrameTick = -1;
     for (const event of result.events) this.callbacks.event(event.event, event.matchId, event.round, event.tick);
     const stream = this.world.streams.get(id);
@@ -245,9 +245,12 @@ export class RoomRuntime {
     own.lastSeq = Math.max(own.lastSeq, previous?.lastSeq ?? 0);
     for (const [id, member] of this.members) this.ensureStream(id, member);
     this.lastOwnTick = Math.max(tick + 1, this.lastOwnTick); if (!carried.length) this.resetHeld(); this.lastFrameTick = -1; this.lastPacketTick = -1;
-    // A clock with no samples yet (the returning creator, or a joiner ahead of its first echo) starts from the snapshot
-    // tick plus half the request round trip: the sender took it when the request arrived.
-    if (!this.clock.started) this.clock.start(tick + (this.deps.now() - this.snapshotRequest.at) / 2 / 50);
+    // A clock with no samples yet (the returning creator, whose clock nobody else corrects) joins the room's running
+    // clock: the freshest peer clock reading, projected to now, else the snapshot tick plus half the request round trip.
+    if (!this.clock.started) {
+      const now = this.deps.now(), readings = [...this.members.values()].filter(member => member.clockTick !== undefined && now - member.lastPacketAt < 2000).map(member => member.clockTick! + (now - member.lastPacketAt) / 50);
+      this.clock.start(readings.length ? Math.max(...readings) : tick + (now - this.snapshotRequest.at) / 2 / 50);
+    }
     this.snapshotRequest = undefined; this.assembler = undefined; this.noWorld.clear();
     this.status.recurring('Connected · direct game link');
     if (this.pendingJoin) this.sendJoin();
@@ -296,7 +299,7 @@ export class RoomRuntime {
     const seat = [...game.players.values()].find(player => !player.connected && !pending.freed.has(player.id)); if (!seat) return -1;
     this.append(LEAVE, seat.id); return seat.slot;
   }
-  private selfMember(): Member { return { generation: this.generation, lastPacketAt: this.deps.now(), lastSentAt: 0, lastSentReceivedAt: 0, full: this.full, nackAt: 0, helloed: true }; }
+  private selfMember(): Member { return { generation: this.generation, lastPacketAt: this.deps.now(), lastSentAt: 0, lastSentReceivedAt: 0, full: this.full, nackAt: 0, helloed: true, gapSince: -Infinity, rejected: 0 }; }
   private ensurePresence(id: string, member: Member): void {
     const player = this.world?.state.game.players.get(id); if (!player || member.generation === 0 && id !== this.id) return;
     const fold = this.world!.state.folds.get(id);
@@ -408,7 +411,6 @@ export class RoomRuntime {
     else if (this.world && Math.floor(this.clock.tick()) - this.world.tick > BEHIND_TICKS) this.requestSnapshot();
   }
   private lastLoopAt = -Infinity;
-  private stalledSince = -Infinity;
   private tickLoop(): void {
     const now = this.deps.now();
     this.status.refresh();
@@ -443,11 +445,7 @@ export class RoomRuntime {
         for (const event of result.events) this.callbacks.event(event.event, event.matchId, event.round, event.tick);
         if (result.waitingFor !== undefined) {
           this.status.recurring(`Waiting for ${result.waitingFor}`);
-          if (this.stalledSince === -Infinity) this.stalledSince = now;
-          // A gap that keeps the world stalled outlived nack and rotation: the missing entry left its owner's retained
-          // window (for example it was logged before that peer's links could carry packets), so only a snapshot helps.
-          else if (now - this.stalledSince > STALLED_GAP_MS && !this.snapshotRequest && [...world.streams.values()].some(stream => stream.gap)) { this.stalledSince = now; this.requestSnapshot(); }
-        } else { this.stalledSince = -Infinity; if (!this.outOfSync) this.status.recurring(this.solo ? 'Solo · you and four AI riders' : this.lagging(now)); }
+        } else if (!this.outOfSync) this.status.recurring(this.solo ? 'Solo · you and four AI riders' : this.lagging(now));
       }
     }
     if (this.transport) {
@@ -459,7 +457,15 @@ export class RoomRuntime {
       const full = this.options.displayOnly === true || world.state.settings.mode !== 'shared' || !player;
       if (full !== this.full) { this.full = full; for (const [id, member] of this.members) { member.helloed = false; this.greet(id, member); } }
       if (tick !== this.lastPacketTick) this.sendPackets(now);
-      for (const [id, member] of this.members) { const stream = world.streams.get(id); if (stream?.gap && now - member.nackAt >= NACK_INTERVAL_MS && this.transport.linked(id)) { member.nackAt = now; this.transport.sendFast(id, encodeNack({ room: this.room, from: this.id, firstMissingSeq: stream.firstMissing()! })); } }
+      for (const [id, member] of this.members) {
+        const stream = world.streams.get(id);
+        if (!stream?.gap) { member.gapSince = -Infinity; continue; }
+        if (member.gapSince === -Infinity) member.gapSince = now;
+        // Nack repairs a gap within a round trip. One that outlives the owner's retained window (an entry logged
+        // before that peer's links could carry packets) can only be closed by a snapshot from a peer that has it.
+        else if (now - member.gapSince > STALLED_GAP_MS && !this.snapshotRequest) { member.gapSince = now; this.requestSnapshot(); continue; }
+        if (now - member.nackAt >= NACK_INTERVAL_MS && this.transport.linked(id)) { member.nackAt = now; this.transport.sendFast(id, encodeNack({ room: this.room, from: this.id, firstMissingSeq: stream.firstMissing()! })); }
+      }
     }
     this.publish();
   }
@@ -497,8 +503,8 @@ export class RoomRuntime {
     const player = this.player(), controls = { left: (this.held.flags & 1) === 1, right: (this.held.flags & 2) === 2 };
     return presentWorld(older, newer, presentation, player && this.held.flags >= 0 ? { id: this.id, controls, lead: Math.max(0, Math.min(1, clock - presentation)) } : undefined);
   }
-  metrics(): { tick: number; clockTick: number; rollbacks: number; rollbackTicks: number; rtt: Record<string, number>; clock: ReturnType<TickClock['diagnostics']>; sentBytes: number; snapshotRequest: boolean; mismatches: number; stall: { tick: number; waitingFor?: string }; streams: Record<string, { generation: number; contiguous: number; lastSeq: number; through: number; complete: number; gap: boolean; base: number }> } {
-    const streams = Object.fromEntries([...(this.world?.streams ?? [])].map(([id, stream]) => [id, { generation: stream.generation, contiguous: stream.contiguous, lastSeq: stream.lastSeq, through: stream.through, complete: stream.completeThrough(), gap: stream.gap, base: stream.baseTick }]));
+  metrics(): { tick: number; clockTick: number; rollbacks: number; rollbackTicks: number; rtt: Record<string, number>; clock: ReturnType<TickClock['diagnostics']>; sentBytes: number; snapshotRequest: boolean; mismatches: number; stall: { tick: number; waitingFor?: string }; streams: Record<string, { generation: number; contiguous: number; lastSeq: number; through: number; complete: number; gap: boolean; base: number; rejected: number }> } {
+    const streams = Object.fromEntries([...(this.world?.streams ?? [])].map(([id, stream]) => [id, { generation: stream.generation, contiguous: stream.contiguous, lastSeq: stream.lastSeq, through: stream.through, complete: stream.completeThrough(), gap: stream.gap, base: stream.baseTick, rejected: this.members.get(id)?.rejected ?? 0 }]));
     return { tick: this.tick, clockTick: this.clock.tick(), rollbacks: this.world?.rollbacks ?? 0, rollbackTicks: this.world?.rollbackTicks ?? 0, rtt: Object.fromEntries([...this.members].filter(([, member]) => member.rttMs !== undefined).map(([id, member]) => [id, member.rttMs!])), clock: this.clock.diagnostics(), sentBytes: this.transport?.sentBytes ?? 0, snapshotRequest: this.snapshotRequest !== undefined, mismatches: this.mismatches.length, stall: this.world?.stallBound() ?? { tick: Infinity }, streams };
   }
 }
