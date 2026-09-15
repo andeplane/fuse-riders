@@ -1,6 +1,6 @@
 import { AudioDirector, MUSIC_TRACKS, type AudioChannel, type GameSynth, type SynthNote } from './audio-director.js';
 import { assetUrl } from './asset-url.js';
-import { RADIO_SHORTCUT_HINT, formatTrackTime, loadRadio, radioQueue, radioShortcut, saveRadio, trackById, type RadioSource, type TrackId } from './radio.js';
+import { RADIO_KEY, RADIO_SHORTCUT_HINT, formatTrackTime, loadRadio, parseRadio, radioQueue, radioShortcut, saveRadio, trackById, type RadioSource, type TrackId } from './radio.js';
 import { safeStorage, type SafeStorage } from './safe-storage.js';
 
 export const AUDIO_SETTINGS_KEY = 'fuse-riders-audio';
@@ -102,18 +102,22 @@ class WebAudioSynth implements GameSynth {
     this.trackPath = path; element.volume = this.levels.music;
     // Resuming the loaded track where it paused must not seek: a server without range requests cannot seek,
     // and the element would restart from the top. Only a real jump (restart, a different resume point) seeks.
-    if (this.loadedPath === path && element.readyState >= HTMLMediaElement.HAVE_METADATA) { if (Math.abs(element.currentTime - offset) > .5) element.currentTime = offset; }
-    else this.pendingSeek = offset;
+    if (this.loadedPath === path && element.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      // A seek queued for a track that never loaded (music was off) must not outlive it, or position() stays unknown.
+      this.pendingSeek = undefined;
+      if (Math.abs(element.currentTime - offset) > .5) element.currentTime = offset;
+    } else this.pendingSeek = offset;
     this.startTrack();
   }
   pauseMusic(): void { this.trackPath = ''; this.element?.pause(); }
   position(): number | undefined {
     const element = this.element;
-    return element && this.loadedPath && this.pendingSeek === undefined && element.readyState >= HTMLMediaElement.HAVE_METADATA ? element.currentTime : undefined;
+    // Only the track this synth is playing has a position: after a switch while music was off, the element still holds the old one.
+    return element && this.loadedPath && this.loadedPath === this.trackPath && this.pendingSeek === undefined && element.readyState >= HTMLMediaElement.HAVE_METADATA ? element.currentTime : undefined;
   }
   duration(): number | undefined {
     const length = this.element?.duration;
-    return this.loadedPath && length !== undefined && Number.isFinite(length) ? length : undefined;
+    return this.loadedPath && this.loadedPath === this.trackPath && length !== undefined && Number.isFinite(length) ? length : undefined;
   }
   private createElement(): HTMLAudioElement {
     const element = new Audio(); element.preload = 'auto'; element.className = 'game-music';
@@ -152,7 +156,7 @@ const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', 
 /** Text fields keep Ctrl+A for select-all; sliders and buttons do not need it. */
 const editable = (target: EventTarget | null): boolean => target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
   || (target instanceof HTMLElement && target.isContentEditable)
-  || (target instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit'].includes(target.type));
+  || (target instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file', 'image'].includes(target.type));
 
 /**
  * One Fuse Riders Radio per page: a car-radio panel over persisted audio settings and radio state. Every page
@@ -170,7 +174,10 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     enable.setAttribute('aria-pressed', String(ok));
     render(); // The display dims while audio is not running.
   };
-  const director: AudioDirector = new AudioDirector(new WebAudioSynth(showState, () => director.trackEnded()), loadRadio(storage), state => saveRadio(storage, state));
+  const director: AudioDirector = new AudioDirector(new WebAudioSynth(showState, () => director.trackEnded()), loadRadio(storage),
+    // A periodic save records only where this tab is, merged over the stored choices, so a second open tab cannot revert
+    // a playlist or loop change made in the first. Choice changes write everything.
+    (state, kind) => saveRadio(storage, kind === 'all' ? state : { ...loadRadio(storage), track: state.track, position: state.position, paused: state.paused }));
   const controls = element('details', 'audio-controls');
   const summary = element('summary', '', '♫ RADIO'); summary.title = 'Fuse Riders Radio (Ctrl+A)';
   const panel = element('div', 'audio-panel radio'); panel.setAttribute('aria-label', 'Fuse Riders Radio');
@@ -266,7 +273,7 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     }
     renderTime();
   }
-  rendered.add(render); director.subscribe(render); render();
+  director.subscribe(render); render(); // Mute changes reach it through the director as well.
 
   const bindMusicToggle = (button: HTMLButtonElement) => {
     const render = () => {
@@ -288,6 +295,12 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   }, { capture: true });
   setInterval(renderTime, 500);
   setInterval(() => director.save(), 2000);
+  // Another tab's playlist, loop and source choices take effect here; what each tab is playing stays its own.
+  window.addEventListener('storage', event => {
+    if (event.key !== RADIO_KEY) return;
+    const { loopSong, loopPlaylist, source, playlist } = parseRadio(event.newValue);
+    director.adoptChoices({ loopSong, loopPlaylist, source, playlist });
+  });
   // Alt-tabbing must not restart the soundtrack, so a hidden tab keeps its track and only drops effect cues.
   // Coming back re-resumes the context, which the browser may have suspended while the tab was away.
   document.addEventListener('visibilitychange', () => {

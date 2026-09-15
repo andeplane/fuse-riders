@@ -92,10 +92,13 @@ export function togglePlaylistTrack(playlist: readonly TrackId[], id: TrackId): 
 }
 
 export type RadioShortcut = 'radio' | 'muteAll' | 'muteMusic' | 'muteEffects';
-export interface ShortcutKey { code: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean }
-/** Ctrl+A opens the radio, Ctrl+M mutes everything, Ctrl+Alt+M music only, Ctrl+Alt+E effects only. Uses physical key codes so layouts agree. */
+export interface ShortcutKey { code: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean; getModifierState?(key: string): boolean }
+/**
+ * Ctrl+A opens the radio, Ctrl+M mutes everything, Ctrl+Alt+M music only, Ctrl+Alt+E effects only. Uses physical
+ * key codes so layouts agree. AltGr reports as Ctrl+Alt on Windows and types characters (AltGr+E is €), so it is never a shortcut.
+ */
 export function radioShortcut(key: ShortcutKey): RadioShortcut | undefined {
-  if (!key.ctrlKey || key.metaKey || key.shiftKey) return undefined;
+  if (!key.ctrlKey || key.metaKey || key.shiftKey || key.getModifierState?.('AltGraph')) return undefined;
   if (key.altKey) return key.code === 'KeyM' ? 'muteMusic' : key.code === 'KeyE' ? 'muteEffects' : undefined;
   return key.code === 'KeyA' ? 'radio' : key.code === 'KeyM' ? 'muteAll' : undefined;
 }

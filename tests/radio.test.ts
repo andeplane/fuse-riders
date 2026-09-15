@@ -72,6 +72,8 @@ test('radio shortcuts need Ctrl alone or Ctrl+Alt and ignore other chords', () =
   for (const ignored of [key('KeyA', { ctrl: false }), key('KeyM', { meta: true }), key('KeyM', { shift: true }), key('KeyA', { alt: true }), key('KeyE'), key('Space'), key('KeyP', { alt: true })]) {
     assert.equal(radioShortcut(ignored), undefined, JSON.stringify(ignored));
   }
+  const altGraph = { ...key('KeyE', { alt: true }), getModifierState: (modifier: string) => modifier === 'AltGraph' };
+  assert.equal(radioShortcut(altGraph), undefined, 'AltGr+E types € rather than muting effects');
 });
 
 test('track times format as minutes and seconds', () => {

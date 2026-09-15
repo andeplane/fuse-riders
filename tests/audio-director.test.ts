@@ -212,7 +212,8 @@ test('finished tracks follow loop song, and an unlooped playlist stops at its en
   f.director.setLoopSong(false); f.director.trackEnded(); assert.equal(f.director.state.track, 'coin-op-swing');
   f.director.trackEnded();
   assert.equal(f.director.state.paused, true); assert.equal(f.director.state.track, 'final-chase'); assert.equal(f.music.length, 3);
-  assert.equal(f.pauses(), 0, 'an ended track is not paused again'); assert.equal(f.saved.at(-1)!.paused, true);
+  assert.equal(f.pauses(), 3, 'every ended track is disarmed, so a later gesture cannot replay it under a paused radio');
+  assert.equal(f.saved.at(-1)!.paused, true);
   f.director.setLoopPlaylist(true); f.director.play('coin-op-swing'); f.director.trackEnded();
   assert.equal(f.director.state.track, 'final-chase'); assert.equal(f.director.state.paused, false);
 });
@@ -225,6 +226,18 @@ test('playlist edits, sources and loop flags are saved, and every change is anno
   assert.equal(f.saved.at(-1)!.source, 'playlist'); assert.equal(f.saved.at(-1)!.loopPlaylist, false);
   assert.equal(renders, 5); f.director.setMuted('music', true); assert.equal(renders, 6, 'mute changes redraw the radio too');
   unsubscribe(); f.director.setLoopSong(true); assert.equal(renders, 6); assert.equal(f.saved.at(-1)!.loopSong, true);
+});
+
+test('periodic saves record only where the song is, and another tab\'s choices are adopted without writing back', () => {
+  const saves: { kind: string; state: RadioState }[] = [];
+  const synth: GameSynth = { unlock: async () => true, note() {}, gain() {}, music() {}, pauseMusic() {}, position: () => undefined, duration: () => undefined, stop() {} };
+  const director = new AudioDirector(synth, defaultRadio(), (state, kind) => saves.push({ kind, state: structuredClone(state) }));
+  director.save(); director.setLoopSong(true);
+  assert.deepEqual(saves.map(save => save.kind), ['position', 'all']);
+  let renders = 0; director.subscribe(() => renders++);
+  director.adoptChoices({ loopSong: false, loopPlaylist: false, source: 'playlist', playlist: ['forest-job'] });
+  assert.equal(saves.length, 2, 'adopting writes nothing back'); assert.equal(renders, 1);
+  assert.deepEqual({ ...director.state }, { ...defaultRadio(), loopPlaylist: false, source: 'playlist', playlist: ['forest-job'] });
 });
 
 test('gun launch plays a layered cannon cue', async () => {

@@ -144,7 +144,7 @@ export async function startOnline():Promise<void>{
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
   const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
-  const audio=createGameAudio('Game',{background:true,toggleRadio:()=>{if(dialog.open&&dialogBody.contains(audio.controls))dialog.close();else openRadio();}});audioButton.onclick=openRadio;
+  const audio=createGameAudio('Game',{background:true,toggleRadio:()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */}});audioButton.onclick=openRadio;
   /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
     const recap=buildMatchRecap(stats);const root=node('section','','match-recap-report');

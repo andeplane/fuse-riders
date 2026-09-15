@@ -3,13 +3,16 @@ import { RESTART_THRESHOLD, defaultRadio, followingTrack, precedingTrack, radioQ
 
 export { MUSIC_TRACKS } from './radio.js';
 export type AudioChannel = 'music' | 'effects';
+/** `position` is the periodic save of where this tab is; `all` also writes the listener's choices. */
+export type RadioSave = 'position' | 'all';
+export type RadioChoices = Pick<RadioState, 'loopSong' | 'loopPlaylist' | 'source' | 'playlist'>;
 export interface SynthNote { frequency: number; endFrequency?: number; duration: number; delay?: number; wave: 'square' | 'triangle' | 'sawtooth'; level: number }
 export interface GameSynth {
   unlock(): Promise<boolean>;
   note(channel: AudioChannel, note: SynthNote): void;
   /** Plays a recorded track from `offset` seconds on the music channel, replacing or seeking any current track. */
   music(path: string, offset: number): void;
-  /** Pauses the current track where it is; a later `music` call continues or replaces it. */
+  /** Pauses the current track where it is and disarms it, so nothing but a later `music` call plays it again. */
   pauseMusic(): void;
   /** Seconds into the loaded track, or undefined before one has loaded. */
   position(): number | undefined;
@@ -38,7 +41,7 @@ export class AudioDirector {
   private musicPath = '';
   private settings = { music: { muted: false, volume: .22 }, effects: { muted: false, volume: .45 } };
   private readonly listeners = new Set<() => void>();
-  constructor(private readonly synth: GameSynth, private readonly radio: RadioState = defaultRadio(), private readonly persist: (state: Readonly<RadioState>) => void = () => {}) {
+  constructor(private readonly synth: GameSynth, private readonly radio: RadioState = defaultRadio(), private readonly persist: (state: Readonly<RadioState>, kind: RadioSave) => void = () => {}) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
   }
   async unlock(confirm = false): Promise<boolean> {
@@ -52,7 +55,7 @@ export class AudioDirector {
   /** Live position while a track plays, otherwise the point it resumes from. */
   position(): number { return (this.musicPath ? this.synth.position() : undefined) ?? this.radio.position; }
   duration(): number | undefined { return this.musicPath ? this.synth.duration() : undefined; }
-  /** Called after every radio change, so a panel can redraw. */
+  /** Called after every radio or mute change, so a panel can redraw. */
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   /** Plays music with no match attached, so the landing page and a room that has not connected yet still have a soundtrack. */
   playBackground(): void { this.background = true; this.playing = true; this.update(); }
@@ -71,7 +74,8 @@ export class AudioDirector {
   togglePause(): void { this.radio.paused = !this.radio.paused; this.update(); this.changed(); }
   /** Called by the synth when a track plays to its end: loop song repeats it, an unlooped playlist stops. */
   trackEnded(): void {
-    this.musicPath = '';
+    // Disarm the finished track first: otherwise the next gesture's unlock would replay it under a paused radio.
+    this.synth.pauseMusic(); this.musicPath = '';
     const following = followingTrack(this.radio, 'ended');
     if (following) this.select(following); else this.select(radioQueue(this.radio)[0]!, true);
   }
@@ -79,13 +83,19 @@ export class AudioDirector {
   setLoopPlaylist(loop: boolean): void { this.radio.loopPlaylist = loop; this.changed(); }
   setSource(source: RadioSource): void { this.radio.source = source; this.changed(); }
   togglePlaylist(id: TrackId): void { this.radio.playlist = togglePlaylistTrack(this.radio.playlist, id); this.changed(); }
+  /** Takes choices another tab saved, leaving what this tab plays alone; nothing is written back. */
+  adoptChoices(choices: RadioChoices): void {
+    this.radio.loopSong = choices.loopSong; this.radio.loopPlaylist = choices.loopPlaylist;
+    this.radio.source = choices.source; this.radio.playlist = [...choices.playlist];
+    this.emit();
+  }
   setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); this.emit(); }
   setVolume(channel: AudioChannel, value: number): void {
     this.settings[channel].volume = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
     this.applyGain(channel);
   }
   /** Records the live position so the next page load resumes from it. */
-  save(): void { this.radio.position = this.position(); this.persist(this.radio); }
+  save(): void { this.radio.position = this.position(); this.persist(this.radio, 'position'); }
   private applyGain(channel: AudioChannel): void { const setting = this.settings[channel]; this.synth.gain(channel, setting.muted ? 0 : setting.volume); }
   disconnect(): void { this.save(); this.scope = ''; this.seen.clear(); this.playing = false; this.musicPath = ''; this.synth.stop(); }
   message(message: ServerMessage): void {
@@ -122,7 +132,7 @@ export class AudioDirector {
     this.radio.track = id; this.radio.position = 0; this.radio.paused = paused;
     this.update(); this.changed();
   }
-  private changed(): void { this.save(); this.emit(); }
+  private changed(): void { this.radio.position = this.position(); this.persist(this.radio, 'all'); this.emit(); }
   private emit(): void { for (const listener of this.listeners) listener(); }
   private cue(type: string): void {
     if (!this.unlocked || this.silenced) return;
