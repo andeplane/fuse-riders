@@ -1,11 +1,14 @@
-import { AudioDirector, type AudioChannel, type GameSynth, type SynthNote } from './audio-director.js';
+import { AudioDirector, MUSIC_TRACKS, type AudioChannel, type GameSynth, type SynthNote } from './audio-director.js';
+import { assetUrl } from './asset-url.js';
 
 class WebAudioSynth implements GameSynth {
   private context?: AudioContext;
   private channels?: Record<AudioChannel, GainNode>;
   private levels = { music: .22, effects: .45 };
   private voices = new Set<OscillatorNode>();
-  constructor(private readonly stateChanged: (running: boolean) => void) {}
+  private track?: AudioBufferSourceNode;
+  private trackPath = '';
+  constructor(private readonly stateChanged: (running: boolean) => void, private readonly trackEnded: () => void) {}
   async unlock(): Promise<boolean> {
     try {
       if (!this.context || this.context.state === 'closed') {
@@ -37,7 +40,23 @@ class WebAudioSynth implements GameSynth {
     oscillator.onended = () => { this.voices.delete(oscillator); oscillator.disconnect(); envelope.disconnect(); };
     oscillator.start(start); oscillator.stop(end + .01);
   }
-  stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); }
+  music(path: string): void {
+    const context = this.context; const channels = this.channels;
+    if (!context || !channels) return;
+    this.stopMusic(); this.trackPath = path;
+    // ponytail: decodes the whole track (~60 MB PCM) so any static server works without Range support; stream via <audio> if memory matters.
+    void fetch(assetUrl(path)).then(response => {
+      if (!response.ok) throw new Error(`music ${response.status}`);
+      return response.arrayBuffer();
+    }).then(data => context.decodeAudioData(data)).then(buffer => {
+      if (this.trackPath !== path || this.context !== context) return;
+      const source = context.createBufferSource(); source.buffer = buffer; source.connect(channels.music);
+      source.onended = () => { source.disconnect(); if (this.track === source) { this.track = undefined; this.trackPath = ''; this.trackEnded(); } };
+      this.track = source; source.start();
+    }).catch(() => {}); // Missing or undecodable music never blocks play.
+  }
+  private stopMusic(): void { const track = this.track; this.track = undefined; this.trackPath = ''; track?.stop(); }
+  stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); this.stopMusic(); }
 }
 
 export function createGameAudio(deviceLabel = 'TV'): { director: AudioDirector; controls: HTMLElement; unlock: () => void } {
@@ -47,16 +66,15 @@ export function createGameAudio(deviceLabel = 'TV'): { director: AudioDirector; 
     if (enable.textContent !== text) enable.textContent = text;
     enable.setAttribute('aria-pressed', String(ok));
   };
-  const director = new AudioDirector(new WebAudioSynth(showState), () => performance.now());
+  const director: AudioDirector = new AudioDirector(new WebAudioSynth(showState, () => director.nextTrack()));
   const controls = document.createElement('details'); controls.className = 'audio-controls';
   const summary = document.createElement('summary'); summary.textContent = '♪ AUDIO'; controls.append(summary);
   const panel = document.createElement('div'); panel.className = 'audio-panel'; controls.append(panel);
   enable.type = 'button'; enable.textContent = `Enable ${deviceLabel} audio`; panel.append(enable);
   const unlock = (confirm = false) => { void director.unlock(confirm).then(showState); };
   enable.addEventListener('click', () => unlock(true));
-  const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next tune (8 original tracks)';
+  const next = document.createElement('button'); next.type = 'button'; next.textContent = `Next tune (${MUSIC_TRACKS.length} tracks)`;
   next.addEventListener('click', () => director.nextTrack()); panel.append(next);
-  const musicInfo = document.createElement('small'); musicInfo.textContent = '64-bar arrangements · arcade + swing jazz'; panel.append(musicInfo);
   for (const channel of ['music', 'effects'] as const) {
     const label = channel === 'music' ? 'Music' : 'Effects';
     const row = document.createElement('label'); row.textContent = `${label} volume`;

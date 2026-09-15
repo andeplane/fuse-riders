@@ -87,7 +87,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       const dist = path.resolve(options.buildDirectory ?? path.join(ROOT, 'dist'));
       const filename = path.resolve(dist, isPage ? 'index.html' : '.' + urlPath);
       if (!filename.startsWith(dist + path.sep) || !(await stat(filename)).isFile()) throw new Error('not found');
-      const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png' };
+      const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.m4a': 'audio/mp4' };
       res.writeHead(200, { 'Content-Type': mime[path.extname(filename)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
       res.end(await readFile(filename));
     } catch { res.writeHead(404); res.end('Not found'); }
