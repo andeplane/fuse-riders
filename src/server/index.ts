@@ -3,7 +3,8 @@ import http from 'node:http';
 import { BombInputBuffer } from '../shared/bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
-import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
+import { appendFile, mkdir, stat } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
@@ -44,6 +45,19 @@ function proxyHeaders(target: URL, headers: http.IncomingHttpHeaders): http.Outg
   // Only a page served by this server gets its Origin rewritten; any other origin still fails the room service's check.
   if (headers.origin) forwarded.origin = headers.origin === `http://${headers.host}` ? target.origin : headers.origin;
   return forwarded;
+}
+/**
+ * A single `bytes=start-end` range against a file of `size` bytes. `undefined` means no range was requested
+ * (or it was a form we don't support, e.g. multi-range) and the whole file should be served; `'unsatisfiable'`
+ * means a range was requested but falls outside the file, which is a 416 rather than a silent full response.
+ */
+function parseRange(header: string | undefined, size: number): { start: number; end: number } | 'unsatisfiable' | undefined {
+  if (!header || size === 0) return undefined;
+  const match = header.match(/^bytes=(\d*)-(\d*)$/);
+  if (!match || (!match[1] && !match[2])) return undefined;
+  const start = match[1] ? Number(match[1]) : Math.max(size - Number(match[2]), 0);
+  const end = Math.min(match[1] && match[2] ? Number(match[2]) : size - 1, size - 1);
+  return Number.isFinite(start) && Number.isFinite(end) && start >= 0 && start <= end ? { start, end } : 'unsatisfiable';
 }
 function proxyRequest(target: URL, req: http.IncomingMessage, res: http.ServerResponse): void {
   const upstream = http.request({ host: target.hostname, port: target.port, method: req.method, path: req.url, headers: proxyHeaders(target, req.headers) }, upstreamResponse => {
@@ -141,10 +155,29 @@ export async function createGameServer(options: ServerOptions = {}) {
       const isPage = ['/', '/display', '/controller'].includes(urlPath);
       const dist = path.resolve(options.buildDirectory ?? path.join(ROOT, 'dist'));
       const filename = path.resolve(dist, isPage ? 'index.html' : '.' + urlPath);
-      if (!filename.startsWith(dist + path.sep) || !(await stat(filename)).isFile()) throw new Error('not found');
+      if (!filename.startsWith(dist + path.sep)) throw new Error('not found');
+      const fileStat = await stat(filename);
+      if (!fileStat.isFile()) throw new Error('not found');
       const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.m4a': 'audio/mp4' };
-      res.writeHead(200, { 'Content-Type': mime[path.extname(filename)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-      res.end(await readFile(filename));
+      // A build-hashed asset's name changes whenever its content does, so it can be cached forever; everything else
+      // (index.html, and public/ files like music that keep the same name across edits) must revalidate on every
+      // load, which the ETag below turns into a cheap 304 instead of a full re-download once it's already cached.
+      const cacheControl = urlPath.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
+      const etag = `W/"${fileStat.size.toString(16)}-${fileStat.mtimeMs.toString(16)}"`;
+      const headers: http.OutgoingHttpHeaders = {
+        'Content-Type': mime[path.extname(filename)] || 'application/octet-stream', 'Cache-Control': cacheControl,
+        ETag: etag, 'Last-Modified': fileStat.mtime.toUTCString(), 'Accept-Ranges': 'bytes',
+      };
+      if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); res.end(); return; }
+      const range = parseRange(req.headers.range, fileStat.size);
+      if (range === 'unsatisfiable') { res.writeHead(416, { ...headers, 'Content-Range': `bytes */${fileStat.size}` }); res.end(); return; }
+      if (range) res.writeHead(206, { ...headers, 'Content-Range': `bytes ${range.start}-${range.end}/${fileStat.size}`, 'Content-Length': range.end - range.start + 1 });
+      else res.writeHead(200, { ...headers, 'Content-Length': fileStat.size });
+      if (req.method === 'HEAD') { res.end(); return; }
+      // Headers are already sent by the time a read can fail (e.g. the file vanishes mid-request), so the only
+      // way back to `catch` below is destroying the response; letting the stream's 'error' go unhandled would
+      // otherwise be an uncaught exception that crashes the whole game server.
+      createReadStream(filename, range || undefined).on('error', () => res.destroy()).pipe(res);
     } catch { res.writeHead(404); res.end('Not found'); }
   });
   // HMR rides this http server instead of Vite's fixed 24678, so parallel dev servers never collide.
