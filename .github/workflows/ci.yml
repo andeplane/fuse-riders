@@ -97,6 +97,7 @@ jobs:
       - name: Online WebKit room smoke (Canvas)
         run: npx tsx scripts/online-smoke.ts
         env:
+          SMOKE_RIDERS: 3
           BROWSER: webkit
           ROOM_RENDERER: canvas
       - name: Chrome Phaser lifecycle and fallback
@@ -130,8 +131,8 @@ jobs:
         run: npx tsx scripts/shared-room-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
-      - name: Incremental world consistency benchmark
-        run: npx tsx scripts/benchmark-deltas.ts
+      - name: Stream packet traffic benchmark
+        run: npx tsx scripts/benchmark-actions.ts
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@v4

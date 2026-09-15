@@ -3,7 +3,7 @@ import http from 'node:http';
 import { BombInputBuffer } from '../shared/bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -116,6 +116,21 @@ export async function createGameServer(options: ServerOptions = {}) {
   const roomApi = options.roomApi ? new URL(options.roomApi) : undefined;
   if (roomApi && roomApi.protocol !== 'http:') throw new Error(`ROOM_API must be an http:// URL, got ${options.roomApi}`);
   const server = http.createServer(async (req, res) => {
+    // Devices post their runtime telemetry here in development; one NDJSON file per room under artifacts/telemetry.
+    if (req.method === 'POST' && req.url?.split('?')[0] === '/telemetry') {
+      const chunks: Buffer[] = []; let size = 0; req.on('data', (chunk: Buffer) => { chunks.push(chunk); size += chunk.length; if (size > 2_000_000) req.destroy(); });
+      req.on('end', async () => {
+        try {
+          const { device, events } = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { device: Record<string, unknown>; events: Record<string, unknown>[] };
+          const room = String(device?.room ?? 'none').replace(/[^A-Za-z0-9_-]/g, '') || 'none', dir = path.join(ROOT, 'artifacts', 'telemetry');
+          await mkdir(dir, { recursive: true });
+          await appendFile(path.join(dir, `${room}.ndjson`), events.map(event => JSON.stringify({ ...event, device, received: Date.now() })).join('\n') + '\n');
+          res.writeHead(204);
+        } catch { res.writeHead(400); }
+        res.end();
+      });
+      return;
+    }
     if (req.url?.split('?')[0] === '/api/config') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify({ controllerUrl })); return;

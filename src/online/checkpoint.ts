@@ -151,7 +151,6 @@ export function decodeCheckpoint(raw: string, host: string): RestoredCheckpoint 
     if (!gameInvariants(game)) return;
     const sequences = new Map<string, number>();
     for (const [id, seq] of data.sequences as [string, number][]) { if (!game.players.has(id) || sequences.has(id)) return; sequences.set(id, seq); }
-    if (sequences.size !== game.players.size) return;
     const botIds=new Set<string>();
     for(const id of data.botIds as string[]){if(!id.startsWith(BOT_ID_PREFIX)||id===host||!game.players.has(id)||botIds.has(id))return;botIds.add(id);}
     for (const player of game.players.values()) { player.connected = botIds.has(player.id); player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
