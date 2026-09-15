@@ -7,17 +7,22 @@ export interface RoomSettings {
   match: 'wins' | 'rounds';
   length: number;
   bombChargeTicks: number;
+  /** A bomb caught in another's blast explodes with it. Off means every bomb waits for its own fuse (#166). */
+  chainReaction: boolean;
   weights: Partial<Record<PickupType, number>>;
 }
 export const SETTINGS_KEY = 'fuse-riders-room-settings-v1';
 export function defaultRoomSettings(): RoomSettings {
-  return { version: 1, mode: 'devices', match: 'wins', length: 3, bombChargeTicks: BOMB_MAX_CHARGE_TICKS, weights: Object.fromEntries(PICKUP_WEIGHTS.map(row => [row.type, row.weight])) };
+  return { version: 1, mode: 'devices', match: 'wins', length: 3, bombChargeTicks: BOMB_MAX_CHARGE_TICKS, chainReaction: true, weights: Object.fromEntries(PICKUP_WEIGHTS.map(row => [row.type, row.weight])) };
 }
 export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   if (!raw || typeof raw !== 'object') return;
   const value = raw as RoomSettings;
   const bombChargeTicks = value.bombChargeTicks === undefined ? BOMB_MAX_CHARGE_TICKS : value.bombChargeTicks;
   if (!isBombChargeTicks(bombChargeTicks)) return;
+  // Settings saved before #166 have no flag; they played with chaining on, so that is what they keep.
+  const chainReaction = value.chainReaction === undefined ? true : value.chainReaction;
+  if (typeof chainReaction !== 'boolean') return;
   if (value.version !== 1 || !['shared','devices'].includes(value.mode) || !['wins','rounds'].includes(value.match) || !Number.isInteger(value.length) || value.length < 1 || value.length > 20 || !value.weights || typeof value.weights !== 'object') return;
   const allowed = new Set([...PICKUP_WEIGHTS.map(row => row.type), 'star']);
   const weights: RoomSettings['weights'] = {};
@@ -25,7 +30,7 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
     if (!allowed.has(type as PickupType) || typeof weight !== 'number' || !Number.isFinite(weight) || weight < 0 || weight > 10000) return;
     weights[type as PickupType] = weight;
   }
-  return { version: 1, mode: value.mode, match: value.match, length: value.length, bombChargeTicks, weights };
+  return { version: 1, mode: value.mode, match: value.match, length: value.length, bombChargeTicks, chainReaction, weights };
 }
 export function loadRoomSettings(storage: Pick<Storage,'getItem'>): RoomSettings {
   try { return parseRoomSettings(JSON.parse(storage.getItem(SETTINGS_KEY) ?? 'null')) ?? defaultRoomSettings(); } catch { return defaultRoomSettings(); }
