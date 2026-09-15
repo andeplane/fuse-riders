@@ -1,5 +1,6 @@
 import { applyTick, cloneState, replayHash, isManagementKind, type LogEntry, type ReplayState } from '../shared/action-log.js';
 import type { GameEvent } from '../shared/protocol.js';
+import { momentKey } from '../shared/moments.js';
 
 export const SNAPSHOT_EVERY_TICKS = 4;
 export const SNAPSHOT_COUNT = 12;
@@ -136,6 +137,7 @@ function eventKey(event: GameEvent): string {
     case 'bombPlaced': return `placed:${event.bombId}`;
     case 'explosion': return `explosion:${event.bombId}`;
     case 'playerEliminated': return `dead:${event.playerId}`;
+    case 'moment': return `moment:${momentKey(event.moment)}`;
     case 'roundEnded': case 'matchEnded': return event.type;
   }
 }

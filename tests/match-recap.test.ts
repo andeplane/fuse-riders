@@ -2,19 +2,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { durationText as sharedDurationText } from '../src/shared/duration-text.js';
 import type { MatchPlayerStats } from '../src/shared/match-stats.js';
-import type { Moment } from '../src/shared/moments.js';
+import { momentKey, type Moment } from '../src/shared/moments.js';
 import {
   AWARD_DEFINITIONS,
   COMPARISON_COLUMNS,
   buildMatchRecap,
   clockText,
   comparisonRows,
+  describeMoment,
   distanceText,
   durationText,
   matchAwards,
   matchHighlights,
   matchTotals,
   podiumOrder,
+  rankMoments,
   recapSignature,
 } from '../src/shared/match-recap.js';
 
@@ -229,4 +231,14 @@ test('recap ignores riders with an unset placement rather than inventing a podiu
   const stats = [rider({ playerId: 'a', slot: 0, matchPlacement: 0 }), rider({ playerId: 'b', slot: 1, matchPlacement: 1 })];
   assert.deepEqual(podiumOrder(stats).map((entry) => entry.playerId), ['b']);
   assert.equal(comparisonRows(stats).length, 2);
+});
+
+test('a moment describes itself for any name source, ranks by weight, and carries its key into the reel', () => {
+  const names = new Map([['a', 'Ada'], ['b', 'Byte']]);
+  assert.deepEqual(describeMoment(moment({ kind: 'cutOff', playerId: 'a', targetIds: ['b'], value: 6, elapsed: 1230 }), (id) => names.get(id) ?? id), { title: 'CUT OFF', icon: '⟋', copy: 'Ada CUT OFF Byte · TRAIL 0.3s OLD', when: 'ROUND 1 · 1:01' });
+  assert.equal(describeMoment(moment({ kind: 'ownGoal', playerId: 'zed' }), (id) => id).copy, 'zed BOOMED THEMSELVES');
+  const ranked = rankMoments([moment({ kind: 'ownGoal', playerId: 'a' }), moment({ kind: 'multiKill', playerId: 'b', targetIds: ['a', 'c', 'd'], value: 3 }), moment({ kind: 'bombDodge', playerId: 'a', targetIds: ['b'], tick: 90 })]);
+  assert.deepEqual(ranked.map((entry) => [entry.moment.kind, entry.score]), [['multiKill', 100], ['bombDodge', 35], ['ownGoal', 12]]);
+  const stats = [rider({ playerId: 'a', slot: 0, matchPlacement: 1 })];
+  assert.equal(matchHighlights(stats, [moment({ kind: 'ownGoal', playerId: 'a', round: 2, tick: 7 })])[0]!.key, momentKey(moment({ kind: 'ownGoal', playerId: 'a', round: 2, tick: 7 })));
 });

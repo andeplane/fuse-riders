@@ -11,7 +11,7 @@ import { smokeTimeout } from './smoke-timeout.js';
  */
 const base = process.env.HOME_URL ?? 'http://127.0.0.1:4188/';
 const browserName = process.env.BROWSER === 'webkit' ? 'webkit' : 'chrome';
-interface RecapSnapshot { phase: string; tick: number; dialogOpen: boolean; alive: boolean | undefined }
+interface RecapSnapshot { phase: string; tick: number; pauseEndsAt: number | undefined; dialogOpen: boolean; alive: boolean | undefined }
 interface ViewportResult { viewport: { width: number; height: number }; matchOverTick: number; pauseTicks: number; podium: number; awards: number; totals: number; rows: number; comparisonScrolls: boolean; screenshots: string[] }
 const results: object[] = []; await mkdir('artifacts', { recursive: true });
 const identity = { revision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), date: new Date().toISOString(), base, browser: browserName };
@@ -57,9 +57,9 @@ try {
     await page.addInitScript((settings: string | undefined) => {
       if (settings) localStorage.setItem('fuse-riders-room-settings-v1', settings);
       window.addEventListener('fuse-benchmark', (event) => {
-        const detail = (event as CustomEvent<{ kind: string; phase: string; tick: number; players: Array<{ id: string; alive: boolean }> }>).detail;
+        const detail = (event as CustomEvent<{ kind: string; phase: string; tick: number; phaseEndsAtTick?: number; players: Array<{ id: string; alive: boolean }> }>).detail;
         if (detail.kind !== 'snapshot') return;
-        void Reflect.get(window, 'recordRecapSnapshot')({ phase: detail.phase, tick: detail.tick, dialogOpen: Boolean(document.querySelector<HTMLDialogElement>('dialog.game-dialog')?.open), alive: detail.players.find((player) => player.id === 'solo')?.alive });
+        void Reflect.get(window, 'recordRecapSnapshot')({ phase: detail.phase, tick: detail.tick, pauseEndsAt: detail.phaseEndsAtTick, dialogOpen: Boolean(document.querySelector<HTMLDialogElement>('dialog.game-dialog')?.open), alive: detail.players.find((player) => player.id === 'solo')?.alive });
       });
     }, phone ? JSON.stringify(oneRound) : undefined);
     const tag = `${browserName}-${viewport.width}x${viewport.height}`;
@@ -86,13 +86,15 @@ try {
       const steerUntil = Date.now() + 12000; while (Date.now() < steerUntil && latest()?.alive !== false) await page.waitForTimeout(100);
       await page.keyboard.up('ArrowLeft');
       await waitFor(() => latest()?.phase === 'matchOver', 130000, 'match over');
-      const matchOverTick = snapshots.find((snapshot) => snapshot.phase === 'matchOver')!.tick;
+      const first = snapshots.find((snapshot) => snapshot.phase === 'matchOver')!;
+      // A final round with a highlight moment pauses longer for the replay (ADR 044), so the pause end is read, not assumed.
+      const matchOverTick = first.tick, pauseEnd = first.pauseEndsAt ?? matchOverTick + 60;
       await page.locator('.match-recap-report').waitFor({ state: 'visible', timeout: smokeTimeout(20000) });
       // The snapshot published at the end of the pause is recorded before that same tick opens the dialog, so the first
       // record that saw it open is a later tick, still on its way through exposeFunction when the report is visible (#130).
-      await waitFor(() => snapshots.some((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick >= matchOverTick + 60 && snapshot.dialogOpen), smokeTimeout(5000), 'the report opens after the pause');
+      await waitFor(() => snapshots.some((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick >= pauseEnd && snapshot.dialogOpen), smokeTimeout(5000), 'the report opens after the pause');
       // Records arrive in order, so every pause-time record is in by now.
-      const paused = snapshots.filter((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick < matchOverTick + 60);
+      const paused = snapshots.filter((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick < pauseEnd);
       assert.ok(paused.length > 0 && paused.every((snapshot) => !snapshot.dialogOpen), 'the report must stay closed during the final-round pause');
       const layout = await assertRecapLayout(page);
       const screenshots = [`artifacts/match-recap-${tag}.png`];
@@ -122,7 +124,7 @@ try {
         assert.equal(await page.getByRole('dialog').isVisible(), false, 'a rematch does not reopen the old report');
       }
       assert.deepEqual(errors, []);
-      const result: ViewportResult = { viewport, matchOverTick, pauseTicks: 60, ...layout, screenshots };
+      const result: ViewportResult = { viewport, matchOverTick, pauseTicks: pauseEnd - matchOverTick, ...layout, screenshots };
       results.push({ browser: browserName, passed: true, ...result });
       console.log(`PASS ${tag} match recap (${layout.podium} podium, ${layout.awards} awards, ${layout.rows} rows)`);
     } catch (error) {

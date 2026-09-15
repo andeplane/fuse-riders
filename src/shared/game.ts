@@ -51,7 +51,7 @@ import {
   createVolleyFlightPaths,
   type LaunchBounds,
 } from './launch-modifiers.js';
-import { detectMoments, DODGE_LOOKBACK_TICKS, type Moment, type TickObservations } from './moments.js';
+import { detectMoments, roundHasMoment, DODGE_LOOKBACK_TICKS, REPLAY_PAUSE_TICKS, type Moment, type TickObservations } from './moments.js';
 
 export type { BlastCircle, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
@@ -703,7 +703,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       }
     }
   }
-  detectMoments(state, elapsed, observations);
+  for (const moment of detectMoments(state, elapsed, observations)) events.push({ type: 'moment', moment: { ...moment, targetIds: [...moment.targetIds] } });
   resolveRound(state, events, elapsed);
   return { snapshot: toSnapshot(state), events };
 }
@@ -1178,14 +1178,16 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   if (matchWinnerId !== undefined || fixedEnd) state.matchWinnerId = matchWinnerId;
   scoreRoundOnce(state, placements, winnerId, matchWinnerId);
   events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
+  // A round with a highlight pauses longer so every screen can replay it before the next countdown or the recap (ADR 044).
+  const pause = roundHasMoment(state) ? REPLAY_PAUSE_TICKS : 0;
   if (matchWinnerId !== undefined || fixedEnd) {
     state.phase = 'matchOver';
-    state.phaseEndsAtTick = state.tick + 60;
+    state.phaseEndsAtTick = state.tick + 60 + pause;
     events.push({ type: 'matchEnded', ...(matchWinnerId ? { winnerId: matchWinnerId } : {}) });
     return;
   }
   state.phase = 'roundOver';
-  state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS;
+  state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS + pause;
 }
 
 function recordElimination(state: GameState, playerId: PlayerId): void {

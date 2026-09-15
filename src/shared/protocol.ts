@@ -61,6 +61,7 @@ export type GameEvent =
   | { type: 'bombPlaced'; bombId: number; playerId: PlayerId; gun?: boolean }
   | { type: 'explosion'; bombId: number }
   | { type: 'playerEliminated'; playerId: PlayerId; cause: 'wall' | 'trail' | 'explosion' | 'rider' }
+  | { type: 'moment'; moment: Moment }
   | { type: 'roundEnded'; winnerId?: PlayerId }
   | { type: 'matchEnded'; winnerId?: PlayerId };
 export type ErrorCode = 'invalid_message' | 'full' | 'unauthorized' | 'stale' | 'invalid_phase' | 'not_enough_players';

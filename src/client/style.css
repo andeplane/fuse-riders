@@ -289,3 +289,33 @@ details.audio-controls > .audio-panel.radio { width: min(380px, calc(100vw - 24p
 .ai-remove{margin-left:auto;background:#08152b;color:#eefaff;border:1px solid #365477;min-width:36px;min-height:36px;cursor:pointer}.ai-remove:disabled{opacity:.4}
 
 .host-tools{display:flex;gap:6px;align-items:center}
+
+/* Instant replay dressing (ADR 044): fixed over the arena on every screen; the world itself stays in the canvas. */
+.replay-overlay { --player-color: #29dfff; position: fixed; inset: 0; z-index: 8; pointer-events: none; font-family: "Press Start 2P", ui-monospace, monospace; }
+.replay-bar { position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height .45s cubic-bezier(.2, .8, .2, 1); }
+.replay-bar-top { top: 0; } .replay-bar-bottom { bottom: 0; }
+.replay-overlay[data-stage="in"] .replay-bar, .replay-overlay[data-stage="play"] .replay-bar { height: 11%; }
+.replay-overlay[data-stage="out"] .replay-bar, .replay-overlay[data-stage="done"] .replay-bar { height: 0; transition-duration: .4s; }
+.replay-scan { position: absolute; inset: 0; opacity: 0; transition: opacity .4s; background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(0, 0, 0, .22) 3px 4px), radial-gradient(ellipse at center, transparent 55%, rgba(2, 7, 21, .55) 100%); mix-blend-mode: multiply; }
+.replay-overlay[data-stage="in"] .replay-scan, .replay-overlay[data-stage="play"] .replay-scan, .replay-overlay[data-stage="out"] .replay-scan { opacity: 1; }
+.replay-flash { position: absolute; inset: 0; background: radial-gradient(circle at center, #fff 0%, rgba(255, 255, 255, .55) 30%, transparent 70%); opacity: 0; }
+.replay-chyron { position: absolute; left: 4%; bottom: 13%; display: grid; gap: 7px; max-width: 60%; padding: 12px 18px 12px 14px; border-left: 6px solid var(--player-color); background: linear-gradient(90deg, rgba(2, 7, 21, .92), rgba(2, 7, 21, .55)); box-shadow: 0 0 24px color-mix(in srgb, var(--player-color) 45%, transparent); transform: translateX(-120%); opacity: 0; transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .3s; }
+.replay-overlay[data-stage="in"] .replay-chyron, .replay-overlay[data-stage="play"] .replay-chyron { transform: none; opacity: 1; }
+.replay-kicker { color: #ff2e9d; font-size: .58rem; letter-spacing: .14em; animation: replay-blink 1s steps(2) infinite; }
+.replay-title { color: #fff; font-size: clamp(1rem, 2.4vw, 1.9rem); line-height: 1.2; text-shadow: 4px 4px 0 #332167, 0 0 18px color-mix(in srgb, var(--player-color) 60%, transparent); }
+.replay-copy { color: #eefbff; font-style: normal; font-family: "Inter", system-ui, sans-serif; font-weight: 800; font-size: clamp(.85rem, 1.5vw, 1.2rem); letter-spacing: .04em; }
+.replay-when { color: var(--player-color); font-size: .55rem; letter-spacing: .12em; }
+.replay-slow { position: absolute; right: 4%; top: 14%; padding: 8px 12px; color: #ffe55e; font-size: .62rem; letter-spacing: .1em; border: 2px solid #ffe55e; background: rgba(2, 7, 21, .8); opacity: 0; transition: opacity .2s; }
+.replay-slow.on { opacity: 1; animation: replay-blink .6s steps(2) infinite; }
+.replay-live { position: absolute; left: 4%; top: 4%; padding: 8px 14px; color: #fff; font-size: .7rem; letter-spacing: .14em; background: #e5163b; box-shadow: 0 0 18px #e5163b; opacity: 0; transform: scale(.7); }
+.replay-live.on { animation: replay-live .9s ease-out forwards; }
+canvas.replay-zoomed { transition: none; }
+@keyframes replay-blink { 50% { opacity: .25; } }
+@keyframes replay-live { 0% { opacity: 0; transform: scale(.7); } 15% { opacity: 1; transform: scale(1.1); } 30% { transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
+/* Chromatic fringe reads like a broadcast tape on a TV; phones skip the per-frame filter. */
+@media (hover: hover) { .stage.replaying canvas, .online-app.replaying canvas { filter: drop-shadow(2px 0 rgba(255, 46, 157, .35)) drop-shadow(-2px 0 rgba(41, 223, 255, .35)); } }
+.stage.replaying .announcement { opacity: 0; pointer-events: none; transition: opacity .3s; }
+/* Phone landscape is wide and short: keep the chyron to the lower-left strip and drop its clock line. */
+@media (max-height: 500px), (max-width: 700px) { .replay-chyron { max-width: 70%; bottom: 12%; padding: 7px 10px; gap: 4px; } .replay-title { font-size: clamp(.8rem, 3.4vh, 1.2rem); } .replay-copy { font-size: clamp(.7rem, 2.8vh, .95rem); } .replay-when { display: none; } .replay-slow { top: 12%; font-size: .5rem; padding: 5px 8px; } }
+.watch-again { justify-self: start; margin-top: 2px; padding: 4px 9px; color: #051228; font: .55rem "Press Start 2P", ui-monospace, monospace; letter-spacing: .06em; background: var(--player-color); border: 0; cursor: pointer; }
+.watch-again:hover { filter: brightness(1.15); }

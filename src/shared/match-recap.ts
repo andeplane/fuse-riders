@@ -1,6 +1,6 @@
 import { durationText } from './duration-text.js';
 import type { MatchPlayerStats } from './match-stats.js';
-import { CUT_OFF_MAX_AGE_TICKS, MOMENT_KINDS, type Moment, type MomentKind } from './moments.js';
+import { CUT_OFF_MAX_AGE_TICKS, MOMENT_KINDS, momentKey, type Moment, type MomentKind } from './moments.js';
 
 /**
  * Pure end-of-match presentation model shared by the LAN TV and the online UI.
@@ -40,6 +40,8 @@ export const RECAP_HIGHLIGHTS = 5;
 export const HIGHLIGHT_VARIETY = 2;
 
 export interface HighlightEntry {
+  /** `momentKey` of the moment, what a screen looks a replay clip up by. */
+  key: string;
   kind: MomentKind;
   round: number;
   tick: number;
@@ -86,6 +88,19 @@ const HIGHLIGHT_COPY: Record<MomentKind, { icon: string; title: (moment: Moment)
   mutualDestruction: { icon: '✖', title: () => 'EVERYBODY DIES', copy: (name, targets, moment) => `${list([name, ...targets])} · ${plural(moment.value, 'RIDER')}, ONE TICK` },
 };
 
+export interface MomentCard { title: string; icon: string; copy: string; when: string }
+/** Title, icon, copy and clock for one moment; `name` resolves a rider id, falling back to the id itself. */
+export function describeMoment(moment: Moment, name: (id: string) => string): MomentCard {
+  const text = HIGHLIGHT_COPY[moment.kind];
+  return { title: text.title(moment), icon: text.icon, copy: text.copy(name(moment.playerId), moment.targetIds.map(name), moment), when: `ROUND ${moment.round} · ${clockText(moment.elapsed)}` };
+}
+
+/** Heaviest first, then earlier, then kind order: the order the reel and the replay pick from. */
+export function rankMoments(moments: ReadonlyArray<Moment>): { moment: Moment; score: number }[] {
+  return moments.map((moment) => ({ moment, score: highlightScore(moment) })).sort((a, b) =>
+    b.score - a.score || a.moment.round - b.moment.round || a.moment.tick - b.moment.tick || MOMENT_KINDS.indexOf(a.moment.kind) - MOMENT_KINDS.indexOf(b.moment.kind));
+}
+
 /**
  * The reel: moments ranked by presentation score (then earlier, then kind order), one card per
  * `(round, tick, protagonist)` so a bomb that hit a head and took two riders is one card, and at most
@@ -95,8 +110,7 @@ const HIGHLIGHT_COPY: Record<MomentKind, { icon: string; title: (moment: Moment)
 export function matchHighlights(stats: ReadonlyArray<MatchPlayerStats>, moments: ReadonlyArray<Moment>): HighlightEntry[] {
   const byId = new Map(stats.map((entry) => [entry.playerId, entry]));
   const name = (id: string): string => byId.get(id)?.name ?? id;
-  const ranked = moments.map((moment) => ({ moment, score: highlightScore(moment) })).sort((a, b) =>
-    b.score - a.score || a.moment.round - b.moment.round || a.moment.tick - b.moment.tick || MOMENT_KINDS.indexOf(a.moment.kind) - MOMENT_KINDS.indexOf(b.moment.kind));
+  const ranked = rankMoments(moments);
   const seen = new Set<string>();
   const perKind = new Map<MomentKind, number>();
   const perRider = new Map<string, number>();
@@ -110,10 +124,8 @@ export function matchHighlights(stats: ReadonlyArray<MatchPlayerStats>, moments:
     seen.add(key);
     perKind.set(moment.kind, (perKind.get(moment.kind) ?? 0) + 1);
     perRider.set(moment.playerId, (perRider.get(moment.playerId) ?? 0) + 1);
-    const text = HIGHLIGHT_COPY[moment.kind];
     reel.push({
-      kind: moment.kind, round: moment.round, tick: moment.tick, when: `ROUND ${moment.round} · ${clockText(moment.elapsed)}`,
-      title: text.title(moment), icon: text.icon, copy: text.copy(name(moment.playerId), moment.targetIds.map(name), moment),
+      key: momentKey(moment), kind: moment.kind, round: moment.round, tick: moment.tick, ...describeMoment(moment, name),
       playerId: moment.playerId, name: name(moment.playerId), color: byId.get(moment.playerId)?.color ?? '#ffffff', score,
     });
   }

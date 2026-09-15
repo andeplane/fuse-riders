@@ -225,7 +225,8 @@ test('head-on swept rider collision eliminates both and produces a draw', () => 
   assert.equal(state.roundWinnerId, undefined);
   assert.deepEqual(result.events.filter((event) => event.type === 'playerEliminated').map((event) => event.playerId).sort(), ['p0', 'p1']);
   assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
-  assert.deepEqual(result.events.map((event) => event.type), ['playerEliminated', 'playerEliminated', 'roundEnded']);
+  // Everybody dying to each other is a highlight moment: it is announced before the round ends (ADR 043/044).
+  assert.deepEqual(result.events.map((event) => event.type), ['playerEliminated', 'playerEliminated', 'moment', 'roundEnded']);
   assert.ok(state.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 4 * POINT_UNIT));
   assert.equal(state.matchStats.get('p0')!.eliminations, 1);
   assert.equal(state.matchStats.get('p1')!.eliminations, 1);

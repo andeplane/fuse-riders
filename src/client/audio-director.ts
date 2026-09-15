@@ -160,6 +160,16 @@ export class AudioDirector {
   }
   private changed(): void { this.radio.position = this.position(); this.persist(this.radio, 'all'); this.emit(); }
   private emit(): void { for (const listener of this.listeners) listener(); }
+  /** Broadcast-style stings for the instant replay: a riser as the bars come in, a thump at the impact, a fall as play returns. */
+  replayCue(kind: 'in' | 'impact' | 'out'): void {
+    if (!this.unlocked || this.silenced) return;
+    const note = (frequency: number, endFrequency: number, duration: number, wave: SynthNote['wave'], delay = 0, level = .2) => this.synth.note('effects', { frequency, endFrequency, duration, wave, delay, level });
+    switch (kind) {
+      case 'in': note(160, 1400, .42, 'sawtooth'); note(80, 700, .42, 'triangle', 0, .12); note(1760, 1760, .1, 'square', .4, .14); break;
+      case 'impact': note(220, 40, .45, 'triangle', 0, .3); note(55, 30, .6, 'sawtooth', 0, .18); note(1200, 300, .08, 'square', 0, .12); break;
+      case 'out': note(1200, 180, .3, 'sawtooth'); note(880, 880, .06, 'square', .28, .14); note(1320, 1320, .12, 'square', .34, .16); break;
+    }
+  }
   private cue(type: string): void {
     if (!this.unlocked || this.silenced) return;
     const note = (frequency: number, endFrequency: number, duration: number, wave: SynthNote['wave'] = 'square', delay = 0) => this.synth.note('effects', { frequency, endFrequency, duration, wave, delay, level: .24 });
