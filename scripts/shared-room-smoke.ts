@@ -39,7 +39,14 @@ const hc=await browser.newContext({viewport:{width:1280,height:800},...(name==='
  if(clipboard!=='skipped'&&clipboard!=='unreadable')assert.equal(clipboard,invite,'COPIED must mean the link is on the clipboard');
  await host.waitForFunction(()=>document.querySelector('.room-qr-copy')?.textContent==='COPY LINK');
  await guest.addInitScript(()=>{Reflect.set(window,'__sharedStates',[]);window.addEventListener('fuse-benchmark',event=>{const detail=(event as CustomEvent).detail;if(detail.kind==='snapshot'){const states=Reflect.get(window,'__sharedStates') as unknown[];states.push(detail);if(states.length>200)states.shift();}});});
- await guest.goto(invite+'&benchmark=1');
+ // #132: the joiner's name field keeps focus while the room builds around it, so a name typed during boot is not lost. Holding the theme
+  // sprites back makes the window deterministic: the join card is up and focused before the room is built, on any machine speed.
+  let releaseSprites=()=>{};const spritesHeld=new Promise<void>(resolve=>{releaseSprites=resolve;});await guest.route('**/themes/**',async route=>{await spritesHeld;await route.continue();});
+  // goto must not wait for load: the held sprite images are what hold the load event back.
+  await guest.goto(invite+'&benchmark=1',{waitUntil:'domcontentloaded'});const earlyName=guest.getByPlaceholder('Your name');
+  await earlyName.focus();assert.equal(await guest.locator('.online-arena').count(),0,'room not yet built while sprites are held');await guest.keyboard.type('QR');
+  releaseSprites();await guest.waitForFunction(()=>document.querySelector('.online-arena'));await guest.unroute('**/themes/**');await guest.keyboard.type(' guest');
+  assert.equal(await guest.evaluate(()=>document.activeElement?.getAttribute('placeholder')),'Your name','guest name field keeps focus through boot');assert.equal(await earlyName.inputValue(),'QR guest','a name typed across boot is kept');
   // #132: WebKit has shown the guest's name field empty after JOIN, so the join never went out. The name is filled while the page still boots
   // (the window that flaked) and is now kept as typed: an emptied field fails here with the navigation count, a kept one whose tap was lost gets one counted retap.
   const joinName=guest.getByPlaceholder('Your name'),joinButton=guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true});await joinName.fill('QR guest');const navigationsBeforeJoin=guestNavigations;await joinButton.click();
