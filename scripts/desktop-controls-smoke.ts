@@ -14,7 +14,7 @@ try {
   const fire = page.locator('[aria-keyshortcuts="Space"]');
   await page.locator('.desktop-game').waitFor();
   // Lobby gives deterministic time for hold/cancel checks without AI round changes.
-  await page.getByRole('button', { name: 'MAIN MENU', exact: true }).click();
+  await page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }).click();
   for (const [code, button] of [['ArrowLeft', left], ['ArrowRight', right], ['KeyA', left], ['KeyD', right], ['Space', fire]] as const) {
     await page.keyboard.down(code);
     assert.match(await button.getAttribute('class') ?? '', /active/);

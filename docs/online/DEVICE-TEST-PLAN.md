@@ -154,9 +154,9 @@ quality.
    countdown screenshot (same thirds, same pill).
 6. Let the match reach **matchOver**; screenshot. Confirm exactly one
    control surface, the ☰ MENU overlay auto-opened for the phone host with
-   REMATCH, MAIN MENU, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
+   REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
-7. MAIN MENU returns to the lobby screen of step 2.
+7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ☰ MENU → ROOM → END ROOM.
 
 **Capture**: revision, device/OS/browser, one screenshot per phase (lobby
 portrait + landscape, countdown, playing, matchOver), and a short note of

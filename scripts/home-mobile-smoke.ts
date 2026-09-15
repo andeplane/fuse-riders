@@ -41,7 +41,7 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    await page.getByRole('link',{name:/PLAY SOLO/}).click();await page.locator('.online-roster').getByText('You',{exact:false}).waitFor({state:'attached'});assert.equal(await page.locator('.online-roster>span').count(),5);assert.equal(await page.getByRole('button',{name:/Remove AI/,includeHidden:true}).count(),4);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);
    // Avoid spontaneous end-of-match recaps while reviewing modal layouts.
    if(await page.locator('.mobile-tools-toggle').isVisible())await page.locator('.mobile-tools-toggle').click();
-   await page.getByRole('button',{name:'MAIN MENU',exact:true}).click();
+   await page.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();
    for(const name of ['ROOM SETTINGS','♫ RADIO','AVATAR','EXIT']){
     await page.getByRole('button',{name,exact:true}).click();const dialog=page.getByRole('dialog');await dialog.waitFor({state:'visible'});await inside(page,dialog);assert.ok(await page.locator('.dialog-body').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'dialog body horizontal overflow');
     if(name==='ROOM SETTINGS'){

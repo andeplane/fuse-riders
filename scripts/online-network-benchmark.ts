@@ -129,7 +129,7 @@ try {
         const elapsed=Date.now()-started;
         if((await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){
           await Promise.all(pages.map(async page=>{await page.mouse.up();await page.keyboard.press('Escape');}));
-          await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();
+          await host.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();
           await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();
           await host.getByRole('button',{name:'START RACE',exact:true}).click();matchRestarts++;
         }

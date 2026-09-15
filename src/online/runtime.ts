@@ -193,7 +193,7 @@ export class RoomRuntime {
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
     const open=new Set<string>();
     // A sender that reports a higher lastSeq than this view holds contiguously is a gap too. A trailing entry lost for a whole
-    // retention window (a MAIN MENU during a stall) never appears in gaps(), because no later seq ever arrives to expose it (#132).
+    // retention window (a BACK TO LOBBY during a stall) never appears in gaps(), because no later seq ever arrives to expose it (#132).
     const gaps=new Map(sim.gaps());
     for(const [member,last] of lastSeq){const contiguous=sim.stream(member).contiguous;if(last>contiguous&&!gaps.has(member))gaps.set(member,contiguous+1);}
     for(const [member,firstMissing] of gaps){

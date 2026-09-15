@@ -34,7 +34,7 @@ try{
  await host.getByRole('button',{name:'START RACE',exact:true}).click();
  const started=Date.now();let iteration=0;
  while(Date.now()-started<duration*1000){
-  if((await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){await host.keyboard.press('Escape');await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();await host.getByRole('button',{name:'START RACE',exact:true}).click();}
+  if((await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){await host.keyboard.press('Escape');await host.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();await host.getByRole('button',{name:'START RACE',exact:true}).click();}
   await delay(450);const button=guest.getByRole('button',{name:iteration++%2?'◀':'▶',exact:true});const bounds=await button.boundingBox();if(!bounds){attempts.push({status:'unavailable-control',at:Date.now()});continue;}
   const previous=await guest.evaluate(()=>window.__responseBench.pointers.length);await guest.mouse.move(bounds.x+bounds.width/2,bounds.y+bounds.height/2);await guest.mouse.down();await delay(120);await guest.mouse.up();await delay(750);
   const pointer=await guest.evaluate(i=>window.__responseBench.pointers[i],previous);if(!pointer){attempts.push({status:'missing-pointer',at:Date.now()});continue;}

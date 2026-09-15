@@ -77,7 +77,7 @@ try {
         await dialog.getByLabel('Play N rounds').check();
         await page.getByLabel('Match length').fill('1');
         await page.getByRole('button', { name: 'SAVE SETTINGS', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
-        await page.getByRole('button', { name: 'MAIN MENU', exact: true }).click();
+        await page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }).click();
         await page.getByRole('button', { name: 'START RACE', exact: true }).click();
       }
       await waitFor(() => latest()?.phase === 'playing', 20000, 'round start');
