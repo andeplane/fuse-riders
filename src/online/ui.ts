@@ -218,11 +218,10 @@ export async function startOnline():Promise<void>{
       }
       addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
-      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=share.hidden=phoneLobby; // MAIN MENU means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons.
+      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // MAIN MENU means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
     }
   };
   const runtime=solo?new LocalRuntime(settings,callbacks):new RoomRuntime(code,token,settings,callbacks);
-  if(solo)share.hidden=true;
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
@@ -245,7 +244,7 @@ export async function startOnline():Promise<void>{
   window.addEventListener('keydown',event=>keyboard.down(event));
   window.addEventListener('keyup',event=>keyboard.up(event));
   const clearControls=()=>{keyboard.clear();bindings.clear(true,true);};
-  const mobileLayout=installMobilePlayLayout(app,clearControls);
+  const mobileLayout=installMobilePlayLayout(app,clearControls);mobileLayout.update({joined:false,phase:'lobby',displayOnly}); // A phone booting a room is already on the lobby screen (#134): the header takes its lobby shape before the first snapshot.
   window.addEventListener('blur',clearControls);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clearControls();});
   dialog.addEventListener('focusin',clearControls);
