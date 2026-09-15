@@ -136,6 +136,7 @@
 .online-app.phone-lobby{padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));gap:10px;overflow:auto}
 .online-app.phone-lobby>.online-header{order:-3;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 0 8px;border-bottom:1px solid #1d5267}
 .online-app.phone-lobby .online-header .room-brand{flex:0 0 auto;font-size:13px}
+.online-app.phone-lobby.booting .online-header>.online-status{display:none}
 .online-app.phone-lobby .online-header>.online-status{flex:1 1 140px;order:0;min-width:140px;font-size:11px;color:#8ba3c0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-height:none;display:block}
 .online-app.phone-lobby .online-header button{order:1;flex:1 1 auto;min-height:40px;font-size:12px;padding:6px 8px;white-space:nowrap}
 .online-app.phone-lobby .online-header .desktop-help{display:none}
