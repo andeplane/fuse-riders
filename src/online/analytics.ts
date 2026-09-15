@@ -1,0 +1,78 @@
+/**
+ * Product analytics: which riders reach a match, and what happened when they did.
+ *
+ * Nine events, all prefixed `FlowRiders.`. Nothing fires per tick, per pickup or per explosion — a match's
+ * detail rides along on `FlowRiders.Match Ended`, read from the same authoritative `matchStats` the recap
+ * renders, so a busy arena still costs one event. This is separate from `telemetry.ts`, which posts raw
+ * runtime diagnostics to the dev server; this posts product events to Mixpanel from real play.
+ *
+ * Off on LAN and local dev (a port in the address) so test rooms never reach the production project, on with
+ * `?analytics=1` to verify a build, off outright with `?analytics=0`. The Mixpanel bundle is imported only
+ * once analytics is on, so a LAN game never downloads it.
+ */
+import { TICK_HZ } from '../shared/game.js';
+import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
+import type { MatchPlayerStats } from '../shared/match-stats.js';
+
+type Mixpanel = (typeof import('mixpanel-browser'))['default'];
+
+/** A Mixpanel project token is a write-only public identifier — every browser bundle reporting to a project ships one. It is not a credential and grants no read access. */
+const TOKEN = 'b5022dd7fe5b3cd0396d84284ae647e6';
+const PREFIX = 'FlowRiders.';
+/** Also the queue: every `track` chains off it, so calls made before Mixpanel loads still arrive, in order. */
+let client: Promise<Mixpanel> | undefined;
+
+export function analyticsEnabled(search: string, port: string): boolean {
+  const query = new URLSearchParams(search);
+  if (query.get('analytics') === '0') return false;
+  return query.has('analytics') || port === '';
+}
+
+/** Idempotent: the landing page, a room and the boot-failure path all call it, and only the first one loads Mixpanel. */
+export function startAnalytics(superProperties: Record<string, unknown>): void {
+  if (!analyticsEnabled(location.search, location.port)) return;
+  // localStorage over cookies: the game stores everything else there too, and a batch that outlives a navigation
+  // is what lets CREATE ROOM report before the page it triggers replaces this one.
+  client ??= import('mixpanel-browser').then(module => {
+    module.default.init(TOKEN, { persistence: 'localStorage', track_pageview: false, autocapture: false });
+    return module.default;
+  });
+  void client.then(mixpanel => mixpanel.register(superProperties)).catch(() => { /* analytics never breaks the game */ });
+}
+
+export function track(event: string, properties?: Record<string, unknown>): void {
+  void client?.then(mixpanel => mixpanel.track(PREFIX + event, properties)).catch(() => { /* analytics never breaks the game */ });
+}
+
+const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
+
+/**
+ * One event per finished match, from the authoritative end-of-match stats. `playerId` is this device's rider:
+ * a shared-TV display or a spectator has none, and reports only the shape of the match it watched.
+ */
+export function matchEndedProps(stats: readonly MatchPlayerStats[], playerId: string): Record<string, unknown> {
+  const botCount = stats.filter(entry => entry.playerId.startsWith(BOT_ID_PREFIX)).length;
+  const mine = stats.find(entry => entry.playerId === playerId);
+  return {
+    playerCount: stats.length,
+    botCount,
+    humanCount: stats.length - botCount,
+    rounds: stats.reduce((most, entry) => Math.max(most, entry.roundsPlayed), 0),
+    played: Boolean(mine),
+    ...(mine ? {
+      placement: mine.matchPlacement,
+      won: mine.matchPlacement === 1,
+      roundWins: mine.roundWins,
+      eliminations: mine.eliminations,
+      pickups: mine.pickupsCollected,
+      bombsPlaced: mine.bombsPlaced,
+      bombsExploded: mine.bombsExploded,
+      distance: Math.round(mine.distanceUnits),
+      survivalSeconds: seconds(mine.survivalTicks),
+      deathsWall: mine.deathsByCause.wall,
+      deathsTrail: mine.deathsByCause.trail,
+      deathsExplosion: mine.deathsByCause.explosion,
+      deathsRider: mine.deathsByCause.rider,
+    } : {}),
+  };
+}
