@@ -138,6 +138,18 @@ test('a divergence resync re-installs the world without restarting the member\'s
   host.stop(); guest.stop();
 });
 
+test('an entry that left its owner\'s retained window before it could be sent is recovered by a snapshot instead of a permanent stall', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); const other = join(GUESTS[1]!, 'Other'); net.step(900);
+  host.command({ type: 'action', action: 'start' }); net.step(COUNTDOWN_TICKS * 50 + 300);
+  net.muted.add(GUESTS[1]!); other.command({ type: 'input', seq: 1, left: true, right: false, bomb: false }); net.step(3000); // Silent long enough to be marked absent and to age the entry out.
+  net.muted.delete(GUESTS[1]!); net.step(1500); other.command({ type: 'input', seq: 2, left: false, right: true, bomb: false }); net.step(4000);
+  assert.equal(net.frame(HOST)!.players.find(p => p.id === GUESTS[1])!.connected, true);
+  const stalled = world(host).tick; net.step(2000); assert.ok(world(host).tick > stalled + 30, 'the host is not stalled on the lost entry');
+  assert.ok(world(guest).tick > stalled + 20, 'nor is the other guest'); assert.equal(hashes(net, [HOST, GUESTS[0]!, GUESTS[1]!]).size, 1);
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});
+
 test('a joiner whose snapshot source vanishes retries other peers and reports repeated failures', () => {
   const { net, join } = room();
   const host = join(HOST, 'Host'); net.step(200); join(GUESTS[0]!, 'Guest'); net.step(600);

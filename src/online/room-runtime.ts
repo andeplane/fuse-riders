@@ -43,7 +43,7 @@ export interface RuntimeOptions { transport?: (events: TransportEvents) => RoomT
 interface Member { generation: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; presence?: { connected: boolean; tick: number; at: number } }
 
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
-export const SNAPSHOT_BUFFER_LIMIT = 4_000_000;
+export const SNAPSHOT_BUFFER_LIMIT = 4_000_000, STALLED_GAP_MS = 1500;
 export const HASH_INTERVAL = 20, HASH_LAG = 40, CATCHUP_TICKS = 8, BEHIND_TICKS = 400, NACK_INTERVAL_MS = 100, DIVERGENCE_WINDOW_MS = 60_000, DIVERGENCE_LIMIT = 3, FRESH_WORLD_WAIT_MS = 3000;
 const browserDependencies: RuntimeDependencies = {
   now: () => performance.now(), hidden: () => document.hidden, token: () => crypto.randomUUID(), generation: () => Math.floor(Date.now() / 1000) >>> 0,
@@ -408,6 +408,7 @@ export class RoomRuntime {
     else if (this.world && Math.floor(this.clock.tick()) - this.world.tick > BEHIND_TICKS) this.requestSnapshot();
   }
   private lastLoopAt = -Infinity;
+  private stalledSince = -Infinity;
   private tickLoop(): void {
     const now = this.deps.now();
     this.status.refresh();
@@ -440,8 +441,13 @@ export class RoomRuntime {
       else {
         const result = world.advance(Math.min(tick, world.tick + CATCHUP_TICKS));
         for (const event of result.events) this.callbacks.event(event.event, event.matchId, event.round, event.tick);
-        if (result.waitingFor !== undefined) this.status.recurring(`Waiting for ${result.waitingFor}`);
-        else if (!this.outOfSync) this.status.recurring(this.solo ? 'Solo · you and four AI riders' : this.lagging(now));
+        if (result.waitingFor !== undefined) {
+          this.status.recurring(`Waiting for ${result.waitingFor}`);
+          if (this.stalledSince === -Infinity) this.stalledSince = now;
+          // A gap that keeps the world stalled outlived nack and rotation: the missing entry left its owner's retained
+          // window (for example it was logged before that peer's links could carry packets), so only a snapshot helps.
+          else if (now - this.stalledSince > STALLED_GAP_MS && !this.snapshotRequest && [...world.streams.values()].some(stream => stream.gap)) { this.stalledSince = now; this.requestSnapshot(); }
+        } else { this.stalledSince = -Infinity; if (!this.outOfSync) this.status.recurring(this.solo ? 'Solo · you and four AI riders' : this.lagging(now)); }
       }
     }
     if (this.transport) {

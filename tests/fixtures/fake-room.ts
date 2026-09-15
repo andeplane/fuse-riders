@@ -28,10 +28,12 @@ export class FakeNetwork {
   }
   private schedule(at: number, deliver: () => void): void { this.queue.push({ at, order: this.order++, deliver }); }
   private delay(from: string, to: string): number { return (this.options.oneWayMs?.(from, to) ?? this.options.baseMs) + this.random() * this.options.jitterMs; }
+  /** Members whose fast packets are dropped outright, as if their links were not yet carrying traffic. */
+  readonly muted = new Set<string>();
   sendFast(from: string, to: string, bytes: Uint8Array): boolean {
     const target = this.transports.get(to); if (!target?.online || !this.transports.get(from)?.online) return false;
     this.sentFast++; this.bytesFast += bytes.byteLength;
-    if (this.random() < this.options.loss) { this.droppedFast++; return true; }
+    if (this.muted.has(from) || this.random() < this.options.loss) { this.droppedFast++; return true; }
     this.schedule(this.now + this.delay(from, to), () => { if (target.online && !target.deaf && target.linkedWith(from)) target.events.fast(from, bytes); });
     return true;
   }
