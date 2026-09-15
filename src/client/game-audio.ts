@@ -43,6 +43,7 @@ class WebAudioSynth implements GameSynth {
   private voices = new Set<OscillatorNode>();
   private element?: HTMLAudioElement;
   private trackPath = '';
+  private loadedPath = '';
   constructor(private readonly stateChanged: (running: boolean) => void, private readonly trackEnded: () => void) {}
   async unlock(): Promise<boolean> {
     try {
@@ -54,14 +55,24 @@ class WebAudioSynth implements GameSynth {
         this.effects = this.context.createGain();
         this.effects.connect(this.context.destination); this.gain('effects', this.levels.effects);
       }
+      // Before the await as well as after: a gesture's activation does not survive one, and WebKit needs
+      // play() inside the gesture task. Afterwards covers a context that had to resume first.
+      this.startTrack();
       await this.context.resume();
-      this.resumeTrack(); // A track the browser refused to autoplay gets another go on every gesture.
+      this.startTrack(); // A track the browser refused to autoplay gets another go on every gesture.
       return this.context.state === 'running';
     } catch { return false; }
   }
   gain(channel: AudioChannel, value: number): void {
     this.levels[channel] = value;
-    if (channel === 'music') { if (this.element) this.element.volume = value; return; }
+    if (channel === 'music') {
+      if (!this.element) return;
+      this.element.volume = value;
+      // Silent music does not stream. Pausing keeps the position, so turning it back on continues the
+      // tune rather than restarting it, and a page left muted never downloads the playlist.
+      if (value <= 0) this.element.pause(); else this.startTrack();
+      return;
+    }
     if (this.context && this.effects) this.effects.gain.setTargetAtTime(value, this.context.currentTime, .015);
   }
   note(channel: AudioChannel, note: SynthNote): void {
@@ -84,8 +95,7 @@ class WebAudioSynth implements GameSynth {
   music(path: string): void {
     const element = this.element ??= this.createElement();
     this.trackPath = path; element.volume = this.levels.music;
-    element.src = assetUrl(path);
-    this.resumeTrack();
+    this.startTrack();
   }
   private createElement(): HTMLAudioElement {
     const element = new Audio(); element.preload = 'auto'; element.className = 'game-music';
@@ -95,12 +105,16 @@ class WebAudioSynth implements GameSynth {
     document.body.append(element);
     return element;
   }
-  private resumeTrack(): void {
-    // Autoplay refusal rejects play(); the next unlock() retries, so a missing track never blocks play.
-    if (this.element && this.trackPath && this.element.paused) void this.element.play().catch(() => {});
+  /** Loads the current track if it is not loaded and plays it, unless music is silent. */
+  private startTrack(): void {
+    const element = this.element;
+    if (!element || !this.trackPath || this.levels.music <= 0) return;
+    if (this.loadedPath !== this.trackPath) { this.loadedPath = this.trackPath; element.src = assetUrl(this.trackPath); }
+    // Autoplay refusal rejects play(); the next gesture retries, so a refused track never blocks play.
+    if (element.paused) void element.play().catch(() => {});
   }
   private stopMusic(): void {
-    this.trackPath = '';
+    this.trackPath = ''; this.loadedPath = '';
     if (!this.element) return;
     // Dropping the source as well as pausing stops the download for a page that is going away.
     this.element.pause(); this.element.removeAttribute('src'); this.element.load();
@@ -134,12 +148,11 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   };
   // update() is what actually starts a track, so every successful unlock has to drive it: the first one
   // usually lands on a gesture long after playBackground() asked for music.
-  const unlock = (confirm = false) => { void director.unlock(confirm).then(ok => { showState(ok); if (ok) { director.update(); releaseGestures(); } }); };
+  const unlock = (confirm = false) => { void director.unlock(confirm).then(ok => { showState(ok); if (ok) director.update(); }); };
   // Browsers refuse audio until the page is interacted with, so the first gesture anywhere starts the music.
-  const gestures = ['pointerdown', 'keydown', 'touchstart'] as const;
-  const onGesture = () => unlock();
-  const releaseGestures = () => { for (const type of gestures) document.removeEventListener(type, onGesture); };
-  for (const type of gestures) document.addEventListener(type, onGesture, { passive: true });
+  // These stay for the page's life rather than being released on the first success: a running AudioContext
+  // is not proof the track plays, and an OS interruption can pause it much later. unlock() is idempotent.
+  for (const type of ['pointerdown', 'keydown', 'touchstart'] as const) document.addEventListener(type, () => unlock(), { passive: true });
   enable.addEventListener('click', () => unlock(true));
   const next = document.createElement('button'); next.type = 'button'; next.textContent = `Next tune (${MUSIC_TRACKS.length} tracks)`;
   next.addEventListener('click', () => director.nextTrack()); panel.append(next);
@@ -156,9 +169,9 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   }
   const bindMusicToggle = (button: HTMLButtonElement) => {
     const render = () => {
+      // The label carries the state, so no aria-pressed: "Turn music on, pressed" reads as a contradiction.
       button.textContent = settings.muted.music ? '♫ MUSIC OFF' : '♫ MUSIC ON';
-      button.setAttribute('aria-pressed', String(settings.muted.music));
-      button.setAttribute('aria-label', settings.muted.music ? 'Turn music on' : 'Turn music off');
+      button.dataset.muted = String(settings.muted.music);
     };
     rendered.add(render); render();
     button.addEventListener('click', () => { setMuted('music', !settings.muted.music); unlock(); });
