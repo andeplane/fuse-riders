@@ -45,7 +45,7 @@ export async function startOnline():Promise<void>{
     app.classList.add('landing-app');
     const card=node('main','','landing');
     card.innerHTML=`<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
-      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span></header>
+      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button></div></header>
       <section class="landing-content"><p class="landing-eyebrow"><span></span> A NEON ARENA PARTY GAME</p>
       <h1>LEAVE A TRAIL.<br>MAKE A <em>MESS.</em></h1>
       <p class="landing-intro">Outrun your friends. Blow up their plans.<br>One arena. Five riders. Absolutely no brakes.</p>
@@ -70,6 +70,8 @@ export async function startOnline():Promise<void>{
     let cleanup:(()=>void)|undefined,ended=false;
     window.addEventListener('pagehide',()=>{ended=true;cleanup?.();},{once:true});
     window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
+    // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
+    const landingAudio=createGameAudio('Site',{background:true});landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
   if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
@@ -140,7 +142,7 @@ export async function startOnline():Promise<void>{
   window.addEventListener('resize',updateDesktopLayout);
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
-  const audio=createGameAudio('Game');audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
+  const audio=createGameAudio('Game',{background:true});audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
   /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
     const recap=buildMatchRecap(stats);const root=node('section','','match-recap-report');
@@ -159,7 +161,9 @@ export async function startOnline():Promise<void>{
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
     ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;},
     status:text=>{status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
-    ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
+    // An ended room is no longer joined play (#44): the thirds controller gives way to the ordinary header so the status
+    // reads without opening ☰ MENU. `controller-only` is only ever recomputed from a state update, and none arrives after the end.
+    ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     state:(state,rules,matchId)=>{
       if(roomEnded)return;
