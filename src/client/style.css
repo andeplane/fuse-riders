@@ -258,7 +258,13 @@ details.audio-controls > .audio-panel.radio { width: min(380px, calc(100vw - 24p
 .landing-top .audio-controls summary::-webkit-details-marker { display: none; }
 /* The landing radio button is not at the right edge, so its panel opens as a fixed sheet under the top bar. */
 .landing-top details.audio-controls > .audio-panel.radio { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 76px); right: 12px; left: auto; z-index: 60; max-height: calc(100dvh - 100px); }
-@media (max-width: 760px) { .landing-top-end { gap: 8px; } .landing-top .audio-controls summary { padding: 0 10px; } }
+/* Phones: the bar also holds the brand and the music toggle, so the radio button shrinks to an FM badge (its name stays "♫ RADIO"). */
+@media (max-width: 760px) {
+  .landing .landing-top { gap: 8px; }
+  .landing .landing-top-end { gap: 6px; }
+  .landing-top .audio-controls summary { font-size: 0; padding: 0 7px; }
+  .landing-top .audio-controls summary::before { content: 'FM'; font: 9px 'Press Start 2P', ui-monospace, monospace; color: #ff7ccc; }
+}
 
 .fullscreen-toolbar { padding: 6px 10px; font-size: 1.15rem; line-height: 1; min-height: 34px; }
 
