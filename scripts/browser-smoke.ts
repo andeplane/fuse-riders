@@ -239,9 +239,17 @@ try {
   assert.equal(poweredRider.targetBombArmed, false); assert.equal(poweredRider.fiveShotArmed, true);
   app.game.bombs.clear(); poweredRider.bombReadyAtTick = app.game.tick; app.advance(2);
   await phones[0].screenshot({ path: 'artifacts/phone-armed-portrait.png' });
+  // The controller shows `launching` for only 280 ms after its bombPlaced event, so a polling visibility wait on a
+  // loaded runner can miss that whole window however long its deadline is (#124). Record the class being added instead.
+  await phones[0].evaluate(() => {
+    const seen = { launched: false }; Reflect.set(window, '__launchSeen', seen);
+    // Only a change that starts without `launching` counts, so a leftover flash plus an unrelated class change cannot pass.
+    const observer = new MutationObserver(records => { if (records.some(record => !(record.oldValue ?? '').split(/\s+/).includes('launching') && (record.target as Element).classList.contains('launching'))) seen.launched = true; });
+    for (const bomb of document.querySelectorAll('.bomb')) observer.observe(bomb, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+  });
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 5, 'Five overrides Triple and releases five bombs');
-  await phones[0].locator('.bomb.launching').waitFor();
+  await phones[0].waitForFunction(() => (Reflect.get(window, '__launchSeen') as { launched: boolean }).launched, undefined, { timeout: smokeTimeout(10_000) });
   app.game.bombs.clear(); poweredRider.bombReadyAtTick = app.game.tick;
   app.game.pickups.push({ id: 9_009, type: 'shell', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2);
