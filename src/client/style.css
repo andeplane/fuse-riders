@@ -11,6 +11,8 @@
 
 * { box-sizing: border-box; }
 html, body, #app { width: 100%; min-height: 100%; margin: 0; }
+/* Every page is a game surface: no double-tap or pinch zoom on phones (scroll/pan stays). */
+html { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 body { overflow: hidden; background: radial-gradient(circle at 50% 30%, #0a2852 0, #020715 55%); }
 button, input { font: inherit; }
 button { color: inherit; }
