@@ -21,6 +21,27 @@ const waitFor = async (predicate: () => boolean, detail: string) => {
   const until = Date.now() + 5000;
   while (!predicate()) { if (Date.now() > until) throw new Error(`Timeout: ${detail}`); await new Promise(r => setTimeout(r, 20)); }
 };
+const phoneSnapshotTicks = new Map<Page, number>();
+/** Records the newest snapshot tick each phone has actually received; a reload's new socket keeps reporting to the same page. */
+const trackPhoneSnapshots = (phone: Page) => phone.on('websocket', socket => socket.on('framereceived', frame => {
+  const message: { type?: string; tick?: number } = JSON.parse(frame.payload.toString());
+  if (message.type === 'snapshot' && typeof message.tick === 'number') phoneSnapshotTicks.set(phone, message.tick);
+}));
+/**
+ * Manual ticks send one snapshot per tick, and the server skips a send to a socket whose buffer is backed up
+ * (bufferedAmount > 512 KB). With no later tick nothing replaces a skipped snapshot, so a phone could wait
+ * forever for state the server already holds (#124). Advance `count` ticks, then add one tick at a time until
+ * this phone has received a snapshot from the current tick.
+ */
+const advanceToPhone = async (phone: Page, count = 2) => {
+  app.advance(count);
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const tick = app.game.tick; const until = Date.now() + 500;
+    while (Date.now() < until) { if ((phoneSnapshotTicks.get(phone) ?? -1) >= tick) return; await new Promise(r => setTimeout(r, 20)); }
+    app.advance(1);
+  }
+  throw new Error(`Timeout: phone snapshot delivery at tick ${app.game.tick}; last received ${phoneSnapshotTicks.get(phone) ?? 'none'}`);
+};
 try {
   await mkdir('artifacts', { recursive: true });
   const host = await browser.newPage({ viewport: { width: 1600, height: 960 } }); monitor(host);
@@ -99,7 +120,7 @@ try {
   const phones: Page[] = [];
   for (let i = 0; i < 5; i++) {
     const context = await browser.newContext({ viewport: i === 0 ? { width: 390, height: 844 } : { width: 844, height: 390 }, isMobile: true, hasTouch: true });
-    const phone = await context.newPage(); monitor(phone); phones.push(phone);
+    const phone = await context.newPage(); monitor(phone); trackPhoneSnapshots(phone); phones.push(phone);
     await phone.goto(`${origin}/controller`);
     assert.equal(await phone.locator('.join-screen .avatar-option').count(), 10);
     const avatarLabels = ['Robot', 'Cat', 'Fox', 'Alien', 'Astronaut'];
@@ -197,27 +218,27 @@ try {
   }
   const poweredRider = [...app.game.players.values()].find((player) => player.slot === 0)!;
   app.game.pickups.push({ id: 9_001, type: 'blast', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('BLAST · +1', { exact: true }).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText('BLAST · +1', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_001), false, 'blast pickup consumed authoritatively');
   app.game.pickups.push({ id: 9_002, type: 'star', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText(/STAR · [0-9.]+s/).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText(/STAR · [0-9.]+s/).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_002), false, 'star pickup consumed authoritatively');
   app.game.pickups.push({ id: 9_003, type: 'beer', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[1].getByText(/WOBBLE · [0-9.]+s/).waitFor();
+  await advanceToPhone(phones[1]); await phones[1].getByText(/WOBBLE · [0-9.]+s/).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_003), false, 'beer pickup consumed authoritatively');
   assert.equal(poweredRider.drunkUntilTick, 0, 'beer collector is immune to own pickup');
   app.game.pickups.push({ id: 9_020, type: 'ink', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[1].getByText(/INK · [0-9.]+s/).waitFor();
+  await advanceToPhone(phones[1]); await phones[1].getByText(/INK · [0-9.]+s/).waitFor();
   assert.equal(poweredRider.inkUntilTick, 0, 'ink collector is unaffected');
   assert.equal(app.game.matchStats.get(poweredRider.id)!.inkPickups, 1);
   await host.screenshot({ path: 'artifacts/ink-clouds.png' });
   app.game.pickups.push({ id: 9_004, type: 'triple', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_004), false, 'triple pickup consumed authoritatively');
   app.game.pickups.push({ id: 9_008, type: 'five', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('FIVE · ARMED', { exact: true }).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText('FIVE · ARMED', { exact: true }).waitFor();
   app.game.pickups.push({ id: 9_030, type: 'target', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('TARGET · ARMED', { exact: true }).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText('TARGET · ARMED', { exact: true }).waitFor();
   const targetButton = phones[0].getByRole('button', { name: 'Drop bomb' });
   const targetBox = (await targetButton.boundingBox())!;
   const tx = targetBox.x + targetBox.width / 2; const ty = targetBox.y + targetBox.height / 2;
@@ -241,7 +262,7 @@ try {
   await phones[0].locator('.bomb.launching').waitFor();
   app.game.bombs.clear(); poweredRider.bombReadyAtTick = app.game.tick;
   app.game.pickups.push({ id: 9_009, type: 'shell', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2);
+  await advanceToPhone(phones[0]);
   await phones[0].getByText('GREEN SHELL · HOLD + RELEASE', { exact: true }).waitFor();
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(2);
@@ -250,17 +271,17 @@ try {
   app.game.bombs.clear();
   poweredRider.bombReadyAtTick = app.game.tick;
   app.game.pickups.push({ id: 9_010, type: 'gun', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('GUN · HOLD + RELEASE', { exact: true }).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText('GUN · HOLD + RELEASE', { exact: true }).waitFor();
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(1);
   assert.equal(app.game.bombs.size, 1); assert.equal([...app.game.bombs.values()][0]!.shell?.gun, true);
   app.advance(4); // Let the projectile separate from the rider for visual inspection.
   await host.screenshot({ path: 'artifacts/gun-projectile.png' }); app.game.bombs.clear();
   app.game.pickups.push({ id: 9_011, type: 'stopwatch', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('⏱ FUSE · 1.5s', { exact: true }).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText('⏱ FUSE · 1.5s', { exact: true }).waitFor();
   assert.equal(poweredRider.fuseLevel, 1);
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
+  await advanceToPhone(phones[0]); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');
   app.game.pickups.push({ id: 9_007, type: 'portal', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_007), false, 'portal pickup consumed authoritatively');
@@ -284,6 +305,7 @@ try {
   assert.ok(poweredRider.portalCooldownUntilTick > app.game.tick, 'gate transit starts authoritative cooldown');
   assert.ok(poweredRider.portalGraceUntilTick > app.game.tick, 'gate transit starts authoritative phase grace');
   assert.ok(poweredRider.x > app.game.width / 2, 'rider arrives at linked gate');
+  await advanceToPhone(phones[0], 0); // Delivery only: extra ticks would spend the phase grace the label shows.
   await phones[0].getByText(/PORTAL · PHASE [0-9.]+s/).waitFor();
   for (const phone of phones) {
     const overflow = await phone.evaluate(() => ({ x: document.documentElement.scrollWidth > innerWidth, y: document.documentElement.scrollHeight > innerHeight }));
