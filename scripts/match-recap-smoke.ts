@@ -88,9 +88,12 @@ try {
       await waitFor(() => latest()?.phase === 'matchOver', 130000, 'match over');
       const matchOverTick = snapshots.find((snapshot) => snapshot.phase === 'matchOver')!.tick;
       await page.locator('.match-recap-report').waitFor({ state: 'visible', timeout: smokeTimeout(20000) });
+      // The snapshot published at the end of the pause is recorded before that same tick opens the dialog, so the first
+      // record that saw it open is a later tick, still on its way through exposeFunction when the report is visible (#130).
+      await waitFor(() => snapshots.some((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick >= matchOverTick + 60 && snapshot.dialogOpen), smokeTimeout(5000), 'the report opens after the pause');
+      // Records arrive in order, so every pause-time record is in by now.
       const paused = snapshots.filter((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick < matchOverTick + 60);
       assert.ok(paused.length > 0 && paused.every((snapshot) => !snapshot.dialogOpen), 'the report must stay closed during the final-round pause');
-      assert.ok(snapshots.some((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick >= matchOverTick + 60 && snapshot.dialogOpen), 'the report opens after the pause');
       const layout = await assertRecapLayout(page);
       const screenshots = [`artifacts/match-recap-${tag}.png`];
       await page.screenshot({ path: screenshots[0]! });
