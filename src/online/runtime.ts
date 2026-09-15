@@ -166,7 +166,7 @@ export class RoomRuntime {
     const echo=message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS;
     if(echo)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt!));else if(!this.clock.live)this.clock.observe(message.tick,0);
     this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;
-    if(message.type==='heartbeat'){this.telemetry.log('heartbeat',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null});const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim&&now-this.lastFrameShownAt>=FRAME_INTERVAL_MS)this.showFrame(frame);return;}
+    if(message.type==='heartbeat'){this.telemetry.log('heartbeat',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,clock:Math.round(this.clock.tick()*10)/10});const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim&&now-this.lastFrameShownAt>=FRAME_INTERVAL_MS)this.showFrame(frame);return;}
     // Streams with no fold to put them in: the host thinks we are a full view again, so ask for the baseline that starts one.
     const sim=this.sim;if(!sim){if(this.controllerView.ready)this.requestResync();return;}
     this.telemetry.log('recv',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,hash:message.hash!==null,streams:message.streams.map(s=>[s.member,s.lastSeq,s.entries.length]),simTick:this.sim?.tick??null,clock:Math.round(this.clock.tick()*10)/10});
@@ -239,7 +239,8 @@ export class RoomRuntime {
     if(command.type==='input'){
       if(!this.sim&&!this.controllerView.ready)return false;
       const base=Math.floor(this.clock.tick());
-      for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);this.telemetry.log('input',{seq:entry[0],tick:entry[1],kind:entry[2],simTick:this.sim?.tick??null});this.sim?.insert(this.transport.id,entry,true);}      this.sendOwn(this.dependencies.now());return true;
+      for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);this.telemetry.log('input',{seq:entry[0],tick:entry[1],kind:entry[2],simTick:this.sim?.tick??null});this.sim?.insert(this.transport.id,entry,true);}
+      this.sendOwn(this.dependencies.now());return true;
     }
     if(command.type==='avatar'){if(!this.sim&&!this.controllerView.ready)return false;const entry=this.own.append(Math.floor(this.clock.tick())+1,[5,command.avatarId]);this.sim?.insert(this.transport.id,entry,true);this.sendOwn(this.dependencies.now());return true;}
     return this.transport.send(this.transport.hostId,{type:'command',command});
