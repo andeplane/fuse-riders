@@ -21,6 +21,27 @@ test('rooms isolate players and only the host can start or change rules',()=>{
   assert.equal(a.command('host',{type:'action',action:'start'}),undefined);a.advance();assert.equal(a.game.phase,'countdown');
   a.command('late',{type:'join',name:'Late'});a.advance();assert.equal(a.snapshot().players.find(player=>player.id==='late')!.waitingForNextRound,true);
 });
+test('bomb aim time validates saved preferences and defaults older preferences',()=>{
+  const defaults=defaultRoomSettings();
+  const {bombChargeTicks:_,...older}=defaults;
+  assert.equal(loadRoomSettings({getItem:()=>JSON.stringify(older)}).bombChargeTicks,8);
+  for(const value of [2,8,24,40])assert.equal(parseRoomSettings({...defaults,bombChargeTicks:value})?.bombChargeTicks,value);
+  for(const value of [null,'8',NaN,Infinity,0,1,41,2.5])assert.equal(parseRoomSettings({...defaults,bombChargeTicks:value}),undefined);
+});
+// The world codec carried the active value to views before the input-log cutover; every view now folds
+// the host's settings entry itself, so this keeps the round boundary and drops the replication half.
+test('aim time changes at the next round',()=>{
+  const room=session();
+  room.command('host',{type:'join',name:'Host'});room.command('guest',{type:'join',name:'Guest'});
+  room.command('host',{type:'action',action:'start'});
+  for(let i=0;i<60;i++)room.advance();
+  assert.equal(room.snapshot().bombChargeTicks,8);
+  assert.equal(room.command('host',{type:'settings',settings:{...room.settings,bombChargeTicks:24}}),undefined);
+  assert.equal(room.settings.bombChargeTicks,24);assert.equal(room.snapshot().bombChargeTicks,8);
+  eliminatePlayer(room.game,'guest');room.advance();
+  for(let i=0;i<100&&room.game.round===1;i++)room.advance();
+  assert.equal(room.game.round,2);assert.equal(room.snapshot().bombChargeTicks,24);
+});
 test('fixed one-round rooms finish after one round',()=>{
   const room=session();room.command('host',{type:'settings',settings:{...defaultRoomSettings(),match:'rounds',length:1}});
   room.command('host',{type:'join',name:'Host'});room.command('p',{type:'join',name:'Player'});room.command('host',{type:'action',action:'start'});

@@ -17,6 +17,7 @@ export interface ThemeDefinition {
   };
   rendering: {
     gridSize: number;
+    /** Canvas trail sparkle pixels and the rider SVG fallback only; bombs, blasts and pickups always render smooth (#88). */
     pixelated: boolean;
     trailCap: CanvasLineCap;
     trailGlow: number;

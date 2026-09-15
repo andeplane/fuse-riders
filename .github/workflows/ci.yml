@@ -3,6 +3,10 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `labeled` is not a default type: without it, adding `full-ci` to an open pull
+    # request would not start the browser matrix until the next push.
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -12,9 +16,11 @@ concurrency:
   # that commit. Pending push runs still collapse to the newest, so no backlog forms.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  # The gate a pull request waits on: type checks, unit coverage and the build, about a
+  # minute. Everything that needs a browser is in `e2e` below.
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,6 +31,39 @@ jobs:
       - run: npm run typecheck
       - run: npm run typecheck:worker
       - run: npm run test:coverage
+      - run: npm run build
+      - name: Save coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-evidence
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The browser matrix: ~10 of CI's ~12 minutes, so it runs on the way to production
+  # rather than in front of every push to a pull request. Deployment still waits for it:
+  # pages.yml and backend.yml gate on this whole workflow's conclusion for a main push,
+  # and a job skipped on a pull request does not affect that conclusion.
+  #
+  # Run it on a pull request before merging, for a change to the renderer, the online
+  # runtime, the controller or any other browser-facing path: add the `full-ci` label,
+  # dispatch this workflow on the branch, or run `scripts/ci-local.sh` locally.
+  e2e:
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'full-ci')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Before the browser downloads, so a revision that does not compile fails in
+      # seconds rather than after a minute of Playwright installs.
       - run: npm run build
       - run: npx playwright install --with-deps chrome chromium webkit
       - name: Chrome five-phone smoke
@@ -94,13 +133,12 @@ jobs:
           ONLINE_URL: http://localhost:8787/
       - name: Stream packet traffic benchmark
         run: npx tsx scripts/benchmark-actions.ts
-      - name: Save coverage and browser evidence
+      - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: verification-evidence
+          name: browser-evidence
           path: |
-            coverage/
             artifacts/*.png
             artifacts/worker.log
             docs/online/*benchmark.json
