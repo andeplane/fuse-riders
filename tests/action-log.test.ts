@@ -47,6 +47,21 @@ test('join, presence, leave and settings fold with guards instead of throws', ()
   tick(state, { [HOST]: [[14, 'lobby', 'match-2']] }); assert.equal(state.game.phase, 'lobby'); assert.equal(state.game.matchId, 'match-2');
   assert.equal(state.game.tick > 0, true, 'return to lobby keeps the transport tick');
 });
+test('the chain-reaction flag folds like any other setting: pending mid-round, adopted next round', () => {
+  assert.ok(validEntry([1, 1, 13, { ...defaultRoomSettings(), chainReaction: false }]));
+  assert.equal(validEntry([1, 1, 13, { ...defaultRoomSettings(), chainReaction: 'no' }]), false, 'a non-boolean flag is refused');
+  const state = playing();
+  tick(state, { [HOST]: [[13, { ...defaultRoomSettings(), chainReaction: false }]] });
+  assert.equal(state.pending.chainReaction, false);
+  assert.equal(state.game.settings!.chainReaction, true, 'mid-round settings stay pending, so host and guest fold the same world');
+  const host = state.game.players.get(HOST)!; host.invulnerableUntilTick = 0; host.alive = false;
+  const round = state.game.round;
+  for (let i = 0; i < 400 && state.game.round === round; i++) tick(state);
+  assert.equal(state.game.round, round + 1);
+  assert.equal(state.game.settings!.chainReaction, false, 'the next round adopts the pending flag');
+  const copy = cloneState(state); copy.pending = { ...copy.pending, chainReaction: true };
+  assert.notEqual(replayHash(copy), replayHash(state), 'the flag is part of the replica hash');
+});
 test('settings entries validate aim time and replay applies it only at the next round', () => {
   for (const bombChargeTicks of [2, 8, 40]) assert.ok(validEntry([1, 1, 13, { ...defaultRoomSettings(), bombChargeTicks }]), String(bombChargeTicks));
   for (const bombChargeTicks of [0, 1, 41, 2.5, '8', null, Number.NaN]) assert.equal(validEntry([1, 1, 13, { ...defaultRoomSettings(), bombChargeTicks }]), false, String(bombChargeTicks));

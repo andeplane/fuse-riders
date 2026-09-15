@@ -1087,7 +1087,7 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: 'explosion', bombId: id });
 
-    for (const candidate of chain ? [...state.bombs.values()].sort((a, b) => a.id - b.id) : []) {
+    if (chain) for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
       if (exploded.has(candidate.id) || queued.has(candidate.id)) continue;
       if (candidate.shell || candidate.landsAtTick > state.tick) continue;
       if (segmentIntersectsDisk(candidate.x, candidate.y, candidate.x, candidate.y, circle)) {
