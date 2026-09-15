@@ -43,6 +43,7 @@ export class RoomRuntime {
   private lastResync=-Infinity;
   private pendingHash?:{tick:number;hash:string;lastSeq:Map<string,number>};
   private mismatches:number[]=[];
+  private gapSince=new Map<string,number>();
   private pendingJoin?:{command:Extract<RoomCommand,{type:'join'}>;sentAt:number};
   private settings:RoomSettings;
   // Presentation.
@@ -52,6 +53,7 @@ export class RoomRuntime {
   private lastTick=performance.now();
   private accumulator=0;
   private sendAccumulator=0;
+  private sendTicks=0;
   private announced=false;
   private authorityActive=false;
   private recovering=false;
@@ -110,7 +112,7 @@ export class RoomRuntime {
   private receiveFast(id:string,message:ReturnType<typeof unpackFast>&object):void {
     const now=performance.now(),session=this.session;
     if(session){
-      if(message.type==='repair'){const member=[...session.senders.keys()].find(m=>hashText(m)===message.member);const sender=member?session.senders.get(member):undefined;if(!member||!sender)return;const entries=sender.since(message.firstMissingSeq).slice(0,32);this.transport.send(id,packFast({type:'streams',tick:session.tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,hash:null,streams:[{member:message.member,lastSeq:sender.lastSeq,entries}]}),true);return;}
+      if(message.type==='repair'){const member=[...session.senders.keys()].find(m=>hashText(m)===message.member);const sender=member?session.senders.get(member):undefined;if(!member||!sender)return;const entries=sender.since(message.firstMissingSeq).slice(0,32);if(!entries.length||entries[0]![0]!==message.firstMissingSeq){this.transport.send(id,session.baseline(id));return;}this.transport.send(id,packFast({type:'streams',tick:session.tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,hash:null,streams:[{member:message.member,lastSeq:sender.lastSeq,entries}]}),true);return;}
       const own=message.streams.find(s=>s.member===hashText(id));if(!own)return;
       this.peerSentAt.set(id,message.sentAt);this.heard(id);
       const {firstMissing}=session.ingest(id,own.entries);
@@ -120,7 +122,8 @@ export class RoomRuntime {
     if(id!==this.transport.hostId)return;
     if(message.type==='repair'){if(message.member!==hashText(this.transport.id))return;this.transport.send(id,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:message.member,lastSeq:this.own.lastSeq,entries:this.own.since(message.firstMissingSeq).slice(0,32)}]}),true);return;}
     this.hostHeardAt=now;this.hostSentAt=message.sentAt;
-    this.clock.observe(message.tick,message.echoSentAt===null?0:Math.max(0,now-message.echoSentAt));
+    // The echo is this guest's own send time; older than a second it measures silence, not the link.
+    if(message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt));else if(!this.clock.live)this.clock.observe(message.tick,0);
     const sim=this.sim;if(!sim)return;
     const lastSeq=new Map<string,number>();
     for(const stream of message.streams){
@@ -130,10 +133,14 @@ export class RoomRuntime {
       for(const entry of stream.entries){if(sim.insert(member,entry)==='invalid'){this.requestResync();return;}}
     }
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick),hash:message.hash,lastSeq};
+    const open=new Set<string>();
     for(const [member,firstMissing] of sim.gaps()){
+      open.add(member);const since=this.gapSince.get(member)??now;this.gapSince.set(member,since);
+      if(now-since>SILENCE_MS){this.gapSince.delete(member);this.requestResync();continue;}
       if(now-(this.lastRepairSent.get(member)??-Infinity)<REPAIR_INTERVAL_MS)continue;
       this.lastRepairSent.set(member,now);this.transport.send(id,packFast({type:'repair',member:hashText(member),firstMissingSeq:firstMissing}),true);
     }
+    for(const member of [...this.gapSince.keys()])if(!open.has(member))this.gapSince.delete(member);
   }
   private installBaseline(message:BaselineMessage):void {
     try {
@@ -151,7 +158,8 @@ export class RoomRuntime {
       }
       if(replayHash(state)!==message.hash)return;
       this.members.set(hashText(this.transport.hostId),this.transport.hostId);this.members.set(hashText(this.transport.id),this.transport.id);
-      if(!this.sim)this.sim=new Simulation(state,this.transport.hostId);else this.sim.install(state,folded);
+      if(!this.sim)this.sim=new Simulation(state,this.transport.hostId);
+      this.sim.install(state,folded);
       for(const [member,entries] of retained)for(const entry of entries)this.sim.insert(member,entry);
       this.settings=pending;this.publishView();
     }catch{/* a malformed baseline is ignored; the next resync asks again */}
@@ -169,8 +177,9 @@ export class RoomRuntime {
     if(command.type==='avatar'){const sim=this.sim;if(!sim)return false;const entry=this.own.append(Math.floor(this.clock.tick())+1,[5,command.avatarId]);sim.insert(this.transport.id,entry,true);this.sendOwn(performance.now());return true;}
     return this.transport.send(this.transport.hostId,{type:'command',command});
   }
+  /** Every tick while there are recent entries to repeat, otherwise every five ticks as a liveness and clock heartbeat. */
   private sendOwn(now:number):void {
-    if(!this.sim||!this.own.retained.length&&this.own.lastSeq===0)return;
+    if(!this.sim)return;
     this.transport.send(this.transport.hostId,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:hashText(this.transport.id),lastSeq:this.own.lastSeq,entries:this.own.next()}]}),true);
   }
   private tick():void {
@@ -230,12 +239,12 @@ export class RoomRuntime {
       this.checkHash();
     }
     this.sendAccumulator+=Math.min(elapsed,100);
-    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.sendOwn(now);this.own.retain(sim.tick);}
+    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim.tick);this.sendTicks++;if(this.own.retained.length||this.sendTicks%5===0)this.sendOwn(now);}
   }
   private publishView():void {
     const sim=this.sim!,game=sim.state.game;
     this.previous=this.current;this.current={...toSnapshot(game),tick:game.tick,round:game.round};
-    this.callbacks.state(this.current,this.settings,game.matchId);
+    this.settings=sim.state.pending;this.callbacks.state(this.current,this.settings,game.matchId);
   }
   /** The host's periodic hash is compared only once every stream it covers is complete here. */
   private checkHash():void {
