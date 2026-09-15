@@ -4,6 +4,7 @@ import { ControllerInputState, type ControllerInputMessage } from '../src/client
 import { renderedSnapshot, type SnapshotFrame } from '../src/client/render-snapshot.js';
 import { SnapshotStream } from '../src/client/snapshot-stream.js';
 import { bombPreviewDistance } from '../src/client/bomb-preview.js';
+import { PORTAL_PALETTES, portalPalettes } from '../src/client/pickup-renderer.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
@@ -182,4 +183,16 @@ test('shell visuals advance between server ticks and reflect off walls without c
   assert.equal(projected.bombs[0]!.x, 1562, 'travels 6 units to wall and reflects remaining 4');
   assert.equal(current.snapshot.bombs[0]!.x, 1560);
   assert.equal(renderedSnapshot([before, current], 9999)!.bombs[0]!.x, 1552, 'projection caps at 50ms');
+});
+
+test('simultaneous portal pairs never share a palette, and keep their colour when a neighbour retires', () => {
+  const ids = ['1:4:120', '1:5:180', '1:6:240'];
+  const assigned = portalPalettes(ids);
+  assert.equal(new Set(assigned).size, ids.length, 'every live pair is told apart by colour');
+  for (const palette of assigned) assert.notEqual(palette[0], palette[1], 'the two ends of one pair stay distinguishable');
+  // Retiring the oldest leaves the survivors on the colours they already had.
+  assert.deepEqual(portalPalettes(ids.slice(1)), assigned.slice(1));
+  // The fixture ids that previously collided are now separated.
+  assert.equal(new Set(portalPalettes(['fixture-gates', 'fixture-gates-2'])).size, 2);
+  assert.ok(PORTAL_PALETTES.length >= 3);
 });

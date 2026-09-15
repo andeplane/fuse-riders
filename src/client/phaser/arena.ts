@@ -6,7 +6,7 @@ import { AVATARS, AVATAR_ATLAS_URL } from '../../shared/avatars.js';
 import { bombPreviewDistance } from '../bomb-preview.js';
 import { volleyAngles } from '../../shared/launch-modifiers.js';
 import { drawInkClouds } from '../ink-renderer.js';
-import { portalPalette } from '../pickup-renderer.js';
+import { portalPalettes } from '../pickup-renderer.js';
 import { EffectTransitions, bombPose } from './effects.js';
 import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { observeArenaDisplay } from './viewport.js';
@@ -240,9 +240,10 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(`${theme.id}:${p.type}`,p.x,p.y,34*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
       this.label(p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
     }
-    for(const pair of s.portalPairs) {
-      if(pair.expiresAtTick<=s.tick) continue;
-      const tints=portalPalette(pair.id).map(color) as [number,number];
+    const livePortals=s.portalPairs.filter(pair=>pair.expiresAtTick>s.tick);
+    const portalTints=portalPalettes(livePortals.map(pair=>pair.id));
+    for(const [pairIndex,pair] of livePortals.entries()) {
+      const tints=portalTints[pairIndex]!.map(color) as [number,number];
       // The faint tether keeps the two ends of one pair readable when several pairs are open.
       g.lineStyle(2,tints[0],.18).lineBetween(pair.gates[0].x,pair.gates[0].y,pair.gates[1].x,pair.gates[1].y);
       for(const [index,gate] of pair.gates.entries()) {
