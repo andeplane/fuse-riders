@@ -92,7 +92,9 @@ export async function startOnline():Promise<void>{
     const landingActions=node('span','','dialog-actions');landingActions.append(landingClose);landingBar.append(node('strong','SETTINGS'),landingActions);
     const landingBody=node('div','','dialog-body');landingDialog.append(landingBar,landingBody);
     landingDialog.addEventListener('click',event=>{if(event.target===landingDialog){const r=landingDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)landingDialog.close();}});
-    landingSettings.onclick=()=>{showRoomSettings(landingBody,loadRoomSettings(localStorage),true,labels,draft=>{save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>landingDialog.close());landingDialog.showModal();};
+    // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
+    // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
+    landingSettings.onclick=()=>{showRoomSettings(landingBody,loadRoomSettings(localStorage),true,labels,draft=>{save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
     card.querySelector('.landing-top-end')!.append(landingSettings);card.append(landingDialog);
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
@@ -176,9 +178,11 @@ export async function startOnline():Promise<void>{
   // header and joinPanel are app's only children here (line 116, and nothing else attaches before this point).
   if(role==='joiner'){header.after(canvas,sharedLobby,scoreboard);joinPanel.after(footer,keyHint,dialog);}
   else app.replaceChildren(header,booting,canvas,sharedLobby,scoreboard,joinPanel,footer,keyHint,dialog);
+  const mac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent);
   help.onclick=()=>{
+    dialogTitle.textContent='SHORTCUTS';dialog.setAttribute('aria-label','Keyboard shortcuts'); // the close handler resets both
     dialogBody.replaceChildren(node('h2','Keyboard shortcuts'));
-    for(const group of keyboardShortcuts({mac:/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent),canConfigure:isHost||solo,solo})){
+    for(const group of keyboardShortcuts({mac,canConfigure:isHost||solo,solo})){
       const list=node('dl','','shortcut-list');for(const [keys,action] of group.entries){list.append(node('dt',keys),node('dd',action));}
       dialogBody.append(node('h3',group.title,'shortcut-group'),list);
     }
@@ -290,11 +294,13 @@ export async function startOnline():Promise<void>{
     if(!dialog.open)dialog.showModal();
   };
   settingsButton.onclick=()=>openSettings();
-  // Ctrl+P (⌘P on a Mac) goes to the power-ups page instead of the browser's print dialog (#168). Typing keeps the browser's key.
+  // Ctrl+P (⌘P on a Mac) goes to the power-ups page instead of the browser's print dialog (#168). The key is only taken when it will act:
+  // a joiner, a display or an ended room keeps the browser's print dialog, and an open dialog keeps its own chrome.
   window.addEventListener('keydown',event=>{
-    if(event.code!=='KeyP'||event.repeat||event.altKey||event.shiftKey||event.ctrlKey===event.metaKey)return;
+    if(event.code!=='KeyP'||event.repeat||event.altKey||event.shiftKey||(mac?!event.metaKey||event.ctrlKey:!event.ctrlKey||event.metaKey))return;
     if(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))return;
-    event.preventDefault();if(isHost||solo)openSettings('powerups');
+    if(dialog.open||roomEnded||!(isHost||solo))return;
+    event.preventDefault();openSettings('powerups');
   });
   const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const sent=runtime.command({type:'input',left:message.left,right:message.right,bomb:message.bomb,...(message.bombAction?{bombAction:message.bombAction}:{}),...(message.aim?{aim:message.aim}:{})});if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent});return sent;}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{

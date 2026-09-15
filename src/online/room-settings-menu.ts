@@ -22,8 +22,12 @@ export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boo
   };
   const powerups=()=>{
     body.replaceChildren(element('h2','Configure powerups'));const back=element('button','← BACK TO ROOM SETTINGS');back.onclick=main;body.append(back,element('p','Set a weight to 0 to disable a powerup. Higher weights make it more common.'));
+    // Ctrl+P opens this page directly (#168), so it saves here too: weights are clamped as they are typed, and the match inputs that need validating live on the main page.
     const percentages=new Map<string,HTMLElement>();const recalc=()=>{const total=Object.values(draft.weights).reduce((sum,weight)=>sum+(weight??0),0);for(const [type,output] of percentages)output.textContent=`${total?((draft.weights[type as PickupType]??0)/total*100).toFixed(1):'0'}%`;};
     for(const [type,title] of Object.entries(labels)){const label=element('label',title),input=element('input'),percent=element('span');input.type='number';input.min='0';input.max='10000';input.value=String(draft.weights[type as PickupType]??0);input.oninput=()=>{draft.weights[type as PickupType]=Math.max(0,Math.min(10000,Math.round(Number(input.value)||0)));recalc();};label.append(input,percent);percentages.set(type,percent);body.append(label);}recalc();body.scrollTop=0;
+    const powerupError=element('p');powerupError.setAttribute('role','alert');const powerupApply=element('button','SAVE SETTINGS');
+    powerupApply.onclick=()=>{if(save(draft))close();else powerupError.textContent='Could not save settings. Check the room connection and try again.';};
+    body.append(powerupError,powerupApply);body.scrollTop=0;
   };
   if(start==='powerups')powerups();else main(); // Ctrl+P opens the power-up page directly (#168).
 }

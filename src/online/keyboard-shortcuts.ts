@@ -2,6 +2,7 @@
  *  game-audio.ts and controller-keyboard.ts, and this list is what a player is told they can press. */
 export interface ShortcutGroup { title:string; entries:readonly (readonly [keys:string,action:string])[] }
 export interface ShortcutContext { mac:boolean; canConfigure:boolean; solo:boolean }
+/** A group with nothing left to say is dropped: a solo run has neither a room dialog nor a network panel. */
 /** ⌘ on a Mac only where the handler accepts it: the radio keys require a real Ctrl, so they stay Ctrl everywhere. */
 export function keyboardShortcuts({mac,canConfigure,solo}:ShortcutContext):ShortcutGroup[]{
   const groups:ShortcutGroup[]=[
@@ -11,11 +12,11 @@ export function keyboardShortcuts({mac,canConfigure,solo}:ShortcutContext):Short
       ['Esc','Close the open dialog'],
     ]},
     {title:'Radio',entries:[['Ctrl+A','Open the radio'],['Ctrl+M','Mute everything'],['Ctrl+Alt+M','Mute music'],['Ctrl+Alt+E','Mute effects']]},
-    {title:'Diagnostics',entries:[
-      ...(solo?[]:[['—',`Network stats and link diagnostics live in the ${'ROOM'} dialog`] as const]),
+    {title:'Diagnostics',entries:solo?[]:[
+      ['—','Network stats and link diagnostics live in the ROOM dialog'],
       ['—','?stats=1 in the address bar opens the network panel on load'],
     ]},
-    {title:'Left to the browser',entries:[['F12 · Ctrl+Shift+I','Developer tools'],[mac?'⌘R':'Ctrl+R','Reload — a room rejoins by itself']]},
+    {title:'Left to the browser',entries:[[mac?'⌥⌘I':'F12 · Ctrl+Shift+I','Developer tools'],[mac?'⌘R':'Ctrl+R',solo?'Reload — a solo run starts over':'Reload — a room rejoins by itself']]},
   ];
   return groups.filter(group=>group.entries.length>0);
 }
