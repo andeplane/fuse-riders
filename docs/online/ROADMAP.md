@@ -4,7 +4,7 @@ Updated 2026-09-14. LAN remains available while the online release is qualified.
 
 ## Implemented foundations
 
-The reviewed direction uses a browser authority, direct WebRTC gameplay and a signalling/coordination backend. [ADR 035](../adr/035-direct-gameplay-only.md) explicitly supersedes earlier WSS gameplay-relay fallback requirements. The selected deployment is GitHub Pages plus GCP Cloud Run, Firestore and Pub/Sub; the Cloudflare adapter remains useful for local development.
+The reviewed direction uses a browser authority, direct WebRTC gameplay and a signalling/coordination backend. [ADR 035](../adr/035-direct-gameplay-only.md) explicitly supersedes earlier WSS gameplay-relay fallback requirements. The selected deployment is GitHub Pages plus GCP Cloud Run, Firestore and Pub/Sub; local development and CI run the same room service code over in-memory rooms.
 
 | Area | Implemented behavior | Remaining acceptance |
 | --- | --- | --- |

@@ -91,7 +91,7 @@ test('star, shield and portal grace bounce trails cannot start outside the newly
 test('overtime clipping preserves portal entry and exit discontinuity', () => {
   const state = overtimeArena(); const player = state.players.get('p0')!;
   Object.assign(player, { x: 185, y: 200, angle: 0 });
-  state.portalPair = { id: 'pair', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 100 };
+  state.portalPairs = [{ id: 'pair', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 100 }];
   step(state, new Map());
   assert.equal(player.x, 1012);
   assert.equal(player.trail.at(-1)!.x2, 189);

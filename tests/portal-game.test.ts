@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addPlayer, createGame, startMatch, startNextRound, step, toSnapshot, COUNTDOWN_TICKS } from '../src/shared/game.ts';
+import { MAX_PORTAL_PAIRS } from '../src/shared/portal.ts';
 import { controllerSnapshot } from '../src/server/index.ts';
 
 function arena() {
@@ -9,7 +10,7 @@ function arena() {
   startMatch(state);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(state, new Map());
   for (const [index, player] of [...state.players.values()].entries()) Object.assign(player, { x: 185 + index * 500, y: 200 + index * 200, angle: 0, trail: [] });
-  state.portalPair = { id: 'pair', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 200 };
+  state.portalPairs = [{ id: 'pair', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 200 }];
   return state;
 }
 
@@ -62,7 +63,7 @@ test('unsafe exit defers teleport for rider, pending trail, trail, bomb and blas
 
 test('portal grace is defensive for both riders, protects trails/walls and does not consume shield', () => {
   const state = arena(); const player = state.players.get('p0')!; const other = state.players.get('p1')!;
-  state.portalPair = undefined;
+  state.portalPairs = [];
   player.portalGraceUntilTick = state.tick + 10; player.shielded = true;
   Object.assign(other, { x: 180, y: 200, angle: Math.PI });
   step(state, new Map());
@@ -74,30 +75,33 @@ test('portal grace is defensive for both riders, protects trails/walls and does 
 
 test('portal expiry, snapshot copying, compact geometry omission and round reset', () => {
   const state = arena(); const snapshot = toSnapshot(state);
-  snapshot.portalPair!.gates[0].x = -10;
-  assert.equal(state.portalPair!.gates[0].x, 200);
-  assert.equal('portalPair' in controllerSnapshot(toSnapshot(state)), false);
-  state.portalPair!.expiresAtTick = state.tick + 1;
-  step(state, new Map()); assert.equal(state.portalPair, undefined);
+  snapshot.portalPairs[0]!.gates[0].x = -10;
+  assert.equal(state.portalPairs[0]!.gates[0].x, 200);
+  assert.deepEqual(controllerSnapshot(toSnapshot(state)).portalPairs, []);
+  state.portalPairs[0]!.expiresAtTick = state.tick + 1;
+  step(state, new Map()); assert.deepEqual(state.portalPairs, []);
   const player = state.players.get('p0')!; player.portalCooldownUntilTick = 900; player.portalGraceUntilTick = 900;
   state.phase = 'roundOver'; startNextRound(state);
   assert.equal(player.portalCooldownUntilTick, 0); assert.equal(player.portalGraceUntilTick, 0);
-  assert.equal(state.portalPair, undefined);
+  assert.deepEqual(state.portalPairs, []);
 });
 
-test('portal pickup creates deterministic pair, records stats, replaces pair without clearing cooldown', () => {
+test('portal pickup adds a deterministic pair, records stats, keeps the old pair and the cooldown', () => {
   const states = [arena(), arena()];
   for (const state of states) {
     const player = state.players.get('p0')!; player.portalCooldownUntilTick = 200;
     state.pickups.push({ id: 50, type: 'portal', x: 170, y: 200, expiresAtTick: 500 });
     step(state, new Map());
-    assert.equal(state.pickups.length, 0); assert.notEqual(state.portalPair!.id, 'pair');
+    assert.equal(state.pickups.length, 0);
+    assert.equal(state.portalPairs.length, 2, 'the running pair keeps its remaining lifetime');
+    assert.equal(state.portalPairs[0]!.id, 'pair');
+    assert.notEqual(state.portalPairs[1]!.id, 'pair');
     assert.equal(player.portalCooldownUntilTick, 200);
     assert.equal(state.matchStats.get('p0')!.portalPickups, 1);
     state.phase = 'matchOver';
     assert.equal(toSnapshot(state).matchStats[0]!.portalPickups, 1);
   }
-  assert.deepEqual(states[0]!.portalPair, states[1]!.portalPair);
+  assert.deepEqual(states[0]!.portalPairs, states[1]!.portalPairs);
 });
 
 test('impossible placement leaves pickup and old pair unconsumed', () => {
@@ -106,14 +110,14 @@ test('impossible placement leaves pickup and old pair unconsumed', () => {
   state.pickups.push({ id: 50, type: 'portal', x: 170, y: 200, expiresAtTick: 500 });
   step(state, new Map());
   assert.equal(state.pickups.length, 1);
-  assert.equal(state.portalPair, undefined, 'reclaimed wall pair is removed');
+  assert.deepEqual(state.portalPairs, [], 'reclaimed wall pair is removed');
   assert.equal(state.matchStats.get('p0')!.portalPickups, 0);
 });
 
-test('reverse transit respects cooldown at its exact deadline after replacement', () => {
+test('reverse transit respects cooldown at its exact deadline through any gate', () => {
   const state = arena(); const player = state.players.get('p0')!;
   Object.assign(player, { x: 985, y: 300, portalCooldownUntilTick: state.tick + 2 });
-  state.portalPair!.id = 'replacement';
+  state.portalPairs[0]!.id = 'second';
   step(state, new Map());
   assert.equal(player.x, 992.5);
   player.x = 985;
@@ -126,7 +130,7 @@ test('reverse transit respects cooldown at its exact deadline after replacement'
 test('portal defensive grace expires exactly at the authoritative tick', () => {
   for (const remaining of [1, 2]) {
     const state = arena(); const player = state.players.get('p0')!;
-    state.portalPair = undefined;
+    state.portalPairs = [];
     player.portalGraceUntilTick = state.tick + remaining;
     state.players.get('p1')!.trail.push({ x1: 188, y1: 100, x2: 188, y2: 250, createdTick: 0, expiresAtTick: 500 });
     step(state, new Map());
@@ -164,7 +168,7 @@ test('wall placement remains useful on an occupied five-rider field across seeds
     }
     state.pickups = [{ id: 1, type: 'portal', x: 200, y: 260, expiresAtTick: 9999 }];
     step(state, new Map());
-    if (state.portalPair) placed++;
+    if (state.portalPairs.length) placed++;
   }
   assert.ok(placed >= 45, `at least 90% of representative occupied arenas should place walls; got ${placed}/50`);
 });
@@ -172,23 +176,23 @@ test('wall placement remains useful on an occupied five-rider field across seeds
 test('authoritative overtime shrinks portal wall length and removes reclaimed walls from snapshots', () => {
   const state = arena();
   state.tick = state.roundStartedTick! + 1200 + 160;
-  state.portalPair!.expiresAtTick = state.tick + 200;
+  state.portalPairs[0]!.expiresAtTick = state.tick + 200;
   state.nextPickupSpawnTick = state.tick + 100;
-  const first = state.portalPair!.gates[0];
+  const first = state.portalPairs[0]!.gates[0];
   Object.assign(first, { y: 200, halfLength: 140 });
   const { snapshot } = step(state, new Map());
-  const gate = snapshot.portalPair!.gates[0];
+  const gate = snapshot.portalPairs[0]!.gates[0];
   assert.equal(gate.y - gate.halfLength, state.boundaryInset + 12);
   assert.ok(gate.halfLength <= (state.height - state.boundaryInset * 2) / 6);
   first.x = 50;
   // The snapshot and current pair are independent copies.
-  state.portalPair!.gates[0].x = 50;
-  assert.equal(step(state, new Map()).snapshot.portalPair, undefined);
+  state.portalPairs[0]!.gates[0].x = 50;
+  assert.deepEqual(step(state, new Map()).snapshot.portalPairs, []);
 });
 
 test('compressed linked wall reserves an exit for the first rider rather than overlapping arrivals', () => {
   const state = arena();
-  state.portalPair!.gates[1].halfLength = 10;
+  state.portalPairs[0]!.gates[1].halfLength = 10;
   const first = state.players.get('p0')!; const second = state.players.get('p1')!;
   Object.assign(first, { x: 185, y: 185, angle: 0 });
   Object.assign(second, { x: 185, y: 215, angle: 0 });
@@ -197,4 +201,98 @@ test('compressed linked wall reserves an exit for the first rider rather than ov
   assert.equal(state.matchStats.get('p1')!.portalTransits, 0);
   assert.deepEqual({ x: first.x, y: first.y }, { x: 1012, y: 298.5 });
   assert.deepEqual({ x: second.x, y: second.y }, { x: 192.5, y: 215 });
+});
+
+/** A second pair well clear of the one `arena()` opens, with its own linked wall on the right. */
+function secondPair(tick: number, expiresInTicks = 200) {
+  return { id: 'second', gates: [{ x: 400, y: 200, halfLength: 100 }, { x: 1300, y: 700, halfLength: 100 }] as const,
+    expiresAtTick: tick + expiresInTicks };
+}
+
+test('pairs run side by side, each leading to its own partner and expiring on its own tick', () => {
+  const state = arena();
+  state.portalPairs.push({ ...secondPair(state.tick, 4) });
+  const first = state.players.get('p0')!; const second = state.players.get('p1')!;
+  Object.assign(second, { x: 385, y: 200, angle: 0, trail: [] });
+  step(state, new Map());
+  assert.deepEqual({ x: first.x, y: first.y }, { x: 1012, y: 300 }, 'the older pair still carries its own rider');
+  assert.deepEqual({ x: second.x, y: second.y }, { x: 1312, y: 700 }, 'the newer pair leads to its own partner');
+  assert.equal(state.portalPairs.length, 2);
+  for (let tick = 0; tick < 3; tick++) step(state, new Map());
+  assert.deepEqual(state.portalPairs.map((pair) => pair.id), ['pair'], 'only the short-lived pair expires');
+});
+
+test('a reclaimed wall removes just its own pair, leaving the rest open', () => {
+  const state = arena();
+  state.portalPairs.push({ ...secondPair(state.tick) });
+  state.tick = state.roundStartedTick! + 1200 + 160;
+  for (const pair of state.portalPairs) pair.expiresAtTick = state.tick + 200;
+  state.nextPickupSpawnTick = state.tick + 100;
+  state.portalPairs[0]!.gates[0].x = 50;
+  assert.deepEqual(step(state, new Map()).snapshot.portalPairs.map((pair) => pair.id), ['second']);
+});
+
+/** Distance from a point to a gate's vertical centerline, as the placement clearance measures it. */
+function gateDistance(point: { x: number; y: number }, gate: { x: number; y: number; halfLength: number }): number {
+  const y = Math.max(gate.y - gate.halfLength, Math.min(gate.y + gate.halfLength, point.y));
+  return Math.hypot(point.x - gate.x, point.y - y);
+}
+
+test('a new pair is never laid over the walls of a live one', () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 40 && checked === 0; seed++) {
+    const state = arena(); state.randomState = seed;
+    state.pickups.push({ id: 50, type: 'portal', x: 170, y: 200, expiresAtTick: 500 });
+    step(state, new Map());
+    if (state.pickups.length) continue;
+    checked++;
+    const [existing, fresh] = state.portalPairs;
+    for (const gate of fresh!.gates) {
+      for (const sample of [gate.y - gate.halfLength, gate.y, gate.y + gate.halfLength]) {
+        for (const wall of existing!.gates) {
+          assert.ok(gateDistance({ x: gate.x, y: sample }, wall) > 11, `new wall at ${gate.x} clears the live wall at ${wall.x}`);
+        }
+      }
+    }
+  }
+  assert.equal(checked, 1, 'at least one seed should place a second pair');
+});
+
+test('a transit is refused rather than dropping a rider inside another pair\'s wall', () => {
+  for (const foreignX of [1013, 1100]) {
+    const state = arena(); const player = state.players.get('p0')!;
+    state.portalPairs.push({ id: 'foreign', gates: [{ x: foreignX, y: 300, halfLength: 100 }, { x: 500, y: 800, halfLength: 100 }], expiresAtTick: state.tick + 200 });
+    step(state, new Map());
+    const blocked = foreignX === 1013;
+    assert.equal(state.matchStats.get('p0')!.portalTransits, blocked ? 0 : 1, `foreign wall at ${foreignX}`);
+    assert.equal(player.x, blocked ? 192.5 : 1012, `foreign wall at ${foreignX}`);
+  }
+});
+
+test('at the cap the oldest pair retires, before the riders still aiming at it can enter', () => {
+  let checked = 0;
+  for (let seed = 1; seed <= 40 && checked === 0; seed++) {
+    const state = arena(); state.randomState = seed;
+    state.portalPairs = [
+      { id: 'old-0', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 200 },
+      ...Array.from({ length: MAX_PORTAL_PAIRS - 1 }, (_unused, index) => ({
+        id: `old-${index + 1}`,
+        gates: [{ x: 60 + index * 30, y: 500 + index * 100, halfLength: 40 }, { x: 1500 - index * 30, y: 500 + index * 100, halfLength: 40 }] as const,
+        expiresAtTick: state.tick + 200,
+      })),
+    ];
+    state.pickups.push({ id: 50, type: 'portal', x: 170, y: 200, expiresAtTick: 500 });
+    step(state, new Map());
+    assert.ok(state.portalPairs.length <= MAX_PORTAL_PAIRS, 'the list never grows past the cap');
+    if (state.pickups.length) continue;
+    checked++;
+    assert.equal(state.portalPairs.length, MAX_PORTAL_PAIRS);
+    assert.equal(state.portalPairs.some((pair) => pair.id === 'old-0'), false, 'the oldest pair makes room');
+    assert.equal(state.portalPairs[0]!.id, 'old-1', 'the survivors keep their order');
+    assert.equal(state.portalPairs.at(-1)!.id.startsWith('old-'), false, 'the new pair is appended last');
+    // Collection resolves before the transit scan, so the retired pair is already gone this tick.
+    assert.equal(state.matchStats.get('p0')!.portalTransits, 0);
+    assert.equal(state.players.get('p0')!.x, 192.5);
+  }
+  assert.equal(checked, 1, 'at least one seed should place a pair against a full list');
 });

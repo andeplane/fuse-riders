@@ -1,4 +1,4 @@
-/** Signalling payload boundary shared by the Cloud Run gateway and the local Worker adapter; only SDP and ICE shapes pass. */
+/** Signalling payload boundary enforced by RoomGateway, in Cloud Run and in the local room service; only SDP and ICE shapes pass. */
 export function validSignal(raw:unknown):boolean {
   if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
   const signal=raw as Record<string,unknown>;

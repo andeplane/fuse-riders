@@ -5,17 +5,10 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { runPublicSmoke } from '../scripts/cloud-public-smoke.js';
 import { RoomGateway } from '../src/service/gateway.js';
-import { RoomStore, type RoomDatabase, type RoomRecord } from '../src/service/room-store.js';
-import type { RoomBus } from '../src/service/room-bus.js';
-class Database implements RoomDatabase {
- rooms=new Map<string,RoomRecord>();listeners=new Map<string,(room:RoomRecord)=>void>();
- async read(code:string){return structuredClone(this.rooms.get(code));}
- async transact<T>(code:string,operation:(room:RoomRecord|undefined)=>{room?:RoomRecord;result:T}):Promise<T>{const next=operation(await this.read(code));if(next.room){this.rooms.set(code,structuredClone(next.room));this.listeners.get(code)?.(structuredClone(next.room));}return next.result;}
- watch(code:string,listener:(room:RoomRecord|undefined)=>void){this.listeners.set(code,listener);return()=>{this.listeners.delete(code);};}
- async allowance(){return true;}
-}
+import { RoomStore } from '../src/service/room-store.js';
+import { LocalRoomBus, MemoryRoomDatabase } from '../src/service/memory-database.js';
 async function fixture(brokenCors=false){
- const database=new Database(),store=new RoomStore(database,{now:Date.now,id:randomUUID});const bus:RoomBus={start:async()=>{},publish:async()=>{throw new Error('Unexpected remote bus');},stop:async()=>{}};const gateway=new RoomGateway('test',store,bus,{now:Date.now,id:randomUUID,error:()=>{}});
+ const database=new MemoryRoomDatabase(),store=new RoomStore(database,{now:Date.now,id:randomUUID});const gateway=new RoomGateway('test',store,new LocalRoomBus(),{now:Date.now,id:randomUUID,error:()=>{}});
  const browserOrigin='https://andeplane.github.io';const server=createServer(async(req,res)=>{const url=new URL(req.url!,'http://fixture');if(req.headers.origin!==browserOrigin){res.writeHead(403);res.end();return;}if(!brokenCors)res.setHeader('Access-Control-Allow-Origin',browserOrigin);res.setHeader('Content-Type','application/json');
  if(req.method==='OPTIONS'){res.writeHead(204);res.end();return;}
  if(url.pathname==='/api/health'||url.pathname==='/api/ready'){res.end('{"ok":true}');return;}

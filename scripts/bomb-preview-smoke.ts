@@ -21,7 +21,7 @@ try {
     const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
     const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
     const fixture = visualFixture(40);
-    const snapshot = { ...fixture, boundaryInset: 20, bombs: [], blasts: [], pickups: [], portalPair: undefined,
+    const snapshot = { ...fixture, boundaryInset: 20, bombs: [], blasts: [], pickups: [], portalPairs: [],
       players: fixture.players.slice(0, 1).map(player => ({ ...player, x: 200, y: 300, angle: 0, color: '#00ffff', trail: [],
         alive: true, shielded: false, shieldGraceUntilTick: 0, invulnerableUntilTick: 0, portalGraceUntilTick: 0,
         drunkUntilTick: 0, inkUntilTick: 0, bombChargeStartedTick: 40, targetBombArmed: false,

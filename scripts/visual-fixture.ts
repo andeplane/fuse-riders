@@ -53,7 +53,10 @@ try {
   app.game.players.get('p3')!.inkUntilTick = 980;
   app.game.players.get('p2')!.fiveShotArmed = true;
   app.game.players.get('p2')!.bombChargeStartedTick = 942;
-  app.game.portalPair = { id: 'fixture-gates', gates: [{ x: 1300, y: 180, halfLength: 140 }, { x: 900, y: 720, halfLength: 140 }], expiresAtTick: 1150 };
+  app.game.portalPairs = [
+    { id: 'fixture-gates', gates: [{ x: 1300, y: 180, halfLength: 140 }, { x: 900, y: 720, halfLength: 140 }], expiresAtTick: 1150 },
+    { id: 'fixture-gates-2', gates: [{ x: 260, y: 300, halfLength: 110 }, { x: 700, y: 620, halfLength: 110 }], expiresAtTick: 1150 },
+  ];
   const flightPath = createVolleyFlightPaths({ x: 700, y: 700 }, 0, 300, { minX: 27, minY: 27, maxX: 1573, maxY: 873 })[1]!;
   const landing = flightPath.at(-1)!;
   app.game.bombs.set(4, { id: 4, ownerId: 'p0', launchX: 700, launchY: 700, x: landing.x, y: landing.y, placedTick: 957, launchedTick: 957, landsAtTick: 963, explodeAtTick: 997, blastRange: 150, flightPath });

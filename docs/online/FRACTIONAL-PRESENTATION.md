@@ -38,7 +38,6 @@ This smooths extension after a confirmed press; it does not introduce speculativ
 node --import tsx scripts/bomb-preview-smoke.ts
 BROWSER=webkit node --import tsx scripts/bomb-preview-smoke.ts
 npm run typecheck
-npm run typecheck:worker
 npm run test:coverage
 npm run build
 ```

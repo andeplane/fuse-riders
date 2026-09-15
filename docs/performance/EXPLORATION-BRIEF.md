@@ -248,7 +248,6 @@ Run checks appropriate to every candidate. Before deployment, run the complete r
 
 ```sh
 npm run typecheck
-npm run typecheck:worker
 npm test
 npm run test:coverage
 npm run build
