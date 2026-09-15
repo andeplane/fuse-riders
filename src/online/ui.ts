@@ -144,6 +144,7 @@ export async function startOnline():Promise<void>{
   const footer=node('footer','','online-footer');footer.append(controls,hostControls);
   // A joiner's card is already on screen and may hold focus with a half-typed name (#132): build the room around it. Detaching a focused
   // input blurs it, and keystrokes that follow land nowhere, so an early typist lost their name and JOIN sent nothing.
+  // header and joinPanel are app's only children here (line 116, and nothing else attaches before this point).
   if(role==='joiner'){header.after(canvas,sharedLobby,scoreboard);joinPanel.after(footer,dialog);}
   else app.replaceChildren(header,booting,canvas,sharedLobby,scoreboard,joinPanel,footer,dialog);
   help.onclick=()=>{dialogBody.replaceChildren(node('h2','Keyboard controls'),node('p','← / A — steer left'),node('p','→ / D — steer right'),node('p','SPACE — hold to charge, release to fire'));dialog.showModal();};
