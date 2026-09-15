@@ -17,7 +17,8 @@ import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
-import { legendSrc } from './legend-src.js';
+import { POWERUP_GUIDE } from './powerup-guide.js';
+import { createPowerupGuide } from './powerup-guide-view.js';
 import { safeStorage } from './safe-storage.js';
 import { SocketClient } from './socket-client.js';
 import '@fontsource/press-start-2p/latin.css';
@@ -393,30 +394,12 @@ function startDisplay(): void {
   const lobbyCard = element('div', 'lobby-card');
   const lobbyCopy = element('div', 'lobby-copy');
   lobbyCopy.append(element('p', 'kicker', 'PHONE PARTY // 2–5 RIDERS'), element('h1', '', 'Scan. Steer. Survive.'), element('p', 'lede', 'Open the controller, pick a name, then use your phone to carve neon trails and trigger chain reactions.'));
-  const pickupLegend = element('div', 'pickup-legend');
-  // Every pickup legend src is routed through legendSrc() (which wraps assetUrl()) so it keeps
-  // working once the display page is served under a base path; applyLegendTheme() is the single
-  // place that sets every one of these srcs, called both here and from the theme <select> change
-  // handler. A new legend icon only needs its sprite name in this list to be themed with the rest.
-  const legendSprites = ['blast', 'ink', 'beer', 'triple', 'target', 'five', 'orbitShield', 'portal', 'shell', 'gun', 'stopwatch'] as const;
-  const legendImages = Object.fromEntries(legendSprites.map(name => {
-    const image = element('img'); image.alt = ''; return [name, image];
-  })) as Record<(typeof legendSprites)[number], HTMLImageElement>;
-  function applyLegendTheme(id: ThemeId): void {
-    for (const name of legendSprites) legendImages[name].src = legendSrc(id, `pickup-${name}`);
-  }
-  const blastLegend = element('span'); blastLegend.append(legendImages.blast, element('b', '', 'BLAST+'), document.createTextNode(' larger explosions'));
-  const inkLegend = element('span'); inkLegend.append(legendImages.ink, element('b', '', 'INK'), document.createTextNode(' clouds rivals for 3s'));
-  const beerLegend = element('span'); beerLegend.append(legendImages.beer, element('b', '', 'BEER'), document.createTextNode(' rivals wobble for 4s'));
-  const targetLegend = element('span'); targetLegend.append(legendImages.target, element('b', '', 'TARGET'), document.createTextNode(' slide Fire · instant blast'));
-  const fiveLegend = element('span'); fiveLegend.append(legendImages.five, element('b', '', 'FIVE'), document.createTextNode(' rare: next launch fires 5'));
-  const tripleLegend = element('span'); tripleLegend.append(legendImages.triple, element('b', '', 'TRIPLE'), document.createTextNode(' next launch fires 3'));
-  const shieldLegend = element('span'); shieldLegend.append(legendImages.orbitShield, element('b', '', 'SHIELD'), document.createTextNode(' blocks one crash'));
-  const portalLegend = element('span'); portalLegend.append(legendImages.portal, element('b', '', 'PORTAL'), document.createTextNode(' opens linked gates'));
-  const shellLegend = element('span'); shellLegend.append(legendImages.shell, element('b', '', 'SHELL'), document.createTextNode(' bounces until hit · next shot'));
-  const gunLegend = element('span'); gunLegend.append(legendImages.gun, element('b', '', 'GUN'), document.createTextNode(' shoots holes · slight homing'));
-  const watchLegend = element('span'); watchLegend.append(legendImages.stopwatch, element('b', '', 'FUSE'), document.createTextNode(' your bombs: 2s → 1.5s → 1s'));
-  pickupLegend.append(blastLegend, beerLegend, inkLegend, tripleLegend, fiveLegend, targetLegend, shieldLegend, portalLegend, shellLegend, gunLegend, watchLegend); lobbyCopy.append(pickupLegend);
+  // createPowerupGuide() routes every icon through legendSrc() so it works under a base path, and its
+  // setTheme() is the single place that re-themes them, called here and from the theme <select>.
+  // LAN games have no room settings, so only pickups that spawn by default are listed.
+  const pickupLegend = createPowerupGuide(POWERUP_GUIDE.filter(entry => entry.spawnsByDefault), { className: 'pickup-legend', label: 'Power-ups' });
+  const applyLegendTheme = (id: ThemeId): void => pickupLegend.setTheme(id);
+  lobbyCopy.append(pickupLegend.element);
   const joinPanel = element('div', 'join-panel');
   const qrCanvas = element('canvas', 'qr');
   const joinUrl = element('p', 'join-url', 'Loading join link…');

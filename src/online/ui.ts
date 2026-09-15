@@ -31,6 +31,8 @@ import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
 import { createJoinCard, createJoinForm } from './join-form.js';
 import { safeStorage } from '../client/safe-storage.js';
+import { POWERUP_GUIDE } from '../client/powerup-guide.js';
+import { createPowerupGuide } from '../client/powerup-guide-view.js';
 const storage=safeStorage(()=>localStorage);
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
 const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
@@ -54,6 +56,8 @@ export async function startOnline():Promise<void>{
       <aside class="landing-live"><span class="live-dot"></span> LIVE AI FREE-FOR-ALL <small>Real riders. Real explosions.</small></aside>
       <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
     const form=card.querySelector<HTMLElement>('.landing-multiplayer')!;
+    const guide=node('section','','landing-guide'),guideTitle=node('h2','POWER-UPS','landing-section-label');guideTitle.id='landing-guide-title';guide.setAttribute('aria-labelledby',guideTitle.id);
+    guide.append(guideTitle,createPowerupGuide(POWERUP_GUIDE,{className:'landing-powerups',themeId:defaultTheme.id,offByDefaultNote:'(off by default, enable in room settings)'}).element);card.querySelector('.landing-content')!.append(guide);
     const mode=node('fieldset','','landing-mode');mode.setAttribute('aria-label','Where will you play?');mode.append(node('legend','Where will you play?'));let selectedMode=loadRoomSettings(localStorage).mode;
     for(const [value,label] of [['devices','Each device'],['shared','Shared TV']] as const){const option=node('label'),radio=node('input');radio.type='radio';radio.name='landing-mode';radio.value=value;radio.checked=selectedMode===value;radio.onchange=()=>{selectedMode=value;};option.append(radio,node('span',label));mode.append(option);}
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
