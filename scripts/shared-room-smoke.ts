@@ -4,7 +4,7 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import { smokeTimeout } from './smoke-timeout.js';
 const base=process.env.ONLINE_URL??'http://127.0.0.1:8796/';await mkdir('artifacts',{recursive:true});const results:object[]=[];
 async function qr(page:Page){await page.locator('.shared-lobby').waitFor({state:'visible'});await page.waitForFunction(()=>{const image=document.querySelector<HTMLImageElement>('.shared-lobby img');return image?.complete&&image.naturalWidth>0;});}
-for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const errors:string[]=[];let guestSockets=0;let guestNavigations=0;let joinRetries=0;let diagnosticPages:Record<string,Page>={};
+for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const errors:string[]=[];let guestSockets=0;let guestNavigations=0;let joinRetries=0;let releaseSprites=()=>{};let diagnosticPages:Record<string,Page>={};
  try{
   // #134/#138: a host on a phone gets the phone lobby before taking a seat — join form, QR card, one menu and every host action on screen — in both orientations.
   {const pc=await browser.newContext({viewport:{width:320,height:568},isMobile:true,hasTouch:true});const phone=await pc.newPage();diagnosticPages={phone};phone.setDefaultTimeout(smokeTimeout(25000));phone.on('pageerror',e=>errors.push(`phone: ${e.stack??e.message}`));
@@ -41,14 +41,14 @@ const hc=await browser.newContext({viewport:{width:1280,height:800},...(name==='
  await guest.addInitScript(()=>{Reflect.set(window,'__sharedStates',[]);window.addEventListener('fuse-benchmark',event=>{const detail=(event as CustomEvent).detail;if(detail.kind==='snapshot'){const states=Reflect.get(window,'__sharedStates') as unknown[];states.push(detail);if(states.length>200)states.shift();}});});
  // #132: the joiner's name field keeps focus while the room builds around it, so a name typed during boot is not lost. Holding the theme
   // sprites back makes the window deterministic: the join card is up and focused before the room is built, on any machine speed.
-  let releaseSprites=()=>{};const spritesHeld=new Promise<void>(resolve=>{releaseSprites=resolve;});await guest.route('**/themes/**',async route=>{await spritesHeld;await route.continue();});
+  const spritesHeld=new Promise<void>(resolve=>{releaseSprites=resolve;});await guest.route('**/themes/**',async route=>{await spritesHeld;await route.continue();});
   // goto must not wait for load: the held sprite images are what hold the load event back.
   await guest.goto(invite+'&benchmark=1',{waitUntil:'domcontentloaded'});const earlyName=guest.getByPlaceholder('Your name');
   await earlyName.focus();assert.equal(await guest.locator('.online-arena').count(),0,'room not yet built while sprites are held');await guest.keyboard.type('QR');
   releaseSprites();await guest.waitForFunction(()=>document.querySelector('.online-arena'));await guest.unroute('**/themes/**');await guest.keyboard.type(' guest');
   assert.equal(await guest.evaluate(()=>document.activeElement?.getAttribute('placeholder')),'Your name','guest name field keeps focus through boot');assert.equal(await earlyName.inputValue(),'QR guest','a name typed across boot is kept');
-  // #132: WebKit has shown the guest's name field empty after JOIN, so the join never went out. The name is filled while the page still boots
-  // (the window that flaked) and is now kept as typed: an emptied field fails here with the navigation count, a kept one whose tap was lost gets one counted retap.
+  // #132: WebKit showed the guest's name field empty after JOIN, so the join never went out. The boot window itself is covered above; here an
+  // emptied field still fails with the navigation count, and a kept name whose tap was lost gets one counted retap.
   const joinName=guest.getByPlaceholder('Your name'),joinButton=guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true});await joinName.fill('QR guest');const navigationsBeforeJoin=guestNavigations;await joinButton.click();
   if(!(await joinName.waitFor({state:'hidden',timeout:smokeTimeout(6000)}).then(()=>true,()=>false))){const field=await joinName.inputValue().catch(()=>null);assert.equal(field,'QR guest',`guest name field after JOIN (navigations ${navigationsBeforeJoin} before JOIN, ${guestNavigations} now)`);
    if(await joinButton.isVisible()){joinRetries++;console.warn(`shared room (${name}): join form still up 6 s after JOIN with the name kept; tapping again`);await joinButton.click({timeout:smokeTimeout(3000)}).catch(()=>{});}}
@@ -67,7 +67,8 @@ const hc=await browser.newContext({viewport:{width:1280,height:800},...(name==='
  assert.equal(await guest.locator('.online-controls').isVisible(),false,'ended room must not keep live-looking controls');
  await guest.getByRole('button',{name:'ROOM',exact:true}).waitFor({state:'visible'});await guest.screenshot({path:`artifacts/shared-ended-phone-${name}.png`});
  const socketCount=guestSockets;await new Promise(resolve=>setTimeout(resolve,1800));assert.equal(guestSockets,socketCount,'ended room must not auto-rejoin');assert.deepEqual(errors,[]);results.push({browser:name,passed:true,joinRetries,guestNavigations,shortCodePattern:true,hostQr:true,tvQr:true,joinLink:joinUrl,copyLabel,clipboard,startReset:true,endedWithoutReconnect:true,endedVisibleOnPhone:endedBox,controlBounds,inputApplied:true});console.log(`PASS ${name} shared QR/end room`);
- }catch(error){console.error(`shared room smoke failed (${name}):`,String(error));
+ }catch(error){releaseSprites();console.error(`shared room smoke failed (${name}):`,String(error)); // a failure before release must not leave sprite requests parked
+
   // Every page's own status and link diagnostics (the MENU text), so a failure says which leg stalled (#132). Each read is
   // bounded: evaluate ignores the page timeout, and a stuck renderer must not hang the job and hide the error above.
   const pages:Record<string,object>={};for(const [role,page] of Object.entries(diagnosticPages)){pages[role]=await Promise.race([page.evaluate(()=>({status:document.querySelector('.online-status')?.textContent??null,link:document.querySelector<HTMLElement>('#app')?.dataset.linkDiagnostics??null,body:document.body.innerText.slice(0,800),joinName:document.querySelector<HTMLInputElement>('.online-join input')?.value??null})).catch(e=>({unavailable:String(e)})),new Promise<object>(resolve=>setTimeout(()=>resolve({unavailable:'page did not answer within 4 s'}),4000))]);await page.screenshot({path:`artifacts/shared-failure-${name}-${role}.png`,timeout:5000}).catch(()=>{});}
