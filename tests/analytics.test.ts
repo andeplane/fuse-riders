@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { analyticsEnabled, matchEndedProps } from '../src/online/analytics.js';
+import { analyticsEnabled, matchEndedProps, matchStartKey } from '../src/online/analytics.js';
 import { BOT_ID_PREFIX } from '../src/shared/bot-controller.js';
 import type { MatchPlayerStats } from '../src/shared/match-stats.js';
 
@@ -49,4 +49,19 @@ test('a runner-up is not recorded as a winner', () => {
   const props = matchEndedProps(stats, 'me');
   assert.equal(props.won, false);
   assert.equal(props.placement, 2);
+});
+
+test('a match start is the first round of a match id, not a countdown', () => {
+  // Every round opens with its own countdown, so rounds 2+ must not read as a new match.
+  assert.equal(matchStartKey('m1', 'countdown', 1), 'm1:1');
+  assert.equal(matchStartKey('m1', 'countdown', 2), undefined);
+  assert.equal(matchStartKey('m1', 'countdown', 5), undefined);
+  // Solo never passes through the lobby: LocalRuntime seats its bots and starts before the first snapshot,
+  // so the very first phase the UI sees is already the round-1 countdown and must still count as a start.
+  assert.equal(matchStartKey('solo-match', 'countdown', 1), 'solo-match:1');
+  // A rematch takes a fresh match id back to round 1, so it keys apart from the match before it.
+  assert.notEqual(matchStartKey('m2', 'countdown', 1), matchStartKey('m1', 'countdown', 1));
+  for (const phase of ['lobby', 'playing', 'roundOver', 'matchOver']) {
+    assert.equal(matchStartKey('m1', phase, 1), undefined, `${phase} does not begin a match`);
+  }
 });

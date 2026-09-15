@@ -47,6 +47,20 @@ export function track(event: string, properties?: Record<string, unknown>): void
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
 
 /**
+ * Identifies the snapshot that begins a match, or `undefined` for every other snapshot. Callers report a match
+ * start whenever this returns a key they have not already reported.
+ *
+ * Keyed on the first round of a match id rather than on a phase transition: every round opens with its own
+ * countdown, so `lobby -> countdown` would count rounds, and solo never passes through the lobby at all —
+ * `LocalRuntime.start` seats four bots and starts the match before the first snapshot reaches the UI, so its
+ * first observed phase is already `countdown`. A rematch takes a fresh match id and returns to round 1, so it
+ * keys apart from the match before it; a device that joins at round 3 reports no start, which is the truth.
+ */
+export function matchStartKey(matchId: string, phase: string, round: number): string | undefined {
+  return phase === 'countdown' && round === 1 ? `${matchId}:${round}` : undefined;
+}
+
+/**
  * One event per finished match, from the authoritative end-of-match stats. `playerId` is this device's rider:
  * a shared-TV display or a spectator has none, and reports only the shape of the match it watched.
  */
