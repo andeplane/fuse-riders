@@ -39,7 +39,7 @@ export interface TransportEvents {
 export interface RuntimeDependencies { now(): number; hidden(): boolean; token(): string; generation(): number; schedule(callback: () => void, intervalMs: number): () => void; onVisibilityChange(callback: () => void): () => void }
 export interface Callbacks { state(frame: Frame, settings: RoomSettings): void; event(event: GameEvent, matchId: string, round: number, tick: number): void; status(text: string): void; ready(id: string, host: boolean): void; ended?(): void }
 export interface RuntimeOptions { transport?: (events: TransportEvents) => RoomTransport; displayOnly?: boolean; humanName?: string; dependencies?: RuntimeDependencies }
-interface Member { generation: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; presence?: { connected: boolean; tick: number; at: number } }
+interface Member { generation: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; presence?: { connected: boolean; tick: number; at: number } }
 
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
 export const HASH_INTERVAL = 20, HASH_LAG = 40, CATCHUP_TICKS = 8, BEHIND_TICKS = 60, NACK_INTERVAL_MS = 100, DIVERGENCE_WINDOW_MS = 60_000, DIVERGENCE_LIMIT = 3, FRESH_WORLD_WAIT_MS = 3000;
@@ -124,14 +124,21 @@ export class RoomRuntime {
     this.callbacks.ready(id, id === hostId);
   }
   private peer(id: string, online: boolean): void {
-    if (online) { if (!this.members.has(id)) this.members.set(id, { generation: 0, lastPacketAt: -Infinity, lastSentAt: 0, lastSentReceivedAt: 0, full: true, nackAt: -Infinity }); return; }
+    if (online) { if (!this.members.has(id)) this.members.set(id, { generation: 0, lastPacketAt: -Infinity, lastSentAt: 0, lastSentReceivedAt: 0, full: true, nackAt: -Infinity, helloed: false }); return; }
     this.members.delete(id); this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
     if (this.creator && this.world?.state.game.players.has(id)) this.append(LEAVE, id);
   }
+  /** A link opening is only a hint: the transport admits sends once its own probes confirm the path, so the tick loop retries. */
   private link(id: string, open: boolean): void {
-    if (!open) return;
-    this.transport!.send(id, { type: 'hello', generation: this.generation, full: this.full, rules: RULES });
+    const member = this.members.get(id); if (!member) return;
+    member.helloed = false;
+    if (open) this.greet(id, member);
+  }
+  private greet(id: string, member: Member): void {
+    if (member.helloed || !this.transport!.linked(id)) return;
+    member.helloed = this.transport!.send(id, { type: 'hello', generation: this.generation, full: this.full, rules: RULES });
+    if (!member.helloed) return;
     if (this.needsWorld() && !this.snapshotRequest) this.requestSnapshot(id);
     if (this.pendingJoin && id === this.hostId) this.sendJoin();
   }
@@ -219,7 +226,7 @@ export class RoomRuntime {
     const complete = this.assembler.accept(raw); if (!complete) return;
     const decoded = decodeSnapshot(complete.bytes, this.room);
     if (!decoded) { this.snapshotRequest.failures++; this.requestSnapshot(); return; }
-    const tick = decoded.state.game.tick;
+    const tick = decoded.state.game.tick, previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state); else this.world = new World(decoded.state, this.hostId, this.id);
     for (const stream of decoded.streams) {
       if (stream.id === this.id) continue;
@@ -227,9 +234,15 @@ export class RoomRuntime {
       const member = this.members.get(stream.id); if (member && member.generation < stream.generation) member.generation = stream.generation;
       for (let offset = 0; offset < stream.entries.length; offset += PACKET_ENTRIES) { const part = stream.entries.slice(offset, offset + PACKET_ENTRIES); log.receive(part, part.at(-1)![0], tick, tick + 60, tick); }
     }
-    this.world.stream(this.id, this.generation, { seq: 0, tick });
+    // The own stream keeps its seq numbering: peers already hold everything up to lastSeq, and entries after the
+    // snapshot tick are re-applied here so this replica and its peers keep folding the same log.
+    const base = previous?.generation === this.generation ? previous.baseAt(tick) : { seq: 0, tick, gesture: 0 };
+    const own = this.world.stream(this.id, this.generation, { seq: base.seq, tick, gesture: base.gesture });
+    const carried = previous?.generation === this.generation ? previous.entriesAfter(base.seq, tick) : [];
+    for (let offset = 0; offset < carried.length; offset += PACKET_ENTRIES) { const part = carried.slice(offset, offset + PACKET_ENTRIES); own.receive(part, previous!.lastSeq, tick, tick + 60, tick); }
+    own.lastSeq = Math.max(own.lastSeq, previous?.lastSeq ?? 0);
     for (const [id, member] of this.members) this.ensureStream(id, member);
-    this.lastOwnTick = tick + 1; this.resetHeld(); this.lastFrameTick = -1; this.lastPacketTick = -1;
+    this.lastOwnTick = Math.max(tick + 1, this.lastOwnTick); if (!carried.length) this.resetHeld(); this.lastFrameTick = -1; this.lastPacketTick = -1;
     // A clock with no samples yet (the returning creator, or a joiner ahead of its first echo) starts from the snapshot
     // tick plus half the request round trip: the sender took it when the request arrived.
     if (!this.clock.started) this.clock.start(tick + (this.deps.now() - this.snapshotRequest.at) / 2 / 50);
@@ -239,7 +252,7 @@ export class RoomRuntime {
     this.publish();
   }
   private compareHash(tick: number, hash: string, now: number): void {
-    if (!this.world || [...this.world.streams.values()].some(stream => stream.gap)) return;
+    if (!this.world || tick > this.world.completeTick() || [...this.world.streams.values()].some(stream => stream.gap)) return;
     const mine = this.world.hashAt(tick); if (mine === undefined || mine === hash) return;
     console.warn(`fuse-riders: simulation diverged at tick ${tick}: local ${mine}, authority ${hash}`);
     this.mismatches = this.mismatches.filter(at => now - at <= DIVERGENCE_WINDOW_MS); this.mismatches.push(now);
@@ -281,7 +294,7 @@ export class RoomRuntime {
     const seat = [...game.players.values()].find(player => !player.connected && !pending.freed.has(player.id)); if (!seat) return -1;
     this.append(LEAVE, seat.id); return seat.slot;
   }
-  private selfMember(): Member { return { generation: this.generation, lastPacketAt: this.deps.now(), lastSentAt: 0, lastSentReceivedAt: 0, full: this.full, nackAt: 0 }; }
+  private selfMember(): Member { return { generation: this.generation, lastPacketAt: this.deps.now(), lastSentAt: 0, lastSentReceivedAt: 0, full: this.full, nackAt: 0, helloed: true }; }
   private ensurePresence(id: string, member: Member): void {
     const player = this.world?.state.game.players.get(id); if (!player || member.generation === 0 && id !== this.id) return;
     const fold = this.world!.state.folds.get(id);
@@ -295,11 +308,12 @@ export class RoomRuntime {
     member.presence = { connected, tick, at: now };
   }
   private creatorDuties(now: number): void {
-    const game = this.world!.state.game;
+    const game = this.world!.state.game, stalled = now - this.lastLoopAt > DISCONNECT_MS / 2;
     for (const [id, member] of this.members) {
       const player = game.players.get(id); if (!player) continue;
       const live = now - member.lastPacketAt <= DISCONNECT_MS;
-      if (player.connected && !live) this.logPresence(id, member, false);
+      // A creator whose own loop just stalled cannot tell silence from its own absence.
+      if (player.connected && !live && !stalled) this.logPresence(id, member, false);
       else if (!player.connected && live) this.ensurePresence(id, member);
     }
     const self = game.players.get(this.id);
@@ -391,11 +405,14 @@ export class RoomRuntime {
     if (this.solo) this.clock.resume();
     else if (this.world && Math.floor(this.clock.tick()) - this.world.tick > BEHIND_TICKS) this.requestSnapshot();
   }
+  private lastLoopAt = -Infinity;
   private tickLoop(): void {
     const now = this.deps.now();
     this.status.refresh();
     if (this.transport && this.id === '') return;
+    for (const [id, member] of this.members) this.greet(id, member);
     if (this.needsWorld()) {
+      if (!this.snapshotRequest && !this.creator) this.requestSnapshot();
       if (this.creator && this.transport && !this.snapshotRequest) {
         const linked = [...this.members.keys()].filter(id => this.transport!.linked(id));
         const nobodyHasIt = linked.length > 0 && linked.every(id => this.noWorld.has(id));
@@ -420,11 +437,12 @@ export class RoomRuntime {
     }
     if (this.transport) {
       if (this.creator) this.creatorDuties(now); else this.actingCreatorDuties(now);
+      this.lastLoopAt = now;
       const player = this.player();
       if (player && !player.connected && this.held.flags !== -1) this.resetHeld();
       if (this.pendingJoin) { if (player?.connected) this.pendingJoin = undefined; else if (now - this.pendingJoin.sentAt > JOIN_RETRY_MS) this.sendJoin(); }
       const full = this.options.displayOnly === true || world.state.settings.mode !== 'shared' || !player;
-      if (full !== this.full) { this.full = full; for (const id of this.members.keys()) if (this.transport.linked(id)) this.transport.send(id, { type: 'hello', generation: this.generation, full, rules: RULES }); }
+      if (full !== this.full) { this.full = full; for (const [id, member] of this.members) { member.helloed = false; this.greet(id, member); } }
       if (tick !== this.lastPacketTick) this.sendPackets(now);
       for (const [id, member] of this.members) { const stream = world.streams.get(id); if (stream?.gap && now - member.nackAt >= NACK_INTERVAL_MS && this.transport.linked(id)) { member.nackAt = now; this.transport.sendFast(id, encodeNack({ room: this.room, from: this.id, firstMissingSeq: stream.firstMissing()! })); } }
     }
@@ -448,7 +466,7 @@ export class RoomRuntime {
     for (const [id, member] of this.members) this.sendPacket(id, member, entries, now, tick);
   }
   private sendPacket(id: string, member: Member, entries: Packet['entries'], now: number, tick = Math.floor(this.clock.tick())): void {
-    const hash = tick % HASH_INTERVAL === 0 ? this.world!.hashAt(tick - HASH_LAG) : undefined;
+    const hash = tick % HASH_INTERVAL === 0 && tick - HASH_LAG <= this.world!.completeTick() ? this.world!.hashAt(tick - HASH_LAG) : undefined;
     const packet: Packet = { room: this.room, from: this.id, generation: this.generation, through: Math.max(this.own().through, tick), lastSeq: this.own().lastSeq, entries, sentAt: wrapMs(now),
       echoSentAt: member.lastSentAt, echoHeld: member.lastSentAt ? Math.max(0, Math.round(now - member.lastSentReceivedAt)) >>> 0 : 0, clockTick: Math.max(0, this.clock.tick()), hash: hash === undefined ? null : [tick - HASH_LAG, hash] };
     try { this.transport!.sendFast(id, encodePacket(packet)); } catch { /* An oversized packet is a bug in retention, never a crash. */ }

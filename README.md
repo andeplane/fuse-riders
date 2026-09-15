@@ -62,29 +62,30 @@ The LAN TV provides audio controls, fullscreen, a main-menu reset, session score
 | Path | Simulation authority | Communication | Lifetime |
 | --- | --- | --- | --- |
 | LAN | Local Node process | WebSocket intents, snapshots and events | Process must run during play; restart resets state |
-| Online | Creator's browser | Host-to-peer WebRTC star; backend WebSocket signalling only | Host must remain available; leases fence stale authority, local checkpoints support refresh |
+| Online | Every device, from one shared input log | Full WebRTC mesh; backend WebSocket signalling only | Any member can serve the world to a joiner; a refreshed creator or guest rejoins the running match |
 
 ```text
 LAN:     phones ── WebSocket ── Node simulation ── WebSocket ── TV
 
-Online:  player/display ── WebRTC ── host browser simulation
-                └── Cloud Run gateway ────────────┘
+Online:  every member ── WebRTC mesh (one link per pair) ── every member
+           each device folds the same input log and simulates locally
+                └── Cloud Run gateway: room codes, membership, signalling ──┘
                     Firestore: room metadata / leases
                     Pub/Sub: signalling / coordination
 ```
 
-The shared deterministic simulation advances at 20 Hz. Online replication publishes at 20 Hz using field changes and trail deltas with periodic keyframes. Local presentation replays applied-tick movement using the same pure kernel as authority, including drunk steering. A bounded synchronized tick estimate supplies fractional render time; acknowledgements report actual application, not mere receipt. Remote snapshots use a tick-indexed buffer: 25 ms after a fresh validated nearby probe (RTT ≤40 ms), otherwise 100 ms, with no speculative extrapolation. A fixed response benchmark batch measured local p95 27.6 ms and TV p95 88.2 ms; see [method, failed trials and continuity measurements](docs/online/RESPONSE-BENCHMARK.md). These are desktop browser measurements, not physical-device latency guarantees. Gameplay never uses the backend as a relay. Failed WebRTC connections show why (STUN, signalling or ICE) in the header and under **MENU → LINK DIAGNOSTICS**; there is no TURN server, so a guest behind symmetric or carrier-grade NAT (common on cellular) may be unable to connect directly and should join the host's Wi-Fi. See [protocol notes](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
+The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript trigonometry so every engine folds the same state. Online rooms are peer-to-peer: every device that renders the world simulates it locally from one shared input log. Each member owns one stream of edge-filtered entries (steer, aim, press, release, cancel, avatar); the creator's stream also carries the management entries (join, leave, presence, settings, start, rematch, lobby, AI riders). Every member sends one small MessagePack packet to every other member per tick and immediately on a new entry; completeness, liveness, loss and RTT are derived from that stream, and a missing entry is repaired by nack or by rotation through the retained window. A player's own input applies on the next simulation tick; other players' inputs apply one network hop later, and a late entry rolls the world back up to 40 ticks and re-simulates. Joiners and refreshed pages install a validated snapshot from any peer. See the [P2P design brief and measurements](docs/online/P2P-INPUT-LOG-BRIEF.md). Gameplay never uses the backend as a relay. Failed WebRTC connections show why (STUN, signalling or ICE) in the header and under **MENU → LINK DIAGNOSTICS**; there is no TURN server, so a guest behind symmetric or carrier-grade NAT (common on cellular) may be unable to connect directly and should join the host's Wi-Fi. See [protocol notes](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
 
 | Location | Responsibility |
 | --- | --- |
 | `src/shared/` | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops |
 | `src/server/` | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling |
 | `src/client/` | Phaser presentation, Canvas fallback, themes, audio, avatars and phone pointer controls |
-| `src/online/host-session.ts` | Browser authority, tick-scheduled input/results, held-control expiry and AI seats |
-| `src/online/world-codec.ts` | Keyframes, field/trail deltas and reconstruction |
-| `src/online/peer-transport.ts` | Direct WebRTC negotiation, generation fencing, signalling and link recovery |
-| `src/online/runtime.ts`, `authority.ts`, `checkpoint.ts` | Fixed-step scheduling, authority lease checks and atomic validated restore |
-| `src/online/prediction*.ts`, `tick-probes.ts`, `ui.ts` | Applied-tick replay, conservative tick clock, buffered presentation and room UI |
+| `src/shared/input-log.ts`, `apply-tick.ts` | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries |
+| `src/online/stream.ts`, `rollback.ts`, `clock.ts` | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock |
+| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts` | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation |
+| `src/online/room-runtime.ts`, `peer-transport.ts` | One runtime for solo and online rooms (roles, cadence, creator duties, presentation) and the full WebRTC mesh with reliable and unreliable channels |
+| `src/online/prediction.ts`, `ui.ts` | Fractional presentation with immediate local steering, and the room UI |
 | `src/service/` | GCP room API/WebSocket gateway, Firestore transactions and Pub/Sub signalling |
 | `worker/index.ts` | Local/legacy Cloudflare room API and coordination adapter; not the production target |
 | `wrangler.jsonc` | Local/legacy Worker assets and room Durable Object binding |
@@ -116,8 +117,9 @@ npx tsx scripts/online-smoke.ts
 BROWSER=webkit npx tsx scripts/online-smoke.ts
 ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
 BROWSER=webkit ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
-npx tsx scripts/benchmark-deltas.ts
-npx tsx scripts/online-network-benchmark.ts
+npx tsx scripts/determinism-replay.ts
+ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-mesh-browser.ts
+ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-measure.ts
 ```
 
 Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?**. The arena fits the remaining viewport without changing its aspect ratio; phone touch thirds and the LAN display/controller layout are preserved. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
@@ -126,7 +128,7 @@ The end-of-match report (podium, totals, awards and rider comparison) is built b
 
 `ONLINE_URL=https://your-preview.example npx tsx scripts/online-smoke.ts` targets a preview and creates test rooms there. Never point tests at an occupied game. Benchmark scripts write reports under `docs/online/`; review regenerated evidence before committing it.
 
-To run the whole [CI](.github/workflows/ci.yml) suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts Wrangler itself (log in `artifacts/worker.log`) and always stops it on exit. `PORT` chooses the Wrangler port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `worker`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `deltas`; `core` expands to the first four) and starts Wrangler only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the Wrangler-backed steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole [CI](.github/workflows/ci.yml) suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts Wrangler itself (log in `artifacts/worker.log`) and always stops it on exit. `PORT` chooses the Wrangler port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `worker`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to the first four) and starts Wrangler only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the Wrangler-backed steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh
@@ -135,7 +137,7 @@ ONLY=core,keyboard PORT=8801 scripts/ci-local.sh
 
 Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser/Worker path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage, builds and browser checks; inspect the actual revision's result rather than treating this checklist as proof of passing CI.
 
-The delta benchmark asserts exact reconstruction for every measured update. The [browser network harness](docs/online/NETWORK-HARNESS.md) uses five players plus a TV and seeded application-level delay, jitter, loss/reordering, bandwidth queues and a one-way blackhole. Opt-in `?benchmark=1` events expose accepted snapshots and predicted poses without capabilities. Application-message injection is not real IP packet loss, and desktop animation timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
+The determinism replay folds one seeded 3,000-tick five-rider log in Node, Chromium and WebKit and compares the state hash on every tick. The mesh harness runs six contexts alternating Chromium and WebKit through fifteen links, thirty send directions, a three-second send blackhole and a closed channel. The measurement script runs five scripted players plus a TV, once locally and once with injected 40 ms delay, 20 ms jitter and 2% loss, and reports wire bytes, rollbacks and input-to-state latencies as p50/p95 into `artifacts/p2p-measure.json`. Opt-in `?benchmark=1` events expose simulated states, inputs and events without capabilities. Application-message injection is not real IP packet loss, and desktop timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
 
 Tests should use typed injected clocks, schedulers, transports and seeded randomness. Keep simulation time independent of wall-clock time; exercise serialization and lifecycle boundaries with deterministic failures, not only happy paths. Review reports explain the missing invariants and required regressions.
 

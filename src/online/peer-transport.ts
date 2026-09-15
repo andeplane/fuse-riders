@@ -236,7 +236,7 @@ export class PeerTransport implements RoomTransport {
   sendFast(id:string,bytes:Uint8Array):boolean {
     if(this.stopped||!this.connections.has(id)||bytes.byteLength>MAX_PACKET_BYTES)return false;
     const link=this.links.get(id);
-    if(!link||link.gate.draining||link.input?.readyState!=='open'||link.input.bufferedAmount>=FAST_BUFFER_LIMIT||!link.health.direct(performance.now()))return false;
+    if(!link||link.gate.draining||link.input?.readyState!=='open'||link.input.bufferedAmount>=FAST_BUFFER_LIMIT)return false;
     try{link.input.send(bytes as Uint8Array<ArrayBuffer>);this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
   linked(id:string):boolean{const link=this.links.get(id);return !!link&&!link.gate.draining&&link.game?.readyState==='open'&&link.health.direct(performance.now());}

@@ -18,7 +18,7 @@ const fromBase64 = (text: string): Uint8Array => Uint8Array.from(atob(text), cha
 export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
   const state = world.state, tick = world.tick;
   const folds = [...state.folds].map(([id, fold]) => [id, fold.generation, fold.flags, fold.aim?.x ?? null, fold.aim?.y ?? null, fold.activeGesture, fold.latestGesture]);
-  const streams = [...world.streams].map(([id, stream]) => { const base = stream.baseAt(tick); return [id, stream.generation, base.seq, base.gesture, stream.entriesAfter(base.seq).slice(0, MAX_SNAPSHOT_ENTRIES)]; });
+  const streams = [...world.streams].map(([id, stream]) => { const base = stream.baseAt(tick); return [id, stream.generation, base.seq, base.gesture, stream.entriesAfter(base.seq, tick).slice(0, MAX_SNAPSHOT_ENTRIES)]; });
   const bytes = packMessage([RULES, room, tick, encodeGameState(state.game), state.settings, folds, [...state.bots], streams, hashRoomState(state)]);
   if (bytes.byteLength > MAX_SNAPSHOT_BYTES) throw new Error('Snapshot too large');
   // One base64 text split by characters: chunking the bytes first would leave padding in the middle.

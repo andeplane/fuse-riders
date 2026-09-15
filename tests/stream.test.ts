@@ -41,15 +41,18 @@ test('a whole packet is rejected on any invalid entry and nothing changes', () =
   assert.equal(status, 'invalid'); assert.ok(flood.entries.size <= BUFFERED_ENTRIES);
 });
 
-test('entries behind the rollback window or the snapshot base are unrepairable', () => {
+test('entries behind the rollback window or the snapshot base are unrepairable and leave the stream waiting for a snapshot', () => {
   const remote = new StreamLog(1);
   assert.equal(remote.receive([e(1, 5, STEER, 1)], 1, 5, 100, 100).status, 'unrepairable');
   const based = new StreamLog(3, { seq: 4, tick: 50, gesture: 2 });
-  assert.equal(based.receive([e(5, 49, STEER, 1)], 5, 50, 60, 60).status, 'invalid', 'below the base tick');
+  assert.equal(based.receive([e(5, 49, STEER, 1)], 5, 50, 60, 60).status, 'unrepairable', 'below the base tick');
   assert.equal(based.receive([e(5, 50, STEER, 1)], 5, 50, 60, 60).status, 'unrepairable', 'at the base tick is already folded in');
-  assert.equal(based.receive([e(6, 51, PRESS, 2)], 6, 51, 60, 60).status, 'invalid', 'gesture below the base gesture');
-  assert.deepEqual(based.receive([e(6, 51, PRESS, 3)], 6, 51, 60, 60), { status: 'accepted', added: [e(6, 51, PRESS, 3)], rollbackTo: 51 });
-  assert.equal(based.latestGesture(), 3);
+  assert.equal(based.receive([e(6, 51, STEER, 0)], 6, 51, 60, 60).status, 'accepted');
+  assert.equal(based.gap, true, 'the stale entry is not committed; only a fresh snapshot resolves it'); assert.equal(based.firstMissing(), 5);
+  const fresh = new StreamLog(3, { seq: 4, tick: 50, gesture: 2 });
+  assert.equal(fresh.receive([e(5, 51, PRESS, 2)], 5, 51, 60, 60).status, 'invalid', 'gesture below the base gesture');
+  assert.deepEqual(fresh.receive([e(5, 51, PRESS, 3)], 5, 51, 60, 60), { status: 'accepted', added: [e(5, 51, PRESS, 3)], rollbackTo: 51 });
+  assert.equal(fresh.latestGesture(), 3); assert.equal(new StreamLog(3, { seq: 4, tick: 50 }).entriesAfter(4, 50).length, 0);
 });
 
 test('retention keeps the newest 64 or two seconds, rotates every entry through packets and answers nacks', () => {

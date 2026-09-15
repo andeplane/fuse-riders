@@ -1,5 +1,7 @@
 # ADR 028: Online authority and host lifecycle
 
+> **Superseded (2026-09-15).** The host-star snapshot protocol this decision describes was replaced by the peer-to-peer input log; see [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md).
+
 Date: 2026-09-14. Status: proposed; implementation and independent acceptance review required.
 
 ## Context and decision

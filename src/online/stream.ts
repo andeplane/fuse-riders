@@ -19,10 +19,11 @@ export class StreamLog {
   lastSeq: number;
   through: number;
   readonly baseTick: number;
+  private readonly baseSeq: number;
   private gestureFloor = 0;
   private rotation = 0;
   constructor(public generation: number, base: { seq: number; tick: number; gesture?: number } = { seq: 0, tick: 0 }) {
-    this.contiguous = base.seq; this.lastSeq = base.seq; this.baseTick = base.tick; this.through = base.tick; this.gestureFloor = base.gesture ?? 0;
+    this.contiguous = base.seq; this.baseSeq = base.seq; this.lastSeq = base.seq; this.baseTick = base.tick; this.through = base.tick; this.gestureFloor = base.gesture ?? 0;
   }
   /** Own stream only: the next seq, always contiguous. */
   append(tick: number, body: readonly unknown[]): Entry {
@@ -69,6 +70,7 @@ export class StreamLog {
       const existing = seen.get(seq);
       if (existing) { if (!same(existing, candidate)) return { status: 'invalid', added: [] }; continue; }
       if (seq <= this.contiguous) continue; // Already applied and pruned; a repeat carries nothing new.
+      if (tick <= this.baseTick && this.contiguous === this.baseSeq) return { status: 'unrepairable', added: [] }; // Older than the snapshot this stream started from.
       if (tick < tail) return { status: 'invalid', added: [] };
       for (const [otherSeq, other] of seen) if ((otherSeq < seq && other[1] > tick) || (otherSeq > seq && other[1] < tick)) return { status: 'invalid', added: [] };
       if (candidate[2] === PRESS) {
@@ -119,8 +121,8 @@ export class StreamLog {
     }
     return { seq, tick, gesture };
   }
-  /** Every held entry after `seq`, in order: what a joiner replays on top of a snapshot. */
-  entriesAfter(seq: number): Entry[] { return [...this.entries.values()].filter(entry => entry[0] > seq).sort((a, b) => a[0] - b[0]); }
+  /** Every held entry after `seq` and after `tick`, in order: what a joiner replays on top of a snapshot taken at `tick`. */
+  entriesAfter(seq: number, tick = -1): Entry[] { return [...this.entries.values()].filter(entry => entry[0] > seq && entry[1] > tick).sort((a, b) => a[0] - b[0]); }
   /** Entries at or before `tick` can never be re-simulated again. */
   prune(tick: number): void {
     for (const [seq, entry] of this.entries) if (entry[1] <= tick && seq <= this.contiguous) {

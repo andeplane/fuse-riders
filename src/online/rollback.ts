@@ -116,6 +116,15 @@ export class World {
     for (const key of this.emitted) if (Number(key.split(':').at(-2)) <= oldest) this.emitted.delete(key);
   }
   get oldestSnapshotTick(): number { return Math.min(...this.snapshots.keys()); }
+  /** Ticks up to here are final on this replica: every connected rider's stream is complete past them. */
+  completeTick(): number {
+    let complete = Infinity;
+    for (const player of this.state.game.players.values()) {
+      if (!player.connected || this.state.bots.has(player.id)) continue;
+      const stream = this.streams.get(player.id); complete = Math.min(complete, stream ? stream.completeThrough() : -1);
+    }
+    return complete;
+  }
   /** Diagnostic hash of the retained state at `tick`, if one is kept there. */
   hashAt(tick: number): string | undefined { const state = this.snapshots.get(tick); return state ? hashRoomState(state) : undefined; }
   /** Replace the world wholesale from a validated snapshot; the caller re-creates streams from its metadata. */

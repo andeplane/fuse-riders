@@ -79,9 +79,11 @@ export class FakeNetwork {
     });
   }
   private openLink(a: string, b: string): void {
+    // Like the WebRTC transport, the open event precedes the probe-confirmed sendable state by a few hundred milliseconds.
     this.schedule(this.now + this.options.reliableMs * 2, () => {
       const first = this.transports.get(a), second = this.transports.get(b); if (!first?.online || !second?.online) return;
-      first.links.add(b); second.links.add(a); first.events.link(b, true); second.events.link(a, true);
+      first.events.link(b, true); second.events.link(a, true);
+      this.schedule(this.now + 300, () => { if (first.online && second.online) { first.links.add(b); second.links.add(a); } });
     });
   }
   disconnect(id: string): void {

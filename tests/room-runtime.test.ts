@@ -21,7 +21,7 @@ test('the creator opens a fresh world, seats joiners, adds bots and starts; ever
   const { net, join } = room();
   const host = join(HOST, 'Host'); net.step(200);
   assert.deepEqual(net.recorded.get(HOST)!.ready, [[HOST, true]]); assert.equal(net.frame(HOST)!.players.length, 1); assert.equal(net.frame(HOST)!.players[0]!.name, 'Host');
-  const guest = join(GUESTS[0]!, 'Guest'); net.step(400);
+  const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
   assert.deepEqual(net.recorded.get(GUESTS[0]!)!.ready, [[GUESTS[0]!, false]]);
   assert.deepEqual(net.frame(GUESTS[0]!)!.players.map(p => p.name), ['Host', 'Guest'], 'the guest received a snapshot and the join entry');
   assert.equal(host.command({ type: 'bot', action: 'add' }), true); assert.equal(guest.command({ type: 'bot', action: 'add' }), false);
@@ -124,13 +124,27 @@ test('a creator refresh mid-round rejoins the running world from a peer; a creat
   for (const runtime of net.runtimes.values()) runtime.stop();
 });
 
+test('a divergence resync re-installs the world without restarting the member\'s own stream, so later inputs still reach peers', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  host.command({ type: 'action', action: 'start' }); net.step(COUNTDOWN_TICKS * 50 + 300);
+  guest.command({ type: 'input', seq: 1, left: true, right: false, bomb: false }); net.step(300);
+  const before = (world(host) as unknown as { streams: Map<string, { contiguous: number }> }).streams.get(GUESTS[0]!)!.contiguous; assert.ok(before >= 1);
+  (guest as unknown as { requestSnapshot(): void }).requestSnapshot(); net.step(600);
+  assert.equal(guest.metrics().snapshotRequest, false, 'the snapshot installed');
+  guest.command({ type: 'input', seq: 2, left: false, right: true, bomb: false }); guest.command({ type: 'input', seq: 3, left: false, right: false, bomb: true, bombAction: 'press' }); net.step(600);
+  assert.ok((world(host) as unknown as { streams: Map<string, { contiguous: number }> }).streams.get(GUESTS[0]!)!.contiguous >= before + 2, 'the host keeps applying the guest\'s entries after the resync');
+  assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  host.stop(); guest.stop();
+});
+
 test('a joiner whose snapshot source vanishes retries other peers and reports repeated failures', () => {
   const { net, join } = room();
   const host = join(HOST, 'Host'); net.step(200); join(GUESTS[0]!, 'Guest'); net.step(600);
   const late = net.add(GUESTS[1]!, settings); late.start();
   net.step(60); // welcome, peers announced, links opening
   net.transports.get(HOST)!.deaf = true; net.transports.get(GUESTS[0]!)!.deaf = true; // nobody hears the request
-  net.step(SNAPSHOT_RETRY_MS * 3 + 200);
+  net.step(SNAPSHOT_RETRY_MS * 3 + 900);
   assert.match(net.recorded.get(GUESTS[1]!)!.statuses.join('|'), /reload this page/);
   net.transports.get(HOST)!.deaf = false; net.step(SNAPSHOT_RETRY_MS + 500); void host;
   assert.equal(net.frame(GUESTS[1]!)!.players.length, 2, 'a later attempt succeeds');
