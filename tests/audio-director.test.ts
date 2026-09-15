@@ -87,16 +87,18 @@ test('playlist switches tracks, wraps and retains mute and volume', async () => 
   f.director.setMuted('music', false); assert.equal(f.gains.get('music'), .17);
 });
 
-test('new rounds advance playlist once; repeated snapshots and reconnects do not rewind it', async () => {
-  const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(1));
+test('new rounds keep the current track playing instead of restarting it', async () => {
+  const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(1)); f.director.update();
   const first = f.director.trackTitle;
-  f.director.message(f.snapshot(2)); assert.equal(f.director.trackTitle, first);
-  f.director.message(f.snapshot(3, 'roundOver')); assert.equal(f.director.trackTitle, first);
-  f.game.round++; f.director.message(f.snapshot(4, 'countdown'));
-  assert.equal(f.director.trackTitle, MUSIC_TRACKS[1].title);
-  f.director.message(f.snapshot(5)); assert.equal(f.director.trackTitle, MUSIC_TRACKS[1].title);
-  f.director.disconnect(); f.director.message(f.snapshot(6)); assert.equal(f.director.trackTitle, MUSIC_TRACKS[1].title);
-  f.game.round++; f.director.message(f.snapshot(7)); assert.equal(f.director.trackTitle, MUSIC_TRACKS[2].title);
+  f.director.message(f.snapshot(2)); f.director.update(); assert.equal(f.director.trackTitle, first);
+  f.director.message(f.snapshot(3, 'roundOver')); f.director.update(); assert.equal(f.director.trackTitle, first);
+  f.game.round++; f.director.message(f.snapshot(4, 'countdown')); f.director.update();
+  assert.equal(f.director.trackTitle, first);
+  f.director.message(f.snapshot(5)); f.director.update(); assert.equal(f.director.trackTitle, first);
+  f.game.round++; f.director.message(f.snapshot(6)); f.director.update(); assert.equal(f.director.trackTitle, first);
+  f.game.matchId = 'later-match'; f.game.round = 0; f.director.message(f.snapshot(7, 'countdown')); f.director.update();
+  assert.equal(f.director.trackTitle, first, 'a new match keeps the track too');
+  assert.deepEqual(f.music, [MUSIC_TRACKS[0].path], 'the track is only handed to the synth once');
 });
 
 test('enabled audio plays in the lobby and intermissions and explicit enable confirms output', async () => {

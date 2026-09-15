@@ -30,7 +30,6 @@ export class AudioDirector {
   private playing = false;
   private trackIndex = 0;
   private musicPath = '';
-  private musicScope = '';
   private settings = { music: { muted: false, volume: .22 }, effects: { muted: false, volume: .45 } };
   constructor(private readonly synth: GameSynth) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
@@ -41,7 +40,7 @@ export class AudioDirector {
     return this.unlocked;
   }
   get trackTitle(): string { return MUSIC_TRACKS[this.trackIndex]!.title; }
-  /** Also called by the synth when a track finishes. */
+  /** Advances the playlist: called by Next tune and by the synth when a track finishes. */
   nextTrack(): void { this.trackIndex = (this.trackIndex + 1) % MUSIC_TRACKS.length; this.update(); }
   setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); }
   setVolume(channel: AudioChannel, value: number): void {
@@ -61,11 +60,7 @@ export class AudioDirector {
       } else if (message.tick < this.latestTick) return;
       this.latestTick = message.tick;
       this.playing = true; // Connected lobbies and intermissions also have music.
-      if ((message.state.phase === 'playing' || message.state.phase === 'countdown') && scope !== this.musicScope) {
-        if (this.musicScope) this.nextTrack();
-        this.musicScope = scope;
-      }
-      return;
+      return; // The current track plays on across rounds; only its end or Next tune advances the playlist.
     }
     if (scope !== this.scope || message.tick <= this.baselineTick || message.tick < this.latestTick - 2) return;
     const key = `${message.tick}:${message.event.type}`;
