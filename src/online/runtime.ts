@@ -29,8 +29,9 @@ export const HASH_INTERVAL_TICKS=20;
  * state no late entry can rewind. Hashing the tick just simulated compares a state the host is still free to
  * change, so every entry that arrives late reads as a divergence on every replica.
  */
-/** Half the ring: old enough that the host can no longer rewind it, young enough that a guest a few hundred ms behind still holds it. */
-export const HASH_LAG_TICKS=SNAPSHOT_EVERY_TICKS*Math.floor(SNAPSHOT_COUNT/2);
+/** The host's oldest snapshot: nothing can rewind it any more. A view keeps GUEST_SNAPSHOT_MARGIN more snapshots so it still holds that tick after the packet's flight and its own clock lead. */
+export const HASH_LAG_TICKS=SNAPSHOT_EVERY_TICKS*(SNAPSHOT_COUNT-1);
+export const GUEST_SNAPSHOT_MARGIN=8;
 const REPAIR_INTERVAL_MS=250,RESYNC_INTERVAL_MS=2000,JOIN_RETRY_MS=2000,BASELINE_INTERVAL_MS=500,SAVE_INTERVAL_MS=500;
 
 /**
@@ -206,7 +207,7 @@ export class RoomRuntime {
     this.members.set(hashText(this.transport.hostId),this.transport.hostId);this.members.set(hashText(this.transport.id),this.transport.id);
     // The fold starts over from the host's state. Our own stream is the exception: the host reports how far it has
     // consumed it in our numbering, and everything past that we still hold and replay onto the baseline ourselves.
-    this.sim=new Simulation(state,this.transport.hostId);
+    this.sim=new Simulation(state,this.transport.hostId,SNAPSHOT_COUNT+GUEST_SNAPSHOT_MARGIN);
     this.sim.install(state,folded);
     for(const [member,entries] of retained)for(const entry of entries)this.sim.insert(member,entry);
     const ingested=folded.get(this.transport.id)??0;
