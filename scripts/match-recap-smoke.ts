@@ -32,7 +32,7 @@ async function assertRecapLayout(page: Page): Promise<{ podium: number; awards: 
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'document must not scroll horizontally');
   assert.ok(await page.locator('.dialog-body').evaluate((element) => element.scrollWidth <= element.clientWidth + 1), 'dialog body must not scroll horizontally');
   await page.getByText('MATCH COMPLETE // AFTER ACTION REPORT', { exact: true }).waitFor({ state: 'visible' });
-  const podium = await page.locator('.podium-card').count(), awards = await page.locator('.award-card').count(), totals = await page.locator('.recap-total').count();
+  const podium = await page.locator('.podium-card').count(), awards = await page.locator('.recap-awards .award-card').count(), totals = await page.locator('.recap-total').count();
   const rows = await page.locator('.comparison-row:not(.comparison-header)').count();
   assert.ok(podium >= 1 && podium <= 5, `podium cards: ${podium}`);
   assert.ok(await page.locator('.podium-card.podium-place-1').count() >= 1, 'a champion card is present');

@@ -8,6 +8,18 @@ test('shell reflects remaining travel and exposes the true collision path', () =
   assert.deepEqual(shell, { x: 85, y: 50, vx: -400, vy: 0 });
   assert.deepEqual(path.map(p => [p.x, p.y, p.t]), [[95,50,0],[100,50,.25],[85,50,1]]);
 });
+test('a carried bounce count grows on wall, corner and trail contact and is never invented', () => {
+  const wall = { x: 95, y: 50, vx: 400, vy: 0, bounces: 0 };
+  advanceShell(wall, bounds); assert.equal(wall.bounces, 1);
+  const corner = { x: 95, y: 95, vx: 400, vy: 400, bounces: 3 };
+  advanceShell(corner, bounds); assert.equal(corner.bounces, 5);
+  const trail = { x: 30, y: 50, vx: 400, vy: 0, bounces: 0 };
+  advanceShell(trail, bounds, [{ x1: 60, y1: 10, x2: 60, y2: 90 }]); assert.equal(trail.bounces, 1);
+  const straight = { x: 10, y: 50, vx: 400, vy: 0, bounces: 0 };
+  advanceShell(straight, bounds); assert.equal(straight.bounces, 0);
+  const uncounted: { x: number; y: number; vx: number; vy: number; bounces?: number } = { x: 95, y: 50, vx: 400, vy: 0 };
+  advanceShell(uncounted, bounds); assert.equal('bounces' in uncounted, false, 'a projection without the field never gains one');
+});
 test('corners reflect both axes and shrinking bounds clamp safely', () => {
   const shell = { x: 95, y: 95, vx: 400, vy: 400 };
   advanceShell(shell, bounds);

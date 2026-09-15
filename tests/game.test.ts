@@ -98,6 +98,7 @@ test('replaying the same accepted inputs produces the same snapshots and events'
     assert.deepEqual(step(first, current), step(second, current));
   }
   assert.deepEqual(toSnapshot(first), toSnapshot(second));
+  assert.deepEqual(first.moments, second.moments);
 });
 
 test('trail segments remain active through T+159 and expire exactly at T+160', () => {

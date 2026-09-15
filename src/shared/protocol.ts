@@ -3,10 +3,12 @@ import type { PortalPair } from './portal.js';
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 import type { MatchPlayerStats } from './match-stats.js';
 import type { FlightPoint } from './launch-modifiers.js';
+import type { Moment } from './moments.js';
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
 export type { FlightPoint } from './launch-modifiers.js';
+export type { Moment, MomentKind } from './moments.js';
 
 export type PlayerId = string;
 export type PlayerToken = string;
@@ -40,7 +42,7 @@ export interface GameSnapshot {
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
-    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; shell?: { vx: number; vy: number; gun?: boolean };
+    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
@@ -49,6 +51,8 @@ export interface GameSnapshot {
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;
+  /** Highlight moments of the match; like `matchStats`, present only once the match is over (ADR 043). */
+  moments: ReadonlyArray<Moment>;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }

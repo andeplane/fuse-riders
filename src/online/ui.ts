@@ -19,7 +19,8 @@ import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings 
 import type { PickupType } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
-import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import type { Moment } from '../shared/moments.js';
+import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
 import { RoomRuntime } from './runtime.js';
 import type { AvatarId } from '../shared/avatars.js';
 import QRCode from 'qrcode';
@@ -162,19 +163,20 @@ export async function startOnline():Promise<void>{
   const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
   const audio=createGameAudio('Game',{background:true,toggleRadio:()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */}});audioButton.onclick=openRadio;
   audio.bindMusicToggle(musicButton); // The same ♫ MUSIC ON / OFF toggle as the landing page, next to the same ♫ RADIO button.
-  /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
-  const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
-    const recap=buildMatchRecap(stats);const root=node('section','','match-recap-report');
+  /** Podium, totals, highlight reel, awards and rider comparison built from the authoritative match statistics and moments. */
+  const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>,moments:ReadonlyArray<Moment>)=>{
+    const recap=buildMatchRecap(stats,moments);const root=node('section','','match-recap-report');
     const heading=node('header','','recap-heading'),copy=node('div');copy.append(node('p',RECAP_KICKER,'kicker'),node('h2',RECAP_TITLE));heading.append(copy);root.append(heading);
     if(!recap.comparison.length){root.append(node('p',RECAP_EMPTY_MESSAGE,'recap-empty'));return root;}
     const podium=node('div','','recap-podium');for(const entry of recap.podium){const card=node('article','',`podium-card podium-place-${entry.placement}`);card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.placeLabel,'podium-place'),node('strong',entry.name),node('small',entry.winsLabel));podium.append(card);}
     const totals=node('div','','recap-totals');for(const total of recap.totals){const cell=node('div','','recap-total');cell.append(node('strong',total.value),node('small',total.label));totals.append(cell);}
+    const reel=node('div','','recap-highlights');reel.append(node('p',HIGHLIGHTS_TITLE,'reel-title'));for(const entry of recap.highlights){const card=node('article','','award-card highlight-card');card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.icon,'award-icon'),node('small',entry.when),node('strong',entry.title),node('em',entry.copy));reel.append(card);}
     const awards=node('div','','recap-awards');for(const award of recap.awards){const card=node('article','','award-card');card.append(node('span',award.icon,'award-icon'),node('small',award.title),node('strong',award.winnerText),node('em',award.detail));awards.append(card);}
     const comparison=node('div','','recap-comparison');comparison.append(node('p',COMPARISON_KEY,'comparison-key'));const columns=node('div','','comparison-row comparison-header');for(const label of ['RIDER',...COMPARISON_COLUMNS.map(column=>column.label)])columns.append(node('span',label));comparison.append(columns);
     for(const entry of recap.comparison){const row=node('div','','comparison-row');row.style.setProperty('--player-color',entry.color);const rider=node('span','','comparison-rider'),riderCopy=node('span');riderCopy.append(node('b',entry.riderLabel),node('small',entry.riderNote));rider.append(node('i'),riderCopy);row.append(rider);for(const column of COMPARISON_COLUMNS)row.append(node(column.key==='wins'?'strong':'span',entry[column.key],column.key==='pickups'?'pickup-counts':column.key==='deaths'?'death-counts':''));comparison.append(row);}
-    root.append(podium,totals);if(recap.awards.length)root.append(awards);root.append(comparison);return root;
+    root.append(podium,totals);if(recap.highlights.length)root.append(reel);if(recap.awards.length)root.append(awards);root.append(comparison);return root;
   };
-  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;dialog.showModal();dialogBody.scrollTop=0;};
+  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats,snapshot.moments));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;dialog.showModal();dialogBody.scrollTop=0;};
   results.onclick=openRecap;
   const callbacks:Callbacks={
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
