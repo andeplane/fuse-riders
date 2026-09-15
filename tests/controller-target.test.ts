@@ -20,7 +20,8 @@ test('target trackpad uses relative motion, throttles packets and sends final re
   assert.equal(f.messages.at(-1)!.bombAction, 'release');
   assert.ok(Math.abs(f.messages.at(-1)!.aim!.x - .8) < 1e-8);
   assert.ok(Math.abs(f.messages.at(-1)!.aim!.y - .8) < 1e-8);
-  f.state.pointerDown(2, 'left'); assert.equal(f.messages.at(-1)!.aim, undefined);
+  f.state.pointerDown(2, 'left'); assert.equal(f.messages.at(-1)!.bombAction, 'release', 'later packets restate the finished gesture');
+  f.state.pointerDown(3, 'bomb'); assert.equal(f.messages.at(-1)!.bombAction, 'press'); assert.deepEqual(f.messages.at(-1)!.aim, { x: .5, y: .5 });
 });
 test('aim clamps the board and other fingers cannot move it; cancellation clears it', () => {
   const f = fixture();

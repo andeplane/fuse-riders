@@ -88,7 +88,7 @@ export async function startOnline():Promise<void>{
   overCard.setAttribute('role','status');overHome.href=appUrl();overCard.append(node('p','ROOM CLOSED','room-boot-title'),node('strong',code,'shared-room-code'),overNote,overHome);
   app.classList.add('booting');
   app.replaceChildren(header,booting);
-  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
+  let canvas=node('canvas','','online-arena');let renderScope=code,controlEpoch="";const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
@@ -154,7 +154,7 @@ export async function startOnline():Promise<void>{
       if(roomEnded)return;
       bootDone();
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
-      snapshot=state;const nextRenderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;if(nextRenderScope!==renderScope)prediction.resetExternalScope();renderScope=nextRenderScope;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack,motion,renderScope);
+      snapshot=state;const nextRenderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;if(nextRenderScope!==renderScope)prediction.resetExternalScope();renderScope=nextRenderScope;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}if(motion&&motion.scope.controlEpoch!==controlEpoch){controlEpoch=motion.scope.controlEpoch;inputState.forgetFinishedGesture();}prediction.accept(state,id,ack,motion,renderScope);
       worldBuffer.push(state,renderScope);
       sample({kind:'snapshot',at:performance.now(),presentationDelayTicks:prediction.clock.presentationDelayTicks(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,motionResults:motion?.results,controlEpoch:motion?.scope.controlEpoch,heldMotion:motion?.held,correction:prediction.correction,ackMs:prediction.ackMs});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});

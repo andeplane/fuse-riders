@@ -15,7 +15,7 @@ export interface BombActionCommand { action: BombAction; aim?: AimPoint }
 export type BombAction = 'press' | 'release' | 'cancel';
 export type ClientMessage =
   | { type: 'join'; name: string; playerToken?: PlayerToken; avatarId?: AvatarId }
-  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: BombAction; aim?: AimPoint }
+  | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: BombAction; aim?: AimPoint; gesture?: number }
   | { type: 'setAvatar'; avatarId: AvatarId }
   | { type: 'heartbeat' }
   | { type: 'ping'; id: number; sentAt: number }
@@ -83,8 +83,9 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         (v.playerToken !== undefined && !token(v.playerToken)) || (v.avatarId !== undefined && !isAvatarId(v.avatarId))) return null;
       return { type: 'join', name: v.name.trim(), ...(v.playerToken ? { playerToken: v.playerToken as string } : {}), ...(isAvatarId(v.avatarId) ? { avatarId: v.avatarId } : {}) };
     case 'input':
-      if (!keys('type', 'seq', 'left', 'right', 'bomb', 'bombAction', 'aim') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
+      if (!keys('type', 'seq', 'left', 'right', 'bomb', 'bombAction', 'aim', 'gesture') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
         !['left', 'right', 'bomb'].every(k => typeof v[k] === 'boolean')) return null;
+      if (v.gesture !== undefined && (!Number.isSafeInteger(v.gesture) || (v.gesture as number) < 0)) return null;
       if (v.aim !== undefined) {
         if (!v.aim || typeof v.aim !== 'object' || Array.isArray(v.aim)) return null;
         const aim = v.aim as Record<string, unknown>;

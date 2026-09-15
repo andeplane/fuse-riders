@@ -8,6 +8,8 @@ export type ControllerInputMessage = Extract<ClientMessage, { type: 'input' }>;
 export interface InputTransport {
   send(message: ControllerInputMessage): boolean;
 }
+/** Packets after a change restate it; a lost edge costs one resend interval, never the gesture. */
+export const TRAILING_RESENDS = 3;
 
 export class ControllerInputState {
   private readonly held = { left: false, right: false, bomb: false };
@@ -18,6 +20,10 @@ export class ControllerInputState {
   private readonly positions = new Map<number, ControllerPoint>();
   private aimPointer?: number;
   private lastAimSentAt = -Infinity;
+  private gestureCounter = 0;
+  private gesture?: number;
+  private finished?: { gesture: number; bombAction: 'release' | 'cancel'; aim?: ControllerPoint };
+  private trailing = 0;
 
   constructor(private readonly transport: InputTransport, private readonly now: () => number = () => performance.now()) {}
 
@@ -55,7 +61,7 @@ export class ControllerInputState {
     if (point) this.positions.set(pointerId, point);
     if (this.held[control]) return false;
     this.held[control] = true;
-    if (control === 'bomb') { this.aimPointer = pointerId; this.aim = this.targetOrigin ? { ...this.targetOrigin } : undefined; }
+    if (control === 'bomb') { this.aimPointer = pointerId; this.aim = this.targetOrigin ? { ...this.targetOrigin } : undefined; this.gesture = ++this.gestureCounter; this.finished = undefined; }
     return this.send(control === 'bomb' ? 'press' : undefined);
   }
 
@@ -68,7 +74,8 @@ export class ControllerInputState {
     if (this.aimPointer === pointerId) this.aimPointer = [...this.pointers].find(([, heldControl]) => heldControl === 'bomb')?.[0];
     if ([...this.pointers.values()].includes(control)) return false;
     this.held[control] = false;
-    const sent = this.send(control === 'bomb' ? 'release' : undefined);
+    if (control === 'bomb') this.finish('release');
+    const sent = this.send();
     if (control === 'bomb') this.aim = undefined;
     return sent;
   }
@@ -81,8 +88,8 @@ export class ControllerInputState {
     if (this.aimPointer === pointerId) this.aimPointer = [...this.pointers].find(([, heldControl]) => heldControl === 'bomb')?.[0];
     if ([...this.pointers.values()].includes(control)) return false;
     this.held[control] = false;
-    if (control === 'bomb') this.aim = undefined;
-    return this.send(control === 'bomb' ? 'cancel' : undefined);
+    if (control === 'bomb') { this.finish('cancel'); this.aim = undefined; }
+    return this.send();
   }
 
   clear(send = true, force = false): boolean {
@@ -91,17 +98,40 @@ export class ControllerInputState {
     this.held.left = false;
     this.held.right = false;
     this.held.bomb = false;
+    if (cancelBomb) this.finish('cancel');
     this.pointers.clear(); this.positions.clear(); this.aim = undefined; this.aimPointer = undefined;
-    return (changed || force) && send ? this.send(cancelBomb ? 'cancel' : undefined) : changed;
+    if (!send) { this.finished = undefined; this.trailing = 0; }
+    return (changed || force) && send ? this.send() : changed;
   }
+  /** A new host control scope has no memory of old gestures; repeating a finished one there would invent a shot. */
+  forgetFinishedGesture(): void { this.finished = undefined; }
 
-  resend(): boolean { return this.hasHeld() ? this.send() : false; }
+  resend(): boolean {
+    if (this.hasHeld()) return this.send();
+    if (this.trailing <= 0) return false;
+    this.trailing -= 1;
+    return this.emit();
+  }
   isTargetAiming(pointerId: number): boolean { return this.aimPointer === pointerId && this.aim !== undefined; }
   hasHeld(): boolean { return this.held.left || this.held.right || this.held.bomb; }
   isHeld(control: ControllerControl): boolean { return this.held[control]; }
 
+  private finish(bombAction: 'release' | 'cancel'): void {
+    if (this.gesture === undefined) return;
+    this.finished = { gesture: this.gesture, bombAction, ...(bombAction === 'release' && this.aim ? { aim: { ...this.aim } } : {}) };
+    this.gesture = undefined;
+  }
+
   private send(bombAction?: ControllerInputMessage['bombAction']): boolean {
+    this.trailing = TRAILING_RESENDS;
+    return this.emit(bombAction);
+  }
+
+  /** Full control state every time: the held gesture, or the last finished one until the next press. */
+  private emit(bombAction?: ControllerInputMessage['bombAction']): boolean {
     if (this.aim) this.lastAimSentAt = this.now();
-    return this.transport.send({ ...(this.aim ? { aim: { ...this.aim } } : {}), type: 'input', seq: this.sequence++, ...this.held, ...(bombAction ? { bombAction } : {}) });
+    const gesture = this.held.bomb && this.gesture !== undefined ? { gesture: this.gesture }
+      : this.finished ? { gesture: this.finished.gesture, bombAction: this.finished.bombAction, ...(this.finished.aim ? { aim: { ...this.finished.aim } } : {}) } : {};
+    return this.transport.send({ ...(this.aim ? { aim: { ...this.aim } } : {}), type: 'input', seq: this.sequence++, ...this.held, ...(bombAction ? { bombAction } : {}), ...gesture });
   }
 }

@@ -40,7 +40,7 @@ test(`keyboard ${left}/${right} and Space share serialized steering and charge/r
   key(f.terminal, 'keydown', 'Space');
   key(f.terminal, 'keydown', 'Space', { repeat: true });
   assert.equal(f.messages.length, 2);
-  assert.deepEqual(f.messages[1], { type: 'input', seq: 1, left: true, right: false, bomb: true, bombAction: 'press' });
+  assert.deepEqual(f.messages[1], { type: 'input', seq: 1, left: true, right: false, bomb: true, bombAction: 'press', gesture: 1 });
   assert.equal(f.left.active, true); assert.equal(f.bomb.active, true);
   key(f.terminal, 'keydown', right); key(f.terminal, 'keyup', left);
   assert.equal(f.left.active, false); assert.equal(f.right.active, true);

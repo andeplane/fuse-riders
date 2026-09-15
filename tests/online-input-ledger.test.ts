@@ -39,10 +39,10 @@ test('a press stamped later than the following hold sample is still processed fi
  assert.deepEqual(s.appliedMotion('host')!.results.map(r=>[r.seq,r.status]),[[0,'superseded'],[1,'superseded'],[2,'applied']]);
  s.command('host',input(s,3,{bombAction:'release'}));s.advance();assert.equal(s.game.bombs.size,1);assert.equal(p.bombChargeStartedTick,undefined);
 });
-test('old-scope release cannot cancel current charge; expired current release cancels without firing',()=>{
+test('old-scope release cannot cancel current charge; a late current release fires at the next step',()=>{
  const s=playing(),old=input(s,2,{bombAction:'release'});s.clear();s.command('host',input(s,0));s.command('host',input(s,1,{bomb:true,bombAction:'press'}));s.advance();const p=s.game.players.get('host')!;assert.notEqual(p.bombChargeStartedTick,undefined);
  assert.match(s.command('host',old)!,/scope/);s.advance();assert.notEqual(p.bombChargeStartedTick,undefined);
- assert.match(s.command('host',input(s,2,{intendedTick:s.game.tick-5,bombAction:'release'}))!,/tick/);s.advance();assert.equal(p.bombChargeStartedTick,undefined);assert.equal(s.game.bombs.size,0);
+ assert.equal(s.command('host',input(s,2,{intendedTick:s.game.tick-5,bombAction:'release'})),undefined);s.advance();assert.equal(p.bombChargeStartedTick,undefined);assert.equal(s.game.bombs.size,1);
 });
 test('disconnect, match changes and restore create fresh neutral scope while preserving received highwater',()=>{
  const s=playing(),old=s.controlScope('host')!;s.command('host',input(s,9,{left:true}));s.advance();s.disconnect('host');assert.notDeepEqual(s.controlScope('host'),old);assert.equal(s.appliedMotion('host')!.appliedSeq,-1);assert.equal(s.appliedMotion('host')!.held.left,false);
@@ -55,7 +55,7 @@ test('queue and result history are bounded and overflow forces explicit neutral 
  assert.equal(s.acknowledgeMotion('host',s.controlScope('host')!,Array(129).fill(0)),false);
 });
 test('malformed timing and aim cannot apply motion or keep an invalid release charging',()=>{
- const s=playing();assert.match(s.command('host',input(s,0,{intendedTick:s.game.tick+5}))!,/tick/);assert.match(s.command('host',{...input(s,0),scope:null})!,/scope/);s.command('host',input(s,1));s.command('host',input(s,2,{bomb:true,bombAction:'press'}));s.advance();
+ const s=playing();assert.match(s.command('host',input(s,0,{intendedTick:NaN}))!,/Invalid input/);assert.match(s.command('host',input(s,0,{gesture:-1}))!,/gesture/);assert.match(s.command('host',{...input(s,0),scope:null})!,/scope/);s.command('host',input(s,1));s.command('host',input(s,2,{bomb:true,bombAction:'press'}));s.advance();
  assert.match(s.command('host',input(s,3,{bombAction:'release',aim:{x:NaN,y:0}}))!,/aim/);s.advance();assert.equal(s.game.players.get('host')!.bombChargeStartedTick,undefined);assert.equal(s.game.bombs.size,0);
 });
 test('queued release is discarded on disconnect and cannot fire into a rejoined control scope',()=>{

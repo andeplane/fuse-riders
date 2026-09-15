@@ -9,13 +9,13 @@ import type { AvatarId } from '../shared/avatars.js';
 import type { AimPoint, GameEvent } from '../shared/protocol.js';
 export type RoomCommand =
   | { type:'join'; name:string; avatarId?:AvatarId }
-  | { type:'input'; scope:InputControlScope; intendedTick:number; resultAcks?:number[]; seq:number; left:boolean;right:boolean;bomb:boolean;bombAction?:'press'|'release'|'cancel';aim?:AimPoint }
+  | { type:'input'; scope:InputControlScope; intendedTick:number; resultAcks?:number[]; seq:number; left:boolean;right:boolean;bomb:boolean;bombAction?:'press'|'release'|'cancel';aim?:AimPoint;gesture?:number }
   | { type:'avatar'; avatarId:AvatarId }
   | { type:'action'; action:'start'|'lobby'|'rematch' }
   | { type:'settings'; settings:RoomSettings }
   | { type:'bot'; action:'add'|'remove'; id?:string };
 type InputCommand=Extract<RoomCommand,{type:'input'}>;
-interface Seat { seq:number; tick:number; input:InputIntent; bombs:BombInputBuffer; scope:InputControlScope; pending:Map<number,InputCommand>; results:Map<number,{outcome:MotionApplicationResult;at:number}>; appliedSeq:number; appliedTick:number; processedSeq:number; bombSeq:number }
+interface Seat { seq:number; tick:number; input:InputIntent; bombs:BombInputBuffer; scope:InputControlScope; pending:Map<number,InputCommand>; results:Map<number,{outcome:MotionApplicationResult;at:number}>; appliedSeq:number; appliedTick:number; processedSeq:number; bombSeq:number; gesture?:number; finishedGesture:number }
 export interface HostDependencies { token:()=>string; botRandom?:BotDependencies['random'] }
 export class HostSession {
   game:GameState;
@@ -74,18 +74,31 @@ export class HostSession {
     if(!Number.isSafeInteger(command.seq)||command.seq<0||typeof command.left!=='boolean'||typeof command.right!=='boolean'||typeof command.bomb!=='boolean')return invalid('Invalid input');
     if(command.bombAction!==undefined&&!['press','release','cancel'].includes(command.bombAction))return invalid('Invalid bomb action');
     if(command.aim&&(!Number.isFinite(command.aim.x)||!Number.isFinite(command.aim.y)||command.aim.x<0||command.aim.x>1||command.aim.y<0||command.aim.y>1))return invalid('Invalid aim');
-    if(!Number.isSafeInteger(command.intendedTick)||command.intendedTick<this.game.tick-4||command.intendedTick>this.game.tick+4){
-      if(!seat.pending.has(command.seq)&&!seat.results.has(command.seq)&&command.seq>seat.processedSeq){
-        this.pruneResults(seat);if(seat.pending.size+seat.results.size>=128){this.resetSeat(seat);return 'Input history full; resync';}
-        seat.seq=Math.max(seat.seq,command.seq);seat.processedSeq=Math.max(seat.processedSeq,command.seq);seat.results.set(command.seq,{at:this.game.tick,outcome:{seq:command.seq,status:'expired'}});
-      }
-      return invalid('Input tick expired; resync');
-    }
+    if(command.gesture!==undefined&&(!Number.isSafeInteger(command.gesture)||command.gesture<0))return invalid('Invalid gesture');
+    if(!Number.isSafeInteger(command.intendedTick))return invalid('Invalid input');
     if(seat.pending.has(command.seq)||seat.results.has(command.seq)||command.seq<=seat.processedSeq)return;
     this.pruneResults(seat);
     if(seat.pending.size+seat.results.size>=128){this.resetSeat(seat);return 'Input history full; resync';}
     seat.seq=Math.max(seat.seq,command.seq);
-    seat.pending.set(command.seq,{...command,scope:{...command.scope},...(command.aim?{aim:{...command.aim}}:{})});
+    // Late input is applied at the next step and far-future input waits at most four ticks: a stale clock estimate
+    // delays a control by up to 200 ms instead of discarding it (and the shot behind it) with a resync demand.
+    const intendedTick=Math.max(this.game.tick+1,Math.min(this.game.tick+4,command.intendedTick));
+    seat.pending.set(command.seq,{...command,intendedTick,scope:{...command.scope},...(command.aim?{aim:{...command.aim}}:{})});
+  }
+  /** Every packet restates the whole gesture state, so any packet can recreate a lost press or release. */
+  private acceptBomb(seat:Seat,command:InputCommand):void {
+    const {gesture,bombAction,aim}=command;
+    if(command.bomb){
+      if(gesture!==undefined&&gesture>seat.finishedGesture&&gesture!==seat.gesture){seat.gesture=gesture;seat.bombs.accept(true,'press',aim);}
+      else seat.bombs.accept(true,bombAction,aim);
+      return;
+    }
+    if(gesture!==undefined){
+      if(gesture<=seat.finishedGesture)return; // the controller repeats its last finished gesture until the next press
+      if(bombAction==='release'&&gesture!==seat.gesture)seat.bombs.accept(true,'press',aim); // press and its resends all lost: a tap still fires at minimum charge
+      seat.finishedGesture=gesture;seat.gesture=undefined;
+    }
+    seat.bombs.accept(false,bombAction,aim);
   }
   private validScope(raw:unknown):raw is InputControlScope {
     if(!raw||typeof raw!=='object')return false;const value=raw as InputControlScope;
@@ -103,7 +116,7 @@ export class HostSession {
     this.pruneDisconnected();return open();
   }
   private newSeat(seq:number):Seat {
-    return {seq,tick:this.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer(),scope:{matchId:this.game.matchId,round:this.game.round,controlEpoch:`${this.dependencies.token()}:${++this.scopeCounter}`},pending:new Map(),results:new Map(),appliedSeq:-1,appliedTick:this.game.tick,processedSeq:seq,bombSeq:seq};
+    return {seq,tick:this.game.tick,input:{left:false,right:false,bomb:false},bombs:new BombInputBuffer(),scope:{matchId:this.game.matchId,round:this.game.round,controlEpoch:`${this.dependencies.token()}:${++this.scopeCounter}`},pending:new Map(),results:new Map(),appliedSeq:-1,appliedTick:this.game.tick,processedSeq:seq,bombSeq:seq,finishedGesture:-1};
   }
   // A new control scope already fences old gestures; queue cancellation without blocking a new press.
   private resetSeat(seat:Seat):void {Object.assign(seat,this.newSeat(seat.seq));seat.bombs.cancel();}
@@ -129,19 +142,15 @@ export class HostSession {
       // later hold sample whose fresher estimate named an earlier tick (#43).
       const queued=[...seat.pending.values()].sort((a,b)=>a.seq-b.seq),latest=queued.filter(command=>command.intendedTick<=nextTick).at(-1)?.seq;
       const eligible=latest===undefined?[]:queued.filter(command=>command.seq<=latest);
-      const newest=eligible.filter(command=>command.seq>seat.appliedSeq&&command.intendedTick>=this.game.tick-4).at(-1);
+      const newest=eligible.filter(command=>command.seq>seat.appliedSeq).at(-1);
       for(const command of eligible){
         seat.pending.delete(command.seq);seat.processedSeq=Math.max(seat.processedSeq,command.seq);
-        const expired=command.intendedTick<this.game.tick-4;
-        seat.results.set(command.seq,{at:nextTick,outcome:expired?{seq:command.seq,status:'expired'}:command===newest?{seq:command.seq,status:'applied',appliedTick:nextTick}:{seq:command.seq,status:'superseded'}});
-        if(command.seq>seat.bombSeq){
-          seat.bombSeq=command.seq;
-          if(expired){if(command.bombAction==='release'||command.bombAction==='cancel')seat.bombs.cancel(true);}
-          else seat.bombs.accept(command.bomb,command.bombAction,command.aim);
-        }
+        seat.results.set(command.seq,{at:nextTick,outcome:command===newest?{seq:command.seq,status:'applied',appliedTick:nextTick}:{seq:command.seq,status:'superseded'}});
+        if(command.seq>seat.bombSeq){seat.bombSeq=command.seq;this.acceptBomb(seat,command);}
       }
       if(newest){seat.input={left:newest.left,right:newest.right,bomb:newest.bomb,...(newest.aim?{aim:newest.aim}:{})};seat.tick=nextTick;seat.appliedSeq=newest.seq;seat.appliedTick=nextTick;}
-      if(nextTick-seat.tick>=10){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel();}
+      // Freshness expiry neutralizes and forgets the held gesture, so the same gesture re-presses when packets resume.
+      if(nextTick-seat.tick>=10){seat.input={left:false,right:false,bomb:false};seat.bombs=new BombInputBuffer();seat.bombs.cancel();seat.gesture=undefined;}
       inputs.set(id,{...seat.input,bombCommands:seat.bombs.drainCommands()});
     }
     const before=this.game.phase;const result=step(this.game,inputs);
