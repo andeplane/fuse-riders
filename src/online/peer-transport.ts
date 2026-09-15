@@ -2,7 +2,6 @@ import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
 import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT } from './link-send-gate.js';
-const LINK_BYE_GRACE_MS=150;
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from './ice-config.js';
@@ -24,6 +23,7 @@ export interface TransportCallbacks {
 }
 interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 const RESTART_ATTEMPTS=4;
+const LINK_BYE_GRACE_MS=150;
 const FAST_CHANNEL='fast';
 export class PeerTransport {
   id='';hostId='';connectionId='';sentBytes=0;
@@ -278,13 +278,15 @@ export class PeerTransport {
   }
   /** Terminal for this page: report it as a notice the room runtime keeps on screen over recurring status. */
   private terminate(status:string):void{if(this.callbacks.terminated)this.callbacks.terminated(status);else this.callbacks.status(status);}
-  /** A closing page says goodbye on every direct link first (#143): the peer drains its gate on the bye instead of probing a channel that
-   *  WebKit still reports open after our side is gone. The connections close a moment later so the bye can leave the send queue. */
-  close():void{
-    const farewell=this.stopped?[]:[...this.links.keys()].filter(id=>this.sendDirectProbe(id,{type:'linkBye'}));
+  /** A page that leaves on purpose (`farewell`) says goodbye on every direct link first (#143): the peer drains its gate on the bye instead of
+   *  probing a channel WebKit still reports open after our side is gone, and the connections close a moment later so the bye can leave the
+   *  send queue. A close forced by the room socket (4004/4001) sends nothing: every member already has that close, and a send then could be
+   *  the very one that lands on a dead transport. */
+  close(farewell=false):void{
+    const byes=farewell&&!this.stopped?[...this.links.keys()].filter(id=>this.sendDirectProbe(id,{type:'linkBye'})):[];
     this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();
     const connections=[...this.links.values()].map(link=>link.pc);this.links.clear();const closeAll=()=>{for(const pc of connections)pc.close();};
-    if(farewell.length)setTimeout(closeAll,LINK_BYE_GRACE_MS);else closeAll();
+    if(byes.length)setTimeout(closeAll,LINK_BYE_GRACE_MS);else closeAll();
   }
   private summary(id:string,link:Link,now:number):LinkDiagnostic {
     return{peer:id===this.hostId?'host':'guest',local:link.local,remote:link.remoteTypes,gathering:link.pc.iceGatheringState,ice:link.pc.iceConnectionState,connection:link.pc.connectionState,signaling:link.pc.signalingState,channel:link.gate.draining?'drained':link.channel?.readyState??'none',
