@@ -143,7 +143,7 @@ export async function createGameServer(options: ServerOptions = {}) {
       const dist = path.resolve(options.buildDirectory ?? path.join(ROOT, 'dist'));
       const filename = path.resolve(dist, isPage ? 'index.html' : '.' + urlPath);
       if (!filename.startsWith(dist + path.sep) || !(await stat(filename)).isFile()) throw new Error('not found');
-      const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png' };
+      const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.png': 'image/png', '.m4a': 'audio/mp4' };
       res.writeHead(200, { 'Content-Type': mime[path.extname(filename)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
       res.end(await readFile(filename));
     } catch { res.writeHead(404); res.end('Not found'); }
@@ -364,15 +364,18 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const dev = process.env.NODE_ENV !== 'production';
   // Online rooms need the signalling Worker. In development, run it locally and proxy /api through this server so one
   // `npm run dev` serves LAN play, the home page and online rooms on the same LAN address. ROOM_API points at another service instead.
-  const roomApi = process.env.ROOM_API || (dev ? 'http://127.0.0.1:8787' : undefined);
+  let roomApi = process.env.ROOM_API || undefined;
   let wrangler: ReturnType<typeof spawn> | undefined;
-  if (dev && !process.env.ROOM_API) {
+  if (dev && !roomApi) {
     await mkdir(path.join(ROOT, 'dist'), { recursive: true });
-    wrangler = spawn('npx', ['wrangler', 'dev', '--port', '8787', '--ip', '127.0.0.1'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
-    wrangler.on('exit', code => { if (code) console.warn('\nRoom service (wrangler dev) stopped; online rooms need it. Is another copy already on port 8787? Set ROOM_API to reuse it.\n'); });
+    // The same walk-up as the game port: another worktree's Wrangler on 8787 must not stop this one.
+    const probe = http.createServer(); const port = await listenFree(probe, 8787, '127.0.0.1'); await new Promise(resolve => probe.close(resolve));
+    roomApi = `http://127.0.0.1:${port}`;
+    wrangler = spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
+    wrangler.on('exit', code => { if (code) console.warn(`\nRoom service (wrangler dev) stopped; online rooms need it. Set ROOM_API to reuse a running one.\n`); });
     wrangler.on('error', error => console.warn(`\nRoom service (wrangler dev) could not start: ${error.message}. Online rooms need it; set ROOM_API to reuse one.\n`));
   }
-  // Wait for Wrangler to release its port before this process ends, or `tsx watch` restarts race the old copy for 8787.
+  // Wait for Wrangler to release its port before this process ends, so `tsx watch` restarts do not pile up copies.
   const stopWrangler = () => new Promise<void>(resolve => {
     if (!wrangler || wrangler.exitCode !== null) return resolve();
     const timer = setTimeout(resolve, 3000); wrangler.once('exit', () => { clearTimeout(timer); resolve(); }); wrangler.kill();

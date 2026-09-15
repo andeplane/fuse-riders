@@ -1,3 +1,4 @@
+import { uuid } from '../shared/uuid.js';
 import { HostSession, type RoomCommand } from './host-session.js';
 import { interpolateWorld } from './interpolate.js';
 import { TICK_MS } from './rollback.js';

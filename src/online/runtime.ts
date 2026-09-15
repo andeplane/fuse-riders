@@ -1,3 +1,4 @@
+import { uuid } from '../shared/uuid.js';
 import { authorityTransitionStatus } from './authority-status.js';
 import { StatusNotices } from './status-notices.js';
 import { HostSession, type BaselineMessage, type RoomCommand } from './host-session.js';
