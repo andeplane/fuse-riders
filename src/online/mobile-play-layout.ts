@@ -25,5 +25,6 @@ export function installMobilePlayLayout(app:HTMLElement,clearControls:()=>void){
  // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
  // entering matchOver opens the overlay so the roster and (for the host) REMATCH are in view. The lobby is its own phone screen (#134), never the controller.
  const enter=()=>{if(['countdown','playing'].includes(state.phase)){closeTools();hints.remove();app.append(hints);}else if(state.phase==='matchOver')openTools();};
+ update(); // A phone booting a room is already on the lobby screen (#134): the header must not wait for the first snapshot to take its lobby shape.
  return {update(next:MobilePlayState){const entered=next.phase!==state.phase||!app.classList.contains('mobile-play');state=next;update();if(entered&&app.classList.contains('mobile-play'))enter();},active:()=>app.classList.contains('mobile-play'),lobby:()=>app.classList.contains('phone-lobby'),blocked:()=>app.classList.contains('mobile-portrait')||app.classList.contains('mobile-tools-open')};
 }

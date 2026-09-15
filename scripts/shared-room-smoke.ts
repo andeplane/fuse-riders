@@ -15,7 +15,8 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const
      assert.equal(await phone.locator('.mobile-play').count(),0,'a host phone before joining is not the controller');assert.equal(await phone.locator('.mobile-rotate-gate').isVisible(),false,'no rotate gate');
      assert.equal(await phone.locator('button:visible').filter({hasText:/MENU/}).count(),1,'one menu button');assert.equal(await phone.locator('.shared-room-code').first().textContent(),phoneCode);
      await onScreen('join name field',phone.getByPlaceholder('Your name'));await onScreen('JOIN AS PLAYER',phone.getByRole('button',{name:'JOIN AS PLAYER',exact:true}));await onScreen('COPY',phone.getByRole('button',{name:'COPY',exact:true}));
-     for(const action of ['START RACE','ROOM SETTINGS','TV VIEW','ADD AI'])await onScreen(action,phone.getByRole('button',{name:action,exact:true}));
+     for(const action of ['START RACE','ROOM SETTINGS','ADD AI'])await onScreen(action,phone.getByRole('button',{name:action,exact:true}));
+     assert.equal(await phone.getByRole('button',{name:'TV VIEW',exact:true}).isVisible(),false,'a phone is never the TV: no TV VIEW in the phone lobby');
      await phone.screenshot({path:`artifacts/shared-phone-host-${name}-${viewport.width}x${viewport.height}.png`});}
     // An empty JOIN says what is missing instead of doing nothing (#132).
     await phone.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();await phone.getByRole('alert').filter({hasText:'Enter your name to join'}).waitFor();
