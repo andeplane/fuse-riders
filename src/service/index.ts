@@ -43,16 +43,16 @@ const server=createServer(async(req,res)=>{
       if(!await database.allowance(digest(ip),Date.now(),30)){json({error:'Room creation limit; try later'},429);return;}
       const token=randomBytes(32).toString('hex'),code=await store.createAvailable(token);json({code,token},201);return;
     }
-    const end=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/end$/);
+    const end=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/end$/);
     if(end&&req.method==='POST'){await store.end(end[1]!,req.headers.authorization?.replace(/^Bearer /,'')??'');json({ok:true});return;}
-    const match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/ice$/);
+    const match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/ice$/);
     if(match){const token=url.searchParams.get('token')??'';if(!validToken(token)){json({error:'Invalid identity'},401);return;}const room=await store.get(match[1]);if(!room.members[peerId(token)]||room.members[peerId(token)].expiresAt<=Date.now()){json({error:'Join the room first'},403);return;}json({iceServers:DEFAULT_ICE_SERVERS,relayConfigured:false});return;}
     json({error:'Not found'},404);
   }catch(error){console.error(JSON.stringify({kind:'http-operation',errorType:error instanceof Error?error.name:'unknown',code:(error as {code?:unknown})?.code}));json({error:error instanceof RoomError?error.message:'Room service unavailable'},error instanceof RoomError?error.status:503);}
 });
 const sockets=new WebSocketServer({noServer:true,maxPayload:32_000,perMessageDeflate:false});
 server.on('upgrade',(req,socket,head)=>{
-  const origin=req.headers.origin,url=new URL(req.url??'/','http://gateway'),match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2}|[A-Z0-9]{10})\/ws$/),token=url.searchParams.get('token')??'';
+  const origin=req.headers.origin,url=new URL(req.url??'/','http://gateway'),match=url.pathname.match(/^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/ws$/),token=url.searchParams.get('token')??'';
   if(!origin||!origins.has(origin)||!match||!validCode(match[1])||!validToken(token)){socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');return;}
   sockets.handleUpgrade(req,socket,head,ws=>{
     let connectionId:string|undefined,closed=false;let pending:string[]=[];

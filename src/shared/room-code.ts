@@ -1,6 +1,6 @@
 export const ROOM_RECONNECT_GRACE_MS=90_000;
 export const ROOM_CODE_SPACE=26*26*100;
-export const validRoomCode=(code:string):boolean=>/^(?:[A-Z]{2}[0-9]{2}|[A-Z0-9]{10})$/.test(code);
+export const validRoomCode=(code:string):boolean=>/^[A-Z]{2}[0-9]{2}$/.test(code);
 /** Uniform cryptographic mapping; injectable uint32 source keeps tests deterministic. */
 export function generateRoomCode(nextUint32:()=>number=()=>crypto.getRandomValues(new Uint32Array(1))[0]!):string {
  const limit=Math.floor(2**32/ROOM_CODE_SPACE)*ROOM_CODE_SPACE;
