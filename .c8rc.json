@@ -44,7 +44,8 @@
     "src/online/wire.ts",
     "src/online/stream.ts",
     "src/online/input-edges.ts",
-    "src/online/interpolate.ts"
+    "src/online/interpolate.ts",
+    "src/online/net-stats.ts"
   ],
   "reporter": [
     "text",

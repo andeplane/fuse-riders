@@ -8,6 +8,7 @@ import { InputEdges } from './input-edges.js';
 import { hashText, packFast, unpackFast, type StreamPacket } from './wire.js';
 import { decodeGameState } from './checkpoint.js';
 import { interpolateWorld } from './interpolate.js';
+import { NetStats } from './net-stats.js';
 import { BombInputBuffer } from '../shared/bomb-input.js';
 import { replayHash, validEntry, REPLAY_RULES, type LogEntry, type ReplayState } from '../shared/action-log.js';
 import { toSnapshot } from '../shared/game.js';
@@ -69,6 +70,8 @@ export class RoomRuntime {
   private recovering=false;
   private lastPausedPublish=0;
   readonly transport:PeerTransport;
+  /** What this view saw of the host link lately; the device overlay reads it. */
+  readonly netStats=new NetStats(()=>this.dependencies.now());
   private readonly status:StatusNotices;
   constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks,private readonly dependencies:RoomRuntimeDependencies={now:()=>performance.now(),hidden:()=>document.hidden,transport:callbacks=>new PeerTransport(code,token,callbacks)}){
     this.settings=settings;this.lastTick=dependencies.now();
@@ -93,7 +96,7 @@ export class RoomRuntime {
       authorityChanged:()=>{this.resetView();this.accumulator=0;},
     });
   }
-  private resetView():void {this.sim=undefined;this.members.clear();this.own=new StreamSender();this.edges.reset();this.clock.reset();this.pendingHash=undefined;this.hostSentAt=null;this.hostHeardAt=-Infinity;this.previous=undefined;this.current=undefined;this.gapSince.clear();this.lastRepairSent.clear();this.lastBaselineSent.clear();this.mismatches=[];}
+  private resetView():void {this.netStats.reset();this.sim=undefined;this.members.clear();this.own=new StreamSender();this.edges.reset();this.clock.reset();this.pendingHash=undefined;this.hostSentAt=null;this.hostHeardAt=-Infinity;this.previous=undefined;this.current=undefined;this.gapSince.clear();this.lastRepairSent.clear();this.lastBaselineSent.clear();this.mismatches=[];}
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
   /** The interpolated world for this frame: the last two simulated ticks at the fractional clock. */
   render():ViewSnapshot|undefined {
@@ -105,7 +108,7 @@ export class RoomRuntime {
   held(id:string):{left:boolean;right:boolean}|undefined {const flags=(this.session?.sim??this.sim)?.state.streams.get(id)?.flags;return flags===undefined?undefined:{left:Boolean(flags&1),right:Boolean(flags&2)};}
   private requestResync(force=false):void {
     const now=this.dependencies.now();if(!force&&now-this.lastResync<RESYNC_INTERVAL_MS)return;
-    this.lastResync=now;this.transport.send(this.transport.hostId,{type:'resync'});
+    this.lastResync=now;this.netStats.record('resync');this.transport.send(this.transport.hostId,{type:'resync'});
   }
   private receive(id:string,raw:unknown):void {
     if(Array.isArray(raw)){const message=unpackFast(raw);if(message)this.receiveFast(id,message);return;}
@@ -140,7 +143,9 @@ export class RoomRuntime {
     if(message.type==='repair'){if(message.member!==hashText(this.transport.id))return;this.transport.send(id,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:message.member,lastSeq:this.own.lastSeq,entries:this.own.since(message.firstMissingSeq).slice(0,32)}]}),true);return;}
     this.hostHeardAt=now;this.hostSentAt=message.sentAt;
     // The echo is this guest's own send time; older than a second it measures silence, not the link.
-    if(message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt));else if(!this.clock.live)this.clock.observe(message.tick,0);
+    const echo=message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS;
+    if(echo)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt!));else if(!this.clock.live)this.clock.observe(message.tick,0);
+    this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;
     const sim=this.sim;if(!sim)return;
     const lastSeq=new Map<string,number>(),hostStream=hashText(this.transport.hostId);
     for(const stream of message.streams){
@@ -159,10 +164,10 @@ export class RoomRuntime {
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
     const open=new Set<string>();
     for(const [member,firstMissing] of sim.gaps()){
-      open.add(member);const since=this.gapSince.get(member)??now;this.gapSince.set(member,since);
+      open.add(member);if(!this.gapSince.has(member))this.netStats.record('gap');const since=this.gapSince.get(member)??now;this.gapSince.set(member,since);
       if(now-since>SILENCE_MS){this.gapSince.delete(member);this.requestResync();continue;}
       if(now-(this.lastRepairSent.get(member)??-Infinity)<REPAIR_INTERVAL_MS)continue;
-      this.lastRepairSent.set(member,now);this.transport.send(id,packFast({type:'repair',member:hashText(member),firstMissingSeq:firstMissing}),true);
+      this.lastRepairSent.set(member,now);this.netStats.record('repair');this.transport.send(id,packFast({type:'repair',member:hashText(member),firstMissingSeq:firstMissing}),true);
     }
     for(const member of [...this.gapSince.keys()])if(!open.has(member))this.gapSince.delete(member);
   }
@@ -273,6 +278,7 @@ export class RoomRuntime {
       const {matchId,round}=sim.state.game;
       const result=sim.advanceTo(target,(event,tick)=>this.callbacks.event(event,matchId,round,tick));
       if(result.status==='baseline'){this.requestResync();return;}
+      if(result.rewound)this.netStats.record('rewind',result.rewound);
       this.publishView();
       this.checkHash();
     }
@@ -290,7 +296,7 @@ export class RoomRuntime {
     for(const [member,lastSeq] of pending.lastSeq)if(sim.stream(member).contiguous<lastSeq)return;
     this.pendingHash=undefined;
     const hash=sim.hashAt(pending.tick);if(hash===undefined||hash===pending.hash)return;
-    const now=this.dependencies.now();this.mismatches=this.mismatches.filter(at=>now-at<60_000);this.mismatches.push(now);
+    const now=this.dependencies.now();this.mismatches=this.mismatches.filter(at=>now-at<60_000);this.mismatches.push(now);this.netStats.record('mismatch');
     if(this.mismatches.length>=3)this.status.notice('Simulation out of sync — reload this page');
     this.requestResync();
   }
