@@ -65,23 +65,34 @@ try {
   assert.equal(after.src, before.src, 'alt-tabbing does not change the track');
   assert.ok(after.time >= before.time, `alt-tabbing never rewinds the track: ${before.time} -> ${after.time}`);
 
-  // Off and on again is a volume change on the same element, not a restart.
+  // Off pauses rather than playing on at zero volume, so silence never streams the playlist; on
+  // resumes the same track from where it stopped instead of restarting it.
   await page.locator('.landing-audio').click(); await settle();
   assert.equal(await label(), '♫ MUSIC OFF');
-  assert.equal(await page.locator('.landing-audio').getAttribute('aria-pressed'), 'true');
-  assert.equal((await track(page))!.volume, 0, 'music off silences the element');
-  assert.deepEqual((await stored()).muted, { music: true, effects: false });
+  assert.equal(await page.locator('.landing-audio').getAttribute('data-muted'), 'true');
+  assert.equal(await page.locator('.landing-audio').getAttribute('aria-pressed'), null, 'the label states the state, so aria-pressed would contradict it');
   const off = (await track(page))!;
+  assert.equal(off.volume, 0, 'music off silences the element');
+  assert.equal(off.paused, true, 'music off stops streaming');
+  assert.deepEqual((await stored()).muted, { music: true, effects: false });
   await page.locator('.landing-audio').click(); await settle();
   assert.equal(await label(), '♫ MUSIC ON');
-  assert.ok((await track(page))!.volume > 0, 'music on restores the volume');
-  assert.equal((await track(page))!.src, off.src, 'toggling never swaps the track');
+  const back = (await track(page))!;
+  assert.ok(back.volume > 0, 'music on restores the volume');
+  assert.equal(back.paused, false, 'music on resumes playing');
+  assert.equal(back.src, off.src, 'toggling never swaps the track');
+  assert.ok(back.time >= off.time, `toggling never rewinds the track: ${off.time} -> ${back.time}`);
 
   // Settings have to survive the full page load between the landing page and a room.
   await page.locator('.landing-audio').click(); await settle();
+  const muted: string[] = [];
+  page.on('request', request => { if (/\/music\/.*\.m4a$/.test(request.url())) muted.push(new URL(request.url()).pathname); });
   await page.reload(); await page.waitForSelector('.landing-audio'); await settle();
   assert.equal(await label(), '♫ MUSIC OFF', 'mute survives the page load');
   assert.deepEqual((await stored()).muted, { music: true, effects: false });
+  await page.mouse.click(720, 700); await settle();
+  // A page loaded with music off downloads no music at all rather than streaming it silently.
+  assert.deepEqual(muted, [], `a muted page fetches no track, got ${JSON.stringify(muted)}`);
 
   assert.deepEqual(errors, [], `no page errors: ${errors.join('\n')}`);
   console.log('landing music smoke passed');

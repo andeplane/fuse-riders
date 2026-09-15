@@ -48,26 +48,31 @@ try {
       };
       return oscillator;
     };
-    const createSource = AudioContext.prototype.createBufferSource;
-    AudioContext.prototype.createBufferSource = function () {
-      const source = createSource.call(this); const start = source.start.bind(source);
-      source.start = (when?: number, offset?: number, duration?: number) => {
-        document.documentElement.dataset.musicStarts = String(Number(document.documentElement.dataset.musicStarts ?? 0) + 1);
-        start(when, offset, duration);
-      };
-      return source;
-    };
   });
   await host.goto(`${origin}/display#${app.hostToken}`);
   await host.getByText('HOST ONLINE', { exact: true }).waitFor();
   assert.equal(new URL(host.url()).hash, '', 'host fragment removed from URL');
   await host.locator('.qr').waitFor();
+  // Audio enables itself on the first gesture now, so opening the panel is enough; the enable button
+  // stays as the fallback for a browser that refused, and says so once audio is running either way.
   await host.locator('.audio-controls summary').click();
-  await host.getByRole('button', { name: 'Enable TV audio', exact: true }).click();
   await host.getByRole('button', { name: 'TV audio enabled · test sound', exact: true }).waitFor();
-  await host.waitForFunction(() => Number(document.documentElement.dataset.musicStarts) > 0); // Lobby music decoded and started.
+  // Music streams through a media element rather than a decoded buffer, so a phone's silent switch and
+  // volume keys reach it. Playing means an element with a source that is not paused.
+  const musicPlaying = () => host.evaluate(() => {
+    const element = document.querySelector('audio.game-music');
+    return element instanceof HTMLAudioElement && Boolean(element.currentSrc) && !element.paused;
+  });
+  await host.waitForFunction(() => {
+    const element = document.querySelector('audio.game-music');
+    return element instanceof HTMLAudioElement && Boolean(element.currentSrc) && !element.paused;
+  }, undefined, { timeout: 15000 }); // Lobby music started.
   await host.getByRole('button', { name: 'Mute music', exact: true }).click();
   assert.equal(await host.getByRole('button', { name: 'Mute music', exact: true }).getAttribute('aria-pressed'), 'true');
+  // Silent music must stop streaming rather than play on at zero volume.
+  await host.waitForFunction(() => document.querySelector<HTMLAudioElement>('audio.game-music')?.paused === true);
+  await host.getByRole('button', { name: 'Mute music', exact: true }).click();
+  assert.ok(await musicPlaying(), 'unmuting resumes the same track');
   await host.getByLabel('Effects volume', { exact: true }).fill('20');
   await host.locator('.audio-controls summary').click();
   await host.getByText('bigger explosions', { exact: false }).waitFor();
