@@ -28,9 +28,10 @@ export class AudioDirector {
   private latestTick = 0;
   private seen = new Set<string>();
   private playing = false;
+  private background = false;
+  private silenced = false;
   private trackIndex = 0;
   private musicPath = '';
-  private musicScope = '';
   private settings = { music: { muted: false, volume: .22 }, effects: { muted: false, volume: .45 } };
   constructor(private readonly synth: GameSynth) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
@@ -41,7 +42,17 @@ export class AudioDirector {
     return this.unlocked;
   }
   get trackTitle(): string { return MUSIC_TRACKS[this.trackIndex]!.title; }
-  /** Also called by the synth when a track finishes. */
+  isMuted(channel: AudioChannel): boolean { return this.settings[channel].muted; }
+  /** Plays music with no match attached, so the landing page and a room that has not connected yet still have a soundtrack. */
+  playBackground(): void { this.background = true; this.playing = true; this.update(); }
+  /** Restarts background music after something stopped it; a match instead resumes from its next snapshot. */
+  resume(): void { if (this.background) this.playBackground(); }
+  /**
+   * A hidden tab keeps its music — alt-tabbing away must not restart the track — but drops effect cues,
+   * because a room the viewer cannot see goes on launching and exploding without them.
+   */
+  setEffectsSilenced(value: boolean): void { this.silenced = value; }
+  /** Advances the playlist: called by Next tune and by the synth when a track finishes. */
   nextTrack(): void { this.trackIndex = (this.trackIndex + 1) % MUSIC_TRACKS.length; this.update(); }
   setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); }
   setVolume(channel: AudioChannel, value: number): void {
@@ -61,11 +72,7 @@ export class AudioDirector {
       } else if (message.tick < this.latestTick) return;
       this.latestTick = message.tick;
       this.playing = true; // Connected lobbies and intermissions also have music.
-      if ((message.state.phase === 'playing' || message.state.phase === 'countdown') && scope !== this.musicScope) {
-        if (this.musicScope) this.nextTrack();
-        this.musicScope = scope;
-      }
-      return;
+      return; // The current track plays on across rounds; only its end or Next tune advances the playlist.
     }
     if (scope !== this.scope || message.tick <= this.baselineTick || message.tick < this.latestTick - 2) return;
     const key = `${message.tick}:${message.event.type}`;
@@ -79,7 +86,7 @@ export class AudioDirector {
     if (path !== this.musicPath) { this.musicPath = path; this.synth.music(path); }
   }
   private cue(type: string): void {
-    if (!this.unlocked) return;
+    if (!this.unlocked || this.silenced) return;
     const note = (frequency: number, endFrequency: number, duration: number, wave: SynthNote['wave'] = 'square', delay = 0) => this.synth.note('effects', { frequency, endFrequency, duration, wave, delay, level: .24 });
     switch (type) {
       case 'cannon': note(180, 35, .32, 'sawtooth'); note(90, 24, .4, 'triangle'); note(900, 90, .09); break;
