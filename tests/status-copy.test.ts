@@ -11,6 +11,8 @@ test('link status collapses to connected / connecting / trouble', () => {
   assert.deepEqual(plainStatus('Waiting for direct connection — direct link connected — waiting for gameplay probe acknowledgements'), { tone: 'busy', text: 'Connected — syncing the arena…', retry: false });
   assert.deepEqual(plainStatus('Direct connection failed · retrying'), { tone: 'bad', text: 'Connection trouble — retrying', retry: true });
   assert.deepEqual(plainStatus('ICE failed — likely symmetric NAT/CGNAT on one side'), { tone: 'bad', text: 'Connection trouble — retrying', retry: true });
+  assert.deepEqual(plainStatus('Signalling disconnected · retrying'), { tone: 'bad', text: 'Connection trouble — retrying', retry: true });
+  assert.equal(plainStatus('Waiting for room authority — try again when connected').text, 'Connecting…');
   assert.deepEqual(plainStatus(''), { tone: 'busy', text: '', retry: false });
 });
 

@@ -1,10 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { announcementFor, eliminationLine, roundClock, type Announcement, type ScoredView } from '../src/client/arena-announcer.js';
+import { announcementFor, eliminationLine, roundClock, type Announcement } from '../src/client/arena-announcer.js';
+import type { ViewSnapshot } from '../src/client/snapshot-stream.js';
+type ScoredView = ViewSnapshot;
 const field = (announcement: Announcement, key: string) => (announcement as unknown as Record<string, unknown>)[key];
 
 const player = (id: string, name: string) => ({ id, name, slot: 0, color: '#fff', avatarId: 'robot', alive: true, x: 0, y: 0, angle: 0, trail: [], roundWins: 0, connected: true }) as unknown as ScoredView['players'][number];
-const view = (overrides: Partial<ScoredView>): ScoredView => ({ phase: 'playing', tick: 100, round: 2, width: 1200, height: 700, players: [player('me', 'Anders'), player('ai', 'AI Ada')], bombs: [], blasts: [], pickups: [], ...overrides } as unknown as ScoredView);
+const view = (overrides: Partial<ScoredView>): ScoredView => ({ phase: 'playing', tick: 100, round: 2, width: 1200, height: 700, players: [player('me', 'Anders'), player('ai', 'AI Ada')], bombs: [], blasts: [], pickups: [], roundPlacements: [], ...overrides } as unknown as ScoredView);
 
 test('countdown shows the seconds, then GO, with a steering hint for the input in use', () => {
   const state = view({ phase: 'countdown', tick: 100, phaseEndsAtTick: 141 });

@@ -12,6 +12,8 @@ test('connect hint escalates from progress to the network advice', () => {
 test('a connected link never shows the different-network advice', () => {
   assert.equal(connectHint('Waiting for direct connection — direct link connected — waiting for gameplay probe acknowledgements', 30000), 'Connected — syncing the arena…');
   assert.equal(connectHint('Direct peer link connected', 0), 'Connected — syncing the arena…');
+  assert.equal(connectHint('Signalling disconnected · retrying', 0), 'Warming up the arena…');
+  assert.match(connectHint('Waiting for room authority — try again when connected', 21000), /different network/);
 });
 
 test('a status that already says what to do wins over the network guess', () => {

@@ -7,7 +7,7 @@ export type StatusTone = 'ok' | 'busy' | 'bad';
 export interface PlainStatus { tone: StatusTone; text: string; /** True when a page reload is the sensible player action. */ retry: boolean }
 
 const ACTIONABLE = /reload this page|newer tab|incompatible|damaged|room ended|out of sync/i;
-const BAD = /failed|interrupted|error|unreachable|expired|NAT|relay/i;
+const BAD = /failed|interrupted|error|unreachable|expired|NAT|relay|disconnected/i;
 const OK = /^connected\b|authority confirmed|peer link connected|link connected|phone controls|direct game link/i;
 
 export function plainStatus(raw: string): PlainStatus {

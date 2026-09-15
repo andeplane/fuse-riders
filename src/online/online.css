@@ -181,7 +181,7 @@
 .online-announce{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;display:grid;gap:8px;justify-items:center;text-align:center;padding:18px 34px;max-width:min(92vw,720px);box-sizing:border-box;background:#020715db;border:3px solid #ff2e9d;box-shadow:0 0 40px #ff2e9d61;pointer-events:none}
 .online-announce[hidden]{display:none!important}
 .online-announce .announce-small{color:#00d9ff;font-weight:900;letter-spacing:.18em;font-size:12px}
-.online-announce strong{display:block;font-family:'Press Start 2P',ui-monospace,monospace;font-size:clamp(26px,6vw,64px);line-height:1.2;color:#fff;text-shadow:5px 5px 0 #842562,0 0 22px #ff2e9d;overflow-wrap:anywhere}
+.online-announce strong{display:block;font-family:'Press Start 2P',ui-monospace,monospace;font-size:clamp(22px,4.5vw,56px);line-height:1.2;color:#fff;text-shadow:5px 5px 0 #842562,0 0 22px #ff2e9d;overflow-wrap:anywhere}
 .online-announce.countdown strong{font-size:clamp(56px,14vw,120px)}
 .online-announce .announce-rows{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 16px;color:#b9cae6;font-size:13px}
 .online-announce .announce-rows span{white-space:nowrap}
@@ -211,9 +211,9 @@
 .online-round[hidden]{display:none!important}
 /* Header hierarchy on desktop: brand and actions on one steady row, the roster on its own row, one filled primary action (START / REMATCH). */
 .desktop-game>.online-header{flex-wrap:wrap;row-gap:4px}
-.desktop-game .online-roster{order:10;flex:1 0 100%;justify-content:center;margin:0}
+.desktop-game .online-roster{order:3;flex:0 1 auto;justify-content:center;margin:0 auto}
 .desktop-game .online-host{order:2}
-.desktop-game .online-header>button,.desktop-game .online-header>.online-round{order:3}
+.desktop-game .online-header>button,.desktop-game .online-header>.online-round{order:4}
 .desktop-game .online-header>.online-status{position:static;max-width:30%;padding:0 6px;font-size:11px;background:none}
 .desktop-game .online-host button:first-child:not(:disabled){background:var(--player-color);color:#030919;font-weight:900;letter-spacing:1px;border-color:#fff}
 .desktop-game .online-header>.desktop-help,.desktop-game .online-header>button[aria-label=Fullscreen]{opacity:.75}
@@ -224,8 +224,8 @@
 .match-recap-report .comparison-row.is-you{background:#ffffff12;box-shadow:inset 3px 0 0 #fff}
 .session-board{display:grid;gap:6px;margin-bottom:14px}
 .session-board h2{margin:0 0 4px;font-size:15px}
-.session-row{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid #20365f;background:#040d24;font-size:13px}
-.session-row.is-you{border-color:#fff}
+.session-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:6px 8px;border:1px solid #20365f;background:#040d24;font-size:13px}
+.session-row.is-you{border-color:#fff}.session-row>span{min-width:0;overflow-wrap:anywhere}
 .session-row b{color:#ffe46b}.session-row strong{color:#fff}.session-row small{grid-column:2/-1;color:#7c93b8;font-size:10px;letter-spacing:1px}
 .session-key{margin:0;color:#7c93b8;font-size:11px}
 /* Avatar dialog: labels never split mid-word; avatars other riders wear are marked. */
@@ -234,5 +234,4 @@
 .online-app .game-dialog .avatar-option.taken{opacity:.55}
 .online-app .game-dialog .avatar-option.taken::after{content:'TAKEN';position:absolute;top:4px;right:4px;font-size:8px;letter-spacing:1px;color:#ffb3c2;background:#3b1734;padding:1px 4px}
 .mobile-hud{display:none}
-.online-announce strong{font-size:clamp(22px,4.5vw,56px)}
 .online-announce.round~.online-feed,.online-announce.final~.online-feed{display:none}

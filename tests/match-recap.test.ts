@@ -134,6 +134,7 @@ test('comparison rows order by placement then seat and format every recorded cou
   assert.equal(late.bombs, '4/5');
   assert.equal(late.eliminations, '2');
   assert.equal(late.pickups, '9 · blast 1 · star 2 · beer 1 · ink 1 · triple 1 · five 1 · target 1 · shield 1 · portal 1 · 2 jumps');
+  assert.match(comparisonRows([{ ...stats[0]!, portalTransits: 1 }])[0]!.pickups, /· 1 jump$/);
   assert.equal(late.star, '2.3s');
   assert.equal(late.deaths, 'wall 1 · trail 2 · blast 3 · rider 4');
 });

@@ -7,7 +7,6 @@ import type { ViewSnapshot } from './snapshot-stream.js';
  * placements, overtime, the final result, plus the elimination feed. The LAN TV keeps its own copy of this
  * logic in `main.ts`; this module exists so the online room, solo and the phone read the same moments.
  */
-export type ScoredView = ViewSnapshot & { roundPlacements?: ReadonlyArray<{ playerId: string; name: string; place: number; scoreUnits: number }> };
 export type Announcement =
   | { kind: 'hidden' }
   | { kind: 'countdown'; round: number; count: string; hint: string }
@@ -17,7 +16,7 @@ export type Announcement =
 
 const points = (units: number): string => { const value = units / 60; return Number.isInteger(value) ? String(value) : value.toFixed(1); };
 
-export function announcementFor(snapshot: ScoredView, selfId: string, touch: boolean): Announcement {
+export function announcementFor(snapshot: ViewSnapshot, selfId: string, touch: boolean): Announcement {
   const left = snapshot.phaseEndsAtTick === undefined ? 0 : Math.max(0, snapshot.phaseEndsAtTick - snapshot.tick);
   if (snapshot.phase === 'countdown') {
     const seconds = Math.ceil(left / TICK_HZ);
@@ -31,7 +30,7 @@ export function announcementFor(snapshot: ScoredView, selfId: string, touch: boo
   if (snapshot.phase === 'roundOver') {
     const winner = snapshot.players.find(player => player.id === snapshot.roundWinnerId);
     const title = !winner ? 'DRAW' : winner.id === selfId ? 'YOU WIN THE ROUND' : `${winner.name} WINS`;
-    const placements = (snapshot.roundPlacements ?? []).map(entry => `#${entry.place} ${entry.playerId === selfId ? 'YOU' : entry.name}  +${points(entry.scoreUnits)}`);
+    const placements = snapshot.roundPlacements.map(entry => `#${entry.place} ${entry.playerId === selfId ? 'YOU' : entry.name}  +${points(entry.scoreUnits)}`);
     return { kind: 'round', round: snapshot.round, title, placements, next: left > 0 ? `NEXT ROUND IN ${Math.ceil(left / TICK_HZ)}` : 'NEXT ROUND' };
   }
   if (snapshot.phase === 'matchOver') {

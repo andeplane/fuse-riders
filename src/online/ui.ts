@@ -34,7 +34,6 @@ import { POWERUP_GUIDE } from '../client/powerup-guide.js';
 import { createPowerupGuide } from '../client/powerup-guide-view.js';
 import { announcementFor, eliminationLine, roundClock } from '../client/arena-announcer.js';
 import { plainStatus } from './status-copy.js';
-import { AVATARS } from '../shared/avatars.js';
 const LAST_ROOM_KEY='fuse-last-room';
 const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 const storage=safeStorage(()=>localStorage);
@@ -111,7 +110,7 @@ export async function startOnline():Promise<void>{
   // Players read three link states (connected / connecting / trouble); the runtime's full wording stays in the tooltip and the ROOM diagnostics.
   const statusAction=node('button','RETRY','online-status-action');statusAction.hidden=true;statusAction.onclick=()=>location.reload();
   const roundChip=node('span','','online-round');roundChip.hidden=true;
-  let rawStatus='';
+  let rawStatus='',replacedHost=false;
   title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,audioButton,musicButton,results,menu);
   const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
   const bootNote=node('p','Warming up the arena…','room-boot-note');
@@ -129,8 +128,9 @@ export async function startOnline():Promise<void>{
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
   const notice=node('div','','online-notice');
   // In-arena moments (countdown, round result, overtime, final) and the elimination feed, shared by desktop, solo and the phone thirds.
-  const announcer=node('div','','online-announce');announcer.hidden=true;announcer.setAttribute('aria-live','polite');
+  const announcer=node('div','','online-announce');announcer.hidden=true;
   const announceSmall=node('span','','announce-small'),announceBig=node('strong'),announceRows=node('div','','announce-rows'),announceHint=node('p','','announce-hint'),announceAction=node('button','PLAY AGAIN','announce-action');announceAction.hidden=true;
+  announceBig.setAttribute('aria-live','polite');announceBig.setAttribute('aria-atomic','true');
   announcer.append(announceSmall,announceBig,announceRows,announceHint,announceAction);
   const feed=node('div','','online-feed');feed.setAttribute('aria-live','polite');
   const hud=node('div','','mobile-hud');const hudWho=node('span','','hud-who'),hudFire=node('span','','hud-fire'),hudWins=node('span','','hud-wins'),hudRound=node('span','','hud-round');hud.append(hudWho,hudFire,hudWins,hudRound);
@@ -140,12 +140,12 @@ export async function startOnline():Promise<void>{
     const announcement=announcementFor(state,id,touchInput);
     const key=JSON.stringify(announcement)+visible+isHost;
     if(key===lastAnnouncement)return;lastAnnouncement=key;
-    announcer.hidden=!visible||announcement.kind==='hidden';announcer.className=`online-announce ${announcement.kind}`;app.classList.toggle('announcing',!announcer.hidden);
+    announcer.hidden=!visible||announcement.kind==='hidden';announcer.className='online-announce';if(announcement.kind!=='hidden')announcer.classList.add(announcement.kind);app.classList.toggle('announcing',!announcer.hidden);
     announceRows.replaceChildren();announceHint.textContent='';announceAction.hidden=true;
     if(announcement.kind==='countdown'){announceSmall.textContent=`ROUND ${announcement.round}`;announceBig.textContent=announcement.count;announceHint.textContent=announcement.hint;}
     else if(announcement.kind==='overtime'){announceSmall.textContent='';announceBig.textContent=announcement.text;}
     else if(announcement.kind==='round'){announceSmall.textContent=`ROUND ${announcement.round}`;announceBig.textContent=announcement.title;for(const line of announcement.placements)announceRows.append(node('span',line));announceHint.textContent=announcement.next;}
-    else if(announcement.kind==='final'){announceSmall.textContent=announcement.subtitle;announceBig.textContent=announcement.title;announceAction.hidden=!isHost||announcement.subtitle!=='MATCH COMPLETE';}
+    else if(announcement.kind==='final'){announceSmall.textContent=announcement.subtitle;announceBig.textContent=announcement.title;announceAction.hidden=!isHost||replacedHost||announcement.subtitle!=='MATCH COMPLETE';}
   };
   const feedLine=(text:string)=>{const line=node('span',text);feed.prepend(line);while(feed.childElementCount>4)feed.lastElementChild?.remove();setTimeout(()=>line.remove(),2600);};
   const shake=()=>{if(canvas.hidden||reducedMotion())return;canvas.animate([{transform:'translate(4px,-3px)',filter:'brightness(1.7)'},{transform:'translate(-4px,3px)'},{transform:'translate(2px,1px)'},{transform:'none',filter:'brightness(1)'}],{duration:220});};
@@ -216,9 +216,9 @@ export async function startOnline():Promise<void>{
   const callbacks:Callbacks={
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
     ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;},
-    status:text=>{rawStatus=text;const plain=plainStatus(text);status.textContent=plain.text;status.title=text;status.dataset.tone=plain.tone;
+    status:text=>{rawStatus=text;const plain=plainStatus(text);status.textContent=plain.text;status.title=text;status.dataset.raw=text;status.dataset.tone=plain.tone;
       // A replaced host tab cannot act on the room any more: its actions go away and one button reclaims hosting (a reload re-authenticates with the stored token).
-      const replaced=/replaced/i.test(text);statusAction.hidden=!(plain.retry||replaced);statusAction.textContent=replaced?'TAKE OVER HOSTING':'RETRY';if(replaced){hostControls.hidden=true;announceAction.hidden=true;}
+      const replaced=/replaced/i.test(text);statusAction.hidden=!(plain.retry||replaced);statusAction.textContent=replaced?'TAKE OVER HOSTING':'RETRY';if(replaced){replacedHost=true;hostControls.hidden=true;announceAction.hidden=true;}
       if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
     // An ended room is no longer joined play (#44): the thirds controller gives way to the ordinary header so the status
     // reads without opening ☰ MENU. `controller-only` is only ever recomputed from a state update, and none arrives after the end.
@@ -267,7 +267,7 @@ export async function startOnline():Promise<void>{
       }
       addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
-      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // MAIN MENU means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
+      hostControls.hidden=!isHost||replacedHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // MAIN MENU means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
       const clock=roundClock(state);roundChip.textContent=clock;roundChip.hidden=!clock||!sharedLobby.hidden;
       showAnnouncement(state,sharedLobby.hidden&&!joining);
       // Phone HUD: who you are, what the fire button would do, round wins and the clock. The thirds themselves stay transparent.
@@ -281,14 +281,14 @@ export async function startOnline():Promise<void>{
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
   const statsPanel=node('pre','','net-stats');statsPanel.hidden=solo||!url.searchParams.has('stats');app.append(statsPanel);
-  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});rematch.onclick=()=>{dialog.close();start.click();};menu.onclick=()=>{dialogTitle.textContent=solo?'EXIT':'ROOM';dialog.setAttribute('aria-label',solo?'Exit':'Room');dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}location.href=appUrl();};dialogBody.append(leave);
+  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});rematch.onclick=()=>{dialog.close();start.click();};menu.onclick=()=>{dialogTitle.textContent=solo?'EXIT':'ROOM';dialog.setAttribute('aria-label',solo?'Exit':'Room');dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}if(read(LAST_ROOM_KEY)===code)storage.removeItem(LAST_ROOM_KEY);location.href=appUrl();};dialogBody.append(leave);
     const standings=[...(snapshot?.leaderboard??[])].sort((a,b)=>b.totalScoreUnits-a.totalScoreUnits||b.matchWins-a.matchWins||a.name.localeCompare(b.name));
     if(standings.length){const list=node('div','','session-board');list.append(node('h2','Session standings'));let rank=0,previous:number|undefined;standings.forEach((entry,index)=>{if(entry.totalScoreUnits!==previous)rank=index+1;previous=entry.totalScoreUnits;const row=node('div','','session-row');if(entry.id===id)row.classList.add('is-you');const points=entry.totalScoreUnits/60;row.append(node('b',`#${rank}`),node('span',entry.id===id?`${entry.name} (you)`:entry.name),node('strong',`${Number.isInteger(points)?points:points.toFixed(1)} PTS`),node('small',`${entry.matchWins} ${entry.matchWins===1?'MATCH':'MATCHES'} · ${entry.roundWins} ${entry.roundWins===1?'ROUND':'ROUNDS'}`));list.append(row);});list.append(node('p','Round points: 5 · 3 · 2 · 1 · 0, ties share the place.','session-key'));dialogBody.append(list);}
     if(!solo){const diagnostics=node('pre','','link-diagnostics');diagnostics.textContent=app.dataset.linkDiagnostics??'collecting link diagnostics…';const statsToggle=node('button',statsPanel.hidden?'SHOW NETWORK STATS':'HIDE NETWORK STATS');statsToggle.onclick=()=>{statsPanel.hidden=!statsPanel.hidden;dialog.close();};dialogBody.append(statsToggle,node('p','LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)'),diagnostics);const refresh=setInterval(()=>{if(!dialog.open){clearInterval(refresh);return;}diagnostics.textContent=app.dataset.linkDiagnostics??diagnostics.textContent;},1000);}
     dialog.showModal();};
-  avatarButton.onclick=()=>{dialogBody.replaceChildren();const picker=createAvatarPicker(storage,chosen=>{joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});
+  avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Your avatar'));const picker=createAvatarPicker(storage,chosen=>{joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});
     // Avatars other riders already wear are marked, not blocked: two foxes are allowed, but nobody picks one by accident.
-    picker.element.querySelectorAll<HTMLButtonElement>('.avatar-option').forEach((option,index)=>{const owner=snapshot?.players.find(p=>p.id!==id&&p.avatarId===AVATARS[index]?.id);option.classList.toggle('taken',Boolean(owner));option.title=owner?`${owner.name} has this one`:'';});
+    picker.element.querySelectorAll<HTMLButtonElement>('.avatar-option').forEach(option=>{const owner=snapshot?.players.find(p=>p.id!==id&&p.avatarId===option.dataset.avatarId);option.classList.toggle('taken',Boolean(owner));option.title=owner?`${owner.name} has this one`:'';});
     dialogBody.append(picker.element);dialog.showModal();};
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title='Open this room on a shared screen';share.onclick=()=>{window.open(appUrl(`?room=${code}&display=1`),'_blank','noopener');};
