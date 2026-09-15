@@ -38,10 +38,18 @@ const hc=await browser.newContext({viewport:{width:1280,height:800},...(name==='
  if(clipboard!=='skipped'&&clipboard!=='unreadable')assert.equal(clipboard,invite,'COPIED must mean the link is on the clipboard');
  await host.waitForFunction(()=>document.querySelector('.room-qr-copy')?.textContent==='COPY LINK');
  await guest.addInitScript(()=>{Reflect.set(window,'__sharedStates',[]);window.addEventListener('fuse-benchmark',event=>{const detail=(event as CustomEvent).detail;if(detail.kind==='snapshot'){const states=Reflect.get(window,'__sharedStates') as unknown[];states.push(detail);if(states.length>200)states.shift();}});});
+ // Slow sprites hold the arena back the way a loaded runner does, so the rider below types through the whole boot
+ // rather than through whatever slice of it the machine happens to leave — the flake that emptied the field is a wait here.
+ await guest.route('**/themes/**',async route=>{await new Promise(resolve=>setTimeout(resolve,smokeTimeout(1500)));await route.continue();});
  await guest.goto(invite+'&benchmark=1');
   // #132: WebKit has shown the guest's name field empty after JOIN, so the join never went out. The name is filled while the page still boots
   // (the window that flaked) and is now kept as typed: an emptied field fails here with the navigation count, a kept one whose tap was lost gets one counted retap.
-  const joinName=guest.getByPlaceholder('Your name'),joinButton=guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true});await joinName.fill('QR guest');const navigationsBeforeJoin=guestNavigations;await joinButton.click();
+  const joinName=guest.getByPlaceholder('Your name'),joinButton=guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true});await joinName.fill('QR guest');
+  // Finishing the boot must not rebuild the page under the rider: a re-inserted field loses focus, and the browser drops the keystroke in flight into nothing.
+  await guest.locator('.online-arena').waitFor({state:'attached'});
+  assert.equal(await joinName.evaluate(field=>field===document.activeElement),true,'the rest of the boot must leave the name field focused');
+  assert.equal(await joinName.inputValue(),'QR guest','the rest of the boot must keep the name as typed');
+  const navigationsBeforeJoin=guestNavigations;await joinButton.click();
   if(!(await joinName.waitFor({state:'hidden',timeout:smokeTimeout(6000)}).then(()=>true,()=>false))){const field=await joinName.inputValue().catch(()=>null);assert.equal(field,'QR guest',`guest name field after JOIN (navigations ${navigationsBeforeJoin} before JOIN, ${guestNavigations} now)`);
    if(await joinButton.isVisible()){joinRetries++;console.warn(`shared room (${name}): join form still up 6 s after JOIN with the name kept; tapping again`);await joinButton.click({timeout:smokeTimeout(3000)}).catch(()=>{});}}
   await host.locator('.room-riders').getByText('QR guest',{exact:true}).waitFor();await guest.locator('.phone-lobby .shared-lobby').waitFor({state:'visible'});assert.equal(await guest.locator('.online-controls').isVisible(),false,'no thirds in the lobby');
