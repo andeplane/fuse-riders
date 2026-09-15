@@ -1010,7 +1010,8 @@ else {
   // A blank page is the worst failure mode on a phone: show what went wrong and a way to retry.
   const bootFailure = (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    if (app.querySelector('.boot-failure')) return;
+    // Only a page that never got as far as its header is replaced; a later error must not cover a running game.
+    if (app.querySelector('.boot-failure') || app.querySelector('.online-header')) return;
     const card = document.createElement('section'); card.className = 'boot-failure'; card.setAttribute('role', 'alert');
     card.style.cssText = 'position:fixed;inset:0;display:grid;place-content:center;gap:16px;padding:24px;text-align:center;background:#03060f;color:#e8ecff;font:14px/1.6 monospace;z-index:1000';
     const title = document.createElement('h1'); title.textContent = 'Fuse Riders could not load'; title.style.cssText = 'font-size:16px;margin:0';
