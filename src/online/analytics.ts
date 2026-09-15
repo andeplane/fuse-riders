@@ -120,10 +120,12 @@ export function matchEndedProps(stats: readonly MatchPlayerStats[], playerId: st
       bombsExploded: mine.bombsExploded,
       distance: Math.round(mine.distanceUnits),
       survivalSeconds: seconds(mine.survivalTicks),
-      deathsWall: mine.deathsByCause.wall,
-      deathsTrail: mine.deathsByCause.trail,
-      deathsExplosion: mine.deathsByCause.explosion,
-      deathsRider: mine.deathsByCause.rider,
+      // Optional chaining rather than trust: this is built inside the host's publish loop, where a throw stops
+      // the room publishing for everyone, so the invariant belongs here and not only in the code upstream.
+      deathsWall: mine.deathsByCause?.wall,
+      deathsTrail: mine.deathsByCause?.trail,
+      deathsExplosion: mine.deathsByCause?.explosion,
+      deathsRider: mine.deathsByCause?.rider,
     } : {}),
   };
 }

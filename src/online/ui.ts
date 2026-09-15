@@ -196,7 +196,7 @@ export async function startOnline():Promise<void>{
       bootDone();
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
       const startKey=matchStartKey(matchId,state.phase,state.round);
-      if(startKey&&startedMatch!==startKey){startedMatch=startKey;matchStartedAt=Date.now();matchNumber+=1;track('Match Started',{matchNumber,playerCount:state.players.length,botCount:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length,mode:rules.mode,match:rules.match,matchLength:rules.length,powerupTypes:Object.values(rules.weights).filter(weight=>weight>0).length,host:isHost});}
+      if(startKey&&startedMatch!==startKey){startedMatch=startKey;matchStartedAt=Date.now();matchNumber+=1;track('Match Started',{matchNumber,playerCount:state.players.length,botCount:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length,mode:rules.mode,match:rules.match,matchLength:rules.length,powerupTypes:Object.values(rules.weights??{}).filter(weight=>weight>0).length,host:isHost});}
       snapshot=state;renderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;settings=rules;
       sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.held(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
@@ -218,7 +218,11 @@ export async function startOnline():Promise<void>{
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
       canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;updateDesktopLayout();
       // Opened after the layout above so the close button can say where it lands.
-      if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);track('Match Ended',{...matchEndedProps(state.matchStats,id),...(matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});openRecap();}
+      if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();
+        // Only this match's own start time is a duration: a device that saw match 1 begin and missed match 2's
+        // start would otherwise report match 1's clock as match 2's length, which is worse than reporting none.
+        const sawStart=startedMatch===matchStartKey(matchId,'countdown',1);
+        track('Match Ended',{...matchEndedProps(state.matchStats,id),...(sawStart&&matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});}
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`:state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
