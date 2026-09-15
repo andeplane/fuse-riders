@@ -28,7 +28,7 @@ async function assertRecapLayout(page: Page): Promise<{ podium: number; awards: 
   assert.ok(await page.locator('dialog.game-dialog').evaluate((element) => element.classList.contains('recap-dialog')), 'recap uses the wide dialog variant');
   assert.equal(await dialog.getAttribute('aria-label'), 'Match results', 'the report announces itself as the results, not the game menu');
   await inside(page, dialog);
-  await inside(page, page.getByRole('button', { name: 'CLOSE', exact: true }));
+  await inside(page, page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'document must not scroll horizontally');
   assert.ok(await page.locator('.dialog-body').evaluate((element) => element.scrollWidth <= element.clientWidth + 1), 'dialog body must not scroll horizontally');
   await page.getByText('MATCH COMPLETE // AFTER ACTION REPORT', { exact: true }).waitFor({ state: 'visible' });
@@ -98,9 +98,9 @@ try {
       const screenshots = [`artifacts/match-recap-${tag}.png`];
       await page.screenshot({ path: screenshots[0]! });
       await page.locator('.dialog-body').evaluate((element) => { element.scrollTop = element.scrollHeight; });
-      await inside(page, page.getByRole('button', { name: 'CLOSE', exact: true }));
+      await inside(page, page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }));
       screenshots.push(`artifacts/match-recap-${tag}-scrolled.png`); await page.screenshot({ path: screenshots[1]! });
-      await page.getByRole('button', { name: 'CLOSE', exact: true }).click();
+      await page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }).click();
       await page.getByRole('dialog').waitFor({ state: 'hidden' });
       // `close` is fired from a queued task, so the ordinary width/title/name are restored just after the dialog stops rendering.
       await page.waitForFunction(() => {
@@ -114,7 +114,7 @@ try {
       await assertRecapLayout(page);
       assert.equal(await page.locator('.dialog-body').evaluate((element) => element.scrollTop), 0, 'reopening starts at the podium, not where the reader left off');
       screenshots.push(`artifacts/match-recap-${tag}-reopened.png`); await page.screenshot({ path: screenshots[2]! });
-      await page.getByRole('button', { name: 'CLOSE', exact: true }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
+      await page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
       if (!phone) {
         await page.getByRole('button', { name: 'REMATCH', exact: true }).click();
         await waitFor(() => latest()?.phase === 'countdown', 20000, 'rematch replays the match instead of returning to the lobby');
