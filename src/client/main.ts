@@ -762,7 +762,7 @@ function startController(): void {
 
   const controls = element('section', 'controls hidden');
   const identity = element('div', 'controller-identity');
-  const identityMarker = element('button', 'identity-marker', 'HEAD');
+  const identityMarker = element('button', 'identity-marker', 'AVATAR');
   identityMarker.type = 'button'; identityMarker.setAttribute('aria-label', 'Change avatar'); identityMarker.title = 'Change avatar';
   const identityCopy = element('div'); identityCopy.append(element('small', '', 'YOU ARE'), element('strong', '', 'RIDER'));
   const stateBadge = element('span', 'state-badge', 'LOBBY');
