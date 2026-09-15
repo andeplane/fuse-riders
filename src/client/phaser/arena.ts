@@ -9,6 +9,7 @@ import { drawInkClouds } from '../ink-renderer.js';
 import { portalPalettes } from '../pickup-renderer.js';
 import { EffectTransitions, bombPose } from './effects.js';
 import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
+import { pixelWall, smoothWallRect, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 
 const pickups = ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal'] as const;
@@ -180,17 +181,67 @@ class ArenaScene extends Phaser.Scene {
   invalidate(): void { this.trailHistory.reset(); this.floorKey = ''; this.backgroundKey = ''; }
   objectCount(): number { return (this.children?.length ?? 0) + (this.world?.length ?? 0); }
   particleCount(): number { return this.sparks?.getAliveParticleCount() ?? 0; }
-  private strokeTrail(graphics: Phaser.GameObjects.Graphics, paths: readonly (readonly TrailPoint[])[], tint: number, alive: boolean): void {
-    for (const [width, alpha, shade] of [[10, .25, tint], [5, 1, tint], [1, .95, 0xffffff]] as const) {
+  /**
+   * Both glow passes are shared; the bright core is the theme's signature. A pixel theme dots it as
+   * 2x2 studs and squares the ends, a smooth theme keeps the hairline and the rounded caps.
+   */
+  private strokeTrail(graphics: Phaser.GameObjects.Graphics, paths: readonly (readonly TrailPoint[])[], tint: number, alive: boolean, theme: ThemeDefinition): void {
+    const pixel = theme.rendering.pixelated;
+    const glow = theme.rendering.trailGlow;
+    for (const [width, alpha, shade] of [[4 * glow, .25, tint], [5, 1, tint], [1, .95, 0xffffff]] as const) {
+      const core = shade === 0xffffff;
       graphics.lineStyle(width, shade, alpha * (alive ? 1 : .3)).fillStyle(shade, alpha * (alive ? 1 : .3));
       for (const path of paths) {
         if (path.length < 2) continue;
+        if (core && pixel) {
+          for (const stud of trailStuds(path)) graphics.fillRect(stud.x - 1, stud.y - 1, 2, 2);
+          continue;
+        }
         graphics.beginPath().moveTo(path[0]!.x, path[0]!.y);
         for (let i = 1; i < path.length; i++) graphics.lineTo(path[i]!.x, path[i]!.y);
         graphics.strokePath();
-        // Rounded ends also cover the seam between cached history and the moving tip.
-        for (const point of [path[0]!, path[path.length - 1]!]) graphics.fillCircle(point.x, point.y, width / 2);
+        // Ends also cover the seam between cached history and the moving tip; square for pixel themes.
+        for (const point of [path[0]!, path[path.length - 1]!]) {
+          if (pixel) graphics.fillRect(point.x - width / 2, point.y - width / 2, width, width);
+          else graphics.fillCircle(point.x, point.y, width / 2);
+        }
       }
+    }
+  }
+
+  /**
+   * The arena boundary. #68 flattened this to one 2px rim for every theme, which erased the whole
+   * visual difference between Neon Pixel and Clean Neon; each theme draws its own wall again.
+   */
+  private drawWall(w: number, h: number, b: number, theme: ThemeDefinition): void {
+    const rim = color(theme.palette.rim);
+    // Graphics has no shadowBlur: a wide translucent stroke under a tight one stands in for the glow.
+    this.floor.lineStyle(14, rim, .12).strokeRect(b, b, w - 2 * b, h - 2 * b);
+    this.floor.lineStyle(4, rim, .9).strokeRect(b, b, w - 2 * b, h - 2 * b);
+    if (!theme.rendering.pixelated) {
+      const rect = smoothWallRect(w, h, b);
+      this.floor.lineStyle(theme.rendering.wallWidth, color(theme.palette.wall), .9).strokeRect(rect.x, rect.y, rect.width, rect.height);
+      return;
+    }
+    const wall = pixelWall(w, h, b);
+    const face = color(theme.palette.wall);
+    for (const brick of wall.bricks) {
+      this.floor.fillStyle(0x211862).fillRect(brick.x, brick.y, brick.width, brick.height);
+      this.floor.fillStyle(face, .92).fillRect(brick.x + 2, brick.y + 2, brick.width - 4, brick.height - 4);
+      this.floor.fillStyle(0xb696ff, .65).fillRect(brick.x + 3, brick.y + 3, brick.width - 6, 2);
+      this.floor.fillStyle(0x19114e, .65).fillRect(brick.x + 3, brick.y + brick.height - 5, brick.width - 6, 3);
+      // One deterministic chip per brick keeps the run from reading as a smooth extruded bar.
+      this.floor.fillStyle(0x241664, .45).fillRect(
+        brick.x + 5 + brick.seed % Math.max(2, brick.width - 11),
+        brick.y + 7 + (brick.seed * 3) % Math.max(2, brick.height - 12), 3, 2);
+    }
+    this.floor.lineStyle(4, rim, .95);
+    for (const [ax, ay, bx, by, cx, cy] of wall.brackets) {
+      this.floor.beginPath(); this.floor.moveTo(ax, ay); this.floor.lineTo(bx, by); this.floor.lineTo(cx, cy); this.floor.strokePath();
+    }
+    for (const stud of wall.studs) {
+      this.floor.fillStyle(color(theme.palette.blast)).fillRect(stud.x, stud.y, wall.studSize, wall.studSize);
+      this.floor.fillStyle(color(theme.palette.blastCore)).fillRect(stud.x + 2, stud.y + 2, 3, 3);
     }
   }
   private sprite(texture: string, x: number, y: number, size: number, rotation = 0, frame?: string): Phaser.GameObjects.Image {
@@ -243,17 +294,17 @@ class ArenaScene extends Phaser.Scene {
       this.floor.fillStyle(0x00020c,.67)
         .fillRect(0,0,w,b).fillRect(0,h-b,w,b)
         .fillRect(0,b,b,h-2*b).fillRect(w-b,b,b,h-2*b);
-      this.floor.lineStyle(2,color(theme.palette.rim),.45).strokeRect(b,b,w-2*b,h-2*b);
+      this.drawWall(w,h,b,theme);
       this.maskShape.clear().fillStyle(0xffffff).fillRect(b,b,w-2*b,h-2*b);
     }
-    const history = this.trailHistory.update(s.players, `${matchId}:${s.round}`);
+    const history = this.trailHistory.update(s.players, `${matchId}:${s.round}:${theme.id}`);
     if (history.changed) {
       this.trailHistoryBuilds++;
       this.trails.clear();
-      for (const stroke of history.strokes) this.strokeTrail(this.trails, stroke.paths, color(stroke.color), stroke.alive);
+      for (const stroke of history.strokes) this.strokeTrail(this.trails, stroke.paths, color(stroke.color), stroke.alive, theme);
     }
     this.trailTips.clear();
-    for (const player of s.players) this.strokeTrail(this.trailTips, [trailTip(player, s.tick, s.phase)], color(player.color), player.alive);
+    for (const player of s.players) this.strokeTrail(this.trailTips, [trailTip(player, s.tick, s.phase)], color(player.color), player.alive, theme);
     const events = this.transitions.accept(s,matchId);
     for(const blast of events.explosions) { this.sparks.setParticleTint([0xffffff,0xffed8d,0xff9a22,0xff397e]); for(let ray=0;ray<8;ray++){const a=ray*Math.PI/4;this.sparks.explode(Math.min(3,Math.ceil(blast.circle.radius/32)),blast.circle.x+Math.cos(a)*blast.circle.radius*.72,blast.circle.y+Math.sin(a)*blast.circle.radius*.72);} }
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(12,p.x,p.y); }

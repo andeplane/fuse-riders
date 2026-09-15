@@ -1,4 +1,5 @@
 import { assetUrl } from './asset-url.js';
+import { safeStorage } from './safe-storage.js';
 export type ThemeId = 'neon-pixel' | 'clean-neon';
 export type SpriteName = 'rider' | 'bomb' | 'flame';
 
@@ -75,4 +76,18 @@ export function applyThemeProperties(theme: ThemeDefinition): void {
   style.setProperty('--panel', theme.palette.panel);
   style.setProperty('--theme-wall', theme.palette.wall);
   document.documentElement.dataset.theme = theme.id;
+}
+
+export const THEME_STORAGE_KEY = 'fuse-riders-display-theme';
+const themeStore = safeStorage(() => localStorage);
+
+/** The visual style this page should render: `?theme=` wins, then the stored choice, then the default. */
+export function selectedTheme(): ThemeDefinition {
+  const id = new URLSearchParams(location.search).get('theme') ?? themeStore.getItem(THEME_STORAGE_KEY);
+  // Object.hasOwn (not `id in themes`) so a stored value like "constructor" cannot resolve to a prototype member.
+  return id && Object.hasOwn(themes, id) ? themes[id as ThemeId] : defaultTheme;
+}
+
+export function storeTheme(id: ThemeId): void {
+  themeStore.setItem(THEME_STORAGE_KEY, id);
 }

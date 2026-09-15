@@ -16,6 +16,7 @@ import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPorta
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import { pixelWall, smoothWallRect, type WallBrick } from './arena-wall.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
 import { POWERUP_GUIDE } from './powerup-guide.js';
 import { createPowerupGuide } from './powerup-guide-view.js';
@@ -142,13 +143,43 @@ function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<Tra
   ctx.restore();
 }
 
+function drawPixelBrick(ctx: CanvasRenderingContext2D, brick: WallBrick, color: string): void {
+  const { x, y, width, height, seed } = brick;
+  ctx.fillStyle = '#211862'; ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = color; ctx.globalAlpha = .92; ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
+  ctx.fillStyle = 'rgba(182,150,255,.65)'; ctx.fillRect(x + 3, y + 3, width - 6, 2);
+  ctx.fillStyle = 'rgba(25,17,78,.65)'; ctx.fillRect(x + 3, y + height - 5, width - 6, 3);
+  // One deterministic chip per brick keeps the run from reading as a smooth extruded bar.
+  ctx.globalAlpha = .45; ctx.fillStyle = '#241664';
+  ctx.fillRect(x + 5 + seed % Math.max(2, width - 11), y + 7 + (seed * 3) % Math.max(2, height - 12), 3, 2);
+  ctx.globalAlpha = 1;
+}
+
+/** Shares its geometry with the Phaser arena so a theme cannot look pixelated in one renderer and smooth in the other. */
 function drawBoundary(ctx: CanvasRenderingContext2D, width: number, height: number, inset: number, theme: ThemeDefinition): void {
   ctx.save();
   ctx.fillStyle = 'rgba(0,2,12,.67)';
   ctx.fillRect(0, 0, width, inset); ctx.fillRect(0, height - inset, width, inset);
   ctx.fillRect(0, inset, inset, height - inset * 2); ctx.fillRect(width - inset, inset, inset, height - inset * 2);
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 2; ctx.globalAlpha = .45;
+  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
   ctx.strokeRect(inset, inset, width - inset * 2, height - inset * 2);
+  ctx.shadowBlur = 7;
+  if (!theme.rendering.pixelated) {
+    const rect = smoothWallRect(width, height, inset);
+    ctx.strokeStyle = theme.palette.wall; ctx.lineWidth = theme.rendering.wallWidth;
+    ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+    ctx.restore(); return;
+  }
+  const wall = pixelWall(width, height, inset);
+  ctx.shadowColor = theme.palette.wall; ctx.shadowBlur = 5;
+  for (const brick of wall.bricks) drawPixelBrick(ctx, brick, theme.palette.wall);
+  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
+  for (const [ax, ay, bx, by, cx, cy] of wall.brackets) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.stroke(); }
+  ctx.shadowColor = '#ff850d'; ctx.shadowBlur = 12;
+  for (const stud of wall.studs) {
+    ctx.fillStyle = theme.palette.blast; ctx.fillRect(stud.x, stud.y, wall.studSize, wall.studSize);
+    ctx.fillStyle = theme.palette.blastCore; ctx.fillRect(stud.x + 2, stud.y + 2, 3, 3);
+  }
   ctx.restore();
 }
 
