@@ -1,0 +1,32 @@
+name: Daily Slack update
+on:
+  schedule:
+    # GitHub Actions cron is UTC-only, no DST awareness: 08:00 UTC is 9:00 CET (winter) but
+    # 10:00 CEST (summer). Shift by an hour here if the daylight-saving drift bothers you.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: Hours to look back for merged PRs
+        default: '24'
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  post-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/daily-slack-update.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ vars.SLACK_CHANNEL_ID }}
+          LOOKBACK_HOURS: ${{ github.event.inputs.lookback_hours || '24' }}

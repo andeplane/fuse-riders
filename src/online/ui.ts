@@ -13,7 +13,7 @@ import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
 import { drawArena } from '../client/main.js';
 import { createAvatarPicker, createAvatarPortrait } from '../client/avatar-heads.js';
-import { defaultTheme, loadThemeSprites } from '../client/themes.js';
+import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from '../client/themes.js';
 import { createGameAudio } from '../client/game-audio.js';
 import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
@@ -64,7 +64,7 @@ export async function startOnline():Promise<void>{
       <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
     const form=card.querySelector<HTMLElement>('.landing-multiplayer')!;
     const guide=node('section','','landing-guide'),guideTitle=node('h2','POWER-UPS','landing-section-label');guideTitle.id='landing-guide-title';guide.setAttribute('aria-labelledby',guideTitle.id);
-    guide.append(guideTitle,createPowerupGuide(POWERUP_GUIDE,{className:'landing-powerups',themeId:defaultTheme.id,offByDefaultNote:'(off by default, enable in room settings)'}).element);card.querySelector('.landing-content')!.append(guide);
+    guide.append(guideTitle,createPowerupGuide(POWERUP_GUIDE,{className:'landing-powerups',themeId:selectedTheme().id,offByDefaultNote:'(off by default, enable in room settings)'}).element);card.querySelector('.landing-content')!.append(guide);
     const mode=node('fieldset','','landing-mode');mode.setAttribute('aria-label','Where will you play?');mode.append(node('legend','Where will you play?'));let selectedMode=loadRoomSettings(localStorage).mode;
     for(const [value,label] of [['devices','Each device'],['shared','Shared TV']] as const){const option=node('label'),radio=node('input');radio.type='radio';radio.name='landing-mode';radio.value=value;radio.checked=selectedMode===value;radio.onchange=()=>{selectedMode=value;};option.append(radio,node('span',label));mode.append(option);}
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
@@ -99,8 +99,8 @@ export async function startOnline():Promise<void>{
   const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
   // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
   let roomEnded=false;
-  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ RADIO'),musicButton=node('button','♫ MUSIC OFF'),results=node('button','RESULTS'),menu=node('button',solo?'EXIT':'ROOM');
-  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,musicButton,results,menu);
+  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ RADIO'),musicButton=node('button','♫ MUSIC OFF'),results=node('button','RESULTS'),menu=node('button',solo?'EXIT':'ROOM'),styleButton=node('button','');
+  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,musicButton,styleButton,results,menu);
   const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
   const bootNote=node('p','Warming up the arena…','room-boot-note');
   const booting=node('div','','room-boot');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'));
@@ -114,7 +114,13 @@ export async function startOnline():Promise<void>{
   overCard.setAttribute('role','status');overHome.href=appUrl();overCard.append(node('p','ROOM CLOSED','room-boot-title'),node('strong',code,'shared-room-code'),overNote,overHome);
   app.classList.toggle('booting',role!=='joiner');app.classList.toggle('joining',role==='joiner');
   app.replaceChildren(header,role==='joiner'?joinPanel:booting);
-  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
+  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});let theme:ThemeDefinition=selectedTheme();let sprites:ThemeSprites=await loadThemeSprites(theme);
+  // Both styles' textures are preloaded by the Phaser arena and every palette is read per frame, so switching needs no reload.
+  applyThemeProperties(theme);
+  const styleIds=Object.keys(themes) as ThemeId[];
+  const paintStyleButton=()=>{styleButton.textContent=theme.label.toUpperCase();styleButton.title='Switch the arena visual style';styleButton.setAttribute('aria-label',`Visual style: ${theme.label}. Switch.`);};
+  paintStyleButton();
+  styleButton.onclick=async()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();const loaded=await loadThemeSprites(next);if(theme.id===next.id)sprites=loaded;};
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
@@ -216,7 +222,7 @@ export async function startOnline():Promise<void>{
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
-      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;updateDesktopLayout();
+      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;styleButton.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
       if(state.phase==='countdown'&&joined&&!keyHintShown&&app.classList.contains('desktop-game')){keyHintShown=true;keyHint.hidden=false;}
       // Opened after the layout above so the close button can say where it lands.
       if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();}
@@ -275,6 +281,6 @@ export async function startOnline():Promise<void>{
     app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),tick:snapshot?.tick??0});
     return runtime instanceof RoomRuntime?runtime.transport.diagnostics():undefined;
   }).then(report=>{if(report)app.dataset.linkDiagnostics=formatLinkDiagnostics(report.links,report.ice,report.socket);});},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.render();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.render();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }
