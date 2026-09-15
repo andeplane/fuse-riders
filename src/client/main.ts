@@ -16,7 +16,8 @@ import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPorta
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
-import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
+import { arenaWall, type WallBrick } from './arena-wall.js';
+import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
 import { POWERUP_GUIDE } from './powerup-guide.js';
 import { createPowerupGuide } from './powerup-guide-view.js';
 import { safeStorage } from './safe-storage.js';
@@ -31,7 +32,6 @@ const HELD_RESEND_MS = 100;
 const PLAYER_TOKEN_KEY = 'fuse-riders-player-token';
 const PLAYER_NAME_KEY = 'fuse-riders-player-name';
 const HOST_TOKEN_KEY = 'fuse-riders-host-token';
-const THEME_KEY = 'fuse-riders-display-theme';
 
 // Evaluating `localStorage`/`sessionStorage` itself can throw (Safari "Block all cookies", some
 // embedded webviews); these wrappers defer that access into a try/catch on every call instead of
@@ -142,13 +142,43 @@ function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<Tra
   ctx.restore();
 }
 
+function drawPixelBrick(ctx: CanvasRenderingContext2D, brick: WallBrick, color: string): void {
+  const { x, y, width, height, chip } = brick;
+  ctx.fillStyle = '#211862'; ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = color; ctx.globalAlpha = .92; ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
+  ctx.fillStyle = 'rgba(182,150,255,.65)'; ctx.fillRect(x + 3, y + 3, width - 6, 2);
+  ctx.fillStyle = 'rgba(25,17,78,.65)'; ctx.fillRect(x + 3, y + height - 5, width - 6, 3);
+  ctx.globalAlpha = .45; ctx.fillStyle = '#241664';
+  ctx.fillRect(chip.x, chip.y, chip.width, chip.height);
+  ctx.globalAlpha = 1;
+}
+
+/** Paints whatever `arenaWall()` chose; the Phaser arena paints the same choice, so the two cannot disagree. */
 function drawBoundary(ctx: CanvasRenderingContext2D, width: number, height: number, inset: number, theme: ThemeDefinition): void {
   ctx.save();
   ctx.fillStyle = 'rgba(0,2,12,.67)';
   ctx.fillRect(0, 0, width, inset); ctx.fillRect(0, height - inset, width, inset);
   ctx.fillRect(0, inset, inset, height - inset * 2); ctx.fillRect(width - inset, inset, inset, height - inset * 2);
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 2; ctx.globalAlpha = .45;
+  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
   ctx.strokeRect(inset, inset, width - inset * 2, height - inset * 2);
+  ctx.shadowBlur = 7;
+  const wall = arenaWall(width, height, inset, theme);
+  if (wall.kind === 'smooth') {
+    ctx.strokeStyle = theme.palette.wall; ctx.lineWidth = wall.strokeWidth;
+    ctx.strokeRect(wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height);
+    ctx.restore(); return;
+  }
+  // The bricks are opaque fills and carry their own highlight and shade, so they need no shadow pass:
+  // overtime moves `inset` every tick, which misses the background cache and redraws all of them.
+  ctx.shadowBlur = 0;
+  for (const brick of wall.bricks) drawPixelBrick(ctx, brick, theme.palette.wall);
+  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
+  for (const [ax, ay, bx, by, cx, cy] of wall.brackets) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.stroke(); }
+  ctx.shadowColor = '#ff850d'; ctx.shadowBlur = 12;
+  for (const stud of wall.studs) {
+    ctx.fillStyle = theme.palette.blast; ctx.fillRect(stud.x, stud.y, wall.studSize, wall.studSize);
+    ctx.fillStyle = theme.palette.blastCore; ctx.fillRect(stud.x + 2, stud.y + 2, 3, 3);
+  }
   ctx.restore();
 }
 
@@ -450,10 +480,7 @@ function startDisplay(): void {
   let recapSignature = '';
   let showPerformance = new URLSearchParams(location.search).get('perf') === '1';
   performanceDisplay.classList.toggle('hidden', !showPerformance);
-  const savedTheme = localStorageSafe.getItem(THEME_KEY);
-  // Object.hasOwn (not `savedTheme in themes`) so a stored value like "constructor" cannot resolve
-  // to a prototype member instead of a real theme.
-  let activeTheme = savedTheme && Object.hasOwn(themes, savedTheme) ? themes[savedTheme as ThemeId] : defaultTheme;
+  let activeTheme = selectedTheme();
   let activeSprites: ThemeSprites = {};
   themeSelect.value = activeTheme.id;
   applyThemeProperties(activeTheme);
@@ -463,7 +490,7 @@ function startDisplay(): void {
   themeSelect.addEventListener('change', () => {
     const next = themes[themeSelect.value as ThemeId];
     if (!next) return;
-    activeTheme = next; activeSprites = {}; localStorageSafe.setItem(THEME_KEY, next.id); applyThemeProperties(next);
+    activeTheme = next; activeSprites = {}; storeTheme(next.id); applyThemeProperties(next);
     applyLegendTheme(next.id);
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });

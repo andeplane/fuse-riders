@@ -29,6 +29,22 @@ try{
   await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.includes('READY'));await guest.locator('.mobile-play').waitFor({state:'visible'});
   await host.screenshot({path:'artifacts/online-host.png'});await guest.screenshot({path:'artifacts/online-phone.png'});
   assert.equal(await guest.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);
+  // #68 flattened every visual style to one thin rim in both renderers, so the two modes became
+  // indistinguishable and the room had no way to switch. Both must stay reachable and distinct.
+  {
+   const style=host.getByRole('button',{name:/^Visual style: /});
+   const applied=()=>host.evaluate(()=>document.documentElement.dataset.theme);
+   const before=await style.getAttribute('aria-label');const themeBefore=await applied();
+   assert.ok(themeBefore,'the room applies a visual style');
+   await style.click();
+   await host.waitForFunction(id=>document.documentElement.dataset.theme!==id,themeBefore);
+   const after=await style.getAttribute('aria-label');
+   assert.notEqual(after,before,'STYLE relabels itself with the style now showing');
+   await style.click();
+   await host.waitForFunction(id=>document.documentElement.dataset.theme===id,themeBefore);
+   assert.equal(await style.getAttribute('aria-label'),before,'STYLE cycles back through the registry');
+   console.log(`Visual style switched and cycled back (${before} -> ${after})`);
+  }
   await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();
   await host.getByLabel('Match length').fill('2');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
   await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();
