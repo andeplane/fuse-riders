@@ -18,6 +18,8 @@ Clock mapping uses service ping samples with local monotonic send/receive timest
 
 The host no longer sends world snapshots or deltas. A full view receives one `baseline` (exact game state, held controls, journal sequence, hash, settings) and then `actions` batches `{from, tick, ops, hash|null, meta}` on the ordered reliable channel, where `ops` are the shared journal operations since `from`. The view replays them with the shared reducer; a hash every 20 ticks detects divergence, and any gap, mismatch or malformed batch makes the view request `resync`, which yields a fresh baseline. `meta` carries the recipient's input acknowledgement, pause flag, movement ledger and, only when changed, room settings. Events are still sent by the host.
 
+**Controller phones ([ADR044](../adr/044-controller-only-phones.md)):** a joined peer in `shared` mode receives a stripped `status` snapshot on the reliable channel when what it shows changes, and a `[5, tick, ack, paused, pos]` heartbeat on the fast channel every five ticks; it never receives the committed stream.
+
 ## Input schedule and ledger
 
 **Current ([ADR040](../adr/040-state-based-input-gestures.md)):** input samples also carry an optional `gesture` id and restate the held or last finished bomb gesture in every packet; late samples apply at the next step and far-future samples are clamped to four ticks ahead, never rejected. Samples and tick probes use the unordered, no-retransmit `fast` data channel when open. The scheduler description below otherwise still applies.

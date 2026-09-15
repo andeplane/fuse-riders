@@ -50,7 +50,8 @@
     "src/service/gateway.ts",
     "src/service/room-bus.ts",
     "src/online/action-replication.ts",
-    "src/online/wire.ts"
+    "src/online/wire.ts",
+    "src/online/controller-status.ts"
   ],
   "reporter": [
     "text",

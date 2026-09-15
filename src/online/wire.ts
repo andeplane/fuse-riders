@@ -2,6 +2,7 @@ import { decode, encode } from '@msgpack/msgpack';
 import type { ActionBatch } from './action-replication.js';
 import type { RoomCommand } from './host-session.js';
 import type { InputControlScope } from './prediction-contract.js';
+import type { ControllerStatus } from './controller-status.js';
 
 /** Largest packet accepted on the unreliable channel; everything bigger belongs on the reliable one. */
 export const FAST_MESSAGE_BYTES=4096;
@@ -30,7 +31,8 @@ type InputCommand=Extract<RoomCommand,{type:'input'}>;
 export type FastMessage=ActionBatch
   |{type:'command';command:InputCommand}
   |{type:'tickProbe';probeId:number;localSentAt:number}
-  |{type:'tickPong';probeId:number;localSentAt:number;authorityTick:number;paused:boolean;scope:InputControlScope};
+  |{type:'tickPong';probeId:number;localSentAt:number;authorityTick:number;paused:boolean;scope:InputControlScope}
+  |ControllerStatus;
 const BOMB_ACTIONS=['press','release','cancel'] as const;
 const STALE_SCOPE:InputControlScope={matchId:'',round:-1,controlEpoch:''};
 /** Positional tuples with numeric tags; values are validated by the same code that validates the JSON shapes. */
@@ -40,6 +42,7 @@ export function packFast(message:FastMessage):unknown[] {
     case 'command': {const c=message.command;return [2,hashScope(c.scope),c.seq,c.intendedTick,Number(c.left)|Number(c.right)<<1|Number(c.bomb)<<2,c.gesture??null,c.bombAction?BOMB_ACTIONS.indexOf(c.bombAction)+1:0,c.aim?[c.aim.x,c.aim.y]:null,c.resultAcks??[]];}
     case 'tickProbe': return [3,message.probeId,message.localSentAt];
     case 'tickPong': return [4,message.probeId,message.localSentAt,message.authorityTick,message.paused,hashScope(message.scope)];
+    case 'status': return [5,message.tick,message.ack,message.paused,message.pos??null];
   }
 }
 export function unpackFast(value:unknown,scopeFor:(hash:number)=>InputControlScope|undefined):FastMessage|undefined {
@@ -61,6 +64,7 @@ export function unpackFast(value:unknown,scopeFor:(hash:number)=>InputControlSco
       const scope=scopeFor(value[5] as number);if(!scope)return;
       return {type:'tickPong',probeId,localSentAt,authorityTick,paused,scope};
     }
+    case 5: {if(value.length!==5)return;const [,tick,ack,paused,pos]=value as [number,number,number,boolean,[number,number]|null];return {type:'status',tick,ack,paused,...(pos===null?{}:{pos})};}
     default: return;
   }
 }

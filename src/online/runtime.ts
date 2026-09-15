@@ -3,6 +3,7 @@ import { StatusNotices } from './status-notices.js';
 import { AuthorityGrace } from './authority-grace.js';
 import { ActionReceiver, ActionSender, type ActionMessage } from './action-replication.js';
 import { hashScope, packFast, unpackFast } from './wire.js';
+import { ControllerSender, ControllerView } from './controller-status.js';
 import { replayHash } from '../shared/action-log.js';
 import { toSnapshot } from '../shared/game.js';
 import { isShotTransition } from './shot-failure.js';
@@ -20,7 +21,8 @@ export interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,s
 export class RoomRuntime {
   private session?:HostSession;
   private peers=new Set<string>();
-  private senders=new Map<string,ActionSender>();
+  private senders=new Map<string,ActionSender|ControllerSender>();
+  private readonly controllerView=new ControllerView();
   private lastResync=0;
   private lastRepair=0;
   private gapSince?:number;
@@ -30,6 +32,7 @@ export class RoomRuntime {
   private readonly tickProbes=new TickProbes(()=>performance.now());
   private lastClockProbe=-Infinity;
   private lastMotionScope='';
+  private lastControllerScope?:{matchId:string;round:number};
   private interval?:ReturnType<typeof setInterval>;
   private lastTick=performance.now();
   private accumulator=0;
@@ -49,20 +52,20 @@ export class RoomRuntime {
           this.session=new HostSession(id,settings,{token:()=>crypto.randomUUID(),captureActions:true});
           try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.status.notice('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
         }
-        this.receiver.reset();this.senders.clear();this.callbacks.ready(id,id===hostId);
+        this.receiver.reset();this.controllerView.reset();this.senders.clear();this.callbacks.ready(id,id===hostId);
         if(id!==hostId)this.transport.send(hostId,{type:'resync'});
       },
       peer:(id,online)=>{
-        if(online){this.peers.add(id);this.senders.delete(id);if(id===this.transport.hostId&&!this.session){this.receiver.reset();this.transport.send(id,{type:'resync'});}}
+        if(online){this.peers.add(id);this.senders.delete(id);if(id===this.transport.hostId&&!this.session){this.receiver.reset();this.controllerView.reset();this.transport.send(id,{type:'resync'});}}
         else{this.peers.delete(id);this.senders.delete(id);this.session?.disconnect(id);}
       },
       message:(id,data)=>this.receive(id,data),status:text=>this.status.recurring(text),
-      ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.receiver.reset();this.senders.clear();this.callbacks.ended?.();},
+      ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.receiver.reset();this.controllerView.reset();this.senders.clear();this.callbacks.ended?.();},
       revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.interval=undefined;this.session?.clear();this.session=undefined;this.status.terminal('This host tab was replaced — use the newer tab');},
       // A protocol mismatch closes the transport; the tick interval has to stop too, or it would keep restating
       // connection status over the reload notice (#23).
       terminated:text=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.interval=undefined;this.status.terminal(text);},
-      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.receiver.reset();this.senders.clear();this.session?.clear();this.authorityGrace.reset();this.accumulator=0;},
+      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.receiver.reset();this.controllerView.reset();this.senders.clear();this.session?.clear();this.authorityGrace.reset();this.accumulator=0;},
     });
   }
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
@@ -71,6 +74,7 @@ export class RoomRuntime {
     const candidates:InputControlScope[]=[];
     if(this.lastMotionScope)candidates.push(JSON.parse(this.lastMotionScope) as InputControlScope);
     const game=this.receiver.state?.game;if(game)candidates.push({matchId:game.matchId,round:game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`});
+    const status=this.lastControllerScope;if(status)candidates.push({...status,controlEpoch:`spectator:${this.transport.grant?.epoch}`});
     return candidates.find(scope=>hashScope(scope)===hash);
   }
   private receive(id:string,raw:unknown):void {
@@ -79,19 +83,25 @@ export class RoomRuntime {
       raw=unpackFast(raw,hash=>{if(!session)return this.scopeFor(hash);const scope=session.controlScope(id);return scope&&hashScope(scope)===hash?scope:undefined;});
     }
     if(!raw||typeof raw!=='object')return;
-    const data=raw as {type:string;command?:RoomCommand;event?:GameEvent;error?:string;transient?:boolean;shotRejected?:boolean;paused?:boolean;from?:number;matchId?:string;round?:number;tick?:number;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope};
+    const data=raw as {type:string;state?:unknown;command?:RoomCommand;event?:GameEvent;error?:string;transient?:boolean;shotRejected?:boolean;paused?:boolean;from?:number;matchId?:string;round?:number;tick?:number;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope};
     if(this.session){
       if(data.type==='tickProbe'&&Number.isSafeInteger(data.probeId)&&Number.isFinite(data.localSentAt)){
         const scope=this.session.controlScope(id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.transport.send(id,packFast({type:'tickPong',probeId:data.probeId!,localSentAt:data.localSentAt!,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing',scope}),true);return;
       }
       if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(data.command?.type==='input'?{transient:true}:{}),...(isShotTransition(data.command)?{shotRejected:true}:{})});this.peers.add(id);}
       if(data.type==='resync'){this.peers.add(id);this.senders.delete(id);}
-      if(data.type==='repair'){const sender=this.senders.get(id),session=this.session;if(sender&&!sender.repair(session.journal,{ack:session.acknowledgements()[id]??-1,paused:document.hidden||this.recovering},data.from as number,message=>this.transport.send(id,message)))this.senders.delete(id);return;}
+      if(data.type==='repair'){const sender=this.senders.get(id),session=this.session;if(sender instanceof ActionSender&&!sender.repair(session.journal,{ack:session.acknowledgements()[id]??-1,paused:document.hidden||this.recovering},data.from as number,message=>this.transport.send(id,message)))this.senders.delete(id);return;}
       return;
     }
     if(id!==this.transport.hostId)return;
     if(data.type==='tickPong'&&isInputControlScope(data.scope)){
       const sample=this.tickProbes.accept(data.probeId!,data.localSentAt!,data.authorityTick!,data.paused!,data.scope);if(sample)this.callbacks.clock?.(sample);return;
+    }
+    if(data.type==='status'){
+      const frame=this.controllerView.receive(raw,this.transport.id);if(!frame)return;
+      if(data.state!==undefined)this.receiver.reset();
+      this.lastControllerScope={matchId:frame.matchId,round:frame.snapshot.round};
+      this.accept(frame.snapshot,frame.settings,frame.ack,frame.matchId,frame.motion,frame.paused);return;
     }
     if(data.type==='baseline'||data.type==='actions'){
       const result=this.receiver.receive(raw);
@@ -100,14 +110,18 @@ export class RoomRuntime {
       this.gapSince=undefined;
       if(result.status==='resync'){if(performance.now()-this.lastResync>=500){this.lastResync=performance.now();this.transport.send(id,{type:'resync'});}return;}
       if(result.status==='stale')return;
-      const game=result.state.game,snapshot=toSnapshot(game),motion=result.meta.motion??undefined;
-      if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.joinRequest.confirm();
-      this.lastState=performance.now();
-      if(motion){const scope=JSON.stringify(motion.scope);if(scope!==this.lastMotionScope){this.lastMotionScope=scope;this.lastClockProbe=-Infinity;}}
-      this.callbacks.state({...snapshot,tick:game.tick,round:game.round},result.settings,result.meta.ack,game.matchId,motion);
-      this.status.recurring(result.meta.paused?'Paused — host is in the background':'Connected · direct game link');
+      if(data.type==='baseline')this.controllerView.reset();
+      const game=result.state.game;
+      this.accept({...toSnapshot(game),tick:game.tick,round:game.round},result.settings,result.meta.ack,game.matchId,result.meta.motion??undefined,result.meta.paused);
     }else if(data.type==='event'&&data.event)this.callbacks.event(data.event,data.matchId??'',data.round??0,data.tick??0);
     else if(data.type==='error'){const text=data.error??'Room error';if(data.transient===true)this.status.transient(text);else this.status.notice(text);if(data.shotRejected===true)this.callbacks.shotFailed?.();}
+  }
+  private accept(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion:AppliedMotionState|undefined,paused:boolean):void {
+    if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.joinRequest.confirm();
+    this.lastState=performance.now();
+    if(motion){const scope=JSON.stringify(motion.scope);if(scope!==this.lastMotionScope){this.lastMotionScope=scope;this.lastClockProbe=-Infinity;}}
+    this.callbacks.state(snapshot,settings,ack,matchId,motion);
+    this.status.recurring(paused?'Paused — host is in the background':'Connected · direct game link');
   }
   command(command:RoomCommand):boolean {
     if(command.type==='join'){this.joinRequest.request(command);return true;}
@@ -169,8 +183,12 @@ export class RoomRuntime {
     // Peers replay the host's committed operations; the hash is computed at most once per publish.
     let hashed:string|undefined;const hash=()=>hashed??=replayHash(session.journal.state);
     for(const id of this.peers){
-      let sender=this.senders.get(id);if(!sender){sender=new ActionSender();this.senders.set(id,sender);}
-      sender.publish(session.journal,session.settings,{ack:ack[id]??-1,paused,motion:session.appliedMotion(id)},hash,(message:ActionMessage)=>message.type==='baseline'?this.transport.send(id,message):this.transport.send(id,packFast(message),true));
+      // A joined phone in shared-TV mode never renders the arena: it gets a stripped status, not the committed stream.
+      const controller=session.settings.mode==='shared'&&game.players.has(id);
+      let sender=this.senders.get(id);
+      if(!sender||(sender instanceof ControllerSender)!==controller){sender=controller?new ControllerSender():new ActionSender();this.senders.set(id,sender);}
+      if(sender instanceof ControllerSender)sender.publish(session,id,paused,message=>message.state||message.motion!==undefined||message.settings?this.transport.send(id,message):this.transport.send(id,packFast(message),true));
+      else sender.publish(session.journal,session.settings,{ack:ack[id]??-1,paused,motion:session.appliedMotion(id)},hash,(message:ActionMessage)=>message.type==='baseline'?this.transport.send(id,message):this.transport.send(id,packFast(message),true));
     }
   }
   private save(){if(this.session)try{localStorage.setItem(`fuse-checkpoint-${this.code}`,this.session.checkpoint());}catch{}}
