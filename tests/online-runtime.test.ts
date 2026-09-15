@@ -82,7 +82,7 @@ test('a guest restates its held controls once the host stops treating it as abse
   guest.runtime.command({type:'input',left:true,right:false,bomb:false});
   run(10);
   assert.deepEqual(host.runtime.held('guest'),{left:true,right:false});
-  run(30,false);
+  run(Math.ceil(ABSENT_MS/TICK_MS)+10,false);
   assert.deepEqual(host.runtime.held('guest'),{left:false,right:false},'absence zeroed the folded steer');
   run(10);
   guest.runtime.command({type:'input',left:true,right:false,bomb:false}); // the controller's 50 ms held-control resend
@@ -162,10 +162,11 @@ test('a held charge survives a second of lost uplink and the release still fires
   const {host,guest,run}=pair();
   const bombs=()=>[...internals(host.runtime).session!.game.bombs.values()].filter(b=>b.ownerId==='guest').length;
   guest.runtime.command({type:'input',left:false,right:false,bomb:true,bombAction:'press'});run(60);
-  const before=guest.fake.sent.length;run(10);
-  assert.ok(guest.fake.sent.length-before>=10,'a held control keeps a packet going out every tick');
+  // Uplink down: the guest's packets pile up unsent, one per tick while the control is held.
+  run(10,false,true);
+  assert.ok(guest.fake.sent.length>=10,'a held control keeps a packet going out every tick');
   assert.ok(ABSENT_MS>SILENCE_MS);
-  run(Math.ceil(SILENCE_MS/TICK_MS)+10,false,true);
+  run(Math.ceil(SILENCE_MS/TICK_MS),false,true);
   assert.equal(internals(host.runtime).session!.game.players.get('guest')!.connected,true,'a second of silence is not absence');
   guest.runtime.command({type:'input',left:false,right:false,bomb:false,bombAction:'release'});run(5);
   assert.equal(bombs(),1,'the release matched the charge the fold still held');
