@@ -113,6 +113,7 @@ try {
       await page.getByRole('button', { name: 'CLOSE', exact: true }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
       if (!phone) {
         await page.getByRole('button', { name: 'REMATCH', exact: true }).click();
+        await waitFor(() => latest()?.phase === 'countdown', 20000, 'rematch replays the match instead of returning to the lobby');
         await page.getByRole('button', { name: 'RESULTS', exact: true, includeHidden: true }).waitFor({ state: 'hidden' });
         assert.equal(await page.getByRole('dialog').isVisible(), false, 'a rematch does not reopen the old report');
       }
