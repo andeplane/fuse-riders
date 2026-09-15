@@ -24,8 +24,11 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 revision="$(git rev-parse HEAD)"
 repository="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
-remote_main="$(gh api "repos/$repository/commits/main" --jq .sha)"
-[[ "$revision" == "$remote_main" ]] || { echo 'Only the current pushed main revision can deploy.' >&2; exit 1; }
+# Still on main, not necessarily its head: CI takes longer than the gap between merges, so demanding the
+# head refused almost every verified revision and nothing deployed at all. A newer commit's own deployment
+# supersedes this one, and the cloud-run-gateway concurrency group serialises them.
+ancestry="$(gh api "repos/$repository/compare/$revision...main" --jq .status)"
+[[ "$ancestry" == identical || "$ancestry" == ahead ]] || { echo "Revision $revision is not on main ($ancestry); refusing to deploy it." >&2; exit 1; }
 ci_result="$(gh api "repos/$repository/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=$revision&per_page=20" --jq '.workflow_runs | sort_by(.run_number) | last | if .status == "completed" then .conclusion else "pending" end')"
 LOCAL_VERIFICATION_NOTE="${LOCAL_VERIFICATION_NOTE:-}"
 source_verification=ci
@@ -88,7 +91,8 @@ for(const key of ['GCP_REGION','FIRESTORE_DATABASE_ID','PUBSUB_TOPIC','ROOM_COLL
 writeFileSync(process.argv[2],JSON.stringify(values,null,2));
 NODE
 
-[[ "$(gh api "repos/$repository/commits/main" --jq .sha)" == "$revision" ]] || { echo 'Main changed during build; deploy its verified revision instead.' >&2; exit 1; }
+# Same rule as the gate above: the revision must still be on main, not still be its head.
+[[ "$(gh api "repos/$repository/compare/$revision...main" --jq .status)" =~ ^(identical|ahead)$ ]] || { echo "Revision $revision left main during the build; refusing to deploy it." >&2; exit 1; }
 gcloud run deploy "$CLOUD_RUN_SERVICE" --project="$PROJECT_ID" --region="$GCP_REGION" \
   --image="$image" --service-account="$RUNTIME_SERVICE_ACCOUNT" --port=8080 \
   --min=0 --max=2 --min-instances=0 --max-instances=2 \
