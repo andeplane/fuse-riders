@@ -42,6 +42,16 @@ ONLINE_URL=http://localhost:8794/ BENCH_SECONDS=1800 BENCH_PROFILE=direct BENCH_
 
 The harness detects the host's visible MATCH COMPLETE notice, releases controls, dismisses recap dialogs with Escape, and clicks MAIN MENU followed by START RACE. It reports `matchRestarts`. This uses public UI commands, not simulation mutation. Eliminated riders remain connected and resume next round; do not label this as uninterrupted five-alive gameplay. Recent raw diagnostic events are bounded, while frame samples (120,000 per view), byte windows (3,600), counters and periodic UI samples cover the configured 30 minutes. Packet traces retain the first 12,000 packets and report omitted counts. The unchanged final-world freshness and accepted-tick regression assertions remain required; a completed duration alone does not imply acceptance.
 
+## ICE gathering probe
+
+`scripts/ice-gather-probe.ts` measures what a browser on the current network can gather before any signalling happens: it opens one `RTCPeerConnection` with a probe data channel, counts candidates by type and protocol, and records total gathering time plus the delay to the first server-reflexive candidate. It prints one redacted JSON line — counts only, never candidate addresses — and exits non-zero when no `srflx` candidate appears, which means STUN was unreachable or UDP was blocked. It is a diagnostic for open [issue #12](https://github.com/andeplane/fuse-riders/issues/12) (a guest on cellular never gets a direct link); it establishes no peer connection, so it cannot prove that two particular networks can reach each other.
+
+```sh
+npx tsx scripts/ice-gather-probe.ts
+```
+
+`PROBE_URL` is the page the probe runs in, defaulting to `https://andeplane.github.io/fuse-riders/`; it only supplies a secure browsing context, so a local `dev:online` URL works too. `ICE_SERVERS` is a comma-separated list of URLs replacing `DEFAULT_ICE_SERVERS` from `src/online/ice-config.ts`. `BROWSER=webkit` runs WebKit instead of the default Chromium. Gathering is capped at eight seconds. Run it from the affected network: a result from the office laptop says nothing about the phone that cannot connect.
+
 ## Input drop probe
 
 `scripts/input-drop-probe.ts` classifies every guest input while the header says connected: rejected locally (and why), refused by the transport, reported by the authority as applied/superseded/expired, or sent but never reported. It is the regression evidence for issues #15 and #20.
