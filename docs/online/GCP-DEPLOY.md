@@ -102,8 +102,13 @@ gcloud projects add-iam-policy-binding $P --member="serviceAccount:$DEP" --condi
   --role=roles/cloudbuild.builds.editor
 gcloud artifacts repositories add-iam-policy-binding fuse-riders --location=europe-west1 --project=$P \
   --member="serviceAccount:$DEP" --role=roles/artifactregistry.reader
-gcloud storage buckets add-iam-policy-binding gs://andershaf-87-fuse-riders-build \
-  --member="serviceAccount:$DEP" --role=roles/storage.objectAdmin
+# objectAdmin alone is not enough: `gcloud builds submit` does a create-bucket-if-not-exists
+# check first, so the deployer also needs storage.buckets.get or every build fails with
+# "The user is forbidden from accessing the bucket".
+for ROLE in roles/storage.objectAdmin roles/storage.legacyBucketReader; do
+  gcloud storage buckets add-iam-policy-binding gs://andershaf-87-fuse-riders-build \
+    --member="serviceAccount:$DEP" --role=$ROLE
+done
 for SA in fuse-riders-build fuse-riders-runtime; do
   gcloud iam service-accounts add-iam-policy-binding "$SA@$P.iam.gserviceaccount.com" --project=$P \
     --member="serviceAccount:$DEP" --role=roles/iam.serviceAccountUser
@@ -138,7 +143,7 @@ Use dedicated runtime and build accounts. Neither needs project Owner, Editor, F
 - **Build account:** Artifact Registry Writer on the designated Docker repository, Logs Writer for Cloud Build logs, and read access to the selected source staging bucket. No runtime database or signalling permissions.
 - **Deployer:** Cloud Build build submission/read permissions; Artifact Registry image/repository read permissions; Cloud Run service create/update/read; Service Account User on the specific build/runtime accounts. Making the service public additionally requires service IAM policy permission; let a reviewed bootstrap principal grant public invocation if regular deployers should not have that permission. Read-only prerequisite checks need database/topic metadata access.
 - **Cloud Run service agent:** retain the provider-managed artifact-pull/service-agent role; do not use it as the application runtime account.
-- **GitHub Actions:** `pages.yml` deploys Pages only and needs no GCP access. `backend.yml` impersonates `fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com` through workload identity federation; no service-account key exists in the repository. The deployer holds build submission, Artifact Registry read, source-bucket object access, Service Account User on the build/runtime accounts, `roles/run.admin` on the single `fuse-riders-gateway` service, and metadata-only read on the signalling topic and the `fuse-riders` database for the script's prerequisite checks. It can write no room data.
+- **GitHub Actions:** `pages.yml` deploys Pages only and needs no GCP access. `backend.yml` impersonates `fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com` through workload identity federation; no service-account key exists in the repository. The deployer holds build submission, Artifact Registry read, source-bucket object access plus bucket metadata read (`roles/storage.legacyBucketReader`, which `gcloud builds submit` needs for its bucket existence check), Service Account User on the build/runtime accounts, `roles/run.admin` on the single `fuse-riders-gateway` service, and metadata-only read on the signalling topic and the `fuse-riders` database for the script's prerequisite checks. It can write no room data.
 
 Role bindings/resource creation are deliberately not embedded in the deploy script. Record actual custom role definitions and scopes in the release inventory after review.
 
