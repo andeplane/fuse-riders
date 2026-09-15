@@ -33,7 +33,7 @@ export const HASH_INTERVAL_TICKS=20;
 /** The host's oldest snapshot: nothing can rewind it any more. A view keeps GUEST_SNAPSHOT_MARGIN more snapshots so it still holds that tick after the packet's flight and its own clock lead. */
 export const HASH_LAG_TICKS=SNAPSHOT_EVERY_TICKS*(SNAPSHOT_COUNT-1);
 export const GUEST_SNAPSHOT_MARGIN=8;
-const REPAIR_INTERVAL_MS=250,RESYNC_INTERVAL_MS=2000,JOIN_RETRY_MS=2000,BASELINE_INTERVAL_MS=500,SAVE_INTERVAL_MS=500;
+const FRAME_INTERVAL_MS=200,REPAIR_INTERVAL_MS=250,RESYNC_INTERVAL_MS=2000,JOIN_RETRY_MS=2000,BASELINE_INTERVAL_MS=500,SAVE_INTERVAL_MS=500;
 
 /**
  * The host authors and folds; every full view folds the same log to its own clock and rolls back when an entry
@@ -78,6 +78,7 @@ export class RoomRuntime {
   readonly transport:PeerTransport;
   /** What this view saw of the host link lately; the device overlay reads it. */
   private lastStatusText='';
+  private lastFrameShownAt=-Infinity;
   readonly netStats=new NetStats(()=>this.dependencies.now());
   readonly telemetry=new Telemetry(typeof location==='undefined'?undefined:telemetryEndpoint(),()=>this.dependencies.now());
   private readonly status:StatusNotices;
@@ -165,7 +166,7 @@ export class RoomRuntime {
     const echo=message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS;
     if(echo)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt!));else if(!this.clock.live)this.clock.observe(message.tick,0);
     this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;
-    if(message.type==='heartbeat'){this.telemetry.log('heartbeat',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null});const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim)this.showFrame(frame);return;}
+    if(message.type==='heartbeat'){this.telemetry.log('heartbeat',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null});const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim&&now-this.lastFrameShownAt>=FRAME_INTERVAL_MS)this.showFrame(frame);return;}
     // Streams with no fold to put them in: the host thinks we are a full view again, so ask for the baseline that starts one.
     const sim=this.sim;if(!sim){if(this.controllerView.ready)this.requestResync();return;}
     this.telemetry.log('recv',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,hash:message.hash!==null,streams:message.streams.map(s=>[s.member,s.lastSeq,s.entries.length]),simTick:this.sim?.tick??null,clock:Math.round(this.clock.tick()*10)/10});
@@ -325,7 +326,9 @@ export class RoomRuntime {
     this.sendAccumulator+=Math.min(elapsed,100);
     if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim?sim.tick:target);this.sendTicks++;if(this.own.retained.length||this.sendTicks%5===0)this.sendOwn(now);}
   }
+  /** A heartbeat arrives every tick; the phone's DOM is rebuilt at most this often, the rest only feed the clock. */
   private showFrame(frame:ControllerFrame):void {
+    this.lastFrameShownAt=this.dependencies.now();
     this.previous=undefined;this.current=frame.snapshot;this.settings=frame.settings;this.callbacks.state(this.current,this.settings,frame.matchId);
   }
   private publishView():void {
