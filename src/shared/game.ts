@@ -118,7 +118,6 @@ export interface InputIntent {
   left: boolean;
   right: boolean;
   bomb: boolean;
-  bombActions?: readonly BombAction[];
   bombCommands?: readonly BombActionCommand[];
   aim?: AimPoint;
 }
@@ -630,7 +629,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const movement of movementList) {
     if (movement.player.alive) {
       const input = inputs.get(movement.player.id);
-      applyBombActions(state, movement.player, input?.bombCommands ?? input?.bombActions?.map(action => ({ action, aim: input.aim })) ?? [], events);
+      applyBombActions(state, movement.player, input?.bombCommands ?? [], events);
       if (movement.player.targetBombArmed && !movement.player.shellArmed && !movement.player.gunArmed && movement.player.bombChargeStartedTick !== undefined) movement.player.bombTarget = targetPoint(state, movement.player, input?.aim, movement.player.bombTarget);
     }
   }
