@@ -7,7 +7,7 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 - One agent owns implementation and verification end to end. Work directly; do not create planner/reviewer/approver chains by default.
 - Inspect `git status`, relevant code and nearby tests before editing. Preserve unrelated work. Use `codex/` for new branches and stage only your own changes when committing.
 - Read documentation that helps with the current change. There is no mandatory tour of historical ADRs, reviews or the roadmap.
-- Routine fixes, UI changes and bounded refactors need no ADR or independent approval. For a substantial architecture change, write a short design note identifying the intended behavior and key tradeoffs, then implement. An independent review is optional unless the user requests one; it is not a gate for each correction.
+- Routine fixes, UI changes and bounded refactors need no ADR or independent approval. For a substantial architecture change, write a short design note identifying the intended behavior and key tradeoffs, then implement. Mid-implementation review is not a gate for each correction; the review that matters happens on the pull request (see **Pull requests**).
 - Follow the user's intended architecture. Do not preserve an obsolete online design or add compatibility modes unless needed by the task. Preserve LAN play.
 - Use existing issues when useful. Creating issues, changing labels, posting progress comments and producing formal handoffs are not prerequisites for work. Update tracking at meaningful milestones, not every iteration.
 - Make reasonable implementation decisions autonomously. Ask only when missing information materially affects scope or an action needs authorization.
@@ -30,7 +30,7 @@ These workflow rules replace older process requirements in ADRs, review notes an
 - During iteration, run focused tests for the behavior changed. Add regressions for bugs. Use explicit interfaces and typed fakes for clocks, scheduling, randomness, transport, storage and browser surfaces; avoid `as any`, private-field mutation, global monkeypatches or real sleeps to make unit tests pass. Browser impairment harnesses may instrument APIs with documented limits.
 - Test observable behavior, not copies of implementation logic. For affected network/simulation paths, cover deterministic replay, dropped/duplicated/reordered messages, held/released/cancelled input, reconnects or corrupt state as relevant, including safe failure as well as recovery.
 - For UI or transport changes, exercise the affected browser flow. Use README for smoke commands and `scripts/ci-local.sh` for the CI mirror. Documentation-only edits need a diff check, not game tests.
-- CI's browser matrix runs on a push to main, not on every pull request, so a pull request passing CI is not evidence that a browser flow still works. For a browser-facing change, run the affected smoke locally or label the pull request `full-ci` before merging.
+- CI's browser matrix runs on a push to main, not on every pull request, so a pull request passing CI is not evidence that a browser flow still works. That is deliberate: waiting on the full matrix in every pull request costs more time than a broken main does. A broken main is acceptable from time to time — notice it, fix it forward, move on. Run the affected smoke locally when that is cheap, and say in the pull request what you could not run; do not hold a pull request for browser coverage it can get on main.
 - Run broader checks at integration milestones. Once relevant checks pass, move on unless new changes or failures justify repeating them. Do not lower coverage thresholds or hide failures to finish.
 - Sustained impairment tests and physical-phone checks belong to tasks that change those behaviors or explicitly request qualification. Scope them to the risk; do not run the entire matrix for every fix. Never disrupt an occupied match.
 - Report what was actually tested and any remaining limits. Browser emulation is not physical-phone evidence; application payload bytes are not wire bytes.
@@ -44,6 +44,13 @@ npm test
 npm run test:coverage
 npm run build
 ```
+
+## Pull requests
+
+- Open a pull request whenever the work is finished and you believe it is ready. Pushing a branch is not delivery: finish the change, run the checks the change deserves, then open the pull request describing what changed and what was verified. Do not wait to be asked.
+- Review every pull request with subagents before asking for a merge. Dispatch them on the diff — correctness and simulation/protocol risk, then tests and documentation as the change warrants — and act on what they find: fix it, or say in the pull request why it stands. A review that produced no pushed fix and no written answer did not happen.
+- Turn on auto-merge once the review is answered and you are happy with the change. The pull request gate is `verify` — typecheck, unit tests, coverage and build — and it must be green first: auto-merge is never a way to land red checks. Do not add the `full-ci` label on your own initiative; add it when the user asks, or when landing the change broken would be expensive to unwind, such as a protocol, deployment or release change.
+- Leave merging to the user when the change is theirs to weigh: an architecture change, a protocol or deployment release, or anything you flagged a concern about.
 
 ## Documentation and deployment
 
