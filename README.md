@@ -43,6 +43,8 @@ A room lasts for its hosted session, including rematches. **MENU → END ROOM** 
 
 Room settings select first-to-N wins or a fixed number of rounds. Open **CONFIGURE POWERUPS** to adjust drop weights, use **BACK TO ROOM SETTINGS** to return, and **SAVE SETTINGS** to apply the draft. A weight of zero disables that drop; all zero means no random drops. Defaults and preferences are stored in the creator's browser under `fuse-riders-room-settings-v1`. Match format changes apply to the next match, and pickup-weight changes apply to the next round. Clearing browser storage loses saved preferences and room credentials.
 
+**ROOM SETTINGS → Bomb aim time (seconds)** adjusts how quickly a held bomb reaches maximum distance in solo and online rooms: 0.1–2 seconds in 0.05-second steps, default 0.4 seconds. Try 1.2 seconds for the original pace. Save to apply it next round; the room shares one active aim time for players, AI and previews.
+
 The creator's browser owns the simulation. Keep its tab in the foreground: a phone lock or background tab can pause everyone. Host authority is fenced by renewable leases and connection epochs; validated local checkpoints support creator refresh recovery. Corrupt or incompatible checkpoints are rejected before replacing healthy state. These mechanisms have regression tests, while sustained recovery and physical-device behavior still need qualification. There is no automatic host migration, ranked anti-cheat authority, or guarantee of uninterrupted play through arbitrary network failure.
 
 ## How to play

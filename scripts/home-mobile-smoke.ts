@@ -39,16 +39,25 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
       assert.equal(await dialog.locator('select').count(),0,'room settings use styled choices');
       assert.equal(await dialog.getByText('Blast radius',{exact:true}).count(),0,'powerups belong in submenu');
       await page.getByLabel('Match length').fill('7');
+      const aim=page.getByLabel('Bomb aim time (seconds)');assert.equal(await aim.inputValue(),'0.4');await inside(page,aim);await aim.fill('1.2');
       await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();
       const blast=dialog.locator('label').filter({hasText:'Blast radius'}).locator('input');await blast.fill('42');
       await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));
       await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
       assert.equal(await page.getByLabel('Match length').inputValue(),'7','draft survives submenu navigation');
+      assert.equal(await aim.inputValue(),'1.2','aim time survives submenu navigation');
       await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');
       await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
       await page.getByLabel('Match length').fill('0');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();assert.equal(await dialog.isVisible(),true);await dialog.getByRole('alert').getByText('Choose a match length from 1 to 20.').waitFor();
-      await page.getByLabel('Match length').fill('7');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();await dialog.waitFor({state:'hidden'});
+      await page.getByLabel('Match length').fill('7');
+      for(const invalid of ['0','2.05','0.125']){await aim.fill(invalid);await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();await dialog.getByRole('alert').getByText('Choose a bomb aim time from 0.1 to 2 seconds in steps of 0.05.').waitFor();}
+      // Off-grid text must survive the powerups submenu and still be rejected, not silently rounded and saved.
+      await aim.fill('0.37');await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
+      assert.equal(await aim.inputValue(),'0.37','off-grid aim text survives submenu navigation');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();assert.equal(await dialog.isVisible(),true,'off-grid aim time is not saved after submenu navigation');await dialog.getByRole('alert').getByText('Choose a bomb aim time from 0.1 to 2 seconds in steps of 0.05.').waitFor();
+      await aim.fill('1.2');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();await dialog.waitFor({state:'hidden'});
+      assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('fuse-riders-room-settings-v1')!).bombChargeTicks),24);
       await page.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();assert.equal(await page.getByLabel('Match length').inputValue(),'7');
+      assert.equal(await aim.inputValue(),'1.2','saved aim time reopens');
       await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
     }
     if(name==='HEAD'){for(const option of await dialog.locator('.avatar-option').all()){await inside(page,option);assert.ok(await option.evaluate(e=>{const text=e.lastElementChild!,a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&text.scrollWidth<=text.clientWidth+1;}),'avatar name clipped');}}
