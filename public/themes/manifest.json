@@ -120,7 +120,7 @@
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Ink bottle for one second of rival clouds."
+      "description": "Ink bottle for three seconds of rival clouds."
     },
     "pickup-target": {
       "file": "pickup-target.svg",

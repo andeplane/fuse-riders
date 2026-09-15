@@ -15,6 +15,8 @@ const browser = browserName === 'webkit' ? await webkit.launch() : await chromiu
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 2 });
 const errors: string[] = [];
 page.on('pageerror', error => errors.push(error.message));
+// Phaser loader failures only log to the console, so treat console errors as failures too.
+page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 try {
   await page.addInitScript('window.__name = value => value');
   await page.route('**/sprite-showcase.html', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head></head><body><main></main></body></html>' }));
@@ -34,7 +36,7 @@ try {
     const root = document.querySelector('main')!;
     root.innerHTML = '<h1>Power-ups, polished.</h1><p>Smooth neon sprites · enlarged detail above, 22px and 34px sizes below</p>';
     for (const theme of ['neon-pixel', 'clean-neon']) {
-      const heading = document.createElement('h2'); heading.textContent = theme === 'neon-pixel' ? 'NEON PIXEL / VIOLET METAL' : 'CLEAN NEON / BLUE METAL'; root.append(heading);
+      const heading = document.createElement('h2'); heading.textContent = theme === 'neon-pixel' ? 'NEON PIXEL' : 'CLEAN NEON'; root.append(heading);
       const grid = document.createElement('div'); grid.className = 'grid'; root.append(grid);
       names.forEach((name, index) => {
         const src = `/themes/${theme}/${name}.svg`;

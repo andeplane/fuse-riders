@@ -1,16 +1,16 @@
 # Theme assets
 
-The baseline follows the [neon/pixel gameplay reference](gameplay-concepts/06-neon-pixel-hybrid.png): a dark navy arena, crisp silhouettes, cyan/magenta/orange accents, and bright blast sparks. Assets live in `public/themes/`; both `neon-pixel` and `clean-neon` provide all fifteen SVG files below. Bombs, flames and all twelve pickups use smooth rounded artwork with shaded surfaces and bright edge highlights to match the interface; rider and arena styling remain theme-specific.
+The baseline follows the [neon/pixel gameplay reference](gameplay-concepts/06-neon-pixel-hybrid.png): a dark navy arena, crisp silhouettes, cyan/magenta/orange accents, and bright blast sparks. Assets live in `public/themes/`; both `neon-pixel` and `clean-neon` provide all fifteen SVG files below. Bombs, flames and all twelve pickups use smooth rounded artwork with shaded surfaces and bright edge highlights to match the interface. That artwork is intentionally shared by both themes (only the dark body shading tint differs slightly); rider, trail and arena styling remain theme-specific.
 
 The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` supplies palette, rendering settings, and core sprite paths. [The manifest](../public/themes/manifest.json) records the asset inventory and source geometry; it does not discover themes automatically. Pickup artwork loads by theme ID and pickup type in `src/client/pickup-renderer.ts`.
 
 | Files | Purpose |
 | --- | --- |
-| `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and blast art. |
+| `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and flame art (flame is preloaded but not currently drawn; blasts render as procedural discs). |
 | `pickup-blast.svg`, `pickup-star.svg` | Larger explosions and invincibility. |
 | `pickup-stopwatch.svg`, `pickup-gun.svg`, `pickup-shell.svg` | Shorter fuse, gun and bouncing shell. |
 | `pickup-beer.svg` | Opponent wobble. |
-| `pickup-ink.svg` | One-second rival ink clouds, with clear zones around unaffected riders. |
+| `pickup-ink.svg` | Three-second rival ink clouds, with clear zones around unaffected riders. |
 | `pickup-target.svg` | Target Bomb reticle; phone Fire becomes a trackpad for one release. |
 | `pickup-five.svg` | Rare five-bomb fan; gold frame distinguishes it from Triple. |
 | `pickup-triple.svg` | Triple Shot. |

@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 
-/** Source artwork for both themes. Run with: npx tsx scripts/generate-powerup-sprites.ts
+/** Source artwork for both themes. Run with: node --import tsx scripts/generate-powerup-sprites.ts
  * Keep the existing 32-unit anchors; draw at 2× for legible, rounded details.
  * No fonts, filters or external resources: the SVGs also rasterize in Phaser.
  */
