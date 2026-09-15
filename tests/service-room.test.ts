@@ -190,4 +190,29 @@ test('delayed old admission cannot replace a newly observed room incarnation',as
 test('cancelled metadata watch callbacks cannot mutate a recreated room view',async()=>{
  const f=fixture();const {hostConnection}=await joined(f);f.database.delay=true;const room=await f.store.get(CODE);await f.store.time(CODE,room.members[peerId(HOST)]!,room.grant);await f.store.end(CODE,HOST);await f.a.disconnect(hostConnection);await f.b.stop();await f.store.create(CODE,'c'.repeat(64));const fresh=new Socket();await f.a.connect(CODE,'c'.repeat(64),fresh);f.database.flush();assert.equal(fresh.closes.length,0);await f.a.stop();
 });
+test('gateway answers no malformed clock request and keeps the connection',async()=>{
+ const f=fixture(),{host,hostConnection}=await joined(f);
+ for(const raw of ['null','[]',JSON.stringify({type:'time',id:{},sentAt:1}),JSON.stringify({type:'time',id:1,sentAt:-1}),JSON.stringify({type:'time',id:'x'.repeat(65),sentAt:1}),JSON.stringify({type:'time',id:1})])await f.a.receive(hostConnection,raw);
+ assert.equal(host.frames('time').length,0);assert.equal(host.closes.length,0);
+ await f.a.receive(hostConnection,JSON.stringify({type:'time',id:1,sentAt:1}));assert.equal(host.frames('time').length,1);
+});
+test('a full room readmits an existing member and still rejects a newcomer',async()=>{
+ const f=fixture();await f.store.create(CODE,HOST);await f.store.admit(CODE,HOST,'a');
+ const guests=Array.from({length:5},(_,i)=>(i+1).toString(16).repeat(64));for(const token of guests)await f.store.admit(CODE,token,'b');
+ assert.equal(Object.keys((await f.store.get(CODE)).members).length,6);
+ const rejoined=await f.store.admit(CODE,guests[0]!,'a');assert.equal(Object.keys(rejoined.room.members).length,6);assert.equal(rejoined.member.gatewayId,'a');
+ await assert.rejects(f.store.admit(CODE,'f'.repeat(64),'b'),(error:unknown)=>error instanceof RoomError);
+});
+test('a guest cannot renew the host authority grant',async()=>{
+ const f=fixture(),{guest,guestConnection}=await joined(f);const before=(await f.store.get(CODE)).grant!;
+ f.advance(3000);await f.b.receive(guestConnection,JSON.stringify({type:'time',id:1,sentAt:1,renew:{incarnation:before.incarnation,epoch:before.epoch,holder:before.holder,grantId:before.grantId}}));
+ assert.equal(guest.frames('time').length,1);assert.deepEqual((await f.store.get(CODE)).grant,before);
+});
+test('simultaneous host admissions serialize into fenced authority epochs',async()=>{
+ const f=fixture();await f.store.create(CODE,HOST);
+ const [first,second]=(await Promise.all([f.store.admit(CODE,HOST,'a'),f.store.admit(CODE,HOST,'b')])).sort((x,y)=>x.room.grant!.epoch-y.room.grant!.epoch);
+ assert.deepEqual([first!.room.grant!.epoch,second!.room.grant!.epoch],[1,2]);
+ assert.equal(second!.room.grant!.validFrom,first!.room.grant!.expiresAt+250);
+ assert.equal((await f.store.get(CODE)).grant?.holder,second!.member.connectionId);
+});
 test('direct new admission rotates an active old watch before its delayed callbacks arrive',async()=>{const f=fixture();await joined(f);f.database.delay=true;const room=await f.store.get(CODE);await f.store.time(CODE,room.members[peerId(HOST)]!,room.grant);await f.store.end(CODE,HOST);await f.store.create(CODE,'c'.repeat(64));const fresh=new Socket();await f.a.connect(CODE,'c'.repeat(64),fresh);f.database.flush();assert.equal(fresh.closes.length,0);assert.equal(fresh.frames('welcome').length,1);await f.a.stop();await f.b.stop();});

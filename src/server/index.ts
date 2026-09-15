@@ -38,10 +38,10 @@ export interface ServerOptions { port?: number; hostname?: string; lanAddress?: 
 /** Dev-only forwarding to the local room service; it only admits same-origin loopback pages, so Host and Origin are both rewritten. */
 function proxyHeaders(target: URL, headers: http.IncomingHttpHeaders): http.OutgoingHttpHeaders {
   const forwarded: http.OutgoingHttpHeaders = {};
-  // Client-supplied address headers would let a caller pick its own rate-limit key at the Worker.
+  // Client-supplied address headers would let a caller pick its own rate-limit key at the room service.
   for (const [key, value] of Object.entries(headers)) if (value !== undefined && !/^(cf-connecting-ip|x-real-ip|x-forwarded-.*)$/.test(key)) forwarded[key] = value;
   forwarded.host = target.host;
-  // Only a page served by this server gets its Origin rewritten; any other origin still fails the Worker's check.
+  // Only a page served by this server gets its Origin rewritten; any other origin still fails the room service's check.
   if (headers.origin) forwarded.origin = headers.origin === `http://${headers.host}` ? target.origin : headers.origin;
   return forwarded;
 }

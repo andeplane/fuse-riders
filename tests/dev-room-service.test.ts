@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { request } from 'node:http';
+import { connect, type Socket } from 'node:net';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -38,6 +39,16 @@ test('memory database allowance uses the same hourly window as Firestore', async
   assert.equal(await database.allowance('ip', 2_000, 3), false);
   assert.equal(await database.allowance('other', 2_000, 3), true, 'keys are independent');
   assert.equal(await database.allowance('ip', 3_600_000, 3), true, 'a new hour resets the count');
+});
+
+test('a failing watcher never fails the committed write or starves other watchers', async () => {
+  const database = new MemoryRoomDatabase(), failures: string[] = [], seen: number[] = [];
+  database.watch('AB42', () => { throw new Error('observer broke'); }, error => { failures.push(error.message); });
+  database.watch('AB42', current => { seen.push(current!.revision); });
+  assert.equal(await database.transact('AB42', () => ({ room: room(1), result: 'committed' })), 'committed');
+  assert.deepEqual(failures, ['observer broke']);
+  assert.deepEqual(seen, [1]);
+  assert.equal((await database.read('AB42'))?.revision, 1);
 });
 
 test('local bus refuses to route beyond its single gateway', async () => {
@@ -124,6 +135,40 @@ test('dev room service serves the build with app-shell fallback and never outsid
     const api = await f.call('/api/unknown');
     assert.equal(api.status, 404);
     assert.deepEqual(JSON.parse(api.body), { error: 'Not found' });
+    assert.equal((await f.call('/api')).status, 404, 'the bare API path is not the app shell');
     assert.equal((await f.call('/api/health')).status, 200);
   } finally { await f.close(); }
+});
+
+/** Sends raw bytes and resolves with everything received up to the end of the first HTTP response head. */
+function rawExchange(port: number, text: string, keepOpen = false): Promise<{ head: string; socket: Socket }> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, '127.0.0.1'); let received = '';
+    socket.setEncoding('latin1');
+    socket.on('data', chunk => { received += chunk; if (received.includes('\r\n\r\n')) { resolve({ head: received, socket }); if (!keepOpen) socket.destroy(); } });
+    socket.on('error', reject);
+    socket.on('close', () => resolve({ head: received, socket }));
+    socket.write(text);
+  });
+}
+const upgrade = (port: number, target: string) => `GET ${target} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nOrigin: http://127.0.0.1:${port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`;
+
+test('an unparsable WebSocket request target is refused without crashing the service', async () => {
+  const f = await fixture();
+  try {
+    const { head } = await rawExchange(f.port, upgrade(f.port, '//['));
+    assert.match(head, /^HTTP\/1\.1 403/);
+    assert.equal((await f.call('/api/health')).status, 200, 'the service is still serving');
+  } finally { await f.close(); }
+});
+
+test('closing the service does not wait for a WebSocket client that ignores the close handshake', { timeout: 5_000 }, async () => {
+  const f = await fixture();
+  const { code, token } = await f.create();
+  const { head, socket } = await rawExchange(f.port, upgrade(f.port, `/api/rooms/${code}/ws?token=${token}`), true);
+  try {
+    assert.match(head, /^HTTP\/1\.1 101/);
+    // The raw socket never answers a close frame, like a suspended phone tab; ws alone would wait 30 seconds.
+    await f.close();
+  } finally { socket.destroy(); }
 });

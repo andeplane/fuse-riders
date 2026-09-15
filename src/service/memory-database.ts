@@ -3,11 +3,12 @@ import type { RoomDatabase, RoomRecord } from './room-store.js';
 
 const HOUR_MS = 3_600_000;
 const MAX_ALLOWANCE_KEYS = 10_000;
+interface Watcher { listener: (room: RoomRecord | undefined) => void; failed?: (error: Error) => void }
 
 /** Single-process RoomDatabase for the local room service and tests; production uses Firestore with the same contract. */
 export class MemoryRoomDatabase implements RoomDatabase {
   private rooms = new Map<string, RoomRecord>();
-  private listeners = new Map<string, Set<(room: RoomRecord | undefined) => void>>();
+  private listeners = new Map<string, Set<Watcher>>();
   private allowances = new Map<string, { hour: number; count: number }>();
   private chain: Promise<unknown> = Promise.resolve();
 
@@ -23,7 +24,10 @@ export class MemoryRoomDatabase implements RoomDatabase {
       const next = operation(current && structuredClone(current));
       if (next.room) {
         this.rooms.set(code, structuredClone(next.room));
-        for (const listener of [...(this.listeners.get(code) ?? [])]) listener(structuredClone(next.room));
+        // Like Firestore, a failing watcher reports through its own callback and never fails the committed write.
+        for (const watcher of [...(this.listeners.get(code) ?? [])]) {
+          try { watcher.listener(structuredClone(next.room)); } catch (error) { watcher.failed?.(error instanceof Error ? error : new Error('Room watcher failure')); }
+        }
       }
       return next.result;
     });
@@ -31,12 +35,12 @@ export class MemoryRoomDatabase implements RoomDatabase {
     return work;
   }
 
-  watch(code: string, listener: (room: RoomRecord | undefined) => void): () => void {
-    const listeners = this.listeners.get(code) ?? new Set();
-    listeners.add(listener);
+  watch(code: string, listener: (room: RoomRecord | undefined) => void, failed?: (error: Error) => void): () => void {
+    const listeners = this.listeners.get(code) ?? new Set(), watcher: Watcher = { listener, ...(failed ? { failed } : {}) };
+    listeners.add(watcher);
     this.listeners.set(code, listeners);
     return () => {
-      listeners.delete(listener);
+      listeners.delete(watcher);
       if (listeners.size === 0 && this.listeners.get(code) === listeners) this.listeners.delete(code);
     };
   }

@@ -48,8 +48,13 @@ async function serveStatic(root: string, pathname: string, method: string, res: 
   return true;
 }
 
+export interface RoomServer extends Server {
+  /** Drops open WebSockets without a close handshake, so shutdown cannot wait on an unresponsive client. */
+  terminateSockets(): void;
+}
+
 /** The room service's HTTP and WebSocket surface, shared by the Cloud Run service and the local development service. */
-export function createRoomServer(options: RoomHttpOptions): Server {
+export function createRoomServer(options: RoomHttpOptions): RoomServer {
   const { store, gateway } = options, now = options.now ?? Date.now;
   const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -75,7 +80,7 @@ export function createRoomServer(options: RoomHttpOptions): Server {
         if (!member || member.expiresAt <= now()) { json({ error: 'Join the room first' }, 403); return; }
         json({ iceServers: DEFAULT_ICE_SERVERS, relayConfigured: false }); return;
       }
-      if (!url.pathname.startsWith('/api/') && options.staticDirectory && await serveStatic(options.staticDirectory, url.pathname, req.method ?? 'GET', res)) return;
+      if (url.pathname !== '/api' && !url.pathname.startsWith('/api/') && options.staticDirectory && await serveStatic(options.staticDirectory, url.pathname, req.method ?? 'GET', res)) return;
       json({ error: 'Not found' }, 404);
     } catch (error) {
       logFailure('http-operation', error);
@@ -84,8 +89,12 @@ export function createRoomServer(options: RoomHttpOptions): Server {
   });
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 32_000, perMessageDeflate: false });
   server.on('upgrade', (req, socket, head) => {
-    const origin = req.headers.origin, url = new URL(req.url ?? '/', 'http://gateway'), route = url.pathname.match(ROOM_ROUTE), token = url.searchParams.get('token') ?? '';
-    if (!origin || !options.allowOrigin(origin, req) || route?.[2] !== 'ws' || !validCode(route[1]!) || !validToken(token)) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return; }
+    const forbidden = () => { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); };
+    // An unparsable request target must be refused, not thrown: this handler runs outside the HTTP try/catch.
+    let url: URL;
+    try { url = new URL(req.url ?? '/', 'http://gateway'); } catch { forbidden(); return; }
+    const origin = req.headers.origin, route = url.pathname.match(ROOM_ROUTE), token = url.searchParams.get('token') ?? '';
+    if (!origin || !options.allowOrigin(origin, req) || route?.[2] !== 'ws' || !validCode(route[1]!) || !validToken(token)) { forbidden(); return; }
     const code = route[1]!;
     sockets.handleUpgrade(req, socket, head, ws => {
       let connectionId: string | undefined, closed = false, pending: string[] = [];
@@ -97,5 +106,5 @@ export function createRoomServer(options: RoomHttpOptions): Server {
     });
   });
   server.on('close', () => { sockets.close(); });
-  return server;
+  return Object.assign(server, { terminateSockets: () => { for (const client of sockets.clients) client.terminate(); } });
 }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { IncomingMessage, Server } from 'node:http';
+import type { IncomingMessage } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRoomServer } from './http.js';
+import { createRoomServer, type RoomServer } from './http.js';
 import { LocalRoomBus, MemoryRoomDatabase } from './memory-database.js';
 import { RoomGateway } from './gateway.js';
 import { RoomStore } from './room-store.js';
@@ -13,7 +13,7 @@ export interface DevRoomServiceOptions {
   allowedOrigins?: readonly string[];
   now?: () => number;
 }
-export interface DevRoomService { server: Server; gateway: RoomGateway; close(): Promise<void> }
+export interface DevRoomService { server: RoomServer; gateway: RoomGateway; close(): Promise<void> }
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -45,7 +45,13 @@ export function createDevRoomService(options: DevRoomServiceOptions = {}): DevRo
   });
   return {
     server, gateway,
-    close: async () => { await gateway.stop(); await new Promise<void>(resolve => server.close(() => resolve())); server.closeAllConnections(); },
+    close: async () => {
+      await gateway.stop();
+      const closed = new Promise<void>(resolve => server.close(() => resolve()));
+      // Neither a backgrounded phone tab's WebSocket nor an idle keep-alive may hold a dev restart open.
+      server.terminateSockets(); server.closeAllConnections();
+      await closed;
+    },
   };
 }
 
