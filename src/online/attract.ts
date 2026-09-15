@@ -1,3 +1,4 @@
+import { uuid } from '../shared/uuid.js';
 import { HostSession } from './host-session.js';
 import { defaultRoomSettings } from '../shared/room-settings.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
@@ -6,7 +7,7 @@ import { defaultTheme, loadThemeSprites } from '../client/themes.js';
 
 /** A separate, silent local game. It never opens a room or a connection. */
 export async function startAttract(initialCanvas: HTMLCanvasElement, toggle: HTMLButtonElement): Promise<()=>void> {
-  const host = new HostSession('attract', defaultRoomSettings(), { token:()=>crypto.randomUUID() });
+  const host = new HostSession('attract', defaultRoomSettings(), { token:uuid });
   for (let i=0;i<5;i++) host.command('attract',{type:'bot',action:'add'});
   host.command('attract',{type:'action',action:'start'});
   for(let i=0;i<90;i++) host.advance();

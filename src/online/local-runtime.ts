@@ -1,3 +1,4 @@
+import { uuid } from '../shared/uuid.js';
 import { HostSession, type RoomCommand } from './host-session.js';
 import type { Callbacks } from './runtime.js';
 import type { RoomSettings } from '../shared/room-settings.js';
@@ -11,7 +12,7 @@ export interface LocalRuntimeDependencies {
   humanName?:string;
 }
 const browserDependencies:LocalRuntimeDependencies={
-  now:()=>performance.now(),hidden:()=>document.hidden,token:()=>crypto.randomUUID(),
+  now:()=>performance.now(),hidden:()=>document.hidden,token:uuid,
   schedule:(callback,ms)=>{const timer=setInterval(callback,ms);return()=>clearInterval(timer);},
   onVisibilityChange:callback=>{document.addEventListener('visibilitychange',callback);return()=>document.removeEventListener('visibilitychange',callback);},
 };

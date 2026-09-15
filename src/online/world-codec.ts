@@ -1,4 +1,5 @@
 import { isGameSnapshot } from './checkpoint.js';
+import { uuid } from '../shared/uuid.js';
 import type { GameSnapshot, TrailSegment } from '../shared/protocol.js';
 type TrailTuple=[number,number,number,number,number,number,number];
 interface Patch { set:Record<string,unknown>;unset:string[] }
@@ -24,7 +25,7 @@ function apply<T extends object>(before:T,patch:Patch):T {
 export class WorldEncoder {
   constructor(readonly generation=1){if(!Number.isSafeInteger(generation)||generation<1)throw new Error('Invalid world generation');}
   private seq=0;
-  private readonly stream=crypto.randomUUID();
+  private readonly stream=uuid();
   private nextId=1;
   private previous=new Map<string,Map<string,number>>();
   private previousState?:GameSnapshot;
