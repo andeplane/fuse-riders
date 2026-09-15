@@ -54,6 +54,8 @@ export class LocalRuntime {
     return true;
   }
   render():ViewSnapshot|undefined {return this.current&&interpolateWorld(this.previous,this.current,this.accumulator/TICK_MS);}
+  /** The steer the fold currently holds for a rider; what the benchmark reports as applied motion. */
+  held(id:string):{left:boolean;right:boolean}|undefined {const flags=this.session?.sim.state.streams.get(id)?.flags;return flags===undefined?undefined:{left:Boolean(flags&1),right:Boolean(flags&2)};}
   private visibilityChanged():void {
     if(!this.session)return;
     this.paused=this.dependencies.hidden();this.lastAt=this.dependencies.now();this.accumulator=0;this.publish();

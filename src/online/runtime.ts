@@ -91,6 +91,8 @@ export class RoomRuntime {
     const fraction=this.session?this.accumulator/TICK_MS:Math.max(0,Math.min(1,this.clock.tick()-this.current.tick));
     return interpolateWorld(this.previous,this.current,fraction);
   }
+  /** The steer the fold currently holds for a rider; a controller phone has no fold and reports nothing. */
+  held(id:string):{left:boolean;right:boolean}|undefined {const flags=(this.session?.sim??this.sim)?.state.streams.get(id)?.flags;return flags===undefined?undefined:{left:Boolean(flags&1),right:Boolean(flags&2)};}
   private requestResync(force=false):void {
     const now=performance.now();if(!force&&now-this.lastResync<RESYNC_INTERVAL_MS)return;
     this.lastResync=now;this.transport.send(this.transport.hostId,{type:'resync'});
