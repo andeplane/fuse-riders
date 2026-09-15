@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { smokeTimeout } from './smoke-timeout.js';
 const base=process.env.HOME_URL??'http://127.0.0.1:4188/';
 interface Snapshot {kind:'snapshot';phase:string;authorityScope:string;tick:number;heldMotion?:{left:boolean;right:boolean};players:Array<{id:string;angle:number;alive:boolean;bombReadyAtTick:number;bombChargeStartedTick?:number}>}
 interface InputSample {kind:'input';at:number;seq:number;bomb:boolean;bombAction?:string;scheduled:boolean;intendedTick?:number;sent:boolean;estimate?:{tick:number};baseTick?:number;pending:number}
@@ -12,7 +13,7 @@ const assetPath=bundle.match(/type="module"[^>]*src="([^"]+)"/)?.[1];
 const asset=assetPath?await readFile(`dist/${assetPath.replace(/^\//,'')}`):undefined;
 const identity={assetPath,assetSha256:asset?createHash('sha256').update(asset).digest('hex'):undefined,revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),htmlSha256:createHash('sha256').update(bundle).digest('hex'),date:new Date().toISOString(),base};
 for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){
- const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();page.setDefaultTimeout(15000);const errors:string[]=[],snapshots:Snapshot[]=[],inputs:Array<InputSample&{snapshotTick?:number}>=[];
+ const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:1280,height:900}});const page=await context.newPage();page.setDefaultTimeout(smokeTimeout(15000));const errors:string[]=[],snapshots:Snapshot[]=[],inputs:Array<InputSample&{snapshotTick?:number}>=[];
  page.on('pageerror',e=>errors.push(e.stack??e.message));await page.exposeFunction('recordKeyboardSnapshot',(s:Snapshot|InputSample)=>{if(s.kind==='snapshot')snapshots.push(s);else if(s.kind==='input')inputs.push({...s,snapshotTick:snapshots.at(-1)?.tick});});
  await page.addInitScript(()=>{localStorage.setItem('fuse-riders-room-settings-v1',JSON.stringify({version:1,mode:'devices',match:'wins',length:3,weights:{}}));window.addEventListener('fuse-benchmark',event=>{void Reflect.get(window,'recordKeyboardSnapshot')((event as CustomEvent).detail);});});
  const latest=()=>snapshots.at(-1)!;const actor=()=>latest().players.find(p=>p.id==='solo')!;

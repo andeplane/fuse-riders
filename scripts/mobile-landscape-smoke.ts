@@ -1,6 +1,7 @@
 import {chromium,webkit,type Page} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
+import { smokeTimeout } from './smoke-timeout.js';
 const base=process.env.HOME_URL??'http://127.0.0.1:4188/';const results:object[]=[];await mkdir('artifacts',{recursive:true});
 // A solo round can end while the hints fade: matchOver opens the tools overlay (pointer-events:none on the thirds) and a phase
 // change clears held input. Close the overlay and retry the press instead of racing the round clock.
@@ -13,7 +14,7 @@ const press=async (page:Page,x:number,y:number)=>{
  }
  assert.fail('the left third never registered a press');
 };
-for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await context.newPage();page.setDefaultTimeout(15000);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.stack??e.message));
+for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await context.newPage();page.setDefaultTimeout(smokeTimeout(15000));const errors:string[]=[];page.on('pageerror',e=>errors.push(e.stack??e.message));
  try{await page.goto(new URL('?solo=1',base).href);await page.locator('.mobile-rotate-gate').waitFor({state:'visible'});await page.locator('.mobile-tools-toggle').click();await page.screenshot({path:`artifacts/mobile-portrait-tools-${name}.png`});await page.getByRole('button',{name:'MAIN MENU',exact:true}).click();await page.getByRole('button',{name:'START RACE',exact:true}).click();await page.locator('.mobile-rotate-gate').waitFor({state:'visible'});await page.locator('.mobile-tools-open').waitFor({state:'detached'}).catch(()=>assert.fail('starting a race closes the tools overlay'));
  await page.setViewportSize({width:844,height:390});await page.locator('.mobile-rotate-gate').waitFor({state:'hidden'});await page.waitForFunction(()=>document.querySelector('canvas')?.dataset.renderer?.startsWith('phaser-'));
  const hintsOpacity=()=>page.locator('.mobile-control-hints').evaluate(e=>Number(getComputedStyle(e).opacity));assert.ok(await hintsOpacity()>0,'hints visible during the countdown');
@@ -37,7 +38,7 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const
  await page.screenshot({path:`artifacts/mobile-landscape-faded-${name}.png`});await press(page,100,200);await page.setViewportSize({width:390,height:844});await page.locator('.mobile-rotate-gate').waitFor({state:'visible'});assert.equal(await page.locator('.online-controls button.active').count(),0);await page.mouse.up();
  // The tools overlay closes by design whenever a solo round enters countdown/play (mobile-play-layout.ts), which can
  // happen between opening it and clicking a button inside it; reopen and retry instead of racing the round clock.
- const clickInTools=async(name:string)=>{for(let attempt=0;attempt<6;attempt++){if(!await page.locator('.mobile-tools-open').count())await page.locator('.mobile-tools-toggle').click();try{await page.getByRole('button',{name,exact:true}).click({timeout:2500});return;}catch{/* overlay closed under us; reopen */}}throw new Error(`${name} never became clickable inside the tools overlay`);};
+ const clickInTools=async(name:string)=>{for(let attempt=0;attempt<6;attempt++){if(!await page.locator('.mobile-tools-open').count())await page.locator('.mobile-tools-toggle').click();try{await page.getByRole('button',{name,exact:true}).click({timeout:smokeTimeout(2500)});return;}catch{/* overlay closed under us; reopen */}}throw new Error(`${name} never became clickable inside the tools overlay`);};
  await clickInTools('HEAD');await page.getByRole('button',{name:'CLOSE',exact:true}).click();await clickInTools('MAIN MENU');await page.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.startsWith('Join your friends'));assert.equal(await page.locator('.mobile-play.mobile-portrait>.mobile-tools-toggle').isVisible(),true,'joined lobby keeps the same phone controller (#13)');
  assert.deepEqual(errors,[]);results.push({browser:name,passed:true,portraitGate:true,thirds:bounds,objectFit:fit,longPressNoSelect:noSelect,hintsFaded:true,rotationCancelledHeldInput:true,portraitMenuAccessible:true,errors});console.log(`PASS ${name} mobile landscape`);
  }catch(error){results.push({browser:name,passed:false,error:String(error),errors});throw error;}finally{await browser.close();await writeFile('artifacts/mobile-landscape-smoke.json',JSON.stringify(results,null,2));}
