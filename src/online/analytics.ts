@@ -81,6 +81,21 @@ export function track(event: string, properties?: Record<string, unknown>): void
   void client?.then(mixpanel => mixpanel.track(PREFIX + event, properties)).catch(() => { /* analytics never breaks the game */ });
 }
 
+/**
+ * For an event whose own page is about to be replaced. `track` only enqueues once the Mixpanel chunk has
+ * resolved, so an event followed immediately by a navigation is simply lost when the chunk is still in flight —
+ * and CREATE ROOM is exactly that: the landing-to-room conversion, lost most often on the slow connections whose
+ * conversion we most want to read. Sends past the batcher and resolves when it is away, or when `timeoutMs` is
+ * up, so a stalled report delays a room by a blink rather than holding it.
+ */
+export function trackBeforeLeaving(event: string, properties: Record<string, unknown>, timeoutMs = 700): Promise<void> {
+  if (!client) return Promise.resolve();
+  return Promise.race([
+    client.then(mixpanel => new Promise<void>(resolve => { mixpanel.track(PREFIX + event, properties, { send_immediately: true }, () => resolve()); })),
+    new Promise<void>(resolve => { setTimeout(resolve, timeoutMs); }),
+  ]).catch(() => { /* analytics never breaks the game */ });
+}
+
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
 
 /**

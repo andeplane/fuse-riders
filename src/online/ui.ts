@@ -30,7 +30,7 @@ import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
 import { createJoinCard, createJoinForm } from './join-form.js';
 import { safeStorage } from '../client/safe-storage.js';
-import { matchEndedProps, matchStartKey, startAnalytics, track } from './analytics.js';
+import { matchEndedProps, matchStartKey, startAnalytics, track, trackBeforeLeaving } from './analytics.js';
 import { POWERUP_GUIDE } from '../client/powerup-guide.js';
 import { createPowerupGuide } from '../client/powerup-guide-view.js';
 const storage=safeStorage(()=>localStorage);
@@ -71,7 +71,7 @@ export async function startOnline():Promise<void>{
     for(const [value,label] of [['devices','Each device'],['shared','Shared TV']] as const){const option=node('label'),radio=node('input');radio.type='radio';radio.name='landing-mode';radio.value=value;radio.checked=selectedMode===value;radio.onchange=()=>{selectedMode=value;};option.append(radio,node('span',label));mode.append(option);}
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
     const error=node('p');
-    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));track('Room Created',{mode:selectedMode});location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
+    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));await trackBeforeLeaving('Room Created',{mode:selectedMode});location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
     join.onclick=()=>{const value=input.value.trim().toUpperCase();if(validRoomCode(value))location.href=appUrl(`?room=${value}`);else error.textContent='Enter a room code, for example AB42';};
     mode.setAttribute('aria-label','Where will you play?');input.setAttribute('aria-label','Room code');error.setAttribute('role','alert');
     const createRow=node('div','','landing-create');createRow.append(mode,create);
