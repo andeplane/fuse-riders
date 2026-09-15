@@ -118,10 +118,10 @@ export async function createGameServer(options: ServerOptions = {}) {
   const server = http.createServer(async (req, res) => {
     // Devices post their runtime telemetry here in development; one NDJSON file per room under artifacts/telemetry.
     if (req.method === 'POST' && req.url?.split('?')[0] === '/telemetry') {
-      let body = ''; req.on('data', chunk => { body += chunk; if (body.length > 2_000_000) req.destroy(); });
+      const chunks: Buffer[] = []; let size = 0; req.on('data', (chunk: Buffer) => { chunks.push(chunk); size += chunk.length; if (size > 2_000_000) req.destroy(); });
       req.on('end', async () => {
         try {
-          const { device, events } = JSON.parse(body) as { device: Record<string, unknown>; events: Record<string, unknown>[] };
+          const { device, events } = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { device: Record<string, unknown>; events: Record<string, unknown>[] };
           const room = String(device?.room ?? 'none').replace(/[^A-Za-z0-9_-]/g, '') || 'none', dir = path.join(ROOT, 'artifacts', 'telemetry');
           await mkdir(dir, { recursive: true });
           await appendFile(path.join(dir, `${room}.ndjson`), events.map(event => JSON.stringify({ ...event, device, received: Date.now() })).join('\n') + '\n');
