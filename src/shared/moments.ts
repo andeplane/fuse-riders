@@ -24,6 +24,10 @@ export interface Moment {
 
 /** Each kind keeps its first few entries; a match rarely reaches this and no ranking rule lives in state. */
 export const MAX_MOMENTS_PER_KIND = 8;
+/** Extra round-over (and final-round) pause when the round produced a moment, so every screen can replay it (ADR 044). */
+export const REPLAY_PAUSE_TICKS = 80;
+/** Identity of a moment within a round: what happened and to whom, not the tick, so a rewind that shifts it by a tick keeps one identity. */
+export const momentKey = (moment: Moment): string => `${moment.round}:${moment.kind}:${moment.playerId}:${moment.targetIds.join('+')}`;
 export const MAX_MOMENTS = MAX_MOMENTS_PER_KIND * MOMENT_KINDS.length;
 /** A trail this young was laid right in front of the victim: about one rider turn of travel. */
 export const CUT_OFF_MAX_AGE_TICKS = 12;
@@ -61,11 +65,16 @@ export function pushMoment(state: GameState, moment: Moment): boolean {
   return true;
 }
 
-/** Folds one tick's observations into `state.moments`; runs after every elimination of the tick and before the round resolves. */
-export function detectMoments(state: GameState, elapsed: number, observations: TickObservations): void {
+/**
+ * Folds one tick's observations into `state.moments`; runs after every elimination of the tick and before the round
+ * resolves. Returns the moments it kept, in the order they were recorded, for the tick's events.
+ */
+export function detectMoments(state: GameState, elapsed: number, observations: TickObservations): Moment[] {
   const { tick, round } = state;
+  const recorded: Moment[] = [];
   const record = (kind: MomentKind, playerId: PlayerId, targetIds: PlayerId[], value: number): void => {
-    pushMoment(state, { kind, round, tick, elapsed, playerId, targetIds, value });
+    const moment: Moment = { kind, round, tick, elapsed, playerId, targetIds, value };
+    if (pushMoment(state, moment)) recorded.push(moment);
   };
   const bySlot = (ids: readonly PlayerId[]): PlayerId[] => [...ids].sort((a, b) =>
     (state.players.get(a)?.slot ?? 0) - (state.players.get(b)?.slot ?? 0) || (a < b ? -1 : a > b ? 1 : 0));
@@ -102,4 +111,8 @@ export function detectMoments(state: GameState, elapsed: number, observations: T
     record('mutualDestruction', ids[0]!, ids.slice(1), ids.length);
   }
   for (const dodge of observations.dodges) record('bombDodge', dodge.playerId, [dodge.ownerId], dodge.clearance);
+  return recorded;
 }
+
+/** Whether the round now ending produced a moment worth the longer pause. */
+export const roundHasMoment = (state: GameState): boolean => state.moments.some(moment => moment.round === state.round);

@@ -21,6 +21,8 @@ import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
 import type { Moment } from '../shared/moments.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import { ReplayDirector, describeClip } from '../client/replay.js';
+import { createReplayOverlay } from '../client/replay-overlay.js';
 import { RoomRuntime } from './runtime.js';
 import type { AvatarId } from '../shared/avatars.js';
 import QRCode from 'qrcode';
@@ -116,6 +118,8 @@ export async function startOnline():Promise<void>{
   app.classList.toggle('booting',role!=='joiner');app.classList.toggle('joining',role==='joiner');
   app.replaceChildren(header,role==='joiner'?joinPanel:booting);
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
+  // Instant replay (ADR 044): presentation only. A controller-only phone has no arena and records nothing.
+  const replay=new ReplayDirector(),replayOverlay=createReplayOverlay();document.body.append(replayOverlay.element);let replayKey='',reopenRecap=false;
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
@@ -170,7 +174,9 @@ export async function startOnline():Promise<void>{
     if(!recap.comparison.length){root.append(node('p',RECAP_EMPTY_MESSAGE,'recap-empty'));return root;}
     const podium=node('div','','recap-podium');for(const entry of recap.podium){const card=node('article','',`podium-card podium-place-${entry.placement}`);card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.placeLabel,'podium-place'),node('strong',entry.name),node('small',entry.winsLabel));podium.append(card);}
     const totals=node('div','','recap-totals');for(const total of recap.totals){const cell=node('div','','recap-total');cell.append(node('strong',total.value),node('small',total.label));totals.append(cell);}
-    const reel=node('div','','recap-highlights');reel.append(node('p',HIGHLIGHTS_TITLE,'reel-title'));for(const entry of recap.highlights){const card=node('article','','award-card highlight-card');card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.icon,'award-icon'),node('small',entry.when),node('strong',entry.title),node('em',entry.copy));reel.append(card);}
+    const reel=node('div','','recap-highlights');reel.append(node('p',HIGHLIGHTS_TITLE,'reel-title'));for(const entry of recap.highlights){const card=node('article','','award-card highlight-card');card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.icon,'award-icon'),node('small',entry.when),node('strong',entry.title),node('em',entry.copy));
+      const clip=replay.recorder.clip(entry.key);if(clip&&!canvas.hidden){const watch=node('button','▶ WATCH','watch-again');watch.type='button';watch.title='Replay this moment';watch.onclick=()=>{audio.unlock();reopenRecap=true;dialog.close();replay.play(clip,performance.now());};card.append(watch);}
+      reel.append(card);}
     const awards=node('div','','recap-awards');for(const award of recap.awards){const card=node('article','','award-card');card.append(node('span',award.icon,'award-icon'),node('small',award.title),node('strong',award.winnerText),node('em',award.detail));awards.append(card);}
     const comparison=node('div','','recap-comparison');comparison.append(node('p',COMPARISON_KEY,'comparison-key'));const columns=node('div','','comparison-row comparison-header');for(const label of ['RIDER',...COMPARISON_COLUMNS.map(column=>column.label)])columns.append(node('span',label));comparison.append(columns);
     for(const entry of recap.comparison){const row=node('div','','comparison-row');row.style.setProperty('--player-color',entry.color);const rider=node('span','','comparison-rider'),riderCopy=node('span');riderCopy.append(node('b',entry.riderLabel),node('small',entry.riderNote));rider.append(node('i'),riderCopy);row.append(rider);for(const column of COMPARISON_COLUMNS)row.append(node(column.key==='wins'?'strong':'span',entry[column.key],column.key==='pickups'?'pickup-counts':column.key==='deaths'?'death-counts':''));comparison.append(row);}
@@ -185,12 +191,13 @@ export async function startOnline():Promise<void>{
     // An ended room is no longer joined play (#44): the thirds controller gives way to the ordinary header so the status
     // reads without opening ☰ MENU. `controller-only` is only ever recomputed from a state update, and none arrives after the end.
     ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
-    event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
+    event:(event,matchId,round,tick)=>{audio.director.message({type:'event',matchId,round,tick,event});if(event.type==='moment')replay.moment(event.moment,matchId,round);},
     state:(state,rules,matchId)=>{
       if(roomEnded)return;
       bootDone();
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
       snapshot=state;renderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;settings=rules;
+      if(!canvas.hidden)replay.observe(state,matchId,performance.now());
       sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.held(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
@@ -265,6 +272,16 @@ export async function startOnline():Promise<void>{
     app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),tick:snapshot?.tick??0});
     return runtime instanceof RoomRuntime?runtime.transport.diagnostics():undefined;
   }).then(report=>{if(report)app.dataset.linkDiagnostics=formatLinkDiagnostics(report.links,report.ice,report.socket);});},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.render();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  /** A running replay takes over the arena: its clip renders under a scope of its own, the overlay dresses it, and live play returns on `done`. */
+  function replayFrame(now:number,predicted:ViewSnapshot|undefined):boolean{
+    const update=canvas.hidden?undefined:replay.frame(now);if(!update)return false;
+    if(update.clip.key!==replayKey){replayKey=update.clip.key;const {card,color}=describeClip(update.clip);replayOverlay.start(card,color);app.classList.add('replaying');}
+    for(const cue of update.cues)audio.director.replayCue(cue);
+    const shown=update.snapshot??predicted;
+    if(shown){presentation.render(shown,now,defaultTheme,sprites,update.snapshot?`${renderScope}:replay:${update.clip.key}`:renderScope);replayOverlay.update(update,canvas,{width:shown.width,height:shown.height});}
+    if(update.stage==='done'){replayKey='';app.classList.remove('replaying');if(reopenRecap){reopenRecap=false;openRecap();}}
+    return true;
+  }
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.render();if(replayFrame(now,predicted)){requestAnimationFrame(frame);return;}if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }

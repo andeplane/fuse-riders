@@ -8,12 +8,15 @@ import {
   DODGE_LOOKBACK_TICKS,
   MAX_MOMENTS_PER_KIND,
   MOMENT_KINDS,
+  REPLAY_PAUSE_TICKS,
   TRICK_SHOT_MAX_AGE_TICKS,
   pushMoment,
+  roundHasMoment,
   type Moment,
 } from '../src/shared/moments.ts';
 import {
   COUNTDOWN_TICKS,
+  ROUND_OVER_TICKS,
   SLOT_COLORS,
   addPlayer,
   createGame,
@@ -275,4 +278,29 @@ test('an eliminated rider outside the sweep records nothing and the detector sta
     return game.moments;
   });
   assert.deepEqual(runs[0], runs[1]);
+});
+
+test('a detected moment is also an event of its tick, and a round with a moment pauses longer for the replay', () => {
+  const quiet = scene(3, 3); place(quiet, 'p0', 900, 700); place(quiet, 'p1', 500, 450); place(quiet, 'p2', 1300, 150);
+  eliminatePlayer(quiet, 'p1'); eliminatePlayer(quiet, 'p2');
+  const plain = step(quiet, new Map());
+  assert.equal(quiet.phase, 'roundOver');
+  assert.equal(plain.events.some((event) => event.type === 'moment'), false);
+  assert.equal(quiet.phaseEndsAtTick, quiet.tick + ROUND_OVER_TICKS, 'no moment, the ordinary pause');
+  const loud = scene(3, 3); place(loud, 'p0', 900, 700); place(loud, 'p1', 500, 450); place(loud, 'p2', 520, 480); dueBomb(loud, 'p0', 510, 450);
+  const result = step(loud, new Map());
+  const events = result.events.filter((event) => event.type === 'moment');
+  assert.deepEqual(events, [{ type: 'moment', moment: only(loud, 'multiKill') }]);
+  assert.notEqual((events[0] as { moment: Moment }).moment.targetIds, loud.moments[0]!.targetIds, 'the event carries its own copy');
+  assert.equal(loud.phase, 'roundOver');
+  assert.equal(loud.phaseEndsAtTick, loud.tick + ROUND_OVER_TICKS + REPLAY_PAUSE_TICKS, 'a highlight round pauses long enough to replay');
+  assert.equal(roundHasMoment(loud), true);
+  const final = scene(2, 2); final.settings = { ...defaultRoomSettings(), match: 'rounds', length: 1 };
+  place(final, 'p0', 500, 350); place(final, 'p1', 900, 800); dueBomb(final, 'p0', 500, 350);
+  step(final, new Map());
+  assert.equal(final.phase, 'matchOver');
+  assert.equal(final.phaseEndsAtTick, final.tick + 60 + REPLAY_PAUSE_TICKS, 'so does the final-round pause before the recap');
+  const capped = scene(); for (let index = 0; index < MAX_MOMENTS_PER_KIND; index += 1) pushMoment(capped, { kind: 'ownGoal', round: 1, tick: index + 1, elapsed: index + 1, playerId: 'p0', targetIds: [], value: 1 });
+  place(capped, 'p0', 500, 350); dueBomb(capped, 'p0', 500, 350);
+  assert.equal(step(capped, new Map()).events.some((event) => event.type === 'moment'), false, 'a dropped ninth own goal is no event either');
 });

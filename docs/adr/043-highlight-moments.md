@@ -44,9 +44,9 @@ Shell bounces are counted in `BombState.shell.bounces`, incremented by `advanceS
 
 `buildMatchRecap(stats, moments)` gains `highlights`: the top `RECAP_HIGHLIGHTS = 5` by presentation score (a wipe of three or more at 100, direct hit 70, double kill 60, trick shot 50–60 by bounces, boxed in 50, cut off 30–54 by trail freshness, bomb dodge 35, mutual destruction 25, own goal 12), one entry per `(round, tick, protagonist)` so one bomb that hit a head and took two riders is one card, and at most two cards per kind and per protagonist for variety. Each card has a title, one line of copy naming the riders, and the round with the time into it. Both recap renderers (`src/client/main.ts` and `src/online/ui.ts`) render the cards with the award-card styling plus a `highlight-card` class, in their own `recap-highlights` container ahead of the awards; the LAN recap grid gains a row (`with-reel`) only while the reel is shown, and the recap smoke counts award cards inside `recap-awards` only. Empty moments render no section.
 
-## Replay later
+## Replay
 
-Every full view already produces a fresh `ViewSnapshot` per tick (`session.snapshot()` in `src/online/runtime.ts`; LAN displays receive one per tick). A presentation-only ring buffer of the last ~4 s of those references, frozen into a clip `[tick − 40, tick + 20]` when a moment lands, could be played back through the existing renderer at the recap. That is not part of this change; this note only establishes that moments carry the round and tick a clip would be cut around.
+Every full view already produces a fresh `ViewSnapshot` per tick (`session.snapshot()` in `src/online/runtime.ts`; LAN displays receive one per tick). [ADR 044](044-instant-replay.md) builds the instant replay on that: a presentation-only ring buffer of those references, a clip cut around a moment's tick, and a broadcast-style playback during a lengthened round-over pause. This note only establishes that moments carry the round and tick a clip is cut around.
 
 ## Verification
 

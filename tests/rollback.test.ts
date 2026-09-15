@@ -94,17 +94,19 @@ test('a rewind across a highlight moment records it once, exactly as a straight 
   const press = guest.append(70, [2, 1]), release = guest.append(73, [3, 1, null, null]);
   // A steer entry that changes nothing (flags already 0) still dirties tick 100, so its late arrival forces a rewind.
   const idle = guest.append(100, [0, 0]);
-  const straight = sim(); feed(straight, 'guest', [press, release, idle]); run(straight, 160);
+  const straight = sim(); const straightEvents = feed(straight, 'guest', [press, release, idle]); straightEvents.push(...run(straight, 160).events);
   const expected = [['ownGoal', 'guest', 113, 1]];
   assert.deepEqual(straight.state.game.moments.map(m => [m.kind, m.playerId, m.tick, m.round]), expected);
+  assert.deepEqual(straightEvents.filter(e => e.endsWith(':moment')), ['113:moment'], 'the moment is an event of its tick');
   // The late view already holds the moment, then rewinds through it.
-  const late = sim(); feed(late, 'guest', [press, release]); run(late, 160);
+  const late = sim(); const lateEvents = feed(late, 'guest', [press, release]); lateEvents.push(...run(late, 160).events);
   assert.deepEqual(late.state.game.moments.map(m => [m.kind, m.playerId, m.tick, m.round]), expected, 'held before the rewind');
   assert.equal(late.insert('guest', idle), 'new');
-  const replayed = run(late, 160);
+  const replayed = run(late, 160); lateEvents.push(...replayed.events);
   assert.equal(replayed.result.status, 'ok'); if (replayed.result.status === 'ok') assert.ok(replayed.result.rewound >= 60, `rewound ${replayed.result.rewound}`);
   assert.equal(replayHash(late.state), replayHash(straight.state));
   assert.deepEqual(late.state.game.moments, straight.state.game.moments, 'the rewind replayed the moment once, not twice');
+  assert.deepEqual(lateEvents.filter(e => e.endsWith(':moment')), ['113:moment'], 'and emitted its event once');
   // The early view never saw the shot before rewinding, so it records the moment for the first time on replay.
   const early = sim(); run(early, 130);
   assert.deepEqual(early.state.game.moments, [], 'without the shot, nothing has happened');
