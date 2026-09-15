@@ -29,7 +29,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npm run typecheck:worker
       - run: npm run test:coverage
       - run: npm run build
       - name: Save coverage
@@ -74,15 +73,16 @@ jobs:
           BROWSER: webkit
       - name: Small-phone avatar picker layout
         run: npx tsx scripts/avatar-layout.ts
+      # The production room protocol (src/service) over in-memory metadata, serving dist/.
       - name: Start local online room service
         run: |
           mkdir -p artifacts
-          npx wrangler dev --port 8787 > artifacts/worker.log 2>&1 &
+          npx tsx src/service/dev.ts --port 8787 > artifacts/room-service.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl -fsS http://localhost:8787/ > /dev/null; then exit 0; fi
             sleep 1
           done
-          cat artifacts/worker.log
+          cat artifacts/room-service.log
           exit 1
       - name: Desktop keyboard steering and firing
         run: npx tsx scripts/keyboard-smoke.ts
@@ -140,7 +140,7 @@ jobs:
           name: browser-evidence
           path: |
             artifacts/*.png
-            artifacts/worker.log
+            artifacts/room-service.log
             docs/online/*benchmark.json
             docs/online/browser-network.json
           if-no-files-found: ignore

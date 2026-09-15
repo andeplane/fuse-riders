@@ -4,13 +4,13 @@ import { BombInputBuffer } from '../shared/bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
 import type { AddressInfo } from 'node:net';
 import type { ViteDevServer } from 'vite';
+import { createDevRoomService, type DevRoomService } from '../service/dev.js';
 import { parseClientMessage, type ErrorCode, type ServerMessage, type GameSnapshot } from '../shared/protocol.js';
 import {
   createGame, addPlayer, removePlayer, startMatch, startNextRound, resetMatch, returnToLobby,
@@ -35,7 +35,7 @@ export interface ServerDependencies {
 }
 /** `roomApi` proxies `/api/*` and its WebSocket upgrades to a room service so the home page's online rooms work from this server. */
 export interface ServerOptions { port?: number; hostname?: string; lanAddress?: string; dev?: boolean; manualTicks?: boolean; buildDirectory?: string; roomApi?: string; dependencies?: Partial<ServerDependencies> }
-/** Dev-only forwarding to the local Wrangler room service; the Worker checks Origin against its own origin, so both are rewritten. */
+/** Dev-only forwarding to the local room service; it only admits same-origin loopback pages, so Host and Origin are both rewritten. */
 function proxyHeaders(target: URL, headers: http.IncomingHttpHeaders): http.OutgoingHttpHeaders {
   const forwarded: http.OutgoingHttpHeaders = {};
   // Client-supplied address headers would let a caller pick its own rate-limit key at the Worker.
@@ -362,28 +362,20 @@ export async function createGameServer(options: ServerOptions = {}) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const dev = process.env.NODE_ENV !== 'production';
-  // Online rooms need the signalling Worker. In development, run it locally and proxy /api through this server so one
-  // `npm run dev` serves LAN play, the home page and online rooms on the same LAN address. ROOM_API points at another service instead.
+  // Online rooms need the room service. In development, run the in-memory one in this process and proxy /api through this
+  // server so one `npm run dev` serves LAN play, the home page and online rooms on the same LAN address. ROOM_API points at another service instead.
   let roomApi = process.env.ROOM_API || undefined;
-  let wrangler: ReturnType<typeof spawn> | undefined;
+  let roomService: DevRoomService | undefined;
   if (dev && !roomApi) {
-    await mkdir(path.join(ROOT, 'dist'), { recursive: true });
-    // The same walk-up as the game port: another worktree's Wrangler on 8787 must not stop this one.
-    const probe = http.createServer(); const port = await listenFree(probe, 8787, '127.0.0.1'); await new Promise(resolve => probe.close(resolve));
+    roomService = createDevRoomService();
+    // The same walk-up as the game port: another worktree's room service on 8787 must not stop this one.
+    const port = await listenFree(roomService.server, 8787, '127.0.0.1');
     roomApi = `http://127.0.0.1:${port}`;
-    wrangler = spawn('npx', ['wrangler', 'dev', '--port', String(port), '--ip', '127.0.0.1'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
-    wrangler.on('exit', code => { if (code) console.warn(`\nRoom service (wrangler dev) stopped; online rooms need it. Set ROOM_API to reuse a running one.\n`); });
-    wrangler.on('error', error => console.warn(`\nRoom service (wrangler dev) could not start: ${error.message}. Online rooms need it; set ROOM_API to reuse one.\n`));
   }
-  // Wait for Wrangler to release its port before this process ends, so `tsx watch` restarts do not pile up copies.
-  const stopWrangler = () => new Promise<void>(resolve => {
-    if (!wrangler || wrangler.exitCode !== null) return resolve();
-    const timer = setTimeout(resolve, 3000); wrangler.once('exit', () => { clearTimeout(timer); resolve(); }); wrangler.kill();
-  });
-  process.on('exit', () => wrangler?.kill());
+  const stopRoomService = () => roomService?.close() ?? Promise.resolve();
   let app: Awaited<ReturnType<typeof createGameServer>>;
-  try { app = await createGameServer({ dev, ...(roomApi ? { roomApi } : {}) }); } catch (error) { await stopWrangler(); throw error; }
+  try { app = await createGameServer({ dev, ...(roomApi ? { roomApi } : {}) }); } catch (error) { await stopRoomService(); throw error; }
   const online = roomApi ? `\nOnline:    http://${app.hostUrl.split('/display')[0]!.replace(/^http:\/\//, '')}/ (create or join rooms; the room service runs on ${roomApi})` : '';
   console.log(`\nFUSE RIDERS — five phones, one arena\n\nTV / host: ${app.hostUrl}\nPhones:    ${app.controllerUrl}${online}\n\nKeep this laptop awake. Connect the TV with HDMI and join the same Wi-Fi.\n`);
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { await stopWrangler(); await app.close(); process.exit(0); });
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { await stopRoomService(); await app.close(); process.exit(0); });
 }
