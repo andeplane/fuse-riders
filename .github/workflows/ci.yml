@@ -148,6 +148,7 @@ jobs:
           path: |
             artifacts/*.png
             artifacts/room-service.log
+            artifacts/shared-room-smoke.json
             docs/online/*benchmark.json
             docs/online/browser-network.json
           if-no-files-found: ignore
