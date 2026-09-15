@@ -34,7 +34,11 @@ export function analyticsEnabled(search: string, port: string): boolean {
   return port === '';
 }
 
-/** Idempotent: the landing page, a room and the boot-failure path all call it, and only the first one loads Mixpanel. */
+/**
+ * Safe to call more than once: the landing page, a room and the boot-failure path all call it, and only the
+ * first loads Mixpanel. Every call registers its super properties, so a later caller merges over an earlier
+ * one's — which is what the boot-failure path wants when it reports against a room that had already started.
+ */
 export function startAnalytics(superProperties: Record<string, unknown>): void {
   if (!analyticsEnabled(location.search, location.port)) return;
   // localStorage over cookies: the game stores everything else there too, and a batch that outlives a navigation
