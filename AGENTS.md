@@ -7,7 +7,7 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 - One agent owns implementation and verification end to end. Work directly; do not create planner/reviewer/approver chains by default.
 - Inspect `git status`, relevant code and nearby tests before editing. Preserve unrelated work. Use `codex/` for new branches and stage only your own changes when committing.
 - Read documentation that helps with the current change. There is no mandatory tour of historical ADRs, reviews or the roadmap.
-- Routine fixes, UI changes and bounded refactors need no ADR or independent approval. For a substantial architecture change, write a short design note identifying the intended behavior and key tradeoffs, then implement. An independent review is optional unless the user requests one; it is not a gate for each correction.
+- Routine fixes, UI changes and bounded refactors need no ADR or independent approval. For a substantial architecture change, write a short design note identifying the intended behavior and key tradeoffs, then implement. Mid-implementation review is not a gate for each correction; the review that matters happens on the pull request (see **Pull requests**).
 - Follow the user's intended architecture. Do not preserve an obsolete online design or add compatibility modes unless needed by the task. Preserve LAN play.
 - Use existing issues when useful. Creating issues, changing labels, posting progress comments and producing formal handoffs are not prerequisites for work. Update tracking at meaningful milestones, not every iteration.
 - Make reasonable implementation decisions autonomously. Ask only when missing information materially affects scope or an action needs authorization.
@@ -45,6 +45,13 @@ npm test
 npm run test:coverage
 npm run build
 ```
+
+## Pull requests
+
+- Open a pull request whenever the work is finished and you believe it is ready. Pushing a branch is not delivery: finish the change, run the checks the change deserves, then open the pull request describing what changed and what was verified. Do not wait to be asked.
+- Review every pull request with subagents before asking for a merge. Dispatch them on the diff — correctness and simulation/protocol risk, then tests and documentation as the change warrants — and act on what they find: fix it, or say in the pull request why it stands. A review that produced no pushed fix and no written answer did not happen.
+- Turn on auto-merge once the review is answered and you are happy with the change. CI must be green first: auto-merge is for a pull request already passing, never a way to land red or unrun checks. CI's browser matrix runs on a push to main, so label a browser-facing pull request `full-ci` before enabling it.
+- Leave merging to the user when the change is theirs to weigh: an architecture change, a protocol or deployment release, or anything you flagged a concern about.
 
 ## Documentation and deployment
 
