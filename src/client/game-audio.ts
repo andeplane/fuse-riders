@@ -297,8 +297,10 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   setInterval(() => director.save(), 2000);
   // Another tab's playlist, loop and source choices take effect here; what each tab is playing stays its own.
   window.addEventListener('storage', event => {
-    if (event.key !== RADIO_KEY) return;
-    const { loopSong, loopPlaylist, source, playlist } = parseRadio(event.newValue);
+    // Cleared storage (newValue null) is not a choice; unchanged choices (another tab's periodic save) need no redraw.
+    if (event.key !== RADIO_KEY || event.newValue === null) return;
+    const { loopSong, loopPlaylist, source, playlist } = parseRadio(event.newValue), state = director.state;
+    if (loopSong === state.loopSong && loopPlaylist === state.loopPlaylist && source === state.source && playlist.join() === state.playlist.join()) return;
     director.adoptChoices({ loopSong, loopPlaylist, source, playlist });
   });
   // Alt-tabbing must not restart the soundtrack, so a hidden tab keeps its track and only drops effect cues.
