@@ -131,6 +131,36 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Rare Target Bomb: slide Fire to place its public reticle."
+    },
+    "pickup-shell": {
+      "file": "pickup-shell.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Bouncing shell bomb for the next shot."
+    },
+    "pickup-gun": {
+      "file": "pickup-gun.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Gun that shoots holes in walls with slight homing."
+    },
+    "pickup-stopwatch": {
+      "file": "pickup-stopwatch.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Fuse timer: shortens your bomb fuse per pickup."
     }
   }
 }
