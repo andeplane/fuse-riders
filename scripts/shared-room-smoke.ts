@@ -15,7 +15,8 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const
      assert.equal(await phone.locator('.mobile-play').count(),0,'a host phone before joining is not the controller');assert.equal(await phone.locator('.mobile-rotate-gate').isVisible(),false,'no rotate gate');
      assert.equal(await phone.locator('button:visible').filter({hasText:/^(ROOM|MENU|☰ MENU)$/}).count(),1,'one menu button');assert.equal(await phone.locator('.shared-room-code').first().textContent(),phoneCode);
      await onScreen('join name field',phone.getByPlaceholder('Your name'));await onScreen('JOIN AS PLAYER',phone.getByRole('button',{name:'JOIN AS PLAYER',exact:true}));await onScreen('COPY LINK',phone.getByRole('button',{name:'COPY LINK',exact:true}));
-     for(const action of ['START RACE','ROOM SETTINGS','TV VIEW','ADD AI'])await onScreen(action,phone.getByRole('button',{name:action,exact:true}));
+     for(const action of ['START RACE','ROOM SETTINGS','ADD AI'])await onScreen(action,phone.getByRole('button',{name:action,exact:true}));
+     assert.equal(await phone.getByRole('button',{name:'TV VIEW',exact:true}).isVisible(),false,'a phone is never the TV: no TV VIEW in the phone lobby');
      // #142: the yellow hint clears the lobby card, the avatar grid stays folded behind CHANGE, no truncated URL, and ⛶ only where fullscreen exists.
      const hintBox=(await phone.locator('.online-notice').boundingBox())!,lobbyBox=(await phone.locator('.phone-lobby>.room-lobby').boundingBox())!;assert.ok(hintBox.height>=12&&hintBox.y+hintBox.height<=lobbyBox.y+1,`lobby hint must sit above the lobby card: ${JSON.stringify({hintBox,lobbyBox})}`);
      assert.equal(await phone.locator('.online-join .avatar-options').isVisible(),false,'avatar grid folded');assert.equal(await phone.locator('.online-controls').isVisible(),false,'no ◀ FIRE ▶ controls before a seat');assert.equal(await phone.locator('.room-qr-url').isVisible(),false,'no truncated join URL on a phone');
@@ -38,7 +39,14 @@ const hc=await browser.newContext({viewport:{width:1280,height:800},...(name==='
  if(clipboard!=='skipped'&&clipboard!=='unreadable')assert.equal(clipboard,invite,'COPIED must mean the link is on the clipboard');
  await host.waitForFunction(()=>document.querySelector('.room-qr-copy')?.textContent==='COPY LINK');
  await guest.addInitScript(()=>{Reflect.set(window,'__sharedStates',[]);window.addEventListener('fuse-benchmark',event=>{const detail=(event as CustomEvent).detail;if(detail.kind==='snapshot'){const states=Reflect.get(window,'__sharedStates') as unknown[];states.push(detail);if(states.length>200)states.shift();}});});
- await guest.goto(invite+'&benchmark=1');
+ // #132: the joiner's name field keeps focus while the room builds around it, so a name typed during boot is not lost. Holding the theme
+  // sprites back makes the window deterministic: the join card is up and focused before the room is built, on any machine speed.
+  let releaseSprites=()=>{};const spritesHeld=new Promise<void>(resolve=>{releaseSprites=resolve;});await guest.route('**/themes/**',async route=>{await spritesHeld;await route.continue();});
+  // goto must not wait for load: the held sprite images are what hold the load event back.
+  await guest.goto(invite+'&benchmark=1',{waitUntil:'domcontentloaded'});const earlyName=guest.getByPlaceholder('Your name');
+  await earlyName.focus();assert.equal(await guest.locator('.online-arena').count(),0,'room not yet built while sprites are held');await guest.keyboard.type('QR');
+  releaseSprites();await guest.waitForFunction(()=>document.querySelector('.online-arena'));await guest.unroute('**/themes/**');await guest.keyboard.type(' guest');
+  assert.equal(await guest.evaluate(()=>document.activeElement?.getAttribute('placeholder')),'Your name','guest name field keeps focus through boot');assert.equal(await earlyName.inputValue(),'QR guest','a name typed across boot is kept');
   // #132: WebKit has shown the guest's name field empty after JOIN, so the join never went out. The name is filled while the page still boots
   // (the window that flaked) and is now kept as typed: an emptied field fails here with the navigation count, a kept one whose tap was lost gets one counted retap.
   const joinName=guest.getByPlaceholder('Your name'),joinButton=guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true});await joinName.fill('QR guest');const navigationsBeforeJoin=guestNavigations;await joinButton.click();
