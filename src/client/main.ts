@@ -528,7 +528,9 @@ function startDisplay(): void {
     if (recap.signature === recapSignature) return;
     recapSignature = recap.signature;
     podium.replaceChildren(); highlights.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
+    // The reel is a fifth grid row; the recap grid only makes room for it when it is shown.
     highlights.classList.toggle('hidden', !recap.highlights.length);
+    matchRecap.classList.toggle('with-reel', recap.highlights.length > 0);
     if (!recap.comparison.length) {
       podium.append(element('p', 'recap-empty', RECAP_EMPTY_MESSAGE));
       return;

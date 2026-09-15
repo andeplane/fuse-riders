@@ -43,7 +43,7 @@ const bombFields = {
   id: integer, ownerId: text, launchX: position, launchY: position, x: position, y: position,
   launchedTick: integer, landsAtTick: integer, placedTick: integer, explodeAtTick: integer, blastRange: range(0, 1000),
   flightPath: array(shape({ x: position, y: position, angle: number }), 32),
-  shell: optional(shape({ vx: range(-1000, 1000), vy: range(-1000, 1000), gun: optional(boolean), bounces: optional(count(1_000_000)) })),
+  shell: optional(shape({ vx: range(-1000, 1000), vy: range(-1000, 1000), gun: optional(boolean), bounces: optional(v => count(1_000_000)(v) && v !== 0) })),
 } satisfies Record<keyof BombState, Guard>;
 const bomb = shape(bombFields);
 const blast = shape({ bombId: integer, ownerId: text, circle: shape({ x: position, y: position, radius: range(0, 1000) }), expiresAtTick: integer } satisfies Record<keyof BlastState, Guard>);

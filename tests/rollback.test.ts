@@ -92,15 +92,27 @@ test('a rewind across a highlight moment records it once, exactly as a straight 
   const { senders, sim } = room([HOST, 'guest'], 40); const guest = senders.get('guest')!;
   // A three-tick charge lands 212 units ahead; driving straight on, the guest rides into its own blast at tick 113.
   const press = guest.append(70, [2, 1]), release = guest.append(73, [3, 1, null, null]);
-  const straight = sim(); feed(straight, 'guest', [press, release]); run(straight, 160);
-  assert.deepEqual(straight.state.game.moments.map(m => [m.kind, m.playerId, m.tick, m.round]), [['ownGoal', 'guest', 113, 1]]);
-  const view = sim(); run(view, 130);
-  assert.deepEqual(view.state.game.moments, [], 'without the shot, nothing has happened');
-  for (const e of [press, release]) assert.equal(view.insert('guest', e), 'new');
-  const after = run(view, 160);
+  // A steer entry that changes nothing (flags already 0) still dirties tick 100, so its late arrival forces a rewind.
+  const idle = guest.append(100, [0, 0]);
+  const straight = sim(); feed(straight, 'guest', [press, release, idle]); run(straight, 160);
+  const expected = [['ownGoal', 'guest', 113, 1]];
+  assert.deepEqual(straight.state.game.moments.map(m => [m.kind, m.playerId, m.tick, m.round]), expected);
+  // The late view already holds the moment, then rewinds through it.
+  const late = sim(); feed(late, 'guest', [press, release]); run(late, 160);
+  assert.deepEqual(late.state.game.moments.map(m => [m.kind, m.playerId, m.tick, m.round]), expected, 'held before the rewind');
+  assert.equal(late.insert('guest', idle), 'new');
+  const replayed = run(late, 160);
+  assert.equal(replayed.result.status, 'ok'); if (replayed.result.status === 'ok') assert.ok(replayed.result.rewound >= 60, `rewound ${replayed.result.rewound}`);
+  assert.equal(replayHash(late.state), replayHash(straight.state));
+  assert.deepEqual(late.state.game.moments, straight.state.game.moments, 'the rewind replayed the moment once, not twice');
+  // The early view never saw the shot before rewinding, so it records the moment for the first time on replay.
+  const early = sim(); run(early, 130);
+  assert.deepEqual(early.state.game.moments, [], 'without the shot, nothing has happened');
+  for (const e of [press, release, idle]) assert.equal(early.insert('guest', e), 'new');
+  const after = run(early, 160);
   assert.equal(after.result.status, 'ok'); if (after.result.status === 'ok') assert.ok(after.result.rewound >= 57, `rewound ${after.result.rewound}`);
-  assert.equal(replayHash(view.state), replayHash(straight.state));
-  assert.deepEqual(view.state.game.moments, straight.state.game.moments, 'the rewind replayed the moment once, not twice and not zero times');
+  assert.equal(replayHash(early.state), replayHash(straight.state));
+  assert.deepEqual(early.state.game.moments, straight.state.game.moments, 'and not zero times');
 });
 test('bot entries authored once by the creator replay identically after a rewind', () => {
   const { senders, sim } = room([HOST, 'bot:1', 'bot:2']); const bots = new BotController({ random: botRandom });

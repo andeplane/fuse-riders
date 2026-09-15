@@ -105,8 +105,9 @@ export function matchHighlights(stats: ReadonlyArray<MatchPlayerStats>, moments:
     if (reel.length >= RECAP_HIGHLIGHTS) break;
     const key = `${moment.round}:${moment.tick}:${moment.playerId}`;
     if (seen.has(key)) continue;
-    seen.add(key);
     if ((perKind.get(moment.kind) ?? 0) >= HIGHLIGHT_VARIETY || (perRider.get(moment.playerId) ?? 0) >= HIGHLIGHT_VARIETY) continue;
+    // Only a card that made the reel claims its play; a capped kind leaves the play to its next-best telling.
+    seen.add(key);
     perKind.set(moment.kind, (perKind.get(moment.kind) ?? 0) + 1);
     perRider.set(moment.playerId, (perRider.get(moment.playerId) ?? 0) + 1);
     const text = HIGHLIGHT_COPY[moment.kind];

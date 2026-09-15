@@ -85,6 +85,7 @@ button { color: inherit; }
 .leaderboard-row small { grid-column: 2 / -1; color: #647b9e; font-size: .57rem; }
 .leaderboard-key, .leaderboard-empty { color: #687d9e; font-size: .52rem; line-height: 1.6; }
 .match-recap { position: absolute; z-index: 5; inset: 2.5%; overflow: hidden; display: grid; grid-template-rows: auto 150px auto minmax(0, 1fr); gap: 12px; padding: clamp(18px, 2.2vw, 34px); border: 3px solid var(--theme-wall, #7250ce); clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px); background: radial-gradient(circle at 50% 0, rgba(42,40,116,.52), transparent 42%), linear-gradient(155deg, rgba(5,18,46,.985), rgba(2,7,23,.99)); box-shadow: inset 0 0 0 2px rgba(30,225,255,.17), 0 0 45px rgba(51,38,151,.58); }
+.match-recap.with-reel { grid-template-rows: auto 150px auto auto minmax(0, 1fr); }
 .match-recap::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .15; background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(74,216,255,.08) 6px); }
 .recap-heading { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #284068; padding-bottom: 12px; }
 .recap-heading h2 { margin: 7px 0 0; color: #effcff; font: clamp(1.15rem, 2.2vw, 2rem)/1.2 "Press Start 2P", ui-monospace, monospace; text-transform: uppercase; text-shadow: 4px 4px 0 #332167, 0 0 16px rgba(33,221,255,.45); }
@@ -192,6 +193,7 @@ button { color: inherit; }
 
 @media (max-height: 720px) and (min-width: 901px) {
   .match-recap { inset: 1.5%; grid-template-rows: auto 115px auto minmax(0, 1fr); gap: 7px; padding: 14px 20px; }
+  .match-recap.with-reel { grid-template-rows: auto 115px auto auto minmax(0, 1fr); }
   .podium-place-1 { min-height: 102px; }
   .podium-place-2 { min-height: 84px; }
   .podium-place-3 { min-height: 74px; }

@@ -55,16 +55,24 @@ test('the highlight reel ranks by weight, keeps one card per play, spreads kinds
     moment({ kind: 'bombDodge', playerId: 'b', targetIds: ['a'], value: 0, tick: 220, elapsed: 860 }),
     moment({ kind: 'cutOff', playerId: 'c', targetIds: ['a'], value: 4, round: 2, tick: 300, elapsed: 30 }),
     moment({ kind: 'ownGoal', playerId: 'a', round: 2, tick: 400, elapsed: 130 }),
+    moment({ kind: 'trickShot', playerId: 'a', targetIds: ['c'], value: 1, round: 2, tick: 500, elapsed: 230 }),
   ];
   const reel = matchHighlights(stats, moments);
   assert.deepEqual(reel.map((entry) => [entry.kind, entry.score, entry.when, entry.title, entry.copy]), [
     ['directHit', 70, 'ROUND 1 · 0:37', 'BULLSEYE', 'Ada BOMBED Byte ON THE HEAD'],
+    ['trickShot', 50, 'ROUND 2 · 0:11', 'BANK SHOT', 'Ada BANKED 1 BOUNCE INTO Nova'],
     ['cutOff', 46, 'ROUND 2 · 0:01', 'CUT OFF', 'Nova CUT OFF Ada · TRAIL 0.2s OLD'],
     ['bombDodge', 35, 'ROUND 1 · 0:42', 'OUT OF THE FIRE', "Byte LEFT Ada'S BLAST ZONE 11u CLEAR"],
     ['bombDodge', 35, 'ROUND 1 · 0:42', 'OUT OF THE FIRE', "Byte LEFT Nova'S BLAST ZONE 3u CLEAR"],
-    ['ownGoal', 12, 'ROUND 2 · 0:06', 'OWN GOAL', 'Ada BOOMED THEMSELVES'],
   ]);
-  assert.deepEqual(reel.map((entry) => [entry.playerId, entry.name, entry.color]), [['a', 'Ada', '#000000'], ['c', 'Nova', '#000002'], ['b', 'Byte', '#000001'], ['b', 'Byte', '#000001'], ['a', 'Ada', '#000000']]);
+  assert.equal(reel.some((entry) => entry.kind === 'ownGoal'), false, "Ada's own goal is her third card and the per-rider cap drops it; Byte's third dodge dies to the per-kind cap");
+  assert.deepEqual(reel.map((entry) => [entry.playerId, entry.name, entry.color]), [['a', 'Ada', '#000000'], ['a', 'Ada', '#000000'], ['c', 'Nova', '#000002'], ['b', 'Byte', '#000001'], ['b', 'Byte', '#000001']]);
+  // A play whose best telling is capped is still told: three direct hits by Ada cap the kind, so the third bomb shows as its double tap.
+  const capped = matchHighlights(stats, [
+    moment({ kind: 'directHit', playerId: 'a', targetIds: ['b'], tick: 100 }), moment({ kind: 'directHit', playerId: 'a', targetIds: ['c'], tick: 200 }),
+    moment({ kind: 'directHit', playerId: 'b', targetIds: ['c'], tick: 300 }), moment({ kind: 'multiKill', playerId: 'b', targetIds: ['a', 'c'], value: 2, tick: 300 }),
+  ]);
+  assert.deepEqual(capped.map((entry) => [entry.kind, entry.playerId]), [['directHit', 'a'], ['directHit', 'a'], ['multiKill', 'b']]);
   const recap = buildMatchRecap(stats, moments);
   assert.equal(recap.highlights.length, 5);
   assert.notEqual(recap.signature, buildMatchRecap(stats).signature, 'moments change the signature');
