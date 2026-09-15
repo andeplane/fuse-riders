@@ -185,3 +185,32 @@ test('a held charge survives a second of lost uplink and the release still fires
   guest.runtime.command({type:'input',left:false,right:false,bomb:false,bombAction:'release'});run(5);
   assert.equal(bombs(),1,'the release matched the charge the fold still held');
 });
+
+test('after a blip in both directions the held steer and a held charge come back without lifting a finger',()=>{
+  const {host,guest,run}=pair();
+  const held=()=>host.runtime.held('guest');
+  guest.runtime.command({type:'input',left:true,right:false,bomb:true,bombAction:'press'});run(10);
+  assert.deepEqual(held(),{left:true,right:false});
+  run(Math.ceil(ABSENT_MS/TICK_MS)+20,false,false);
+  assert.deepEqual(held(),{left:false,right:false},'absence zeroed the folded steer');
+  run(30);
+  // The controller's 50 ms resend carries the held state and no bombAction.
+  for(let i=0;i<6;i++){guest.runtime.command({type:'input',left:true,right:false,bomb:true});run(5);}
+  assert.deepEqual(held(),{left:true,right:false},'the steer was restated');
+  // The rider may have crashed while absent, so judge the fold's stream, not the arena: the press was re-emitted and the release matches it.
+  const stream=()=>internals(host.runtime).session!.sim.state.streams.get('guest')!;
+  assert.notEqual(stream().gesture,undefined,'the charge restarted with a new gesture');
+  guest.runtime.command({type:'input',left:true,right:false,bomb:false,bombAction:'release'});run(5);
+  assert.equal(stream().gesture,undefined,'and the release matched it');
+});
+test('a join refused by a closed channel is retried until it is delivered',()=>{
+  const clock={now:0};
+  const host=room('host','host',clock),guest=room('guest','host',clock);
+  host.fake.callbacks.peer('guest',true);
+  let refuse=true;guest.fake.block=data=>refuse&&(data as {type?:string}).type==='command';
+  const run=(ticks:number)=>{for(let i=0;i<ticks;i++){clock.now+=TICK_MS;host.tick();guest.tick();for(const {to,data} of host.fake.sent.splice(0))if(to==='guest')guest.fake.callbacks.message('host',data);for(const {to,data} of guest.fake.sent.splice(0))if(to==='host')host.fake.callbacks.message('guest',data);}};
+  host.runtime.command({type:'join',name:'Host'});guest.runtime.command({type:'join',name:'Guest'});run(20);
+  assert.equal(internals(host.runtime).session!.game.players.has('guest'),false,'nothing got through yet');
+  refuse=false;run(20);
+  assert.equal(internals(host.runtime).session!.game.players.get('guest')?.name,'Guest','delivered once the channel opened');
+});
