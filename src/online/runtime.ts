@@ -24,6 +24,8 @@ export interface Callbacks { state:(snapshot:ViewSnapshot,settings:RoomSettings,
 export interface RoomRuntimeDependencies { now():number;hidden():boolean;transport(callbacks:TransportCallbacks):PeerTransport }
 /** A member silent this long is logged absent by the host; a host silent this long freezes its views. */
 export const SILENCE_MS=1000;
+/** A rider is logged absent (held controls and charge cancelled) after this much silence; longer than SILENCE_MS because a phone on jittery Wi-Fi loses a few packets in a row. */
+export const ABSENT_MS=2500;
 export const HASH_INTERVAL_TICKS=20;
 /**
  * How far behind its own tick a sender's published hash refers to: the oldest snapshot in its ring, the newest
@@ -181,7 +183,7 @@ export class RoomRuntime {
         if(result==='invalid'){this.telemetry.log('invalid',{member,entry});this.requestResync();return;}
         // Absence zeroes our held controls in every fold, but our edge encoder still believes they are held: when
         // the host marks us present again it has to forget, so the next resend restates the whole controller.
-        if(result!=='duplicate'&&entry[3]===this.transport.id&&(entry[2]===10||entry[2]===12&&entry[4]===true))this.edges.reset();
+        if(result!=='duplicate'&&entry[2]===12&&entry[3]===this.transport.id&&entry[4]===true&&sim.state.game.players.get(this.transport.id)?.connected===false)this.edges.reset();
       }
     }
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
@@ -278,7 +280,7 @@ export class RoomRuntime {
     this.announced=false;
     while(this.accumulator>=TICK_MS){
       this.accumulator-=TICK_MS;
-      for(const [id,at] of this.lastHeard)if(now-at>SILENCE_MS&&session.game.players.get(id)?.connected){this.telemetry.log('absent',{id,silentMs:Math.round(now-at)});session.presence(id,false);}
+      for(const [id,at] of this.lastHeard)if(now-at>ABSENT_MS&&session.game.players.get(id)?.connected){this.telemetry.log('absent',{id,silentMs:Math.round(now-at)});session.presence(id,false);}
       const {matchId,round}=session.game;
       for(const event of session.advance())this.callbacks.event(event,matchId,round,session.tick);
       this.publish(now,false);
@@ -325,15 +327,19 @@ export class RoomRuntime {
       this.checkHash();
     }
     this.sendAccumulator+=Math.min(elapsed,100);
-    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim?sim.tick:target);this.sendTicks++;if(this.own.retained.length||this.sendTicks%5===0)this.sendOwn(now);}
+    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim?sim.tick:target);this.sendTicks++;if(this.own.retained.length||this.edges.holding||this.sendTicks%5===0)this.sendOwn(now);}
   }
   /** A heartbeat arrives every tick; the phone's DOM is rebuilt at most this often, the rest only feed the clock. */
   private showFrame(frame:ControllerFrame):void {
-    this.lastFrameShownAt=this.dependencies.now();
+    this.lastFrameShownAt=this.dependencies.now();this.joined(frame.snapshot.players);
     this.previous=undefined;this.current=frame.snapshot;this.settings=frame.settings;this.callbacks.state(this.current,this.settings,frame.matchId);
   }
+  /** The join is answered by the roster, not by an ack: once this view folds itself in, stop repeating it — a repeated join re-authors the member and used to reset its edges mid-hold. */
+  private joined(players:{has(id:string):boolean}|ReadonlyArray<{id:string}>):void {
+    if(this.pendingJoin&&this.pendingJoin.sentAt!==-Infinity&&('has' in players?players.has(this.transport.id):players.some(p=>p.id===this.transport.id)))this.pendingJoin=undefined;
+  }
   private publishView():void {
-    const sim=this.sim!,game=sim.state.game;
+    const sim=this.sim!,game=sim.state.game;this.joined(game.players);
     this.previous=this.current;this.current={...toSnapshot(game),tick:game.tick,round:game.round};
     this.settings=sim.state.pending;this.callbacks.state(this.current,this.settings,game.matchId);
   }
