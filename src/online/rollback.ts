@@ -1,4 +1,4 @@
-import { applyTick, cloneState, isManagementKind, type LogEntry, type ReplayState } from '../shared/action-log.js';
+import { applyTick, cloneState, replayHash, isManagementKind, type LogEntry, type ReplayState } from '../shared/action-log.js';
 import type { GameEvent } from '../shared/protocol.js';
 
 export const SNAPSHOT_EVERY_TICKS = 4;
@@ -25,7 +25,8 @@ export class Simulation {
   private dirty = Infinity;
   /** Content key of every event emitted inside the window, to the tick it went out at; a rewind that moves an event must not repeat it. */
   private readonly emitted = new Map<string, number>();
-  constructor(public state: ReplayState, public readonly creatorId: string) { this.snapshots.push({ tick: state.game.tick, state: cloneState(state) }); }
+  /** A view keeps a deeper ring than the authority so it still holds the tick whose hash the authority publishes after the packet's flight. */
+  constructor(public state: ReplayState, public readonly creatorId: string, private readonly snapshotCount = SNAPSHOT_COUNT) { this.snapshots.push({ tick: state.game.tick, state: cloneState(state) }); }
   get tick(): number { return this.state.game.tick; }
   private log(id: string): StreamLog { let log = this.logs.get(id); if (!log) { log = { entries: new Map(), contiguous: 0, through: -1 }; this.logs.set(id, log); } return log; }
   /** Highest seq known contiguously for a stream, and the tick its entries are complete through. */
@@ -38,6 +39,8 @@ export class Simulation {
     for (let seq = log.contiguous; seq >= 1; seq--) { const entry = log.entries.get(seq); if (!entry || entry[1] <= this.tick) return seq; }
     return 0;
   }
+  /** The replay hash of the ring snapshot at exactly `tick`, if one is kept; the diagnostic the host's hash is compared to. */
+  hashAt(tick: number): string | undefined { const snapshot = this.snapshots.find(s => s.tick === tick); return snapshot && replayHash(snapshot.state); }
   /** Entries a stream has retained, in seq order; the sender side of repair. */
   retained(id: string): LogEntry[] { return [...(this.logs.get(id)?.entries.values() ?? [])].sort((a, b) => a[0] - b[0]); }
   /**
@@ -101,7 +104,7 @@ export class Simulation {
     const events = applyTick(this.state, tick, this.creatorId, entries);
     const scope = `${this.state.game.matchId}:${this.state.game.round}`;
     for (const event of events) { const key = `${scope}:${eventKey(event)}`; if (!this.emitted.has(key)) { this.emitted.set(key, tick); emit(event, tick); } }
-    if (tick % SNAPSHOT_EVERY_TICKS === 0) { this.snapshots.push({ tick, state: cloneState(this.state) }); while (this.snapshots.length > SNAPSHOT_COUNT) this.snapshots.shift(); }
+    if (tick % SNAPSHOT_EVERY_TICKS === 0) { this.snapshots.push({ tick, state: cloneState(this.state) }); while (this.snapshots.length > this.snapshotCount) this.snapshots.shift(); }
     // The oldest snapshot is as far back as a rewind ever goes, and everything at or before it is already baked into
     // it; keeping entries exactly that long is what stops a rewind replaying a tick whose input was thrown away.
     const horizon = this.snapshots[0]!.tick;

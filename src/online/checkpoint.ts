@@ -1,4 +1,5 @@
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
+import { isBombChargeTicks } from '../shared/bomb-launch.js';
 import type { GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
@@ -150,7 +151,6 @@ export function decodeCheckpoint(raw: string, host: string): RestoredCheckpoint 
     if (!gameInvariants(game)) return;
     const sequences = new Map<string, number>();
     for (const [id, seq] of data.sequences as [string, number][]) { if (!game.players.has(id) || sequences.has(id)) return; sequences.set(id, seq); }
-    if (sequences.size !== game.players.size) return;
     const botIds=new Set<string>();
     for(const id of data.botIds as string[]){if(!id.startsWith(BOT_ID_PREFIX)||id===host||!game.players.has(id)||botIds.has(id))return;botIds.add(id);}
     for (const player of game.players.values()) { player.connected = botIds.has(player.id); player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
@@ -163,6 +163,7 @@ const { drunkStartedTick: _drunkStart, drunkHeadingOffset: _drunkOffset, ...wire
 const { placedTick: _placed, ...wireBombFields } = bombFields;
 const { currentRoundSurvivalTicks: _currentSurvival, ...wireStatsFields } = statsFields;
 const snapshotShape = shape({
+  bombChargeTicks: isBombChargeTicks,
   phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v),
   phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
   width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),

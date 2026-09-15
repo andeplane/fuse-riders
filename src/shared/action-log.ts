@@ -5,7 +5,7 @@ import { parseRoomSettings, type RoomSettings } from './room-settings.js';
 import type { AimPoint, GameEvent } from './protocol.js';
 
 /** Bump on any change to the fold or the simulation; replicas on different rules never share a room. */
-export const REPLAY_RULES = 'fuse-rollback-1';
+export const REPLAY_RULES = 'fuse-rollback-2';
 /** Ticks a simulator can rewind; older entries reach it only through a fresh baseline. */
 export const ROLLBACK_WINDOW_TICKS = 40;
 /** Entries one stream may carry in one packet; low enough that a full packet of every stream still fits the unreliable channel. */
@@ -138,14 +138,16 @@ export function applyTick(state: ReplayState, tick: number, creatorId: string, e
   if (tick !== game.tick + 1) throw new Error(`applyTick expected tick ${game.tick + 1}, got ${tick}`);
   const before = game.phase;
   for (const [, , ...body] of entries.get(creatorId) ?? []) if (isManagementKind(body[0])) applyManagement(state, body as EntryBody);
-  for (const [id, list] of entries) for (const [, , ...body] of list) if (!isManagementKind(body[0]) && game.players.has(id)) applyPlayer(state, id, body as EntryBody);
+  // Entries of a member marked absent are ignored until it is present again; a rewind cannot resurrect them.
+  for (const [id, list] of entries) for (const [, , ...body] of list) if (!isManagementKind(body[0]) && game.players.get(id)?.connected) applyPlayer(state, id, body as EntryBody);
   const inputs = new Map<string, InputIntent>();
   for (const player of game.players.values()) {
     const s = state.streams.get(player.id);
     inputs.set(player.id, s ? { left: !!(s.flags & 1), right: !!(s.flags & 2), bomb: s.gesture !== undefined, ...(s.aim ? { aim: { ...s.aim } } : {}), bombCommands: s.bombs.drainCommands() } : { left: false, right: false, bomb: false });
   }
   const events = step(game, inputs).events;
-  if (before !== game.phase) resetGestures(state);
+  // Leaving play clears gestures; entering it keeps a press made in the transition tick, which the step already honoured.
+  if (before !== game.phase && game.phase !== 'playing') resetGestures(state);
   if (game.phase !== 'playing') for (const player of game.players.values()) { player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
   if (game.phase === 'roundOver' && game.phaseEndsAtTick !== undefined && game.tick >= game.phaseEndsAtTick) {
     pruneDisconnected(state);

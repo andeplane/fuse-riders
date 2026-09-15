@@ -1,4 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
-  <path fill="#ffc400" d="M13 3h6v6h5v5h5v5h-5v5h-5v5h-6v-5H8v-5H3v-5h6v-5h4z"/>
-  <path fill="#fff" d="M15 8h2v6h5v2h-5v5h-2v-5h-5v-2h5z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff7bf"/><stop offset="0.5" stop-color="#ffd051"/><stop offset="1" stop-color="#ed861b"/></linearGradient>
+  </defs>
+  <g transform="scale(.5)">
+    <path d="m34.7 8.5 6.2 12.8 14.2 2.1c2.4.3 3.3 3.3 1.5 5l-10.3 10 2.5 14.2c.4 2.4-2.1 4.2-4.2 3.1L32 49l-12.6 6.7c-2.1 1.1-4.6-.7-4.2-3.1l2.5-14.2-10.3-10c-1.8-1.7-.9-4.7 1.5-5l14.2-2.1 6.2-12.8c1.1-2.2 4.3-2.2 5.4 0Z" fill="url(#gold)" stroke="#fff1a8" stroke-width="2"/>
+    <path d="m31 17-5 10-11 2" fill="none" stroke="#fffbd9" stroke-width="3"/>
+    <path d="m32 26 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1Z" fill="#fff4b6" opacity=".65"/>
+  </g>
 </svg>

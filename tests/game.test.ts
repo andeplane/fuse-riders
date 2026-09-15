@@ -312,6 +312,32 @@ test('quick bomb action bursts launch at minimum range and cancel paths never la
   assert.equal(owner.bombChargeStartedTick, undefined);
 });
 
+test('bomb uses the configured aim time while steering and follows the release heading', () => {
+  for (const [bombChargeTicks, distance] of [[undefined, 400], [24, 200], [2, 400]] as const) {
+    const state = gameWithPlayers();
+    if (bombChargeTicks !== undefined) state.settings = { ...defaultRoomSettings(), bombChargeTicks };
+    enterPlaying(state);
+    const owner = state.players.get('p0')!;
+    owner.x = 500; owner.y = 300; owner.angle = 0;
+    state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
+    step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
+    const startedTick = state.tick;
+    for (let tick = 1; tick < 8; tick++) {
+      step(state, inputs(['p0', { right: true, bomb: true }]));
+      assert.equal(state.bombs.size, 0, 'steering while charging must not launch');
+    }
+    step(state, inputs(['p0', { right: true, bombCommands: [{ action: 'release' }] }]));
+    const bomb = [...state.bombs.values()][0]!;
+    assert.equal(state.tick - startedTick, 8);
+    assert.ok(owner.angle > 0, 'rider keeps steering throughout the charge');
+    assert.ok(Math.abs(Math.hypot(bomb.x - bomb.launchX, bomb.y - bomb.launchY) - distance) < 1e-8);
+    assert.ok(Math.abs(bomb.x - (owner.x + Math.cos(owner.angle) * distance)) < 1e-8);
+    assert.ok(Math.abs(bomb.y - (owner.y + Math.sin(owner.angle) * distance)) < 1e-8);
+    assert.equal(toSnapshot(state).bombChargeTicks, bombChargeTicks ?? 8);
+    assert.equal(owner.bombChargeStartedTick, undefined);
+  }
+});
+
 test('charged launches cap and clamp to the active safe interior', () => {
   const state = gameWithPlayers();
   enterPlaying(state);

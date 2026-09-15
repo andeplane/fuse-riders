@@ -1,23 +1,23 @@
 # Theme assets
 
-The baseline follows the [neon/pixel gameplay reference](gameplay-concepts/06-neon-pixel-hybrid.png): a dark navy arena, crisp silhouettes, cyan/magenta/orange accents, and bright blast sparks. Assets live in `public/themes/`; both `neon-pixel` and `clean-neon` currently provide all fifteen SVG files below.
+The baseline follows the [neon/pixel gameplay reference](gameplay-concepts/06-neon-pixel-hybrid.png): a dark navy arena, crisp silhouettes, cyan/magenta/orange accents, and bright blast sparks. Assets live in `public/themes/`; both `neon-pixel` and `clean-neon` provide all fifteen SVG files below. Bombs, flames and all twelve pickups use smooth rounded artwork with shaded surfaces and bright edge highlights to match the interface. That artwork is intentionally shared by both themes (only the dark body shading tint differs slightly); rider, trail and arena styling remain theme-specific.
 
 The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` supplies palette, rendering settings, and core sprite paths. [The manifest](../public/themes/manifest.json) records the asset inventory and source geometry; it does not discover themes automatically. Pickup artwork loads by theme ID and pickup type in `src/client/pickup-renderer.ts`.
 
 | Files | Purpose |
 | --- | --- |
-| `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and blast art. |
+| `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and flame art (flame is preloaded but not currently drawn; blasts render as procedural discs). |
 | `pickup-blast.svg`, `pickup-star.svg` | Larger explosions and invincibility. |
+| `pickup-stopwatch.svg`, `pickup-gun.svg`, `pickup-shell.svg` | Shorter fuse, gun and bouncing shell. |
 | `pickup-beer.svg` | Opponent wobble. |
-| `pickup-ink.svg` | One-second rival ink clouds, with clear zones around unaffected riders. |
+| `pickup-ink.svg` | Three-second rival ink clouds, with clear zones around unaffected riders. |
 | `pickup-target.svg` | Target Bomb reticle; phone Fire becomes a trackpad for one release. |
 | `pickup-five.svg` | Rare five-bomb fan; gold frame distinguishes it from Triple. |
 | `pickup-triple.svg` | Triple Shot. |
 | `pickup-orbitShield.svg`, `pickup-portal.svg` | Orbit Shield and Portal. |
-| `pickup-shell.svg` | Shell Shot; the next bomb bounces until it hits a rider. |
-| `pickup-gun.svg` | Gun; shots punch holes in walls and home slightly. |
-| `pickup-stopwatch.svg` | FUSE; shortens your own bomb fuse per pickup. |
 
-All sprites have transparent 32×32 SVG viewboxes. The rider points right at angle zero, centered at `[16,16]`. Recoloring preserves white highlights and dark interiors. Bombs keep a dark body with a procedural fuse ring. Pickup icons use `[16,16]` anchors; flame source art uses `[16,27]`. Charge indicators, bomb flight/release effects, shield orbits, and linked portal walls are rendered procedurally using the active palette. Art never changes server hitboxes.
+All sprites have transparent 32×32 SVG viewboxes. The rider points right at angle zero, centered at `[16,16]`. Recoloring preserves white highlights and dark interiors. Bombs keep a dark body with a procedural fuse ring. Pickup icons use `[16,16]` anchors; flame source art uses `[16,27]`. Bombs and pickups rasterize at 128×128 in Phaser and use smooth image scaling in Canvas and the legend. Countdown arcs have rounded highlights; blast discs and radius outlines follow the supplied radius without grid snapping. Charge indicators, bomb flight/release effects, shield orbits, and linked portal walls are rendered procedurally using the active palette. Art never changes server hitboxes.
 
 To add a style, extend `ThemeId` and the `themes` registry, supply all fifteen files in a matching `public/themes/<id>/` directory, and update the manifest. The TV selector comes from the registry. `applyThemeProperties` supplies CSS custom properties while Canvas reads the same definition. Images are cached and have geometric fallbacks. Shared simulation and server code never import visual assets.
+
+Edit the source artwork in `scripts/generate-powerup-sprites.ts`, then run `node --import tsx scripts/generate-powerup-sprites.ts` to regenerate both themes. Run `node --import tsx scripts/powerup-showcase.ts` (optionally `BROWSER=webkit`) for a contact sheet at enlarged, 22px and 34px sizes plus both themes in the actual Phaser WebGL and Canvas renderers. Captures go to `artifacts/powerup-showcase/`.

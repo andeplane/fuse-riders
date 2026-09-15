@@ -6,6 +6,7 @@ import {
   BOMB_MIN_LAUNCH_DISTANCE,
   bombLandingPoint,
   bombLaunchDistance,
+  isBombChargeTicks,
 } from '../src/shared/bomb-launch.ts';
 
 test('maps charge ticks linearly between accepted minimum and maximum', () => {
@@ -15,6 +16,16 @@ test('maps charge ticks linearly between accepted minimum and maximum', () => {
   assert.equal(bombLaunchDistance(999), BOMB_MAX_LAUNCH_DISTANCE);
   assert.equal(bombLaunchDistance(-2), BOMB_MIN_LAUNCH_DISTANCE);
   assert.equal(bombLaunchDistance(Number.NaN), BOMB_MIN_LAUNCH_DISTANCE);
+});
+
+test('a custom aim time scales the same distance range and bounds the tick grid', () => {
+  assert.equal(BOMB_MAX_CHARGE_TICKS, 8, 'default aim time is 0.4 s at 20 Hz');
+  assert.equal(bombLaunchDistance(12, 24), 250);
+  assert.equal(bombLaunchDistance(24, 24), BOMB_MAX_LAUNCH_DISTANCE);
+  assert.equal(bombLaunchDistance(1, 2), 250);
+  assert.equal(bombLaunchDistance(60, 40), BOMB_MAX_LAUNCH_DISTANCE);
+  for (const value of [2, 8, 40]) assert.equal(isBombChargeTicks(value), true);
+  for (const value of [1, 41, 7.5, '8', Number.NaN, undefined]) assert.equal(isBombChargeTicks(value), false);
 });
 
 test('projects along the release angle and clamps each coordinate to safe bounds', () => {

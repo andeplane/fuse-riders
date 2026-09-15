@@ -70,20 +70,20 @@ try {
   assert.equal(await host.getByRole('button', { name: 'Mute music', exact: true }).getAttribute('aria-pressed'), 'true');
   await host.getByLabel('Effects volume', { exact: true }).fill('20');
   await host.locator('.audio-controls summary').click();
-  await host.getByText('larger explosions', { exact: false }).waitFor();
-  assert.equal(await host.getByText('5s invulnerable', { exact: false }).count(), 0);
+  await host.getByText('bigger explosions', { exact: false }).waitFor();
+  assert.equal(await host.getByText('invulnerable', { exact: false }).count(), 0, 'LAN legend omits star, which only room settings can enable');
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
-  await host.getByText('next launch fires 3', { exact: false }).waitFor();
+  await host.getByText('next bomb launch fires 3', { exact: false }).waitFor();
   assert.equal(await host.getByText('next launch seeks', { exact: false }).count(), 0, 'retired power-up is absent from legend');
   await host.getByText('blocks one crash', { exact: false }).waitFor();
-  await host.getByText('opens linked gates', { exact: false }).waitFor();
+  await host.getByText('opens a pair of linked gates', { exact: false }).waitFor();
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
   // Switching the style must re-src every legend icon, not just the ones that existed when the
   // theme plumbing was written. Ends on the default so later steps shoot the usual artwork.
   for (const themeId of ['clean-neon', 'neon-pixel']) {
     await host.getByRole('combobox').selectOption(themeId);
     const legendSources = await host.locator('.pickup-legend img').evaluateAll(images => images.map(image => image.getAttribute('src') ?? ''));
-    assert.ok(legendSources.length >= 11, `legend icons found: ${legendSources.length}`);
+    assert.equal(legendSources.length, 11, `legend icons found: ${legendSources.length}`);
     for (const source of legendSources) assert.ok(source.includes(`/themes/${themeId}/`), `legend icon ${source} ignores theme ${themeId}`);
   }
 

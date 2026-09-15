@@ -1,3 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <path fill="#fff" stroke="#ff6b1a" stroke-width="2.25" stroke-linejoin="round" d="M16 3c4 6 3 9 7 12 6 6 2 14-7 14S6 25 9 18c1-3 4-5 5-8 2 2 3 4 3 6 2-3 2-7-1-13z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff7bf"/><stop offset="0.5" stop-color="#ffd051"/><stop offset="1" stop-color="#ed861b"/></linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#ffdc79"/><stop offset="0.5" stop-color="#ff8b36"/><stop offset="1" stop-color="#e93665"/></linearGradient>
+  </defs>
+  <g transform="scale(.5)">
+    <path d="M33 5c5 13 2 18 8 23 3-4 4-8 4-12 12 13 17 26 9 36-9 12-34 13-44-1-6-9-1-23 9-31-1 10 1 12 4 14 5-7 2-19 10-29Z" fill="url(#orange)" stroke="#ffd78b" stroke-width="1.5"/>
+    <path d="M32 28c2 8 9 12 10 18 2 12-20 14-21 2-1-7 7-12 11-20Z" fill="url(#gold)"/>
+    <path d="M32 41c-6 7-6 14 0 14s6-7 0-14Z" fill="#fff9da"/>
+  </g>
 </svg>
