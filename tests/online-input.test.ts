@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HostSession } from '../src/online/host-session.js';
+import { HostSession, INGEST_STALL_ROUNDS } from '../src/online/host-session.js';
+import { HASH_LAG_TICKS } from '../src/online/runtime.js';
 import { Simulation } from '../src/online/rollback.js';
 import { StreamSender } from '../src/online/stream.js';
 import { InputEdges } from '../src/online/input-edges.js';
@@ -63,6 +64,27 @@ test('a silent member is neutralized by presence and a between-rounds leave free
   assert.equal(s.game.players.get('guest')!.connected,false);assert.equal(s.sim.state.streams.get('guest')!.flags,0);assert.equal(s.game.players.get('guest')!.bombChargeStartedTick,undefined);
   s.presence('guest',true);s.advance();assert.equal(s.game.players.get('guest')!.connected,true);
   s.command('host',{type:'action',action:'lobby'});s.advance();s.disconnect('guest');s.advance();assert.equal(s.game.players.has('guest'),false);
+});
+test('a gap the guest can no longer repair is dropped instead of wedging its input forever',()=>{
+  const s=playing(),g=guest(s);
+  g.packet({left:true,right:false,bomb:false});                     // seq 1, lost on the way up
+  for(let i=0;i<60;i++)s.advance();                                 // three seconds of uplink loss
+  const later=g.packet({left:false,right:true,bomb:false});         // seq 2, well past the guest's retained window
+  let rounds=0;
+  while(s.sim.state.streams.get('guest')!.flags!==2&&rounds<=INGEST_STALL_ROUNDS+2){rounds++;g.deliver(later);s.advance();}
+  assert.ok(rounds<=INGEST_STALL_ROUNDS,`input resumed after ${rounds} repair rounds`);
+  assert.equal(s.sim.state.streams.get('guest')!.flags,2);
+  assert.deepEqual(s.senders.get('guest')!.retained.map(e=>e[0]),[1],'the relay numbering stays contiguous across the dropped gap');
+  assert.deepEqual(g.deliver(g.packet({left:false,right:false,bomb:false})),{},'the stream carries on from there');
+});
+test('a late entry rewinds the host state but never the tick whose hash it publishes',()=>{
+  const s=playing();while(s.tick%4!==0||s.tick<80)s.advance();
+  const now=s.tick,lagged=now-HASH_LAG_TICKS;
+  const beforeNow=s.sim.hashAt(now),beforeLagged=s.sim.hashAt(lagged);
+  assert.ok(beforeNow&&beforeLagged,'the ring holds both ticks');
+  s.ingest('guest',[new StreamSender().append(now-30,[0,1])]);s.advance();
+  assert.notEqual(s.sim.hashAt(now),beforeNow,'the entry rewound a tick the host had already simulated');
+  assert.equal(s.sim.hashAt(lagged),beforeLagged,'but not the one it publishes a hash for');
 });
 /** What a full view does with a baseline: exact state, per-stream positions, retained entries. */
 function installed(s:HostSession){
