@@ -15,7 +15,7 @@ import { ControllerInputState } from './controller-state.js';
 import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortals, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
-import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
 import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
 import { POWERUP_GUIDE } from './powerup-guide.js';
 import { createPowerupGuide } from './powerup-guide-view.js';
@@ -417,9 +417,10 @@ function startDisplay(): void {
   const recapAction = element('button', 'host-action recap-rematch', 'REMATCH'); recapAction.type = 'button';
   recapHeading.append(recapTitle, recapAction);
   const podium = element('div', 'recap-podium');
+  const highlights = element('div', 'recap-highlights hidden');
   const awards = element('div', 'recap-awards');
   const comparison = element('div', 'recap-comparison');
-  matchRecap.append(recapHeading, podium, awards, comparison);
+  matchRecap.append(recapHeading, podium, highlights, awards, comparison);
   const performanceDisplay = element('output', 'perf-overlay hidden', 'FPS --  RENDER --ms');
   const roundBadge = element('div', 'round-badge', 'ROUND 1');
   stage.append(canvas, lobby, roundBadge, announcement, matchRecap, leaderboardDrawer, performanceDisplay);
@@ -523,13 +524,21 @@ function startDisplay(): void {
   }
 
   function renderMatchRecap(snapshot: ScoredSnapshot): void {
-    const recap = buildMatchRecap(snapshot.matchStats ?? []);
+    const recap = buildMatchRecap(snapshot.matchStats ?? [], snapshot.moments ?? []);
     if (recap.signature === recapSignature) return;
     recapSignature = recap.signature;
-    podium.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
+    podium.replaceChildren(); highlights.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
+    highlights.classList.toggle('hidden', !recap.highlights.length);
     if (!recap.comparison.length) {
       podium.append(element('p', 'recap-empty', RECAP_EMPTY_MESSAGE));
       return;
+    }
+    if (recap.highlights.length) highlights.append(element('p', 'reel-title', HIGHLIGHTS_TITLE));
+    for (const entry of recap.highlights) {
+      const card = element('article', 'award-card highlight-card');
+      card.style.setProperty('--player-color', escapeColor(entry.color));
+      card.append(element('span', 'award-icon', entry.icon), element('small', '', entry.when), element('strong', '', entry.title), element('em', '', entry.copy));
+      highlights.append(card);
     }
     for (const entry of recap.podium) {
       const card = element('article', `podium-card podium-place-${entry.placement}`);

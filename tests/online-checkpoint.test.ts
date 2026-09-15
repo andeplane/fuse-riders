@@ -47,6 +47,42 @@ test('checkpoint rejects missing required game maps and nested fields', () => {
   for (const key of ['deathsByCause','currentRoundSurvivalTicks','distanceUnits']) rejectedWithoutMutation(corrupt(playing(), (_data, game) => { delete object(mapped(game.matchStats)[0][1])[key]; }));
 });
 
+test('checkpoint carries highlight moments and shell bounces and rejects malformed ones', () => {
+  const source = playing();
+  const tick = source.game.tick;
+  source.game.moments.push({ kind: 'cutOff', round: 1, tick, elapsed: 1, playerId: 'host', targetIds: ['guest'], value: 5 }, { kind: 'ownGoal', round: 1, tick, elapsed: 1, playerId: 'guest', targetIds: [], value: 1 });
+  const restored = session();
+  assert.equal(restored.restore(source.checkpoint()), true);
+  assert.deepEqual(restored.game.moments, source.game.moments);
+  const first = (game: Record<string, unknown>) => object(list(game.moments)[0]);
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { delete game.moments; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).kind = 'closeCall'; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).tick = tick + 1; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).elapsed = tick + 1; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).round = 2; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).playerId = 'nobody'; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).targetIds = ['nobody']; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).targetIds = ['host']; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).targetIds = ['guest', 'guest']; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).value = 1.5; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { first(game).extra = true; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { const moments = list(game.moments); moments.push(...Array.from({ length: 8 }, () => ({ ...moments[0] as object }))); }));
+  const shooter = playing();
+  shooter.game.players.get('host')!.shellArmed = true;
+  shooter.command('host', { type: 'input', left: false, right: false, bomb: false });
+  shooter.command('host', { type: 'input', left: false, right: false, bomb: true, bombAction: 'press' }); shooter.advance();
+  shooter.command('host', { type: 'input', left: false, right: false, bomb: false, bombAction: 'release' }); shooter.advance();
+  // The host spawns facing east 773 units from the wall; at 22.5 units a tick the shell has bounced well within two seconds.
+  for (let i = 0; i < 40; i++) shooter.advance();
+  const shell = [...shooter.game.bombs.values()].find(bomb => bomb.shell)!;
+  assert.ok((shell.shell!.bounces ?? 0) >= 1, 'a shell that has been flying for two seconds has hit the wall');
+  const bounced = session();
+  assert.equal(bounced.restore(shooter.checkpoint()), true);
+  assert.equal(bounced.game.bombs.get(shell.id)!.shell!.bounces, shell.shell!.bounces);
+  rejectedWithoutMutation(corrupt(shooter, (_data, game) => { object(object(mapped(game.bombs)[0][1]).shell).bounces = -1; }));
+  rejectedWithoutMutation(corrupt(shooter, (_data, game) => { object(object(mapped(game.bombs)[0][1]).shell).bounces = 1.5; }));
+});
+
 test('checkpoint rejects schema incompatibility, foreign host and unsafe shape extensions', () => {
   rejectedWithoutMutation(corrupt(playing(), data => { data.compatibility='fuse-simulation-1'; }));
   rejectedWithoutMutation(corrupt(playing(), (_data,game) => { object(game.settings).bombChargeTicks=0; }));

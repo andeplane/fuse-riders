@@ -103,6 +103,11 @@ button { color: inherit; }
 .award-card small { overflow: hidden; color: #899fc3; font-size: .62rem; white-space: nowrap; text-overflow: ellipsis; }
 .award-card strong { overflow: hidden; color: #eefbff; font-size: .76rem; text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; }
 .award-card em { color: #ffe26a; font-size: .62rem; font-style: normal; }
+.recap-highlights { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; }
+.reel-title { grid-column: 1 / -1; margin: 0; color: #8097bd; font-size: .62rem; letter-spacing: .08em; }
+.highlight-card { --player-color: #29dfff; border-color: color-mix(in srgb, var(--player-color) 55%, #354879); background: linear-gradient(90deg, color-mix(in srgb, var(--player-color) 12%, rgba(7,16,44,.88)), rgba(7,16,44,.88)); }
+.highlight-card .award-icon { color: var(--player-color); }
+.highlight-card em { color: #d6e4ff; }
 .recap-comparison { position: relative; z-index: 1; min-height: 0; overflow: auto; border: 1px solid #20365f; background: rgba(2,8,25,.75); }
 .comparison-key { margin: 0; padding: 7px 12px; color: #8097bd; background: #091730; font-size: .62rem; letter-spacing: .04em; }
 .comparison-row { display: grid; grid-template-columns: minmax(150px, 1.55fr) repeat(9, minmax(52px, 1fr)); align-items: center; min-height: 56px; border-bottom: 1px solid #15284a; color: #b5c7e2; text-align: center; font-size: .7rem; }

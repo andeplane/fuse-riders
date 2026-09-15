@@ -13,12 +13,12 @@ function seeded(seed: number) { let s = seed >>> 0; return () => { s = (s + 0x6d
 function initial(): ReplayState { return createReplayState(createGame('match-1'), defaultRoomSettings()); }
 const noop = () => {};
 /** A room: host stream authors management; every member has a sender; a straight replica applies everything in order. */
-function room(members: string[]) {
+function room(members: string[], snapshotCount?: number) {
   const senders = new Map(members.map(id => [id, new StreamSender()]));
   const host = senders.get(HOST)!;
   const joins: LogEntry[] = members.map((id, slot) => host.append(0, [10, id, id.startsWith('bot:') ? 'AI' : id, slot, id.startsWith('bot:') ? 'robot' : null]));
   const start = host.append(0, [14, 'start', 'match-1']);
-  const sim = () => { const s = new Simulation(cloneState(initial()), HOST); for (const e of [...joins, start]) assert.equal(s.insert(HOST, e), 'new'); return s; };
+  const sim = () => { const s = new Simulation(cloneState(initial()), HOST, snapshotCount); for (const e of [...joins, start]) assert.equal(s.insert(HOST, e), 'new'); return s; };
   return { senders, sim };
 }
 function run(sim: Simulation, to: number) { const events: string[] = []; const result = sim.advanceTo(to, (e, t) => events.push(`${t}:${e.type}`)); return { result, events }; }
@@ -86,6 +86,21 @@ test('a rewind across a phase boundary replays the transition and emits each eve
   assert.equal(replayHash(view.state), replayHash(straight.state));
   assert.deepEqual([...first.events, ...second.events], truth, 'events are emitted once and in order');
   assert.ok(truth.some(e => e.endsWith('bombPlaced')) && truth.some(e => e.endsWith('playerEliminated')), 'the shot and the round end both replayed');
+});
+test('a rewind across a highlight moment records it once, exactly as a straight run does', () => {
+  // A deeper ring than the default lets the view rewind from past the moment to before the shot that caused it.
+  const { senders, sim } = room([HOST, 'guest'], 40); const guest = senders.get('guest')!;
+  // A three-tick charge lands 212 units ahead; driving straight on, the guest rides into its own blast at tick 113.
+  const press = guest.append(70, [2, 1]), release = guest.append(73, [3, 1, null, null]);
+  const straight = sim(); feed(straight, 'guest', [press, release]); run(straight, 160);
+  assert.deepEqual(straight.state.game.moments.map(m => [m.kind, m.playerId, m.tick, m.round]), [['ownGoal', 'guest', 113, 1]]);
+  const view = sim(); run(view, 130);
+  assert.deepEqual(view.state.game.moments, [], 'without the shot, nothing has happened');
+  for (const e of [press, release]) assert.equal(view.insert('guest', e), 'new');
+  const after = run(view, 160);
+  assert.equal(after.result.status, 'ok'); if (after.result.status === 'ok') assert.ok(after.result.rewound >= 57, `rewound ${after.result.rewound}`);
+  assert.equal(replayHash(view.state), replayHash(straight.state));
+  assert.deepEqual(view.state.game.moments, straight.state.game.moments, 'the rewind replayed the moment once, not twice and not zero times');
 });
 test('bot entries authored once by the creator replay identically after a rewind', () => {
   const { senders, sim } = room([HOST, 'bot:1', 'bot:2']); const bots = new BotController({ random: botRandom });

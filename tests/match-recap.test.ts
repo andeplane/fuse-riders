@@ -2,14 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { durationText as sharedDurationText } from '../src/shared/duration-text.js';
 import type { MatchPlayerStats } from '../src/shared/match-stats.js';
+import type { Moment } from '../src/shared/moments.js';
 import {
   AWARD_DEFINITIONS,
   COMPARISON_COLUMNS,
   buildMatchRecap,
+  clockText,
   comparisonRows,
   distanceText,
   durationText,
   matchAwards,
+  matchHighlights,
   matchTotals,
   podiumOrder,
   recapSignature,
@@ -36,7 +39,56 @@ test('distances render as whole arena units and durations reuse the shared forma
 
 test('empty statistics produce an empty recap with no placeholder awards or totals', () => {
   const recap = buildMatchRecap([]);
-  assert.deepEqual(recap, { signature: '', podium: [], awards: [], totals: [], comparison: [] });
+  assert.deepEqual(recap, { signature: '', podium: [], awards: [], totals: [], comparison: [], highlights: [] });
+});
+
+const moment = (overrides: Partial<Moment> & { kind: Moment['kind']; playerId: string }): Moment =>
+  ({ round: 1, tick: 100, elapsed: 40, targetIds: [], value: 1, ...overrides });
+
+test('the highlight reel ranks by weight, keeps one card per play, spreads kinds and riders, and names riders from the statistics', () => {
+  const stats = [rider({ playerId: 'a', slot: 0, matchPlacement: 1, name: 'Ada' }), rider({ playerId: 'b', slot: 1, matchPlacement: 2, name: 'Byte' }), rider({ playerId: 'c', slot: 2, matchPlacement: 3, name: 'Nova' })];
+  const moments: Moment[] = [
+    moment({ kind: 'multiKill', playerId: 'a', targetIds: ['b', 'c'], value: 2, tick: 100, elapsed: 740 }),
+    moment({ kind: 'directHit', playerId: 'a', targetIds: ['b'], tick: 100, elapsed: 740 }),
+    moment({ kind: 'bombDodge', playerId: 'b', targetIds: ['a'], value: 11, tick: 200, elapsed: 840 }),
+    moment({ kind: 'bombDodge', playerId: 'b', targetIds: ['c'], value: 3, tick: 210, elapsed: 850 }),
+    moment({ kind: 'bombDodge', playerId: 'b', targetIds: ['a'], value: 0, tick: 220, elapsed: 860 }),
+    moment({ kind: 'cutOff', playerId: 'c', targetIds: ['a'], value: 4, round: 2, tick: 300, elapsed: 30 }),
+    moment({ kind: 'ownGoal', playerId: 'a', round: 2, tick: 400, elapsed: 130 }),
+  ];
+  const reel = matchHighlights(stats, moments);
+  assert.deepEqual(reel.map((entry) => [entry.kind, entry.score, entry.when, entry.title, entry.copy]), [
+    ['directHit', 70, 'ROUND 1 · 0:37', 'BULLSEYE', 'Ada BOMBED Byte ON THE HEAD'],
+    ['cutOff', 46, 'ROUND 2 · 0:01', 'CUT OFF', 'Nova CUT OFF Ada · TRAIL 0.2s OLD'],
+    ['bombDodge', 35, 'ROUND 1 · 0:42', 'OUT OF THE FIRE', "Byte LEFT Ada'S BLAST ZONE 11u CLEAR"],
+    ['bombDodge', 35, 'ROUND 1 · 0:42', 'OUT OF THE FIRE', "Byte LEFT Nova'S BLAST ZONE 3u CLEAR"],
+    ['ownGoal', 12, 'ROUND 2 · 0:06', 'OWN GOAL', 'Ada BOOMED THEMSELVES'],
+  ]);
+  assert.deepEqual(reel.map((entry) => [entry.playerId, entry.name, entry.color]), [['a', 'Ada', '#000000'], ['c', 'Nova', '#000002'], ['b', 'Byte', '#000001'], ['b', 'Byte', '#000001'], ['a', 'Ada', '#000000']]);
+  const recap = buildMatchRecap(stats, moments);
+  assert.equal(recap.highlights.length, 5);
+  assert.notEqual(recap.signature, buildMatchRecap(stats).signature, 'moments change the signature');
+  assert.equal(buildMatchRecap(stats).signature, recapSignature(stats), 'no moments, no suffix');
+  assert.deepEqual(matchHighlights([], [moment({ kind: 'ownGoal', playerId: 'ghost' })]).map((entry) => [entry.name, entry.color, entry.copy]), [['ghost', '#ffffff', 'ghost BOOMED THEMSELVES']]);
+});
+
+test('highlight copy covers every kind, and a wipe outranks everything', () => {
+  const stats = [rider({ playerId: 'a', slot: 0, matchPlacement: 1, name: 'Ada' }), rider({ playerId: 'b', slot: 1, matchPlacement: 2, name: 'Byte' }), rider({ playerId: 'c', slot: 2, matchPlacement: 3, name: 'Nova' }), rider({ playerId: 'd', slot: 3, matchPlacement: 4, name: 'Turing' })];
+  const text = (entry: Moment) => { const [card] = matchHighlights(stats, [entry]); return [card!.title, card!.copy, card!.score]; };
+  assert.deepEqual(text(moment({ kind: 'multiKill', playerId: 'a', targetIds: ['b', 'c', 'd'], value: 3 })), ['TRIPLE TAP', 'Ada TOOK OUT Byte + Nova + Turing AT ONCE', 100]);
+  assert.deepEqual(text(moment({ kind: 'multiKill', playerId: 'a', targetIds: ['b', 'c'], value: 2 })), ['DOUBLE TAP', 'Ada TOOK OUT Byte + Nova AT ONCE', 60]);
+  assert.equal(text(moment({ kind: 'multiKill', playerId: 'a', targetIds: ['b', 'c', 'd'], value: 4 }))[0], 'GRID WIPE');
+  assert.deepEqual(text(moment({ kind: 'trickShot', playerId: 'a', targetIds: ['b'], value: 1 })), ['BANK SHOT', 'Ada BANKED 1 BOUNCE INTO Byte', 50]);
+  assert.deepEqual(text(moment({ kind: 'trickShot', playerId: 'a', targetIds: ['b'], value: 5 })), ['BANK SHOT', 'Ada BANKED 5 BOUNCES INTO Byte', 60]);
+  assert.deepEqual(text(moment({ kind: 'boxedIn', playerId: 'a', targetIds: ['b'], value: 28 })), ['BOXED IN', "Byte HAD NOWHERE LEFT TO GO · Ada'S TRAIL", 50]);
+  assert.deepEqual(text(moment({ kind: 'cutOff', playerId: 'a', targetIds: ['b'], value: 12 })), ['CUT OFF', 'Ada CUT OFF Byte · TRAIL 0.6s OLD', 30]);
+  assert.deepEqual(text(moment({ kind: 'mutualDestruction', playerId: 'a', targetIds: ['b', 'c'], value: 3 })), ['EVERYBODY DIES', 'Ada + Byte + Nova · 3 RIDERS, ONE TICK', 25]);
+  assert.deepEqual(text(moment({ kind: 'bombDodge', playerId: 'a', targetIds: ['b'], value: -2 })), ['OUT OF THE FIRE', "Ada LEFT Byte'S BLAST ZONE 0u CLEAR", 35]);
+  assert.deepEqual([clockText(0), clockText(19), clockText(1200), clockText(1219), clockText(72000)], ['0:00', '0:00', '1:00', '1:00', '60:00']);
+  const orderedByTime = matchHighlights(stats, [moment({ kind: 'ownGoal', playerId: 'a', tick: 300 }), moment({ kind: 'ownGoal', playerId: 'c', tick: 200, round: 2 }), moment({ kind: 'ownGoal', playerId: 'b', tick: 200 })]);
+  assert.deepEqual(orderedByTime.map((entry) => entry.playerId), ['b', 'a'], 'equal weight: earlier round, then earlier tick; a third of one kind is left off the reel');
+  const sameTick = matchHighlights(stats, [moment({ kind: 'ownGoal', playerId: 'a', tick: 100 }), moment({ kind: 'mutualDestruction', playerId: 'b', targetIds: ['a'], value: 2, tick: 100 })]);
+  assert.deepEqual(sameTick.map((entry) => entry.kind), ['mutualDestruction', 'ownGoal'], 'different protagonists on one tick are separate cards');
 });
 
 test('a single rider stands alone as champion, wins every non-zero award and fills the table', () => {
