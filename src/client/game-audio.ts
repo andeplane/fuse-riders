@@ -2,7 +2,7 @@ import { AudioDirector, MUSIC_TRACKS, type AudioChannel, type GameSynth, type Sy
 import { assetUrl } from './asset-url.js';
 import { RADIO_KEY, RADIO_SHORTCUT_HINT, formatTrackTime, loadRadio, parseRadio, radioQueue, radioShortcut, saveRadio, trackById, type RadioSource, type TrackId } from './radio.js';
 import { safeStorage, type SafeStorage } from './safe-storage.js';
-import { bindMediaSession, browserMediaSession, type MediaSessionPort } from './radio-media-session.js';
+import { bindMediaSession, type MediaSessionPort } from './radio-media-session.js';
 
 export const AUDIO_SETTINGS_KEY = 'fuse-riders-audio';
 export const DEFAULT_VOLUME: Record<AudioChannel, number> = { music: .22, effects: .45 };
@@ -151,6 +151,19 @@ class WebAudioSynth implements GameSynth {
     this.element.pause(); this.element.removeAttribute('src'); this.element.load();
   }
   stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); this.stopMusic(); }
+}
+
+/** The real `navigator.mediaSession`, or undefined where the browser has none. */
+export function browserMediaSession(): MediaSessionPort | undefined {
+  const session = typeof navigator === 'undefined' ? undefined : navigator.mediaSession;
+  if (!session || typeof MediaMetadata === 'undefined') return undefined;
+  return {
+    setMetadata: track => { session.metadata = new MediaMetadata(track); },
+    setPlaybackState: state => { session.playbackState = state; },
+    // A browser that lacks an action throws on registration; an unknown one is simply not offered.
+    setActionHandler: (action, handler) => { try { session.setActionHandler(action, handler); } catch { /* unsupported action */ } },
+    setPositionState: position => { try { session.setPositionState?.(position); } catch { /* a rejected state, e.g. a position past the duration */ } },
+  };
 }
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {

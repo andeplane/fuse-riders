@@ -53,16 +53,3 @@ export function bindMediaSession(port: MediaSessionPort | undefined, radio: Medi
   refresh();
   return { refresh, unbind() { unsubscribe(); for (const action of ACTIONS) port.setActionHandler(action, null); } };
 }
-
-/** The real `navigator.mediaSession`, or undefined where the browser has none. */
-export function browserMediaSession(): MediaSessionPort | undefined {
-  const session = typeof navigator === 'undefined' ? undefined : navigator.mediaSession;
-  if (!session || typeof MediaMetadata === 'undefined') return undefined;
-  return {
-    setMetadata: track => { session.metadata = new MediaMetadata(track); },
-    setPlaybackState: state => { session.playbackState = state; },
-    // A browser that lacks an action throws on registration; an unknown one is simply not offered.
-    setActionHandler: (action, handler) => { try { session.setActionHandler(action, handler); } catch { /* unsupported action */ } },
-    setPositionState: position => { try { session.setPositionState?.(position); } catch { /* a rejected state, e.g. a position past the duration */ } },
-  };
-}
