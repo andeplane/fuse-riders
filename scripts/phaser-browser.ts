@@ -86,8 +86,8 @@ try{
   let fallbackCanvas=document.createElement('canvas');fallbackCanvas.width=1600;fallbackCanvas.height=900;fallbackCanvas.style.cssText='width:100%;height:100%';fallbackWrapper.append(fallbackCanvas);
   const presentation=mountArenaPresentation(fallbackCanvas,ctx=>{ctx.fillStyle='#00ff00';ctx.fillRect(0,0,1600,900);},replacement=>{fallbackCanvas=replacement;});
   let raf=0;const render=()=>{presentation.render(visualFixture(40),performance.now(),themes['neon-pixel'],{},'fallback-test');raf=requestAnimationFrame(render);};render();
-  // The presentation itself allows 10 s for renderer startup and 2 s before falling back from a lost context;
-  // shared CI runners with software GL need headroom beyond both. Each wait names its stage and last state.
+  // The presentation allows 10 s for renderer startup (then falls back) and 2 s before falling back from a lost
+  // context; 15 s covers both on slow CI runners. Each wait names its stage and last state for diagnosis.
   const until=async(stage:string,predicate:()=>boolean)=>{const end=performance.now()+15000;while(!predicate()){if(performance.now()>end)throw Error(`Presentation recovery timed out waiting for ${stage} (renderer=${fallbackCanvas.dataset.renderer}, status=${fallbackCanvas.dataset.rendererStatus}, ${fallbackCanvas.width}x${fallbackCanvas.height})`);await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}};
   await until('WebGL startup',()=>fallbackCanvas.dataset.renderer==='phaser-webgl');
   const extension=fallbackCanvas.getContext('webgl')!.getExtension('WEBGL_lose_context');
@@ -100,4 +100,4 @@ try{
   return results;
  });
  assert.deepEqual(errors,[]);console.log(JSON.stringify({result,errors},null,2));
-}finally{await browser.close();await server.close();}
+}finally{if(errors.length)console.error('Page errors:',errors);await browser.close();await server.close();}
