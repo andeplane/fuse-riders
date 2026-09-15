@@ -20,8 +20,19 @@ test('analytics stays off on a LAN or dev address and obeys the explicit overrid
   assert.equal(analyticsEnabled('', ''), true, 'the deployed site has no port');
   assert.equal(analyticsEnabled('?analytics=1', '5173'), true, 'forced on to verify a build');
   assert.equal(analyticsEnabled('?analytics=0', ''), false, 'forced off beats every other rule');
-  assert.equal(analyticsEnabled('?analytics=0&analytics=1', ''), false, 'the first value decides, so off cannot be smuggled past');
+  assert.equal(analyticsEnabled('?analytics=0&analytics=1', ''), false, 'the first value decides');
   assert.equal(analyticsEnabled('?room=AB42', '8080'), false);
+});
+
+test('only 1 and 0 override the address, so a plausible-looking opt-out cannot switch reporting on', () => {
+  // Reading any `analytics` value as "on" would make each of these report a dev session into the production project.
+  for (const value of ['off', 'false', 'no', '00', '', 'true', '2']) {
+    assert.equal(analyticsEnabled(`?analytics=${value}`, '5173'), false, `?analytics=${value} must not enable a dev address`);
+  }
+  // ...and must not switch the deployed site off either, where only an explicit 0 counts.
+  for (const value of ['off', 'false', 'no', '00', '']) {
+    assert.equal(analyticsEnabled(`?analytics=${value}`, ''), true, `?analytics=${value} must not disable the deployed site`);
+  }
 });
 
 test('a finished match reports the arena shape and this device rider own line', () => {

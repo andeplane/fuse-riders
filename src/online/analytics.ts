@@ -22,10 +22,16 @@ const PREFIX = 'FlowRiders.';
 /** Also the queue: every `track` chains off it, so calls made before Mixpanel loads still arrive, in order. */
 let client: Promise<Mixpanel> | undefined;
 
+/**
+ * Only `analytics=1` turns reporting on and only `analytics=0` turns it off; any other value falls through to
+ * the address. Treating "present" as on would make `?analytics=off` and `?analytics=false` report a dev session
+ * into the production project, which is the opposite of what someone typing them wants.
+ */
 export function analyticsEnabled(search: string, port: string): boolean {
-  const query = new URLSearchParams(search);
-  if (query.get('analytics') === '0') return false;
-  return query.has('analytics') || port === '';
+  const override = new URLSearchParams(search).get('analytics');
+  if (override === '1') return true;
+  if (override === '0') return false;
+  return port === '';
 }
 
 /** Idempotent: the landing page, a room and the boot-failure path all call it, and only the first one loads Mixpanel. */
