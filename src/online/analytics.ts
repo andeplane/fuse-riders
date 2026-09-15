@@ -40,6 +40,12 @@ export function startAnalytics(superProperties: Record<string, unknown>): void {
   void client.then(mixpanel => mixpanel.register(superProperties)).catch(() => { /* analytics never breaks the game */ });
 }
 
+/**
+ * Never name a property `length`. Mixpanel's bundled Underscore-style `each` treats any object whose `length`
+ * is a number as an array, so a single `length` key makes it iterate indices instead of keys and the whole
+ * property bag — super properties included — is dropped silently, with a 200 back from the API. Room settings
+ * call theirs `length`; they are reported as `matchLength`.
+ */
 export function track(event: string, properties?: Record<string, unknown>): void {
   void client?.then(mixpanel => mixpanel.track(PREFIX + event, properties)).catch(() => { /* analytics never breaks the game */ });
 }
