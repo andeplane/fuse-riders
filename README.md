@@ -142,6 +142,12 @@ The delta benchmark asserts exact reconstruction for every measured update. The 
 
 Tests should use typed injected clocks, schedulers, transports and seeded randomness. Keep simulation time independent of wall-clock time; exercise serialization and lifecycle boundaries with deterministic failures, not only happy paths. Review reports explain the missing invariants and required regressions.
 
+## Product analytics
+
+The deployed site reports nine `FlowRiders.`-prefixed product events to Mixpanel. LAN play and local dev are off
+by default, `?analytics=1` forces them on and `?analytics=0` forces them off. See [product analytics](docs/ANALYTICS.md)
+for the event list and what is deliberately not tracked.
+
 ## Hosting and deployment status
 
 The online beta is deployed on **GitHub Pages, Cloud Run, Firestore room metadata and Pub/Sub signalling only**. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
