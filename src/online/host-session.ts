@@ -19,8 +19,18 @@ export type RoomCommand =
   | { type: 'bot'; action: 'add' | 'remove'; id?: string };
 export interface HostDependencies { token: () => string; botRandom?: BotDependencies['random'] }
 /** A guest's stream as the host tracks it: the guest's own numbering, deduplicated and kept contiguous before relay. */
-interface Ingress { expected: number; buffered: Map<number, LogEntry> }
-/** A stream's `state` is null while no entry of it has folded yet (a sender that only relays, or a restored host): the view must not invent one, the hash covers the map. */
+interface Ingress { expected: number; buffered: Map<number, LogEntry>; stalls: number }
+/**
+ * Ingest rounds one gap may stall before the host gives up on it. A guest retains only the rollback window
+ * (~2 s), so a seq missing for longer than that is gone for good and asking again forever kills its input.
+ */
+export const INGEST_STALL_ROUNDS = 20;
+/**
+ * A stream's `state` is null while no entry of it has folded yet (a sender that only relays, or a restored host):
+ * the view must not invent one, the hash covers the map. Every row but the recipient's is in this host's relay
+ * numbering; the recipient's own row reports `folded` in the recipient's own numbering — the last seq this host
+ * consumed — and carries no entries, because the recipient is the one that holds them.
+ */
 export interface BaselineMessage { type: 'baseline'; rules: string; tick: number; game: string; pending: RoomSettings; streams: [member: string, folded: number, state: { flags: number; aim: { x: number; y: number } | null; gesture: number | null; bombs: unknown } | null, retained: LogEntry[]][]; hash: string }
 
 /**
@@ -115,15 +125,30 @@ export class HostSession {
    */
   ingest(memberId: string, entries: readonly LogEntry[]): { firstMissing?: number } {
     if (!this.game.players.has(memberId) || this.bots.has(memberId) || memberId === this.hostId) return {};
-    let ingress = this.ingress.get(memberId); if (!ingress) { ingress = { expected: 1, buffered: new Map() }; this.ingress.set(memberId, ingress); }
-    for (const entry of entries) { if (!validEntry(entry) || entry[0] < ingress.expected || ingress.buffered.has(entry[0]) || ingress.buffered.size >= 256 || entry[2] >= 10) continue; ingress.buffered.set(entry[0], entry); }
+    let ingress = this.ingress.get(memberId); if (!ingress) { ingress = { expected: 1, buffered: new Map(), stalls: 0 }; this.ingress.set(memberId, ingress); }
+    for (const entry of entries) {
+      if (!validEntry(entry) || entry[0] < ingress.expected || ingress.buffered.has(entry[0])) continue;
+      // A refused entry steps the stream on rather than wedging it, and the cap never drops the one entry that closes the gap.
+      if (entry[2] >= 10) { if (entry[0] === ingress.expected) ingress.expected++; continue; }
+      if (ingress.buffered.size >= 256 && entry[0] !== ingress.expected) continue;
+      ingress.buffered.set(entry[0], entry);
+    }
+    this.drain(memberId, ingress);
+    if (!ingress.buffered.size) { ingress.stalls = 0; return {}; }
+    // The guest cannot repair what its window no longer holds: after a bounded stall, drop the gap and take the
+    // rest. Losing those entries is exactly a presence flap, and the next hash comparison resyncs the guest.
+    if (++ingress.stalls >= INGEST_STALL_ROUNDS) { ingress.stalls = 0; ingress.expected = Math.min(...ingress.buffered.keys()); this.drain(memberId, ingress); }
+    return ingress.buffered.size ? { firstMissing: ingress.expected } : {};
+  }
+  /** Folds every buffered entry from `expected` on, in the host's relay numbering. */
+  private drain(memberId: string, ingress: Ingress): void {
     while (ingress.buffered.has(ingress.expected)) {
       const entry = ingress.buffered.get(ingress.expected)!; ingress.buffered.delete(ingress.expected); ingress.expected++;
       const [, tick, ...body] = entry;
+      // `insert` may clamp the entry forward and writes the clamped tick back into `stored`, which is what the relay carries.
       const stored = this.sender(memberId).append(tick, body as EntryBody);
       this.sim.insert(memberId, stored, true);
     }
-    return ingress.buffered.size ? { firstMissing: ingress.expected } : {};
   }
   /** A member reconnected on a new connection: its stream numbering restarts at 1. */
   reconnect(memberId: string): void { this.ingress.delete(memberId); if (this.game.players.has(memberId)) this.author(this.hostId, [12, memberId, true]); }
@@ -151,14 +176,18 @@ export class HostSession {
   }
   snapshot() { return toSnapshot(this.game); }
   hash(): string { return replayHash(this.sim.state); }
-  /** Everything a full view needs to join or resync: exact state, per-stream positions in relay numbering, and the retained windows. */
+  /**
+   * Everything a full view needs to join or resync: exact state, per-stream positions, and the retained windows.
+   * The recipient's own stream travels too — the hash covers it, so leaving it out makes every baseline unusable —
+   * but in the recipient's numbering and without entries it already holds.
+   */
   baseline(forMember?: string): BaselineMessage {
     const state = this.sim.state;
     const streams: BaselineMessage['streams'] = [];
     for (const id of new Set([...state.streams.keys(), ...this.senders.keys()])) {
-      if (id === forMember) continue;
-      const s = state.streams.get(id), folded = this.sim.folded(id);
-      streams.push([id, folded, s ? { flags: s.flags, aim: s.aim ?? null, gesture: s.gesture ?? null, bombs: s.bombs.toJSON() } : null, (this.senders.get(id)?.retained ?? []).filter(e => e[0] > folded)]);
+      const s = state.streams.get(id), own = id === forMember;
+      const folded = own ? (this.ingress.get(id)?.expected ?? 1) - 1 : this.sim.folded(id);
+      streams.push([id, folded, s ? { flags: s.flags, aim: s.aim ?? null, gesture: s.gesture ?? null, bombs: s.bombs.toJSON() } : null, own ? [] : (this.senders.get(id)?.retained ?? []).filter(e => e[0] > folded)]);
     }
     return { type: 'baseline', rules: 'fuse-rollback-1', tick: this.tick, game: encodeGameState(state.game), pending: state.pending, streams, hash: this.hash() };
   }

@@ -1,11 +1,11 @@
 import { isGameSnapshot } from './checkpoint.js';
+import { ARENA_WIDTH } from '../shared/game.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { GameSnapshot } from '../shared/protocol.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { HostSession } from './host-session.js';
 
-/** Ticks between heartbeats to a controller phone; a status goes out the moment something the phone shows changes. */
-export const STATUS_HEARTBEAT_TICKS = 5;
+const within = (n: unknown, min: number, max: number): boolean => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max;
 /** What a shared-TV phone shows: phase, roster, its own cooldown and powerups, the recap. No geometry, no projectiles. */
 export interface ControllerStatus { type: 'status'; tick: number; matchId: string; round: number; state: GameSnapshot; settings: RoomSettings }
 export function stripSnapshot(snapshot: GameSnapshot): GameSnapshot {
@@ -40,12 +40,17 @@ export class ControllerView {
     const v = raw as ControllerStatus;
     if (v.type !== 'status' || !Number.isSafeInteger(v.tick) || v.tick < 0 || typeof v.matchId !== 'string' || !v.matchId || v.matchId.length > 128 || !Number.isSafeInteger(v.round) || v.round < 0 || !isGameSnapshot(v.state)) return;
     const settings = parseRoomSettings(v.settings); if (!settings) return;
-    this.status = { state: v.state, matchId: v.matchId, round: v.round, settings }; this.tick = v.tick;
+    // A status can arrive behind a heartbeat that already moved the view on; its content is newer, its tick is not.
+    this.status = { state: v.state, matchId: v.matchId, round: v.round, settings }; this.tick = Math.max(this.tick, v.tick);
     return this.frame();
   }
-  /** A heartbeat older than the view is ignored; the phone's own rider takes the carried position. */
+  /**
+   * A heartbeat older than the view is ignored; the phone's own rider takes the carried position. The position
+   * bypasses the snapshot guard a status goes through, so it is held to the same ranges here.
+   */
   heartbeat(tick: number, selfId: string, pos: readonly [number, number, number] | null): ControllerFrame | undefined {
     const status = this.status; if (!status || tick < this.tick) return;
+    if (pos && !(within(pos[0], -1000, ARENA_WIDTH + 1000) && within(pos[1], -1000, ARENA_WIDTH + 1000) && within(pos[2], -Math.PI * 2, Math.PI * 2))) return;
     this.tick = tick;
     if (pos) status.state = { ...status.state, players: status.state.players.map(p => p.id === selfId ? { ...p, x: pos[0], y: pos[1], angle: pos[2] } : p) };
     return this.frame();
