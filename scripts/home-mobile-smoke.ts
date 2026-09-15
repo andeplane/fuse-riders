@@ -51,6 +51,9 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
       await page.getByLabel('Match length').fill('0');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();assert.equal(await dialog.isVisible(),true);await dialog.getByRole('alert').getByText('Choose a match length from 1 to 20.').waitFor();
       await page.getByLabel('Match length').fill('7');
       for(const invalid of ['0','2.05','0.125']){await aim.fill(invalid);await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();await dialog.getByRole('alert').getByText('Choose a bomb aim time from 0.1 to 2 seconds in steps of 0.05.').waitFor();}
+      // Off-grid text must survive the powerups submenu and still be rejected, not silently rounded and saved.
+      await aim.fill('0.37');await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
+      assert.equal(await aim.inputValue(),'0.37','off-grid aim text survives submenu navigation');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();assert.equal(await dialog.isVisible(),true,'off-grid aim time is not saved after submenu navigation');await dialog.getByRole('alert').getByText('Choose a bomb aim time from 0.1 to 2 seconds in steps of 0.05.').waitFor();
       await aim.fill('1.2');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();await dialog.waitFor({state:'hidden'});
       assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('fuse-riders-room-settings-v1')!).bombChargeTicks),24);
       await page.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();assert.equal(await page.getByLabel('Match length').inputValue(),'7');

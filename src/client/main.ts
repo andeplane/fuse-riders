@@ -9,6 +9,7 @@ import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
+import { BOMB_MAX_CHARGE_TICKS } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
 import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortalPair, drawStarAura } from './pickup-renderer.js';
@@ -910,7 +911,7 @@ function startController(): void {
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
     const charging = player.bombChargeStartedTick !== undefined;
-    const chargePercent = charging ? Math.min(100, Math.round((snapshot.tick - player.bombChargeStartedTick!) / snapshot.bombChargeTicks * 100)) : 0;
+    const chargePercent = charging ? Math.min(100, Math.round((snapshot.tick - player.bombChargeStartedTick!) / (snapshot.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS) * 100)) : 0;
     const ready = readyTicks <= 0 && snapshot.phase === 'playing' && player.alive;
     bomb.disabled = !ready && !charging;
     bomb.style.setProperty('--charge', `${chargePercent}%`);
