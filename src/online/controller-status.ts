@@ -1,5 +1,5 @@
 import { isGameSnapshot } from './checkpoint.js';
-import { ARENA_WIDTH } from '../shared/game.js';
+import { ARENA_WIDTH, ARENA_HEIGHT } from '../shared/game.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { GameSnapshot } from '../shared/protocol.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
