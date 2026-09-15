@@ -124,7 +124,8 @@ export class RoomRuntime {
   held(id:string):{left:boolean;right:boolean}|undefined {const flags=(this.session?.sim??this.sim)?.state.streams.get(id)?.flags;return flags===undefined?undefined:{left:Boolean(flags&1),right:Boolean(flags&2)};}
   private requestResync(force=false):void {
     const now=this.dependencies.now();if(!force&&now-this.lastResync<RESYNC_INTERVAL_MS)return;
-    this.lastResync=now;this.netStats.record('resync');this.telemetry.log('resync',{force});this.transport.send(this.transport.hostId,{type:'resync'});
+    // Only a resync that left counts against the interval: one refused by a closing or gated channel is asked for again on the next trigger (#132).
+    const sent=this.transport.send(this.transport.hostId,{type:'resync'});this.netStats.record('resync');this.telemetry.log('resync',{force,sent});if(sent)this.lastResync=now;
   }
   private receive(id:string,raw:unknown):void {
     if(Array.isArray(raw)){const message=unpackFast(raw);if(message)this.receiveFast(id,message);return;}
@@ -188,7 +189,11 @@ export class RoomRuntime {
     }
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
     const open=new Set<string>();
-    for(const [member,firstMissing] of sim.gaps()){
+    // A sender that reports a higher lastSeq than this view holds contiguously is a gap too. A trailing entry lost for a whole
+    // retention window (a MAIN MENU during a stall) never appears in gaps(), because no later seq ever arrives to expose it (#132).
+    const gaps=new Map(sim.gaps());
+    for(const [member,last] of lastSeq){const contiguous=sim.stream(member).contiguous;if(last>contiguous&&!gaps.has(member))gaps.set(member,contiguous+1);}
+    for(const [member,firstMissing] of gaps){
       open.add(member);if(!this.gapSince.has(member)){this.netStats.record('gap');this.telemetry.log('gap',{member,firstMissing});}const since=this.gapSince.get(member)??now;this.gapSince.set(member,since);
       if(now-since>SILENCE_MS){this.gapSince.delete(member);this.requestResync();continue;}
       if(now-(this.lastRepairSent.get(member)??-Infinity)<REPAIR_INTERVAL_MS)continue;

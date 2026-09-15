@@ -58,6 +58,43 @@ function pair(){
   return {host,guest,clock,run};
 }
 
+/** A host, a guest and a TV display view (joined only as a peer), with host → display delivery switchable. */
+function trio(){
+  const clock={now:0};
+  const host=room('host','host',clock),guest=room('guest','host',clock),display=room('display','host',clock);
+  host.fake.callbacks.peer('guest',true);host.fake.callbacks.peer('display',true);
+  let toDisplay=true;
+  const run=(ticks:number)=>{for(let i=0;i<ticks;i++){clock.now+=TICK_MS;host.tick();guest.tick();display.tick();
+    for(const {to,data} of host.fake.sent.splice(0)){if(to==='guest')guest.fake.callbacks.message('host',data);if(to==='display'&&toDisplay)display.fake.callbacks.message('host',data);}
+    for(const {to,data} of guest.fake.sent.splice(0))if(to==='host')host.fake.callbacks.message('guest',data);
+    for(const {to,data} of display.fake.sent.splice(0))if(to==='host')host.fake.callbacks.message('display',data);}};
+  host.runtime.command({type:'join',name:'Host'});guest.runtime.command({type:'join',name:'Guest'});
+  run(8);host.runtime.command({type:'action',action:'start'});run(60);
+  return {host,guest,display,run,deliverToDisplay:(on:boolean)=>{toDisplay=on;}};
+}
+const viewPhase=(r:Room)=>(r.runtime as unknown as {sim?:{state:{game:{phase:string}}}}).sim?.state.game.phase;
+
+// #132: MAIN MENU is one trailing entry in the host's stream, repeated only for the retention window. A view that loses every
+// copy never sees a later seq to expose the gap, so it used to keep playing a match the host had left.
+test('a view that misses the host\'s last entry for a whole retention window still reaches the lobby',()=>{
+  const {host,display,run,deliverToDisplay}=trio();
+  assert.equal(viewPhase(display),'playing');
+  deliverToDisplay(false);host.runtime.command({type:'action',action:'lobby'});run(50);deliverToDisplay(true);
+  run(200); // 10 s: a repair, or a baseline once the entry is gone, well inside the smoke's 75 s
+  assert.equal(internals(host.runtime).session!.game.phase,'lobby');
+  assert.equal(viewPhase(display),'lobby','the display followed the host back to the lobby');
+});
+
+test('a resync refused by the link is asked for again instead of waiting out the interval',()=>{
+  const {guest}=pair();
+  const resyncs=()=>guest.fake.sent.filter(s=>(s.data as {type?:string}).type==='resync').length;
+  guest.fake.block=data=>(data as {type?:string}).type==='resync';
+  internals(guest.runtime).requestResync();assert.equal(resyncs(),0,'refused');
+  guest.fake.block=undefined;
+  internals(guest.runtime).requestResync();assert.equal(resyncs(),1,'the next trigger sends it');
+  internals(guest.runtime).requestResync();assert.equal(resyncs(),1,'a sent resync still throttles the next');
+});
+
 test('a resync keeps a joined guest playing: the baseline carries its own stream and its input keeps flowing',()=>{
   const {host,guest,run}=pair();
   assert.deepEqual(guest.runtime.held('guest'),{left:false,right:false},'the guest folds its own rider');
