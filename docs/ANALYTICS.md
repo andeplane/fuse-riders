@@ -69,6 +69,11 @@ reported as `matchLength` for exactly this reason.
 - **Bots.** They are counted in `botCount` and never identified as users.
 - **Identity beyond Mixpanel's own anonymous device id.** The `fuse-peer-*` and `fuse-room-*` values are room
   authentication tokens and never leave the browser.
+- **The page URL.** A room page is `?room=AB42` and that code is the whole join credential, so `$current_url`,
+  `$referrer` and `$initial_referrer` — which Mixpanel would otherwise attach to every event — are blacklisted at
+  `init`. Sending them would hand a live, joinable invite to a third party on every seat, match and setting
+  change. `$referring_domain` and `$initial_referring_domain` survive: they answer where players come from and
+  carry no room code.
 
 ## Cost
 

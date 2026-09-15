@@ -44,7 +44,14 @@ export function startAnalytics(superProperties: Record<string, unknown>): void {
   // localStorage over cookies: the game stores everything else there too, and a batch that outlives a navigation
   // is what lets CREATE ROOM report before the page it triggers replaces this one.
   client ??= import('mixpanel-browser').then(module => {
-    module.default.init(TOKEN, { persistence: 'localStorage', track_pageview: false, autocapture: false });
+    module.default.init(TOKEN, {
+      persistence: 'localStorage', track_pageview: false, autocapture: false,
+      // A room page is `?room=AB42`, and that code is the whole join credential — there is no second token, so
+      // anyone holding the URL can walk into the game. Mixpanel attaches `$current_url` and `$referrer` to every
+      // event by default, which would ship a live invite to a third party on every seat, match and setting change.
+      // The `*_domain` properties survive: they answer where players come from and carry no room code.
+      property_blacklist: ['$current_url', '$referrer', '$initial_referrer'],
+    });
     return module.default;
   });
   void client.then(mixpanel => mixpanel.register(superProperties)).catch(() => { /* analytics never breaks the game */ });
