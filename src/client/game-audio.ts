@@ -297,7 +297,7 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     slider.value = String(Math.round(settings.volume[channel] * 100)); slider.setAttribute('aria-label', `${label} volume`);
     slider.addEventListener('input', () => setVolume(channel, Number(slider.value) / 100)); row.append(slider);
     const mute = element('button', 'radio-toggle', `Mute ${label.toLowerCase()}`); mute.type = 'button';
-    const renderMute = () => mute.setAttribute('aria-pressed', String(settings.muted[channel]));
+    const renderMute = () => { const pressed = String(settings.muted[channel]); if (mute.getAttribute('aria-pressed') !== pressed) mute.setAttribute('aria-pressed', pressed); };
     rendered.add(renderMute); renderMute();
     mute.addEventListener('click', () => setMuted(channel, !settings.muted[channel]));
     mixer.append(row, mute);
@@ -352,8 +352,12 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     };
     rendered.add(render); render();
     // OFF while unmuted means the browser has not let the track play yet, so the tap plays it rather than muting.
+    // The decision is taken when the gesture starts: the page-wide unlock listeners run on pointerdown and touchend,
+    // before the click, and their play() already makes the track sound, so a click-time read would mute it again.
+    let wasSounding = false;
+    for (const type of ['pointerdown', 'keydown'] as const) button.addEventListener(type, () => { wasSounding = sounding(); });
     button.addEventListener('click', () => {
-      if (sounding()) { setMuted('music', true); return; }
+      if (wasSounding) { wasSounding = false; setMuted('music', true); return; }
       if (settings.muted.music) setMuted('music', false);
       if (director.state.paused) director.togglePause();
       unlock(); render();
