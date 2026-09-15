@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addPlayer, createGame, startMatch, step, COUNTDOWN_TICKS, BOMB_FUSE_TICKS, BOMB_COOLDOWN_TICKS, BOMB_BLAST_RANGE, BLAST_LEVEL_RANGE, RIDER_RADIUS, toSnapshot, eliminatePlayer, startNextRound, type InputIntent } from '../src/shared/game.ts';
-import { BombInputBuffer } from '../src/server/bomb-input.ts';
+import { BombInputBuffer } from '../src/shared/bomb-input.ts';
 function fixture() {
   const game = createGame('target');
   for (let i = 0; i < 2; i++) addPlayer(game, { id: `p${i}`, name: `P${i}`, slot: i, color: '#fff' });

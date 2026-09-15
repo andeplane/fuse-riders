@@ -48,6 +48,15 @@ try {
       };
       return oscillator;
     };
+    const createSource = AudioContext.prototype.createBufferSource;
+    AudioContext.prototype.createBufferSource = function () {
+      const source = createSource.call(this); const start = source.start.bind(source);
+      source.start = (when?: number, offset?: number, duration?: number) => {
+        document.documentElement.dataset.musicStarts = String(Number(document.documentElement.dataset.musicStarts ?? 0) + 1);
+        start(when, offset, duration);
+      };
+      return source;
+    };
   });
   await host.goto(`${origin}/display#${app.hostToken}`);
   await host.getByText('HOST ONLINE', { exact: true }).waitFor();
@@ -56,25 +65,25 @@ try {
   await host.locator('.audio-controls summary').click();
   await host.getByRole('button', { name: 'Enable TV audio', exact: true }).click();
   await host.getByRole('button', { name: 'TV audio enabled · test sound', exact: true }).waitFor();
-  await host.waitForFunction(() => Number(document.documentElement.dataset.audioStarts) > 4); // Lobby music, beyond the single confirmation tone.
+  await host.waitForFunction(() => Number(document.documentElement.dataset.musicStarts) > 0); // Lobby music decoded and started.
   await host.getByRole('button', { name: 'Mute music', exact: true }).click();
   assert.equal(await host.getByRole('button', { name: 'Mute music', exact: true }).getAttribute('aria-pressed'), 'true');
   await host.getByLabel('Effects volume', { exact: true }).fill('20');
   await host.locator('.audio-controls summary').click();
-  await host.getByText('larger explosions', { exact: false }).waitFor();
-  assert.equal(await host.getByText('5s invulnerable', { exact: false }).count(), 0);
+  await host.getByText('bigger explosions', { exact: false }).waitFor();
+  assert.equal(await host.getByText('invulnerable', { exact: false }).count(), 0, 'LAN legend omits star, which only room settings can enable');
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
-  await host.getByText('next launch fires 3', { exact: false }).waitFor();
+  await host.getByText('next bomb launch fires 3', { exact: false }).waitFor();
   assert.equal(await host.getByText('next launch seeks', { exact: false }).count(), 0, 'retired power-up is absent from legend');
   await host.getByText('blocks one crash', { exact: false }).waitFor();
-  await host.getByText('opens linked gates', { exact: false }).waitFor();
+  await host.getByText('opens a pair of linked gates', { exact: false }).waitFor();
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
   // Switching the style must re-src every legend icon, not just the ones that existed when the
   // theme plumbing was written. Ends on the default so later steps shoot the usual artwork.
   for (const themeId of ['clean-neon', 'neon-pixel']) {
     await host.getByRole('combobox').selectOption(themeId);
     const legendSources = await host.locator('.pickup-legend img').evaluateAll(images => images.map(image => image.getAttribute('src') ?? ''));
-    assert.ok(legendSources.length >= 11, `legend icons found: ${legendSources.length}`);
+    assert.equal(legendSources.length, 11, `legend icons found: ${legendSources.length}`);
     for (const source of legendSources) assert.ok(source.includes(`/themes/${themeId}/`), `legend icon ${source} ignores theme ${themeId}`);
   }
 

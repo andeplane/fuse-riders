@@ -1,4 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
-  <path fill="#ff6b1a" d="M13 3h6v8h8v6h-8v8h-6v-8H5v-6h8z"/>
-  <path fill="#fff" d="M15 7h2v6h6v2h-6v6h-2v-6H9v-2h6z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="orange" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#ffdc79"/><stop offset="0.5" stop-color="#ff8b36"/><stop offset="1" stop-color="#e93665"/></linearGradient>
+  </defs>
+  <g transform="scale(.5)">
+    <circle cx="32" cy="32" r="24" fill="none" stroke="#ff9755" stroke-width="1.5" opacity=".45"/>
+    <path d="M28 10h8a3 3 0 0 1 3 3v12h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H39v12a3 3 0 0 1-3 3h-8a3 3 0 0 1-3-3V39H13a3 3 0 0 1-3-3v-8a3 3 0 0 1 3-3h12V13a3 3 0 0 1 3-3Z" fill="url(#orange)" stroke="#ffd590" stroke-width="1.5"/>
+    <path d="M32 17v30M17 32h30" stroke="#fff5c7" stroke-width="4"/>
+    <circle cx="32" cy="32" r="4" fill="#fff"/>
+  </g>
 </svg>

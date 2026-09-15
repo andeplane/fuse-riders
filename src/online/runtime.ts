@@ -1,172 +1,363 @@
+import { uuid } from '../shared/uuid.js';
 import { authorityTransitionStatus } from './authority-status.js';
 import { StatusNotices } from './status-notices.js';
-import { AuthorityGrace } from './authority-grace.js';
-import { KeyframeDelivery, AcceptedKeyframe, type KeyframeReceipt } from './keyframe-delivery.js';
-import { recipientAcknowledgements } from './recipient-ack.js';
-import { isShotTransition } from './shot-failure.js';
-import { isAppliedMotionState, isInputControlScope } from './prediction-validation.js';
-import { DeferredCommand } from './deferred-command.js';
-import { TickProbes } from './tick-probes.js';
-import type { AppliedMotionState, TickClockSample, InputControlScope } from './prediction-contract.js';
-import { JoinRequest } from './join-request.js';
-import { HostSession, type RoomCommand } from './host-session.js';
-import { PeerTransport } from './peer-transport.js';
-import { WorldDecoder, WorldEncoder, type WorldFrame } from './world-codec.js';
+import { HostSession, type BaselineMessage, type RoomCommand } from './host-session.js';
+import { PeerTransport, type TransportCallbacks } from './peer-transport.js';
+import { Simulation, TickClock, SNAPSHOT_COUNT, SNAPSHOT_EVERY_TICKS, TICK_MS } from './rollback.js';
+import { StreamSender } from './stream.js';
+import { InputEdges } from './input-edges.js';
+import { hashText, packFast, unpackFast, type StreamPacket } from './wire.js';
+import { ControllerSender, ControllerView, type ControllerFrame } from './controller-status.js';
+import { decodeGameState } from './checkpoint.js';
+import { interpolateWorld } from './interpolate.js';
+import { NetStats } from './net-stats.js';
+import { Telemetry, telemetryEndpoint } from './telemetry.js';
+import { BombInputBuffer } from '../shared/bomb-input.js';
+import { MAX_ENTRIES_PER_TICK, replayHash, validEntry, REPLAY_RULES, type LogEntry, type ReplayState } from '../shared/action-log.js';
+import { toSnapshot } from '../shared/game.js';
+import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
-import type { RoomSettings } from '../shared/room-settings.js';
 import type { GameEvent } from '../shared/protocol.js';
-interface WorldEnvelope {type:'world';frame:WorldFrame;settings:RoomSettings;ack:Record<string,number>;paused:boolean;motion?:AppliedMotionState}
-export interface Callbacks { shotFailed?:()=>void;state:(snapshot:ViewSnapshot,settings:RoomSettings,ack:number,matchId:string,motion?:AppliedMotionState)=>void;clock?:(sample:TickClockSample)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void;ended?:()=>void }
+
+export interface Callbacks { state:(snapshot:ViewSnapshot,settings:RoomSettings,matchId:string)=>void;event:(event:GameEvent,matchId:string,round:number,tick:number)=>void;status:(text:string)=>void;ready:(id:string,host:boolean)=>void;ended?:()=>void }
+/** The browser bindings, injected so the fold can be driven by a test clock. */
+export interface RoomRuntimeDependencies { now():number;hidden():boolean;transport(callbacks:TransportCallbacks):PeerTransport }
+/** A member silent this long is logged absent by the host; a host silent this long freezes its views. */
+export const SILENCE_MS=1000;
+/** A rider is logged absent (held controls and charge cancelled) after this much silence; longer than SILENCE_MS because a phone on jittery Wi-Fi loses a few packets in a row. */
+export const ABSENT_MS=2500;
+export const HASH_INTERVAL_TICKS=20;
+/**
+ * How far behind its own tick a sender's published hash refers to: the oldest snapshot in its ring, the newest
+ * state no late entry can rewind. Hashing the tick just simulated compares a state the host is still free to
+ * change, so every entry that arrives late reads as a divergence on every replica.
+ */
+/** The host's oldest snapshot: nothing can rewind it any more. A view keeps GUEST_SNAPSHOT_MARGIN more snapshots so it still holds that tick after the packet's flight and its own clock lead. */
+export const HASH_LAG_TICKS=SNAPSHOT_EVERY_TICKS*(SNAPSHOT_COUNT-1);
+export const GUEST_SNAPSHOT_MARGIN=8;
+const FRAME_INTERVAL_MS=200,REPAIR_INTERVAL_MS=250,RESYNC_INTERVAL_MS=2000,JOIN_RETRY_MS=2000,BASELINE_INTERVAL_MS=500,SAVE_INTERVAL_MS=500;
+
+/**
+ * The host authors and folds; every full view folds the same log to its own clock and rolls back when an entry
+ * arrives late. There is no admission window: a press applies on the next local tick and is never refused for timing.
+ */
 export class RoomRuntime {
   private session?:HostSession;
   private peers=new Set<string>();
-  private encoders=new Map<string,WorldEncoder>();
-  private generations=new Map<string,number>();
-  private keyframes=new Map<string,KeyframeDelivery<WorldEnvelope>>();
-  private acceptedKeyframe=new AcceptedKeyframe();
-  private lastResync=0;
-  private decoder=new WorldDecoder();
-  private lastState=performance.now();
-  private readonly deferredHost=new DeferredCommand<RoomCommand>();
-  private readonly tickProbes=new TickProbes(()=>performance.now());
-  private lastClockProbe=-Infinity;
-  private lastMotionScope='';
+  private lastHeard=new Map<string,number>();
+  private peerSentAt=new Map<string,number>();
+  private lastRepairSent=new Map<string,number>();
+  private lastBaselineSent=new Map<string,number>();
+  private lastSave=-Infinity;
+  private controllers=new Map<string,ControllerSender>();
+  // Guest side.
+  private sim?:Simulation;
+  private readonly controllerView=new ControllerView();
+  private readonly clock=new TickClock(()=>this.dependencies.now());
+  private own=new StreamSender();
+  private readonly edges=new InputEdges();
+  private readonly members=new Map<number,string>();
+  private hostSentAt:number|null=null;
+  private hostHeardAt=-Infinity;
+  private lastResync=-Infinity;
+  private pendingHash?:{tick:number;hash:string;lastSeq:Map<string,number>};
+  private mismatches:number[]=[];
+  private gapSince=new Map<string,number>();
+  private pendingJoin?:{command:Extract<RoomCommand,{type:'join'}>;sentAt:number};
+  private settings:RoomSettings;
+  // Presentation.
+  private previous?:ViewSnapshot;
+  private current?:ViewSnapshot;
   private interval?:ReturnType<typeof setInterval>;
-  private lastTick=performance.now();
+  private lastTick:number;
   private accumulator=0;
+  private sendAccumulator=0;
+  private sendTicks=0;
   private announced=false;
   private authorityActive=false;
-  private readonly authorityGrace=new AuthorityGrace();
   private recovering=false;
   private lastPausedPublish=0;
-  private readonly joinRequest=new JoinRequest<Extract<RoomCommand,{type:'join'}>>();
   readonly transport:PeerTransport;
+  /** What this view saw of the host link lately; the device overlay reads it. */
+  private lastStatusText='';
+  private lastFrameShownAt=-Infinity;
+  readonly netStats=new NetStats(()=>this.dependencies.now());
+  readonly telemetry=new Telemetry(typeof location==='undefined'?undefined:telemetryEndpoint(),()=>this.dependencies.now());
   private readonly status:StatusNotices;
-  constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks){
-    this.status=new StatusNotices(()=>performance.now(),text=>callbacks.status(text));
-    this.transport=new PeerTransport(code,token,{
+  constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks,private readonly dependencies:RoomRuntimeDependencies={now:()=>performance.now(),hidden:()=>document.hidden,transport:callbacks=>new PeerTransport(code,token,callbacks)}){
+    this.settings=settings;this.lastTick=dependencies.now();
+    this.status=new StatusNotices(()=>this.dependencies.now(),text=>{if(text!==this.lastStatusText){this.lastStatusText=text;this.telemetry.log('status',{text});}callbacks.status(text);});
+    this.transport=dependencies.transport({
       welcome:(id,hostId)=>{
+        this.telemetry.identify({room:code,id,role:id===hostId?'host':'guest',ua:typeof navigator==='undefined'?'':navigator.userAgent.slice(0,80)});this.telemetry.log('welcome',{host:id===hostId});
         if(id===hostId&&!this.session){
-          this.session=new HostSession(id,settings,{token:()=>crypto.randomUUID()});
+          this.session=new HostSession(id,settings,{token:uuid});
           try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.status.notice('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
         }
-        this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.callbacks.ready(id,id===hostId);
-        if(id!==hostId)this.transport.send(hostId,{type:'resync'});
+        this.resetView();this.callbacks.ready(id,id===hostId);
+        if(id!==hostId)this.requestResync(true);
       },
       peer:(id,online)=>{
-        if(online){this.peers.add(id);this.encoders.delete(id);this.keyframes.delete(id);if(id===this.transport.hostId&&!this.session){this.decoder.reset();this.acceptedKeyframe.clear();this.transport.send(id,{type:'resync'});}}
-        else{this.peers.delete(id);this.encoders.delete(id);this.keyframes.delete(id);this.session?.disconnect(id);}
+        // A peer that just came back has forgotten every status we sent it, so its controller sender starts over.
+        if(online){this.peers.add(id);this.controllers.delete(id);this.session?.reconnect(id);this.lastHeard.set(id,this.dependencies.now());if(id===this.transport.hostId&&!this.session){this.resetView();this.requestResync(true);}}
+        else{this.peers.delete(id);this.lastHeard.delete(id);this.peerSentAt.delete(id);this.lastRepairSent.delete(id);this.lastBaselineSent.delete(id);this.controllers.delete(id);this.session?.disconnect(id);}
       },
       message:(id,data)=>this.receive(id,data),status:text=>this.status.recurring(text),
-      ended:()=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.session?.clear();this.session=undefined;this.peers.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.callbacks.ended?.();},
-      revoked:()=>{this.deferredHost.clear();clearInterval(this.interval);this.interval=undefined;this.session?.clear();this.session=undefined;this.status.terminal('This host tab was replaced — use the newer tab');},
-      // A protocol mismatch closes the transport; the tick interval has to stop too, or it would keep restating
-      // connection status over the reload notice (#23).
-      terminated:text=>{this.deferredHost.clear();this.joinRequest.confirm();clearInterval(this.interval);this.interval=undefined;this.status.terminal(text);},
-      authorityChanged:()=>{this.deferredHost.clear();this.tickProbes.clear();this.decoder.reset();this.acceptedKeyframe.clear();this.keyframes.clear();this.encoders.clear();this.session?.clear();this.authorityGrace.reset();this.accumulator=0;},
+      ended:()=>{clearInterval(this.interval);this.session=undefined;this.peers.clear();this.resetView();this.callbacks.ended?.();},
+      revoked:()=>{clearInterval(this.interval);this.interval=undefined;this.session=undefined;this.status.terminal('This host tab was replaced — use the newer tab');},
+      terminated:text=>{clearInterval(this.interval);this.interval=undefined;this.status.terminal(text);},
+      authorityChanged:()=>{this.resetView();this.accumulator=0;},
     });
   }
+  private resetView():void {this.netStats.reset();this.sim=undefined;this.controllerView.reset();this.controllers.clear();this.members.clear();this.own=new StreamSender();this.edges.reset();this.clock.reset();this.pendingHash=undefined;this.hostSentAt=null;this.hostHeardAt=-Infinity;this.previous=undefined;this.current=undefined;this.gapSince.clear();this.lastRepairSent.clear();this.lastBaselineSent.clear();this.mismatches=[];}
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
+  /** The interpolated world for this frame: the last two simulated ticks at the fractional clock. */
+  render():ViewSnapshot|undefined {
+    if(!this.current)return undefined;
+    const fraction=this.session?this.accumulator/TICK_MS:Math.max(0,Math.min(1,this.clock.tick()-this.current.tick));
+    return interpolateWorld(this.previous,this.current,fraction);
+  }
+  /** The steer the fold currently holds for a rider; a controller phone has no fold and reports nothing. */
+  held(id:string):{left:boolean;right:boolean}|undefined {const flags=(this.session?.sim??this.sim)?.state.streams.get(id)?.flags;return flags===undefined?undefined:{left:Boolean(flags&1),right:Boolean(flags&2)};}
+  private requestResync(force=false):void {
+    const now=this.dependencies.now();if(!force&&now-this.lastResync<RESYNC_INTERVAL_MS)return;
+    this.lastResync=now;this.netStats.record('resync');this.telemetry.log('resync',{force});this.transport.send(this.transport.hostId,{type:'resync'});
+  }
   private receive(id:string,raw:unknown):void {
+    if(Array.isArray(raw)){const message=unpackFast(raw);if(message)this.receiveFast(id,message);return;}
     if(!raw||typeof raw!=='object')return;
-    const data=raw as {type:string;command?:RoomCommand;frame?:WorldFrame;settings?:RoomSettings;ack?:Record<string,number>;event?:GameEvent;error?:string;transient?:boolean;shotRejected?:boolean;paused?:boolean;matchId?:string;round?:number;tick?:number;motion?:AppliedMotionState;probeId?:number;localSentAt?:number;authorityTick?:number;scope?:InputControlScope;receipt?:KeyframeReceipt};
+    const data=raw as {type:string;command?:RoomCommand;error?:string;transient?:boolean};
     if(this.session){
-      if(data.type==='tickProbe'&&Number.isSafeInteger(data.probeId)&&Number.isFinite(data.localSentAt)){
-        const scope=this.session.controlScope(id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.transport.send(id,{type:'tickPong',probeId:data.probeId,localSentAt:data.localSentAt,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing',scope});return;
-      }
-      if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(data.command?.type==='input'?{transient:true}:{}),...(isShotTransition(data.command)?{shotRejected:true}:{})});this.peers.add(id);}
-      if(data.type==='worldReceipt'){this.keyframes.get(id)?.acknowledge(data.receipt);return;}
-      if(data.type==='resync'){this.peers.add(id);if(!this.keyframes.get(id)?.waiting)this.encoders.delete(id);}
+      if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(data.command?.type==='input'?{transient:true}:{})});this.peers.add(id);this.heard(id);}
+      if(data.type==='resync'){this.peers.add(id);this.heard(id);this.telemetry.log('resync-in',{from:id});this.sendBaseline(id);}
       return;
     }
     if(id!==this.transport.hostId)return;
-    if(data.type==='tickPong'&&isInputControlScope(data.scope)){
-      const sample=this.tickProbes.accept(data.probeId!,data.localSentAt!,data.authorityTick!,data.paused!,data.scope);if(sample)this.callbacks.clock?.(sample);return;
+    if(data.type==='baseline'){this.installBaseline(raw as BaselineMessage);this.hostHeardAt=this.dependencies.now();}
+    // A status means the host now treats this peer as a controller phone: the simulation stops, the view is the status.
+    else if(data.type==='status'){const frame=this.controllerView.receive(raw);if(!frame)return;this.hostHeardAt=this.dependencies.now();this.sim=undefined;this.showFrame(frame);}
+    else if(data.type==='error'){const text=data.error??'Room error';if(data.transient===true)this.status.transient(text);else this.status.notice(text);}
+  }
+  private heard(id:string):void {this.lastHeard.set(id,this.dependencies.now());this.session?.presence(id,true);}
+  /**
+   * Encoding and sending a baseline is the host's most expensive reply: one per peer per half second, however often
+   * it is asked. A peer that gets one folds again from scratch, so whatever controller status it was shown is stale
+   * and its sender starts over — otherwise the phone sits on a ready view that only heartbeats ever touch.
+   */
+  private sendBaseline(id:string):boolean {
+    const now=this.dependencies.now();if(now-(this.lastBaselineSent.get(id)??-Infinity)<BASELINE_INTERVAL_MS)return false;
+    this.lastBaselineSent.set(id,now);
+    if(!this.transport.send(id,this.session!.baseline(id)))return false;
+    this.controllers.delete(id);return true;
+  }
+  private receiveFast(id:string,message:ReturnType<typeof unpackFast>&object):void {
+    const now=this.dependencies.now(),session=this.session;
+    if(session){
+      if(message.type==='repair'){const member=[...session.senders.keys()].find(m=>hashText(m)===message.member);const sender=member?session.senders.get(member):undefined;if(!member||!sender)return;const entries=sender.since(message.firstMissingSeq).slice(0,MAX_ENTRIES_PER_TICK);if(!entries.length||entries[0]![0]!==message.firstMissingSeq){this.sendBaseline(id);return;}this.transport.send(id,packFast({type:'streams',tick:session.tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,hash:null,streams:[{member:message.member,lastSeq:sender.lastSeq,entries}]}),true);return;}
+      if(message.type!=='streams')return;
+      const own=message.streams.find(s=>s.member===hashText(id));if(!own)return;
+      this.peerSentAt.set(id,message.sentAt);this.heard(id);
+      const {firstMissing}=session.ingest(id,own.entries);this.telemetry.log('ingest',{from:id,n:own.entries.length,first:own.entries[0]?.[0],lastSeq:own.lastSeq,...(firstMissing===undefined?{}:{firstMissing})});
+      if(firstMissing!==undefined&&now-(this.lastRepairSent.get(id)??-Infinity)>=REPAIR_INTERVAL_MS){this.lastRepairSent.set(id,now);this.transport.send(id,packFast({type:'repair',member:own.member,firstMissingSeq:firstMissing}),true);}
+      return;
     }
-    if(data.type==='world'&&data.frame&&data.settings){
-      const duplicateReceipt=this.acceptedKeyframe.receipt(raw as WorldEnvelope);
-      if(duplicateReceipt){this.transport.send(id,{type:'worldReceipt',receipt:duplicateReceipt});return;}
-      const result=this.decoder.decode(data.frame);
-      if(result.status!=='accepted'){if((result.status==='needsBaseline'||result.status==='invalid')&&performance.now()-this.lastResync>=500){this.lastResync=performance.now();this.transport.send(id,{type:'resync'});}return;}
-      const snapshot=result.state;
-      if(data.frame.base===0){this.acceptedKeyframe.remember(raw as WorldEnvelope);const receipt=this.acceptedKeyframe.receipt(raw as WorldEnvelope);if(receipt)this.transport.send(id,{type:'worldReceipt',receipt});}
-      if(snapshot.players.some(player=>player.id===this.transport.id&&player.connected))this.joinRequest.confirm();
-      this.lastState=performance.now();
-      if(isAppliedMotionState(data.motion)){const scope=JSON.stringify(data.motion.scope);if(scope!==this.lastMotionScope){this.lastMotionScope=scope;this.lastClockProbe=-Infinity;}}
-    this.callbacks.state({...snapshot,tick:data.frame.tick,round:data.frame.round},data.settings,data.ack?.[this.transport.id]??-1,data.frame.matchId,isAppliedMotionState(data.motion)&&data.motion.tick===data.frame.tick&&data.motion.scope.matchId===data.frame.matchId&&data.motion.scope.round===data.frame.round?data.motion:undefined);
-      this.status.recurring(data.paused?'Paused — host is in the background':'Connected · direct game link');
-    }else if(data.type==='event'&&data.event)this.callbacks.event(data.event,data.matchId??'',data.round??0,data.tick??0);
-    else if(data.type==='error'){const text=data.error??'Room error';if(data.transient===true)this.status.transient(text);else this.status.notice(text);if(data.shotRejected===true)this.callbacks.shotFailed?.();}
+    if(id!==this.transport.hostId)return;
+    if(message.type==='repair'){if(message.member!==hashText(this.transport.id))return;this.transport.send(id,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:message.member,lastSeq:this.own.lastSeq,entries:this.own.since(message.firstMissingSeq).slice(0,MAX_ENTRIES_PER_TICK)}]}),true);return;}
+    this.hostHeardAt=now;this.hostSentAt=message.sentAt;
+    // The echo is this guest's own send time; older than a second it measures silence, not the link.
+    const echo=message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS;
+    if(echo)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt!));else if(!this.clock.live)this.clock.observe(message.tick,0);
+    this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;
+    if(message.type==='heartbeat'){this.telemetry.log('heartbeat',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,clock:Math.round(this.clock.tick()*10)/10});const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim&&now-this.lastFrameShownAt>=FRAME_INTERVAL_MS)this.showFrame(frame);return;}
+    // Streams with no fold to put them in: the host thinks we are a full view again, so ask for the baseline that starts one.
+    const sim=this.sim;if(!sim){if(this.controllerView.ready)this.requestResync();return;}
+    this.telemetry.log('recv',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,hash:message.hash!==null,streams:message.streams.map(s=>[s.member,s.lastSeq,s.entries.length]),simTick:this.sim?.tick??null,clock:Math.round(this.clock.tick()*10)/10});
+    const lastSeq=new Map<string,number>(),hostStream=hashText(this.transport.hostId);
+    for(const stream of message.streams){
+      // Only the host's own stream carries management, so only it may name a member; anything else is unverified.
+      if(stream.member===hostStream)for(const entry of stream.entries)if(entry[2]===10)this.members.set(hashText(entry[3] as string),entry[3] as string);
+      const member=this.members.get(stream.member);if(!member||member===this.transport.id)continue;
+      lastSeq.set(member,stream.lastSeq);
+      for(const entry of stream.entries){
+        const result=sim.insert(member,entry);
+        if(result==='invalid'){this.telemetry.log('invalid',{member,entry});this.requestResync();return;}
+        // Absence zeroes our held controls in every fold, but our edge encoder still believes they are held: when
+        // the host marks us present again it has to forget, so the next resend restates the whole controller.
+        if(result!=='duplicate'&&entry[2]===12&&entry[3]===this.transport.id&&entry[4]===true&&sim.state.game.players.get(this.transport.id)?.connected===false)this.edges.reset();
+      }
+    }
+    if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
+    const open=new Set<string>();
+    for(const [member,firstMissing] of sim.gaps()){
+      open.add(member);if(!this.gapSince.has(member)){this.netStats.record('gap');this.telemetry.log('gap',{member,firstMissing});}const since=this.gapSince.get(member)??now;this.gapSince.set(member,since);
+      if(now-since>SILENCE_MS){this.gapSince.delete(member);this.requestResync();continue;}
+      if(now-(this.lastRepairSent.get(member)??-Infinity)<REPAIR_INTERVAL_MS)continue;
+      this.lastRepairSent.set(member,now);this.netStats.record('repair');this.telemetry.log('repair',{member,firstMissing});this.transport.send(id,packFast({type:'repair',member:hashText(member),firstMissingSeq:firstMissing}),true);
+    }
+    for(const member of [...this.gapSince.keys()])if(!open.has(member))this.gapSince.delete(member);
+  }
+  private installBaseline(message:BaselineMessage):void {
+    let refused:string|undefined;
+    try{refused=this.applyBaseline(message);}catch(error){refused=`${error}`;}
+    this.telemetry.log('baseline',{tick:message.tick,refused:refused??null,simTick:this.sim?.tick??null});
+    if(refused===undefined)return;
+    // A silently dropped baseline leaves a blank or frozen view and no way to tell why; the next resync asks again.
+    console.warn(`Baseline refused: ${refused}`);
+    this.status.transient('Rebuilding the game state…');
+  }
+  /** Installs a baseline, or says why it was refused. */
+  private applyBaseline(message:BaselineMessage):string|undefined {
+    if(message.rules!==REPLAY_RULES||!Number.isSafeInteger(message.tick)||typeof message.game!=='string'||!Array.isArray(message.streams)||message.streams.length>8||typeof message.hash!=='string')return'malformed message';
+    const pending=parseRoomSettings(message.pending),game=decodeGameState(message.game);if(!pending||!game||game.tick!==message.tick)return'unreadable game state';
+    const state:ReplayState={game,pending,streams:new Map()};const folded=new Map<string,number>(),retained:[string,LogEntry[]][]=[];
+    for(const raw of message.streams){
+      if(!Array.isArray(raw)||raw.length!==4)return'malformed stream';const [member,position,streamState,entries]=raw;
+      if(typeof member!=='string'||!member||member.length>128||!Number.isSafeInteger(position)||position<0||!(streamState===null||typeof streamState==='object')||!Array.isArray(entries)||entries.length>512||!entries.every(validEntry))return'malformed stream';
+      if(streamState){
+        const bombs=BombInputBuffer.fromJSON(streamState.bombs);if(!bombs||!Number.isSafeInteger(streamState.flags)||streamState.flags<0||streamState.flags>3)return'malformed stream state';
+        const aim=streamState.aim;if(aim!==null&&!(aim&&typeof aim==='object'&&[aim.x,aim.y].every(n=>typeof n==='number'&&Number.isFinite(n)&&n>=0&&n<=1)))return'malformed aim';
+        if(streamState.gesture!==null&&!Number.isSafeInteger(streamState.gesture))return'malformed gesture';
+        state.streams.set(member,{flags:streamState.flags,...(aim?{aim:{x:aim.x,y:aim.y}}:{}),...(streamState.gesture===null?{}:{gesture:streamState.gesture}),bombs});
+      }
+      folded.set(member,position);retained.push([member,entries as LogEntry[]]);this.members.set(hashText(member),member);
+    }
+    if(replayHash(state)!==message.hash)return'hash mismatch';
+    this.members.set(hashText(this.transport.hostId),this.transport.hostId);this.members.set(hashText(this.transport.id),this.transport.id);
+    // The fold starts over from the host's state. Our own stream is the exception: the host reports how far it has
+    // consumed it in our numbering, and everything past that we still hold and replay onto the baseline ourselves.
+    this.sim=new Simulation(state,this.transport.hostId,SNAPSHOT_COUNT+GUEST_SNAPSHOT_MARGIN);
+    this.sim.install(state,folded);
+    for(const [member,entries] of retained)for(const entry of entries)this.sim.insert(member,entry);
+    const ingested=folded.get(this.transport.id)??0;
+    for(const entry of this.own.retained)if(entry[0]>ingested)this.sim.insert(this.transport.id,entry,true);
+    this.controllerView.reset();this.settings=pending;this.publishView();
+    return undefined;
   }
   command(command:RoomCommand):boolean {
-    if(command.type==='join'){this.joinRequest.request(command);return true;}
-    if(!this.transport.authorityPermitted()){
-      if(this.session&&['action','settings','bot'].includes(command.type)){this.deferredHost.offer(command,performance.now());this.status.notice('Applying when the room connection is confirmed');return true;}
-      this.status.notice('Waiting for room authority — try again when connected');if(isShotTransition(command))this.callbacks.shotFailed?.();return false;
+    if(command.type==='join'){this.pendingJoin={command,sentAt:-Infinity};return true;}
+    if(!this.transport.authorityPermitted()){this.status.notice('Waiting for room authority — try again when connected');return false;}
+    if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){if(command.type==='input')this.status.transient(error);else this.status.notice(error);}return !error;}
+    // A controller phone has no simulation to fold its own entries into; they still go to the host under the same numbering.
+    if(command.type==='input'){
+      if(!this.sim&&!this.controllerView.ready)return false;
+      const base=Math.floor(this.clock.tick());
+      for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);this.telemetry.log('input',{seq:entry[0],tick:entry[1],kind:entry[2],simTick:this.sim?.tick??null});this.sim?.insert(this.transport.id,entry,true);}
+      this.sendOwn(this.dependencies.now());return true;
     }
-    if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){if(command.type==='input')this.status.transient(error);else this.status.notice(error);if(isShotTransition(command))this.callbacks.shotFailed?.();}return !error;}
-    const sent=this.transport.send(this.transport.hostId,{type:'command',command});
-    if(!sent&&isShotTransition(command))this.callbacks.shotFailed?.();return sent;
+    if(command.type==='avatar'){if(!this.sim&&!this.controllerView.ready)return false;const entry=this.own.append(Math.floor(this.clock.tick())+1,[5,command.avatarId]);this.sim?.insert(this.transport.id,entry,true);this.sendOwn(this.dependencies.now());return true;}
+    return this.transport.send(this.transport.hostId,{type:'command',command});
+  }
+  /** Every tick while there are recent entries to repeat, otherwise every five ticks as a liveness and clock heartbeat. */
+  private sendOwn(now:number):void {
+    if(!this.sim&&!this.controllerView.ready)return;
+    const entries=this.own.next();
+    const sent=this.transport.send(this.transport.hostId,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:hashText(this.transport.id),lastSeq:this.own.lastSeq,entries}]}),true);
+    if(entries.length)this.telemetry.log('send',{lastSeq:this.own.lastSeq,n:entries.length,first:entries[0]![0],sent});
   }
   private tick():void {
-    const now=performance.now(),elapsed=now-this.lastTick;this.lastTick=now;
+    const now=this.dependencies.now(),elapsed=now-this.lastTick;this.lastTick=now;
     const permitted=this.transport.authorityPermitted();
     const transitionStatus=authorityTransitionStatus(this.authorityActive,permitted);
     if(transitionStatus)this.status.recurring(transitionStatus);
     this.status.refresh();
-    const deferred=this.deferredHost.drain(now,permitted);
-    if(deferred.status==='ready')this.command(deferred.value);
-    else if(deferred.status==='expired')this.status.notice('Room action timed out — please try again');
-    // A non-permitted clock pauses advancing at once; seats keep their control scope through a bounded gap (#48).
-    if(this.authorityGrace.clearSeats(now,permitted))this.session?.clear();
     if(!permitted){this.accumulator=0;this.authorityActive=false;return;}
     this.authorityActive=true;
-    if(now-this.lastClockProbe>=500){
-      this.lastClockProbe=now;
-      if(this.session){const scope=this.session.controlScope(this.transport.id)??{matchId:this.session.game.matchId,round:this.session.game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};if(scope)this.callbacks.clock?.({scope,localSentAt:now,localReceivedAt:now,authorityTick:this.session.game.tick+this.accumulator/50,paused:document.hidden||this.recovering||this.session.game.phase!=='playing'});}
-      else this.transport.send(this.transport.hostId,{type:'tickProbe',...this.tickProbes.request()});
+    if(this.pendingJoin&&now-this.pendingJoin.sentAt>=JOIN_RETRY_MS){
+      this.pendingJoin.sentAt=now;
+      if(this.session){const error=this.session.command(this.transport.id,this.pendingJoin.command);this.pendingJoin=undefined;if(error)this.status.notice(error);else this.save();}
+      else this.transport.send(this.transport.hostId,{type:'command',command:this.pendingJoin.command});
     }
-    this.joinRequest.retry(now,true,command=>{
-      if(this.session){const error=this.session.command(this.transport.id,command);this.joinRequest.confirm();if(error)this.status.notice(error);else this.save();}
-      else this.transport.send(this.transport.hostId,{type:'command',command});
-    });
-    if(!this.session){if(now-this.lastState>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);return;}
+    if(this.session)this.hostTick(now,elapsed);else this.guestTick(now,elapsed);
+  }
+  private hostTick(now:number,elapsed:number):void {
+    const session=this.session!;
     if(this.recovering){
-      if(this.session.game.phase==='lobby'||[...this.session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
-      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
+      if(session.game.phase==='lobby'||[...session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
+      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(now,true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
     }
     this.accumulator+=Math.min(elapsed,100);
-    if(document.hidden){
-      if(!this.announced){this.session.clear();this.publish(true);this.announced=true;}this.accumulator=0;return;
-    }
+    if(this.dependencies.hidden()){if(!this.announced){this.publish(now,true);this.announced=true;}this.accumulator=0;return;}
     this.announced=false;
-    while(this.accumulator>=50){
-      this.accumulator-=50;
-      for(const event of this.session.advance()){
-        const {matchId,round,tick}=this.session.game;this.callbacks.event(event,matchId,round,tick);for(const id of this.peers)this.transport.send(id,{type:'event',event,matchId,round,tick});
-      }
-      this.publish(false);
+    while(this.accumulator>=TICK_MS){
+      this.accumulator-=TICK_MS;
+      for(const [id,at] of this.lastHeard)if(now-at>ABSENT_MS&&session.game.players.get(id)?.connected){this.telemetry.log('absent',{id,silentMs:Math.round(now-at)});session.presence(id,false);}
+      const {matchId,round}=session.game;
+      for(const event of session.advance())this.callbacks.event(event,matchId,round,session.tick);
+      this.publish(now,false);
     }
   }
-  private publish(paused:boolean):void {
-    const session=this.session!;const game=session.game;const snapshot=session.snapshot();const ack=session.acknowledgements();
-    if(game.tick%20===0||paused)try{localStorage.setItem(`fuse-checkpoint-${this.code}`,session.checkpoint());}catch{}
-    this.callbacks.state({...snapshot,tick:game.tick,round:game.round},session.settings,ack[this.transport.id]??-1,game.matchId,session.appliedMotion(this.transport.id));
-    const scope=session.controlScope(this.transport.id)??{matchId:game.matchId,round:game.round,controlEpoch:`spectator:${this.transport.grant?.epoch}`};
-    const at=performance.now();this.callbacks.clock?.({scope,localSentAt:at,localReceivedAt:at,authorityTick:game.tick+this.accumulator/50,paused:paused||game.phase!=='playing'});
+  private publish(now:number,paused:boolean):void {
+    const session=this.session!,game=session.game,tick=session.tick;
+    if(tick%HASH_INTERVAL_TICKS===0||paused)this.save();
+    this.previous=this.current;this.current={...session.snapshot(),tick,round:game.round};
+    this.callbacks.state(this.current,session.settings,game.matchId);
+    const hash=tick%HASH_INTERVAL_TICKS===0?session.sim.hashAt(tick-HASH_LAG_TICKS)??null:null,shared=session.sim.state.pending.mode==='shared';
     for(const id of this.peers){
-      let delivery=this.keyframes.get(id);if(!delivery){delivery=new KeyframeDelivery<WorldEnvelope>();this.keyframes.set(id,delivery);}
-      if(!delivery.matchesScope(game.matchId,game.round)){delivery.clear();this.encoders.delete(id);}
-      const pending=delivery.pump(at,world=>this.transport.send(id,world));
-      if(pending==='waiting')continue;if(pending==='expired')this.encoders.delete(id);
-      let encoder=this.encoders.get(id);if(!encoder){const generation=(this.generations.get(id)??0)+1;this.generations.set(id,generation);encoder=new WorldEncoder(generation);this.encoders.set(id,encoder);}
-      // A fresh encoder keyframes itself. On one ordered reliable channel a delta chain cannot drift, and a broken chain already resyncs, so a periodic re-baseline only buys a ~30 KB burst plus a receipt wait that blocks every delta to that peer (#61).
-      const frame=encoder.encode(snapshot,game.matchId,game.round,game.tick);
-      const world:WorldEnvelope={type:'world',frame,settings:session.settings,ack:recipientAcknowledgements(ack,id),paused,motion:session.appliedMotion(id)};
-      if(frame.base===0){delivery.hold(world,at);delivery.pump(at,payload=>this.transport.send(id,payload));}
-      else if(!this.transport.send(id,world))this.encoders.delete(id);
+      // A joined phone in shared-TV mode never renders the arena: it gets a thin status and a heartbeat, not the
+      // streams. Only a baseline restarts its fold, so going back to a full view keeps it a controller — still fed
+      // a status and a heartbeat — until that baseline has actually left the transport.
+      const player=game.players.get(id);
+      const controller=Boolean(player)&&(shared||this.controllers.has(id)&&!this.sendBaseline(id));
+      if(!controller&&this.controllers.has(id))this.sendBaseline(id);
+      if(controller){
+        let sender=this.controllers.get(id);if(!sender){sender=new ControllerSender();this.controllers.set(id,sender);}
+        sender.publish(session,status=>this.transport.send(id,status));
+        // One per publish, paused ones included: three lost heartbeats is the second of silence that stops the phone
+        // sending input, and at 49 bytes and 20 Hz this costs a kilobyte a second against the streams it replaces.
+        this.transport.send(id,packFast({type:'heartbeat',tick:tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,pos:[Math.round(player!.x),Math.round(player!.y),Math.round(player!.angle*1000)/1000]}),true);
+        continue;
+      }
+      const streams=[...session.senders].filter(([member])=>member!==id).map(([member,sender])=>({member:hashText(member),lastSeq:sender.lastSeq,entries:sender.next()}));
+      this.transport.send(id,packFast({type:'streams',tick:tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,hash,streams}),true);
     }
   }
-  private save(){if(this.session)try{localStorage.setItem(`fuse-checkpoint-${this.code}`,this.session.checkpoint());}catch{}}
-  stop(){this.save();clearInterval(this.interval);this.transport.close();}
+  private guestTick(now:number,elapsed:number):void {
+    const sim=this.sim,controller=!sim&&this.controllerView.ready;
+    if(!sim&&!controller){if(now-this.hostHeardAt>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);this.requestResync();return;}
+    if(now-this.hostHeardAt>SILENCE_MS){this.status.recurring('Waiting for the host…');this.sendAccumulator=0;return;}
+    this.status.recurring(controller?'Connected · phone controls':'Connected · direct game link');
+    const target=Math.floor(this.clock.tick());
+    // A hidden tab keeps folding (its timer runs at 1 Hz, advanceTo caps the catch-up), or every relayed entry would be 'future' and force a baseline.
+    if(sim&&target>sim.tick){
+      const {matchId,round}=sim.state.game;
+      const result=sim.advanceTo(target,(event,tick)=>this.callbacks.event(event,matchId,round,tick));
+      if(result.status==='baseline'){this.requestResync();return;}
+      if(result.rewound){this.netStats.record('rewind',result.rewound);this.telemetry.log('rewind',{depth:result.rewound,tick:sim.tick});}
+      this.publishView();
+      this.checkHash();
+    }
+    this.sendAccumulator+=Math.min(elapsed,100);
+    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim?sim.tick:target);this.sendTicks++;if(this.own.retained.length||this.edges.holding||this.sendTicks%5===0)this.sendOwn(now);}
+  }
+  /** A heartbeat arrives every tick; the phone's DOM is rebuilt at most this often, the rest only feed the clock. */
+  private showFrame(frame:ControllerFrame):void {
+    this.lastFrameShownAt=this.dependencies.now();this.joined(frame.snapshot.players);
+    this.previous=undefined;this.current=frame.snapshot;this.settings=frame.settings;this.callbacks.state(this.current,this.settings,frame.matchId);
+  }
+  /** The join is answered by the roster, not by an ack: once this view folds itself in, stop repeating it — a repeated join re-authors the member and used to reset its edges mid-hold. */
+  private joined(players:{has(id:string):boolean}|ReadonlyArray<{id:string}>):void {
+    if(this.pendingJoin&&this.pendingJoin.sentAt!==-Infinity&&('has' in players?players.has(this.transport.id):players.some(p=>p.id===this.transport.id)))this.pendingJoin=undefined;
+  }
+  private publishView():void {
+    const sim=this.sim!,game=sim.state.game;this.joined(game.players);
+    this.previous=this.current;this.current={...toSnapshot(game),tick:game.tick,round:game.round};
+    this.settings=sim.state.pending;this.callbacks.state(this.current,this.settings,game.matchId);
+  }
+  /** The host's periodic hash is compared only once every stream it covers is complete here. */
+  private checkHash():void {
+    const sim=this.sim,pending=this.pendingHash;if(!sim||!pending||sim.tick<pending.tick)return;
+    for(const [member,lastSeq] of pending.lastSeq)if(sim.stream(member).contiguous<lastSeq)return;
+    this.pendingHash=undefined;
+    const hash=sim.hashAt(pending.tick);if(hash===undefined||hash===pending.hash)return;
+    const now=this.dependencies.now();this.mismatches=this.mismatches.filter(at=>now-at<60_000);this.mismatches.push(now);this.netStats.record('mismatch');this.telemetry.log('mismatch',{tick:pending.tick});
+    if(this.mismatches.length>=3)this.status.notice('Simulation out of sync — reload this page');
+    this.requestResync();
+  }
+  /** Encoding and storing the checkpoint is synchronous; any peer's commands can ask for it, so it runs on a cadence, not per command. */
+  private save(force=false){
+    if(!this.session)return;
+    const now=this.dependencies.now();if(!force&&now-this.lastSave<SAVE_INTERVAL_MS)return;
+    this.lastSave=now;try{localStorage.setItem(`fuse-checkpoint-${this.code}`,this.session.checkpoint());}catch{}
+  }
+  stop(){this.save(true);clearInterval(this.interval);this.transport.close();}
 }

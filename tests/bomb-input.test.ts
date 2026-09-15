@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BombInputBuffer, MAX_PENDING_BOMB_ACTIONS } from '../src/server/bomb-input.js';
+import { BombInputBuffer, MAX_PENDING_BOMB_ACTIONS } from '../src/shared/bomb-input.js';
 
 test('ordered bomb edges survive a between-tick tap, while held resends do not repeat presses', () => {
   const buffer = new BombInputBuffer();

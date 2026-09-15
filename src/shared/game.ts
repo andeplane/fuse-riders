@@ -1,3 +1,4 @@
+import { hypot2, sin, cos } from './deterministic-math.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { roomPickup, type RoomSettings } from './room-settings.js';
 import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
@@ -42,6 +43,7 @@ import {
 import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from './drunk.js';
 import {
   BOMB_FLIGHT_TICKS,
+  BOMB_MAX_CHARGE_TICKS,
   bombLandingPoint,
   bombLaunchDistance,
 } from './bomb-launch.js';
@@ -595,7 +597,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     recordSurvivalTick(
       state.matchStats,
       movement.player.id,
-      Math.hypot(travelledTo.x - movement.oldX, travelledTo.y - movement.oldY),
+      hypot2(travelledTo.x - movement.oldX, travelledTo.y - movement.oldY),
       isInvulnerable(movement.player, state.tick),
       bounced.has(movement.player.id),
     );
@@ -662,6 +664,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
 export function toSnapshot(state: GameState): GameSnapshot {
   return {
+    bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
     phase: state.phase,
     ...(state.phaseEndsAtTick === undefined ? {} : { phaseEndsAtTick: state.phaseEndsAtTick }),
     ...(state.roundStartedTick === undefined ? {} : { roundStartedTick: state.roundStartedTick }),
@@ -769,8 +772,8 @@ function prepareRound(state: GameState): void {
   const radius = 0.28 * Math.min(state.width, state.height);
   participants.forEach((player, index) => {
     const spawnAngle = -Math.PI / 2 + index * 2 * Math.PI / participants.length;
-    player.x = state.width / 2 + Math.cos(spawnAngle) * radius;
-    player.y = state.height / 2 + Math.sin(spawnAngle) * radius;
+    player.x = state.width / 2 + cos(spawnAngle) * radius;
+    player.y = state.height / 2 + sin(spawnAngle) * radius;
     player.angle = normalizeAngle(spawnAngle + Math.PI / 2);
     player.alive = true;
   });
@@ -891,7 +894,7 @@ function isSafePortalPosition(
     const transit = transits.get(player.id);
     if (player.id !== ignoredPlayerId && player.alive && !deaths.has(player.id)) {
       const position = transit?.exitPoint ?? movement ?? player;
-      if (Math.hypot(position.x - point.x, position.y - point.y) <= radius + RIDER_RADIUS) return false;
+      if (hypot2(position.x - point.x, position.y - point.y) <= radius + RIDER_RADIUS) return false;
     }
     for (const trail of player.trail) {
       if (pointSegmentDistanceSquared(point.x, point.y, trail.x1, trail.y1, trail.x2, trail.y2) <= square(radius + TRAIL_WIDTH / 2)) return false;
@@ -903,8 +906,8 @@ function isSafePortalPosition(
   // Reserve both current flight location and landing site of every bomb.
   for (const bomb of state.bombs.values()) {
     const flight = bomb.flightPath[Math.max(0, Math.min(bomb.flightPath.length - 1, state.tick - bomb.launchedTick))];
-    if (Math.hypot(point.x - bomb.x, point.y - bomb.y) <= radius + 14 ||
-      (flight && Math.hypot(point.x - flight.x, point.y - flight.y) <= radius + 14)) return false;
+    if (hypot2(point.x - bomb.x, point.y - bomb.y) <= radius + 14 ||
+      (flight && hypot2(point.x - flight.x, point.y - flight.y) <= radius + 14)) return false;
   }
   return !state.blasts.some(blast => segmentIntersectsDisk(point.x, point.y, point.x, point.y, blast.circle, radius));
 }
@@ -933,8 +936,8 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
 }
 
 function targetPoint(state: GameState, player: PlayerState, aim?: AimPoint, previous?: AimPoint): AimPoint {
-  const x = aim ? aim.x * state.width : previous?.x ?? player.x + Math.cos(player.angle) * 100;
-  const y = aim ? aim.y * state.height : previous?.y ?? player.y + Math.sin(player.angle) * 100;
+  const x = aim ? aim.x * state.width : previous?.x ?? player.x + cos(player.angle) * 100;
+  const y = aim ? aim.y * state.height : previous?.y ?? player.y + sin(player.angle) * 100;
   return { x: Math.max(state.boundaryInset + RIDER_RADIUS, Math.min(state.width - state.boundaryInset - RIDER_RADIUS, x)),
     y: Math.max(state.boundaryInset + RIDER_RADIUS, Math.min(state.height - state.boundaryInset - RIDER_RADIUS, y)) };
 }
@@ -969,14 +972,14 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       state.bombs.set(id, { id, ownerId: player.id, launchX: player.x, launchY: player.y,
         x: player.x, y: player.y, launchedTick: state.tick, placedTick: state.tick,
         landsAtTick: deadline, explodeAtTick: deadline,
-        blastRange: 0, flightPath: [], shell: { vx: Math.cos(player.angle) * speed, vy: Math.sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
+        blastRange: 0, flightPath: [], shell: { vx: cos(player.angle) * speed, vy: sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
       if (gun) player.gunArmed = false; else player.shellArmed = false;
       player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
       recordBombPlaced(state.matchStats, player.id);
       events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
     }
-    const distance = bombLaunchDistance(state.tick - chargeStartedTick);
+    const distance = bombLaunchDistance(state.tick - chargeStartedTick, state.settings?.bombChargeTicks);
     const bounds: LaunchBounds = {
       minX: state.boundaryInset + RIDER_RADIUS,
       maxX: state.width - state.boundaryInset - RIDER_RADIUS,

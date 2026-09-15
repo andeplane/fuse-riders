@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AuthorityClock, isAuthorityGrant, LEASE_GUARD_MS, reserveAuthority, renewAuthority } from '../src/online/authority.js';
+import { AuthorityClock, STALL_MS, isAuthorityGrant, LEASE_GUARD_MS, reserveAuthority, renewAuthority } from '../src/online/authority.js';
 
 test('replacement reservation fences partitions and rejects delayed old renewals', () => {
   const old = reserveAuthority(undefined, 'room', 'host-a', 'grant-a', 1000);
@@ -30,9 +30,10 @@ test('clock stops after suspension or stale samples, resuming only after fresh s
   let local = 0; const clock = new AuthorityClock(() => local);
   const grant = reserveAuthority(undefined, 'room', 'a', 'g', 1000);
   clock.synchronize(0, 1100); assert.equal(clock.permits(grant), true);
-  local = 501; assert.equal(clock.permits(grant), false);
+  local = STALL_MS - 100; assert.equal(clock.permits(grant), true, 'a busy frame is not a suspension');
+  local = 2 * STALL_MS; assert.equal(clock.permits(grant), false);
   assert.equal(clock.permits(grant), false);
-  clock.synchronize(501, 1601); assert.equal(clock.permits(grant), true);
+  clock.synchronize(local, 1100 + local); assert.equal(clock.permits(grant), true);
   for (let i = 0; i < 40; i++) { local += 100; assert.equal(clock.permits(grant), true); }
   local += 1; assert.equal(clock.permits(grant), false);
   clock.synchronize(local, 6000); clock.invalidate(); assert.equal(clock.permits(grant), false);
@@ -45,8 +46,8 @@ test('clock rejects bad samples and conservative intervals crossing lease bounda
   assert.equal(clock.synchronize(600, NaN), false);
   assert.equal(clock.synchronize(600, -1), false);
   assert.equal(clock.synchronize(300, 1000), true);
-  assert.equal(clock.interval(), undefined); // valid RTT but uncertainty exceeds lease guard
-  assert.deepEqual(clock.diagnostics(),{reason:'uncertainty',roundTripMs:300});
+  assert.notEqual(clock.interval(), undefined, 'a slow probe widens the interval instead of refusing it');
+  assert.deepEqual(clock.diagnostics(),{reason:'sampled',roundTripMs:300});
   assert.equal(clock.synchronize(550, 1000), true);
   const grant = reserveAuthority(undefined, 'r', 'h', 'g', 1020);
   assert.equal(clock.permits(grant), false);
