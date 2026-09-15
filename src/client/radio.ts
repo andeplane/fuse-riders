@@ -12,6 +12,10 @@ export const MUSIC_TRACKS = [
   { id: 'neon-grid-chase', title: 'Neon Grid Chase', path: '/music/neon-grid-chase.m4a' },
   { id: 'final-chase', title: 'Final Chase', path: '/music/final-chase.m4a' },
   { id: 'reduced-noise-orchestra', title: 'Reduced Noise Orchestra', path: '/music/reduced-noise-orchestra.m4a' },
+  { id: 'midnight-run', title: 'Midnight Run', path: '/music/midnight-run.m4a' },
+  { id: 'fast-frontier-run', title: 'Fast Frontier Run', path: '/music/fast-frontier-run.m4a' },
+  { id: 'snaky-blue', title: 'Snaky Blue', path: '/music/snaky-blue.m4a' },
+  { id: 'arcade-blues', title: 'Arcade Blues', path: '/music/arcade-blues.m4a' },
 ] as const;
 export type TrackId = typeof MUSIC_TRACKS[number]['id'];
 /** `all` plays every track in order; `playlist` plays the listener's own list (falling back to all while it is empty). */

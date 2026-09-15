@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import http from 'node:http';
+import path from 'node:path';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
 import { createGameServer, catchUpSteps, controllerSnapshot, listenFree } from '../src/server/index.js';
@@ -84,6 +87,47 @@ test('five seats, sixth denial, full public snapshots and private host control',
     host.send({ type: 'hostAction', action: 'start' }); assert.equal((await host.take('error')).code, 'invalid_phase');
     f.app.advance(60); assert.equal(f.app.game.phase, 'playing');
   } finally { await f.close(); }
+});
+
+test('static files serve byte ranges and conditional requests, and cache by whether their name is content-hashed', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'fuse-riders-static-'));
+  await mkdir(path.join(dir, 'assets'), { recursive: true });
+  const body = 'x'.repeat(1000);
+  await writeFile(path.join(dir, 'song.m4a'), body);
+  await writeFile(path.join(dir, 'assets', 'app-abc123.js'), 'console.log(1)');
+  await writeFile(path.join(dir, 'index.html'), '<html></html>');
+  const app = await createGameServer({ port: 0, hostname: '127.0.0.1', buildDirectory: dir });
+  try {
+    const base = `http://127.0.0.1:${app.port}`;
+    const full = await fetch(`${base}/song.m4a`);
+    assert.equal(full.status, 200);
+    assert.equal(full.headers.get('accept-ranges'), 'bytes');
+    assert.equal(full.headers.get('cache-control'), 'no-cache', 'an unhashed public/ asset must revalidate every time');
+    const etag = full.headers.get('etag');
+    assert.ok(etag);
+    assert.equal(await full.text(), body);
+
+    const ranged = await fetch(`${base}/song.m4a`, { headers: { Range: 'bytes=0-9' } });
+    assert.equal(ranged.status, 206);
+    assert.equal(ranged.headers.get('content-range'), 'bytes 0-9/1000');
+    assert.equal(await ranged.text(), body.slice(0, 10));
+
+    const suffix = await fetch(`${base}/song.m4a`, { headers: { Range: 'bytes=-10' } });
+    assert.equal(suffix.status, 206);
+    assert.equal(suffix.headers.get('content-range'), 'bytes 990-999/1000');
+
+    const outOfBounds = await fetch(`${base}/song.m4a`, { headers: { Range: 'bytes=2000-3000' } });
+    assert.equal(outOfBounds.status, 416);
+    assert.equal(outOfBounds.headers.get('content-range'), 'bytes */1000');
+
+    assert.equal((await fetch(`${base}/song.m4a`, { headers: { 'If-None-Match': etag! } })).status, 304);
+
+    const asset = await fetch(`${base}/assets/app-abc123.js`);
+    assert.equal(asset.headers.get('cache-control'), 'public, max-age=31536000, immutable', 'a build-hashed asset can be cached forever');
+
+    const index = await fetch(`${base}/`);
+    assert.equal(index.headers.get('cache-control'), 'no-cache', 'index.html always revalidates so a new build\'s hashed asset links are seen');
+  } finally { await app.close(); }
 });
 
 test('reconnect replaces the same seat, sequences continue, stale input becomes neutral, rapid bomb taps survive', async () => {

@@ -49,10 +49,10 @@ BUILD_DIRECTORY=artifacts/phaser-dist npm run test:browser
 BUILD_DIRECTORY=artifacts/phaser-dist BROWSER=webkit npm run test:browser
 npx vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
 npx tsx scripts/phaser-pages-smoke.ts
-npx tsx scripts/phaser-showcase.ts
+npx tsx scripts/gameplay-showcase.ts
 ```
 
-The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot with a deterministic showcase state injected by `scripts/phaser-showcase.ts`, not an image-generated mockup or evidence of a natural online match. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
+The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot: `scripts/gameplay-showcase.ts` adds 5 AI riders, starts a real race, and advances ticks across the match, screenshotting whenever the bots' own play produces a busier frame (more bombs, a live portal, a fired gun shot, an explosion) — no injected fixture, no image-generated mockup. `scripts/phaser-showcase.ts` still exists for a deterministic, reproducible showcase state used in earlier reviews. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
 
 Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authority and release acceptance remain governed by the online ADRs and roadmap; this rendering work does not close those gates.
 

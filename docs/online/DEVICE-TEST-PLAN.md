@@ -120,9 +120,10 @@ fail and needs a new issue with the press count, timing and screenshots.
 
 #134 replaced the lobby half of #13: on a phone the **lobby** is a plain
 screen (room code with join link and QR, riders, and for the host START
-RACE / ADD AI / ROOM SETTINGS / TV VIEW, with the join form inline before
-taking a seat) in either orientation, with no rotate gate and one ROOM
-button. From **countdown** through **matchOver** `mobilePlayPolicy` is
+RACE / ADD AI / ROOM SETTINGS — no TV VIEW, a phone is never the TV — with
+the join form inline before taking a seat) in either orientation, with no
+rotate gate and one ROOM button. It is the desktop lobby stacked (headline,
+QR card, riders, actions) rather than a card of its own. From **countdown** through **matchOver** `mobilePlayPolicy` is
 active: the full-screen thirds are the only controller and roster/host
 actions live inside the ☰ MENU overlay, auto-opened for a phone host in
 matchOver. `scripts/mobile-phase-smoke.ts` asserts the lobby screen in
@@ -140,8 +141,8 @@ quality.
    (any tap, not only ♫ RADIO), continuing the same track.
 2. In the **lobby** screenshot the phone: one ROOM button, the room code
    with COPY LINK and a QR, "0 riders ready", and — without scrolling inside any
-   strip — START RACE, ROOM SETTINGS, TV VIEW and ADD AI reachable by
-   normal page scrolling. No "Rotate your phone" gate.
+   strip — START RACE, ROOM SETTINGS and ADD AI reachable by normal page
+   scrolling, and no TV VIEW button. No "Rotate your phone" gate.
 3. Rotate to landscape and back: the same lobby screen both times, nothing
    hidden. JOIN AS PLAYER, then add an AI opponent and set a short match
    length so a match can complete quickly.
