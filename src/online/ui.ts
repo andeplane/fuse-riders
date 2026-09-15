@@ -1,6 +1,5 @@
 import { uuid } from '../shared/uuid.js';
 import { showRoomSettings } from './room-settings-menu.js';
-import { uuid } from '../shared/uuid.js';
 import { validRoomCode } from '../shared/room-code.js';
 import { startAttract } from './attract.js';
 import { LocalRuntime } from './local-runtime.js';

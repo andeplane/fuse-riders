@@ -16,7 +16,6 @@ import { BombInputBuffer } from '../shared/bomb-input.js';
 import { MAX_ENTRIES_PER_TICK, replayHash, validEntry, REPLAY_RULES, type LogEntry, type ReplayState } from '../shared/action-log.js';
 import { toSnapshot } from '../shared/game.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
-import { uuid } from '../shared/uuid.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { GameEvent } from '../shared/protocol.js';
 

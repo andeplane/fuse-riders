@@ -1,6 +1,5 @@
 import { uuid } from '../shared/uuid.js';
 import { HostSession } from './host-session.js';
-import { uuid } from '../shared/uuid.js';
 import { defaultRoomSettings } from '../shared/room-settings.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { drawArena } from '../client/main.js';
