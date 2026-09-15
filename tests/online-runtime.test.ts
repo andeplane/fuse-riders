@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomRuntime, HASH_LAG_TICKS, type RoomRuntimeDependencies } from '../src/online/runtime.js';
+import { RoomRuntime, HASH_LAG_TICKS, ABSENT_MS, SILENCE_MS, type RoomRuntimeDependencies } from '../src/online/runtime.js';
 import { TICK_MS } from '../src/online/rollback.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import type { RoomCommand } from '../src/online/host-session.js';
@@ -156,4 +156,17 @@ test('a phone stays a controller until the baseline that restarts its fold is ac
   host.fake.block=undefined;
   run(20);
   assert.ok(internals(guest.runtime).sim,'the retry restarts it');
+});
+
+test('a held charge survives a second of lost uplink and the release still fires',()=>{
+  const {host,guest,run}=pair();
+  const bombs=()=>[...internals(host.runtime).session!.game.bombs.values()].filter(b=>b.ownerId==='guest').length;
+  guest.runtime.command({type:'input',left:false,right:false,bomb:true,bombAction:'press'});run(60);
+  const before=guest.fake.sent.length;run(10);
+  assert.ok(guest.fake.sent.length-before>=10,'a held control keeps a packet going out every tick');
+  assert.ok(ABSENT_MS>SILENCE_MS);
+  run(Math.ceil(SILENCE_MS/TICK_MS)+10,false,true);
+  assert.equal(internals(host.runtime).session!.game.players.get('guest')!.connected,true,'a second of silence is not absence');
+  guest.runtime.command({type:'input',left:false,right:false,bomb:false,bombAction:'release'});run(5);
+  assert.equal(bombs(),1,'the release matched the charge the fold still held');
 });

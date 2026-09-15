@@ -24,6 +24,8 @@ export interface Callbacks { state:(snapshot:ViewSnapshot,settings:RoomSettings,
 export interface RoomRuntimeDependencies { now():number;hidden():boolean;transport(callbacks:TransportCallbacks):PeerTransport }
 /** A member silent this long is logged absent by the host; a host silent this long freezes its views. */
 export const SILENCE_MS=1000;
+/** A rider is logged absent (held controls and charge cancelled) after this much silence; longer than SILENCE_MS because a phone on jittery Wi-Fi loses a few packets in a row. */
+export const ABSENT_MS=2500;
 export const HASH_INTERVAL_TICKS=20;
 /**
  * How far behind its own tick a sender's published hash refers to: the oldest snapshot in its ring, the newest
@@ -278,7 +280,7 @@ export class RoomRuntime {
     this.announced=false;
     while(this.accumulator>=TICK_MS){
       this.accumulator-=TICK_MS;
-      for(const [id,at] of this.lastHeard)if(now-at>SILENCE_MS&&session.game.players.get(id)?.connected){this.telemetry.log('absent',{id,silentMs:Math.round(now-at)});session.presence(id,false);}
+      for(const [id,at] of this.lastHeard)if(now-at>ABSENT_MS&&session.game.players.get(id)?.connected){this.telemetry.log('absent',{id,silentMs:Math.round(now-at)});session.presence(id,false);}
       const {matchId,round}=session.game;
       for(const event of session.advance())this.callbacks.event(event,matchId,round,session.tick);
       this.publish(now,false);
@@ -325,7 +327,7 @@ export class RoomRuntime {
       this.checkHash();
     }
     this.sendAccumulator+=Math.min(elapsed,100);
-    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim?sim.tick:target);this.sendTicks++;if(this.own.retained.length||this.sendTicks%5===0)this.sendOwn(now);}
+    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim?sim.tick:target);this.sendTicks++;if(this.own.retained.length||this.edges.holding||this.sendTicks%5===0)this.sendOwn(now);}
   }
   /** A heartbeat arrives every tick; the phone's DOM is rebuilt at most this often, the rest only feed the clock. */
   private showFrame(frame:ControllerFrame):void {

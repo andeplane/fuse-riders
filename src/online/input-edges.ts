@@ -19,5 +19,7 @@ export class InputEdges {
     return out;
   }
   /** A new room or a fresh stream starts from neutral without emitting anything. */
+  /** A steer or a gesture is held: liveness must not lapse while the fold has something to cancel. */
+  get holding(): boolean { return this.flags !== 0 || this.gesture !== undefined; }
   reset(): void { this.flags = 0; this.aim = undefined; this.gesture = undefined; }
 }
