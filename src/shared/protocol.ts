@@ -44,7 +44,7 @@ export interface GameSnapshot {
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
-  portalPair?: PortalPair;
+  portalPairs: ReadonlyArray<PortalPair>;
   pickups: ReadonlyArray<{ id: number; type: 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;

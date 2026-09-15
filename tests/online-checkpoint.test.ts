@@ -86,9 +86,14 @@ test('checkpoint validates bombs, shell lifetime sentinel, pickups and portal ge
   assert.equal(source.game.bombs.size, 1); assert.equal(session().restore(source.checkpoint()), true);
   rejectedWithoutMutation(corrupt(source, (_data, game) => { object(mapped(game.bombs)[0][1]).ownerId = 'unknown'; }));
   rejectedWithoutMutation(corrupt(source, (_data, game) => { object(object(mapped(game.bombs)[0][1]).shell).vx = Infinity; }));
-  source.game.portalPair = createPortalPair({ id: 'portal', tick: source.game.tick, bounds: { minX: 20, minY: 20, maxX: 1580, maxY: 880 }, riderRadius: 7, random: (() => { let n = 0; return () => (++n % 3) / 3; })(), isSafe: () => true });
-  assert.ok(source.game.portalPair); assert.equal(session().restore(source.checkpoint()), true);
-  rejectedWithoutMutation(corrupt(source, (_data, game) => { object(list(object(game.portalPair).gates)[0]).halfLength = 999; }));
+  const gates = (index: number) => createPortalPair({ id: `portal-${index}`, tick: source.game.tick, bounds: { minX: 20, minY: 20, maxX: 1580, maxY: 880 }, riderRadius: 7, random: (() => { let n = index; return () => (++n % 3) / 3; })(), isSafe: () => true })!;
+  source.game.portalPairs = [gates(0), gates(1)];
+  assert.equal(source.game.portalPairs.length, 2); assert.equal(session().restore(source.checkpoint()), true);
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { object(list(object(list(game.portalPairs)[1]).gates)[0]).halfLength = 999; }));
+  // Exit safety exempts the pair in use by id, so duplicate ids would exempt a foreign wall.
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { object(list(game.portalPairs)[1]).id = 'portal-0'; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { object(list(game.portalPairs)[1]).expiresAtTick = 0; }));
+  rejectedWithoutMutation(corrupt(source, (_data, game) => { const list_ = game.portalPairs as unknown[]; list_.push(list_[0], list_[1], list_[0]); }));
 });
 
 

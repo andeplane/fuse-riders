@@ -9,8 +9,7 @@ const within = (n: unknown, min: number, max: number): boolean => typeof n === '
 /** What a shared-TV phone shows: phase, roster, its own cooldown and powerups, the recap. No geometry, no projectiles. */
 export interface ControllerStatus { type: 'status'; tick: number; matchId: string; round: number; state: GameSnapshot; settings: RoomSettings }
 export function stripSnapshot(snapshot: GameSnapshot): GameSnapshot {
-  const { portalPair: _portal, ...rest } = snapshot;
-  return { ...rest, players: snapshot.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [] };
+  return { ...snapshot, players: snapshot.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], portalPairs: [] };
 }
 
 /** Sends one phone the stripped snapshot only when something other than positions changed; the heartbeat carries those. */

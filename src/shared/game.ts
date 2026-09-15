@@ -7,7 +7,7 @@ import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
 import { clipTrailSegment } from './trail-clipping.js';
 import { pickupTypeForRoll } from './pickup-weights.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
-import { createPortalPair, findPortalTransit, fitPortalPair, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
+import { createPortalPair, findPortalTransit, fitPortalPair, MAX_PORTAL_PAIRS, PORTAL_WALL_HALF_WIDTH, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
   AimPoint,
   BombActionCommand,
@@ -192,7 +192,7 @@ export interface GameState {
   bombs: Map<number, BombState>;
   blasts: BlastState[];
   pickups: PickupState[];
-  portalPair?: PortalPair;
+  portalPairs: PortalPair[];
   nextBombId: number;
   nextPickupId: number;
   nextPickupSpawnTick: number;
@@ -245,6 +245,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     bombs: new Map(),
     blasts: [],
     pickups: [],
+    portalPairs: [],
     nextBombId: 1,
     nextPickupId: 1,
     nextPickupSpawnTick: 0,
@@ -348,7 +349,7 @@ export function returnToLobby(state: GameState, newMatchId: string): void {
     if (player.connected) addPlayer(fresh, { id: player.id, name: player.name, avatarId: player.avatarId, slot: player.slot, color: player.color, connected: true });
   }
   Object.assign(state, fresh, {
-    phaseEndsAtTick: undefined, roundStartedTick: undefined, portalPair: undefined,
+    phaseEndsAtTick: undefined, roundStartedTick: undefined, portalPairs: [],
     roundWinnerId: undefined, matchWinnerId: undefined,
   });
 }
@@ -368,7 +369,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
 
 export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent>): TickResult {
   state.tick += 1;
-  if (state.portalPair && state.tick >= state.portalPair.expiresAtTick) state.portalPair = undefined;
+  state.portalPairs = state.portalPairs.filter((pair) => state.tick < pair.expiresAtTick);
   const events: GameEvent[] = [];
 
   for (const player of state.players.values()) {
@@ -390,7 +391,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.boundaryInset = INITIAL_BOUNDARY_INSET +
     Math.max(0, elapsed - OVERTIME_START_TICK) * OVERTIME_INSET_PER_TICK;
   const trailBounds = portalBounds(state);
-  if (state.portalPair) state.portalPair = fitPortalPair(state.portalPair, trailBounds, RIDER_RADIUS);
+  state.portalPairs = state.portalPairs
+    .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
+    .filter((pair): pair is PortalPair => pair !== undefined);
   for (const player of state.players.values()) {
     const clippedTrail: TrailSegment[] = [];
     for (const segment of player.trail) {
@@ -576,11 +579,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const movement of movementList) {
     if (causes.has(movement.player.id)) continue;
     const transit = findPortalTransit({
-      pair: state.portalPair, tick: state.tick,
+      pairs: state.portalPairs, tick: state.tick,
       from: { x: movement.oldX, y: movement.oldY }, to: movement,
       heading: movement.angle, cooldownUntilTick: movement.player.portalCooldownUntilTick,
       bounds: portalBounds(state), riderRadius: RIDER_RADIUS,
-      isSafeExit: (point, radius) => isSafePortalPosition(state, point, radius, movements, movement.player.id, causes, transits),
+      isSafeExit: (point, radius, pairId) => isSafePortalPosition(state, point, radius, movements, movement.player.id, causes, transits) &&
+        isClearOfPortalWalls(state, point, radius, pairId),
     });
     if (transit) transits.set(movement.player.id, transit);
   }
@@ -708,7 +712,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       circle: { ...blast.circle },
       expiresAtTick: blast.expiresAtTick,
     })),
-    ...(state.portalPair ? { portalPair: { ...state.portalPair, gates: [{ ...state.portalPair.gates[0] }, { ...state.portalPair.gates[1] }] as const } } : {}),
+    portalPairs: state.portalPairs.map((pair) => ({ ...pair, gates: [{ ...pair.gates[0] }, { ...pair.gates[1] }] as const })),
     pickups: state.pickups.map((pickup) => ({ ...pickup })),
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
@@ -730,7 +734,7 @@ function prepareRound(state: GameState): void {
   state.bombs.clear();
   state.blasts = [];
   state.pickups = [];
-  state.portalPair = undefined;
+  state.portalPairs = [];
   state.roundWinnerId = undefined;
   state.matchWinnerId = undefined;
   state.nextBombId = 1;
@@ -829,10 +833,11 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       // Safety disks conservatively cover the entire portal wall plus rider clearance.
       const pair = createPortalPair({ id: `${state.round}:${pickup.id}:${state.tick}`, tick: state.tick,
         bounds: portalBounds(state), riderRadius: RIDER_RADIUS, random: () => nextRandom(state),
-        isSafe: (point, radius) => isSafePortalPosition(state, point, radius, movements),
+        isSafe: (point, radius) => isSafePortalPosition(state, point, radius, movements) && isClearOfPortalWalls(state, point, radius),
       });
       if (!pair) continue;
-      state.portalPair = pair;
+      // Pairs accumulate and expire on their own schedules; only the cap retires one early.
+      state.portalPairs = [...state.portalPairs.slice(Math.max(0, state.portalPairs.length + 1 - MAX_PORTAL_PAIRS)), pair];
     }
     consumed.add(pickup.id);
     events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
@@ -874,6 +879,18 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
 function portalBounds(state: GameState) {
   return { minX: state.boundaryInset, minY: state.boundaryInset,
     maxX: state.width - state.boundaryInset, maxY: state.height - state.boundaryInset };
+}
+
+/**
+ * Clearance from live portal walls, for two callers with different exemptions. Placement passes no
+ * exemption, so a new pair is never laid over a running one. A transit exempts the pair being used,
+ * whose own gate the exit deliberately hugs at PORTAL_WALL_HALF_WIDTH + RIDER_RADIUS + 1, and so
+ * covers the foreign walls that placement clearance alone does not put out of an exit's reach.
+ */
+function isClearOfPortalWalls(state: GameState, point: PortalPoint, radius: number, exemptPairId?: string): boolean {
+  return state.portalPairs.every((pair) => pair.id === exemptPairId || pair.gates.every((gate) =>
+    pointSegmentDistanceSquared(point.x, point.y, gate.x, gate.y - gate.halfLength, gate.x, gate.y + gate.halfLength) >
+      square(radius + PORTAL_WALL_HALF_WIDTH)));
 }
 
 function isSafePortalPosition(
