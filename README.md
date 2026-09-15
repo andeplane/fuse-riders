@@ -37,9 +37,9 @@ Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host d
 npm run dev:online
 ```
 
-Open **http://localhost:8787/**. Create a room, choose shared-screen or individual-device play, and share its short code (for example **AB42**), invite link or QR code. A shared-TV lobby keeps its QR code visible until the race starts, with the join link printed under it and a **COPY** button for anyone who cannot scan. The creator can join as a player on the same phone and use **START RACE**, **MAIN MENU**, and **ROOM SETTINGS**. **TV VIEW** opens a separate display role for a shared screen in a new tab. Use HTTPS for remote-device testing; local HTTP testing does not prove Internet connectivity.
+Open **http://localhost:8787/**. Create a room, choose shared-screen or individual-device play, and share its short code (for example **AB42**), invite link or QR code. A shared-TV lobby keeps its QR code visible until the race starts, with the join link printed under it and a **COPY LINK** button for anyone who cannot scan. The creator can join as a player on the same phone and use **START RACE**, **MAIN MENU**, and **ROOM SETTINGS**. **TV VIEW** opens a separate display role for a shared screen in a new tab. Use HTTPS for remote-device testing; local HTTP testing does not prove Internet connectivity.
 
-A room lasts for its hosted session, including rematches. **MENU → END ROOM** closes it immediately. If the host disconnects, it expires after a 90-second reconnect window; guests cannot keep it alive.
+A room lasts for its hosted session, including rematches. **ROOM → END ROOM** closes it immediately. If the host disconnects, it expires after a 90-second reconnect window; guests cannot keep it alive.
 
 Room settings select first-to-N wins or a fixed number of rounds. Open **CONFIGURE POWERUPS** to adjust drop weights, use **BACK TO ROOM SETTINGS** to return, and **SAVE SETTINGS** to apply the draft. A weight of zero disables that drop; all zero means no random drops. Defaults and preferences are stored in the creator's browser under `fuse-riders-room-settings-v1`. Match format changes apply to the next match, and pickup-weight changes apply to the next round. Clearing browser storage loses saved preferences and room credentials.
 
