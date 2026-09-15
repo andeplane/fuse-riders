@@ -6,6 +6,7 @@ import { Simulation, TickClock, TICK_MS } from './rollback.js';
 import { StreamSender } from './stream.js';
 import { InputEdges } from './input-edges.js';
 import { hashText, packFast, unpackFast, type StreamPacket } from './wire.js';
+import { ControllerSender, ControllerView, STATUS_HEARTBEAT_TICKS, type ControllerFrame } from './controller-status.js';
 import { decodeGameState } from './checkpoint.js';
 import { interpolateWorld } from './interpolate.js';
 import { BombInputBuffer } from '../shared/bomb-input.js';
@@ -32,8 +33,10 @@ export class RoomRuntime {
   private lastHeard=new Map<string,number>();
   private peerSentAt=new Map<string,number>();
   private lastRepairSent=new Map<string,number>();
+  private controllers=new Map<string,ControllerSender>();
   // Guest side.
   private sim?:Simulation;
+  private readonly controllerView=new ControllerView();
   private readonly clock=new TickClock(()=>performance.now());
   private own=new StreamSender();
   private readonly edges=new InputEdges();
@@ -74,7 +77,7 @@ export class RoomRuntime {
       },
       peer:(id,online)=>{
         if(online){this.peers.add(id);this.session?.reconnect(id);this.lastHeard.set(id,performance.now());if(id===this.transport.hostId&&!this.session){this.resetView();this.requestResync(true);}}
-        else{this.peers.delete(id);this.lastHeard.delete(id);this.session?.disconnect(id);}
+        else{this.peers.delete(id);this.lastHeard.delete(id);this.controllers.delete(id);this.session?.disconnect(id);}
       },
       message:(id,data)=>this.receive(id,data),status:text=>this.status.recurring(text),
       ended:()=>{clearInterval(this.interval);this.session=undefined;this.peers.clear();this.resetView();this.callbacks.ended?.();},
@@ -83,7 +86,7 @@ export class RoomRuntime {
       authorityChanged:()=>{this.resetView();this.accumulator=0;},
     });
   }
-  private resetView():void {this.sim=undefined;this.members.clear();this.own=new StreamSender();this.edges.reset();this.clock.reset();this.pendingHash=undefined;this.hostSentAt=null;this.hostHeardAt=-Infinity;this.previous=undefined;this.current=undefined;}
+  private resetView():void {this.sim=undefined;this.controllerView.reset();this.members.clear();this.own=new StreamSender();this.edges.reset();this.clock.reset();this.pendingHash=undefined;this.hostSentAt=null;this.hostHeardAt=-Infinity;this.previous=undefined;this.current=undefined;}
   start(){this.transport.connect();this.interval=setInterval(()=>this.tick(),10);}
   /** The interpolated world for this frame: the last two simulated ticks at the fractional clock. */
   render():ViewSnapshot|undefined {
@@ -106,6 +109,8 @@ export class RoomRuntime {
     }
     if(id!==this.transport.hostId)return;
     if(data.type==='baseline'){this.installBaseline(raw as BaselineMessage);this.hostHeardAt=performance.now();}
+    // A status means the host now treats this peer as a controller phone: the simulation stops, the view is the status.
+    else if(data.type==='status'){const frame=this.controllerView.receive(raw);if(!frame)return;this.hostHeardAt=performance.now();this.sim=undefined;this.showFrame(frame);}
     else if(data.type==='error'){const text=data.error??'Room error';if(data.transient===true)this.status.transient(text);else this.status.notice(text);}
   }
   private heard(id:string):void {this.lastHeard.set(id,performance.now());this.session?.presence(id,true);}
@@ -113,6 +118,7 @@ export class RoomRuntime {
     const now=performance.now(),session=this.session;
     if(session){
       if(message.type==='repair'){const member=[...session.senders.keys()].find(m=>hashText(m)===message.member);const sender=member?session.senders.get(member):undefined;if(!member||!sender)return;const entries=sender.since(message.firstMissingSeq).slice(0,32);if(!entries.length||entries[0]![0]!==message.firstMissingSeq){this.transport.send(id,session.baseline(id));return;}this.transport.send(id,packFast({type:'streams',tick:session.tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,hash:null,streams:[{member:message.member,lastSeq:sender.lastSeq,entries}]}),true);return;}
+      if(message.type!=='streams')return;
       const own=message.streams.find(s=>s.member===hashText(id));if(!own)return;
       this.peerSentAt.set(id,message.sentAt);this.heard(id);
       const {firstMissing}=session.ingest(id,own.entries);
@@ -124,6 +130,7 @@ export class RoomRuntime {
     this.hostHeardAt=now;this.hostSentAt=message.sentAt;
     // The echo is this guest's own send time; older than a second it measures silence, not the link.
     if(message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt));else if(!this.clock.live)this.clock.observe(message.tick,0);
+    if(message.type==='heartbeat'){const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim)this.showFrame(frame);return;}
     const sim=this.sim;if(!sim)return;
     const lastSeq=new Map<string,number>();
     for(const stream of message.streams){
@@ -163,25 +170,26 @@ export class RoomRuntime {
       if(!this.sim)this.sim=new Simulation(state,this.transport.hostId);
       this.sim.install(state,folded);
       for(const [member,entries] of retained)for(const entry of entries)this.sim.insert(member,entry);
-      this.settings=pending;this.publishView();
+      this.controllerView.reset();this.settings=pending;this.publishView();
     }catch{/* a malformed baseline is ignored; the next resync asks again */}
   }
   command(command:RoomCommand):boolean {
     if(command.type==='join'){this.pendingJoin={command,sentAt:-Infinity};return true;}
     if(!this.transport.authorityPermitted()){this.status.notice('Waiting for room authority — try again when connected');return false;}
     if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){if(command.type==='input')this.status.transient(error);else this.status.notice(error);}return !error;}
+    // A controller phone has no simulation to fold its own entries into; they still go to the host under the same numbering.
     if(command.type==='input'){
-      const sim=this.sim;if(!sim)return false;
+      if(!this.sim&&!this.controllerView.ready)return false;
       const base=Math.floor(this.clock.tick());
-      for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);sim.insert(this.transport.id,entry,true);}
+      for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);this.sim?.insert(this.transport.id,entry,true);}
       this.sendOwn(performance.now());return true;
     }
-    if(command.type==='avatar'){const sim=this.sim;if(!sim)return false;const entry=this.own.append(Math.floor(this.clock.tick())+1,[5,command.avatarId]);sim.insert(this.transport.id,entry,true);this.sendOwn(performance.now());return true;}
+    if(command.type==='avatar'){if(!this.sim&&!this.controllerView.ready)return false;const entry=this.own.append(Math.floor(this.clock.tick())+1,[5,command.avatarId]);this.sim?.insert(this.transport.id,entry,true);this.sendOwn(performance.now());return true;}
     return this.transport.send(this.transport.hostId,{type:'command',command});
   }
   /** Every tick while there are recent entries to repeat, otherwise every five ticks as a liveness and clock heartbeat. */
   private sendOwn(now:number):void {
-    if(!this.sim)return;
+    if(!this.sim&&!this.controllerView.ready)return;
     this.transport.send(this.transport.hostId,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:hashText(this.transport.id),lastSeq:this.own.lastSeq,entries:this.own.next()}]}),true);
   }
   private tick():void {
@@ -221,19 +229,29 @@ export class RoomRuntime {
     if(tick%HASH_INTERVAL_TICKS===0||paused)this.save();
     this.previous=this.current;this.current={...session.snapshot(),tick,round:game.round};
     this.callbacks.state(this.current,session.settings,game.matchId);
-    const hash=tick%HASH_INTERVAL_TICKS===0?session.hash():null;
+    const hash=tick%HASH_INTERVAL_TICKS===0?session.hash():null,shared=session.sim.state.pending.mode==='shared';
     for(const id of this.peers){
+      // A joined phone in shared-TV mode never renders the arena: it gets a thin status and a heartbeat, not the streams.
+      const player=game.players.get(id);
+      if(shared&&player){
+        let sender=this.controllers.get(id);if(!sender){sender=new ControllerSender();this.controllers.set(id,sender);}
+        sender.publish(session,status=>this.transport.send(id,status));
+        if(tick%STATUS_HEARTBEAT_TICKS===0)this.transport.send(id,packFast({type:'heartbeat',tick:tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,pos:[Math.round(player.x),Math.round(player.y),Math.round(player.angle*1000)/1000]}),true);
+        continue;
+      }
+      // Back to a full view: a baseline restarts its simulation before the streams resume.
+      if(this.controllers.delete(id))this.transport.send(id,session.baseline(id));
       const streams=[...session.senders].filter(([member])=>member!==id).map(([member,sender])=>({member:hashText(member),lastSeq:sender.lastSeq,entries:sender.next()}));
       this.transport.send(id,packFast({type:'streams',tick:tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,hash,streams}),true);
     }
   }
   private guestTick(now:number,elapsed:number):void {
-    const sim=this.sim;
-    if(!sim){if(now-this.hostHeardAt>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);this.requestResync();return;}
+    const sim=this.sim,controller=!sim&&this.controllerView.ready;
+    if(!sim&&!controller){if(now-this.hostHeardAt>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);this.requestResync();return;}
     if(now-this.hostHeardAt>SILENCE_MS){this.status.recurring('Waiting for the host…');this.sendAccumulator=0;return;}
-    this.status.recurring('Connected · direct game link');
+    this.status.recurring(controller?'Connected · phone controls':'Connected · direct game link');
     const target=Math.floor(this.clock.tick());
-    if(target>sim.tick&&!document.hidden){
+    if(sim&&target>sim.tick&&!document.hidden){
       const {matchId,round}=sim.state.game;
       const result=sim.advanceTo(target,(event,tick)=>this.callbacks.event(event,matchId,round,tick));
       if(result.status==='baseline'){this.requestResync();return;}
@@ -241,7 +259,10 @@ export class RoomRuntime {
       this.checkHash();
     }
     this.sendAccumulator+=Math.min(elapsed,100);
-    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim.tick);this.sendTicks++;if(this.own.retained.length||this.sendTicks%5===0)this.sendOwn(now);}
+    if(this.sendAccumulator>=TICK_MS){this.sendAccumulator=0;this.own.retain(sim?sim.tick:target);this.sendTicks++;if(this.own.retained.length||this.sendTicks%5===0)this.sendOwn(now);}
+  }
+  private showFrame(frame:ControllerFrame):void {
+    this.previous=undefined;this.current=frame.snapshot;this.settings=frame.settings;this.callbacks.state(this.current,this.settings,frame.matchId);
   }
   private publishView():void {
     const sim=this.sim!,game=sim.state.game;
