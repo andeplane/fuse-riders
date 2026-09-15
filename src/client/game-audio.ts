@@ -1,5 +1,6 @@
 import { AudioDirector, MUSIC_TRACKS, type AudioChannel, type GameSynth, type SynthNote } from './audio-director.js';
 import { assetUrl } from './asset-url.js';
+import { RADIO_SHORTCUT_HINT, formatTrackTime, loadRadio, radioQueue, radioShortcut, saveRadio, trackById, type RadioSource, type TrackId } from './radio.js';
 import { safeStorage, type SafeStorage } from './safe-storage.js';
 
 export const AUDIO_SETTINGS_KEY = 'fuse-riders-audio';
@@ -9,6 +10,8 @@ export interface GameAudioOptions {
   /** Plays music without waiting for a match, for the landing page and a room that has not connected yet. */
   background?: boolean;
   storage?: SafeStorage;
+  /** Shows or hides the radio for Ctrl+A; by default the `controls` dropdown toggles. */
+  toggleRadio?: () => void;
 }
 export interface GameAudio {
   director: AudioDirector;
@@ -44,6 +47,8 @@ class WebAudioSynth implements GameSynth {
   private element?: HTMLAudioElement;
   private trackPath = '';
   private loadedPath = '';
+  /** Resume point for a track whose metadata has not loaded yet; a media element cannot seek before then. */
+  private pendingSeek?: number;
   constructor(private readonly stateChanged: (running: boolean) => void, private readonly trackEnded: () => void) {}
   async unlock(): Promise<boolean> {
     try {
@@ -92,14 +97,33 @@ class WebAudioSynth implements GameSynth {
    * volume keys only reach media elements — a decoded buffer routed through an AudioContext ignores both —
    * and streaming the file also drops the ~60 MB of PCM the old whole-track decode held.
    */
-  music(path: string): void {
+  music(path: string, offset: number): void {
     const element = this.element ??= this.createElement();
     this.trackPath = path; element.volume = this.levels.music;
+    // Resuming the loaded track where it paused must not seek: a server without range requests cannot seek,
+    // and the element would restart from the top. Only a real jump (restart, a different resume point) seeks.
+    if (this.loadedPath === path && element.readyState >= HTMLMediaElement.HAVE_METADATA) { if (Math.abs(element.currentTime - offset) > .5) element.currentTime = offset; }
+    else this.pendingSeek = offset;
     this.startTrack();
+  }
+  pauseMusic(): void { this.trackPath = ''; this.element?.pause(); }
+  position(): number | undefined {
+    const element = this.element;
+    return element && this.loadedPath && this.pendingSeek === undefined && element.readyState >= HTMLMediaElement.HAVE_METADATA ? element.currentTime : undefined;
+  }
+  duration(): number | undefined {
+    const length = this.element?.duration;
+    return this.loadedPath && length !== undefined && Number.isFinite(length) ? length : undefined;
   }
   private createElement(): HTMLAudioElement {
     const element = new Audio(); element.preload = 'auto'; element.className = 'game-music';
     element.addEventListener('ended', () => this.trackEnded());
+    // A resume point at or past the end plays nothing and ends at once, which advances the radio.
+    element.addEventListener('loadedmetadata', () => {
+      if (this.pendingSeek === undefined) return;
+      element.currentTime = Number.isFinite(element.duration) ? Math.min(this.pendingSeek, element.duration) : this.pendingSeek;
+      this.pendingSeek = undefined;
+    });
     // Attached rather than detached: some browsers are stricter about playing an orphan element, and it
     // lives on <body> so the page swapping out its own root never takes the soundtrack with it.
     document.body.append(element);
@@ -114,7 +138,7 @@ class WebAudioSynth implements GameSynth {
     if (element.paused) void element.play().catch(() => {});
   }
   private stopMusic(): void {
-    this.trackPath = ''; this.loadedPath = '';
+    this.trackPath = ''; this.loadedPath = ''; this.pendingSeek = undefined;
     if (!this.element) return;
     // Dropping the source as well as pausing stops the download for a page that is going away.
     this.element.pause(); this.element.removeAttribute('src'); this.element.load();
@@ -122,20 +146,35 @@ class WebAudioSynth implements GameSynth {
   stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); this.stopMusic(); }
 }
 
+const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
+  const node = document.createElement(tag); if (className) node.className = className; if (text) node.textContent = text; return node;
+};
+/** Text fields keep Ctrl+A for select-all; sliders and buttons do not need it. */
+const editable = (target: EventTarget | null): boolean => target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
+  || (target instanceof HTMLElement && target.isContentEditable)
+  || (target instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit'].includes(target.type));
+
+/**
+ * One Fuse Riders Radio per page: a car-radio panel over persisted audio settings and radio state. Every page
+ * is a full load, so continuity between the landing page, rooms and the TV is the saved track and position.
+ */
 export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = {}): GameAudio {
   const storage = options.storage ?? safeStorage(() => localStorage);
   const settings = loadAudioSettings(storage);
-  const enable = document.createElement('button');
+  const enable = element('button', 'audio-enable'); enable.type = 'button'; enable.textContent = `Enable ${deviceLabel} audio`;
+  let running = false;
   const showState = (ok: boolean) => {
+    running = ok;
     const text = ok ? `${deviceLabel} audio enabled · test sound` : `Enable / resume ${deviceLabel} audio`;
     if (enable.textContent !== text) enable.textContent = text;
     enable.setAttribute('aria-pressed', String(ok));
+    render(); // The display dims while audio is not running.
   };
-  const director: AudioDirector = new AudioDirector(new WebAudioSynth(showState, () => director.nextTrack()));
-  const controls = document.createElement('details'); controls.className = 'audio-controls';
-  const summary = document.createElement('summary'); summary.textContent = '♪ AUDIO'; controls.append(summary);
-  const panel = document.createElement('div'); panel.className = 'audio-panel'; controls.append(panel);
-  enable.type = 'button'; enable.textContent = `Enable ${deviceLabel} audio`; panel.append(enable);
+  const director: AudioDirector = new AudioDirector(new WebAudioSynth(showState, () => director.trackEnded()), loadRadio(storage), state => saveRadio(storage, state));
+  const controls = element('details', 'audio-controls');
+  const summary = element('summary', '', '♫ RADIO'); summary.title = 'Fuse Riders Radio (Ctrl+A)';
+  const panel = element('div', 'audio-panel radio'); panel.setAttribute('aria-label', 'Fuse Riders Radio');
+  controls.append(summary, panel);
   for (const channel of CHANNELS) { director.setVolume(channel, settings.volume[channel]); director.setMuted(channel, settings.muted[channel]); }
   const rendered = new Set<() => void>();
   const store = () => storage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(settings));
@@ -154,19 +193,81 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   // is not proof the track plays, and an OS interruption can pause it much later. unlock() is idempotent.
   for (const type of ['pointerdown', 'keydown', 'touchstart'] as const) document.addEventListener(type, () => unlock(), { passive: true });
   enable.addEventListener('click', () => unlock(true));
-  const next = document.createElement('button'); next.type = 'button'; next.textContent = `Next tune (${MUSIC_TRACKS.length} tracks)`;
-  next.addEventListener('click', () => director.nextTrack()); panel.append(next);
+
+  // Head unit: display and transport keys.
+  const lcd = element('div', 'radio-lcd'); lcd.setAttribute('role', 'group'); lcd.setAttribute('aria-label', 'Now playing');
+  const band = element('div', 'radio-band'); band.append(element('span', '', 'FUSE RIDERS RADIO'), element('span', '', 'FM 88.8'));
+  const title = element('div', 'radio-title'); const titleText = element('span');
+  const equalizer = element('span', 'radio-eq'); equalizer.setAttribute('aria-hidden', 'true'); equalizer.append(...Array.from({ length: 4 }, () => element('i')));
+  title.append(titleText, equalizer);
+  const readout = element('div', 'radio-readout'); const trackNumber = element('span'), time = element('span'), flags = element('span');
+  readout.append(trackNumber, time, flags); lcd.append(band, title, readout);
+  const key = (className: string, text: string, label: string, action: () => void) => {
+    const button = element('button', className, text); button.type = 'button'; button.setAttribute('aria-label', label); button.title = label;
+    button.addEventListener('click', () => { unlock(); action(); }); return button;
+  };
+  const playPause = key('radio-play', '▶', 'Play', () => director.togglePause());
+  const transport = element('div', 'radio-transport');
+  transport.append(key('', '⏮', 'Previous track', () => director.previousTrack()), playPause, key('', '⏭', 'Next track', () => director.nextTrack()));
+  const unit = element('div', 'radio-unit'); unit.append(lcd, transport);
+
+  const toggle = (text: string, action: () => void) => { const button = element('button', 'radio-toggle', text); button.type = 'button'; button.addEventListener('click', action); return button; };
+  const loopSong = toggle('LOOP SONG', () => director.setLoopSong(!director.state.loopSong));
+  const loopPlaylist = toggle('LOOP PLAYLIST', () => director.setLoopPlaylist(!director.state.loopPlaylist));
+  const sources: Record<RadioSource, HTMLButtonElement> = { all: toggle('ALL TRACKS', () => director.setSource('all')), playlist: toggle('MY PLAYLIST', () => director.setSource('playlist')) };
+  const modes = element('div', 'radio-modes'); modes.append(sources.all, sources.playlist, loopSong, loopPlaylist);
+
+  const mixer = element('div', 'radio-mixer');
   for (const channel of CHANNELS) {
     const label = channel === 'music' ? 'Music' : 'Effects';
-    const row = document.createElement('label'); row.textContent = `${label} volume`;
-    const slider = document.createElement('input'); slider.type = 'range'; slider.min = '0'; slider.max = '100';
+    const row = element('label', '', `${label} volume`);
+    const slider = element('input'); slider.type = 'range'; slider.min = '0'; slider.max = '100';
     slider.value = String(Math.round(settings.volume[channel] * 100)); slider.setAttribute('aria-label', `${label} volume`);
-    slider.addEventListener('input', () => setVolume(channel, Number(slider.value) / 100)); row.append(slider); panel.append(row);
-    const mute = document.createElement('button'); mute.type = 'button'; mute.textContent = `Mute ${label.toLowerCase()}`;
-    const render = () => mute.setAttribute('aria-pressed', String(settings.muted[channel]));
-    rendered.add(render); render();
-    mute.addEventListener('click', () => setMuted(channel, !settings.muted[channel])); panel.append(mute);
+    slider.addEventListener('input', () => setVolume(channel, Number(slider.value) / 100)); row.append(slider);
+    const mute = element('button', 'radio-toggle', `Mute ${label.toLowerCase()}`); mute.type = 'button';
+    const renderMute = () => mute.setAttribute('aria-pressed', String(settings.muted[channel]));
+    rendered.add(renderMute); renderMute();
+    mute.addEventListener('click', () => setMuted(channel, !settings.muted[channel]));
+    mixer.append(row, mute);
   }
+
+  const tracks = element('ol', 'radio-tracks'), playlist = element('ol', 'radio-tracks'), playlistHeading = element('h3');
+  const trackRow = (id: TrackId, source: RadioSource) => {
+    const { title: name } = trackById(id); const listed = director.state.playlist.includes(id);
+    const play = key('radio-track', name, `Play ${name}`, () => director.play(id, source));
+    if (director.state.track === id) play.setAttribute('aria-current', 'true');
+    const edit = element('button', 'radio-track-edit', listed ? '−' : '+'); edit.type = 'button';
+    const editLabel = listed ? `Remove ${name} from playlist` : `Add ${name} to playlist`;
+    edit.setAttribute('aria-label', editLabel); edit.title = editLabel; edit.setAttribute('aria-pressed', String(listed));
+    edit.addEventListener('click', () => director.togglePlaylist(id));
+    const row = element('li'); row.append(play, edit); return row;
+  };
+  panel.append(unit, enable, modes, mixer, element('h3', '', 'TRACKS'), tracks, playlistHeading, playlist, element('small', 'radio-hint', RADIO_SHORTCUT_HINT));
+
+  const renderTime = () => { const text = `${formatTrackTime(director.position())} / ${formatTrackTime(director.duration())}`; if (time.textContent !== text) time.textContent = text; };
+  let listsKey = '';
+  function render(): void {
+    const state = director.state; const queue = radioQueue(state); const index = queue.indexOf(state.track);
+    if (titleText.textContent !== director.trackTitle) titleText.textContent = director.trackTitle;
+    trackNumber.textContent = index < 0 ? '--/--' : `${String(index + 1).padStart(2, '0')}/${String(queue.length).padStart(2, '0')}`;
+    flags.textContent = [state.loopSong ? 'RPT1' : '', queue === state.playlist ? `LIST${state.loopPlaylist ? '⟳' : ''}` : 'ALL'].filter(Boolean).join(' ');
+    const action = state.paused ? 'Play' : 'Pause';
+    playPause.textContent = state.paused ? '▶' : '⏸'; playPause.setAttribute('aria-label', action); playPause.title = action;
+    lcd.classList.toggle('idle', state.paused || settings.muted.music || !running);
+    loopSong.setAttribute('aria-pressed', String(state.loopSong)); loopPlaylist.setAttribute('aria-pressed', String(state.loopPlaylist));
+    for (const source of ['all', 'playlist'] as const) sources[source].setAttribute('aria-pressed', String(state.source === source));
+    // Lists rebuild only when their content changes, so the clock and volume drags do not churn the DOM.
+    const key = `${state.track}|${state.source}|${state.playlist.join()}`;
+    if (key !== listsKey) {
+      listsKey = key;
+      tracks.replaceChildren(...MUSIC_TRACKS.map(track => trackRow(track.id, 'all')));
+      playlistHeading.textContent = `MY PLAYLIST (${state.playlist.length})`;
+      playlist.replaceChildren(...(state.playlist.length ? state.playlist.map(id => trackRow(id, 'playlist')) : [element('li', 'radio-empty', 'Add tracks with + to build your playlist.')]));
+    }
+    renderTime();
+  }
+  rendered.add(render); director.subscribe(render); render();
+
   const bindMusicToggle = (button: HTMLButtonElement) => {
     const render = () => {
       // The label carries the state, so no aria-pressed: "Turn music on, pressed" reads as a contradiction.
@@ -176,13 +277,24 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     rendered.add(render); render();
     button.addEventListener('click', () => { setMuted('music', !settings.muted.music); unlock(); });
   };
+  // Ctrl+A radio, Ctrl+M everything, Ctrl+Alt+M music, Ctrl+Alt+E effects. Capture phase, ahead of game keys.
+  window.addEventListener('keydown', event => {
+    const shortcut = radioShortcut(event);
+    if (!shortcut || editable(event.target)) return;
+    event.preventDefault(); if (event.repeat) return;
+    if (shortcut === 'radio') (options.toggleRadio ?? (() => { controls.open = !controls.open; }))();
+    else if (shortcut === 'muteAll') { const muted = !(settings.muted.music && settings.muted.effects); setMuted('music', muted); setMuted('effects', muted); }
+    else { const channel = shortcut === 'muteMusic' ? 'music' : 'effects'; setMuted(channel, !settings.muted[channel]); }
+  }, { capture: true });
+  setInterval(renderTime, 500);
+  setInterval(() => director.save(), 2000);
   // Alt-tabbing must not restart the soundtrack, so a hidden tab keeps its track and only drops effect cues.
   // Coming back re-resumes the context, which the browser may have suspended while the tab was away.
   document.addEventListener('visibilitychange', () => {
     director.setEffectsSilenced(document.hidden);
-    if (!document.hidden) { director.resume(); unlock(); }
+    if (document.hidden) director.save(); else { director.resume(); unlock(); }
   });
-  window.addEventListener('pagehide', () => director.disconnect());
+  window.addEventListener('pagehide', () => director.disconnect()); // Saves the position before stopping.
   if (options.background) director.playBackground();
   unlock(); // Autoplay usually refuses here; the gesture listeners above pick it up.
   return { director, controls, unlock, bindMusicToggle };

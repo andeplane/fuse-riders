@@ -1,24 +1,28 @@
 import type { ServerMessage } from '../shared/protocol.js';
+import { RESTART_THRESHOLD, defaultRadio, followingTrack, precedingTrack, radioQueue, togglePlaylistTrack, trackById, type RadioSource, type RadioState, type TrackId } from './radio.js';
 
+export { MUSIC_TRACKS } from './radio.js';
 export type AudioChannel = 'music' | 'effects';
 export interface SynthNote { frequency: number; endFrequency?: number; duration: number; delay?: number; wave: 'square' | 'triangle' | 'sawtooth'; level: number }
 export interface GameSynth {
   unlock(): Promise<boolean>;
   note(channel: AudioChannel, note: SynthNote): void;
-  /** Starts a recorded track on the music channel, replacing any current track. */
-  music(path: string): void;
+  /** Plays a recorded track from `offset` seconds on the music channel, replacing or seeking any current track. */
+  music(path: string, offset: number): void;
+  /** Pauses the current track where it is; a later `music` call continues or replaces it. */
+  pauseMusic(): void;
+  /** Seconds into the loaded track, or undefined before one has loaded. */
+  position(): number | undefined;
+  /** Length of the loaded track in seconds, if known. */
+  duration(): number | undefined;
   gain(channel: AudioChannel, value: number): void;
   stop(): void;
 }
-export const MUSIC_TRACKS = [
-  { title: 'Pixel Sax Parade', path: '/music/pixel-sax-parade.m4a' },
-  { title: 'Coin Op Swing', path: '/music/coin-op-swing.m4a' },
-  { title: 'Arcade Adventure', path: '/music/arcade-adventure.m4a' },
-  { title: 'Forest Job', path: '/music/forest-job.m4a' },
-  { title: 'Neon Grid Chase', path: '/music/neon-grid-chase.m4a' },
-  { title: 'Final Chase', path: '/music/final-chase.m4a' },
-  { title: 'Reduced Noise Orchestra', path: '/music/reduced-noise-orchestra.m4a' },
-] as const;
+/**
+ * Effects follow authoritative match messages. Music follows Fuse Riders Radio: the saved track resumes
+ * from its saved position, and only a listener's action or a finished track changes it — rounds, matches,
+ * reconnects and hidden tabs never do.
+ */
 export class AudioDirector {
   private unlocked = false;
   private scope = '';
@@ -30,10 +34,11 @@ export class AudioDirector {
   private playing = false;
   private background = false;
   private silenced = false;
-  private trackIndex = 0;
+  /** Path handed to the synth, or '' while no track is playing. */
   private musicPath = '';
   private settings = { music: { muted: false, volume: .22 }, effects: { muted: false, volume: .45 } };
-  constructor(private readonly synth: GameSynth) {
+  private readonly listeners = new Set<() => void>();
+  constructor(private readonly synth: GameSynth, private readonly radio: RadioState = defaultRadio(), private readonly persist: (state: Readonly<RadioState>) => void = () => {}) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
   }
   async unlock(confirm = false): Promise<boolean> {
@@ -41,8 +46,14 @@ export class AudioDirector {
     if (this.unlocked && confirm) this.synth.note('effects', { frequency: 660, endFrequency: 990, duration: .16, wave: 'triangle', level: .24 });
     return this.unlocked;
   }
-  get trackTitle(): string { return MUSIC_TRACKS[this.trackIndex]!.title; }
+  get state(): Readonly<RadioState> { return this.radio; }
+  get trackTitle(): string { return trackById(this.radio.track).title; }
   isMuted(channel: AudioChannel): boolean { return this.settings[channel].muted; }
+  /** Live position while a track plays, otherwise the point it resumes from. */
+  position(): number { return (this.musicPath ? this.synth.position() : undefined) ?? this.radio.position; }
+  duration(): number | undefined { return this.musicPath ? this.synth.duration() : undefined; }
+  /** Called after every radio change, so a panel can redraw. */
+  subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   /** Plays music with no match attached, so the landing page and a room that has not connected yet still have a soundtrack. */
   playBackground(): void { this.background = true; this.playing = true; this.update(); }
   /** Restarts background music after something stopped it; a match instead resumes from its next snapshot. */
@@ -52,15 +63,31 @@ export class AudioDirector {
    * because a room the viewer cannot see goes on launching and exploding without them.
    */
   setEffectsSilenced(value: boolean): void { this.silenced = value; }
-  /** Advances the playlist: called by Next tune and by the synth when a track finishes. */
-  nextTrack(): void { this.trackIndex = (this.trackIndex + 1) % MUSIC_TRACKS.length; this.update(); }
-  setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); }
+  /** Next track, wrapping; also the old Next tune. */
+  nextTrack(): void { this.select(followingTrack(this.radio, 'next')!); }
+  /** Restarts the song, or goes back a track when it has only just started. */
+  previousTrack(): void { this.select(this.position() > RESTART_THRESHOLD ? this.radio.track : precedingTrack(this.radio)); }
+  play(id: TrackId, source?: RadioSource): void { if (source) this.radio.source = source; this.select(id); }
+  togglePause(): void { this.radio.paused = !this.radio.paused; this.update(); this.changed(); }
+  /** Called by the synth when a track plays to its end: loop song repeats it, an unlooped playlist stops. */
+  trackEnded(): void {
+    this.musicPath = '';
+    const following = followingTrack(this.radio, 'ended');
+    if (following) this.select(following); else this.select(radioQueue(this.radio)[0]!, true);
+  }
+  setLoopSong(loop: boolean): void { this.radio.loopSong = loop; this.changed(); }
+  setLoopPlaylist(loop: boolean): void { this.radio.loopPlaylist = loop; this.changed(); }
+  setSource(source: RadioSource): void { this.radio.source = source; this.changed(); }
+  togglePlaylist(id: TrackId): void { this.radio.playlist = togglePlaylistTrack(this.radio.playlist, id); this.changed(); }
+  setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); this.emit(); }
   setVolume(channel: AudioChannel, value: number): void {
     this.settings[channel].volume = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
     this.applyGain(channel);
   }
+  /** Records the live position so the next page load resumes from it. */
+  save(): void { this.radio.position = this.position(); this.persist(this.radio); }
   private applyGain(channel: AudioChannel): void { const setting = this.settings[channel]; this.synth.gain(channel, setting.muted ? 0 : setting.volume); }
-  disconnect(): void { this.scope = ''; this.seen.clear(); this.playing = false; this.musicPath = ''; this.synth.stop(); }
+  disconnect(): void { this.save(); this.scope = ''; this.seen.clear(); this.playing = false; this.musicPath = ''; this.synth.stop(); }
   message(message: ServerMessage): void {
     if (message.type !== 'snapshot' && message.type !== 'event') return;
     const scope = `${message.matchId}:${message.round}`;
@@ -72,7 +99,7 @@ export class AudioDirector {
       } else if (message.tick < this.latestTick) return;
       this.latestTick = message.tick;
       this.playing = true; // Connected lobbies and intermissions also have music.
-      return; // The current track plays on across rounds; only its end or Next tune advances the playlist.
+      return; // The current track plays on across rounds; only its end or the listener changes it.
     }
     if (scope !== this.scope || message.tick <= this.baselineTick || message.tick < this.latestTick - 2) return;
     const key = `${message.tick}:${message.event.type}`;
@@ -80,11 +107,23 @@ export class AudioDirector {
     this.seen.add(key); if (this.seen.size > 100) this.seen.delete(this.seen.values().next().value!);
     this.cue(message.event.type === 'bombPlaced' && message.event.gun ? 'cannon' : message.event.type);
   }
+  /** Starts the radio's track once audio is unlocked and something wants music; safe to call every frame. */
   update(): void {
+    if (this.radio.paused) {
+      if (this.musicPath) { this.radio.position = this.position(); this.synth.pauseMusic(); this.musicPath = ''; }
+      return;
+    }
     if (!this.unlocked || !this.playing) return;
-    const { path } = MUSIC_TRACKS[this.trackIndex]!;
-    if (path !== this.musicPath) { this.musicPath = path; this.synth.music(path); }
+    const { path } = trackById(this.radio.track);
+    if (path !== this.musicPath) { this.musicPath = path; this.synth.music(path, this.radio.position); }
   }
+  private select(id: TrackId, paused = false): void {
+    if (this.musicPath) { this.synth.pauseMusic(); this.musicPath = ''; }
+    this.radio.track = id; this.radio.position = 0; this.radio.paused = paused;
+    this.update(); this.changed();
+  }
+  private changed(): void { this.save(); this.emit(); }
+  private emit(): void { for (const listener of this.listeners) listener(); }
   private cue(type: string): void {
     if (!this.unlocked || this.silenced) return;
     const note = (frequency: number, endFrequency: number, duration: number, wave: SynthNote['wave'] = 'square', delay = 0) => this.synth.note('effects', { frequency, endFrequency, duration, wave, delay, level: .24 });

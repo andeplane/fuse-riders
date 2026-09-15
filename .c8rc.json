@@ -10,6 +10,7 @@
     "src/client/render-snapshot.ts",
     "src/client/bomb-preview.ts",
     "src/client/audio-director.ts",
+    "src/client/radio.ts",
     "src/client/socket-client.ts",
     "src/client/safe-storage.ts",
     "src/client/asset-url.ts",

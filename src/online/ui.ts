@@ -72,6 +72,7 @@ export async function startOnline():Promise<void>{
     window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
     // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
     const landingAudio=createGameAudio('Site',{background:true});landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
+    card.querySelector('.landing-audio')!.before(landingAudio.controls);
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
   if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
@@ -90,7 +91,7 @@ export async function startOnline():Promise<void>{
   const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
   // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
   let roomEnded=false;
-  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ AUDIO'),results=node('button','RESULTS'),menu=node('button','MENU');
+  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ RADIO'),results=node('button','RESULTS'),menu=node('button','MENU');
   title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,results,menu);
   const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
   const bootNote=node('p','Warming up the arena…','room-boot-note');
@@ -142,7 +143,8 @@ export async function startOnline():Promise<void>{
   window.addEventListener('resize',updateDesktopLayout);
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
-  const audio=createGameAudio('Game',{background:true});audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
+  const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
+  const audio=createGameAudio('Game',{background:true,toggleRadio:()=>{if(dialog.open&&dialogBody.contains(audio.controls))dialog.close();else openRadio();}});audioButton.onclick=openRadio;
   /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
     const recap=buildMatchRecap(stats);const root=node('section','','match-recap-report');
