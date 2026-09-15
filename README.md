@@ -116,7 +116,7 @@ npx tsx scripts/online-smoke.ts
 BROWSER=webkit npx tsx scripts/online-smoke.ts
 ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
 BROWSER=webkit ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
-npx tsx scripts/benchmark-deltas.ts
+npx tsx scripts/benchmark-actions.ts
 npx tsx scripts/online-network-benchmark.ts
 ```
 

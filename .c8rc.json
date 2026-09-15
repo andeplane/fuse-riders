@@ -26,10 +26,7 @@
     "src/online/link-callback.ts",
     "src/online/link-send-gate.ts",
     "src/online/checkpoint.ts",
-    "src/online/world-codec.ts",
     "src/online/prediction.ts",
-    "src/online/keyframe-delivery.ts",
-    "src/online/recipient-ack.ts",
     "src/online/room-lifecycle.ts",
     "src/online/response-measurement.ts",
     "src/online/prediction-clock.ts",
@@ -51,7 +48,8 @@
     "src/service/signal.ts",
     "src/service/room-store.ts",
     "src/service/gateway.ts",
-    "src/service/room-bus.ts"
+    "src/service/room-bus.ts",
+    "src/online/action-replication.ts"
   ],
   "reporter": [
     "text",

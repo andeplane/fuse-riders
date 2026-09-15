@@ -52,7 +52,7 @@ Rooms accept at most 12 connections and five player seats. There is a per-IP cre
 - `npm test`: deterministic game, room permissions/settings, snapshot reconstruction, recovery and prediction tests.
 - `npm run typecheck` and `npm run typecheck:worker`.
 - With Wrangler running: `npx tsx scripts/online-smoke.ts` and `BROWSER=webkit npx tsx scripts/online-smoke.ts` cover five players, host controls, preferences, refresh recovery and shared-screen display roles.
-- `npx tsx scripts/benchmark-deltas.ts`: every reconstructed stress snapshot must equal the authoritative snapshot; writes delta-benchmark.json.
+- `npx tsx scripts/benchmark-actions.ts`: reports committed-action bytes per second per full-view recipient; compare against `docs/online/delta-benchmark.json` for the retired world-delta codec.
 - `npx tsx scripts/online-network-benchmark.ts`: real browser peers with verified RTC delay injection and a forced WSS fallback profile; writes browser-network.json.
 
 The network benchmark uses injected delay/jitter/head-of-line stalls, not real IP packet loss. Figures are desktop browser measurements, not physical phone touch-to-photon measurements. Browser metrics distinguish frame duration, local input-to-frame, input acknowledgement and correction magnitude. The short run is an exploratory baseline, not a mobile-network guarantee or a fleet capacity certification.

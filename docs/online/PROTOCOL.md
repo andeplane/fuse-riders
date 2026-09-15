@@ -12,6 +12,10 @@ Clock mapping uses service ping samples with local monotonic send/receive timest
 
 `Scope = { incarnation, authorityEpoch, receiverConnection, controlEpoch, matchId, round }`. Host and guest reconnect reset controls and allocate a new service connection scope. Within an unchanged scope counters never reset. Scope changes require neutral handshake and baseline; checkpoint rewind is permitted only as an explicit new-authority discontinuity.
 
+## World replication ([ADR042](../adr/042-action-replication.md))
+
+The host no longer sends world snapshots or deltas. A full view receives one `baseline` (exact game state, held controls, journal sequence, hash, settings) and then `actions` batches `{from, tick, ops, hash|null, meta}` on the ordered reliable channel, where `ops` are the shared journal operations since `from`. The view replays them with the shared reducer; a hash every 20 ticks detects divergence, and any gap, mismatch or malformed batch makes the view request `resync`, which yields a fresh baseline. `meta` carries the recipient's input acknowledgement, pause flag, movement ledger and, only when changed, room settings. Events are still sent by the host.
+
 ## Input schedule and ledger
 
 **Current ([ADR040](../adr/040-state-based-input-gestures.md)):** input samples also carry an optional `gesture` id and restate the held or last finished bomb gesture in every packet; late samples apply at the next step and far-future samples are clamped to four ticks ahead, never rejected. Samples and tick probes use the unordered, no-retransmit `fast` data channel when open. The scheduler description below otherwise still applies.
