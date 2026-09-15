@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { TRAIL_STUD_SPACING, pixelWall, smoothWallRect, trailStuds } from '../src/client/arena-wall.js';
-import { themes } from '../src/client/themes.js';
+import { THEME_STORAGE_KEY, defaultTheme, selectedTheme, themes } from '../src/client/themes.js';
+import { createMemoryStorage } from '../src/client/safe-storage.js';
 
 test('the two themes still describe different arena walls', () => {
   // #68 flattened both renderers to one thin rim; if these ever match again, the modes look identical.
@@ -54,4 +55,24 @@ test('trail studs ignore zero-length and single-point paths', () => {
   assert.deepEqual(trailStuds([{ x: 4, y: 4 }]), []);
   assert.deepEqual(trailStuds([{ x: 4, y: 4 }, { x: 4, y: 4 }]), []);
   assert.equal(trailStuds([{ x: 0, y: 0 }, { x: TRAIL_STUD_SPACING * 3, y: 0 }]).length, 4);
+});
+
+test('a visual style is chosen from the URL, then storage, then the default', () => {
+  const store = createMemoryStorage();
+  // A `?theme=` override is stored, because entering a room rewrites the URL and would drop it.
+  assert.equal(selectedTheme('?theme=clean-neon', store).id, 'clean-neon');
+  assert.equal(store.getItem(THEME_STORAGE_KEY), 'clean-neon');
+  assert.equal(selectedTheme('', store).id, 'clean-neon');
+  assert.equal(selectedTheme('?solo=1', store).id, 'clean-neon');
+  assert.equal(selectedTheme('', createMemoryStorage()).id, defaultTheme.id);
+});
+
+test('a bogus visual style falls back instead of reaching a prototype member', () => {
+  for (const hostile of ['constructor', 'toString', '__proto__', 'nope', '']) {
+    const store = createMemoryStorage();
+    assert.equal(selectedTheme(`?theme=${hostile}`, store).id, defaultTheme.id);
+    assert.equal(store.getItem(THEME_STORAGE_KEY), null, `?theme=${hostile} must not be stored`);
+    store.setItem(THEME_STORAGE_KEY, hostile);
+    assert.equal(selectedTheme('', store).id, defaultTheme.id);
+  }
 });
