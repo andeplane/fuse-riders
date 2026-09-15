@@ -2,7 +2,7 @@
 
 ## [Play it now →](https://andeplane.github.io/fuse-riders/)
 
-**Play solo or with friends.** Choose **PLAY SOLO** for an immediate local game against four AI riders, or create a room and share its invite. Solo uses no room service or WebRTC; refreshing starts a fresh run. Keep the host tab in the foreground. Gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
+**Play solo or with friends.** Choose **PLAY SOLO** for an immediate local game against four AI riders, or create a room and share its invite. Solo uses no room service or WebRTC; refreshing starts a fresh run. In a room every device simulates the game, so any rider can refresh or drop and rejoin while the others keep playing. Gameplay requires a direct WebRTC connection; unsupported networks show a retry state. Physical-phone qualification is still pending.
 
 A TypeScript party game for 2–5 players: steer neon riders, dodge their trails, and launch bombs and other projectiles. Play together around a TV with phones as controllers, or create an online room with an arena on each device. Add AI riders when fewer friends are available. The default match is first to three round wins.
 
@@ -45,7 +45,7 @@ Room settings select first-to-N wins or a fixed number of rounds. Open **CONFIGU
 
 **ROOM SETTINGS → Bomb aim time (seconds)** adjusts how quickly a held bomb reaches maximum distance in solo and online rooms: 0.1–2 seconds in 0.05-second steps, default 0.4 seconds. Try 1.2 seconds for the original pace. Save to apply it next round; the room shares one active aim time for players, AI and previews.
 
-The creator's browser owns the simulation. Keep its tab in the foreground: a phone lock or background tab can pause everyone. Host authority is fenced by renewable leases and connection epochs; validated local checkpoints support creator refresh recovery. Corrupt or incompatible checkpoints are rejected before replacing healthy state. These mechanisms have regression tests, while sustained recovery and physical-device behavior still need qualification. There is no automatic host migration, ranked anti-cheat authority, or guarantee of uninterrupted play through arbitrary network failure.
+Every device in a room simulates the game from one shared input log, so no browser owns the world: the creator's stream carries the room management entries (seats, settings, start, AI riders), and if the creator goes quiet for five seconds the lowest connected rider marks it absent so play continues. A refreshed creator or guest rejoins the running match with a validated snapshot from any peer; nothing is persisted locally. A background tab stops sending input and is marked absent after a second, which neutralises its rider. These mechanisms have regression tests (`tests/room-runtime.test.ts`), while sustained recovery on real phones and networks remains unqualified.
 
 ## How to play
 
@@ -64,29 +64,30 @@ The LAN TV provides audio controls, fullscreen, a main-menu reset, session score
 | Path | Simulation authority | Communication | Lifetime |
 | --- | --- | --- | --- |
 | LAN | Local Node process | WebSocket intents, snapshots and events | Process must run during play; restart resets state |
-| Online | Creator's browser | Host-to-peer WebRTC star; backend WebSocket signalling only | Host must remain available; leases fence stale authority, local checkpoints support refresh |
+| Online | Every device, from one shared input log | Full WebRTC mesh; backend WebSocket signalling only | Any member can serve the world to a joiner; a refreshed creator or guest rejoins the running match |
 
 ```text
 LAN:     phones ── WebSocket ── Node simulation ── WebSocket ── TV
 
-Online:  player/display ── WebRTC ── host browser simulation
-                └── Cloud Run gateway ────────────┘
+Online:  every member ── WebRTC mesh (one link per pair) ── every member
+           each device folds the same input log and simulates locally
+                └── Cloud Run gateway: room codes, membership, signalling ──┘
                     Firestore: room metadata / leases
                     Pub/Sub: signalling / coordination
 ```
 
-The shared deterministic simulation advances at 20 Hz. Online replication publishes at 20 Hz using field changes and trail deltas with periodic keyframes. Local presentation replays applied-tick movement using the same pure kernel as authority, including drunk steering. A bounded synchronized tick estimate supplies fractional render time; acknowledgements report actual application, not mere receipt. Remote snapshots use a tick-indexed buffer: 25 ms after a fresh validated nearby probe (RTT ≤40 ms), otherwise 100 ms, with no speculative extrapolation. A fixed response benchmark batch measured local p95 27.6 ms and TV p95 88.2 ms; see [method, failed trials and continuity measurements](docs/online/RESPONSE-BENCHMARK.md). These are desktop browser measurements, not physical-device latency guarantees. Gameplay never uses the backend as a relay. Failed WebRTC connections show why (STUN, signalling or ICE) in the header and under **MENU → LINK DIAGNOSTICS**; there is no TURN server, so a guest behind symmetric or carrier-grade NAT (common on cellular) may be unable to connect directly and should join the host's Wi-Fi. See [protocol notes](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
+The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript trigonometry so every engine folds the same state. Online rooms are peer-to-peer: every device that renders the world simulates it locally from one shared input log. Each member owns one stream of edge-filtered entries (steer, aim, press, release, cancel, avatar); the creator's stream also carries the management entries (join, leave, presence, settings, start, rematch, lobby, AI riders). Every member sends one small MessagePack packet to every other member per tick and immediately on a new entry; completeness, liveness, loss and RTT are derived from that stream, and a missing entry is repaired by nack or by rotation through the retained window. A player's own input applies on the next simulation tick; other players' inputs apply one network hop later, and a late entry rolls the world back up to 40 ticks and re-simulates. Joiners and refreshed pages install a validated snapshot from any peer. See the [P2P design brief and measurements](docs/online/P2P-INPUT-LOG-BRIEF.md); `?stats=1` (or **ROOM → SHOW NETWORK STATS**) shows each device's own link quality. Gameplay never uses the backend as a relay. Failed WebRTC connections show why (STUN, signalling or ICE) in the header and under **MENU → LINK DIAGNOSTICS**; there is no TURN server, so a guest behind symmetric or carrier-grade NAT (common on cellular) may be unable to connect directly and should join the host's Wi-Fi. See [protocol notes](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
 
 | Location | Responsibility |
 | --- | --- |
 | `src/shared/` | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops |
 | `src/server/` | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling |
 | `src/client/` | Phaser presentation, Canvas fallback, themes, audio, avatars and phone pointer controls |
-| `src/online/host-session.ts` | Browser authority, tick-scheduled input/results, held-control expiry and AI seats |
-| `src/online/world-codec.ts` | Keyframes, field/trail deltas and reconstruction |
-| `src/online/peer-transport.ts` | Direct WebRTC negotiation, generation fencing, signalling and link recovery |
-| `src/online/runtime.ts`, `authority.ts`, `checkpoint.ts` | Fixed-step scheduling, authority lease checks and atomic validated restore |
-| `src/online/prediction*.ts`, `tick-probes.ts`, `ui.ts` | Applied-tick replay, conservative tick clock, buffered presentation and room UI |
+| `src/shared/input-log.ts`, `apply-tick.ts` | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries |
+| `src/online/stream.ts`, `rollback.ts`, `clock.ts` | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock |
+| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts` | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation |
+| `src/online/room-runtime.ts`, `peer-transport.ts` | One runtime for solo and online rooms (roles, cadence, creator duties, presentation) and the full WebRTC mesh with reliable and unreliable channels |
+| `src/online/prediction.ts`, `net-stats.ts`, `ui.ts` | Fractional presentation with immediate local steering, the per-device link quality overlay, and the room UI |
 | `src/service/` | Room API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`) with Firestore transactions and Pub/Sub signalling in production (`index.ts`) and in-memory metadata for local development and CI (`dev.ts`) |
 | `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines |
 | `tests/`, `scripts/` | Deterministic tests, browser checks and benchmark runners |
@@ -115,8 +116,9 @@ npx tsx scripts/online-smoke.ts
 BROWSER=webkit npx tsx scripts/online-smoke.ts
 ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
 BROWSER=webkit ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
-npx tsx scripts/benchmark-deltas.ts
-npx tsx scripts/online-network-benchmark.ts
+npx tsx scripts/determinism-replay.ts
+ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-mesh-browser.ts
+ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-measure.ts
 ```
 
 The soundtrack is **Fuse Riders Radio**: it plays for as long as the page is open, starting on the landing page itself, and nothing in the game state restarts a track — rounds, matches and alt-tabbing all leave it playing, and only a finished track or the listener changes the song. **♫ RADIO** (landing top bar, room header, TV toolbar) is a car-radio panel with previous / play-pause / next, the track list, a personal playlist (add with **+**), loop song and loop playlist. The playlist, loop settings, current track and position persist between visits, so moving from the landing page into a room resumes the same song where it was. Shortcuts: **Ctrl+A** radio, **Ctrl+M** mute all, **Ctrl+Alt+M** music, **Ctrl+Alt+E** effects (text fields keep Ctrl+A). The radio also appears on the iOS lock screen, CarPlay and car browsers with the track title and artwork; their play/pause and previous/next buttons follow the radio's own queue. The **♫ MUSIC ON / OFF** toggle sits next to **♫ RADIO** on every page and says what you hear: it reads OFF until the browser has let the track play (every page load on a phone needs one tap first), and tapping OFF plays it. On phones and tablets music starts off on the first visit; the choice is stored. Music plays through a media element so a phone's volume keys reach it, and the page asks iOS for an ambient audio session so the silent switch mutes it too (the cost is that ambient audio stops when the screen locks, so the lock-screen radio only plays while the phone is awake); effects stay synthesized. Mute and volume for both channels persist in `localStorage`, so the toggle keeps music off through the page load into a room. `LANDING_URL=http://127.0.0.1:5173/ npx tsx scripts/landing-music-smoke.ts` drives that flow in a real browser against `npx vite` and writes `artifacts/landing-music.png`; set `CHROMIUM_PATH` to use a specific Chromium build.
@@ -131,7 +133,7 @@ The end-of-match report (podium, totals, awards and rider comparison) is built b
 
 [CI](.github/workflows/ci.yml) splits into two jobs. `verify` runs on every pull request: type checks, unit coverage and the build, about a minute. `e2e` runs the browser matrix and runs on a push to main, on a manual dispatch, or on a pull request labelled `full-ci`; a push to main deploys only once both pass. Label a pull request `full-ci`, or run `scripts/ci-local.sh`, before merging a change to the renderer, the online runtime, the controller or any other browser-facing path, because otherwise a browser regression first shows up on main.
 
-To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `deltas`; `core` expands to the first three) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to the first three) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh
@@ -140,7 +142,7 @@ ONLY=core,keyboard PORT=8801 scripts/ci-local.sh
 
 Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
 
-The delta benchmark asserts exact reconstruction for every measured update. The [browser network harness](docs/online/NETWORK-HARNESS.md) uses five players plus a TV and seeded application-level delay, jitter, loss/reordering, bandwidth queues and a one-way blackhole. Opt-in `?benchmark=1` events expose accepted snapshots and predicted poses without capabilities. Application-message injection is not real IP packet loss, and desktop animation timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
+The determinism replay folds one seeded 3,000-tick five-rider log in Node, Chromium and WebKit and compares the state hash on every tick. The mesh harness runs six contexts alternating Chromium and WebKit through fifteen links, thirty send directions, a three-second send blackhole and a closed channel. The measurement script runs five scripted players plus a TV, once locally and once with injected 40 ms delay, 20 ms jitter and 2% loss, and reports wire bytes, rollbacks and input-to-state latencies as p50/p95 into `artifacts/p2p-measure.json`. Opt-in `?benchmark=1` events expose simulated states, inputs and events without capabilities. While `npm run dev` serves a room, every device also posts its runtime metrics and status changes to `artifacts/telemetry/<ROOM>.ndjson`; `npx tsx scripts/telemetry-report.ts <file>` summarises them. Application-message injection is not real IP packet loss, and desktop timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
 
 Tests should use typed injected clocks, schedulers, transports and seeded randomness. Keep simulation time independent of wall-clock time; exercise serialization and lifecycle boundaries with deterministic failures, not only happy paths. Review reports explain the missing invariants and required regressions.
 

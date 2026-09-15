@@ -1,5 +1,7 @@
 # Online protocol contract v2 (proposed review amendment)
 
+> **Status (2026-09-15): superseded for gameplay.** Online rooms now run the peer-to-peer input log described in [P2P-INPUT-LOG-BRIEF.md](P2P-INPUT-LOG-BRIEF.md): every device simulates locally from one shared log over a full WebRTC mesh, with one MessagePack packet per tick per link, rollback, and snapshots from any peer. The host-star sections below (the lease as gameplay authority, the input schedule and ledger, gesture receipts, world replication with keyframes and deltas) are historical. The service parts still apply: room codes and membership, the lease that fences duplicate creator tabs, the signalling payload boundary, STUN-only ICE, link restarts, link diagnostics and the NAT limits.
+
 This appendix makes ADRs 028–032 concrete. It is a design contract, not a claim that v1 prototype packets implement it. One owner integrates the protocol. No authority, receiver or gesture counters are inferred from arrival order. All integer fields below are safe nonnegative integers; runtime validation is mandatory.
 
 ## Authority and connection scope

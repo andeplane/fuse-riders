@@ -1,6 +1,6 @@
 # ADR 036: Host-controlled AI riders
 
-Date: 2026-09-14. Status: accepted for implementation after independent root review on 2026-09-14; implementation/browser acceptance still required. Root also requires LAN exposure as a follow-on within the wider AI feature.
+Date: 2026-09-14. Status: **superseded** by [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md): there is no host session or checkpoint container; AI riders are management entries in the creator's log stream and every replica simulates them (see [AI-RIDERS.md](../online/AI-RIDERS.md)). Originally: accepted for implementation after independent root review on 2026-09-14; implementation/browser acceptance still required. Root also requires LAN exposure as a follow-on within the wider AI feature.
 
 Add deterministic computer opponents to online rooms so a creator can play alone. The host adds/removes bots from the same roster on phone or desktop. Humans and bots share the five-player limit; bots consume no network identity/socket. Bot commands require the host identity. Bots added during a race use the existing next-round admission rule. Removal is immediate in lobby/intermission/match-over; during an active race, explicitly reject with “Remove AI between rounds or return to menu” rather than silently altering the current participants/scoring. UI communicates that limitation.
 

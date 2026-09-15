@@ -74,9 +74,10 @@ test('two gateways advertise actual remote members and route only signalling',as
   await f.a.receive(hostConnection,JSON.stringify({type:'signal',to:peerId(GUEST),data:{type:'world',bombs:[]}}));assert.equal(f.aBus.published.length,1);
 });
 
-test('signalling denies guest-to-guest, foreign room and replaced target scopes',async()=>{
+test('signalling permits any current member pair and denies self, foreign room and replaced target scopes',async()=>{
   const f=fixture(),{hostConnection,guestConnection,guest}=await joined(f);const extra=new Socket(),extraId=await f.a.connect(CODE,'c'.repeat(64),extra);
-  await f.b.receive(guestConnection,signal(peerId('c'.repeat(64)),extraId));assert.equal(extra.frames('signal').length,0);
+  await f.b.receive(guestConnection,signal(peerId('c'.repeat(64)),extraId));assert.equal(extra.frames('signal').length,1,'guest-to-guest signalling carries the mesh');
+  await f.b.receive(guestConnection,signal(peerId(GUEST),guestConnection));assert.equal(guest.frames('signal').length,0,'no self signalling');
   await f.a.receive(hostConnection,signal(peerId(GUEST),'obsolete'));assert.equal(guest.frames('signal').length,0);
   const packet:RoutedMessage={id:'bad',code:'OTHERROOM0',incarnation:'wrong',destination:'b',from:{id:peerId(HOST),connectionId:hostConnection,gatewayId:'a',host:true,expiresAt:9999},to:{id:peerId(GUEST),connectionId:guestConnection,gatewayId:'b',host:false,expiresAt:9999},expiresAt:9999,wire:{type:'signal',from:peerId(HOST),connectionId:hostConnection,data:{}}};
   await f.b.deliver(packet);assert.equal(guest.frames('signal').length,0);

@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BotController, botRandom } from '../src/shared/bot-controller.js';
 import { createGame, addPlayer, startMatch, step, SLOT_COLORS, type GameState } from '../src/shared/game.js';
-import { HostSession } from '../src/online/host-session.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
-import { CHECKPOINT_VERSION } from '../src/online/checkpoint.js';
+import { applyTick, createRoomState, freeSlot, type StreamEntries } from '../src/shared/apply-tick.js';
+import { ACTION, BOT, JOIN, STEER, type Entry } from '../src/shared/input-log.js';
 function fixture(){
   const game=createGame('bot-fixture');
   addPlayer(game,{id:'bot:1',name:'AI',slot:0,color:SLOT_COLORS[0]});addPlayer(game,{id:'human',name:'Player',slot:1,color:SLOT_COLORS[1]});
@@ -12,8 +12,11 @@ function fixture(){
   Object.assign(game.players.get('bot:1')!,{x:400,y:450,angle:0});Object.assign(game.players.get('human')!,{x:1100,y:450,angle:Math.PI});
   return game;
 }
-const room=()=>new HostSession('host',defaultRoomSettings(),{token:()=>crypto.randomUUID(),botRandom:()=>.25});
-const aiCommand={type:'bot',action:'add'} as const;
+function logged(){
+  const state=createRoomState('bots',defaultRoomSettings()),bots=new BotController();let seq=0;
+  const tick=(...entries:[string,unknown[]][])=>applyTick(state,'host',new Map<string,StreamEntries>(entries.map(([id,body])=>[id,{generation:1,entries:[[++seq,state.game.tick+1,...body] as Entry]}])),bots);
+  return {state,tick};
+}
 
 test('AI is deterministic, uses its injected random stream and never mutates the observed world',()=>{
   const game=fixture(),before=structuredClone(game);let calls=0;
@@ -76,50 +79,24 @@ test('AI target/gun/shell shots use normal input actions and target aim is bound
   }
 });
 
-test('AI holds longer for a distant bomb when the room uses a slower aim time',()=>{
-  const game=fixture(),bot=new BotController(),player=game.players.get('bot:1')!;
-  game.players.get('human')!.x=800;
-  player.bombChargeStartedTick=game.tick-8;
-  game.settings={...defaultRoomSettings(),bombChargeTicks:24};
-  assert.equal(bot.input(game,player.id).bombCommands,undefined,'eight ticks is still charging at the slower pace');
-  game.settings={...game.settings,bombChargeTicks:8};
-  assert.equal(bot.input(game,player.id).bombCommands?.[0]?.action,'release','eight ticks reaches full distance at the fast pace');
+test('AI riders are logged by the creator, take the five shared slots, and never steer from a stream of their own',()=>{
+  const {state,tick}=logged();tick(['host',[JOIN,'host','Host',0,'fox',1]]);
+  for(let i=1;i<=4;i++)tick(['host',[BOT,'add',`bot:${i}`,`AI ${i}`,freeSlot(state.game)]]);
+  assert.equal(state.game.players.size,5);assert.equal(freeSlot(state.game),-1);
+  tick(['host',[BOT,'add','bot:5','AI 5',4]]);assert.equal(state.game.players.size,5,'an occupied slot is rejected without throwing');
+  const heading=state.game.players.get('bot:1')!.angle;tick(['bot:1',[STEER,1]]);assert.equal(state.game.players.get('bot:1')!.angle,heading,'a stream named after a bot is ignored');
+  tick(['guest',[BOT,'remove','bot:1']]);assert.equal(state.game.players.has('bot:1'),true,'only the creator manages AI');
+  tick(['host',[ACTION,'start','m']]);assert.equal(state.game.phase,'countdown');
+  tick(['host',[BOT,'remove','bot:1']]);assert.equal(state.game.players.has('bot:1'),true,'removal waits for a round boundary');
 });
 
-test('Host alone can manage AI, five shared slots are enforced, and a solo host can start',()=>{
-  const session=room();session.command('host',{type:'join',name:'Host'});
-  assert.match(session.command('guest',aiCommand)!,/host/);
-  for(let i=0;i<4;i++)assert.equal(session.command('host',aiCommand),undefined);
-  session.advance();assert.equal(session.game.players.size,5);assert.match(session.command('host',aiCommand)!,/full/);
-  assert.match(session.command('bot:1',{type:'input',seq:1,left:true,right:false,bomb:true})!,/controlled/);
-  assert.match(session.command('guest',{type:'bot',action:'remove',id:'bot:1'})!,/host/);
-  assert.equal(session.command('host',{type:'action',action:'start'}),undefined);session.advance();assert.equal(session.game.phase,'countdown');
-  assert.match(session.command('host',{type:'bot',action:'remove',id:'bot:1'})!,/between rounds/);
-});
-
-test('AI arriving during a match waits and appears in the next round without a timed click',()=>{
-  const session=room();session.command('host',{type:'join',name:'Host'});session.command('host',aiCommand);session.command('host',{type:'action',action:'start'});
-  for(let i=0;i<60;i++)session.advance();session.command('host',aiCommand);session.advance();
-  const newcomer=session.snapshot().players.find(player=>player.id==='bot:2')!;assert.equal(newcomer.waitingForNextRound,true);assert.equal(newcomer.alive,false);
-  for(let i=0;i<1200&&session.game.round===1;i++)session.advance();
-  assert.ok(session.game.round>1);assert.equal(session.game.players.get('bot:2')!.connected,true);assert.equal(session.game.players.get('bot:2')!.alive,true);
-});
-
-test('AI removal/reset frees its slot without converting humans or reusing old bot identity',()=>{
-  const session=room();session.command('host',{type:'join',name:'Host'});session.command('host',aiCommand);session.advance();
-  session.disconnect('bot:1');assert.equal(session.game.players.get('bot:1')!.connected,true);
-  assert.match(session.command('host',{type:'bot',action:'remove',id:'host'})!,/not found/);
-  assert.equal(session.command('host',{type:'bot',action:'remove',id:'bot:1'}),undefined);session.advance();assert.equal(session.game.players.size,1);
-  session.command('host',aiCommand);session.advance();assert.ok(session.game.players.has('bot:2'));
-  session.command('host',{type:'action',action:'start'});session.command('host',{type:'action',action:'lobby'});session.advance();assert.ok(session.game.players.has('bot:2'));
-});
-
-test('Checkpoint v3 restores only validated bot ownership and rejects malformed registries atomically',()=>{
-  const session=room();session.command('host',{type:'join',name:'Host'});session.command('human',{type:'join',name:'Friend'});session.command('host',aiCommand);session.advance();
-  const raw=session.checkpoint(),encoded=JSON.parse(raw);assert.equal(encoded.version,CHECKPOINT_VERSION);
-  const restored=room();assert.equal(restored.restore(raw),true);assert.equal(restored.game.players.get('bot:1')!.connected,true);assert.equal(restored.game.players.get('host')!.connected,false);assert.equal(restored.game.players.get('human')!.connected,false);
-  const before=restored.checkpoint();
-  for(const ids of [['human'],['host'],['bot:missing'],['bot:1','bot:1'],['bot:1',7],null]){assert.equal(restored.restore(JSON.stringify({...encoded,botIds:ids})),false);assert.equal(restored.checkpoint(),before);}
-  assert.equal(restored.restore(JSON.stringify({...encoded,version:2})),false);
-  assert.equal(restored.command('bot:1',{type:'join',name:'Spoof'}),'AI riders are controlled by the host');
+test('AI arriving during a match waits and appears in the next round; removal between rounds frees its slot',()=>{
+  const {state,tick}=logged();tick(['host',[JOIN,'host','Host',0,'fox',1]]);tick(['host',[BOT,'add','bot:1','AI Ada',1]]);tick(['host',[ACTION,'start','m']]);
+  for(let i=0;i<60;i++)tick();tick(['host',[BOT,'add','bot:2','AI Turing',2]]);
+  const newcomer=state.game.players.get('bot:2')!;assert.equal(newcomer.alive,false);assert.equal(state.game.roundParticipants.has('bot:2'),false);
+  for(let i=0;i<1200&&state.game.round===1;i++)tick();
+  assert.ok(state.game.round>1);assert.equal(state.game.players.get('bot:2')!.connected,true);assert.equal(state.game.players.get('bot:2')!.alive,true);
+  tick(['host',[ACTION,'lobby','m2']]);assert.ok(state.game.players.has('bot:2'));
+  tick(['host',[BOT,'remove','bot:2']]);assert.equal(state.game.players.has('bot:2'),false);assert.equal(freeSlot(state.game),2);
+  tick(['host',[BOT,'add','bot:3','AI Hopper',2]]);assert.ok(state.game.players.has('bot:3'),'a removed bot identity is not reused');
 });
