@@ -5,7 +5,7 @@ import { parseRoomSettings, type RoomSettings } from './room-settings.js';
 import type { AimPoint, GameEvent } from './protocol.js';
 
 /** Bump on any change to the fold or the simulation; replicas on different rules never share a room. */
-export const REPLAY_RULES = 'fuse-rollback-1';
+export const REPLAY_RULES = 'fuse-rollback-2';
 /** Ticks a simulator can rewind; older entries reach it only through a fresh baseline. */
 export const ROLLBACK_WINDOW_TICKS = 40;
 /** Entries one stream may carry in one packet; low enough that a full packet of every stream still fits the unreliable channel. */

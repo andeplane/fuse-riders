@@ -1,7 +1,7 @@
 import { Simulation } from './rollback.js';
 import { StreamSender } from './stream.js';
 import { InputEdges } from './input-edges.js';
-import { createReplayState, edgesFrom, replayHash, validEntry, type EntryBody, type LogEntry, type ReplayState } from '../shared/action-log.js';
+import { createReplayState, edgesFrom, replayHash, validEntry, REPLAY_RULES, type EntryBody, type LogEntry, type ReplayState } from '../shared/action-log.js';
 import { BotController, BOT_ID_PREFIX, type BotDependencies } from '../shared/bot-controller.js';
 import { createGame, toSnapshot, SLOT_COLORS, type GameState } from '../shared/game.js';
 import { decodeCheckpoint, encodeCheckpoint, encodeGameState } from './checkpoint.js';
@@ -189,7 +189,7 @@ export class HostSession {
       const folded = own ? (this.ingress.get(id)?.expected ?? 1) - 1 : this.sim.folded(id);
       streams.push([id, folded, s ? { flags: s.flags, aim: s.aim ?? null, gesture: s.gesture ?? null, bombs: s.bombs.toJSON() } : null, own ? [] : (this.senders.get(id)?.retained ?? []).filter(e => e[0] > folded)]);
     }
-    return { type: 'baseline', rules: 'fuse-rollback-1', tick: this.tick, game: encodeGameState(state.game), pending: state.pending, streams, hash: this.hash() };
+    return { type: 'baseline', rules: REPLAY_RULES, tick: this.tick, game: encodeGameState(state.game), pending: state.pending, streams, hash: this.hash() };
   }
   checkpoint(): string { return encodeCheckpoint(this.hostId, this.game, this.settings, [], this.bots); }
   /** Refresh recovery: the game and roster come back; every stream starts fresh, so held controls and charges do not. */

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { RoomRuntime, HASH_LAG_TICKS, type RoomRuntimeDependencies } from '../src/online/runtime.js';
 import { TICK_MS } from '../src/online/rollback.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
+import { REPLAY_RULES } from '../src/shared/action-log.js';
 import type { RoomCommand } from '../src/online/host-session.js';
 import type { HostSession } from '../src/online/host-session.js';
 import type { ControllerView } from '../src/online/controller-status.js';
@@ -103,6 +104,19 @@ test('a burst of late input rewinds the host without any replica reporting a mis
   assert.ok(!guest.status.some(text=>text.includes('out of sync')),guest.status.join(' | '));
 });
 
+// A baseline named its rules with a literal while the receiver checked REPLAY_RULES, so bumping the constant
+// silently made every baseline 'malformed' and no view could ever rebuild. The two must move together.
+test('a baseline declares the rules its receiver enforces',()=>{
+  const {host,guest,run}=pair();
+  let sent:{type?:string;rules?:string}|undefined;
+  // `block` observes every outbound message; returning false still lets it through and be delivered.
+  host.fake.block=data=>{const message=data as {type?:string;rules?:string};if(message.type==='baseline')sent=message;return false;};
+  internals(guest.runtime).requestResync(true);
+  run(4);
+  assert.ok(sent,'the resync produced a baseline to inspect');
+  assert.equal(sent.rules,REPLAY_RULES,'a receiver rejects any other value as malformed');
+  assert.ok(internals(guest.runtime).sim,'and the guest accepted it');
+});
 test('a resync storm gets one baseline per peer per half second',()=>{
   const clock={now:0},host=room('host','host',clock);
   host.fake.callbacks.peer('guest',true);host.fake.sent.splice(0);

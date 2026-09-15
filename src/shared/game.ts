@@ -43,6 +43,7 @@ import {
 import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from './drunk.js';
 import {
   BOMB_FLIGHT_TICKS,
+  BOMB_MAX_CHARGE_TICKS,
   bombLandingPoint,
   bombLaunchDistance,
 } from './bomb-launch.js';
@@ -664,6 +665,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
 export function toSnapshot(state: GameState): GameSnapshot {
   return {
+    bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
     phase: state.phase,
     ...(state.phaseEndsAtTick === undefined ? {} : { phaseEndsAtTick: state.phaseEndsAtTick }),
     ...(state.roundStartedTick === undefined ? {} : { roundStartedTick: state.roundStartedTick }),
@@ -978,7 +980,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
     }
-    const distance = bombLaunchDistance(state.tick - chargeStartedTick);
+    const distance = bombLaunchDistance(state.tick - chargeStartedTick, state.settings?.bombChargeTicks);
     const bounds: LaunchBounds = {
       minX: state.boundaryInset + RIDER_RADIUS,
       maxX: state.width - state.boundaryInset - RIDER_RADIUS,

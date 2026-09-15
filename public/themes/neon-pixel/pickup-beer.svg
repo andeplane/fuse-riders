@@ -1,17 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" shape-rendering="crispEdges">
-  <rect x="7" y="7" width="17" height="21" fill="#281746"/>
-  <rect x="5" y="5" width="19" height="3" fill="#c56cff"/>
-  <rect x="5" y="8" width="3" height="20" fill="#7840ba"/>
-  <rect x="8" y="25" width="16" height="3" fill="#7840ba"/>
-  <rect x="21" y="8" width="3" height="17" fill="#7840ba"/>
-  <rect x="8" y="10" width="13" height="15" fill="#f28b16"/>
-  <rect x="8" y="10" width="13" height="5" fill="#fff0a2"/>
-  <rect x="10" y="7" width="4" height="6" fill="#fff9d7"/>
-  <rect x="16" y="8" width="5" height="5" fill="#fff9d7"/>
-  <rect x="24" y="11" width="4" height="3" fill="#c56cff"/>
-  <rect x="26" y="14" width="3" height="9" fill="#7840ba"/>
-  <rect x="24" y="21" width="4" height="3" fill="#c56cff"/>
-  <rect x="11" y="17" width="3" height="6" fill="#ffc23d"/>
-  <rect x="3" y="12" width="2" height="2" fill="#ffb62d"/>
-  <rect x="27" y="5" width="2" height="2" fill="#d785ff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2=".7" y2="1"><stop offset="0" stop-color="#fff7bf"/><stop offset="0.5" stop-color="#ffd051"/><stop offset="1" stop-color="#ed861b"/></linearGradient>
+  </defs>
+  <g transform="scale(.5)">
+    <path d="M43 23h6c11 0 11 22 0 22h-6" fill="none" stroke="#bce5f8" stroke-width="5"/>
+    <path d="M13 18h30v33a5 5 0 0 1-5 5H18a5 5 0 0 1-5-5Z" fill="url(#gold)" stroke="#fff0c6" stroke-width="2"/>
+    <path d="M21 28v19m9-19v19" stroke="#fff5bf" stroke-width="3" opacity=".7"/>
+    <path d="M13 23c-9-1-7-12 1-12 1-8 13-9 17-3 8-5 17 2 14 9 5 7-4 12-9 7-4 3-8 1-10-2-4 4-10 4-13 1Z" fill="#fff7e7" stroke="#dceafa" stroke-width="1.5"/>
+    <path d="M18 19v9" stroke="#fff7e7" stroke-width="5"/>
+  </g>
 </svg>
