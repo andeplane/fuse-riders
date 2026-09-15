@@ -397,7 +397,7 @@ function startDisplay(): void {
   // createPowerupGuide() routes every icon through legendSrc() so it works under a base path, and its
   // setTheme() is the single place that re-themes them, called here and from the theme <select>.
   // LAN games have no room settings, so only pickups that spawn by default are listed.
-  const pickupLegend = createPowerupGuide(POWERUP_GUIDE.filter(entry => entry.spawnsByDefault), 'pickup-legend', defaultTheme.id);
+  const pickupLegend = createPowerupGuide(POWERUP_GUIDE.filter(entry => entry.spawnsByDefault), { className: 'pickup-legend', label: 'Power-ups' });
   const applyLegendTheme = (id: ThemeId): void => pickupLegend.setTheme(id);
   lobbyCopy.append(pickupLegend.element);
   const joinPanel = element('div', 'join-panel');

@@ -73,7 +73,7 @@ try {
   await host.getByText('bigger explosions', { exact: false }).waitFor();
   assert.equal(await host.getByText('invulnerable', { exact: false }).count(), 0, 'LAN legend omits star, which only room settings can enable');
   await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
-  await host.getByText('next launch fires 3', { exact: false }).waitFor();
+  await host.getByText('next bomb launch fires 3', { exact: false }).waitFor();
   assert.equal(await host.getByText('next launch seeks', { exact: false }).count(), 0, 'retired power-up is absent from legend');
   await host.getByText('blocks one crash', { exact: false }).waitFor();
   await host.getByText('opens a pair of linked gates', { exact: false }).waitFor();
@@ -83,7 +83,7 @@ try {
   for (const themeId of ['clean-neon', 'neon-pixel']) {
     await host.getByRole('combobox').selectOption(themeId);
     const legendSources = await host.locator('.pickup-legend img').evaluateAll(images => images.map(image => image.getAttribute('src') ?? ''));
-    assert.ok(legendSources.length >= 11, `legend icons found: ${legendSources.length}`);
+    assert.equal(legendSources.length, 11, `legend icons found: ${legendSources.length}`);
     for (const source of legendSources) assert.ok(source.includes(`/themes/${themeId}/`), `legend icon ${source} ignores theme ${themeId}`);
   }
 

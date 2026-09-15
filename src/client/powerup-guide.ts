@@ -15,11 +15,11 @@ const seconds = (ticks: number): string => `${ticks / TICK_HZ}s`;
 // Keyed by PickupType so a new pickup fails to typecheck until it has a guide entry; key order is display order.
 const copy: Record<PickupType, readonly [name: string, description: string]> = {
   blast: ['BLAST+', 'bigger explosions, stacks twice'],
-  triple: ['TRIPLE', 'next launch fires 3 bombs'],
-  five: ['FIVE', 'next launch fires 5 bombs'],
-  target: ['TARGET', 'next bomb lands where you aim and blasts instantly'],
-  shell: ['SHELL', 'next shot bounces off walls and trails until it hits'],
-  gun: ['GUN', 'next shot homes in and punches holes through trails'],
+  triple: ['TRIPLE', 'next bomb launch fires 3'],
+  five: ['FIVE', 'next bomb launch fires 5'],
+  target: ['TARGET', 'next bomb lands where you aim and blasts instantly, smaller radius'],
+  shell: ['SHELL', 'next shot bounces off walls and trails until it hits a rider, you included'],
+  gun: ['GUN', 'next shot curves slightly toward rivals and blasts a hole in the first trail it hits'],
   stopwatch: ['FUSE', `your bombs: ${[0, 1, 2].map(level => seconds(bombFuseTicks(level))).join(' → ')}`],
   orbitShield: ['SHIELD', 'blocks one crash'],
   portal: ['PORTAL', 'opens a pair of linked gates'],
