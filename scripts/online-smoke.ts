@@ -32,13 +32,13 @@ try{
   await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();
   await host.getByLabel('Match length').fill('2');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
   await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();
-  // A joined phone keeps the thirds controller in the lobby (#13); returning to the lobby opens the tools overlay so the wait is explained and the roster is in view.
-  await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.startsWith('Waiting for the host'));await guest.locator('.mobile-play').waitFor({state:'visible'});assert.equal(await guest.locator('.shared-lobby').isVisible(),false);
-  await guest.locator('.online-roster:visible').getByText('Guest',{exact:false}).waitFor();
+  // Back in the lobby a joined phone shows the lobby screen with the riders and the wait explained, not the controller (#134).
+  await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.startsWith('Waiting for the host'));await guest.locator('.phone-lobby').waitFor();assert.equal(await guest.locator('.mobile-play').count(),0,'a joined phone in the lobby is a lobby screen');
+  await guest.locator('.room-riders').getByText('Guest',{exact:false}).waitFor();
   console.log('Settings/reset confirmed');await guest.reload();
   // A lobby reload frees the seat, so the rider confirms the remembered name and head instead of being joined silently.
   await guest.locator('.room-join').waitFor({state:'visible'});assert.equal(await guest.getByPlaceholder('Your name').inputValue(),'Guest','remembered name prefills the join card');await guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
-  await guest.locator('.online-roster:visible').getByText('Guest',{exact:false}).waitFor();await guest.locator('.mobile-tools-toggle').click();
+  await guest.locator('.phone-lobby .room-riders').getByText('Guest',{exact:false}).waitFor(); // The rejoined phone lands on the lobby screen (#134).
   console.log('Guest refresh confirmed');await host.reload();
   await host.locator(':is(.online-roster,.room-riders):visible').getByText('Guest',{exact:false}).waitFor();console.log('Guest roster confirmed');
   await host.getByRole('button',{name:'START RACE',exact:true}).waitFor({state:'visible'});

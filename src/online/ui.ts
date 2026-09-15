@@ -125,7 +125,7 @@ export async function startOnline():Promise<void>{
   const linkRow=node('div','','room-qr-link'),linkText=node('span',joinLink,'room-qr-url'),copyLink=node('button','COPY','room-qr-copy');copyLink.type='button';copyLink.title='Copy the join link';linkRow.append(linkText,copyLink);
   let copyReset=0;
   copyLink.onclick=async()=>{const copied=await copyText(joinLink);copyLink.textContent=copied?'COPIED':'COPY FAILED';copyLink.classList.toggle('copied',copied);clearTimeout(copyReset);copyReset=window.setTimeout(()=>{copyLink.textContent='COPY';copyLink.classList.remove('copied');},1600);};
-  qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'),...(solo?[]:[linkRow]));
+  qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'),...(solo?[]:[linkRow]));qrCard.hidden=solo;
   const lobbyRiders=node('div','','room-riders');const lobbyEmpty=node('p','Your crew belongs here. Share the code to get started.','room-empty');lobbyRiders.append(lobbyEmpty);
   const lobbyFooter=node('footer','','room-lobby-footer'),lobbyCount=node('span','Waiting for riders');lobbyFooter.append(lobbyCount);
   sharedLobby.append(lobbyCopy,qrCard,lobbyRiders,lobbyFooter);
@@ -195,12 +195,14 @@ export async function startOnline():Promise<void>{
       if(state.phase==='lobby')lastRecap='';joined=Boolean(player);const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost});joinPanel.hidden=joined||displayOnly;controls.hidden=!joined||displayOnly;
       // A rider the host still lists as offline (page reload mid-round, host checkpoint restore) reconnects by itself; anyone absent goes through the join card.
       if(player&&!player.connected&&!displayOnly){if(!rejoinPending){rejoinPending=true;runtime.command({type:'join',name:player.name,avatarId:player.avatarId});}}else rejoinPending=false;
-      sharedLobby.hidden=solo||state.phase!=='lobby'||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active()||joining;app.classList.toggle('room-waiting',!sharedLobby.hidden);
+      // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
+      const phoneLobby=mobileLayout.lobby();
+      sharedLobby.hidden=state.phase!=='lobby'||joining||(!phoneLobby&&(solo||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active()));app.classList.toggle('room-waiting',!sharedLobby.hidden);
       lobbyCount.textContent=`${state.players.filter(p=>p.connected).length} riders ready`;lobbyEmpty.hidden=state.players.length>0;
       for(const [playerId,row] of lobbyEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();lobbyEntries.delete(playerId);}
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
-      const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined;app.classList.toggle('controller-only',controllerOnly);
+      const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
       canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;updateDesktopLayout();
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
@@ -216,7 +218,7 @@ export async function startOnline():Promise<void>{
       }
       addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
-      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';
+      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby; // MAIN MENU means nothing in the lobby; the phone screen has no room for a dead button.
     }
   };
   const runtime=solo?new LocalRuntime(settings,callbacks):new RoomRuntime(code,token,settings,callbacks);

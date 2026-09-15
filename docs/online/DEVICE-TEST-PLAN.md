@@ -116,49 +116,59 @@ fail and needs a new issue with the press count, timing and screenshots.
 
 ---
 
-## #13 — One control rendering in every phase
+## #13 / #134 — Phone lobby screen, then one controller in every play phase
 
-Fixed in #41: `mobilePlayPolicy` should be active in every joined phase
-(lobby, countdown, playing, roundOver, matchOver), with the full-screen
-thirds as the only controller and roster/host actions inside the ☰ MENU
-overlay, auto-opened for a phone host in lobby and matchOver.
-`scripts/mobile-phase-smoke.ts` asserts identical control elements across
-`lobby`, `countdown`, `playing`, `matchOver` in Chrome/WebKit emulation only.
+#134 replaced the lobby half of #13: on a phone the **lobby** is a plain
+screen (room code with join link and QR, riders, and for the host START
+RACE / ADD AI / ROOM SETTINGS / TV VIEW, with the join form inline before
+taking a seat) in either orientation, with no rotate gate and one MENU
+button. From **countdown** through **matchOver** `mobilePlayPolicy` is
+active: the full-screen thirds are the only controller and roster/host
+actions live inside the ☰ MENU overlay, auto-opened for a phone host in
+matchOver. `scripts/mobile-phase-smoke.ts` asserts the lobby screen in
+both orientations and identical control elements across `countdown`,
+`playing`, `matchOver` in Chrome/WebKit emulation only; the music resume on
+a real iPhone (#134 finding 1) is not covered by emulation at all.
 
 **Devices/network**: iPhone Safari and Android Chrome, either network
 configuration (a) is fine — this section is about rendering, not link
 quality.
 
 **Steps**:
-1. Host a fresh room from each phone in turn (landscape, so the full-screen
-   controller is active). Add an AI opponent so a match can complete quickly
-   with a short match length.
-2. In the **lobby** phase, screenshot the phone controller. Confirm exactly
-   one control surface is visible: the three full-screen touch thirds plus
-   the ☰ MENU pill — no separate roster panel, no duplicate control bar.
-3. Start the race; screenshot during **countdown**. Confirm the same three
-   thirds and pill layout, with hint labels visible and fading per the
-   design (compare against [#14](#14--long-press-text-selection) hint-fade
-   note below).
-4. Screenshot during **playing**. Confirm identical positions/sizes to the
+1. Start music on the landing page, then CREATE ROOM on the phone
+   (portrait). Confirm music resumes on the first tap on the room page
+   (any tap, not only ♫ RADIO), continuing the same track.
+2. In the **lobby** screenshot the phone: one MENU button, the room code
+   with COPY and a QR, "0 riders ready", and — without scrolling inside any
+   strip — START RACE, ROOM SETTINGS, TV VIEW and ADD AI reachable by
+   normal page scrolling. No "Rotate your phone" gate.
+3. Rotate to landscape and back: the same lobby screen both times, nothing
+   hidden. JOIN AS PLAYER, then add an AI opponent and set a short match
+   length so a match can complete quickly.
+4. Start the race; screenshot during **countdown**. In portrait the rotate
+   gate shows; in landscape the three full-screen thirds plus the ☰ MENU
+   pill, hint labels visible and fading per the design (compare against
+   [#14](#14--long-press-text-selection) hint-fade note below).
+5. Screenshot during **playing**. Confirm identical positions/sizes to the
    countdown screenshot (same thirds, same pill).
-5. Let the match reach **matchOver** (or force it with a short match
-   length); screenshot. Confirm again exactly one control surface, and that
-   the ☰ MENU overlay auto-opens for the phone host as in lobby.
-6. Open the ☰ MENU in each phase and confirm the roster and host actions
-   (MAIN MENU, room settings, etc.) live there and nowhere else on screen.
+6. Let the match reach **matchOver**; screenshot. Confirm exactly one
+   control surface, the ☰ MENU overlay auto-opened for the phone host with
+   REMATCH, MAIN MENU, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
+   clipped), and that rotating keeps the overlay open.
+7. MAIN MENU returns to the lobby screen of step 2.
 
-**Capture**: revision, device/OS/browser, one screenshot per phase (4 per
-device minimum), and a short note of any phase where a second control
-element appeared, an element moved, or sizes differed from the countdown
-baseline.
+**Capture**: revision, device/OS/browser, one screenshot per phase (lobby
+portrait + landscape, countdown, playing, matchOver), and a short note of
+any phase where a second control element appeared, an action was clipped
+or unreachable, or rotating changed which screen was shown.
 
-**Pass/fail**: per #41's fix description, the full-screen thirds must be
-"the only controller" in every phase, with roster/host actions confined to
-the ☰ MENU overlay auto-opened for a phone host in lobby and matchOver. Any
-phase showing a second visible control surface, a resized/relocated control,
-or a phase where the phone reverts to a non-full-screen layout is a fail —
-file a new issue with the phase, screenshot and device.
+**Pass/fail**: the lobby must be the same screen in both orientations with
+every host action reachable and one menu; from countdown on, the
+full-screen thirds must be the only controller with roster/host actions
+confined to the ☰ MENU overlay. Music that stays silent after a tap on the
+room page, a rotate gate in the lobby, a duplicate menu button, a clipped
+action strip, or a phase where the phone reverts to a non-full-screen
+layout is a fail — file a new issue with the phase, screenshot and device.
 
 ---
 
