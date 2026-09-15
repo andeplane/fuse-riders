@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { RADIO_ALBUM, RADIO_ARTIST, bindMediaSession, type MediaAction, type MediaSessionPort, type MediaTrack } from '../src/client/radio-media-session.ts';
+import { RADIO_ALBUM, RADIO_ARTIST, bindMediaSession, radioMediaActions, type MediaAction, type MediaSessionPort, type MediaTrack } from '../src/client/radio-media-session.ts';
 
 const artwork = [{ src: '/radio-artwork.png', sizes: '512x512', type: 'image/png' }];
 function fixture(state: { title: string; playing: boolean; position: number; duration?: number } = { title: 'Pixel Sax Parade', playing: true, position: 12, duration: 180 }) {
@@ -57,4 +57,17 @@ test('without a media session nothing is bound and refresh is harmless', () => {
   const binding = bindMediaSession(undefined, { title: () => 'x', playing: () => true, position: () => 0, duration: () => 1, subscribe: () => { subscribed++; return () => {}; } }, { play() {}, pause() {}, previous() {}, next() {} }, artwork);
   binding.refresh(); binding.unbind();
   assert.equal(subscribed, 0);
+});
+
+test('play unmutes and resumes, pause only pauses, and prev/next go to the radio', () => {
+  let paused = true; let muted = true; const calls: string[] = [];
+  const actions = radioMediaActions(
+    { paused: () => paused, togglePause: () => { paused = !paused; calls.push('toggle'); }, previousTrack: () => calls.push('previous'), nextTrack: () => calls.push('next') },
+    { muted: () => muted, unmute: () => { muted = false; calls.push('unmute'); } },
+    () => calls.push('unlock'),
+  );
+  actions.play(); assert.deepEqual(calls, ['unmute', 'toggle', 'unlock']); assert.equal(paused, false); assert.equal(muted, false);
+  actions.play(); assert.deepEqual(calls.slice(3), ['unlock'], 'play on a playing radio does not toggle it off');
+  actions.pause(); actions.pause(); assert.deepEqual(calls.slice(4), ['toggle'], 'a second pause does not start the music again');
+  actions.previous(); actions.next(); assert.deepEqual(calls.slice(5), ['previous', 'next']);
 });

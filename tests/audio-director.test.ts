@@ -6,14 +6,14 @@ import { addPlayer, createGame, toSnapshot } from '../src/shared/game.ts';
 import { beginMatchParticipant } from '../src/shared/match-stats.ts';
 import type { GameEvent, ServerMessage } from '../src/shared/protocol.ts';
 function fixture(stored: Partial<RadioState> = {}) {
-  let canUnlock = true; let stops = 0; let pauses = 0; let position: number | undefined;
+  let canUnlock = true; let stops = 0; let pauses = 0; let position: number | undefined; let audible = false;
   const notes: { channel: AudioChannel; note: SynthNote }[] = []; const music: string[] = []; const offsets: number[] = [];
   const gains = new Map<AudioChannel, number>(); const saved: RadioState[] = [];
   // Like the media element, a newly handed track reports no position until it has loaded (`at`).
   const synth: GameSynth = {
     unlock: async () => canUnlock, note: (channel, note) => notes.push({ channel, note }), gain: (channel, value) => { gains.set(channel, value); },
     music: (path, offset) => { music.push(path); offsets.push(offset); position = undefined; }, pauseMusic: () => { pauses++; },
-    position: () => position, duration: () => position === undefined ? undefined : 180, stop: () => { stops++; position = undefined; },
+    position: () => position, duration: () => position === undefined ? undefined : 180, stop: () => { stops++; position = undefined; }, audible: () => audible,
   };
   const director = new AudioDirector(synth, { ...defaultRadio(), ...stored }, state => saved.push(structuredClone(state)));
   const game = createGame('audio'); addPlayer(game, { id: 'p', name: 'P', slot: 0, color: '#ffffff' });
@@ -22,7 +22,7 @@ function fixture(stored: Partial<RadioState> = {}) {
   const event = (tick: number, event: GameEvent): ServerMessage => ({ type: 'event', matchId: game.matchId, round: game.round, tick, event });
   return {
     director, notes, music, offsets, gains, saved, game, snapshot, event, deny: () => { canUnlock = false; }, allow: () => { canUnlock = true; },
-    stops: () => stops, pauses: () => pauses, at: (seconds: number) => { position = seconds; },
+    stops: () => stops, pauses: () => pauses, at: (seconds: number) => { position = seconds; }, sounding: (value: boolean) => { audible = value; },
   };
 }
 test('audio requires gesture unlock, routes independent mute and volume, and tolerates refusal', async () => {
@@ -230,7 +230,7 @@ test('playlist edits, sources and loop flags are saved, and every change is anno
 
 test('periodic saves record only where the song is, and another tab\'s choices are adopted without writing back', () => {
   const saves: { kind: string; state: RadioState }[] = [];
-  const synth: GameSynth = { unlock: async () => true, note() {}, gain() {}, music() {}, pauseMusic() {}, position: () => undefined, duration: () => undefined, stop() {} };
+  const synth: GameSynth = { unlock: async () => true, note() {}, gain() {}, music() {}, pauseMusic() {}, position: () => undefined, duration: () => undefined, stop() {}, audible: () => false };
   const director = new AudioDirector(synth, defaultRadio(), (state, kind) => saves.push({ kind, state: structuredClone(state) }));
   director.save(); director.setLoopSong(true);
   assert.deepEqual(saves.map(save => save.kind), ['position', 'all']);
@@ -238,6 +238,27 @@ test('periodic saves record only where the song is, and another tab\'s choices a
   director.adoptChoices({ loopSong: false, loopPlaylist: false, source: 'playlist', playlist: ['forest-job'] });
   assert.equal(saves.length, 2, 'adopting writes nothing back'); assert.equal(renders, 1);
   assert.deepEqual({ ...director.state }, { ...defaultRadio(), loopPlaylist: false, source: 'playlist', playlist: ['forest-job'] });
+});
+
+test('an OS pause follows into the radio and nothing on the page restarts it; an OS resume follows too', async () => {
+  const f = fixture(); f.director.playBackground(); await f.director.unlock(); f.director.update(); f.at(42); f.sounding(true);
+  assert.equal(f.director.audible(), true);
+  f.director.mediaPaused();
+  assert.equal(f.director.state.paused, true); assert.equal(f.saved.at(-1)!.paused, true); assert.equal(f.saved.at(-1)!.position, 42);
+  assert.equal(f.pauses(), 1, 'the track is disarmed so an unlock cannot replay it');
+  assert.equal(f.director.audible(), false, 'no track is handed to the synth any more');
+  await f.director.unlock(); f.director.update(); f.director.resume(); assert.equal(f.music.length, 1, 'a tap, a returning tab or resume() does not start it');
+  f.director.mediaPaused(); assert.equal(f.pauses(), 1, 'a repeated pause is a no-op');
+  f.director.mediaResumed();
+  assert.equal(f.director.state.paused, false); assert.deepEqual([f.music.length, f.offsets.at(-1)], [2, 42], 'resumes from where the OS paused it');
+  f.director.mediaResumed(); assert.equal(f.music.length, 2, 'a repeated resume is a no-op');
+});
+
+test('the track length survives a pause for the lock-screen scrubber and resets with a new track', async () => {
+  const f = fixture(); f.director.playBackground(); await f.director.unlock(); f.director.update(); f.at(10);
+  assert.equal(f.director.duration(), 180);
+  f.director.togglePause(); assert.equal(f.director.duration(), 180, 'paused keeps the known length');
+  f.director.nextTrack(); assert.equal(f.director.duration(), undefined, 'a new track has no length until it loads');
 });
 
 test('gun launch plays a layered cannon cue', async () => {

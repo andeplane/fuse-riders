@@ -28,6 +28,9 @@ export interface MediaRadio {
 }
 export interface MediaActions { play(): void; pause(): void; previous(): void; next(): void }
 export interface MediaBinding { refresh(): void; unbind(): void }
+/** The radio controls a media action may use. */
+export interface RadioTransport { paused(): boolean; togglePause(): void; previousTrack(): void; nextTrack(): void }
+export interface MusicMute { muted(): boolean; unmute(): void }
 
 export const RADIO_ARTIST = 'Fuse Riders Radio';
 export const RADIO_ALBUM = 'Fuse Riders';
@@ -52,4 +55,18 @@ export function bindMediaSession(port: MediaSessionPort | undefined, radio: Medi
   const unsubscribe = radio.subscribe(refresh);
   refresh();
   return { refresh, unbind() { unsubscribe(); for (const action of ACTIONS) port.setActionHandler(action, null); } };
+}
+
+/**
+ * What the OS buttons mean for the radio. Play is "make it sound": it unmutes music a listener silenced and
+ * resumes a paused radio, then retries the unlock. Pause only pauses, never toggles back on; a second
+ * pause from a car or lock screen must not start the music again.
+ */
+export function radioMediaActions(radio: RadioTransport, music: MusicMute, unlock: () => void): MediaActions {
+  return {
+    play: () => { if (music.muted()) music.unmute(); if (radio.paused()) radio.togglePause(); unlock(); },
+    pause: () => { if (!radio.paused()) radio.togglePause(); },
+    previous: () => radio.previousTrack(),
+    next: () => radio.nextTrack(),
+  };
 }
