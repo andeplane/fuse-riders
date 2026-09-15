@@ -13,6 +13,11 @@ export interface GameSynth {
 export const MUSIC_TRACKS = [
   { title: 'Pixel Sax Parade', path: '/music/pixel-sax-parade.m4a' },
   { title: 'Coin Op Swing', path: '/music/coin-op-swing.m4a' },
+  { title: 'Arcade Adventure', path: '/music/arcade-adventure.m4a' },
+  { title: 'Forest Job', path: '/music/forest-job.m4a' },
+  { title: 'Neon Grid Chase', path: '/music/neon-grid-chase.m4a' },
+  { title: 'Final Chase', path: '/music/final-chase.m4a' },
+  { title: 'Reduced Noise Orchestra', path: '/music/reduced-noise-orchestra.m4a' },
 ] as const;
 export class AudioDirector {
   private unlocked = false;
