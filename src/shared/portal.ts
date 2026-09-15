@@ -5,6 +5,8 @@ export const PORTAL_LIFETIME_TICKS = 200;
 export const PORTAL_COOLDOWN_TICKS = 15;
 export const PORTAL_GRACE_TICKS = 10;
 export const PORTAL_PLACEMENT_ATTEMPTS = 24;
+/** Simultaneous gate pairs. Each new pickup opens one more; past the cap the oldest makes room. */
+export const MAX_PORTAL_PAIRS = 3;
 
 export interface PortalPoint { x: number; y: number }
 export interface PortalGate extends PortalPoint { halfLength: number }
@@ -55,7 +57,7 @@ export function createPortalPair(options: PortalPlacementOptions): PortalPair | 
 }
 
 export interface PortalTransitOptions {
-  pair: PortalPair | undefined;
+  pairs: readonly PortalPair[];
   tick: number;
   from: PortalPoint;
   to: PortalPoint;
@@ -66,6 +68,7 @@ export interface PortalTransitOptions {
   isSafeExit: PortalSafetyCheck;
 }
 export interface PortalTransit {
+  pairId: string;
   entryGateIndex: 0 | 1;
   entryPoint: PortalPoint;
   exitPoint: PortalPoint;
@@ -122,20 +125,27 @@ function entryFraction(from: PortalPoint, to: PortalPoint, gate: PortalGate, rad
   return candidates.length ? Math.min(...candidates) : undefined;
 }
 
-/** Call after ordinary collision resolution, only for living riders. No state or trail mutation. */
+/**
+ * Call after ordinary collision resolution, only for living riders. No state or trail mutation.
+ * The earliest wall met along the step wins, so overlapping pairs never swap a rider's destination,
+ * and a rider always leaves through the partner of the gate actually entered.
+ */
 export function findPortalTransit(options: PortalTransitOptions): PortalTransit | undefined {
-  const { pair, tick, from, to, bounds, riderRadius } = options;
-  if (!pair || tick >= pair.expiresAtTick || tick < options.cooldownUntilTick) return undefined;
-  const entries = pair.gates.map((gate, index) => ({
-    index: index as 0 | 1,
-    fraction: entryFraction(from, to, gate, PORTAL_WALL_HALF_WIDTH + riderRadius),
-  })).filter((entry): entry is { index: 0 | 1; fraction: number } => entry.fraction !== undefined)
-    .sort((a, b) => a.fraction - b.fraction);
-  const entry = entries[0];
+  const { pairs, tick, from, to, bounds, riderRadius } = options;
+  if (tick < options.cooldownUntilTick) return undefined;
+  let entry: { pair: PortalPair; index: 0 | 1; fraction: number } | undefined;
+  for (const candidate of pairs) {
+    if (tick >= candidate.expiresAtTick) continue;
+    for (const [index, gate] of candidate.gates.entries()) {
+      const fraction = entryFraction(from, to, gate, PORTAL_WALL_HALF_WIDTH + riderRadius);
+      if (fraction === undefined || (entry && fraction >= entry.fraction)) continue;
+      entry = { pair: candidate, index: index as 0 | 1, fraction };
+    }
+  }
   if (!entry) return undefined;
   if (bounds.maxX - bounds.minX < 2 * riderRadius || bounds.maxY - bounds.minY < 2 * riderRadius) return undefined;
-  const gate = pair.gates[entry.index];
-  const linked = pair.gates[entry.index === 0 ? 1 : 0];
+  const gate = entry.pair.gates[entry.index];
+  const linked = entry.pair.gates[entry.index === 0 ? 1 : 0];
   const entryPoint = { x: from.x + (to.x - from.x) * entry.fraction, y: from.y + (to.y - from.y) * entry.fraction };
   const proportion = Math.max(-1, Math.min(1, (entryPoint.y - gate.y) / gate.halfLength));
   const direction = Math.sign(to.x - from.x) || Math.sign(from.x - gate.x) || 1;
@@ -147,6 +157,7 @@ export function findPortalTransit(options: PortalTransitOptions): PortalTransit 
       exitPoint.y < bounds.minY + riderRadius || exitPoint.y > bounds.maxY - riderRadius) return undefined;
   if (!options.isSafeExit(exitPoint, riderRadius)) return undefined;
   return {
+    pairId: entry.pair.id,
     entryGateIndex: entry.index,
     entryPoint,
     exitPoint,

@@ -3,11 +3,12 @@ import { isBombChargeTicks } from '../shared/bomb-launch.js';
 import type { GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
+import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 
 /** Bump compatibility whenever persisted simulation semantics or required fields change. No implicit migration. */
-export const CHECKPOINT_VERSION = 3;
+export const CHECKPOINT_VERSION = 4;
 export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-2';
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
@@ -26,6 +27,7 @@ const array = (guard: Guard, max: number): Guard => v => Array.isArray(v) && v.l
 const shape = (fields: Record<string, Guard>): Guard => v => record(v) && Object.keys(v).every(key => Object.hasOwn(fields, key)) && Object.entries(fields).every(([key, guard]) => guard(v[key]));
 const map = (keyGuard: Guard, valueGuard: Guard, max: number): Guard => v => v instanceof Map && v.size <= max && [...v].every(([key, value]) => keyGuard(key) && valueGuard(value));
 const position = range(-1000, ARENA_WIDTH + 1000);
+const portalPair: Guard = shape({ id: text, gates: v => Array.isArray(v) && v.length === 2 && v.every(shape({ x: position, y: position, halfLength: range(0.001, 150) })), expiresAtTick: integer });
 const trail: Guard = v => shape({ x1: position, y1: position, x2: position, y2: position, createdTick: integer, expiresAtTick: integer })(v) && record(v) && (v.expiresAtTick as number) > (v.createdTick as number);
 const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
@@ -59,7 +61,7 @@ const gameShape = shape({
   phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v), phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
   width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),
   players: map(text, player, 5), bombs: map(integer, bomb, 256), blasts: array(blast, 256), pickups: array(pickup, 6),
-  portalPair: optional(shape({ id: text, gates: v => Array.isArray(v) && v.length === 2 && v.every(shape({ x: position, y: position, halfLength: range(0.001, 150) })), expiresAtTick: integer })),
+  portalPairs: array(portalPair, MAX_PORTAL_PAIRS),
   nextBombId: integer, nextPickupId: integer, nextPickupSpawnTick: integer, seed: count(0xffffffff), randomState: count(0xffffffff),
   leaderboard: map(text, shape({ id: text, name, totalScoreUnits: integer, roundsPlayed: integer, roundWins: integer, matchWins: integer }), MAX_HISTORY),
   roundParticipants: map(text, shape({ id: text, name, eliminatedAtTick: optional(integer) }), 5),
@@ -171,7 +173,7 @@ const snapshotShape = shape({
   bombs: array(shape(wireBombFields), 256),
   blasts: array(shape({bombId:integer,circle:shape({x:position,y:position,radius:range(0,1000)}),expiresAtTick:integer}),256),
   pickups: array(pickup,6),
-  portalPair: optional(shape({id:text,gates:v=>Array.isArray(v)&&v.length===2&&v.every(shape({x:position,y:position,halfLength:range(.001,150)})),expiresAtTick:integer})),
+  portalPairs: array(portalPair,MAX_PORTAL_PAIRS),
   leaderboard: array(shape({id:text,name,totalScoreUnits:integer,roundsPlayed:integer,roundWins:integer,matchWins:integer}),MAX_HISTORY),
   roundPlacements: array(shape({playerId:text,name,place:range(1,5),scoreUnits:integer}),5),
   matchStats: array(shape({...wireStatsFields,matchPlacement:integer} satisfies Record<keyof MatchPlayerStats,Guard>),MAX_HISTORY),
