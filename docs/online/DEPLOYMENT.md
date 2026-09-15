@@ -1,6 +1,6 @@
 # Browser-hosted online play
 
-The creator's browser runs the authoritative 20 Hz game; the creator can also play on a phone. WebRTC data channels carry gameplay directly between the host and each player/display. This is a star topology, not an all-to-all mesh.
+Every device in a room runs the same 20 Hz simulation from one shared input log ([P2P-INPUT-LOG-BRIEF.md](P2P-INPUT-LOG-BRIEF.md)); the creator can also play on a phone. WebRTC data channels form a full mesh, one link per pair of members, and carry one small packet per tick each way plus snapshots for joiners. The room service only issues codes, tracks membership and relays signalling.
 
 The backend never simulates or relays gameplay. A `relay` frame is answered with an error (`src/service/gateway.ts`), so a direct link that cannot be established shows an explicit failure/retry state instead of degrading to a server path. No TURN service is provisioned. See [ADR 035](../adr/035-direct-gameplay-only.md) for that decision and [ADR 034](../adr/034-gcp-pages-deployment.md) for the deployment target; architectural limits and release gates stay in ADRs 028–034 and [ROADMAP.md](ROADMAP.md). This is not a qualified production deployment.
 

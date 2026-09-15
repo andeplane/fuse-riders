@@ -74,6 +74,8 @@ every trial rather than only the latest.
 
 ## #15 — Dropped touch inputs
 
+> `scripts/input-drop-probe.ts` was removed with the host-star runtime. In the peer-to-peer runtime an input is a log entry the phone itself folds on the next tick; run `scripts/p2p-measure.ts` for scripted input-to-state latencies and read a physical phone's `artifacts/telemetry/<ROOM>.ndjson` (posted while `npm run dev` serves the room) with `scripts/telemetry-report.ts`.
+
 Fixed in #38 for the synthetic case: `scripts/input-drop-probe.ts` measured
 98.1% of playing-phase inputs rejected locally before the fix and 0.98% after
 (60 s, 100–300 ms late snapshots, a frozen tab). That harness explicitly
