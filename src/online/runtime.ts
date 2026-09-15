@@ -395,5 +395,5 @@ export class RoomRuntime {
     const now=this.dependencies.now();if(!force&&now-this.lastSave<SAVE_INTERVAL_MS)return;
     this.lastSave=now;try{localStorage.setItem(`fuse-checkpoint-${this.code}`,this.session.checkpoint());}catch{}
   }
-  stop(){this.save(true);clearInterval(this.interval);this.transport.close();}
+  stop(){this.save(true);clearInterval(this.interval);this.transport.close(true);}
 }
