@@ -1,4 +1,5 @@
 import { showRoomSettings } from './room-settings-menu.js';
+import { uuid } from '../shared/uuid.js';
 import { validRoomCode } from '../shared/room-code.js';
 import { startAttract } from './attract.js';
 import { LocalRuntime } from './local-runtime.js';
@@ -30,7 +31,7 @@ const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>
 const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
-const secret=()=>crypto.randomUUID().replaceAll('-','')+crypto.randomUUID().replaceAll('-','');
+const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
 export async function startOnline():Promise<void>{
   const app=document.querySelector<HTMLElement>('#app')!;app.className='online-app';
   const url=new URL(location.href);const solo=url.searchParams.get('solo')==='1';const code=solo?'SOLO':url.searchParams.get('room')?.toUpperCase();
