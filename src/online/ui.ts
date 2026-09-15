@@ -44,7 +44,7 @@ export async function startOnline():Promise<void>{
     app.classList.add('landing-app');
     const card=node('main','','landing');
     card.innerHTML=`<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
-      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span></header>
+      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button></div></header>
       <section class="landing-content"><p class="landing-eyebrow"><span></span> A NEON ARENA PARTY GAME</p>
       <h1>LEAVE A TRAIL.<br>MAKE A <em>MESS.</em></h1>
       <p class="landing-intro">Outrun your friends. Blow up their plans.<br>One arena. Five riders. Absolutely no brakes.</p>
@@ -67,6 +67,8 @@ export async function startOnline():Promise<void>{
     let cleanup:(()=>void)|undefined,ended=false;
     window.addEventListener('pagehide',()=>{ended=true;cleanup?.();},{once:true});
     window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
+    // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
+    const landingAudio=createGameAudio('Site',{background:true});landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
   if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
@@ -138,7 +140,7 @@ export async function startOnline():Promise<void>{
   window.addEventListener('resize',updateDesktopLayout);
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
-  const audio=createGameAudio('Game');audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
+  const audio=createGameAudio('Game',{background:true});audioButton.onclick=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Music & sound'),audio.controls);dialog.showModal();};
   /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
     const recap=buildMatchRecap(stats);const root=node('section','','match-recap-report');

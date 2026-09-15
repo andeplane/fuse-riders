@@ -14,7 +14,7 @@ function fixture() {
   beginMatchParticipant(game.matchStats, { id: 'p', name: 'P', slot: 0, color: '#ffffff' });
   const snapshot = (tick: number, phase = 'playing' as typeof game.phase): ServerMessage => { game.phase = phase; return { type: 'snapshot', matchId: game.matchId, round: game.round, tick, state: toSnapshot(game) }; };
   const event = (tick: number, event: GameEvent): ServerMessage => ({ type: 'event', matchId: game.matchId, round: game.round, tick, event });
-  return { director, notes, music, gains, game, snapshot, event, deny: () => { canUnlock = false; }, stops: () => stops };
+  return { director, notes, music, gains, game, snapshot, event, deny: () => { canUnlock = false; }, allow: () => { canUnlock = true; }, stops: () => stops };
 }
 test('audio requires gesture unlock, routes independent mute and volume, and tolerates refusal', async () => {
   const f = fixture(); f.director.message(f.snapshot(10)); f.director.update(); assert.equal(f.music.length, 0);
@@ -99,6 +99,58 @@ test('new rounds keep the current track playing instead of restarting it', async
   f.game.matchId = 'later-match'; f.game.round = 0; f.director.message(f.snapshot(7, 'countdown')); f.director.update();
   assert.equal(f.director.trackTitle, first, 'a new match keeps the track too');
   assert.deepEqual(f.music, [MUSIC_TRACKS[0].path], 'the track is only handed to the synth once');
+});
+
+test('background music plays with no match attached and survives a hidden tab', async () => {
+  const f = fixture(); f.director.playBackground(); assert.equal(f.music.length, 0, 'a gesture is still required');
+  await f.director.unlock(); f.director.update(); assert.deepEqual(f.music, [MUSIC_TRACKS[0].path]);
+  f.director.disconnect(); assert.equal(f.stops(), 1);
+  f.director.update(); assert.equal(f.music.length, 1, 'a stopped director stays silent until it is resumed');
+  f.director.resume(); assert.deepEqual(f.music, [MUSIC_TRACKS[0].path, MUSIC_TRACKS[0].path]);
+  f.director.resume(); assert.equal(f.music.length, 2, 'resuming again does not restart the track');
+});
+
+test('a hidden tab keeps its music and only drops effect cues', async () => {
+  const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(10)); f.director.update();
+  assert.deepEqual(f.music, [MUSIC_TRACKS[0].path]);
+  // Alt-tabbing away: the track plays on, so coming back does not restart it from the top.
+  f.director.setEffectsSilenced(true);
+  f.director.message(f.event(11, { type: 'explosion', bombId: 1 }));
+  assert.equal(f.notes.length, 0, 'a room the viewer cannot see makes no noise');
+  assert.equal(f.stops(), 0, 'the track is never stopped');
+  f.director.message(f.snapshot(12)); f.director.update();
+  assert.equal(f.music.length, 1, 'no new track is started while hidden');
+  f.director.setEffectsSilenced(false);
+  f.director.message(f.event(13, { type: 'explosion', bombId: 2 }));
+  assert.equal(f.notes.length, 2, 'cues come back with the tab');
+  f.director.resume(); f.director.update();
+  assert.equal(f.music.length, 1, 'coming back resumes the same track rather than restarting it');
+});
+
+test('a browser that refuses audio stays silent until a later unlock succeeds', async () => {
+  const f = fixture(); f.deny();
+  // The page asks for music at load; a gesture-gated browser refuses, so nothing may be fetched yet.
+  f.director.playBackground(); assert.equal(await f.director.unlock(), false); f.director.update();
+  assert.equal(f.music.length, 0);
+  f.allow(); // The first gesture anywhere retries the same unlock.
+  assert.equal(await f.director.unlock(), true); f.director.update();
+  assert.deepEqual(f.music, [MUSIC_TRACKS[0].path], 'the gesture starts the track the page already asked for');
+});
+
+test('resume only revives background music, never a match that has not sent a snapshot', async () => {
+  const f = fixture(); await f.director.unlock();
+  f.director.resume(); f.director.update(); assert.equal(f.music.length, 0);
+  f.director.message(f.snapshot(1)); f.director.update(); assert.equal(f.music.length, 1);
+  f.director.disconnect(); f.director.resume(); assert.equal(f.music.length, 1, 'a match waits for its next snapshot');
+  f.director.message(f.snapshot(2)); f.director.update(); assert.equal(f.music.length, 2);
+});
+
+test('mute state is readable so a page can label its own music toggle', async () => {
+  const f = fixture(); assert.equal(f.director.isMuted('music'), false); assert.equal(f.director.isMuted('effects'), false);
+  f.director.setMuted('music', true);
+  assert.equal(f.director.isMuted('music'), true); assert.equal(f.director.isMuted('effects'), false);
+  assert.equal(f.gains.get('music'), 0);
+  f.director.setMuted('music', false); assert.equal(f.director.isMuted('music'), false); assert.equal(f.gains.get('music'), .22);
 });
 
 test('enabled audio plays in the lobby and intermissions and explicit enable confirms output', async () => {
