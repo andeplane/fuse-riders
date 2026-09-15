@@ -1,7 +1,9 @@
 name: Daily Slack update
 on:
   schedule:
-    - cron: '0 7 * * *' # 07:00 UTC daily
+    # GitHub Actions cron is UTC-only, no DST awareness: 08:00 UTC is 9:00 CET (winter) but
+    # 10:00 CEST (summer). Shift by an hour here if the daylight-saving drift bothers you.
+    - cron: '0 8 * * *'
   workflow_dispatch:
     inputs:
       lookback_hours:
