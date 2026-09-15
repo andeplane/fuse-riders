@@ -160,7 +160,7 @@ export async function startOnline():Promise<void>{
   if(!solo)void QRCode.toDataURL(joinLink).then(data=>{lobbyQr.src=data;}).catch(()=>{lobbyQr.hidden=true;});
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);controls.addEventListener('selectstart',event=>event.preventDefault());controls.addEventListener('contextmenu',event=>event.preventDefault());
   for(const [button,key,label] of [[leftButton,'ArrowLeft A','Steer left'],[fireButton,'Space','Hold to charge, release to fire'],[rightButton,'ArrowRight D','Steer right']] as const){button.setAttribute('aria-keyshortcuts',key);button.title=`${label} (${key})`;}
-  const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','TV VIEW'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
+  const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','BACK TO LOBBY'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','TV VIEW'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
   const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;head:HTMLElement;avatar:AvatarId;remove:HTMLButtonElement}>();
   const help=node('button','?','desktop-help');help.setAttribute('aria-label','Keyboard controls');help.title='Keyboard controls';
   const avatarButton=node('button','AVATAR'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');avatarButton.hidden=true;
@@ -219,7 +219,7 @@ export async function startOnline():Promise<void>{
     for(const entry of recap.comparison){const row=node('div','','comparison-row');row.style.setProperty('--player-color',entry.color);const rider=node('span','','comparison-rider'),riderCopy=node('span');riderCopy.append(node('b',entry.riderLabel),node('small',entry.riderNote));rider.append(node('i'),riderCopy);row.append(rider);for(const column of COMPARISON_COLUMNS)row.append(node(column.key==='wins'?'strong':'span',entry[column.key],column.key==='pickups'?'pickup-counts':column.key==='deaths'?'death-counts':''));comparison.append(row);}
     root.append(podium,totals);if(recap.awards.length)root.append(awards);root.append(comparison);return root;
   };
-  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;if(!sharedLobby.hidden){close.textContent='BACK TO LOBBY';close.setAttribute('aria-label','BACK TO LOBBY');}dialog.showModal();dialogBody.scrollTop=0;};
+  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;dialog.showModal();dialogBody.scrollTop=0;};
   results.onclick=()=>{track('Recap Reopened');openRecap();};
   const callbacks:Callbacks={
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
@@ -245,7 +245,7 @@ export async function startOnline():Promise<void>{
       // A rider the host still lists as offline (page reload mid-round, host checkpoint restore) reconnects by itself; anyone absent goes through the join card.
       if(player&&!player.connected&&!displayOnly){if(!rejoinPending){rejoinPending=true;runtime.command({type:'join',name:player.name,avatarId:player.avatarId});}}else rejoinPending=false;
       // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
-      // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / MAIN MENU.
+      // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / BACK TO LOBBY.
       // Solo and a joined shared-screen rider have no lobby card (their pre-start screen is the arena or the controller), so their button stays CLOSE.
       const phoneLobby=mobileLayout.lobby();
       sharedLobby.hidden=!(state.phase==='lobby'||recapReady)||joining||(!phoneLobby&&(solo||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active()));app.classList.toggle('room-waiting',!sharedLobby.hidden);
@@ -276,7 +276,7 @@ export async function startOnline():Promise<void>{
       }
       addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
-      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // MAIN MENU means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
+      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // BACK TO LOBBY means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
     }
   };
   const runtime=solo?new LocalRuntime(settings,callbacks):new RoomRuntime(code,token,settings,callbacks);

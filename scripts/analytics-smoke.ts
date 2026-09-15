@@ -30,7 +30,7 @@ await page.route('**/*mixpanel.com/**', async (route) => {
 await page.addInitScript(([key, settings]) => localStorage.setItem(key as string, JSON.stringify(settings)), [SETTINGS_KEY, oneRound]);
 await page.goto(`${base}?solo=1&analytics=1`);
 await page.getByRole('dialog').waitFor({ timeout: 180000 });
-await page.getByRole('button', { name: /^(CLOSE|BACK TO LOBBY)$/ }).first().click();
+await page.getByRole('dialog').getByRole('button', { name: /^(CLOSE|BACK TO LOBBY)$/ }).first().click();
 await page.getByRole('button', { name: 'RESULTS', exact: true }).click();
 await page.waitForFunction(() => document.querySelectorAll('dialog[open]').length > 0);
 await page.waitForTimeout(6000);
