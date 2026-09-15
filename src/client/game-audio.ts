@@ -152,7 +152,8 @@ class WebAudioSynth implements GameSynth {
   private startTrack(): void {
     const element = this.element;
     if (!element || !this.trackPath || this.levels.music <= 0) return;
-    if (this.loadedPath !== this.trackPath) { this.loadedPath = this.trackPath; element.src = assetUrl(this.trackPath); }
+    // Loading a source discards queued media events, so a pause or play this synth expected will never arrive.
+    if (this.loadedPath !== this.trackPath) { this.loadedPath = this.trackPath; this.ownPause = false; this.ownPlay = false; element.src = assetUrl(this.trackPath); }
     // Autoplay refusal rejects play(); the next gesture retries, so a refused track never blocks play.
     if (element.paused) { this.ownPlay = true; void element.play().catch(() => { this.ownPlay = false; }); }
   }
@@ -160,7 +161,7 @@ class WebAudioSynth implements GameSynth {
     this.trackPath = ''; this.loadedPath = ''; this.pendingSeek = undefined;
     if (!this.element) return;
     // Dropping the source as well as pausing stops the download for a page that is going away.
-    this.pauseElement(); this.element.removeAttribute('src'); this.element.load();
+    this.pauseElement(); this.element.removeAttribute('src'); this.element.load(); this.ownPause = false; this.ownPlay = false;
   }
   stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); this.stopMusic(); }
 }

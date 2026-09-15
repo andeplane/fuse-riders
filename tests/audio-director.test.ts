@@ -261,6 +261,13 @@ test('the track length survives a pause for the lock-screen scrubber and resets 
   f.director.nextTrack(); assert.equal(f.director.duration(), undefined, 'a new track has no length until it loads');
 });
 
+test('a later failed unlock (a lock-screen play iOS will not let resume the context) does not stop the music', async () => {
+  const f = fixture(); f.director.playBackground(); await f.director.unlock(); f.director.update(); f.at(20);
+  f.director.togglePause(); f.deny(); assert.equal(await f.director.unlock(), false, 'the attempt still reports its own failure');
+  f.director.togglePause(); assert.deepEqual([f.music.length, f.offsets.at(-1)], [2, 20], 'play re-arms the track after the failed unlock');
+  f.director.mediaPaused(); f.director.mediaResumed(); assert.equal(f.music.length, 3, 'an OS resume arms it too');
+});
+
 test('gun launch plays a layered cannon cue', async () => {
   const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(10));
   f.director.message(f.event(11, { type: 'bombPlaced', bombId: 1, playerId: 'p', gun: true }));

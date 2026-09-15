@@ -49,9 +49,11 @@ export class AudioDirector {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
   }
   async unlock(confirm = false): Promise<boolean> {
-    this.unlocked = await this.synth.unlock();
-    if (this.unlocked && confirm) this.synth.note('effects', { frequency: 660, endFrequency: 990, duration: .16, wave: 'triangle', level: .24 });
-    return this.unlocked;
+    // Once audio has been unlocked it stays unlocked: iOS cannot resume the effects context from a lock-screen action,
+    // and that failure must not stop the music element, which plays without it.
+    const ok = await this.synth.unlock(); this.unlocked ||= ok;
+    if (ok && confirm) this.synth.note('effects', { frequency: 660, endFrequency: 990, duration: .16, wave: 'triangle', level: .24 });
+    return ok;
   }
   get state(): Readonly<RadioState> { return this.radio; }
   get trackTitle(): string { return trackById(this.radio.track).title; }
