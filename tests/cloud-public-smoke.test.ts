@@ -26,7 +26,7 @@ async function fixture(brokenCors=false){
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');return {origin:`http://127.0.0.1:${address.port}`,close:async()=>{await gateway.stop();sockets.close();await new Promise<void>(resolve=>server.close(()=>resolve()));}};
 }
 test('public smoke exercises real gateway socket boundaries and emits no credentials',async()=>{
- const f=await fixture();try{const report=await runPublicSmoke({origin:f.origin,allowLoopback:true,timeoutMs:1000});assert.equal(report.passed,true,JSON.stringify(report));assert.ok(report.checks.some(c=>c.name.includes('replacement')));assert.doesNotMatch(JSON.stringify(report),/[a-f0-9]{64}|token=|api\/rooms\/[A-Z0-9]{10}/);}finally{await f.close();}
+ const f=await fixture();try{const report=await runPublicSmoke({origin:f.origin,allowLoopback:true,timeoutMs:1000});assert.equal(report.passed,true,JSON.stringify(report));assert.ok(report.checks.some(c=>c.name.includes('replacement')));assert.doesNotMatch(JSON.stringify(report),/[a-f0-9]{64}|token=|api\/rooms\/[A-Z]{2}[0-9]{2}/);}finally{await f.close();}
 });
 test('public smoke stops on broken CORS and reports only a safe check label',async()=>{
  const f=await fixture(true);try{const report=await runPublicSmoke({origin:f.origin,allowLoopback:true,timeoutMs:1000});assert.equal(report.passed,false);assert.match(report.failedCheck!,/CORS/);assert.equal(report.errorType,'AssertionError');}finally{await f.close();}

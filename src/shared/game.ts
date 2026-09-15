@@ -55,8 +55,6 @@ import {
 export type { BlastCircle, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
 export const TICK_HZ = 20;
-export const SNAPSHOT_HZ = 10;
-export const MAX_CATCH_UP_STEPS = 5;
 export const MAX_PLAYERS = 5;
 export const MIN_PLAYERS = 2;
 
@@ -101,11 +99,6 @@ export const OVERTIME_START_TICK = 1200;
 export const OVERTIME_INSET_PER_TICK = 0.5;
 export const ROUND_DRAW_TICK = 1800;
 
-export const INPUT_RESEND_TICKS = 2;
-export const INPUT_STALE_TICKS = 10;
-export const HEARTBEAT_INTERVAL_MS = 2000;
-export const SOCKET_TIMEOUT_MS = 6000;
-
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
@@ -125,7 +118,6 @@ export interface InputIntent {
   left: boolean;
   right: boolean;
   bomb: boolean;
-  bombActions?: readonly BombAction[];
   bombCommands?: readonly BombActionCommand[];
   aim?: AimPoint;
 }
@@ -637,7 +629,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const movement of movementList) {
     if (movement.player.alive) {
       const input = inputs.get(movement.player.id);
-      applyBombActions(state, movement.player, input?.bombCommands ?? input?.bombActions?.map(action => ({ action, aim: input.aim })) ?? [], events);
+      applyBombActions(state, movement.player, input?.bombCommands ?? [], events);
       if (movement.player.targetBombArmed && !movement.player.shellArmed && !movement.player.gunArmed && movement.player.bombChargeStartedTick !== undefined) movement.player.bombTarget = targetPoint(state, movement.player, input?.aim, movement.player.bombTarget);
     }
   }

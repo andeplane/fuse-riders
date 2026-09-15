@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomRuntime, HASH_LAG_TICKS, ABSENT_MS, SILENCE_MS, type RoomRuntimeDependencies } from '../src/online/runtime.js';
-import { TICK_MS } from '../src/online/rollback.js';
+import { MAX_FUTURE_TICKS, TICK_MS } from '../src/online/rollback.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { REPLAY_RULES } from '../src/shared/action-log.js';
 import type { RoomCommand } from '../src/online/host-session.js';
@@ -117,6 +117,21 @@ test('a baseline declares the rules its receiver enforces',()=>{
   assert.equal(sent.rules,REPLAY_RULES,'a receiver rejects any other value as malformed');
   assert.ok(internals(guest.runtime).sim,'and the guest accepted it');
 });
+// A view stamped its own input from its clock alone. That clock runs a sample forward at real time, so on a host whose
+// simulation cannot fold at real time — a busy TV — it outruns the host's tick without bound, and every entry arrived
+// past MAX_FUTURE_TICKS and was refused: the phone steered and nothing moved.
+test('a view never stamps input past the window the authority will accept',()=>{
+  const {host,guest,clock}=pair();
+  const authority=internals(host.runtime).session!.tick;
+  // Wall time runs on while the host's simulation stands still.
+  clock.now+=120*TICK_MS;
+  guest.tick();
+  guest.runtime.command({type:'input',left:true,right:false,bomb:false});
+  const own=(guest.runtime as unknown as {own:{retained:readonly (readonly number[])[]}}).own;
+  const stamped=own.retained.at(-1)![1]!;
+  assert.ok(stamped>authority,'the stamp still leads the authority, so a press is not folded into its past');
+  assert.ok(stamped<=authority+MAX_FUTURE_TICKS,`stamped ${stamped}; a host at ${authority} refuses anything past ${authority+MAX_FUTURE_TICKS}`);
+});
 test('a resync storm gets one baseline per peer per half second',()=>{
   const clock={now:0},host=room('host','host',clock);
   host.fake.callbacks.peer('guest',true);host.fake.sent.splice(0);
@@ -184,4 +199,33 @@ test('a held charge survives a second of lost uplink and the release still fires
   assert.equal(internals(host.runtime).session!.game.players.get('guest')!.connected,true,'a second of silence is not absence');
   guest.runtime.command({type:'input',left:false,right:false,bomb:false,bombAction:'release'});run(5);
   assert.equal(bombs(),1,'the release matched the charge the fold still held');
+});
+
+test('after a blip in both directions the held steer and a held charge come back without lifting a finger',()=>{
+  const {host,guest,run}=pair();
+  const held=()=>host.runtime.held('guest');
+  guest.runtime.command({type:'input',left:true,right:false,bomb:true,bombAction:'press'});run(10);
+  assert.deepEqual(held(),{left:true,right:false});
+  run(Math.ceil(ABSENT_MS/TICK_MS)+20,false,false);
+  assert.deepEqual(held(),{left:false,right:false},'absence zeroed the folded steer');
+  run(30);
+  // The controller's 50 ms resend carries the held state and no bombAction.
+  for(let i=0;i<6;i++){guest.runtime.command({type:'input',left:true,right:false,bomb:true});run(5);}
+  assert.deepEqual(held(),{left:true,right:false},'the steer was restated');
+  // The rider may have crashed while absent, so judge the fold's stream, not the arena: the press was re-emitted and the release matches it.
+  const stream=()=>internals(host.runtime).session!.sim.state.streams.get('guest')!;
+  assert.notEqual(stream().gesture,undefined,'the charge restarted with a new gesture');
+  guest.runtime.command({type:'input',left:true,right:false,bomb:false,bombAction:'release'});run(5);
+  assert.equal(stream().gesture,undefined,'and the release matched it');
+});
+test('a join refused by a closed channel is retried until it is delivered',()=>{
+  const clock={now:0};
+  const host=room('host','host',clock),guest=room('guest','host',clock);
+  host.fake.callbacks.peer('guest',true);
+  let refuse=true;guest.fake.block=data=>refuse&&(data as {type?:string}).type==='command';
+  const run=(ticks:number)=>{for(let i=0;i<ticks;i++){clock.now+=TICK_MS;host.tick();guest.tick();for(const {to,data} of host.fake.sent.splice(0))if(to==='guest')guest.fake.callbacks.message('host',data);for(const {to,data} of guest.fake.sent.splice(0))if(to==='host')host.fake.callbacks.message('guest',data);}};
+  host.runtime.command({type:'join',name:'Host'});guest.runtime.command({type:'join',name:'Guest'});run(20);
+  assert.equal(internals(host.runtime).session!.game.players.has('guest'),false,'nothing got through yet');
+  refuse=false;run(20);
+  assert.equal(internals(host.runtime).session!.game.players.get('guest')?.name,'Guest','delivered once the channel opened');
 });

@@ -11,9 +11,8 @@ export function parseIceServers(raw:unknown):IceServer[]|undefined {
     if(!item||typeof item!=='object')continue;
     const {urls,username,credential}=item as Record<string,unknown>;
     const entries=typeof urls==='string'?[urls]:Array.isArray(urls)?urls.filter((u):u is string=>typeof u==='string'):[];
-    // turn: entries are accepted only so a legacy Worker with TURN keys keeps working; ADR035 provisions no TURN and the service never returns one.
-    if(!entries.length||!entries.every(u=>/^(stun|stuns|turn|turns):[^\s]{1,200}$/.test(u)))continue;
-    servers.push({urls:entries,...(typeof username==='string'?{username}:{}),...(typeof credential==='string'?{credential}:{})});
+    if(!entries.length||!entries.every(u=>/^(stun|stuns):[^\s]{1,200}$/.test(u)))continue;
+    servers.push({urls:entries});
   }
   return servers.length?servers:undefined;
 }

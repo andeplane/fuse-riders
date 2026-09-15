@@ -13,7 +13,9 @@ export class InputEdges {
     if (flags !== this.flags) { this.flags = flags; out.push([0, flags]); }
     const aim = message.aim && { x: message.aim.x || 0, y: message.aim.y || 0 };
     if (aim && (aim.x !== this.aim?.x || aim.y !== this.aim?.y)) { this.aim = aim; out.push([1, aim.x, aim.y]); }
-    if (message.bombAction === 'press') { if (this.gesture === undefined) { this.gesture = ++this.counter; out.push([2, this.gesture]); } }
+    // A held fire button with no open gesture is a press too: after the encoder was reset (absence), the controller's
+    // periodic held-state resend carries no bombAction, and that resend is what restarts the charge.
+    if (message.bombAction === 'press' || (message.bomb && this.gesture === undefined && message.bombAction !== 'release' && message.bombAction !== 'cancel')) { if (this.gesture === undefined) { this.gesture = ++this.counter; out.push([2, this.gesture]); } }
     else if (message.bombAction === 'release') { if (this.gesture !== undefined) { out.push([3, this.gesture, aim?.x ?? null, aim?.y ?? null]); this.gesture = undefined; } }
     else if (message.bombAction === 'cancel' || !message.bomb) { if (this.gesture !== undefined) { out.push([4, this.gesture]); this.gesture = undefined; } }
     return out;

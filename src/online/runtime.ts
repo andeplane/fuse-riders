@@ -3,7 +3,7 @@ import { authorityTransitionStatus } from './authority-status.js';
 import { StatusNotices } from './status-notices.js';
 import { HostSession, type BaselineMessage, type RoomCommand } from './host-session.js';
 import { PeerTransport, type TransportCallbacks } from './peer-transport.js';
-import { Simulation, TickClock, SNAPSHOT_COUNT, SNAPSHOT_EVERY_TICKS, TICK_MS } from './rollback.js';
+import { Simulation, TickClock, MAX_FUTURE_TICKS, SNAPSHOT_COUNT, SNAPSHOT_EVERY_TICKS, TICK_MS } from './rollback.js';
 import { StreamSender } from './stream.js';
 import { InputEdges } from './input-edges.js';
 import { hashText, packFast, unpackFast, type StreamPacket } from './wire.js';
@@ -58,12 +58,15 @@ export class RoomRuntime {
   private readonly edges=new InputEdges();
   private readonly members=new Map<number,string>();
   private hostSentAt:number|null=null;
+  /** The authority's own tick, as last carried by one of its packets; a view stamps against this, not its clock alone. */
+  private authorityTick=Number.NEGATIVE_INFINITY;
   private hostHeardAt=-Infinity;
   private lastResync=-Infinity;
   private pendingHash?:{tick:number;hash:string;lastSeq:Map<string,number>};
   private mismatches:number[]=[];
   private gapSince=new Map<string,number>();
-  private pendingJoin?:{command:Extract<RoomCommand,{type:'join'}>;sentAt:number};
+  private pendingJoin?:{command:Extract<RoomCommand,{type:'join'}>;sentAt:number;delivered:boolean};
+  private absentSeen=false;
   private settings:RoomSettings;
   // Presentation.
   private previous?:ViewSnapshot;
@@ -167,7 +170,7 @@ export class RoomRuntime {
     // The echo is this guest's own send time; older than a second it measures silence, not the link.
     const echo=message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS;
     if(echo)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt!));else if(!this.clock.live)this.clock.observe(message.tick,0);
-    this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;
+    this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;if(!this.session)this.authorityTick=message.tick;
     if(message.type==='heartbeat'){this.telemetry.log('heartbeat',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,clock:Math.round(this.clock.tick()*10)/10});const frame=this.controllerView.heartbeat(Math.floor(message.tick),this.transport.id,message.pos);if(frame&&!this.sim&&now-this.lastFrameShownAt>=FRAME_INTERVAL_MS)this.showFrame(frame);return;}
     // Streams with no fold to put them in: the host thinks we are a full view again, so ask for the baseline that starts one.
     const sim=this.sim;if(!sim){if(this.controllerView.ready)this.requestResync();return;}
@@ -181,9 +184,6 @@ export class RoomRuntime {
       for(const entry of stream.entries){
         const result=sim.insert(member,entry);
         if(result==='invalid'){this.telemetry.log('invalid',{member,entry});this.requestResync();return;}
-        // Absence zeroes our held controls in every fold, but our edge encoder still believes they are held: when
-        // the host marks us present again it has to forget, so the next resend restates the whole controller.
-        if(result!=='duplicate'&&entry[2]===12&&entry[3]===this.transport.id&&entry[4]===true&&sim.state.game.players.get(this.transport.id)?.connected===false)this.edges.reset();
       }
     }
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
@@ -233,18 +233,31 @@ export class RoomRuntime {
     this.controllerView.reset();this.settings=pending;this.publishView();
     return undefined;
   }
+  /**
+   * The tick a view stamps its own entries from. A clock estimates the authority's tick by running a sample forward at
+   * real time, but a host whose simulation cannot keep up with real time — a busy TV folding for everyone — falls
+   * behind that estimate without bound. Its fold refuses anything past `MAX_FUTURE_TICKS`, so stamping from the clock
+   * alone silently dropped every input from every view once the host slipped that far. Stay inside the window the
+   * authority last told us it was in: late input it folds beats input it throws away.
+   */
+  private stampBase():number {
+    const local=Math.floor(this.clock.tick());
+    if(!Number.isFinite(this.authorityTick))return local;
+    // `command` stamps at most base+3, and the authority accepts up to its own tick plus MAX_FUTURE_TICKS.
+    return Math.min(local,Math.floor(this.authorityTick)+MAX_FUTURE_TICKS-3);
+  }
   command(command:RoomCommand):boolean {
-    if(command.type==='join'){this.pendingJoin={command,sentAt:-Infinity};return true;}
+    if(command.type==='join'){this.pendingJoin={command,sentAt:-Infinity,delivered:false};return true;}
     if(!this.transport.authorityPermitted()){this.status.notice('Waiting for room authority — try again when connected');return false;}
     if(this.session){const error=this.session.command(this.transport.id,command);if(command.type!=='input')this.save();if(error){if(command.type==='input')this.status.transient(error);else this.status.notice(error);}return !error;}
     // A controller phone has no simulation to fold its own entries into; they still go to the host under the same numbering.
     if(command.type==='input'){
       if(!this.sim&&!this.controllerView.ready)return false;
-      const base=Math.floor(this.clock.tick());
+      const base=this.stampBase();
       for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);this.telemetry.log('input',{seq:entry[0],tick:entry[1],kind:entry[2],simTick:this.sim?.tick??null});this.sim?.insert(this.transport.id,entry,true);}
       this.sendOwn(this.dependencies.now());return true;
     }
-    if(command.type==='avatar'){if(!this.sim&&!this.controllerView.ready)return false;const entry=this.own.append(Math.floor(this.clock.tick())+1,[5,command.avatarId]);this.sim?.insert(this.transport.id,entry,true);this.sendOwn(this.dependencies.now());return true;}
+    if(command.type==='avatar'){if(!this.sim&&!this.controllerView.ready)return false;const entry=this.own.append(this.stampBase()+1,[5,command.avatarId]);this.sim?.insert(this.transport.id,entry,true);this.sendOwn(this.dependencies.now());return true;}
     return this.transport.send(this.transport.hostId,{type:'command',command});
   }
   /** Every tick while there are recent entries to repeat, otherwise every five ticks as a liveness and clock heartbeat. */
@@ -265,7 +278,8 @@ export class RoomRuntime {
     if(this.pendingJoin&&now-this.pendingJoin.sentAt>=JOIN_RETRY_MS){
       this.pendingJoin.sentAt=now;
       if(this.session){const error=this.session.command(this.transport.id,this.pendingJoin.command);this.pendingJoin=undefined;if(error)this.status.notice(error);else this.save();}
-      else this.transport.send(this.transport.hostId,{type:'command',command:this.pendingJoin.command});
+      // A refused send (channel still opening) is not an attempt the roster can answer: try again soon, not in two seconds.
+      else if(this.transport.send(this.transport.hostId,{type:'command',command:this.pendingJoin.command}))this.pendingJoin.delivered=true;else this.pendingJoin.sentAt=now-JOIN_RETRY_MS+200;
     }
     if(this.session)this.hostTick(now,elapsed);else this.guestTick(now,elapsed);
   }
@@ -314,11 +328,12 @@ export class RoomRuntime {
   private guestTick(now:number,elapsed:number):void {
     const sim=this.sim,controller=!sim&&this.controllerView.ready;
     if(!sim&&!controller){if(now-this.hostHeardAt>2000)this.status.recurring(`Waiting for direct connection — ${this.transport.explain(this.transport.hostId)}`);this.requestResync();return;}
-    if(now-this.hostHeardAt>SILENCE_MS){this.status.recurring('Waiting for the host…');this.sendAccumulator=0;return;}
-    this.status.recurring(controller?'Connected · phone controls':'Connected · direct game link');
+    // A silent host freezes what we show, not what we send: our own packets are what keeps the host from logging us absent.
+    const silent=now-this.hostHeardAt>SILENCE_MS;
+    this.status.recurring(silent?'Waiting for the host…':controller?'Connected · phone controls':'Connected · direct game link');
     const target=Math.floor(this.clock.tick());
     // A hidden tab keeps folding (its timer runs at 1 Hz, advanceTo caps the catch-up), or every relayed entry would be 'future' and force a baseline.
-    if(sim&&target>sim.tick){
+    if(sim&&!silent&&target>sim.tick){
       const {matchId,round}=sim.state.game;
       const result=sim.advanceTo(target,(event,tick)=>this.callbacks.event(event,matchId,round,tick));
       if(result.status==='baseline'){this.requestResync();return;}
@@ -332,14 +347,27 @@ export class RoomRuntime {
   /** A heartbeat arrives every tick; the phone's DOM is rebuilt at most this often, the rest only feed the clock. */
   private showFrame(frame:ControllerFrame):void {
     this.lastFrameShownAt=this.dependencies.now();this.joined(frame.snapshot.players);
+    this.reconcileEdges(frame.snapshot.players.find(p=>p.id===this.transport.id)?.connected,false);
     this.previous=undefined;this.current=frame.snapshot;this.settings=frame.settings;this.callbacks.state(this.current,this.settings,frame.matchId);
   }
   /** The join is answered by the roster, not by an ack: once this view folds itself in, stop repeating it — a repeated join re-authors the member and used to reset its edges mid-hold. */
   private joined(players:{has(id:string):boolean}|ReadonlyArray<{id:string}>):void {
-    if(this.pendingJoin&&this.pendingJoin.sentAt!==-Infinity&&('has' in players?players.has(this.transport.id):players.some(p=>p.id===this.transport.id)))this.pendingJoin=undefined;
+    if(this.pendingJoin?.delivered&&('has' in players?players.has(this.transport.id):players.some(p=>p.id===this.transport.id)))this.pendingJoin=undefined;
+  }
+  /**
+   * Absence zeroes our held controls in every fold while the edge encoder still believes they are held; the fold is
+   * the truth, so once it disagrees with the encoder (presence came back, whether by packet, baseline or a catch-up
+   * that skipped the absent tick) the encoder forgets and the controller's next resend restates everything.
+   */
+  private reconcileEdges(connected:boolean|undefined,neutral:boolean):void {
+    if(connected===false)this.absentSeen=true;
+    else if(connected&&(this.absentSeen||neutral&&this.edges.holding)){this.absentSeen=false;this.edges.reset();}
   }
   private publishView():void {
     const sim=this.sim!,game=sim.state.game;this.joined(game.players);
+    const me=game.players.get(this.transport.id),s=sim.state.streams.get(this.transport.id);
+    const inFlight=this.own.retained.some(e=>e[1]>sim.tick);
+    this.reconcileEdges(me?.connected,!inFlight&&(!s||s.flags===0&&s.gesture===undefined));
     this.previous=this.current;this.current={...toSnapshot(game),tick:game.tick,round:game.round};
     this.settings=sim.state.pending;this.callbacks.state(this.current,this.settings,game.matchId);
   }
