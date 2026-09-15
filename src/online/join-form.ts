@@ -10,11 +10,11 @@ export function createJoinForm(storage:Storage,onJoin:(name:string,avatarId:Avat
   const picker=createAvatarPicker(storage);
   const button=document.createElement('button');button.textContent='JOIN AS PLAYER';button.disabled=true;
   // A tap on JOIN with no name used to do nothing at all (#132): say what is missing instead of a silent no-op.
-  const hint=document.createElement('p');hint.className='join-hint';hint.setAttribute('role','alert');hint.hidden=true;
+  const hint=document.createElement('p');hint.className='join-hint';hint.setAttribute('role','alert');hint.textContent='Enter your name to join';hint.hidden=true;
   form.append(name,button,hint,picker.element);
   // The name is remembered as it is typed, so a page that reloads before JOIN is tapped keeps it rather than an empty field.
-  name.addEventListener('input',()=>{storage.setItem(NAME_KEY,name.value.trim());hint.hidden=true;name.removeAttribute('aria-invalid');});
-  form.onsubmit=event=>{event.preventDefault();const value=name.value.trim();if(!value){hint.textContent='Enter your name to join';hint.hidden=false;name.setAttribute('aria-invalid','true');name.focus();return;}storage.setItem(NAME_KEY,value);onJoin(value,picker.selected());};
+  name.addEventListener('input',()=>{const value=name.value.trim();if(value)storage.setItem(NAME_KEY,value);hint.hidden=true;name.removeAttribute('aria-invalid');});
+  form.onsubmit=event=>{event.preventDefault();const value=name.value.trim();if(!value){hint.hidden=false;name.setAttribute('aria-invalid','true');name.focus();return;}storage.setItem(NAME_KEY,value);onJoin(value,picker.selected());};
   return {element:form,picker,ready(){button.disabled=false;}};
 }
 /** The joiner's whole pre-seat page: room code over the form. Hosts get the bare form inside their lobby instead. */
