@@ -1,7 +1,8 @@
+import { ActionJournal } from '../shared/action-log.js';
 import { sameControlScope, type InputControlScope, type AppliedMotionState, type MotionApplicationResult } from './prediction-contract.js';
 import { BotController, BOT_ID_PREFIX, type BotDependencies } from '../shared/bot-controller.js';
 import { encodeCheckpoint, decodeCheckpoint } from './checkpoint.js';
-import { addPlayer, createGame, removePlayer, resetMatch, returnToLobby, setPlayerConnected, SLOT_COLORS, startMatch, startNextRound, step, toSnapshot, type GameState, type InputIntent } from '../shared/game.js';
+import { createGame, SLOT_COLORS, toSnapshot, type GameState, type InputIntent } from '../shared/game.js';
 import { BombInputBuffer } from '../server/bomb-input.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
@@ -16,15 +17,17 @@ export type RoomCommand =
   | { type:'bot'; action:'add'|'remove'; id?:string };
 type InputCommand=Extract<RoomCommand,{type:'input'}>;
 interface Seat { seq:number; tick:number; input:InputIntent; bombs:BombInputBuffer; scope:InputControlScope; pending:Map<number,InputCommand>; results:Map<number,{outcome:MotionApplicationResult;at:number}>; appliedSeq:number; appliedTick:number; processedSeq:number; bombSeq:number }
-export interface HostDependencies { token:()=>string; botRandom?:BotDependencies['random'] }
+export interface HostDependencies { token:()=>string; botRandom?:BotDependencies['random']; captureActions?:boolean }
 export class HostSession {
   game:GameState;
+  journal:ActionJournal;
   private seats=new Map<string,Seat>();
   private bots=new Set<string>();
   private scopeCounter=0;
   private readonly botController:BotController;
   constructor(readonly hostId:string, public settings:RoomSettings, private readonly dependencies:HostDependencies) {
     this.game=createGame(dependencies.token());this.game.settings=settings;
+    this.journal=new ActionJournal(this.game,dependencies.captureActions);
     this.botController=new BotController(dependencies.botRandom?{random:dependencies.botRandom}:undefined);
   }
   command(peerId:string, raw:unknown):string|undefined {
@@ -40,17 +43,18 @@ export class HostSession {
     if(command.type==='join') {
       if(typeof command.name!=='string'||!command.name.trim()||command.name.length>20)return 'Choose a name (1–20 characters)';
       const existing=this.game.players.get(peerId);
-      if(existing){setPlayerConnected(this.game,peerId,true);return;}
+      if(existing){this.journal.apply([3,peerId,true]);return;}
+      if(!this.game.leaderboard.has(peerId)&&this.game.leaderboard.size>=128)return 'Start a fresh room before adding more riders';
       const slot=this.freeSlot();
       if(slot<0)return 'Room is full (5 players)';
-      addPlayer(this.game,{id:peerId,name:command.name.trim(),slot,color:SLOT_COLORS[slot]!,...(isAvatarId(command.avatarId)?{avatarId:command.avatarId}:{})});
+      this.journal.apply([1,{id:peerId,name:command.name.trim(),slot,color:SLOT_COLORS[slot]!,...(isAvatarId(command.avatarId)?{avatarId:command.avatarId}:{})}]);
       this.seats.set(peerId,this.newSeat(-1));return;
     }
     if(command.type==='settings') {
       if(peerId!==this.hostId)return 'Only the host can change settings';
       const settings=parseRoomSettings(command.settings);if(!settings)return 'Invalid settings';
       this.settings=settings;
-      if(this.game.phase==='lobby')this.game.settings=settings;
+      if(this.game.phase==='lobby')this.journal.apply([4,settings]);
       return;
     }
     if(command.type==='action') {
@@ -59,14 +63,14 @@ export class HostSession {
       // A rider lost mid-round must not be dragged into the next match; a boundary action releases its seat first.
       if(command.action!=='lobby'&&this.reclaimable())this.pruneDisconnected();
       try {
-        if(command.action==='lobby'){const tick=this.game.tick;returnToLobby(this.game,this.dependencies.token());this.game.tick=tick;}
-        else if(command.action==='start'){this.game.settings=this.settings;startMatch(this.game);}
-        else{this.game.settings=this.settings;resetMatch(this.game,this.dependencies.token());}
+        if(command.action==='lobby'){this.journal.apply([5,2,this.dependencies.token()]);}
+        else if(command.action==='start'){this.journal.apply([4,this.settings]);this.journal.apply([5,0,'']);}
+        else{this.journal.apply([4,this.settings]);this.journal.apply([5,3,this.dependencies.token()]);}
       }catch(error){return error instanceof Error?error.message:'Action unavailable';}
       this.clear();return;
     }
     const player=this.game.players.get(peerId),seat=this.seats.get(peerId);if(!player||!seat)return 'Join before playing';
-    if(command.type==='avatar'){if(isAvatarId(command.avatarId))player.avatarId=command.avatarId;return;}
+    if(command.type==='avatar'){if(isAvatarId(command.avatarId))this.journal.apply([6,peerId,command.avatarId]);return;}
     if(command.type!=='input')return 'Unknown command';
     if(!this.validScope(command.scope)||!sameControlScope(command.scope,seat.scope))return 'Input scope expired; resync';
     const invalid=(message:string):string=>{if(command.bombAction==='release'||command.bombAction==='cancel'){seat.input.bomb=false;seat.bombs.cancel(true);if(Number.isSafeInteger(command.seq))seat.bombSeq=Math.max(seat.bombSeq,command.seq);}return message;};
@@ -94,7 +98,7 @@ export class HostSession {
   // removePlayer is legal only between rounds: mid-round a vanished rider keeps its seat so a reconnect resumes it.
   private reclaimable():boolean {return ['lobby','roundOver','matchOver'].includes(this.game.phase);}
   private pruneDisconnected():void {
-    for(const player of [...this.game.players.values()])if(!player.connected){removePlayer(this.game,player.id);this.seats.delete(player.id);}
+    for(const player of [...this.game.players.values()])if(!player.connected){this.journal.apply([2,player.id]);this.seats.delete(player.id);}
   }
   private freeSlot():number {
     const open=()=>SLOT_COLORS.findIndex((_,slot)=>![...this.game.players.values()].some(player=>player.slot===slot));
@@ -144,17 +148,17 @@ export class HostSession {
       if(nextTick-seat.tick>=10){seat.input={left:false,right:false,bomb:false};seat.bombs.cancel();}
       inputs.set(id,{...seat.input,bombCommands:seat.bombs.drainCommands()});
     }
-    const before=this.game.phase;const result=step(this.game,inputs);
+    const before=this.game.phase;const events=this.journal.advance(inputs);
     if(before!==this.game.phase)this.clear();
     if(this.game.phase==='roundOver'&&this.game.phaseEndsAtTick!==undefined&&this.game.tick>=this.game.phaseEndsAtTick){
-      for(const player of [...this.game.players.values()])if(!player.connected){removePlayer(this.game,player.id);this.seats.delete(player.id);this.bots.delete(player.id);}
+      for(const player of [...this.game.players.values()])if(!player.connected){this.journal.apply([2,player.id]);this.seats.delete(player.id);this.bots.delete(player.id);}
       if([...this.game.players.values()].filter(player=>player.connected).length>=2){
         // Format stays fixed for a match; powerup changes apply at round boundaries.
-        this.game.settings={...this.settings,match:this.game.settings!.match,length:this.game.settings!.length};
-        startNextRound(this.game);this.clear();
+        this.journal.apply([4,{...this.settings,match:this.game.settings!.match,length:this.game.settings!.length}]);
+        this.journal.apply([5,1,'']);this.clear();
       }
     }
-    return result.events;
+    return events;
   }
   private addBot():string|undefined {
     const slot=this.freeSlot();
@@ -162,21 +166,21 @@ export class HostSession {
     if(this.game.leaderboard.size>=128)return 'Start a fresh room before adding more riders';
     let number=1;while(this.game.leaderboard.has(`${BOT_ID_PREFIX}${number}`))number++;
     const id=`${BOT_ID_PREFIX}${number}`,names=['Ada','Turing','Hopper','Nova','Byte'];
-    addPlayer(this.game,{id,name:`AI ${names[slot]!}`,slot,color:SLOT_COLORS[slot]!,avatarId:'robot',connected:true});
+    this.journal.apply([1,{id,name:`AI ${names[slot]!}`,slot,color:SLOT_COLORS[slot]!,avatarId:'robot',connected:true}]);
     this.bots.add(id);this.seats.set(id,this.newSeat(-1));
   }
   private removeBot(id:string):string|undefined {
     if(!this.bots.has(id))return 'AI rider not found';
     if(!['lobby','roundOver','matchOver'].includes(this.game.phase))return 'Remove AI between rounds or return to menu';
-    removePlayer(this.game,id);this.bots.delete(id);this.seats.delete(id);
+    this.journal.apply([2,id]);this.bots.delete(id);this.seats.delete(id);
   }
   acknowledgements():Record<string,number>{return Object.fromEntries([...this.seats].map(([id,seat])=>[id,seat.seq]));}
   // Mirrors the LAN server's explicit leave: between rounds a vanished guest frees its seat instead of holding it forever.
   disconnect(id:string):void {
     if(this.bots.has(id))return;
     if(this.game.players.has(id)){
-      if(this.reclaimable()){removePlayer(this.game,id);this.seats.delete(id);return;}
-      setPlayerConnected(this.game,id,false);
+      if(this.reclaimable()){this.journal.apply([2,id]);this.seats.delete(id);return;}
+      this.journal.apply([3,id,false]);
     }
     const seat=this.seats.get(id);if(seat)this.resetSeat(seat);
   }
@@ -188,7 +192,7 @@ export class HostSession {
     const candidate=decodeCheckpoint(raw,this.hostId);if(!candidate)return false;
     const seats=new Map<string,Seat>();
     for(const [id,seq] of candidate.sequences)seats.set(id,this.newSeat(seq));
-    this.game=candidate.game;this.settings=candidate.settings;this.seats=seats;this.bots=new Set(candidate.botIds);this.clear();
+    this.game=candidate.game;this.journal=new ActionJournal(this.game,this.dependencies.captureActions);this.settings=candidate.settings;this.seats=seats;this.bots=new Set(candidate.botIds);this.clear();
     return true;
   }
   snapshot(){return toSnapshot(this.game);}
