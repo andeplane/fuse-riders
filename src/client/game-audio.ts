@@ -198,7 +198,8 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   // Browsers refuse audio until the page is interacted with, so the first gesture anywhere starts the music.
   // These stay for the page's life rather than being released on the first success: a running AudioContext
   // is not proof the track plays, and an OS interruption can pause it much later. unlock() is idempotent.
-  for (const type of ['pointerdown', 'keydown', 'touchstart'] as const) document.addEventListener(type, () => unlock(), { passive: true });
+  // iOS counts touchend, pointerup and click as activation, not a touch pointerdown or touchstart (#134): listen to all of them.
+  for (const type of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown'] as const) document.addEventListener(type, () => unlock(), { passive: true });
   enable.addEventListener('click', () => unlock(true));
 
   // Head unit: display and transport keys.
