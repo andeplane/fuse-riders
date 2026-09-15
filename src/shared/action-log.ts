@@ -8,7 +8,8 @@ import type { AimPoint, GameEvent } from './protocol.js';
 export const REPLAY_RULES = 'fuse-rollback-1';
 /** Ticks a simulator can rewind; older entries reach it only through a fresh baseline. */
 export const ROLLBACK_WINDOW_TICKS = 40;
-export const MAX_ENTRIES_PER_TICK = 32;
+/** Entries one stream may carry in one packet; low enough that a full packet of every stream still fits the unreliable channel. */
+export const MAX_ENTRIES_PER_TICK = 12;
 
 /** Entry bodies. Player kinds 0-5 belong to any member's stream; management kinds 10-14 only to the creator's. */
 export type EntryBody =

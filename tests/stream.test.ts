@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { StreamSender, ENTRIES_PER_PACKET } from '../src/online/stream.js';
-import { ROLLBACK_WINDOW_TICKS } from '../src/shared/action-log.js';
+import { MAX_FUTURE_TICKS } from '../src/online/rollback.js';
+import { MAX_ENTRIES_PER_TICK, ROLLBACK_WINDOW_TICKS, type LogEntry } from '../src/shared/action-log.js';
 
 test('a sender numbers entries, keeps ticks monotonic, rotates every retained entry into packets and forgets the window', () => {
   const s = new StreamSender();
@@ -20,4 +21,31 @@ test('adopting relayed entries deduplicates and keeps order', () => {
   assert.equal(s.adopt([3, 30, 0, 1]), true); assert.equal(s.adopt([1, 10, 0, 2]), true); assert.equal(s.adopt([3, 30, 0, 1]), false);
   assert.deepEqual(s.retained.map(e => e[0]), [1, 3]); assert.equal(s.lastSeq, 3); assert.equal(s.lastTick, 30);
   const own = s.append(20, [2, 1]); assert.deepEqual([own[0], own[1]], [4, 30]);
+});
+test('retaining drops by tick even when the adopted entries are out of tick order', () => {
+  const s = new StreamSender();
+  for (const e of [[1, 90, 0, 1], [2, 10, 0, 2], [3, 95, 0, 3]] as LogEntry[]) assert.equal(s.adopt(e), true);
+  s.retain(50 + ROLLBACK_WINDOW_TICKS);
+  assert.deepEqual(s.retained.map(e => e[0]), [1, 3], 'the stale entry behind a newer one is still dropped');
+});
+test('one absurd stamp cannot re-stamp the entries that follow it', () => {
+  const s = new StreamSender();
+  s.adopt([1, Number.MAX_SAFE_INTEGER, 0, 1]);
+  const next = s.append(100, [0, 2]);
+  assert.ok(next[1] <= 100 + MAX_FUTURE_TICKS, `a stale lastTick pulled the entry to ${next[1]}`);
+  assert.ok(s.append(120, [0, 3])[1] <= 120 + MAX_FUTURE_TICKS, 'and it stays bounded as the stream goes on');
+});
+test('every retained entry is sent at least twice before the window evicts it', () => {
+  const s = new StreamSender();
+  const sends = new Map<number, number>(); const thin: number[] = [];
+  for (let tick = 1; tick <= 300; tick++) {
+    for (let i = 0; i < 4; i++) s.append(tick, [0, i % 4]);   // four edges a tick, the busiest a controller gets
+    const out = s.next();
+    assert.ok(out.length <= MAX_ENTRIES_PER_TICK, `${out.length} entries will not fit one packet`);
+    for (const e of out) sends.set(e[0], (sends.get(e[0]) ?? 0) + 1);
+    const before = s.retained.map(e => e[0]); s.retain(tick);
+    const after = new Set(s.retained.map(e => e[0]));
+    for (const seq of before) if (!after.has(seq) && (sends.get(seq) ?? 0) < 2) thin.push(seq);
+  }
+  assert.equal(thin.length, 0, `${thin.length} entries were evicted after fewer than two sends`);
 });

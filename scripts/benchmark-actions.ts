@@ -6,7 +6,7 @@ import { defaultRoomSettings } from '../src/shared/room-settings.js';
 const host=new HostSession('host',defaultRoomSettings(),{token:()=>'bench'});
 host.command('host',{type:'join',name:'Host'});for(let i=0;i<4;i++)host.command('host',{type:'bot',action:'add'});host.command('host',{type:'action',action:'start'});
 let id=0,bytes=0,packets=0;
-const publish=()=>{const tick=host.tick;const streams=[...host.senders].map(([member,sender])=>({member:hashText(member),lastSeq:sender.lastSeq,entries:sender.next()}));bytes+=encodeFast({id:++id,epoch:1,incarnation:hashText('incarnation'),data:packFast({type:'streams',tick,sentAt:tick*50,echoSentAt:tick*50-40,hash:tick%HASH_INTERVAL_TICKS===0?host.hash():null,streams})}).byteLength;packets++;};
+const publish=()=>{const tick=host.tick;const streams=[...host.senders].map(([member,sender])=>({member:hashText(member),lastSeq:sender.lastSeq,entries:sender.next()}));bytes+=encodeFast({id:++id,epoch:1,incarnation:hashText('incarnation'),data:packFast({type:'streams',tick,sentAt:tick*50,echoSentAt:tick*50-40,hash:tick%HASH_INTERVAL_TICKS===0?host.hash():null,streams})})?.byteLength??0;packets++;};
 for(let tick=0;tick<100;tick++){host.advance();publish();}
 bytes=0;packets=0;
 for(let tick=0;tick<600;tick++){host.advance();publish();}
