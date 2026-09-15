@@ -25,6 +25,28 @@ export interface PhaserArena {
   metrics(): ArenaMetrics;
 }
 
+/**
+ * A navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still emits READY,
+ * and the WebGL renderer then reads `__DEFAULT` and throws (#127). Take over the two READY listeners Phaser 3.90
+ * registers (renderer boot, then game start) and run them, in that order, only when the default textures exist.
+ * A Phaser whose boot does not match is left untouched.
+ */
+function guardDefaultTextures(game: Phaser.Game, failed: () => void): void {
+  const textures = game.textures; const READY = Phaser.Textures.Events.READY;
+  const renderer = game.renderer as unknown as { boot?: () => void } | null; const internal = game as unknown as { texturesReady?: () => void };
+  const listeners = textures.listeners(READY);
+  if (listeners.length !== 2 || !renderer || listeners[0] !== renderer.boot || listeners[1] !== internal.texturesReady) return;
+  textures.off(READY);
+  textures.once(READY, () => {
+    if (!['__DEFAULT', '__MISSING', '__WHITE'].every(key => textures.exists(key))) {
+      // This game never starts, and game.destroy() only completes on a step it will never take: release the window
+      // resize/orientation listeners its ScaleManager added at boot so the game and its GL context can be collected.
+      game.scale.stopListeners(); failed(); return;
+    }
+    renderer.boot!.call(renderer); internal.texturesReady!.call(game);
+  });
+}
+
 /** One external presentation clock; Phaser physics and input are deliberately disabled. */
 export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptions = {}): PhaserArena {
   let resolveReady!: () => void;
@@ -42,6 +64,7 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
     render: { antialias: true, antialiasGL: true, pixelArt: false, roundPixels: false, powerPreference: 'high-performance' },
     fps: { target: 60, smoothStep: false }, scene,
   });
+  guardDefaultTextures(game, () => { if (!destroyed) rejectReady(new Error('Default textures did not load')); });
   const onLost = (event: Event) => { event.preventDefault(); lost = true; scene.resetEffects(); options.onStatus?.('context-lost'); };
   const onRestored = () => { lost = false; scene.invalidate(); scene.resetEffects(); options.onStatus?.('restored'); };
   const onLeaving=()=>scene.cancelPreload();
