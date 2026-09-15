@@ -28,7 +28,9 @@ import './online.css';
 import { installMobilePlayLayout } from './mobile-play-layout.js';
 import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
-import { createJoinForm } from './join-form.js';
+import { createJoinCard, createJoinForm } from './join-form.js';
+import { safeStorage } from '../client/safe-storage.js';
+const storage=safeStorage(()=>localStorage);
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
 const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
@@ -71,9 +73,10 @@ export async function startOnline():Promise<void>{
   // CREATE ROOM is the only writer of fuse-room-<code>: its presence makes this browser the host's. Everyone else is a joiner with a separate peer identity.
   const hostToken=solo||displayOnly?null:read(`fuse-room-${code}`);
   const role:'solo'|'display'|'host'|'joiner'=solo?'solo':displayOnly?'display':hostToken?'host':'joiner';
-  const token=solo?'':displayOnly?secret():hostToken??peerToken();
-  function peerToken(){const key=`fuse-peer-${code}`;const token=read(key)??secret();save(key,token);return token;}
-  let id='',isHost=false,joined=false,avatar:AvatarId|undefined,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
+  const token=solo?'':displayOnly?secret():hostToken||peerToken();
+  function peerToken(){const key=`fuse-peer-${code}`;const token=read(key)||secret();save(key,token);return token;}
+  const forgetHostToken=()=>storage.removeItem(`fuse-room-${code}`);
+  let id='',isHost=false,joined=false,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
   const prediction=new LocalPrediction(()=>performance.now());const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;const worldBuffer=new RemoteWorldBuffer();
   let seq=0,lastRecap='',rejoinPending=false;
   const responseBenchmark=url.searchParams.get('responseBenchmark')==='1';
@@ -83,16 +86,15 @@ export async function startOnline():Promise<void>{
   let roomEnded=false;
   const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ AUDIO'),results=node('button','RESULTS'),menu=node('button','MENU');
   title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,results,menu);
-  const joinForm=createJoinForm(localStorage,(playerName,avatarId)=>{avatar=avatarId;runtime.command({type:'join',name:playerName,avatarId});});
+  const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
   const bootNote=node('p','Warming up the arena…','room-boot-note');
   const booting=node('div','','room-boot');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'));
   // A joiner never mounts the host's boot card or QR lobby: until it holds a seat its whole page is the join card, with the same connect hint under the form.
-  const joinCard=node('section','','room-join');joinCard.setAttribute('aria-label',`Join room ${code}`);joinCard.append(node('p','JOIN THE ROOM','room-eyebrow'),node('strong',code,'shared-room-code'),joinForm.element);
-  const joinPanel=role==='joiner'?joinCard:joinForm.element;(role==='joiner'?joinCard:booting).append(bootNote);
+  const joinPanel=role==='joiner'?createJoinCard(code,joinForm.element,bootNote):joinForm.element;if(role!=='joiner')booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt=performance.now();const bootTick=()=>{bootNote.textContent=connectHint(status.textContent??'',performance.now()-bootAt);};
-  const bootPoll=setInterval(bootTick,1000);let booted=false;
-  const bootDone=()=>{if(booted)return;booted=true;clearInterval(bootPoll);booting.remove();bootNote.remove();app.classList.remove('booting');};
+  const bootPoll=setInterval(bootTick,1000);
+  const bootDone=()=>{if(!bootNote.isConnected)return;clearInterval(bootPoll);booting.remove();bootNote.remove();app.classList.remove('booting');};
   const overCard=node('div','','room-boot room-over-card'),overNote=node('p','Room ended — return to menu to start again','room-boot-note'),overHome=node('a','BACK TO MENU','room-over-home');
   overCard.setAttribute('role','status');overHome.href=appUrl();overCard.append(node('p','ROOM CLOSED','room-boot-title'),node('strong',code,'shared-room-code'),overNote,overHome);
   app.classList.toggle('booting',role!=='joiner');app.classList.toggle('joining',role==='joiner');
@@ -102,12 +104,12 @@ export async function startOnline():Promise<void>{
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
   lobbyCopy.append(node('p','PHONE PARTY // 2–5 RIDERS','room-eyebrow'),lobbyHeading,node('p','Pick your head. Grab your phone. Carve neon trails and blow up your friends’ plans.','room-intro'),node('p','STEER  ◀ ▶     HOLD · AIM · RELEASE','room-howto'));
-  const qrCard=node('div','','room-qr-card'),lobbyQr=node('img');lobbyQr.alt='Scan to join this room';qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'));qrCard.hidden=role==='joiner';
+  const qrCard=node('div','','room-qr-card'),lobbyQr=node('img');lobbyQr.alt='Scan to join this room';qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'));
   const lobbyRiders=node('div','','room-riders');const lobbyEmpty=node('p','Your crew belongs here. Share the code to get started.','room-empty');lobbyRiders.append(lobbyEmpty);
   const lobbyFooter=node('footer','','room-lobby-footer'),lobbyCount=node('span','Waiting for riders');lobbyFooter.append(lobbyCount);
   sharedLobby.append(lobbyCopy,qrCard,lobbyRiders,lobbyFooter);
   const lobbyEntries=new Map<string,{entry:HTMLElement;head:HTMLElement;name:HTMLElement;status:HTMLElement;avatar:AvatarId}>();
-  if(role==='host'||role==='display')void QRCode.toDataURL(new URL(appUrl(`?room=${code}`),location.origin).href).then(data=>{lobbyQr.src=data;}).catch(()=>{lobbyQr.hidden=true;});
+  if(!solo)void QRCode.toDataURL(new URL(appUrl(`?room=${code}`),location.origin).href).then(data=>{lobbyQr.src=data;}).catch(()=>{lobbyQr.hidden=true;});
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);controls.addEventListener('selectstart',event=>event.preventDefault());controls.addEventListener('contextmenu',event=>event.preventDefault());
   for(const [button,key,label] of [[leftButton,'ArrowLeft A','Steer left'],[fireButton,'Space','Hold to charge, release to fire'],[rightButton,'ArrowRight D','Steer right']] as const){button.setAttribute('aria-keyshortcuts',key);button.title=`${label} (${key})`;}
   const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','INVITE / TV'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
@@ -151,10 +153,11 @@ export async function startOnline():Promise<void>{
   const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');dialog.showModal();dialogBody.scrollTop=0;};
   results.onclick=openRecap;
   const callbacks:Callbacks={
-    ready:(peerId,host)=>{id=peerId;isHost=host;joinForm.ready(true);hostControls.hidden=!host;if(role==='host'&&!host)try{localStorage.removeItem(`fuse-room-${code}`);}catch{}const me=snapshot?.players.find(p=>p.id===peerId);if(joined&&me&&!displayOnly)runtime.command({type:'join',name:me.name,avatarId:me.avatarId});},
+    // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
+    ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;},
     shotFailed:()=>{shotFailure.show();updateShotNotice();},
-    status:text=>{status.textContent=text;status.title=text;if(!booted)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
-    ended:()=>{bootDone();roomEnded=true;clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
+    status:text=>{status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
+    ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
     clock:clockSample=>{const accepted=prediction.observeClock(clockSample);if(responseBenchmark)sample({kind:'response-clock',epochAt:performance.timeOrigin+performance.now(),accepted,sample:clockSample,diagnostics:prediction.clock.diagnostics()});},
     state:(state,rules,ack,matchId,motion)=>{
@@ -200,10 +203,10 @@ export async function startOnline():Promise<void>{
   if(solo)share.hidden=true;
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
-  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}}location.href=appUrl();};dialogBody.append(leave);
+  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});menu.onclick=()=>{dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}location.href=appUrl();};dialogBody.append(leave);
     if(!solo){const diagnostics=node('pre','','link-diagnostics');diagnostics.textContent=app.dataset.linkDiagnostics??'collecting link diagnostics…';dialogBody.append(node('p','LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)'),diagnostics);const refresh=setInterval(()=>{if(!dialog.open){clearInterval(refresh);return;}diagnostics.textContent=app.dataset.linkDiagnostics??diagnostics.textContent;},1000);}
     dialog.showModal();};
-  avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(localStorage,chosen=>{avatar=chosen;joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
+  avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(storage,chosen=>{joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
   share.onclick=async()=>{const link=new URL(appUrl(`?room=${code}`),location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=appUrl(`?room=${code}&display=1`);tv.target='_blank';dialogBody.append(tv);dialog.showModal();};
   settingsButton.onclick=()=>{
     showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>dialog.close());
