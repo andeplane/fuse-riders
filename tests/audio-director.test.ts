@@ -79,7 +79,10 @@ test('playlist switches tracks, wraps and retains mute and volume', async () => 
   f.director.update(); assert.equal(f.director.trackTitle, MUSIC_TRACKS[0].title);
   f.director.nextTrack(); assert.equal(f.director.trackTitle, MUSIC_TRACKS[1].title);
   assert.deepEqual(f.music, [MUSIC_TRACKS[0].path, MUSIC_TRACKS[1].path]);
-  f.director.nextTrack(); assert.equal(f.director.trackTitle, MUSIC_TRACKS[0].title); assert.equal(f.music.length, 3);
+  for (let index = 2; index <= MUSIC_TRACKS.length; index++) {
+    f.director.nextTrack(); assert.equal(f.director.trackTitle, MUSIC_TRACKS[index % MUSIC_TRACKS.length]!.title);
+  }
+  assert.equal(f.music.length, MUSIC_TRACKS.length + 1);
   assert.equal(f.gains.get('music'), 0);
   f.director.setMuted('music', false); assert.equal(f.gains.get('music'), .17);
 });
@@ -93,7 +96,7 @@ test('new rounds advance playlist once; repeated snapshots and reconnects do not
   assert.equal(f.director.trackTitle, MUSIC_TRACKS[1].title);
   f.director.message(f.snapshot(5)); assert.equal(f.director.trackTitle, MUSIC_TRACKS[1].title);
   f.director.disconnect(); f.director.message(f.snapshot(6)); assert.equal(f.director.trackTitle, MUSIC_TRACKS[1].title);
-  f.game.round++; f.director.message(f.snapshot(7)); assert.equal(f.director.trackTitle, MUSIC_TRACKS[0].title);
+  f.game.round++; f.director.message(f.snapshot(7)); assert.equal(f.director.trackTitle, MUSIC_TRACKS[2].title);
 });
 
 test('enabled audio plays in the lobby and intermissions and explicit enable confirms output', async () => {
