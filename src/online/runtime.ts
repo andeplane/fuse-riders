@@ -9,8 +9,9 @@ import { hashText, packFast, unpackFast, type StreamPacket } from './wire.js';
 import { decodeGameState } from './checkpoint.js';
 import { interpolateWorld } from './interpolate.js';
 import { NetStats } from './net-stats.js';
+import { Telemetry, telemetryEndpoint } from './telemetry.js';
 import { BombInputBuffer } from '../shared/bomb-input.js';
-import { replayHash, validEntry, REPLAY_RULES, type LogEntry, type ReplayState } from '../shared/action-log.js';
+import { MAX_ENTRIES_PER_TICK, replayHash, validEntry, REPLAY_RULES, type LogEntry, type ReplayState } from '../shared/action-log.js';
 import { toSnapshot } from '../shared/game.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import { uuid } from '../shared/uuid.js';
@@ -28,7 +29,8 @@ export const HASH_INTERVAL_TICKS=20;
  * state no late entry can rewind. Hashing the tick just simulated compares a state the host is still free to
  * change, so every entry that arrives late reads as a divergence on every replica.
  */
-export const HASH_LAG_TICKS=SNAPSHOT_EVERY_TICKS*(SNAPSHOT_COUNT-1);
+/** Half the ring: old enough that the host can no longer rewind it, young enough that a guest a few hundred ms behind still holds it. */
+export const HASH_LAG_TICKS=SNAPSHOT_EVERY_TICKS*Math.floor(SNAPSHOT_COUNT/2);
 const REPAIR_INTERVAL_MS=250,RESYNC_INTERVAL_MS=2000,JOIN_RETRY_MS=2000,BASELINE_INTERVAL_MS=500,SAVE_INTERVAL_MS=500;
 
 /**
@@ -71,13 +73,16 @@ export class RoomRuntime {
   private lastPausedPublish=0;
   readonly transport:PeerTransport;
   /** What this view saw of the host link lately; the device overlay reads it. */
+  private lastStatusText='';
   readonly netStats=new NetStats(()=>this.dependencies.now());
+  readonly telemetry=new Telemetry(typeof location==='undefined'?undefined:telemetryEndpoint(),()=>this.dependencies.now());
   private readonly status:StatusNotices;
   constructor(private code:string,token:string,settings:RoomSettings,private callbacks:Callbacks,private readonly dependencies:RoomRuntimeDependencies={now:()=>performance.now(),hidden:()=>document.hidden,transport:callbacks=>new PeerTransport(code,token,callbacks)}){
     this.settings=settings;this.lastTick=dependencies.now();
-    this.status=new StatusNotices(()=>this.dependencies.now(),text=>callbacks.status(text));
+    this.status=new StatusNotices(()=>this.dependencies.now(),text=>{if(text!==this.lastStatusText){this.lastStatusText=text;this.telemetry.log('status',{text});}callbacks.status(text);});
     this.transport=dependencies.transport({
       welcome:(id,hostId)=>{
+        this.telemetry.identify({room:code,id,role:id===hostId?'host':'guest',ua:typeof navigator==='undefined'?'':navigator.userAgent.slice(0,80)});this.telemetry.log('welcome',{host:id===hostId});
         if(id===hostId&&!this.session){
           this.session=new HostSession(id,settings,{token:uuid});
           try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.status.notice('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
@@ -108,7 +113,7 @@ export class RoomRuntime {
   held(id:string):{left:boolean;right:boolean}|undefined {const flags=(this.session?.sim??this.sim)?.state.streams.get(id)?.flags;return flags===undefined?undefined:{left:Boolean(flags&1),right:Boolean(flags&2)};}
   private requestResync(force=false):void {
     const now=this.dependencies.now();if(!force&&now-this.lastResync<RESYNC_INTERVAL_MS)return;
-    this.lastResync=now;this.netStats.record('resync');this.transport.send(this.transport.hostId,{type:'resync'});
+    this.lastResync=now;this.netStats.record('resync');this.telemetry.log('resync',{force});this.transport.send(this.transport.hostId,{type:'resync'});
   }
   private receive(id:string,raw:unknown):void {
     if(Array.isArray(raw)){const message=unpackFast(raw);if(message)this.receiveFast(id,message);return;}
@@ -116,7 +121,7 @@ export class RoomRuntime {
     const data=raw as {type:string;command?:RoomCommand;error?:string;transient?:boolean};
     if(this.session){
       if(data.type==='command'){const error=this.session.command(id,data.command);if(data.command?.type!=='input')this.save();if(error)this.transport.send(id,{type:'error',error,...(data.command?.type==='input'?{transient:true}:{})});this.peers.add(id);this.heard(id);}
-      if(data.type==='resync'){this.peers.add(id);this.heard(id);this.sendBaseline(id);}
+      if(data.type==='resync'){this.peers.add(id);this.heard(id);this.telemetry.log('resync-in',{from:id});this.sendBaseline(id);}
       return;
     }
     if(id!==this.transport.hostId)return;
@@ -135,17 +140,18 @@ export class RoomRuntime {
       if(message.type==='repair'){const member=[...session.senders.keys()].find(m=>hashText(m)===message.member);const sender=member?session.senders.get(member):undefined;if(!member||!sender)return;const entries=sender.since(message.firstMissingSeq).slice(0,32);if(!entries.length||entries[0]![0]!==message.firstMissingSeq){this.sendBaseline(id);return;}this.transport.send(id,packFast({type:'streams',tick:session.tick+this.accumulator/TICK_MS,sentAt:now,echoSentAt:this.peerSentAt.get(id)??null,hash:null,streams:[{member:message.member,lastSeq:sender.lastSeq,entries}]}),true);return;}
       const own=message.streams.find(s=>s.member===hashText(id));if(!own)return;
       this.peerSentAt.set(id,message.sentAt);this.heard(id);
-      const {firstMissing}=session.ingest(id,own.entries);
+      const {firstMissing}=session.ingest(id,own.entries);this.telemetry.log('ingest',{from:id,n:own.entries.length,first:own.entries[0]?.[0],lastSeq:own.lastSeq,...(firstMissing===undefined?{}:{firstMissing})});
       if(firstMissing!==undefined&&now-(this.lastRepairSent.get(id)??-Infinity)>=REPAIR_INTERVAL_MS){this.lastRepairSent.set(id,now);this.transport.send(id,packFast({type:'repair',member:own.member,firstMissingSeq:firstMissing}),true);}
       return;
     }
     if(id!==this.transport.hostId)return;
-    if(message.type==='repair'){if(message.member!==hashText(this.transport.id))return;this.transport.send(id,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:message.member,lastSeq:this.own.lastSeq,entries:this.own.since(message.firstMissingSeq).slice(0,32)}]}),true);return;}
+    if(message.type==='repair'){if(message.member!==hashText(this.transport.id))return;this.transport.send(id,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:message.member,lastSeq:this.own.lastSeq,entries:this.own.since(message.firstMissingSeq).slice(0,MAX_ENTRIES_PER_TICK)}]}),true);return;}
     this.hostHeardAt=now;this.hostSentAt=message.sentAt;
     // The echo is this guest's own send time; older than a second it measures silence, not the link.
     const echo=message.echoSentAt!==null&&now-message.echoSentAt<=SILENCE_MS;
     if(echo)this.clock.observe(message.tick,Math.max(0,now-message.echoSentAt!));else if(!this.clock.live)this.clock.observe(message.tick,0);
     this.netStats.record('packet',echo?now-message.echoSentAt!:0);this.netStats.clockOffsetTicks=this.clock.tick()-message.tick;
+    this.telemetry.log('recv',{tick:Math.round(message.tick*10)/10,rtt:echo?Math.round(now-message.echoSentAt!):null,hash:message.hash!==null,streams:message.streams.map(s=>[s.member,s.lastSeq,s.entries.length]),simTick:this.sim?.tick??null,clock:Math.round(this.clock.tick()*10)/10});
     const sim=this.sim;if(!sim)return;
     const lastSeq=new Map<string,number>(),hostStream=hashText(this.transport.hostId);
     for(const stream of message.streams){
@@ -155,7 +161,7 @@ export class RoomRuntime {
       lastSeq.set(member,stream.lastSeq);
       for(const entry of stream.entries){
         const result=sim.insert(member,entry);
-        if(result==='invalid'){this.requestResync();return;}
+        if(result==='invalid'){this.telemetry.log('invalid',{member,entry});this.requestResync();return;}
         // Absence zeroes our held controls in every fold, but our edge encoder still believes they are held: when
         // the host marks us present again it has to forget, so the next resend restates the whole controller.
         if(result!=='duplicate'&&entry[3]===this.transport.id&&(entry[2]===10||entry[2]===12&&entry[4]===true))this.edges.reset();
@@ -164,16 +170,17 @@ export class RoomRuntime {
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
     const open=new Set<string>();
     for(const [member,firstMissing] of sim.gaps()){
-      open.add(member);if(!this.gapSince.has(member))this.netStats.record('gap');const since=this.gapSince.get(member)??now;this.gapSince.set(member,since);
+      open.add(member);if(!this.gapSince.has(member)){this.netStats.record('gap');this.telemetry.log('gap',{member,firstMissing});}const since=this.gapSince.get(member)??now;this.gapSince.set(member,since);
       if(now-since>SILENCE_MS){this.gapSince.delete(member);this.requestResync();continue;}
       if(now-(this.lastRepairSent.get(member)??-Infinity)<REPAIR_INTERVAL_MS)continue;
-      this.lastRepairSent.set(member,now);this.netStats.record('repair');this.transport.send(id,packFast({type:'repair',member:hashText(member),firstMissingSeq:firstMissing}),true);
+      this.lastRepairSent.set(member,now);this.netStats.record('repair');this.telemetry.log('repair',{member,firstMissing});this.transport.send(id,packFast({type:'repair',member:hashText(member),firstMissingSeq:firstMissing}),true);
     }
     for(const member of [...this.gapSince.keys()])if(!open.has(member))this.gapSince.delete(member);
   }
   private installBaseline(message:BaselineMessage):void {
     let refused:string|undefined;
     try{refused=this.applyBaseline(message);}catch(error){refused=`${error}`;}
+    this.telemetry.log('baseline',{tick:message.tick,refused:refused??null,simTick:this.sim?.tick??null});
     if(refused===undefined)return;
     // A silently dropped baseline leaves a blank or frozen view and no way to tell why; the next resync asks again.
     console.warn(`Baseline refused: ${refused}`);
@@ -214,7 +221,7 @@ export class RoomRuntime {
     if(command.type==='input'){
       const sim=this.sim;if(!sim)return false;
       const base=Math.floor(this.clock.tick());
-      for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);sim.insert(this.transport.id,entry,true);}
+      for(const body of this.edges.edges(command)){const entry=this.own.append(Math.min(Math.max(base+1,this.own.lastTick),base+3),body);this.telemetry.log('input',{seq:entry[0],tick:entry[1],kind:entry[2],simTick:sim.tick});sim.insert(this.transport.id,entry,true);}
       this.sendOwn(this.dependencies.now());return true;
     }
     if(command.type==='avatar'){const sim=this.sim;if(!sim)return false;const entry=this.own.append(Math.floor(this.clock.tick())+1,[5,command.avatarId]);sim.insert(this.transport.id,entry,true);this.sendOwn(this.dependencies.now());return true;}
@@ -223,7 +230,9 @@ export class RoomRuntime {
   /** Every tick while there are recent entries to repeat, otherwise every five ticks as a liveness and clock heartbeat. */
   private sendOwn(now:number):void {
     if(!this.sim)return;
-    this.transport.send(this.transport.hostId,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:hashText(this.transport.id),lastSeq:this.own.lastSeq,entries:this.own.next()}]}),true);
+    const entries=this.own.next();
+    const sent=this.transport.send(this.transport.hostId,packFast({type:'streams',tick:this.clock.tick(),sentAt:now,echoSentAt:this.hostSentAt,hash:null,streams:[{member:hashText(this.transport.id),lastSeq:this.own.lastSeq,entries}]}),true);
+    if(entries.length)this.telemetry.log('send',{lastSeq:this.own.lastSeq,n:entries.length,first:entries[0]![0],sent});
   }
   private tick():void {
     const now=this.dependencies.now(),elapsed=now-this.lastTick;this.lastTick=now;
@@ -251,7 +260,7 @@ export class RoomRuntime {
     this.announced=false;
     while(this.accumulator>=TICK_MS){
       this.accumulator-=TICK_MS;
-      for(const [id,at] of this.lastHeard)if(now-at>SILENCE_MS&&session.game.players.get(id)?.connected)session.presence(id,false);
+      for(const [id,at] of this.lastHeard)if(now-at>SILENCE_MS&&session.game.players.get(id)?.connected){this.telemetry.log('absent',{id,silentMs:Math.round(now-at)});session.presence(id,false);}
       const {matchId,round}=session.game;
       for(const event of session.advance())this.callbacks.event(event,matchId,round,session.tick);
       this.publish(now,false);
@@ -274,11 +283,12 @@ export class RoomRuntime {
     if(now-this.hostHeardAt>SILENCE_MS){this.status.recurring('Waiting for the host…');this.sendAccumulator=0;return;}
     this.status.recurring('Connected · direct game link');
     const target=Math.floor(this.clock.tick());
-    if(target>sim.tick&&!this.dependencies.hidden()){
+    // A hidden tab keeps folding (its timer runs at 1 Hz, advanceTo caps the catch-up), or every relayed entry would be 'future' and force a baseline.
+    if(target>sim.tick){
       const {matchId,round}=sim.state.game;
       const result=sim.advanceTo(target,(event,tick)=>this.callbacks.event(event,matchId,round,tick));
       if(result.status==='baseline'){this.requestResync();return;}
-      if(result.rewound)this.netStats.record('rewind',result.rewound);
+      if(result.rewound){this.netStats.record('rewind',result.rewound);this.telemetry.log('rewind',{depth:result.rewound,tick:sim.tick});}
       this.publishView();
       this.checkHash();
     }
@@ -296,7 +306,7 @@ export class RoomRuntime {
     for(const [member,lastSeq] of pending.lastSeq)if(sim.stream(member).contiguous<lastSeq)return;
     this.pendingHash=undefined;
     const hash=sim.hashAt(pending.tick);if(hash===undefined||hash===pending.hash)return;
-    const now=this.dependencies.now();this.mismatches=this.mismatches.filter(at=>now-at<60_000);this.mismatches.push(now);this.netStats.record('mismatch');
+    const now=this.dependencies.now();this.mismatches=this.mismatches.filter(at=>now-at<60_000);this.mismatches.push(now);this.netStats.record('mismatch');this.telemetry.log('mismatch',{tick:pending.tick});
     if(this.mismatches.length>=3)this.status.notice('Simulation out of sync — reload this page');
     this.requestResync();
   }
