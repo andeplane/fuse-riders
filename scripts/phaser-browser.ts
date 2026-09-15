@@ -13,6 +13,24 @@ try{
   const {visualFixture}=await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
   const {themes}=await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
   const results=[];
+  // #127: a navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still reports
+  // READY, and booting the WebGL renderer without __DEFAULT throws. Failing those images (only they are data PNGs set
+  // through HTMLImageElement.src here) must reject readiness instead of throwing.
+  {
+   const source=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src')!;
+   Object.defineProperty(HTMLImageElement.prototype,'src',{configurable:true,get(){return source.get!.call(this);},set(value:string){
+    if(String(value).startsWith('data:image/png;base64,')){const image=this as HTMLImageElement;setTimeout(()=>image.onerror?.(new Event('error')),0);return;}
+    source.set!.call(this,value);
+   }});
+   try{
+    const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;document.body.append(canvas);
+    const arena=createPhaserArena(canvas,{renderer:'auto'});
+    const outcome=await Promise.race([arena.ready.then(()=>'ready',()=>'rejected'),new Promise<string>(resolve=>setTimeout(()=>resolve('pending'),2000))]);
+    if(outcome!=='rejected')throw Error(`Arena with aborted default textures ended ${outcome}, expected a rejected readiness`);
+    arena.destroy();canvas.remove();
+   }finally{Object.defineProperty(HTMLImageElement.prototype,'src',source);}
+  }
+
   // Game boot precedes asynchronous default textures and SceneManager boot.
   // Disposal in that gap must reject readiness without touching a missing system scene.
   for(const backend of ['auto','canvas'] as const){
