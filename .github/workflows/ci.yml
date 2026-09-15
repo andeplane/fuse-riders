@@ -54,6 +54,13 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # A two-core runner drives several browser contexts at once, some on software GL, so the
+      # deadlines these smokes were written against are not deadlines here: three different steps
+      # timed out on three consecutive runs whose code was fine. Scaling them keeps every assertion
+      # and removes the failures that only mean "the runner was busy". `timeout-minutes` above stays
+      # the real stop, so a genuine hang still ends the job.
+      SMOKE_TIMEOUT_SCALE: 3
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

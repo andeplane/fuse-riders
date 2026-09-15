@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createGameServer } from '../src/server/index.js';
 import { eliminatePlayer } from '../src/shared/game.js';
+import { smokeTimeout } from './smoke-timeout.js';
 
 const app = await createGameServer({
   port: 0,
@@ -15,7 +16,9 @@ const browser = process.env.BROWSER === 'webkit'
   ? await webkit.launch({ headless: true })
   : await chromium.launch({ channel: 'chrome', headless: true });
 const errors: string[] = [];
-const monitor = (page: Page) => { page.on('pageerror', e => errors.push(e.stack ?? e.message)); };
+// Every page this smoke drives goes through here, so it is also where the one deadline they all
+// otherwise inherit — Playwright's 30s default — gets scaled for a loaded runner.
+const monitor = (page: Page) => { page.setDefaultTimeout(smokeTimeout(30000)); page.on('pageerror', e => errors.push(e.stack ?? e.message)); };
 const origin = `http://127.0.0.1:${app.port}`;
 const waitFor = async (predicate: () => boolean, detail: string) => {
   const until = Date.now() + 5000;
@@ -60,7 +63,7 @@ try {
   // Music streams through a media element rather than a decoded buffer, so a phone's silent switch and
   // volume keys reach it. Playing means an element with a source that is not paused.
   const PLAYING = "(() => { const e = document.querySelector('audio.game-music'); return Boolean(e && e.currentSrc && !e.paused); })()";
-  await host.waitForFunction(PLAYING, undefined, { timeout: 15000 }); // Lobby music started.
+  await host.waitForFunction(PLAYING, undefined, { timeout: smokeTimeout(15000) }); // Lobby music started.
   await host.getByRole('button', { name: 'Mute music', exact: true }).click();
   assert.equal(await host.getByRole('button', { name: 'Mute music', exact: true }).getAttribute('aria-pressed'), 'true');
   // Silent music must stop streaming rather than play on at zero volume, then resume where it stopped.

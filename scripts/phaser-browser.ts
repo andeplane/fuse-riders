@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { chromium, webkit } from 'playwright';
+import { smokeTimeout } from './smoke-timeout.js';
 const server=await createServer({server:{port:0,host:'127.0.0.1',hmr:false}});await server.listen();
 const address=server.httpServer!.address();if(!address||typeof address==='string')throw Error('No server');
 const browser=process.env.BROWSER==='webkit'?await webkit.launch():await chromium.launch({channel:'chrome'});
 const page=await browser.newPage({viewport:{width:1600,height:1000},deviceScaleFactor:Number(process.env.DPR??2)});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.stack ?? e.message));
 try{
  await page.addInitScript('window.__name = value => value');await page.goto(`http://127.0.0.1:${address.port}/`);
- const result=await page.evaluate(async()=>{
+ // The recovery budget is polled by requestAnimationFrame, which crawls under software GL on a
+ // loaded runner, so it is scaled like every other smoke deadline rather than fixed at 6s.
+ const result=await page.evaluate(async(recoveryBudgetMs)=>{
   const {createPhaserArena}=await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
   const {visualFixture}=await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
   const {themes}=await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
@@ -86,7 +89,7 @@ try{
   let fallbackCanvas=document.createElement('canvas');fallbackCanvas.width=1600;fallbackCanvas.height=900;fallbackCanvas.style.cssText='width:100%;height:100%';fallbackWrapper.append(fallbackCanvas);
   const presentation=mountArenaPresentation(fallbackCanvas,ctx=>{ctx.fillStyle='#00ff00';ctx.fillRect(0,0,1600,900);},replacement=>{fallbackCanvas=replacement;});
   let raf=0;const render=()=>{presentation.render(visualFixture(40),performance.now(),themes['neon-pixel'],{},'fallback-test');raf=requestAnimationFrame(render);};render();
-  const until=async(predicate:()=>boolean)=>{const end=performance.now()+6000;while(!predicate()){if(performance.now()>end)throw Error('Presentation recovery timed out');await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}};
+  const until=async(predicate:()=>boolean)=>{const end=performance.now()+recoveryBudgetMs;while(!predicate()){if(performance.now()>end)throw Error('Presentation recovery timed out');await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}};
   await until(()=>fallbackCanvas.dataset.renderer==='phaser-webgl');
   const extension=fallbackCanvas.getContext('webgl')!.getExtension('WEBGL_lose_context');
   if(extension){extension.loseContext();await until(()=>fallbackCanvas.dataset.renderer==='canvas-fallback');const pixel=fallbackCanvas.getContext('2d')!.getImageData(20,20,1,1).data;if(pixel[1]!==255||fallbackCanvas.style.opacity!=='1')throw Error('Fallback did not repaint visibly');
@@ -96,6 +99,6 @@ try{
   }
   cancelAnimationFrame(raf);presentation.destroy();fallbackWrapper.remove();
   return results;
- });
+ },smokeTimeout(6000));
  assert.deepEqual(errors,[]);console.log(JSON.stringify({result,errors},null,2));
 }finally{await browser.close();await server.close();}

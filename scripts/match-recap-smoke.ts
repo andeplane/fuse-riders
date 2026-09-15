@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
+import { smokeTimeout } from './smoke-timeout.js';
 /**
  * End-of-match recap evidence: a solo match plays to completion, the report opens only after the
  * final-round pause, shows a podium/awards/comparison, closes, and reopens from RESULTS on a desktop
@@ -48,7 +49,7 @@ try {
   for (const viewport of [{ width: 1280, height: 800 }, { width: 844, height: 390 }]) {
     const phone = viewport.width < 1000;
     const context = await browser.newContext({ viewport, ...(phone ? { isMobile: true, hasTouch: true } : {}) });
-    const page = await context.newPage(); page.setDefaultTimeout(20000);
+    const page = await context.newPage(); page.setDefaultTimeout(smokeTimeout(20000));
     const errors: string[] = [], snapshots: RecapSnapshot[] = [];
     page.on('pageerror', (error) => errors.push(error.stack ?? error.message));
     await page.exposeFunction('recordRecapSnapshot', (snapshot: RecapSnapshot) => { snapshots.push(snapshot); });
@@ -86,7 +87,7 @@ try {
       await page.keyboard.up('ArrowLeft');
       await waitFor(() => latest()?.phase === 'matchOver', 130000, 'match over');
       const matchOverTick = snapshots.find((snapshot) => snapshot.phase === 'matchOver')!.tick;
-      await page.locator('.match-recap-report').waitFor({ state: 'visible', timeout: 20000 });
+      await page.locator('.match-recap-report').waitFor({ state: 'visible', timeout: smokeTimeout(20000) });
       const paused = snapshots.filter((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick < matchOverTick + 60);
       assert.ok(paused.length > 0 && paused.every((snapshot) => !snapshot.dialogOpen), 'the report must stay closed during the final-round pause');
       assert.ok(snapshots.some((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick >= matchOverTick + 60 && snapshot.dialogOpen), 'the report opens after the pause');

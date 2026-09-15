@@ -1,10 +1,11 @@
 import {chromium,webkit} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
+import { smokeTimeout } from './smoke-timeout.js';
 // #13: a joined phone shows one controller presentation (full-screen thirds, hint labels, ☰ MENU pill) in lobby, countdown, playing and matchOver.
 const base=process.env.HOME_URL??'http://127.0.0.1:4188/';const results:object[]=[];await mkdir('artifacts',{recursive:true});
 const PHASES=['lobby','countdown','playing','matchOver'] as const;
-for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:844,height:390},isMobile:true,hasTouch:true});const page=await context.newPage();page.setDefaultTimeout(20000);const errors:string[]=[];page.on('pageerror',e=>errors.push(e.stack??e.message));
+for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const context=await browser.newContext({viewport:{width:844,height:390},isMobile:true,hasTouch:true});const page=await context.newPage();page.setDefaultTimeout(smokeTimeout(20000));const errors:string[]=[];page.on('pageerror',e=>errors.push(e.stack??e.message));
  // One round ends the match, so matchOver is reachable without a long solo run.
  await page.addInitScript(()=>localStorage.setItem('fuse-riders-room-settings-v1',JSON.stringify({version:1,mode:'devices',match:'rounds',length:1,weights:{}})));
  const notice=(pattern:RegExp,timeout=20000)=>page.waitForFunction(source=>new RegExp(source).test(document.querySelector('.online-notice')?.textContent??''),pattern.source,{timeout});
