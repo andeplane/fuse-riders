@@ -4,7 +4,7 @@ import { BOMB_MIN_CHARGE_TICKS, BOMB_CHARGE_TICKS_LIMIT } from '../shared/bomb-l
 import './room-settings-menu.css';
 const element=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const result=document.createElement(tag);result.textContent=text;return result;};
 /** One draft survives submenu navigation; only Save publishes it. */
-export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boolean,labels:Record<string,string>,save:(draft:RoomSettings)=>boolean,close:()=>void):void{
+export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boolean,labels:Record<string,string>,save:(draft:RoomSettings)=>boolean,close:()=>void,start:'main'|'powerups'='main'):void{
   const draft=structuredClone(settings);
   // Typed aim text outlives submenu rebuilds so an off-grid value is still rejected on Save instead of being silently rounded.
   let aimText=String(draft.bombChargeTicks/TICK_HZ);
@@ -25,5 +25,5 @@ export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boo
     const percentages=new Map<string,HTMLElement>();const recalc=()=>{const total=Object.values(draft.weights).reduce((sum,weight)=>sum+(weight??0),0);for(const [type,output] of percentages)output.textContent=`${total?((draft.weights[type as PickupType]??0)/total*100).toFixed(1):'0'}%`;};
     for(const [type,title] of Object.entries(labels)){const label=element('label',title),input=element('input'),percent=element('span');input.type='number';input.min='0';input.max='10000';input.value=String(draft.weights[type as PickupType]??0);input.oninput=()=>{draft.weights[type as PickupType]=Math.max(0,Math.min(10000,Math.round(Number(input.value)||0)));recalc();};label.append(input,percent);percentages.set(type,percent);body.append(label);}recalc();body.scrollTop=0;
   };
-  main();
+  if(start==='powerups')powerups();else main(); // Ctrl+P opens the power-up page directly (#168).
 }
