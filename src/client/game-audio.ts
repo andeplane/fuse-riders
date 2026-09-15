@@ -2,6 +2,7 @@ import { AudioDirector, MUSIC_TRACKS, type AudioChannel, type GameSynth, type Sy
 import { assetUrl } from './asset-url.js';
 import { RADIO_KEY, RADIO_SHORTCUT_HINT, formatTrackTime, loadRadio, parseRadio, radioQueue, radioShortcut, saveRadio, trackById, type RadioSource, type TrackId } from './radio.js';
 import { safeStorage, type SafeStorage } from './safe-storage.js';
+import { bindMediaSession, radioMediaActions, type MediaSessionPort } from './radio-media-session.js';
 
 export const AUDIO_SETTINGS_KEY = 'fuse-riders-audio';
 export const DEFAULT_VOLUME: Record<AudioChannel, number> = { music: .22, effects: .45 };
@@ -12,6 +13,8 @@ export interface GameAudioOptions {
   storage?: SafeStorage;
   /** Shows or hides the radio for Ctrl+A; by default the `controls` dropdown toggles. */
   toggleRadio?: () => void;
+  /** The OS media session to mirror the radio onto; defaults to the browser's, or none. */
+  mediaSession?: MediaSessionPort;
 }
 export interface GameAudio {
   director: AudioDirector;
@@ -49,7 +52,11 @@ class WebAudioSynth implements GameSynth {
   private loadedPath = '';
   /** Resume point for a track whose metadata has not loaded yet; a media element cannot seek before then. */
   private pendingSeek?: number;
-  constructor(private readonly stateChanged: (running: boolean) => void, private readonly trackEnded: () => void) {}
+  /** Pauses and plays this synth starts itself; any other pause or play event came from the OS or the browser. */
+  private ownPause = false;
+  private ownPlay = false;
+  constructor(private readonly stateChanged: (running: boolean) => void, private readonly trackEnded: () => void,
+    private readonly mediaPaused: () => void = () => {}, private readonly mediaResumed: () => void = () => {}) {}
   async unlock(): Promise<boolean> {
     try {
       if (!this.context || this.context.state === 'closed') {
@@ -75,7 +82,7 @@ class WebAudioSynth implements GameSynth {
       this.element.volume = value;
       // Silent music does not stream. Pausing keeps the position, so turning it back on continues the
       // tune rather than restarting it, and a page left muted never downloads the playlist.
-      if (value <= 0) this.element.pause(); else this.startTrack();
+      if (value <= 0) this.pauseElement(); else this.startTrack();
       return;
     }
     if (this.context && this.effects) this.effects.gain.setTargetAtTime(value, this.context.currentTime, .015);
@@ -109,7 +116,12 @@ class WebAudioSynth implements GameSynth {
     } else this.pendingSeek = offset;
     this.startTrack();
   }
-  pauseMusic(): void { this.trackPath = ''; this.element?.pause(); }
+  pauseMusic(): void { this.trackPath = ''; this.pauseElement(); }
+  audible(): boolean {
+    const element = this.element;
+    return !!element && !!this.trackPath && this.loadedPath === this.trackPath && !element.paused && !element.ended && element.volume > 0;
+  }
+  private pauseElement(): void { const element = this.element; if (!element || element.paused) return; this.ownPause = true; element.pause(); }
   position(): number | undefined {
     const element = this.element;
     // Only the track this synth is playing has a position: after a switch while music was off, the element still holds the old one.
@@ -122,6 +134,9 @@ class WebAudioSynth implements GameSynth {
   private createElement(): HTMLAudioElement {
     const element = new Audio(); element.preload = 'auto'; element.className = 'game-music';
     element.addEventListener('ended', () => this.trackEnded());
+    // iOS and cars pause and resume the element directly; the radio has to hear about it (#135).
+    element.addEventListener('pause', () => { if (this.ownPause) { this.ownPause = false; return; } if (!element.ended && this.trackPath) this.mediaPaused(); });
+    element.addEventListener('play', () => { if (this.ownPlay) { this.ownPlay = false; return; } this.mediaResumed(); });
     // A resume point at or past the end plays nothing and ends at once, which advances the radio.
     element.addEventListener('loadedmetadata', () => {
       if (this.pendingSeek === undefined) return;
@@ -137,17 +152,31 @@ class WebAudioSynth implements GameSynth {
   private startTrack(): void {
     const element = this.element;
     if (!element || !this.trackPath || this.levels.music <= 0) return;
-    if (this.loadedPath !== this.trackPath) { this.loadedPath = this.trackPath; element.src = assetUrl(this.trackPath); }
+    // Loading a source discards queued media events, so a pause or play this synth expected will never arrive.
+    if (this.loadedPath !== this.trackPath) { this.loadedPath = this.trackPath; this.ownPause = false; this.ownPlay = false; element.src = assetUrl(this.trackPath); }
     // Autoplay refusal rejects play(); the next gesture retries, so a refused track never blocks play.
-    if (element.paused) void element.play().catch(() => {});
+    if (element.paused) { this.ownPlay = true; void element.play().catch(() => { this.ownPlay = false; }); }
   }
   private stopMusic(): void {
     this.trackPath = ''; this.loadedPath = ''; this.pendingSeek = undefined;
     if (!this.element) return;
     // Dropping the source as well as pausing stops the download for a page that is going away.
-    this.element.pause(); this.element.removeAttribute('src'); this.element.load();
+    this.pauseElement(); this.element.removeAttribute('src'); this.element.load(); this.ownPause = false; this.ownPlay = false;
   }
   stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); this.stopMusic(); }
+}
+
+/** The real `navigator.mediaSession`, or undefined where the browser has none. */
+export function browserMediaSession(): MediaSessionPort | undefined {
+  const session = typeof navigator === 'undefined' ? undefined : navigator.mediaSession;
+  if (!session || typeof MediaMetadata === 'undefined') return undefined;
+  return {
+    setMetadata: track => { session.metadata = new MediaMetadata(track); },
+    setPlaybackState: state => { session.playbackState = state; },
+    // A browser that lacks an action throws on registration; an unknown one is simply not offered.
+    setActionHandler: (action, handler) => { try { session.setActionHandler(action, handler); } catch { /* unsupported action */ } },
+    setPositionState: position => { try { session.setPositionState?.(position); } catch { /* a rejected state, e.g. a position past the duration */ } },
+  };
 }
 
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
@@ -174,7 +203,7 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     enable.setAttribute('aria-pressed', String(ok));
     render(); // The display dims while audio is not running.
   };
-  const director: AudioDirector = new AudioDirector(new WebAudioSynth(showState, () => director.trackEnded()), loadRadio(storage),
+  const director: AudioDirector = new AudioDirector(new WebAudioSynth(showState, () => director.trackEnded(), () => director.mediaPaused(), () => director.mediaResumed()), loadRadio(storage),
     // A periodic save records only where this tab is, merged over the stored choices, so a second open tab cannot revert
     // a playlist or loop change made in the first. Choice changes write everything.
     (state, kind) => saveRadio(storage, kind === 'all' ? state : { ...loadRadio(storage), track: state.track, position: state.position, paused: state.paused }));
@@ -192,6 +221,16 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   const setVolume = (channel: AudioChannel, value: number) => {
     settings.volume[channel] = value; director.setVolume(channel, value); store();
   };
+  // Lock screen, CarPlay and car browsers show the track and drive the radio's own queue (#135). "Playing" is the media
+  // element's own state: iOS suspends the effects AudioContext on lock while the element plays on. The panel's clock refreshes it.
+  const media = bindMediaSession(options.mediaSession ?? browserMediaSession(), {
+    title: () => director.trackTitle, playing: () => director.audible(),
+    position: () => director.position(), duration: () => director.duration(), subscribe: listener => director.subscribe(listener),
+  }, radioMediaActions(
+    { paused: () => director.state.paused, togglePause: () => director.togglePause(), previousTrack: () => director.previousTrack(), nextTrack: () => director.nextTrack() },
+    { muted: () => settings.muted.music, unmute: () => setMuted('music', false) },
+    () => unlock(),
+  ));
   // update() is what actually starts a track, so every successful unlock has to drive it: the first one
   // usually lands on a gesture long after playBackground() asked for music.
   const unlock = (confirm = false) => { void director.unlock(confirm).then(ok => { showState(ok); if (ok) director.update(); }); };
@@ -252,7 +291,7 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   };
   panel.append(unit, enable, modes, mixer, element('h3', '', 'TRACKS'), tracks, playlistHeading, playlist, element('small', 'radio-hint', RADIO_SHORTCUT_HINT));
 
-  const renderTime = () => { const text = `${formatTrackTime(director.position())} / ${formatTrackTime(director.duration())}`; if (time.textContent !== text) time.textContent = text; };
+  const renderTime = () => { const text = `${formatTrackTime(director.position())} / ${formatTrackTime(director.duration())}`; if (time.textContent !== text) time.textContent = text; media.refresh(); };
   let listsKey = '';
   function render(): void {
     const state = director.state; const queue = radioQueue(state); const index = queue.indexOf(state.track);

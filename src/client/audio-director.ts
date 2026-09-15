@@ -18,6 +18,8 @@ export interface GameSynth {
   position(): number | undefined;
   /** Length of the loaded track in seconds, if known. */
   duration(): number | undefined;
+  /** The media element is really producing the radio's track now: playing, not paused by anyone, volume above zero. */
+  audible(): boolean;
   gain(channel: AudioChannel, value: number): void;
   stop(): void;
 }
@@ -41,20 +43,26 @@ export class AudioDirector {
   private musicPath = '';
   private settings = { music: { muted: false, volume: .22 }, effects: { muted: false, volume: .45 } };
   private readonly listeners = new Set<() => void>();
+  /** Last known length of the current track, kept while it is paused so lock-screen scrubbers do not reset. */
+  private knownDuration?: number;
   constructor(private readonly synth: GameSynth, private readonly radio: RadioState = defaultRadio(), private readonly persist: (state: Readonly<RadioState>, kind: RadioSave) => void = () => {}) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
   }
   async unlock(confirm = false): Promise<boolean> {
-    this.unlocked = await this.synth.unlock();
-    if (this.unlocked && confirm) this.synth.note('effects', { frequency: 660, endFrequency: 990, duration: .16, wave: 'triangle', level: .24 });
-    return this.unlocked;
+    // Once audio has been unlocked it stays unlocked: iOS cannot resume the effects context from a lock-screen action,
+    // and that failure must not stop the music element, which plays without it.
+    const ok = await this.synth.unlock(); this.unlocked ||= ok;
+    if (ok && confirm) this.synth.note('effects', { frequency: 660, endFrequency: 990, duration: .16, wave: 'triangle', level: .24 });
+    return ok;
   }
   get state(): Readonly<RadioState> { return this.radio; }
   get trackTitle(): string { return trackById(this.radio.track).title; }
   isMuted(channel: AudioChannel): boolean { return this.settings[channel].muted; }
   /** Live position while a track plays, otherwise the point it resumes from. */
   position(): number { return (this.musicPath ? this.synth.position() : undefined) ?? this.radio.position; }
-  duration(): number | undefined { return this.musicPath ? this.synth.duration() : undefined; }
+  duration(): number | undefined { const live = this.musicPath ? this.synth.duration() : undefined; if (live !== undefined) this.knownDuration = live; return live ?? this.knownDuration; }
+  /** True only while the media element is audibly playing this radio's track, whatever the effects context is doing. */
+  audible(): boolean { return this.musicPath !== '' && this.synth.audible(); }
   /** Called after every radio or mute change, so a panel can redraw. */
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   /** Plays music with no match attached, so the landing page and a room that has not connected yet still have a soundtrack. */
@@ -78,6 +86,20 @@ export class AudioDirector {
     this.synth.pauseMusic(); this.musicPath = '';
     const following = followingTrack(this.radio, 'ended');
     if (following) this.select(following); else this.select(radioQueue(this.radio)[0]!, true);
+  }
+  /**
+   * The OS paused the element itself (headphones out, another app took audio, a car's stop button): the radio
+   * follows, disarming the track so the next tap on the page or a returning tab does not start it again.
+   */
+  mediaPaused(): void {
+    if (this.radio.paused || !this.musicPath) return;
+    this.radio.position = this.position(); this.radio.paused = true;
+    this.synth.pauseMusic(); this.musicPath = ''; this.changed();
+  }
+  /** The OS resumed the element itself (a lock-screen or car play the page did not handle): the radio follows. */
+  mediaResumed(): void {
+    if (!this.radio.paused) return;
+    this.radio.paused = false; this.update(); this.changed();
   }
   setLoopSong(loop: boolean): void { this.radio.loopSong = loop; this.changed(); }
   setLoopPlaylist(loop: boolean): void { this.radio.loopPlaylist = loop; this.changed(); }
@@ -129,7 +151,7 @@ export class AudioDirector {
   }
   private select(id: TrackId, paused = false): void {
     if (this.musicPath) { this.synth.pauseMusic(); this.musicPath = ''; }
-    this.radio.track = id; this.radio.position = 0; this.radio.paused = paused;
+    this.radio.track = id; this.radio.position = 0; this.radio.paused = paused; this.knownDuration = undefined;
     this.update(); this.changed();
   }
   private changed(): void { this.radio.position = this.position(); this.persist(this.radio, 'all'); this.emit(); }
