@@ -112,8 +112,11 @@ test('a baseline installs into a fresh simulation that then matches the host tic
   const {baseline,view}=installed(s);
   for(const [member,,,retained] of baseline.streams)for(const e of retained)view.insert(member,e);
   const before=s.tick;
-  for(let i=0;i<40;i++){g.deliver(g.packet({left:i%2===0,right:i%2===1,bomb:i<20}));s.advance();}
-  for(const [member,sender] of s.senders)for(const e of sender.retained)if(e[0]>(baseline.streams.find(([m])=>m===member)?.[1]??0))view.insert(member,e);
-  assert.equal(view.advanceTo(s.tick,()=>{}).status,'ok');
+  // A replica folds as the entries arrive: an entry stamped far beyond its own clock is held back, not taken on trust.
+  for(let i=0;i<40;i++){
+    g.deliver(g.packet({left:i%2===0,right:i%2===1,bomb:i<20}));s.advance();
+    for(const [member,sender] of s.senders)for(const e of sender.retained)if(e[0]>(baseline.streams.find(([m])=>m===member)?.[1]??0))view.insert(member,e);
+    assert.equal(view.advanceTo(s.tick,()=>{}).status,'ok');
+  }
   assert.equal(replayHash(view.state),s.hash(),`replica diverged between ${before} and ${s.tick}`);
 });

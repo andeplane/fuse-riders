@@ -14,7 +14,11 @@ export function hashText(text: string): number {
 
 /** Sender, receiver and link identity are implied by the data channel the bytes arrive on; only the authority fence travels. */
 export interface FastEnvelope { id: number; epoch: number; incarnation: number; data: unknown }
-export function encodeFast(envelope: FastEnvelope): Uint8Array { return encode([envelope.id, envelope.epoch, envelope.incarnation, envelope.data], { ignoreUndefined: true }); }
+/** Undefined when the packet would exceed what `decodeFast` accepts: entry bodies vary in size, so only the bytes decide. */
+export function encodeFast(envelope: FastEnvelope): Uint8Array | undefined {
+  const bytes = encode([envelope.id, envelope.epoch, envelope.incarnation, envelope.data], { ignoreUndefined: true });
+  return bytes.byteLength > FAST_MESSAGE_BYTES ? undefined : bytes;
+}
 export function decodeFast(bytes: ArrayBuffer | Uint8Array): FastEnvelope | undefined {
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   if (view.byteLength > FAST_MESSAGE_BYTES) return;

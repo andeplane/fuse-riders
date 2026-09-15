@@ -9,7 +9,7 @@ import { candidateType, sameCertificate } from './ice-signal.js';
 import { RemoteSignal } from './remote-signal.js';
 import { LinkRestartPolicy } from './link-restart.js';
 import { explainLink, type LinkDiagnostic } from './link-diagnostics.js';
-import { decodeFast, encodeFast, hashText, FAST_MESSAGE_BYTES } from './wire.js';
+import { decodeFast, encodeFast, hashText } from './wire.js';
 export interface TransportCallbacks {
   welcome:(id:string,hostId:string)=>void;
   peer:(id:string,online:boolean)=>void;
@@ -237,8 +237,9 @@ export class PeerTransport {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
     const link=this.links.get(id),messageId=++this.seq;
     if(fast&&!document.hidden&&link&&!link.gate.draining&&link.fast?.readyState==='open'&&link.fast.bufferedAmount<PROBE_BUFFER_LIMIT){
+      // Undefined means the packet is over what the receiver will decode; it falls back to the reliable channel.
       const bytes=encodeFast({id:messageId,epoch:this.grant!.epoch,incarnation:hashText(this.grant!.incarnation),data});
-      if(bytes.byteLength<=FAST_MESSAGE_BYTES){this.sentBytes+=bytes.byteLength;try{link.fast.send(bytes.slice().buffer as ArrayBuffer);return true;}catch{}}
+      if(bytes){this.sentBytes+=bytes.byteLength;try{link.fast.send(bytes.slice().buffer as ArrayBuffer);return true;}catch{}}
     }
     const envelope={id:messageId,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;
     if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
