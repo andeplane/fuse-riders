@@ -243,8 +243,9 @@ try {
   // loaded runner can miss that whole window however long its deadline is (#124). Record the class being added instead.
   await phones[0].evaluate(() => {
     const seen = { launched: false }; Reflect.set(window, '__launchSeen', seen);
-    const observer = new MutationObserver(records => { if (records.some(record => (record.target as Element).classList.contains('launching'))) seen.launched = true; });
-    for (const bomb of document.querySelectorAll('.bomb')) observer.observe(bomb, { attributes: true, attributeFilter: ['class'] });
+    // Only a change that starts without `launching` counts, so a leftover flash plus an unrelated class change cannot pass.
+    const observer = new MutationObserver(records => { if (records.some(record => !(record.oldValue ?? '').split(/\s+/).includes('launching') && (record.target as Element).classList.contains('launching'))) seen.launched = true; });
+    for (const bomb of document.querySelectorAll('.bomb')) observer.observe(bomb, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
   });
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 5, 'Five overrides Triple and releases five bombs');
