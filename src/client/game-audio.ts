@@ -2,6 +2,7 @@ import { AudioDirector, MUSIC_TRACKS, type AudioChannel, type GameSynth, type Sy
 import { assetUrl } from './asset-url.js';
 import { RADIO_KEY, RADIO_SHORTCUT_HINT, formatTrackTime, loadRadio, parseRadio, radioQueue, radioShortcut, saveRadio, trackById, type RadioSource, type TrackId } from './radio.js';
 import { safeStorage, type SafeStorage } from './safe-storage.js';
+import { bindMediaSession, browserMediaSession, type MediaSessionPort } from './radio-media-session.js';
 
 export const AUDIO_SETTINGS_KEY = 'fuse-riders-audio';
 export const DEFAULT_VOLUME: Record<AudioChannel, number> = { music: .22, effects: .45 };
@@ -12,6 +13,8 @@ export interface GameAudioOptions {
   storage?: SafeStorage;
   /** Shows or hides the radio for Ctrl+A; by default the `controls` dropdown toggles. */
   toggleRadio?: () => void;
+  /** The OS media session to mirror the radio onto; defaults to the browser's, or none. */
+  mediaSession?: MediaSessionPort;
 }
 export interface GameAudio {
   director: AudioDirector;
@@ -192,6 +195,16 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   const setVolume = (channel: AudioChannel, value: number) => {
     settings.volume[channel] = value; director.setVolume(channel, value); store();
   };
+  // Lock screen, CarPlay and car browsers show the track and drive the radio's own queue (#135). `running` is only
+  // known after an unlock, so the panel's render and its clock both refresh the session.
+  const media = bindMediaSession(options.mediaSession ?? browserMediaSession(), {
+    title: () => director.trackTitle, playing: () => running && !director.state.paused && !settings.muted.music,
+    position: () => director.position(), duration: () => director.duration(), subscribe: listener => director.subscribe(listener),
+  }, {
+    play: () => { if (settings.muted.music) setMuted('music', false); if (director.state.paused) director.togglePause(); unlock(); },
+    pause: () => { if (!director.state.paused) director.togglePause(); },
+    previous: () => director.previousTrack(), next: () => director.nextTrack(),
+  });
   // update() is what actually starts a track, so every successful unlock has to drive it: the first one
   // usually lands on a gesture long after playBackground() asked for music.
   const unlock = (confirm = false) => { void director.unlock(confirm).then(ok => { showState(ok); if (ok) director.update(); }); };
@@ -251,7 +264,7 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   };
   panel.append(unit, enable, modes, mixer, element('h3', '', 'TRACKS'), tracks, playlistHeading, playlist, element('small', 'radio-hint', RADIO_SHORTCUT_HINT));
 
-  const renderTime = () => { const text = `${formatTrackTime(director.position())} / ${formatTrackTime(director.duration())}`; if (time.textContent !== text) time.textContent = text; };
+  const renderTime = () => { const text = `${formatTrackTime(director.position())} / ${formatTrackTime(director.duration())}`; if (time.textContent !== text) time.textContent = text; media.refresh(); };
   let listsKey = '';
   function render(): void {
     const state = director.state; const queue = radioQueue(state); const index = queue.indexOf(state.track);

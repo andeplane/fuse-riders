@@ -11,6 +11,7 @@
     "src/client/bomb-preview.ts",
     "src/client/audio-director.ts",
     "src/client/radio.ts",
+    "src/client/radio-media-session.ts",
     "src/client/socket-client.ts",
     "src/client/safe-storage.ts",
     "src/client/asset-url.ts",
