@@ -59,20 +59,14 @@ try {
   await host.getByRole('button', { name: 'TV audio enabled · test sound', exact: true }).waitFor();
   // Music streams through a media element rather than a decoded buffer, so a phone's silent switch and
   // volume keys reach it. Playing means an element with a source that is not paused.
-  const musicPlaying = () => host.evaluate(() => {
-    const element = document.querySelector('audio.game-music');
-    return element instanceof HTMLAudioElement && Boolean(element.currentSrc) && !element.paused;
-  });
-  await host.waitForFunction(() => {
-    const element = document.querySelector('audio.game-music');
-    return element instanceof HTMLAudioElement && Boolean(element.currentSrc) && !element.paused;
-  }, undefined, { timeout: 15000 }); // Lobby music started.
+  const PLAYING = "(() => { const e = document.querySelector('audio.game-music'); return Boolean(e && e.currentSrc && !e.paused); })()";
+  await host.waitForFunction(PLAYING, undefined, { timeout: 15000 }); // Lobby music started.
   await host.getByRole('button', { name: 'Mute music', exact: true }).click();
   assert.equal(await host.getByRole('button', { name: 'Mute music', exact: true }).getAttribute('aria-pressed'), 'true');
-  // Silent music must stop streaming rather than play on at zero volume.
-  await host.waitForFunction(() => document.querySelector<HTMLAudioElement>('audio.game-music')?.paused === true);
+  // Silent music must stop streaming rather than play on at zero volume, then resume where it stopped.
+  await host.waitForFunction("document.querySelector('audio.game-music').paused === true");
   await host.getByRole('button', { name: 'Mute music', exact: true }).click();
-  assert.ok(await musicPlaying(), 'unmuting resumes the same track');
+  await host.waitForFunction(PLAYING);
   await host.getByLabel('Effects volume', { exact: true }).fill('20');
   await host.locator('.audio-controls summary').click();
   await host.getByText('bigger explosions', { exact: false }).waitFor();
