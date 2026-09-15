@@ -1065,9 +1065,11 @@ function detonateGun(bomb: BombState, tick: number, x: number, y: number): void 
 }
 
 function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {
+  // #166: with chaining off a bomb only ever answers to its own fuse, neither to a blast already on the field nor to one opened this tick.
+  const chain = state.settings?.chainReaction ?? true;
   const queue = [...state.bombs.values()]
     .filter((bomb) => !bomb.shell && bomb.landsAtTick <= state.tick && (bomb.explodeAtTick <= state.tick ||
-      state.blasts.some(blast => segmentIntersectsDisk(bomb.x, bomb.y, bomb.x, bomb.y, blast.circle))))
+      (chain && state.blasts.some(blast => segmentIntersectsDisk(bomb.x, bomb.y, bomb.x, bomb.y, blast.circle)))))
     .sort((a, b) => a.id - b.id)
     .map((bomb) => bomb.id);
   const queued = new Set(queue);
@@ -1085,7 +1087,7 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: 'explosion', bombId: id });
 
-    for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
+    if (chain) for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
       if (exploded.has(candidate.id) || queued.has(candidate.id)) continue;
       if (candidate.shell || candidate.landsAtTick > state.tick) continue;
       if (segmentIntersectsDisk(candidate.x, candidate.y, candidate.x, candidate.y, circle)) {

@@ -95,7 +95,7 @@ export async function startOnline():Promise<void>{
     // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
     // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
     landingSettings.onclick=()=>{showRoomSettings(landingBody,loadRoomSettings(localStorage),true,labels,draft=>{if(!parseRoomSettings(draft))return false; // no room authority behind this save: a draft the loader would reject later must never reach storage, or every setting resets on the next load
-      save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
+      save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
     card.querySelector('.landing-top-end')!.append(landingSettings);card.append(landingDialog);
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
@@ -291,7 +291,7 @@ export async function startOnline():Promise<void>{
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title='Open this room on a shared screen';share.onclick=()=>{window.open(appUrl(`?room=${code}&display=1`),'_blank','noopener');};
   const openSettings=(start:'main'|'powerups'='main')=>{
-    showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>dialog.close(),start);
+    showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>dialog.close(),start);
     if(!dialog.open)dialog.showModal();
   };
   settingsButton.onclick=()=>openSettings();
