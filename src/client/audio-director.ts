@@ -1,14 +1,24 @@
 import type { ServerMessage } from '../shared/protocol.js';
-import { CHIPTUNES, MUSIC_STEPS, musicStep, musicStepDuration } from './music-score.js';
 
 export type AudioChannel = 'music' | 'effects';
 export interface SynthNote { frequency: number; endFrequency?: number; duration: number; delay?: number; wave: 'square' | 'triangle' | 'sawtooth'; level: number }
 export interface GameSynth {
   unlock(): Promise<boolean>;
   note(channel: AudioChannel, note: SynthNote): void;
+  /** Starts a recorded track on the music channel, replacing any current track. */
+  music(path: string): void;
   gain(channel: AudioChannel, value: number): void;
   stop(): void;
 }
+export const MUSIC_TRACKS = [
+  { title: 'Pixel Sax Parade', path: '/music/pixel-sax-parade.m4a' },
+  { title: 'Coin Op Swing', path: '/music/coin-op-swing.m4a' },
+  { title: 'Arcade Adventure', path: '/music/arcade-adventure.m4a' },
+  { title: 'Forest Job', path: '/music/forest-job.m4a' },
+  { title: 'Neon Grid Chase', path: '/music/neon-grid-chase.m4a' },
+  { title: 'Final Chase', path: '/music/final-chase.m4a' },
+  { title: 'Reduced Noise Orchestra', path: '/music/reduced-noise-orchestra.m4a' },
+] as const;
 export class AudioDirector {
   private unlocked = false;
   private scope = '';
@@ -18,29 +28,28 @@ export class AudioDirector {
   private latestTick = 0;
   private seen = new Set<string>();
   private playing = false;
-  private nextBeat = 0;
-  private beat = 0;
   private trackIndex = 0;
+  private musicPath = '';
   private musicScope = '';
   private settings = { music: { muted: false, volume: .22 }, effects: { muted: false, volume: .45 } };
-  constructor(private readonly synth: GameSynth, private readonly now: () => number) {
+  constructor(private readonly synth: GameSynth) {
     for (const channel of ['music', 'effects'] as const) this.applyGain(channel);
   }
   async unlock(confirm = false): Promise<boolean> {
     this.unlocked = await this.synth.unlock();
-    this.nextBeat = this.now();
     if (this.unlocked && confirm) this.synth.note('effects', { frequency: 660, endFrequency: 990, duration: .16, wave: 'triangle', level: .24 });
     return this.unlocked;
   }
-  get trackTitle(): string { return CHIPTUNES[this.trackIndex]!.title; }
-  nextTrack(): void { this.trackIndex = (this.trackIndex + 1) % CHIPTUNES.length; this.beat = 0; this.nextBeat = this.now(); }
+  get trackTitle(): string { return MUSIC_TRACKS[this.trackIndex]!.title; }
+  /** Also called by the synth when a track finishes. */
+  nextTrack(): void { this.trackIndex = (this.trackIndex + 1) % MUSIC_TRACKS.length; this.update(); }
   setMuted(channel: AudioChannel, muted: boolean): void { this.settings[channel].muted = muted; this.applyGain(channel); }
   setVolume(channel: AudioChannel, value: number): void {
     this.settings[channel].volume = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
     this.applyGain(channel);
   }
   private applyGain(channel: AudioChannel): void { const setting = this.settings[channel]; this.synth.gain(channel, setting.muted ? 0 : setting.volume); }
-  disconnect(): void { this.scope = ''; this.seen.clear(); this.playing = false; this.beat = 0; this.synth.stop(); }
+  disconnect(): void { this.scope = ''; this.seen.clear(); this.playing = false; this.musicPath = ''; this.synth.stop(); }
   message(message: ServerMessage): void {
     if (message.type !== 'snapshot' && message.type !== 'event') return;
     const scope = `${message.matchId}:${message.round}`;
@@ -65,13 +74,9 @@ export class AudioDirector {
     this.cue(message.event.type === 'bombPlaced' && message.event.gun ? 'cannon' : message.event.type);
   }
   update(): void {
-    if (!this.unlocked || !this.playing) { this.nextBeat = this.now(); return; }
-    const now = this.now();
-    if (now < this.nextBeat) return;
-    if (this.beat >= MUSIC_STEPS) this.nextTrack();
-    const track = CHIPTUNES[this.trackIndex]!;
-    this.nextBeat = now + musicStepDuration(track, this.beat); // Never catch up after a slow/background frame.
-    for (const note of musicStep(track, this.beat++)) this.synth.note('music', note);
+    if (!this.unlocked || !this.playing) return;
+    const { path } = MUSIC_TRACKS[this.trackIndex]!;
+    if (path !== this.musicPath) { this.musicPath = path; this.synth.music(path); }
   }
   private cue(type: string): void {
     if (!this.unlocked) return;

@@ -35,13 +35,13 @@ try {
       const arena = backend === 'fallback' ? undefined : createPhaserArena(canvas, { renderer: backend });
       if (arena) await arena.ready;
       try {
-        for (const timing of ['local', 'world'] as const) {
+        for (const bombChargeTicks of [8, 24]) for (const timing of ['local', 'world'] as const) {
           const centers = [];
           for (let frame = 0; frame < 4; frame++) {
             const tick = 40 + frame / 3;
             const shown = timing === 'local'
-              ? { ...snapshot, players: snapshot.players.map(player => ({ ...player, presentationTick: tick })) }
-              : { ...snapshot, tick };
+              ? { ...snapshot, bombChargeTicks, players: snapshot.players.map(player => ({ ...player, presentationTick: tick })) }
+              : { ...snapshot, bombChargeTicks, tick };
             if (arena) arena.render(shown, 1000 + frame * 1000 / 60, themes['neon-pixel'], timing);
             else drawArena(canvas.getContext('2d')!, shown, 1000 + frame * 1000 / 60, themes['neon-pixel'], {});
             // Only the top edge of the cyan landing square occupies this strip.
@@ -59,12 +59,12 @@ try {
               }
             }
             const center = (minimum + maximum) / 2;
-            if (!Number.isFinite(center) || Math.abs(center - (300 + frame * 12.5 / 3)) > 1.5) {
+            if (!Number.isFinite(center) || Math.abs(center - (300 + frame * 100 / bombChargeTicks)) > 1.5) {
               throw Error(`${backend}/${timing} marker at frame ${frame}: ${center}`);
             }
             centers.push(center);
           }
-          results.push({ backend, timing, centers });
+          results.push({ backend, timing, bombChargeTicks, centers });
         }
       } finally { arena?.destroy(); canvas.remove(); }
     }

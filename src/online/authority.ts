@@ -1,6 +1,8 @@
 /** Service-owned lease decisions. Call inside the room's serialized storage transaction. */
 export const LEASE_MS = 10_000;
 export const LEASE_GUARD_MS = 250;
+/** Checks further apart than this (the authority's own tick loop stalled) drop the sample; a GC pause or a busy frame does not. */
+export const STALL_MS = 1500;
 export interface AuthorityGrant {
   incarnation: string;
   epoch: number;
@@ -47,10 +49,11 @@ export class AuthorityClock {
   private roundTripMs?:number;
   diagnostics():{reason:string;roundTripMs?:number}{return{reason:this.reason,roundTripMs:this.roundTripMs};}
   constructor(private readonly now: () => number) {}
-  synchronize(sent: number, service: number): boolean {
+  /** `maxRoundTrip`: the authority's fence keeps the tight 500 ms bound; a view accepts a slower probe. */
+  synchronize(sent: number, service: number, maxRoundTrip = 500): boolean {
     const received = this.now();
     this.roundTripMs=received-sent;
-    if (![sent, service, received].every(Number.isFinite) || sent < 0 || service < 0 || received < sent || received - sent > 500) {
+    if (![sent, service, received].every(Number.isFinite) || sent < 0 || service < 0 || received < sent || received - sent > maxRoundTrip) {
       this.invalidate();this.reason='invalid-round-trip'; return false;
     }
     this.sample = { received, lowerOffset: service - received, upperOffset: service - sent };
@@ -58,18 +61,25 @@ export class AuthorityClock {
     return true;
   }
   invalidate(): void { this.sample = undefined; this.observed = undefined;this.reason='invalidated'; }
-  interval(): { earliest: number; latest: number } | undefined {
+  /**
+   * `strict` is the authority's own fence: a sample must be tight (round trip within the lease guard) and checked
+   * continuously, or it does not act. A view only needs to know the lease is current: a slow probe or a busy main
+   * thread on a phone must not pause it every two seconds.
+   */
+  interval(strict = true): { earliest: number; latest: number } | undefined {
     const now = this.now(), sample = this.sample;
     if (!sample || !Number.isFinite(now)) return;
     const age = now - sample.received;
-    if (age < 0 || age > 4000 || (this.observed !== undefined && now - this.observed > 500)) { this.invalidate();this.reason='stale-or-suspended'; return; }
+    // A stall longer than this between checks means the tab was suspended: the sample is gone, not just old.
+    if (age < 0 || age > 4000 || (strict && this.observed !== undefined && now - this.observed > STALL_MS)) { this.invalidate();this.reason='stale-or-suspended'; return; }
     this.observed = now;
     const drift = age * .001;
-    if (sample.upperOffset - sample.lowerOffset + 2 * drift > LEASE_GUARD_MS) {this.reason='uncertainty';return;}
+    // A slow probe widens the interval, and the lease check below is conservative in both directions, so it is
+    // never refused outright: a host reaching its room service over a real network sees 100–400 ms round trips.
     return { earliest: now + sample.lowerOffset - drift, latest: now + sample.upperOffset + drift };
   }
-  permits(grant: AuthorityGrant): boolean {
-    const time = this.interval();
+  permits(grant: AuthorityGrant, strict = true): boolean {
+    const time = this.interval(strict);
     const permitted=!!time && time.earliest >= grant.validFrom && time.latest < grant.expiresAt;
     if(time)this.reason=permitted?'permitted':'outside-lease';
     return permitted;

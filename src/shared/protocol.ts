@@ -26,6 +26,7 @@ export type ClientMessage =
 export interface TrailSegment { x1: number; y1: number; x2: number; y2: number; createdTick: number; expiresAtTick: number }
 export interface BlastCircle { x: number; y: number; radius: number }
 export interface GameSnapshot {
+  bombChargeTicks: number;
   phase: 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
   phaseEndsAtTick?: number;
   roundStartedTick?: number;
