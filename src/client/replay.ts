@@ -69,7 +69,7 @@ export function speedAt(tick: number, impactTick: number): number {
 /** Camera push-in on the protagonist: in before the hit, held through it, released after. */
 export function zoomAt(tick: number, impactTick: number): number {
   const d = tick - impactTick;
-  const ease = (t: number) => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
+  const ease = (t: number) => t * t * (3 - 2 * t);
   if (d < -14) return 1;
   if (d < -4) return 1 + (REPLAY_ZOOM - 1) * ease((d + 14) / 10);
   if (d <= 8) return REPLAY_ZOOM;
@@ -87,7 +87,7 @@ export function buildTimeline(clip: ReplayClip): ReplayTimeline {
     at.push(at[index - 1]! + (frame.tick - previous.tick) * TICK_MS / speedAt(frame.tick, impact));
   }
   const playMs = at[at.length - 1]!;
-  const impactFrame = clip.frames.find(frame => frame.tick >= impact) ?? clip.frames[clip.frames.length - 1]!;
+  const impactFrame = clip.frames.find(frame => frame.tick >= impact)!;
   const focused = impactFrame.players.find(player => player.id === clip.moment.playerId) ?? impactFrame.players.find(player => clip.moment.targetIds.includes(player.id));
   return { clip, at, playMs, totalMs: HOLD_MS + BARS_IN_MS + playMs + BARS_OUT_MS, ...(focused ? { focus: { x: focused.x, y: focused.y } } : {}) };
 }
@@ -115,11 +115,11 @@ export function replayFrameAt(timeline: ReplayTimeline, elapsedMs: number): Repl
   if (p < playMs) {
     let index = 0;
     while (index + 1 < at.length && at[index + 1]! <= p) index += 1;
-    const older = frames[index]!, newer = frames[Math.min(index + 1, frames.length - 1)]!;
-    const span = at[Math.min(index + 1, at.length - 1)]! - at[index]!;
-    const fraction = span > 0 ? (p - at[index]!) / span : 0;
+    // p < playMs = at[last], so index + 1 is always a frame and its span is positive.
+    const older = frames[index]!, newer = frames[index + 1]!;
+    const fraction = (p - at[index]!) / (at[index + 1]! - at[index]!);
     const tick = older.tick + (newer.tick - older.tick) * fraction;
-    return { stage: 'play', snapshot: older === newer ? newer : interpolateWorld(older, newer, fraction), ...base, zoom: zoomAt(tick, clip.moment.tick), slow: speedAt(tick, clip.moment.tick) < 1, flash: Math.max(0, 1 - Math.abs(tick - clip.moment.tick) / 3) };
+    return { stage: 'play', snapshot: interpolateWorld(older, newer, fraction), ...base, zoom: zoomAt(tick, clip.moment.tick), slow: speedAt(tick, clip.moment.tick) < 1, flash: Math.max(0, 1 - Math.abs(tick - clip.moment.tick) / 3) };
   }
   const o = p - playMs;
   if (o < BARS_OUT_MS) return { stage: 'out', snapshot: last, ...base, zoom: zoomAt(last.tick, clip.moment.tick) + (1 - zoomAt(last.tick, clip.moment.tick)) * o / BARS_OUT_MS };
@@ -150,27 +150,43 @@ export class ReplayDirector {
   readonly recorder = new ReplayRecorder();
   /** Moments per `matchId:round`; a round's own list survives an early event for the next round. */
   private readonly pending = new Map<string, Moment[]>();
+  /** The pause has begun and this moment will play once its aftermath frames are in, or when the hold runs out. */
+  private armed?: { moment: Moment; matchId: string; at: number };
   private timeline?: ReplayTimeline;
   private startedAt = 0;
   private lastStage: ReplayStage = 'done';
   private impactCued = false;
   private phase: ViewSnapshot['phase'] = 'lobby';
-  get active(): boolean { return this.timeline !== undefined; }
+  /** A replay torn down by a phase change still reports one `done` frame so the screen undresses. */
+  private torn?: ReplayClip;
+  get active(): boolean { return this.timeline !== undefined || this.armed !== undefined; }
   get current(): ReplayClip | undefined { return this.timeline?.clip; }
-  /** Every authoritative snapshot. Entering a pause with moments on file starts the replay of the best one. */
+  /** Every authoritative snapshot. Entering a pause with moments on file arms the replay of the best one. */
   observe(snapshot: ViewSnapshot, matchId: string, now: number): void {
     this.recorder.record(snapshot, matchId);
     const scope = `${matchId}:${snapshot.round}`;
     for (const key of this.pending.keys()) if (key !== scope && !key.startsWith(`${matchId}:`)) this.pending.delete(key);
     const paused = snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver';
-    if (paused && this.phase !== snapshot.phase && !this.timeline) {
-      // A pause the simulation extended for a replay does not hold the screen if the clip never became available.
+    // Play that moves on (a reset, a rematch, the next countdown) takes the replay with it.
+    if (!paused && (this.timeline || this.armed)) this.cancel();
+    if (paused && this.phase !== snapshot.phase && !this.timeline && !this.armed) {
       const best = rankMoments(this.pending.get(scope) ?? [])[0]?.moment;
-      const clip = best && this.recorder.cut(best, matchId);
-      if (clip) this.play(clip, now);
+      if (best) this.armed = { moment: best, matchId, at: now };
       this.pending.delete(scope);
     }
     this.phase = snapshot.phase;
+    this.settle(now, snapshot.tick);
+  }
+  /** Cuts the armed clip once the frames after the impact have arrived, or with what there is when the hold is over. */
+  private settle(now: number, newestTick?: number): void {
+    const armed = this.armed;
+    if (!armed) return;
+    const complete = newestTick !== undefined && newestTick >= armed.moment.tick + CLIP_AFTER_TICKS;
+    if (!complete && now - armed.at < HOLD_MS) return;
+    this.armed = undefined;
+    const clip = this.recorder.cut(armed.moment, armed.matchId);
+    // A screen without the footage shows nothing; the pause the simulation extended simply passes.
+    if (clip) this.play(clip, armed.at);
   }
   /** A moment event from the authority; only its own round's pause plays it. */
   moment(moment: Moment, matchId: string, round: number): void {
@@ -179,13 +195,19 @@ export class ReplayDirector {
     if (!list) { list = []; this.pending.set(scope, list); if (this.pending.size > 4) this.pending.delete(this.pending.keys().next().value!); }
     if (!list.some(existing => momentKey(existing) === momentKey(moment))) list.push(moment);
   }
-  /** Plays a kept clip now, for the recap's watch-again. */
-  play(clip: ReplayClip, now: number): void { this.timeline = buildTimeline(clip); this.startedAt = now; this.lastStage = 'hold'; this.impactCued = false; }
-  cancel(): void { this.timeline = undefined; this.lastStage = 'done'; }
+  /** Plays a kept clip, for the recap's watch-again; `now` is when its hold began. */
+  play(clip: ReplayClip, now: number): void { this.armed = undefined; this.timeline = buildTimeline(clip); this.startedAt = now; this.lastStage = 'hold'; this.impactCued = false; this.torn = undefined; }
+  cancel(): void { this.torn = this.timeline?.clip; this.timeline = undefined; this.armed = undefined; this.lastStage = 'done'; }
   /** The frame to draw this animation frame, or undefined for live play; carries the cues crossed since the last call. */
   frame(now: number): ReplayUpdate | undefined {
+    this.settle(now);
     const timeline = this.timeline;
-    if (!timeline) return undefined;
+    if (!timeline) {
+      const torn = this.torn;
+      if (!torn) return undefined;
+      this.torn = undefined;
+      return { stage: 'done', zoom: 1, slow: false, flash: 0, cues: [], clip: torn };
+    }
     const frame = replayFrameAt(timeline, now - this.startedAt);
     const cues: ReplayCue[] = [];
     if (frame.stage !== this.lastStage) {
@@ -193,7 +215,8 @@ export class ReplayDirector {
       if (frame.stage === 'out') cues.push('out');
       this.lastStage = frame.stage;
     }
-    if (frame.stage === 'play' && frame.flash >= .99 && !this.impactCued) { this.impactCued = true; cues.push('impact'); }
+    // The flash peaks on the impact tick; a clip cut short at the impact reaches it only as playback ends, so `out` cues it too.
+    if (!this.impactCued && ((frame.stage === 'play' && frame.flash >= .99) || frame.stage === 'out')) { this.impactCued = true; cues.push('impact'); }
     if (frame.stage === 'done') this.timeline = undefined;
     return { ...frame, cues, clip: timeline.clip };
   }

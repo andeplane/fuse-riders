@@ -749,12 +749,13 @@ function startDisplay(): void {
     const update = replay.frame(now);
     if (update) {
       // A clip renders under its own scope so the renderer replays its bursts and trails from scratch, then resets again for live play.
-      if (update.clip.key !== replayKey) { replayKey = update.clip.key; const { card, color } = describeClip(update.clip); replayOverlay.start(card, color); stage.classList.add('replaying'); }
+      if (update.clip.key !== replayKey) { replayKey = update.clip.key; const { card, color } = describeClip(update.clip); replayOverlay.start(card, color); }
+      stage.classList.toggle('replaying', update.stage !== 'hold' && update.stage !== 'done');
       for (const cue of update.cues) audio.director.replayCue(cue);
       const shown = update.snapshot ?? snapshot;
       if (shown) presentation.render(shown, now, activeTheme, activeSprites, update.snapshot ? `${latest?.matchId ?? 'lan'}:replay:${update.clip.key}` : latest?.matchId ?? 'lan');
       if (shown) replayOverlay.update(update, canvas, { width: shown.width, height: shown.height });
-      if (update.stage === 'done') { replayKey = ''; stage.classList.remove('replaying'); if (latest) updateUi(latest.snapshot); }
+      if (update.stage === 'done') { replayKey = ''; if (latest) updateUi(latest.snapshot); }
     } else if (snapshot) presentation.render(snapshot, now, activeTheme, activeSprites, latest?.matchId ?? 'lan');
     averageRenderMs = averageRenderMs * .9 + (performance.now() - renderStartedAt) * .1;
     if (showPerformance && now - lastMetricsAt > 500) {

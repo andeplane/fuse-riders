@@ -47,8 +47,8 @@ export function createReplayOverlay(): ReplayOverlay {
       flash.style.opacity = String(update.flash * .85);
       if (update.stage === 'play' || update.stage === 'out') {
         if (update.focus && update.zoom > 1.001) {
-          const rect = canvas.getBoundingClientRect();
-          const origin = zoomOrigin({ width: rect.width, height: rect.height }, world, update.focus);
+          // The layout box, not the transformed one: the origin is in untransformed element pixels.
+          const origin = zoomOrigin({ width: canvas.clientWidth, height: canvas.clientHeight }, world, update.focus);
           canvas.style.transformOrigin = `${origin.x}px ${origin.y}px`;
           canvas.style.transform = `scale(${update.zoom.toFixed(3)})`;
           canvas.classList.add('replay-zoomed'); zoomed = canvas;
