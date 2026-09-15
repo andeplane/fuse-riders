@@ -58,6 +58,7 @@ jobs:
       - name: Online WebKit room smoke (Canvas)
         run: npx tsx scripts/online-smoke.ts
         env:
+          SMOKE_RIDERS: 3
           BROWSER: webkit
           ROOM_RENDERER: canvas
       - name: Chrome Phaser lifecycle and fallback
