@@ -13,7 +13,7 @@ import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
 import { drawArena } from '../client/main.js';
 import { createAvatarPicker, createAvatarPortrait } from '../client/avatar-heads.js';
-import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeSprites } from '../client/themes.js';
+import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from '../client/themes.js';
 import { createGameAudio } from '../client/game-audio.js';
 import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
@@ -117,9 +117,10 @@ export async function startOnline():Promise<void>{
   let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});let theme:ThemeDefinition=selectedTheme();let sprites:ThemeSprites=await loadThemeSprites(theme);
   // Both styles' textures are preloaded by the Phaser arena and every palette is read per frame, so switching needs no reload.
   applyThemeProperties(theme);
-  const paintStyleButton=()=>{styleButton.textContent=`STYLE: ${theme.label.toUpperCase()}`;styleButton.title='Switch the arena visual style';};
+  const styleIds=Object.keys(themes) as ThemeId[];
+  const paintStyleButton=()=>{styleButton.textContent=theme.label.toUpperCase();styleButton.title='Switch the arena visual style';styleButton.setAttribute('aria-label',`Visual style: ${theme.label}. Switch.`);};
   paintStyleButton();
-  styleButton.onclick=async()=>{const next=themes[theme.id==='neon-pixel'?'clean-neon':'neon-pixel'];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();const loaded=await loadThemeSprites(next);if(theme.id===next.id)sprites=loaded;};
+  styleButton.onclick=async()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();const loaded=await loadThemeSprites(next);if(theme.id===next.id)sprites=loaded;};
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
@@ -216,7 +217,7 @@ export async function startOnline():Promise<void>{
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
-      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;updateDesktopLayout();
+      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;styleButton.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
       // Opened after the layout above so the close button can say where it lands.
       if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();}
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);

@@ -9,7 +9,7 @@ import { drawInkClouds } from '../ink-renderer.js';
 import { portalPalettes } from '../pickup-renderer.js';
 import { EffectTransitions, bombPose } from './effects.js';
 import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
-import { pixelWall, smoothWallRect, trailStuds } from '../arena-wall.js';
+import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 
 const pickups = ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal'] as const;
@@ -209,31 +209,24 @@ class ArenaScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * The arena boundary. #68 flattened this to one 2px rim for every theme, which erased the whole
-   * visual difference between Neon Pixel and Clean Neon; each theme draws its own wall again.
-   */
+  /** Paints whatever `arenaWall()` chose for this theme; the choice itself lives there, once, for both renderers. */
   private drawWall(w: number, h: number, b: number, theme: ThemeDefinition): void {
     const rim = color(theme.palette.rim);
     // Graphics has no shadowBlur: a wide translucent stroke under a tight one stands in for the glow.
     this.floor.lineStyle(14, rim, .12).strokeRect(b, b, w - 2 * b, h - 2 * b);
     this.floor.lineStyle(4, rim, .9).strokeRect(b, b, w - 2 * b, h - 2 * b);
-    if (!theme.rendering.pixelated) {
-      const rect = smoothWallRect(w, h, b);
-      this.floor.lineStyle(theme.rendering.wallWidth, color(theme.palette.wall), .9).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    const wall = arenaWall(w, h, b, theme);
+    if (wall.kind === 'smooth') {
+      this.floor.lineStyle(wall.strokeWidth, color(theme.palette.wall), .9).strokeRect(wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height);
       return;
     }
-    const wall = pixelWall(w, h, b);
     const face = color(theme.palette.wall);
     for (const brick of wall.bricks) {
       this.floor.fillStyle(0x211862).fillRect(brick.x, brick.y, brick.width, brick.height);
       this.floor.fillStyle(face, .92).fillRect(brick.x + 2, brick.y + 2, brick.width - 4, brick.height - 4);
       this.floor.fillStyle(0xb696ff, .65).fillRect(brick.x + 3, brick.y + 3, brick.width - 6, 2);
       this.floor.fillStyle(0x19114e, .65).fillRect(brick.x + 3, brick.y + brick.height - 5, brick.width - 6, 3);
-      // One deterministic chip per brick keeps the run from reading as a smooth extruded bar.
-      this.floor.fillStyle(0x241664, .45).fillRect(
-        brick.x + 5 + brick.seed % Math.max(2, brick.width - 11),
-        brick.y + 7 + (brick.seed * 3) % Math.max(2, brick.height - 12), 3, 2);
+      this.floor.fillStyle(0x241664, .45).fillRect(brick.chip.x, brick.chip.y, brick.chip.width, brick.chip.height);
     }
     this.floor.lineStyle(4, rim, .95);
     for (const [ax, ay, bx, by, cx, cy] of wall.brackets) {
