@@ -226,7 +226,7 @@ export async function startOnline():Promise<void>{
     event:(event,matchId,round,tick)=>{audio.director.message({type:'event',matchId,round,tick,event});
       if(roomEnded)return;
       if(event.type==='explosion')shake();
-      const line=eliminationLine(event,snapshot?.players??[],id);if(line){feedLine(line);if(event.type==='playerEliminated'&&event.playerId===id){shake();navigator.vibrate?.(180);}}},
+      const line=eliminationLine(event,snapshot?.players??[],id);if(line){feedLine(line);if(event.type==='playerEliminated'&&event.playerId===id){shake();if(navigator.userActivation?.hasBeenActive)navigator.vibrate?.(180);}}},
     state:(state,rules,matchId)=>{
       if(roomEnded)return;
       bootDone();
