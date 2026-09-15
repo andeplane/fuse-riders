@@ -41,8 +41,13 @@ jobs:
             const sha = manual ? context.payload.inputs.revision : context.payload.workflow_run.head_sha;
             if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('An exact full revision is required.');
             if (manual && !context.payload.inputs.local_verification?.trim()) throw new Error('Local verification evidence is required.');
-            const { data } = await github.rest.repos.getCommit({ ...context.repo, ref: 'main' });
-            if (data.sha !== sha) throw new Error('A newer main revision exists; verify that exact revision first.');
+            // The revision must still be on main — never publish one force-pushed away — but it need not still
+            // be main's head. CI takes about twelve minutes and main moves faster than that during active
+            // development, so demanding equality refused almost every verified revision and nothing deployed at
+            // all. A newer commit's own run supersedes this one moments later, and the github-pages concurrency
+            // group serialises them, so the worst case is a release a few commits behind rather than no release.
+            const { data: onMain } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${sha}...main` });
+            if (onMain.status !== 'identical' && onMain.status !== 'ahead') throw new Error(`Revision ${sha} is not on main (${onMain.status}); refusing to publish it.`);
             core.setOutput('sha', sha);
       - uses: actions/checkout@v4
         with:
@@ -119,8 +124,9 @@ jobs:
           RELEASE_REVISION: ${{ needs.build.outputs.revision }}
         with:
           script: |
-            const { data } = await github.rest.repos.getCommit({ ...context.repo, ref: 'main' });
-            if (data.sha !== process.env.RELEASE_REVISION) throw new Error('Main changed while building; await the newer verified revision.');
+            // Same rule as the build gate: still on main, not necessarily its head.
+            const { data: onMain } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${process.env.RELEASE_REVISION}...main` });
+            if (onMain.status !== 'identical' && onMain.status !== 'ahead') throw new Error(`Revision ${process.env.RELEASE_REVISION} left main (${onMain.status}); refusing to publish it.`);
       - name: Deploy the previously uploaded artifact
         id: deployment
         uses: actions/deploy-pages@v4

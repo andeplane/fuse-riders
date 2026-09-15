@@ -1,20 +1,29 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { AudioDirector, MUSIC_TRACKS, type AudioChannel, type GameSynth, type SynthNote } from '../src/client/audio-director.ts';
+import { defaultRadio, type RadioState } from '../src/client/radio.ts';
 import { addPlayer, createGame, toSnapshot } from '../src/shared/game.ts';
 import { beginMatchParticipant } from '../src/shared/match-stats.ts';
 import type { GameEvent, ServerMessage } from '../src/shared/protocol.ts';
-function fixture() {
-  let canUnlock = true; let stops = 0;
-  const notes: { channel: AudioChannel; note: SynthNote }[] = []; const music: string[] = [];
-  const gains = new Map<AudioChannel, number>();
-  const synth: GameSynth = { unlock: async () => canUnlock, note: (channel, note) => notes.push({ channel, note }), music: path => { music.push(path); }, gain: (channel, value) => { gains.set(channel, value); }, stop: () => { stops++; } };
-  const director = new AudioDirector(synth);
+function fixture(stored: Partial<RadioState> = {}) {
+  let canUnlock = true; let stops = 0; let pauses = 0; let position: number | undefined;
+  const notes: { channel: AudioChannel; note: SynthNote }[] = []; const music: string[] = []; const offsets: number[] = [];
+  const gains = new Map<AudioChannel, number>(); const saved: RadioState[] = [];
+  // Like the media element, a newly handed track reports no position until it has loaded (`at`).
+  const synth: GameSynth = {
+    unlock: async () => canUnlock, note: (channel, note) => notes.push({ channel, note }), gain: (channel, value) => { gains.set(channel, value); },
+    music: (path, offset) => { music.push(path); offsets.push(offset); position = undefined; }, pauseMusic: () => { pauses++; },
+    position: () => position, duration: () => position === undefined ? undefined : 180, stop: () => { stops++; position = undefined; },
+  };
+  const director = new AudioDirector(synth, { ...defaultRadio(), ...stored }, state => saved.push(structuredClone(state)));
   const game = createGame('audio'); addPlayer(game, { id: 'p', name: 'P', slot: 0, color: '#ffffff' });
   beginMatchParticipant(game.matchStats, { id: 'p', name: 'P', slot: 0, color: '#ffffff' });
   const snapshot = (tick: number, phase = 'playing' as typeof game.phase): ServerMessage => { game.phase = phase; return { type: 'snapshot', matchId: game.matchId, round: game.round, tick, state: toSnapshot(game) }; };
   const event = (tick: number, event: GameEvent): ServerMessage => ({ type: 'event', matchId: game.matchId, round: game.round, tick, event });
-  return { director, notes, music, gains, game, snapshot, event, deny: () => { canUnlock = false; }, allow: () => { canUnlock = true; }, stops: () => stops };
+  return {
+    director, notes, music, offsets, gains, saved, game, snapshot, event, deny: () => { canUnlock = false; }, allow: () => { canUnlock = true; },
+    stops: () => stops, pauses: () => pauses, at: (seconds: number) => { position = seconds; },
+  };
 }
 test('audio requires gesture unlock, routes independent mute and volume, and tolerates refusal', async () => {
   const f = fixture(); f.director.message(f.snapshot(10)); f.director.update(); assert.equal(f.music.length, 0);
@@ -164,6 +173,72 @@ test('enabled audio plays in the lobby and intermissions and explicit enable con
   assert.equal(f.music.length, 1); assert.equal(f.stops(), 0, 'intermission continues music');
 });
 
+
+test('a page load resumes the saved track and position, and leaving saves where the song was', async () => {
+  const f = fixture({ track: 'forest-job', position: 42 }); f.director.playBackground(); await f.director.unlock(); f.director.update();
+  assert.deepEqual(f.music, ['/music/forest-job.m4a']); assert.deepEqual(f.offsets, [42]);
+  assert.equal(f.director.position(), 42, 'loading keeps the resume point'); assert.equal(f.director.duration(), undefined);
+  f.at(57.5); assert.equal(f.director.duration(), 180); f.director.save();
+  assert.equal(f.saved.at(-1)!.position, 57.5); assert.equal(f.saved.at(-1)!.track, 'forest-job');
+  f.at(61); f.director.disconnect(); assert.equal(f.saved.at(-1)!.position, 61);
+  f.director.resume(); assert.deepEqual(f.offsets, [42, 61], 'a stopped radio resumes where it stopped, not from the top');
+});
+
+test('pause keeps the position, nothing restarts a paused radio, and it stays paused across page loads', async () => {
+  const f = fixture(); f.director.playBackground(); await f.director.unlock(); f.director.update(); f.at(30);
+  f.director.togglePause(); assert.equal(f.pauses(), 1); assert.equal(f.director.state.paused, true); assert.equal(f.director.position(), 30);
+  f.director.update(); f.director.resume(); f.director.message(f.snapshot(1)); f.director.update(); assert.equal(f.music.length, 1);
+  f.director.togglePause(); assert.equal(f.music.length, 2); assert.equal(f.offsets.at(-1), 30); assert.equal(f.saved.at(-1)!.paused, false);
+  const paused = fixture({ paused: true, position: 12 }); paused.director.playBackground(); await paused.director.unlock(); paused.director.update();
+  assert.equal(paused.music.length, 0);
+});
+
+test('next, previous and picking a track start from the top; a late previous restarts the song', async () => {
+  const f = fixture(); f.director.playBackground(); await f.director.unlock(); f.director.update(); f.at(80);
+  f.director.nextTrack(); assert.equal(f.music.at(-1), MUSIC_TRACKS[1].path); assert.equal(f.offsets.at(-1), 0); assert.equal(f.pauses(), 1);
+  f.at(10); f.director.previousTrack(); assert.equal(f.music.at(-1), MUSIC_TRACKS[1].path); assert.equal(f.offsets.at(-1), 0);
+  f.at(1); f.director.previousTrack(); assert.equal(f.director.trackTitle, MUSIC_TRACKS[0].title);
+  f.director.previousTrack(); assert.equal(f.director.trackTitle, MUSIC_TRACKS.at(-1)!.title, 'previous wraps');
+  f.director.togglePause(); f.director.play('final-chase', 'playlist');
+  assert.equal(f.director.state.paused, false); assert.equal(f.director.state.source, 'playlist'); assert.equal(f.music.at(-1), '/music/final-chase.m4a');
+  f.director.nextTrack(); assert.equal(f.director.state.track, 'reduced-noise-orchestra', 'an empty playlist plays all tracks');
+});
+
+test('finished tracks follow loop song, and an unlooped playlist stops at its end', async () => {
+  const f = fixture({ source: 'playlist', playlist: ['final-chase', 'coin-op-swing'], track: 'final-chase', loopPlaylist: false });
+  f.director.playBackground(); await f.director.unlock(); f.director.update();
+  f.director.setLoopSong(true); f.director.trackEnded();
+  assert.deepEqual(f.music, ['/music/final-chase.m4a', '/music/final-chase.m4a']); assert.equal(f.offsets.at(-1), 0);
+  f.director.setLoopSong(false); f.director.trackEnded(); assert.equal(f.director.state.track, 'coin-op-swing');
+  f.director.trackEnded();
+  assert.equal(f.director.state.paused, true); assert.equal(f.director.state.track, 'final-chase'); assert.equal(f.music.length, 3);
+  assert.equal(f.pauses(), 3, 'every ended track is disarmed, so a later gesture cannot replay it under a paused radio');
+  assert.equal(f.saved.at(-1)!.paused, true);
+  f.director.setLoopPlaylist(true); f.director.play('coin-op-swing'); f.director.trackEnded();
+  assert.equal(f.director.state.track, 'final-chase'); assert.equal(f.director.state.paused, false);
+});
+
+test('playlist edits, sources and loop flags are saved, and every change is announced', () => {
+  const f = fixture(); let renders = 0; const unsubscribe = f.director.subscribe(() => renders++);
+  f.director.togglePlaylist('forest-job'); f.director.togglePlaylist('coin-op-swing'); f.director.togglePlaylist('forest-job');
+  assert.deepEqual(f.saved.at(-1)!.playlist, ['coin-op-swing']);
+  f.director.setSource('playlist'); f.director.setLoopPlaylist(false);
+  assert.equal(f.saved.at(-1)!.source, 'playlist'); assert.equal(f.saved.at(-1)!.loopPlaylist, false);
+  assert.equal(renders, 5); f.director.setMuted('music', true); assert.equal(renders, 6, 'mute changes redraw the radio too');
+  unsubscribe(); f.director.setLoopSong(true); assert.equal(renders, 6); assert.equal(f.saved.at(-1)!.loopSong, true);
+});
+
+test('periodic saves record only where the song is, and another tab\'s choices are adopted without writing back', () => {
+  const saves: { kind: string; state: RadioState }[] = [];
+  const synth: GameSynth = { unlock: async () => true, note() {}, gain() {}, music() {}, pauseMusic() {}, position: () => undefined, duration: () => undefined, stop() {} };
+  const director = new AudioDirector(synth, defaultRadio(), (state, kind) => saves.push({ kind, state: structuredClone(state) }));
+  director.save(); director.setLoopSong(true);
+  assert.deepEqual(saves.map(save => save.kind), ['position', 'all']);
+  let renders = 0; director.subscribe(() => renders++);
+  director.adoptChoices({ loopSong: false, loopPlaylist: false, source: 'playlist', playlist: ['forest-job'] });
+  assert.equal(saves.length, 2, 'adopting writes nothing back'); assert.equal(renders, 1);
+  assert.deepEqual({ ...director.state }, { ...defaultRadio(), loopPlaylist: false, source: 'playlist', playlist: ['forest-job'] });
+});
 
 test('gun launch plays a layered cannon cue', async () => {
   const f = fixture(); await f.director.unlock(); f.director.message(f.snapshot(10));
