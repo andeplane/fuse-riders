@@ -7,7 +7,7 @@ async function qr(page:Page){await page.locator('.shared-lobby').waitFor({state:
 for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const errors:string[]=[];let guestSockets=0;let diagnosticPages:Record<string,Page>={};
  try{
   // #134/#138: a host on a phone gets the phone lobby before taking a seat — join form, QR card, one menu and every host action on screen — in both orientations.
-  {const pc=await browser.newContext({viewport:{width:320,height:568},isMobile:true,hasTouch:true});const phone=await pc.newPage();phone.setDefaultTimeout(smokeTimeout(25000));phone.on('pageerror',e=>errors.push(e.stack??e.message));
+  {const pc=await browser.newContext({viewport:{width:320,height:568},isMobile:true,hasTouch:true});const phone=await pc.newPage();diagnosticPages={phone};phone.setDefaultTimeout(smokeTimeout(25000));phone.on('pageerror',e=>errors.push(e.stack??e.message));
    try{await phone.goto(base);await phone.getByRole('button',{name:'CREATE ROOM',exact:true}).click();await phone.waitForURL(/room=/);await phone.locator('.phone-lobby .shared-lobby').waitFor({state:'visible'});await qr(phone);
     const phoneCode=new URL(phone.url()).searchParams.get('room')!;
     const onScreen=async(label:string,locator:ReturnType<Page['locator']>)=>{await locator.scrollIntoViewIfNeeded();const r=await locator.boundingBox(),v=phone.viewportSize()!;assert.ok(r&&r.x>=-1&&r.y>=-1&&r.x+r.width<=v.width+1&&r.y+r.height<=v.height+1,`${label} must be fully on screen at ${v.width}x${v.height}: ${JSON.stringify(r)}`);};
