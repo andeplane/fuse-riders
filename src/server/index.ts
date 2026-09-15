@@ -36,9 +36,11 @@ export interface ServerOptions { port?: number; hostname?: string; lanAddress?: 
 /** Dev-only forwarding to the local Wrangler room service; the Worker checks Origin against its own origin, so both are rewritten. */
 function proxyHeaders(target: URL, headers: http.IncomingHttpHeaders): http.OutgoingHttpHeaders {
   const forwarded: http.OutgoingHttpHeaders = {};
-  for (const [key, value] of Object.entries(headers)) if (value !== undefined) forwarded[key] = value;
+  // Client-supplied address headers would let a caller pick its own rate-limit key at the Worker.
+  for (const [key, value] of Object.entries(headers)) if (value !== undefined && !/^(cf-connecting-ip|x-real-ip|x-forwarded-.*)$/.test(key)) forwarded[key] = value;
   forwarded.host = target.host;
-  if (headers.origin) forwarded.origin = target.origin;
+  // Only a page served by this server gets its Origin rewritten; any other origin still fails the Worker's check.
+  if (headers.origin) forwarded.origin = headers.origin === `http://${headers.host}` ? target.origin : headers.origin;
   return forwarded;
 }
 function proxyRequest(target: URL, req: http.IncomingMessage, res: http.ServerResponse): void {
@@ -51,6 +53,9 @@ function proxyRequest(target: URL, req: http.IncomingMessage, res: http.ServerRe
 }
 function proxyUpgrade(target: URL, req: http.IncomingMessage, socket: import('node:stream').Duplex, head: Buffer): void {
   const upstream = http.request({ host: target.hostname, port: target.port, method: 'GET', path: req.url, headers: proxyHeaders(target, req.headers) });
+  // Node drops its own error listener when it emits 'upgrade'; a client reset before the upstream answers must not be uncaught.
+  socket.on('error', () => upstream.destroy()); socket.on('close', () => upstream.destroy());
+  upstream.setTimeout(10_000, () => upstream.destroy());
   upstream.on('upgrade', (upstreamResponse, upstreamSocket, upstreamHead) => {
     const lines = ['HTTP/1.1 101 Switching Protocols'];
     for (const [key, value] of Object.entries(upstreamResponse.headers)) for (const item of Array.isArray(value) ? value : [value]) if (item !== undefined) lines.push(`${key}: ${item}`);
@@ -93,6 +98,7 @@ export async function createGameServer(options: ServerOptions = {}) {
     root: ROOT, server: { middlewareMode: true }, appType: 'spa',
   }) : undefined;
   const roomApi = options.roomApi ? new URL(options.roomApi) : undefined;
+  if (roomApi && roomApi.protocol !== 'http:') throw new Error(`ROOM_API must be an http:// URL, got ${options.roomApi}`);
   const server = http.createServer(async (req, res) => {
     if (req.url?.split('?')[0] === '/api/config') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -330,10 +336,17 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     await mkdir(path.join(ROOT, 'dist'), { recursive: true });
     wrangler = spawn('npx', ['wrangler', 'dev', '--port', '8787', '--ip', '127.0.0.1'], { cwd: ROOT, stdio: ['ignore', 'inherit', 'inherit'] });
     wrangler.on('exit', code => { if (code) console.warn('\nRoom service (wrangler dev) stopped; online rooms need it. Is another copy already on port 8787? Set ROOM_API to reuse it.\n'); });
+    wrangler.on('error', error => console.warn(`\nRoom service (wrangler dev) could not start: ${error.message}. Online rooms need it; set ROOM_API to reuse one.\n`));
   }
-  const app = await createGameServer({ dev, ...(roomApi ? { roomApi } : {}) });
+  // Wait for Wrangler to release its port before this process ends, or `tsx watch` restarts race the old copy for 8787.
+  const stopWrangler = () => new Promise<void>(resolve => {
+    if (!wrangler || wrangler.exitCode !== null) return resolve();
+    const timer = setTimeout(resolve, 3000); wrangler.once('exit', () => { clearTimeout(timer); resolve(); }); wrangler.kill();
+  });
+  process.on('exit', () => wrangler?.kill());
+  let app: Awaited<ReturnType<typeof createGameServer>>;
+  try { app = await createGameServer({ dev, ...(roomApi ? { roomApi } : {}) }); } catch (error) { await stopWrangler(); throw error; }
   const online = roomApi ? `\nOnline:    http://${app.hostUrl.split('/display')[0]!.replace(/^http:\/\//, '')}/ (create or join rooms; the room service runs on ${roomApi})` : '';
   console.log(`\nFUSE RIDERS — five phones, one arena\n\nTV / host: ${app.hostUrl}\nPhones:    ${app.controllerUrl}${online}\n\nKeep this laptop awake. Connect the TV with HDMI and join the same Wi-Fi.\n`);
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { wrangler?.kill(); await app.close(); process.exit(0); });
-  process.on('exit', () => wrangler?.kill());
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, async () => { await stopWrangler(); await app.close(); process.exit(0); });
 }
