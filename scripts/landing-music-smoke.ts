@@ -3,8 +3,8 @@
  * restarts it, and the top-bar toggle turns it off in a way that survives the page load into a room.
  *
  * Music is a plain media element (so a phone's volume keys reach it), so "is it playing" is read off
- * that element rather than inferred from network traffic. The toggle labels what is audible, so a
- * page that has not been clicked yet reads OFF; the smoke clicks first, as a visitor would.
+ * that element rather than inferred from network traffic. The toggle labels the setting, not the speaker:
+ * a page the browser has not let play yet still reads ON, because the first gesture anywhere starts it.
  *
  * Run against a dev server: LANDING_URL=http://127.0.0.1:5173/ npx tsx scripts/landing-music-smoke.ts
  */
@@ -35,19 +35,13 @@ try {
   const stored = async () => JSON.parse(await page.evaluate(k => localStorage.getItem(k), KEY) ?? 'null');
 
   await page.goto(url); await page.waitForSelector('.landing-audio'); await settle();
-  // Before any gesture the toggle says what is heard: nothing. Its first click must play, not mute, even though the
-  // page-wide unlock on pointerdown has already started the track by the time the click arrives.
-  assert.equal(await label(), '♫ MUSIC OFF', 'an untapped page reads OFF whatever the setting');
+  // Whatever this browser's autoplay policy does, music IS on, and the label says so rather than reporting the
+  // browser's silence as a setting the visitor never chose.
+  assert.equal(await label(), '♫ MUSIC ON', 'an untapped page reads the setting, which is on');
   assert.equal(await stored(), null, 'nothing is stored before the visitor chooses');
-  await page.locator('.landing-audio').click(); await settle();
-  assert.equal(await label(), '♫ MUSIC ON', 'the first click on the toggle plays');
-  const chosen = await stored(); assert.ok(chosen === null || chosen.muted.music === false, `and never stores music off: ${JSON.stringify(chosen)}`);
-  const first = (await track(page))!; assert.equal(first.paused, false, 'the first click starts the track');
-  // A fresh page whose first gesture lands elsewhere must also be playing after it.
-  await page.evaluate(k => localStorage.removeItem(k), KEY); await page.reload(); await page.waitForSelector('.landing-audio'); await settle();
-  assert.equal(await label(), '♫ MUSIC OFF');
+  // Any first gesture starts it, toggle or not.
   await page.mouse.click(720, 700); await settle();
-  assert.equal(await label(), '♫ MUSIC ON', 'any first gesture starts the music and the label follows');
+  assert.equal(await label(), '♫ MUSIC ON');
   const playing = await track(page);
   assert.ok(playing, 'the landing page owns a music element');
   assert.ok(/^\/music\/.+\.m4a$/.test(playing.src), playing.src);
@@ -100,7 +94,7 @@ try {
   const muted: string[] = [];
   page.on('request', request => { if (/\/music\/.*\.m4a$/.test(request.url())) muted.push(new URL(request.url()).pathname); });
   await page.reload(); await page.waitForSelector('.landing-audio'); await settle();
-  assert.equal(await label(), '♫ MUSIC OFF'); // OFF on any untapped page; the stored record and the absent fetch below are the evidence.
+  assert.equal(await label(), '♫ MUSIC OFF', 'a reload keeps the choice, and the label reports it before any gesture');
   assert.deepEqual((await stored()).muted, { music: true, effects: false });
   await page.mouse.click(720, 700); await settle();
   // A page loaded with music off downloads no music at all rather than streaming it silently.
