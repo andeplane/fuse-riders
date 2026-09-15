@@ -1,3 +1,4 @@
+import { uuid } from '../shared/uuid.js';
 import { authorityTransitionStatus } from './authority-status.js';
 import { StatusNotices } from './status-notices.js';
 import { AuthorityGrace } from './authority-grace.js';
@@ -49,7 +50,7 @@ export class RoomRuntime {
     this.transport=new PeerTransport(code,token,{
       welcome:(id,hostId)=>{
         if(id===hostId&&!this.session){
-          this.session=new HostSession(id,settings,{token:()=>crypto.randomUUID(),captureActions:true});
+          this.session=new HostSession(id,settings,{token:uuid,captureActions:true});
           try{const checkpoint=localStorage.getItem(`fuse-checkpoint-${code}`);if(checkpoint){const restored=this.session.restore(checkpoint);this.recovering=restored&&this.session.game.phase!=='lobby';if(!restored)this.status.notice('Saved game is incompatible or damaged — a fresh lobby is ready');}}catch{}
         }
         this.receiver.reset();this.controllerView.reset();this.senders.clear();this.callbacks.ready(id,id===hostId);
