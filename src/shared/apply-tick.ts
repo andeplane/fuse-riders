@@ -21,11 +21,20 @@ export function createRoomState(matchId: string, settings: RoomSettings): RoomSt
 export const reclaimable = (game: GameState): boolean => (RECLAIMABLE_PHASES as readonly string[]).includes(game.phase);
 export function freeSlot(game: GameState): number { return SLOT_COLORS.findIndex((_, slot) => ![...game.players.values()].some(player => player.slot === slot)); }
 
-/** Which non-creator stream may carry management entries: the lowest connected human while the creator is disconnected. */
+/** The lowest connected human other than the creator: it may mark the creator absent, and manages the room while the creator is. */
+export function delegate(state: RoomState, creatorId: string): string | undefined {
+  return [...state.game.players.values()].filter(player => player.connected && !state.bots.has(player.id) && player.id !== creatorId).map(player => player.id).sort()[0];
+}
+/** Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected. */
 export function actingCreator(state: RoomState, creatorId: string): string | undefined {
   const creator = state.game.players.get(creatorId);
-  if (creator?.connected) return undefined;
-  return [...state.game.players.values()].filter(player => player.connected && !state.bots.has(player.id)).map(player => player.id).sort()[0];
+  return creator?.connected ? undefined : delegate(state, creatorId);
+}
+/** Whether a management entry from `manager` applies: the creator always; the delegate while the creator is absent, or to record that absence. */
+export function permitted(state: RoomState, creatorId: string, manager: string, entry: Entry): boolean {
+  if (manager === creatorId) return true;
+  if (delegate(state, creatorId) !== manager) return false;
+  return actingCreator(state, creatorId) === manager || (entry[2] === PRESENCE && entry[3] === creatorId && entry[4] === false);
 }
 
 function pruneDisconnected(state: RoomState): void {
@@ -87,14 +96,13 @@ function applyManagement(state: RoomState, entry: Entry, newMatchIdTick: number)
  */
 export function applyTick(state: RoomState, creatorId: string, streams: ReadonlyMap<string, StreamEntries>, bots: BotController): GameEvent[] {
   const game = state.game, tick = game.tick + 1;
-  const delegate = actingCreator(state, creatorId);
-  const managers = [creatorId, ...(delegate !== undefined && delegate !== creatorId ? [delegate] : [])];
-  for (const manager of managers) {
+  const stand = delegate(state, creatorId);
+  for (const manager of [creatorId, ...(stand !== undefined ? [stand] : [])]) {
     const stream = streams.get(manager); if (!stream) continue;
     for (const entry of stream.entries) {
       if (entry[1] !== tick || !isManagementKind(entry[2])) continue;
       // Delegation is re-evaluated per entry: the creator's own return revokes the acting creator mid-tick.
-      if (manager !== creatorId && actingCreator(state, creatorId) !== manager) break;
+      if (!permitted(state, creatorId, manager, entry)) continue;
       applyManagement(state, entry, tick);
     }
   }
@@ -121,11 +129,12 @@ export function applyTick(state: RoomState, creatorId: string, streams: Readonly
   return result.events;
 }
 
-/** Canonical JSON of the whole room state: Map entries sorted by key so insertion order never matters. */
+/** Canonical JSON of the whole room state: Map entries and object keys sorted, so insertion order never matters. */
 export function canonicalRoomState(state: RoomState): string {
   return JSON.stringify({ game: state.game, settings: state.settings, folds: state.folds, bots: [...state.bots].sort() }, (_key, value: unknown) => {
     if (value instanceof Map) return [...value].sort(([a], [b]) => String(a) < String(b) ? -1 : 1);
     if (value instanceof Set) return [...value].sort();
+    if (value && typeof value === 'object' && !Array.isArray(value)) return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).sort(([a], [b]) => a < b ? -1 : 1));
     return value;
   });
 }

@@ -91,8 +91,12 @@ jobs:
         run: npx tsx scripts/shared-room-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
-      - name: Incremental world consistency benchmark
-        run: npx tsx scripts/benchmark-deltas.ts
+      - name: Cross-engine determinism replay
+        run: npx tsx scripts/determinism-replay.ts
+      - name: Six-peer WebRTC mesh transport
+        run: npx tsx scripts/p2p-mesh-browser.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
       - name: Save coverage and browser evidence
         if: always()
         uses: actions/upload-artifact@v4

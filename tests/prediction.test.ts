@@ -1,123 +1,53 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LocalPrediction, interpolateWorld, RemoteWorldBuffer, PredictionClock } from '../src/online/prediction.js';
-import type { AppliedMotionState } from '../src/online/prediction-contract.js';
-import { HostSession } from '../src/online/host-session.js';
+import { interpolateWorld, presentWorld } from '../src/online/prediction.js';
+import { World } from '../src/online/rollback.js';
+import { ACTION, JOIN } from '../src/shared/input-log.js';
+import { createRoomState } from '../src/shared/apply-tick.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
+import { COUNTDOWN_TICKS, RIDER_SPEED, RIDER_TURN_RATE, TICK_HZ } from '../src/shared/game.js';
 import { advanceRiderPose } from '../src/shared/rider-motion.js';
-import { drunkHeadingOffset } from '../src/shared/drunk.js';
 import { bombPreviewDistance } from '../src/client/bomb-preview.js';
-function fixture(){const room=new HostSession('h',defaultRoomSettings(),{token:()=>crypto.randomUUID()});room.command('h',{type:'join',name:'Host'});room.command('p',{type:'join',name:'P'});room.command('h',{type:'action',action:'start'});for(let i=0;i<60;i++)room.advance();return {...room.snapshot(),tick:room.game.tick,round:1};}
-function ledger(tick:number):AppliedMotionState{return {scope:{matchId:'match',round:1,controlEpoch:'c'},tick,appliedSeq:-1,appliedTick:tick,held:{left:false,right:false},results:[],motion:{seed:31,drunkStartedTick:0,drunkUntilTick:0,drunkHeadingOffset:0}};}
-function setup(){let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now);predictor.accept(state,'h',-1,motion,'authority');predictor.observeClock({scope:motion.scope,localSentAt:0,localReceivedAt:0,authorityTick:state.tick,paused:false});return {state,motion,predictor,time:(n:number)=>{now=n;}};}
-test('local charge preview shares the fractional rider clock rather than delayed world time',()=>{
- const {state,motion,predictor,time}=setup();
- const charging={...state,players:state.players.map(p=>({...p,bombChargeStartedTick:state.tick}))};
- predictor.accept(charging,'h',-1,motion,'authority');
- const original=structuredClone(charging),buffered={...charging,tick:state.tick-2};
- time(25);const shown=predictor.render(buffered,'h'),local=shown.players.find(p=>p.id==='h')!;
- assert.equal(local.presentationTick,state.tick+.5);
- assert.equal(bombPreviewDistance(local.presentationTick!-local.bombChargeStartedTick!),106.25);
- assert.equal(shown.tick,buffered.tick,'other world effects retain buffered time');
- assert.equal(shown.players.find(p=>p.id==='p')!.presentationTick,undefined,'remote riders keep world interpolation');
- time(300);assert.equal(predictor.render(buffered,'h').players[0]!.presentationTick,state.tick+4,'existing prediction cap');
- time(1000);assert.equal(predictor.render(buffered,'h').players[0]!.presentationTick,state.tick+4,'lost clock freezes rider and charge time together');
- assert.deepEqual(charging,original);
- predictor.accept({...charging,players:charging.players.map(p=>({...p,bombChargeStartedTick:undefined}))},'h',-1,motion,'authority');
- assert.equal(predictor.render(buffered,'h').players[0]!.bombChargeStartedTick,undefined,'confirmed release/cancel removes preview even when world is behind');
- predictor.resetExternalScope();assert.equal(predictor.render(state,'h'),state,'reset drops presentation time');
+
+function frames() {
+  const world = new World(createRoomState('m', defaultRoomSettings()), 'h', 'h');
+  const log = world.stream('h', 1); world.stream('p', 1);
+  log.append(1, [JOIN, 'h', 'Host', 0, 'fox', 1]); log.append(1, [JOIN, 'p', 'P', 1, 'cat', 1]); log.append(2, [ACTION, 'start', 'm']);
+  world.streams.get('p')!.through = 200; log.through = 200; world.advance(COUNTDOWN_TICKS + 4);
+  const [newer, older] = world.view(); return { older: older!, newer };
+}
+
+test('interpolation uses coherent past state and fractional ticks without portal chords or dead riders', () => {
+  const { older, newer } = frames();
+  const mid = interpolateWorld(older, newer, .5);
+  assert.equal(mid.tick, older.tick + .5); assert.equal(mid.phase, 'playing');
+  const before = older.players[0]!, after = newer.players[0]!, shown = mid.players[0]!;
+  assert.ok(Math.abs(shown.x - (before.x + after.x) / 2) < 1e-9); assert.ok(Math.abs(shown.y - (before.y + after.y) / 2) < 1e-9);
+  assert.deepEqual(interpolateWorld(older, newer, 1), newer); assert.deepEqual(interpolateWorld(undefined, newer, .5), newer);
+  const jumped = { ...newer, players: newer.players.map(p => ({ ...p, portalCooldownUntilTick: 99 })) };
+  assert.deepEqual(interpolateWorld(older, jumped, .5).players[0], older.players[0], 'a portal transit shows the pre-transit pose');
+  assert.deepEqual(interpolateWorld({ ...older, round: 2 }, newer, .5), newer);
+  const dead = { ...newer, players: newer.players.map(p => ({ ...p, alive: false })) };
+  assert.deepEqual(interpolateWorld(older, dead, .5).players[0], older.players[0]);
+  const shell = { ...older, bombs: [{ ...older.bombs[0] ?? { id: 1, ownerId: 'h', launchX: 0, launchY: 0, x: 100, y: 100, launchedTick: 1, landsAtTick: 9, explodeAtTick: 9, blastRange: 1, flightPath: [] }, shell: { vx: 10, vy: 0 } }] };
+  const moved = { ...newer, bombs: [{ ...shell.bombs[0]!, x: 110 }] };
+  assert.equal(interpolateWorld(shell, moved, .5).bombs[0]!.x, 105); assert.equal(interpolateWorld(shell, { ...moved, bombs: [{ ...moved.bombs[0]!, shell: { vx: -10, vy: 0 } }] }, .5).bombs[0]!.x, 100, 'a bounced shell is not chorded');
 });
 
-test('charge preview time resets with phase, death, portal and authority boundaries',()=>{
- for(const change of ['death','portal','round','authority','phase'] as const){
-  const {state,motion,predictor,time}=setup();time(25);predictor.render(state,'h');
-  const next={...state,tick:state.tick+1,round:change==='round'?2:1,
-   phase:change==='phase'?'roundOver' as const:state.phase,
-   players:state.players.map(p=>({...p,alive:change!=='death',portalCooldownUntilTick:change==='portal'?99:p.portalCooldownUntilTick}))};
-  const nextMotion={...motion,tick:next.tick,scope:{...motion.scope,round:next.round}};
-  predictor.accept(next,'h',-1,nextMotion,change==='authority'?'next':'authority');
-  const shown=predictor.render(next,'h').players[0]!;
-  assert.equal(shown.presentationTick,change==='death'||change==='phase'?undefined:next.tick,change);
- }
-});
-test('local steering responds next frame using a partial step which never changes fixed replay',()=>{
- const {state,predictor,time}=setup(),original=state.players[0]!;assert.ok(predictor.input(0,false,true));time(16);const first=predictor.render(state,'h').players[0]!;assert.notEqual(first.angle,original.angle);
- const expected=advanceRiderPose({...original,drunkHeadingOffset:0},{left:false,right:true},{distance:7.5,turn:.14,drunkHeadingOffset:0});
- for(const hz of [30,60,120]){for(let n=0;n<200;n+=1000/hz){time(n);predictor.render(state,'h');}assert.deepEqual(predictor.predict(state.tick+1),expected);}
-});
-test('acknowledged held turn replays exactly with no pending events, including drunk offset',()=>{
- const {state,motion,predictor}=setup();motion.held={left:true,right:false};motion.appliedSeq=4;motion.motion.drunkStartedTick=state.tick-10;motion.motion.drunkUntilTick=state.tick+80;motion.motion.drunkHeadingOffset=.1;
- predictor.accept(state,'h',4,motion,'authority');let expected={...state.players[0]!,drunkHeadingOffset:.1};
- for(let tick=state.tick+1;tick<=state.tick+4;tick++)expected={...expected,...advanceRiderPose(expected,motion.held,{distance:7.5,turn:.14,drunkHeadingOffset:drunkHeadingOffset(31,'h',tick,state.tick-10,state.tick+80)})};
- const actual=predictor.predict(state.tick+4)!;assert.ok(Math.hypot(actual.x-expected.x,actual.y-expected.y)<1e-6);assert.equal(actual.angle,expected.angle);
-});
-test('fresh-input age neutralizes held controls at tick ten',()=>{const {state,motion,predictor}=setup();motion.held={left:true,right:false};motion.appliedTick=state.tick-9;predictor.accept(state,'h',0,motion,'authority');assert.equal(predictor.predict(state.tick+1)!.angle,state.players[0]!.angle);});
-test('press and release scheduled for same tick uses latest sample, received ack cannot retire either',()=>{const {state,predictor}=setup();predictor.input(0,true,false);predictor.input(1,false,false);predictor.accept(state,'h',1,ledger(state.tick),'authority');assert.equal(predictor.predict(state.tick+1)!.angle,state.players[0]!.angle);});
-test('mismatched snapshot and application tick rejected atomically',()=>{const {state,motion,predictor}=setup();const before=predictor.predict(state.tick+2);assert.equal(predictor.accept({...state,tick:state.tick+1},'h',4,motion,'authority'),false);assert.deepEqual(predictor.predict(state.tick+2),before);assert.equal(predictor.accept(state,'h',4,{...motion,results:[{seq:4,status:'applied',appliedTick:state.tick+1}]},'authority'),false);});
-test('applied result retires pending but continues authoritative held input',()=>{const {state,motion,predictor,time}=setup();predictor.input(0,true,false);time(100);const pose=predictor.predict(state.tick+2)!;const confirmed={...state,tick:state.tick+2,players:state.players.map(p=>p.id==='h'?{...p,...pose}:p)};predictor.accept(confirmed,'h',0,{...motion,tick:confirmed.tick,appliedSeq:0,appliedTick:state.tick+1,held:{left:true,right:false},results:[{seq:0,status:'applied',appliedTick:state.tick+1}]},'authority');assert.equal(predictor.ackMs,100);assert.notEqual(predictor.predict(confirmed.tick+1)!.angle,pose.angle);assert.ok(predictor.correction<1e-6);});
-test('death and portal reset local motion and epoch invalidates timing',()=>{const {state,motion,predictor,time}=setup();predictor.input(0,true,false);time(100);const dead={...state,players:state.players.map(p=>({...p,alive:false}))};predictor.accept(dead,'h',0,motion,'authority');assert.equal(predictor.render(state,'h').players[0]!.alive,false);const portal={...state,players:state.players.map(p=>({...p,x:800,portalCooldownUntilTick:99}))};predictor.accept(portal,'h',0,motion,'authority');assert.equal(predictor.predict(state.tick)!.x,800);predictor.accept(state,'h',0,motion,'new-authority');
- // The epoch discards the old authority's timing, but the new authority alone refuses its own inputs (#65).
- assert.equal(predictor.clock.estimate(motion.scope),undefined);
- const afterEpoch=predictor.input(1,true,false);assert.ok(afterEpoch);assert.equal(afterEpoch.intendedTick,state.tick+1,'scheduled from the new authority snapshot, never from the discarded clock');});
-test('clock retains conservative send sampled bounds and rejects pause stale and invalid RTT',()=>{let now=100;const c=new PredictionClock(()=>now),scope=ledger(1).scope;assert.equal(c.observe({scope,localSentAt:0,localReceivedAt:100,authorityTick:20,paused:false}),true);assert.deepEqual(c.estimate(),{lower:20,upper:22,tick:21});assert.equal(c.observe({scope,localSentAt:110,localReceivedAt:100,authorityTick:20,paused:false}),false);now=700;assert.equal(c.estimate(),undefined);assert.equal(c.observe({scope,localSentAt:700,localReceivedAt:700,authorityTick:30,paused:true}),false);assert.equal(c.estimate(),undefined);now=800;assert.ok(c.observe({scope,localSentAt:800,localReceivedAt:800,authorityTick:30,paused:false}));assert.equal(c.estimate()!.tick,30);});
-test('remote buffer uses coherent past state and fractional ticks without portal chords',()=>{const a=fixture(),b=structuredClone(a);b.tick+=2;b.players[0]!.x+=100;b.players[0]!.portalCooldownUntilTick+=20;const mid=interpolateWorld(a,b,.5);assert.equal(mid.tick,a.tick+1);assert.equal(mid.players[0]!.x,a.players[0]!.x);const buffer=new RemoteWorldBuffer();buffer.push(a,'a');buffer.push(b,'a');assert.equal(buffer.render(a.tick+3)!.tick,a.tick+1);assert.equal(buffer.render(a.tick+2)!.tick,a.tick+1);assert.equal(buffer.render(a.tick+100)!.tick,b.tick);buffer.push({...a,tick:1},'b');assert.equal(buffer.render(3)!.tick,1);});
-test('spectator clock advances fractional render ticks without a player seat and resets scope',()=>{let now=0;const clock=new PredictionClock(()=>now),scope=ledger(1).scope,a=fixture(),b={...a,tick:a.tick+2},buffer=new RemoteWorldBuffer();buffer.push(a,'a');buffer.push(b,'a');clock.observe({scope,localSentAt:0,localReceivedAt:0,authorityTick:b.tick,paused:false});assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick);now=25;assert.equal(buffer.render(clock.estimate()!.tick)!.tick,a.tick+.5);const predictor=new LocalPrediction(()=>now);predictor.observeClock({scope,localSentAt:25,localReceivedAt:25,authorityTick:b.tick,paused:false});predictor.resetExternalScope();assert.equal(predictor.clock.estimate(),undefined);});
-test('presentation connector is bounded and never mutates confirmed trails',()=>{const {state,predictor,time}=setup();const length=state.players[0]!.trail.length;predictor.input(1,false,true);time(100);const shown=predictor.render(state,'h').players[0]!;assert.equal(state.players[0]!.trail.length,length);assert.equal(shown.trail.length,length+1);const last=shown.trail.at(-1)!;assert.ok(Math.hypot(last.x2-last.x1,last.y2-last.y1)<=40);});
-test('inactive snapshots do not invent movement correction or smoothing offsets',()=>{for(const phase of ['countdown','roundOver','lobby','matchOver'] as const){const {state,motion,predictor}=setup();const inactive={...state,phase};predictor.accept(inactive,'h',-1,motion,'authority');const next={...inactive,tick:inactive.tick+2};predictor.accept(next,'h',-1,{...motion,tick:next.tick},'authority');assert.equal(predictor.correction,0,phase);assert.equal(predictor.render(next,'h').players[0]!.x,inactive.players[0]!.x);}});
-test('slow round trip or lagging snapshot never rejects input locally; host admission and the four-tick lead cap bound it (#15)',()=>{
- let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now),neutral=new LocalPrediction(()=>now);
- for(const p of [predictor,neutral])p.accept(state,'h',-1,motion,'authority');
- // 300 ms probe: six ticks of uncertainty, estimate nine ticks past a snapshot that is already stale.
- now=300;for(const p of [predictor,neutral])assert.ok(p.observeClock({scope:motion.scope,localSentAt:0,localReceivedAt:300,authorityTick:state.tick+6,paused:false}));
- const scheduled=predictor.input(0,true,false);assert.ok(scheduled);assert.equal(scheduled.intendedTick,state.tick+10);
- assert.deepEqual(predictor.predict(state.tick+4),neutral.predict(state.tick+4),'preview never advances past the base window');
- const later={...state,tick:state.tick+9};predictor.accept(later,'h',-1,{...motion,tick:later.tick},'authority');
- assert.equal(predictor.diagnostics().pending,1);assert.notEqual(predictor.predict(later.tick+2)!.angle,later.players[0]!.angle,'the input replays once the base reaches its tick');
-});
-test('transport-refused and stale inputs never count toward the bound; overflow drops the backlog instead of blocking (#20)',()=>{
- const {state,motion,predictor}=setup();
- for(let seq=0;seq<300;seq++){assert.ok(predictor.input(seq,true,false));predictor.discard(seq);}
- assert.equal(predictor.diagnostics().pending,0);
- for(let seq=300;seq<428;seq++)assert.ok(predictor.input(seq,true,false));
- assert.equal(predictor.diagnostics().pending,128);
- assert.ok(predictor.input(428,true,false));assert.equal(predictor.diagnostics().pending,1);
- for(let seq=429;seq<440;seq++)assert.ok(predictor.input(seq,true,false));
- const later={...state,tick:state.tick+20};assert.ok(predictor.accept(later,'h',-1,{...motion,tick:later.tick},'authority'));
- assert.equal(predictor.diagnostics().pending,0,'inputs behind the host window are pruned');
- assert.ok(predictor.input(440,true,false));assert.equal(predictor.render(later,'h').players[0]!.alive,true);
-});
-test('overflow first drops inputs behind the host window and only clears a fully fresh backlog (#15 follow-up)',()=>{
- let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now);predictor.accept(state,'h',-1,motion,'authority');
- now=10;assert.ok(predictor.observeClock({scope:motion.scope,localSentAt:10,localReceivedAt:10,authorityTick:state.tick-10,paused:false}));
- for(let seq=0;seq<100;seq++)assert.equal(predictor.input(seq,true,false)!.intendedTick,state.tick-9);
- now=20;assert.ok(predictor.observeClock({scope:motion.scope,localSentAt:20,localReceivedAt:20,authorityTick:state.tick,paused:false}));
- for(let seq=100;seq<128;seq++)assert.equal(predictor.input(seq,true,false)!.intendedTick,state.tick+1);
- assert.equal(predictor.diagnostics().pending,128);
- assert.ok(predictor.input(128,true,false));assert.equal(predictor.diagnostics().pending,29,'stale entries go first, fresh ones survive');
- for(let seq=129;seq<228;seq++)assert.ok(predictor.input(seq,true,false));
- assert.equal(predictor.diagnostics().pending,128);
- assert.ok(predictor.input(228,true,false));assert.equal(predictor.diagnostics().pending,1,'a full fresh backlog is dropped as a whole');
- assert.equal(predictor.diagnostics().estimate?.tick,state.tick);
-});
-
-test('a lost clock limits the preview but never the send (#65)',()=>{
- let now=0;const state=fixture(),motion=ledger(state.tick),predictor=new LocalPrediction(()=>now);
- predictor.accept(state,'h',-1,motion,'authority');
- assert.ok(predictor.observeClock({scope:motion.scope,localSentAt:0,localReceivedAt:0,authorityTick:state.tick,paused:false}));
- // Probes stop answering while snapshots keep arriving: past the four-second sample age no estimate survives.
- now=4500;const fresh={...state,tick:state.tick+90};
- assert.ok(predictor.accept(fresh,'h',-1,{...motion,tick:fresh.tick},'authority'));
- assert.equal(predictor.clock.estimate(motion.scope),undefined,'the clock is gone');
- now=4525;
- const scheduled=predictor.input(0,true,false);
- assert.ok(scheduled,'a lost clock must not swallow the input; only the host may refuse it');
- assert.equal(scheduled.intendedTick,fresh.tick+1,'scheduled from the newest authoritative tick and its age');
- assert.deepEqual(scheduled.scope,motion.scope);
- const rider=(snapshot:ReturnType<typeof fixture>)=>snapshot.players.find(player=>player.id==='h')!;
- assert.equal(predictor.render(fresh,'h').players.find(player=>player.id==='h')!.angle,rider(fresh).angle,'no invented preview motion without a clock');
- // Outside play a cleared clock is the host's own paused report, so nothing is scheduled against it.
- for(const phase of ['lobby','countdown','roundOver','matchOver'] as const){
-  const idle=new LocalPrediction(()=>now);idle.accept({...fresh,phase},'h',-1,{...motion,tick:fresh.tick},'authority');
-  assert.equal(idle.input(1,true,false),undefined,phase);
- }
+test('presentation leads the local rider by its held controls and marks its presentation tick for the charge preview', () => {
+  const { older, newer } = frames();
+  const plain = presentWorld(older, newer, newer.tick - .25);
+  assert.equal(plain.tick, newer.tick - .25); assert.equal(plain.players[0]!.presentationTick, undefined);
+  const led = presentWorld(older, newer, newer.tick, { id: 'h', controls: { left: true, right: false }, lead: 1 });
+  const rider = led.players.find(p => p.id === 'h')!, base = newer.players.find(p => p.id === 'h')!;
+  const expected = advanceRiderPose({ x: base.x, y: base.y, angle: base.angle, drunkHeadingOffset: 0 }, { left: true, right: false }, { distance: RIDER_SPEED / TICK_HZ, turn: RIDER_TURN_RATE / TICK_HZ, drunkHeadingOffset: 0 });
+  assert.deepEqual({ x: rider.x, y: rider.y, angle: rider.angle }, { x: expected.x, y: expected.y, angle: expected.angle });
+  assert.equal(rider.presentationTick, newer.tick + 1); assert.equal(rider.trail.length, base.trail.length + 1, 'a cosmetic trail segment bridges the lead');
+  assert.deepEqual(led.players.find(p => p.id === 'p'), newer.players.find(p => p.id === 'p'), 'remote riders are shown as simulated');
+  const charging = { ...newer, players: newer.players.map(p => ({ ...p, bombChargeStartedTick: newer.tick - 3 })) };
+  const preview = presentWorld(older, charging, charging.tick, { id: 'h', controls: { left: false, right: false }, lead: .5 }).players.find(p => p.id === 'h')!;
+  assert.equal(bombPreviewDistance(preview.presentationTick! - preview.bombChargeStartedTick!), bombPreviewDistance(3.5));
+  assert.equal(presentWorld(older, newer, newer.tick, { id: 'h', controls: { left: true, right: false }, lead: 0 }).players[0]!.presentationTick, undefined, 'no lead, no cosmetic step');
+  assert.equal(presentWorld(older, { ...newer, phase: 'roundOver' }, newer.tick, { id: 'h', controls: { left: true, right: false }, lead: 1 }).players[0]!.presentationTick, undefined, 'only during play');
+  assert.deepEqual(presentWorld(older, newer, newer.tick, { id: 'ghost', controls: { left: true, right: false }, lead: 1 }), newer);
 });

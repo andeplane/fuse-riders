@@ -173,7 +173,7 @@ export class SignalRoom {
     const target=this.currentSockets(members).find(peer=>identity(peer)?.id===message.to);if(!target)return;
     const targetIdentity=identity(target)!;
     if(message.targetConnectionId!==undefined&&message.targetConnectionId!==targetIdentity.connectionId)return;
-    if(!sender.host&&!targetIdentity.host)return;
+    if(targetIdentity.id===sender.id)return; // Any two current members may signal: the gameplay mesh links every pair.
     try{target.send(JSON.stringify({type:message.type,from:sender.id,connectionId:sender.connectionId,data:message.data}));}catch{}
   }
   async webSocketClose(ws:RoomSocket):Promise<void> {

@@ -1,5 +1,5 @@
 import { BotController } from '../shared/bot-controller.js';
-import { applyTick, actingCreator, hashRoomState, type RoomState, type StreamEntries } from '../shared/apply-tick.js';
+import { applyTick, delegate, hashRoomState, type RoomState, type StreamEntries } from '../shared/apply-tick.js';
 import { toSnapshot } from '../shared/game.js';
 import { LEAVE, PRESENCE } from '../shared/input-log.js';
 import type { GameEvent } from '../shared/protocol.js';
@@ -43,7 +43,7 @@ export class World {
   /** Entries in the applicable log that disconnect `id` after the current tick: the stall rule may not wait past them. */
   private pendingDisconnect(id: string): number | undefined {
     let earliest: number | undefined;
-    for (const manager of [this.creatorId, actingCreator(this.state, this.creatorId)]) {
+    for (const manager of [this.creatorId, delegate(this.state, this.creatorId)]) {
       const stream = manager === undefined ? undefined : this.streams.get(manager); if (!stream) continue;
       for (const entry of stream.entries.values()) {
         if (entry[0] > stream.contiguous || entry[1] <= this.tick) continue;

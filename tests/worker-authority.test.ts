@@ -85,8 +85,10 @@ test('Worker routes only current authenticated endpoints and includes source con
   const payload={description:{type:'offer',sdp:'fixture'}};
   const send=(socket:Socket,to:unknown,targetConnectionId?:unknown)=>f.room.webSocketMessage(socket,JSON.stringify({type:'signal',to,targetConnectionId,data:payload}));
   await send(oldGuest,hostId);assert.equal(host.last('signal'),undefined);
-  await send(other,guestId);assert.equal(freshGuest.last('signal'),undefined,'guest-to-guest routing denied');
-  await send(host,guestId,oldGuest.last('welcome')!.connectionId);assert.equal(freshGuest.last('signal'),undefined,'old target scope denied');
+  await send(other,guestId);assert.equal(freshGuest.last('signal')?.from,other.last('welcome')!.id,'guest-to-guest routing carries the mesh');
+  const signals=()=>freshGuest.messages.filter(message=>message.type==='signal').length,delivered=signals();
+  await send(freshGuest,guestId);assert.equal(signals(),delivered,'no self signalling');
+  await send(host,guestId,oldGuest.last('welcome')!.connectionId);assert.equal(signals(),delivered,'old target scope denied');
   await send(freshGuest,hostId,host.last('welcome')!.connectionId);
   assert.deepEqual(host.last('signal'),{type:'signal',from:guestId,connectionId:freshGuest.last('welcome')!.connectionId,data:payload});
   await f.room.webSocketClose(oldGuest);

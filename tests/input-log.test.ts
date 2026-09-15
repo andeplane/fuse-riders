@@ -83,7 +83,10 @@ test('management entries from a non-creator are ignored unless the creator is di
   const r = playing();
   r.tick(streams(['guest', [r.at('guest', ACTION, 'lobby', 'hijack')]])); assert.equal(r.state.game.phase, 'playing');
   assert.equal(actingCreator(r.state, 'creator'), undefined);
-  r.tick(streams(['creator', [r.at('creator', JOIN, 'zed', 'Zed', 2, 'fox', 1), r.at('creator', PRESENCE, 'creator', false, 1)]]));
+  r.tick(streams(['creator', [r.at('creator', JOIN, 'zed', 'Zed', 2, 'fox', 1)]], ['zed', [r.at('zed', PRESENCE, 'creator', false, 1)]]));
+  assert.equal(r.state.game.players.get('creator')!.connected, true, 'only the lowest rider may mark the creator absent');
+  r.tick(streams(['guest', [r.at('guest', PRESENCE, 'creator', false, 1), r.at('guest', SETTINGS, { ...settings, length: 9 })]]));
+  assert.equal(r.state.game.players.get('creator')!.connected, false); assert.equal(r.state.settings.length, 9, 'delegation starts within the same tick');
   assert.equal(actingCreator(r.state, 'creator'), 'guest');
   r.tick(streams(['zed', [r.at('zed', ACTION, 'lobby', 'zed')]])); assert.equal(r.state.game.phase, 'playing', 'only the lowest connected rider acts');
   r.tick(streams(['guest', [r.at('guest', SETTINGS, { ...settings, length: 5 })]])); assert.equal(r.state.settings.length, 5, 'the acting creator manages the room');

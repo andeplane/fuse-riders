@@ -2,12 +2,12 @@
 # Local mirror of .github/workflows/ci.yml: same steps, same order, same env.
 # PORT=8801 scripts/ci-local.sh            (default port 8787)
 # ONLY=core,keyboard scripts/ci-local.sh   core = typecheck,worker,coverage,build
-# Steps: typecheck worker coverage build lan avatar keyboard online phaser home landscape recap shared deltas
+# Steps: typecheck worker coverage build lan avatar keyboard online phaser home landscape recap shared determinism mesh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${PORT:-8787}"
 URL="http://localhost:$PORT/"
-STEPS="typecheck,worker,coverage,build,lan,avatar,keyboard,online,phaser,home,landscape,recap,shared,deltas"
+STEPS="typecheck,worker,coverage,build,lan,avatar,keyboard,online,phaser,home,landscape,recap,shared,determinism,mesh"
 ONLY="${ONLY:-}"; ONLY="${ONLY//core/typecheck,worker,coverage,build}"
 for t in ${ONLY//,/ }; do [[ ",$STEPS," == *",$t,"* ]] || { echo "Unknown ONLY step '$t' (steps: $STEPS, core)"; exit 1; }; done
 WRANGLER_PID=""
@@ -56,7 +56,7 @@ step lan:chrome npm run test:browser
 step lan:webkit env BROWSER=webkit npm run test:browser
 step avatar npx tsx scripts/avatar-layout.ts
 
-for s in keyboard online home landscape recap shared; do needs "$s" && { start_wrangler; break; }; done
+for s in keyboard online home landscape recap shared mesh; do needs "$s" && { start_wrangler; break; }; done
 
 step keyboard env HOME_URL="$URL" npx tsx scripts/keyboard-smoke.ts
 step online:chrome env ROOM_RENDERER=canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
@@ -68,5 +68,6 @@ step landscape env HOME_URL="$URL" npx tsx scripts/mobile-landscape-smoke.ts
 step recap:chrome env HOME_URL="$URL" npx tsx scripts/match-recap-smoke.ts
 step recap:webkit env BROWSER=webkit HOME_URL="$URL" npx tsx scripts/match-recap-smoke.ts
 step shared env ONLINE_URL="$URL" npx tsx scripts/shared-room-smoke.ts
-step deltas npx tsx scripts/benchmark-deltas.ts
+step determinism npx tsx scripts/determinism-replay.ts
+step mesh env ONLINE_URL="$URL" npx tsx scripts/p2p-mesh-browser.ts
 [[ $RAN -gt 0 ]] || { echo "FAIL no steps ran"; exit 1; }
