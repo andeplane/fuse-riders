@@ -50,7 +50,7 @@ export class ControllerView {
    */
   heartbeat(tick: number, selfId: string, pos: readonly [number, number, number] | null): ControllerFrame | undefined {
     const status = this.status; if (!status || tick < this.tick) return;
-    if (pos && !(within(pos[0], -1000, ARENA_WIDTH + 1000) && within(pos[1], -1000, ARENA_WIDTH + 1000) && within(pos[2], -Math.PI * 2, Math.PI * 2))) return;
+    if (pos && !(within(pos[0], -1000, ARENA_WIDTH + 1000) && within(pos[1], -1000, ARENA_HEIGHT + 1000) && within(pos[2], -Math.PI * 2, Math.PI * 2))) return;
     this.tick = tick;
     if (pos) status.state = { ...status.state, players: status.state.players.map(p => p.id === selfId ? { ...p, x: pos[0], y: pos[1], angle: pos[2] } : p) };
     return this.frame();
