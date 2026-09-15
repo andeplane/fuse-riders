@@ -1,4 +1,4 @@
-import { applyTick, cloneState, ROLLBACK_WINDOW_TICKS, isManagementKind, type LogEntry, type ReplayState } from '../shared/action-log.js';
+import { applyTick, cloneState, replayHash, ROLLBACK_WINDOW_TICKS, isManagementKind, type LogEntry, type ReplayState } from '../shared/action-log.js';
 import type { GameEvent } from '../shared/protocol.js';
 
 export const SNAPSHOT_EVERY_TICKS = 4;
@@ -33,6 +33,8 @@ export class Simulation {
     for (let seq = log.contiguous; seq >= 1; seq--) { const entry = log.entries.get(seq); if (!entry || entry[1] <= this.tick) return seq; }
     return 0;
   }
+  /** The replay hash of the ring snapshot at exactly `tick`, if one is kept; the diagnostic the host's hash is compared to. */
+  hashAt(tick: number): string | undefined { const snapshot = this.snapshots.find(s => s.tick === tick); return snapshot && replayHash(snapshot.state); }
   /** Entries a stream has retained, in seq order; the sender side of repair. */
   retained(id: string): LogEntry[] { return [...(this.logs.get(id)?.entries.values() ?? [])].sort((a, b) => a[0] - b[0]); }
   /**

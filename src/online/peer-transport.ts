@@ -9,6 +9,7 @@ import { candidateType, sameCertificate } from './ice-signal.js';
 import { RemoteSignal } from './remote-signal.js';
 import { LinkRestartPolicy } from './link-restart.js';
 import { explainLink, type LinkDiagnostic } from './link-diagnostics.js';
+import { decodeFast, encodeFast, hashText, FAST_MESSAGE_BYTES } from './wire.js';
 export interface TransportCallbacks {
   welcome:(id:string,hostId:string)=>void;
   peer:(id:string,online:boolean)=>void;
@@ -20,8 +21,9 @@ export interface TransportCallbacks {
   terminated?:(status:string)=>void;
   authorityChanged?:()=>void;
 }
-interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
+interface Link { pc:RTCPeerConnection;channel?:RTCDataChannel;fast?:RTCDataChannel;remote:RemoteSignal;health:LinkHealth;gate:LinkSendGate;restart:LinkRestartPolicy;createdAt:number;local:Partial<Record<string,number>>;remoteTypes:Partial<Record<string,number>>;counts:{offersOut:number;offersIn:number;answersOut:number;answersIn:number;candidatesOut:number;relayFailed:number};lastFailure?:string }
 const RESTART_ATTEMPTS=4;
+const FAST_CHANNEL='fast';
 export class PeerTransport {
   id='';hostId='';connectionId='';sentBytes=0;
   grant?:AuthorityGrant;
@@ -133,7 +135,7 @@ export class PeerTransport {
       const type=candidateType(event.candidate.candidate);link.local[type]=(link.local[type]??0)+1;
       if(this.relay('signal',id,{candidate:event.candidate.toJSON()}))link.counts.candidatesOut++;else link.counts.relayFailed++;
     };
-    pc.ondatachannel=event=>{if(!isCurrentLinkCallback(this.links.get(id),link)){event.channel.close();return;}this.channel(id,link,event.channel);};
+    pc.ondatachannel=event=>{if(!isCurrentLinkCallback(this.links.get(id),link)){event.channel.close();return;}if(event.channel.label===FAST_CHANNEL)this.fastChannel(id,link,event.channel);else this.channel(id,link,event.channel);};
     pc.onconnectionstatechange=()=>{
       if(!isCurrentLinkCallback(this.links.get(id),link))return;
       if(pc.connectionState==='connected')this.callbacks.status('Direct peer link connected');
@@ -155,11 +157,27 @@ export class PeerTransport {
     channel.onclose=()=>{if(isCurrentLinkCallback(this.links.get(id),link,channel))link.gate.drain();};
     channel.onerror=event=>{event.preventDefault();if(!isCurrentLinkCallback(this.links.get(id),link,channel))return;link.gate.drain();this.callbacks.status('Direct connection failed · retrying');};
   }
+  /** Unordered, no retransmission: every packet restates recent entries, so a lost one costs nothing and never stalls
+   * the reliable channel. Loss of this channel itself is harmless: sends fall back to the reliable channel. */
+  private fastChannel(id:string,link:Link,channel:RTCDataChannel):void {
+    link.fast=channel;channel.binaryType='arraybuffer';
+    channel.onmessage=event=>{if(this.links.get(id)!==link||link.fast!==channel||!(event.data instanceof ArrayBuffer))return;this.receiveFast(id,event.data);};
+    const drop=()=>{if(link.fast===channel)link.fast=undefined;};
+    channel.onclosing=drop;channel.onclose=drop;channel.onerror=event=>{event.preventDefault();drop();};
+  }
+  /** Bytes on the fast channel carry only the authority fence; the link itself names sender and receiver. */
+  private receiveFast(id:string,bytes:ArrayBuffer):void {
+    const envelope=decodeFast(bytes),grant=this.grant;
+    if(!envelope||!grant||!this.authorityPermitted()||envelope.epoch!==grant.epoch||envelope.incarnation!==hashText(grant.incarnation)||!this.connections.has(id))return;
+    const seen=this.received.get(id)??new Set<number>();if(seen.has(envelope.id))return;
+    seen.add(envelope.id);if(seen.size>1000)seen.delete(seen.values().next().value!);this.received.set(id,seen);
+    this.callbacks.message(id,envelope.data);
+  }
   /** `force` replaces a drained link with a fresh RTCPeerConnection and gate; the restart budget carries over. */
   private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
     const old=this.links.get(id);if(!force&&old?.channel?.readyState==='open')return;if(old){old.pc.close();this.links.delete(id);}
-    const link=await this.link(id,force?old?.restart:undefined);if(!link||link.channel)return;this.channel(id,link,link.pc.createDataChannel('game'));
+    const link=await this.link(id,force?old?.restart:undefined);if(!link||link.channel)return;this.channel(id,link,link.pc.createDataChannel('game'));this.fastChannel(id,link,link.pc.createDataChannel(FAST_CHANNEL,{ordered:false,maxRetransmits:0}));
     await link.pc.setLocalDescription(await link.pc.createOffer());if(!isCurrentLinkCallback(this.links.get(id),link))return;
     if(this.relay('signal',id,{description:link.pc.localDescription}))link.counts.offersOut++;else link.counts.relayFailed++;
   }
@@ -214,9 +232,15 @@ export class PeerTransport {
     seen.add(envelope.id);if(seen.size>1000)seen.delete(seen.values().next().value!);this.received.set(id,seen);
     this.callbacks.message(id,envelope.data);
   }
-  send(id:string,data:unknown):boolean {
+  /** `fast` prefers the unreliable channel; the caller's data must be safe to lose and to reorder. */
+  send(id:string,data:unknown,fast=false):boolean {
     if(this.stopped||!this.authorityPermitted()||!this.connections.has(id))return false;
-    const envelope={id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;const link=this.links.get(id);
+    const link=this.links.get(id),messageId=++this.seq;
+    if(fast&&!document.hidden&&link&&!link.gate.draining&&link.fast?.readyState==='open'&&link.fast.bufferedAmount<PROBE_BUFFER_LIMIT){
+      const bytes=encodeFast({id:messageId,epoch:this.grant!.epoch,incarnation:hashText(this.grant!.incarnation),data});
+      if(bytes.byteLength<=FAST_MESSAGE_BYTES){this.sentBytes+=bytes.byteLength;try{link.fast.send(bytes.slice().buffer as ArrayBuffer);return true;}catch{}}
+    }
+    const envelope={id:messageId,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)!};this.sentBytes+=new TextEncoder().encode(JSON.stringify(envelope)).byteLength;
     if(!document.hidden&&!this.relayOnly&&link?.gate.permits(link.channel,GAMEPLAY_BUFFER_LIMIT)&&link.health.direct(performance.now())){
       try{link.channel!.send(JSON.stringify(envelope));return true;}catch{}
     }

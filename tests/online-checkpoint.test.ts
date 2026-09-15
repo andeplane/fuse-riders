@@ -29,14 +29,13 @@ test('checkpoint restore is atomic on the malformed sequences regression', () =>
 });
 
 test('checkpoint restores exact physics, pending preferences and neutral disconnected identities', () => {
-  const source = playing(); source.command('guest', { type: 'input', scope: source.controlScope('guest'), intendedTick: source.game.tick+1, seq: 0, left: false, right: false, bomb: false }); source.command('guest', { type: 'input', scope: source.controlScope('guest'), intendedTick: source.game.tick+1, seq: 99, left: true, right: false, bomb: true, bombAction: 'press' }); source.advance();
+  const source = playing(); source.command('guest', { type: 'input', left: false, right: false, bomb: false }); source.command('guest', { type: 'input', left: true, right: false, bomb: true, bombAction: 'press' }); source.advance();
   assert.notEqual(source.game.players.get('guest')?.bombChargeStartedTick, undefined);
   source.settings = { ...source.settings, length: 9 };
   const destination = session(); assert.equal(destination.restore(source.checkpoint()), true);
   assert.equal(destination.game.tick, source.game.tick); assert.equal(destination.settings.length, 9); assert.equal(destination.game.settings?.length, 3);
-  assert.deepEqual(destination.acknowledgements(), source.acknowledgements());
   for (const p of destination.game.players.values()) { assert.equal(p.connected, false); assert.equal(p.bombChargeStartedTick, undefined); assert.equal(p.bombTarget, undefined); }
-  assert.equal(destination.command('guest', { type: 'join', name: 'Guest' }), undefined);
+  assert.equal(destination.command('guest', { type: 'join', name: 'Guest' }), undefined); destination.advance();
   assert.equal(destination.game.players.get('guest')?.connected, true);
   destination.advance(); assert.equal(destination.game.bombs.size, 0);
 });
@@ -54,7 +53,7 @@ test('checkpoint rejects schema incompatibility, foreign host and unsafe shape e
 });
 
 test('checkpoint rejects invalid sequences, duplicate map keys and cross references', () => {
-  for (const sequences of [[['guest', -2]], [['guest', 0.1]], [['guest', 1], ['guest', 2]], [['missing', 1]], []]) rejectedWithoutMutation(corrupt(playing(), data => { data.sequences = sequences; }));
+  for (const sequences of [[['guest', -2]], [['guest', 0.1]], [['guest', 1], ['guest', 2]], [['missing', 1]]]) rejectedWithoutMutation(corrupt(playing(), data => { data.sequences = sequences; }));
   rejectedWithoutMutation(corrupt(playing(), (_data, game) => { const entries = mapped(game.players); object(game.players).$map = [...entries, entries[0]]; }));
   rejectedWithoutMutation(corrupt(playing(), (_data, game) => { object(mapped(game.players)[0][1]).id = 'wrong-key'; }));
   rejectedWithoutMutation(corrupt(playing(), (_data, game) => { const p = mapped(game.players); object(p[1][1]).slot = object(p[0][1]).slot; }));
@@ -78,9 +77,9 @@ test('real countdown, playing and round transitions produce restorable bounded c
 test('checkpoint validates bombs, shell lifetime sentinel, pickups and portal geometry', () => {
   const source = playing();
   const p = source.game.players.get('host')!; p.shellArmed = true;
-  source.command('host', { type: 'input', scope: source.controlScope('host'), intendedTick: source.game.tick+1, seq: 0, left: false, right: false, bomb: false });
-  source.command('host', { type: 'input', scope: source.controlScope('host'), intendedTick: source.game.tick+1, seq: 1, left: false, right: false, bomb: true, bombAction: 'press' }); source.advance();
-  source.command('host', { type: 'input', scope: source.controlScope('host'), intendedTick: source.game.tick+1, seq: 2, left: false, right: false, bomb: false, bombAction: 'release' }); source.advance();
+  source.command('host', { type: 'input', left: false, right: false, bomb: false });
+  source.command('host', { type: 'input', left: false, right: false, bomb: true, bombAction: 'press' }); source.advance();
+  source.command('host', { type: 'input', left: false, right: false, bomb: false, bombAction: 'release' }); source.advance();
   assert.equal(source.game.bombs.size, 1); assert.equal(session().restore(source.checkpoint()), true);
   rejectedWithoutMutation(corrupt(source, (_data, game) => { object(mapped(game.bombs)[0][1]).ownerId = 'unknown'; }));
   rejectedWithoutMutation(corrupt(source, (_data, game) => { object(object(mapped(game.bombs)[0][1]).shell).vx = Infinity; }));

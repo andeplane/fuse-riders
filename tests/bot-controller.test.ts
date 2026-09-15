@@ -80,32 +80,32 @@ test('Host alone can manage AI, five shared slots are enforced, and a solo host 
   const session=room();session.command('host',{type:'join',name:'Host'});
   assert.match(session.command('guest',aiCommand)!,/host/);
   for(let i=0;i<4;i++)assert.equal(session.command('host',aiCommand),undefined);
-  assert.equal(session.game.players.size,5);assert.match(session.command('host',aiCommand)!,/full/);
+  session.advance();assert.equal(session.game.players.size,5);assert.match(session.command('host',aiCommand)!,/full/);
   assert.match(session.command('bot:1',{type:'input',seq:1,left:true,right:false,bomb:true})!,/controlled/);
   assert.match(session.command('guest',{type:'bot',action:'remove',id:'bot:1'})!,/host/);
-  assert.equal(session.command('host',{type:'action',action:'start'}),undefined);assert.equal(session.game.phase,'countdown');
+  assert.equal(session.command('host',{type:'action',action:'start'}),undefined);session.advance();assert.equal(session.game.phase,'countdown');
   assert.match(session.command('host',{type:'bot',action:'remove',id:'bot:1'})!,/between rounds/);
 });
 
 test('AI arriving during a match waits and appears in the next round without a timed click',()=>{
   const session=room();session.command('host',{type:'join',name:'Host'});session.command('host',aiCommand);session.command('host',{type:'action',action:'start'});
-  for(let i=0;i<60;i++)session.advance();session.command('host',aiCommand);
+  for(let i=0;i<60;i++)session.advance();session.command('host',aiCommand);session.advance();
   const newcomer=session.snapshot().players.find(player=>player.id==='bot:2')!;assert.equal(newcomer.waitingForNextRound,true);assert.equal(newcomer.alive,false);
   for(let i=0;i<1200&&session.game.round===1;i++)session.advance();
   assert.ok(session.game.round>1);assert.equal(session.game.players.get('bot:2')!.connected,true);assert.equal(session.game.players.get('bot:2')!.alive,true);
 });
 
 test('AI removal/reset frees its slot without converting humans or reusing old bot identity',()=>{
-  const session=room();session.command('host',{type:'join',name:'Host'});session.command('host',aiCommand);
+  const session=room();session.command('host',{type:'join',name:'Host'});session.command('host',aiCommand);session.advance();
   session.disconnect('bot:1');assert.equal(session.game.players.get('bot:1')!.connected,true);
   assert.match(session.command('host',{type:'bot',action:'remove',id:'host'})!,/not found/);
-  assert.equal(session.command('host',{type:'bot',action:'remove',id:'bot:1'}),undefined);assert.equal(session.game.players.size,1);
-  session.command('host',aiCommand);assert.ok(session.game.players.has('bot:2'));
-  session.command('host',{type:'action',action:'start'});session.command('host',{type:'action',action:'lobby'});assert.ok(session.game.players.has('bot:2'));
+  assert.equal(session.command('host',{type:'bot',action:'remove',id:'bot:1'}),undefined);session.advance();assert.equal(session.game.players.size,1);
+  session.command('host',aiCommand);session.advance();assert.ok(session.game.players.has('bot:2'));
+  session.command('host',{type:'action',action:'start'});session.command('host',{type:'action',action:'lobby'});session.advance();assert.ok(session.game.players.has('bot:2'));
 });
 
 test('Checkpoint v3 restores only validated bot ownership and rejects malformed registries atomically',()=>{
-  const session=room();session.command('host',{type:'join',name:'Host'});session.command('human',{type:'join',name:'Friend'});session.command('host',aiCommand);
+  const session=room();session.command('host',{type:'join',name:'Host'});session.command('human',{type:'join',name:'Friend'});session.command('host',aiCommand);session.advance();
   const raw=session.checkpoint(),encoded=JSON.parse(raw);assert.equal(encoded.version,CHECKPOINT_VERSION);
   const restored=room();assert.equal(restored.restore(raw),true);assert.equal(restored.game.players.get('bot:1')!.connected,true);assert.equal(restored.game.players.get('host')!.connected,false);assert.equal(restored.game.players.get('human')!.connected,false);
   const before=restored.checkpoint();
