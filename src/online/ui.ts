@@ -202,7 +202,7 @@ export async function startOnline():Promise<void>{
       // Solo and a joined shared-screen rider have no lobby card (their pre-start screen is the arena or the controller), so their button stays CLOSE.
       const phoneLobby=mobileLayout.lobby();
       sharedLobby.hidden=!(state.phase==='lobby'||recapReady)||joining||(!phoneLobby&&(solo||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active()));app.classList.toggle('room-waiting',!sharedLobby.hidden);
-      lobbyCount.textContent=`${state.players.filter(p=>p.connected).length} riders ready`;lobbyEmpty.hidden=state.players.length>0;
+      const ready=state.players.filter(p=>p.connected).length;lobbyCount.textContent=`${ready} ${ready===1?'rider':'riders'} ready`;lobbyEmpty.hidden=state.players.length>0;
       for(const [playerId,row] of lobbyEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();lobbyEntries.delete(playerId);}
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
@@ -224,11 +224,10 @@ export async function startOnline():Promise<void>{
       }
       addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
-      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby; // MAIN MENU means nothing in the lobby; the phone screen has no room for a dead button.
+      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // MAIN MENU means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
     }
   };
   const runtime=solo?new LocalRuntime(settings,callbacks):new RoomRuntime(code,token,settings,callbacks);
-  if(solo)share.hidden=true;
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
@@ -251,7 +250,7 @@ export async function startOnline():Promise<void>{
   window.addEventListener('keydown',event=>keyboard.down(event));
   window.addEventListener('keyup',event=>keyboard.up(event));
   const clearControls=()=>{keyboard.clear();bindings.clear(true,true);};
-  const mobileLayout=installMobilePlayLayout(app,clearControls);
+  const mobileLayout=installMobilePlayLayout(app,clearControls);mobileLayout.update({joined:false,phase:'lobby',displayOnly}); // A phone booting a room is already on the lobby screen (#134): the header takes its lobby shape before the first snapshot.
   window.addEventListener('blur',clearControls);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clearControls();});
   dialog.addEventListener('focusin',clearControls);
