@@ -1,3 +1,4 @@
+import { sin, cos } from './deterministic-math.js';
 export const BOMB_MIN_LAUNCH_DISTANCE = 100;
 export const BOMB_MAX_LAUNCH_DISTANCE = 400;
 export const BOMB_MAX_CHARGE_TICKS = 24;
@@ -24,7 +25,7 @@ export function bombLandingPoint(
   bounds: LandingBounds,
 ): { x: number; y: number } {
   return {
-    x: Math.max(bounds.left, Math.min(bounds.right, x + Math.cos(angle) * distance)),
-    y: Math.max(bounds.top, Math.min(bounds.bottom, y + Math.sin(angle) * distance)),
+    x: Math.max(bounds.left, Math.min(bounds.right, x + cos(angle) * distance)),
+    y: Math.max(bounds.top, Math.min(bounds.bottom, y + sin(angle) * distance)),
   };
 }

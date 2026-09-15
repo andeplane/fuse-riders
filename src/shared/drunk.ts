@@ -1,3 +1,4 @@
+import { sin } from './deterministic-math.js';
 export const DRUNK_DURATION_TICKS = 80;
 export const DRUNK_CYCLE_TICKS = 40;
 export const DRUNK_FADE_TICKS = 10;
@@ -18,5 +19,5 @@ export function drunkHeadingOffset(seed: number, playerId: string, tick: number,
   if (![tick, startedTick, untilTick].every(Number.isFinite) || tick <= startedTick || tick >= untilTick) return 0;
   const age = tick - startedTick;
   const fade = smoothstep(Math.min(1, age / DRUNK_FADE_TICKS, (untilTick - tick) / DRUNK_FADE_TICKS));
-  return DRUNK_MAX_HEADING_OFFSET * fade * Math.sin(age * Math.PI * 2 / DRUNK_CYCLE_TICKS + phaseFor(seed, playerId));
+  return DRUNK_MAX_HEADING_OFFSET * fade * sin(age * Math.PI * 2 / DRUNK_CYCLE_TICKS + phaseFor(seed, playerId));
 }
