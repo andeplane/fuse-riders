@@ -1,3 +1,4 @@
+import { sin, cos } from './deterministic-math.js';
 export interface RiderPose { x:number; y:number; angle:number; drunkHeadingOffset:number }
 export interface MotionControls { left:boolean; right:boolean }
 export interface MotionStep { distance:number; turn:number; drunkHeadingOffset:number }
@@ -6,5 +7,5 @@ export function advanceRiderPose(pose:Readonly<RiderPose>, controls:Readonly<Mot
   const tau=Math.PI*2;
   const heading=pose.angle-pose.drunkHeadingOffset+(Number(controls.right)-Number(controls.left))*step.turn+step.drunkHeadingOffset;
   const angle=((heading%tau)+tau)%tau;
-  return {x:pose.x+Math.cos(angle)*step.distance,y:pose.y+Math.sin(angle)*step.distance,angle,drunkHeadingOffset:step.drunkHeadingOffset};
+  return {x:pose.x+cos(angle)*step.distance,y:pose.y+sin(angle)*step.distance,angle,drunkHeadingOffset:step.drunkHeadingOffset};
 }

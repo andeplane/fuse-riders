@@ -1,3 +1,4 @@
+import { hypot2 } from './deterministic-math.js';
 export interface ShellMotion { x: number; y: number; vx: number; vy: number }
 export interface ShellPoint { x: number; y: number; t: number }
 export interface ShellTrail { x1: number; y1: number; x2: number; y2: number }
@@ -42,10 +43,10 @@ function trailContact(x: number, y: number, dx: number, dy: number, limit: numbe
   const accept = (time: number, nx: number, ny: number) => {
     if (time >= -1e-9 && time <= limit + 1e-9 && dx * nx + dy * ny < -1e-9 && (!hit || time < hit.time)) hit = { time: Math.max(0, time), nx, ny };
   };
-  const sx = trail.x2 - trail.x1; const sy = trail.y2 - trail.y1; const length = Math.hypot(sx, sy);
+  const sx = trail.x2 - trail.x1; const sy = trail.y2 - trail.y1; const length = hypot2(sx, sy);
   const alongStart = length > 0 ? Math.max(0, Math.min(1, ((x - trail.x1) * sx + (y - trail.y1) * sy) / (length * length))) : 0;
   const ox = x - trail.x1 - alongStart * sx; const oy = y - trail.y1 - alongStart * sy;
-  const separation = Math.hypot(ox, oy);
+  const separation = hypot2(ox, oy);
   if (separation > 0 && separation <= radius) accept(0, ox / separation, oy / separation);
   if (length > 0) {
     const ux = sx / length; const uy = sy / length; const nx = -uy; const ny = ux;
@@ -64,7 +65,7 @@ function trailContact(x: number, y: number, dx: number, dy: number, limit: numbe
     const disc = b * b - 4 * a * c;
     if (disc < 0) continue;
     const time = (-b - Math.sqrt(disc)) / (2 * a);
-    const nx = px + dx * time; const ny = py + dy * time; const norm = Math.hypot(nx, ny);
+    const nx = px + dx * time; const ny = py + dy * time; const norm = hypot2(nx, ny);
     if (norm > 0) accept(time, nx / norm, ny / norm);
   }
   return hit;
