@@ -19,7 +19,11 @@ type Mixpanel = (typeof import('mixpanel-browser'))['default'];
 /** A Mixpanel project token is a write-only public identifier — every browser bundle reporting to a project ships one. It is not a credential and grants no read access. */
 const TOKEN = 'b5022dd7fe5b3cd0396d84284ae647e6';
 const PREFIX = 'FlowRiders.';
-/** Also the queue: every `track` chains off it, so calls made before Mixpanel loads still arrive, in order. */
+/**
+ * Also the ordering guarantee: every `track` attaches its own reaction to this one promise, and same-promise
+ * reactions run in the order they were attached, so calls made before Mixpanel loads still arrive in order.
+ * They are not chained — attaching to the result of the previous `track` would serialise on each send instead.
+ */
 let client: Promise<Mixpanel> | undefined;
 
 const OVERRIDE_KEY = 'fuse-analytics';
