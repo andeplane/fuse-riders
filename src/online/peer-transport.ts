@@ -2,6 +2,7 @@ import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
 import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT } from './link-send-gate.js';
+const LINK_BYE_GRACE_MS=150;
 import { apiUrl } from './endpoints.js';
 import { AuthorityClock, isAuthorityGrant, type AuthorityGrant } from './authority.js';
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from './ice-config.js';
@@ -221,6 +222,8 @@ export class PeerTransport {
     if(!envelope||!Number.isSafeInteger(envelope.id)||!this.authorityPermitted()||envelope.incarnation!==this.grant?.incarnation||envelope.epoch!==this.grant?.epoch||envelope.sender!==this.connections.get(id)||(id===this.hostId&&envelope.sender!==this.grant?.holder)||envelope.receiver!==this.connectionId)return;
     if(envelope.data&&typeof envelope.data==='object'){
       const probe=envelope.data as {type?:string;probeId?:number};
+      // #143: the peer is closing its side. Stop sending on this link now, before WebKit's lagging readyState lets a probe hit the dead channel.
+      if(probe.type==='linkBye'){if(direct)this.links.get(id)?.gate.drain();return;}
       if(probe.type==='linkProbe'||probe.type==='linkPong'){
         if(!direct||!Number.isSafeInteger(probe.probeId))return;
         if(probe.type==='linkPong')this.links.get(id)?.health.acknowledge(probe.probeId!,performance.now());
@@ -253,10 +256,10 @@ export class PeerTransport {
     }
     return false;
   }
-  private sendDirectProbe(id:string,data:{type:string;probeId:number}):void {
+  private sendDirectProbe(id:string,data:{type:string;probeId?:number}):boolean {
     const link=this.links.get(id);
-    if(!this.authorityPermitted()||!link?.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return;
-    try{link.channel!.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));}catch{}
+    if(!this.authorityPermitted()||!link?.gate.permits(link.channel,PROBE_BUFFER_LIMIT))return false;
+    try{link.channel!.send(JSON.stringify({id:++this.seq,data,incarnation:this.grant!.incarnation,epoch:this.grant!.epoch,sender:this.connectionId,receiver:this.connections.get(id)}));return true;}catch{return false;}
   }
   private checkLinks():void {
     if(this.stopped||document.hidden||!this.authorityPermitted())return;
@@ -275,7 +278,14 @@ export class PeerTransport {
   }
   /** Terminal for this page: report it as a notice the room runtime keeps on screen over recurring status. */
   private terminate(status:string):void{if(this.callbacks.terminated)this.callbacks.terminated(status);else this.callbacks.status(status);}
-  close():void{this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();for(const link of this.links.values())link.pc.close();this.links.clear();}
+  /** A closing page says goodbye on every direct link first (#143): the peer drains its gate on the bye instead of probing a channel that
+   *  WebKit still reports open after our side is gone. The connections close a moment later so the bye can leave the send queue. */
+  close():void{
+    const farewell=this.stopped?[]:[...this.links.keys()].filter(id=>this.sendDirectProbe(id,{type:'linkBye'}));
+    this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();
+    const connections=[...this.links.values()].map(link=>link.pc);this.links.clear();const closeAll=()=>{for(const pc of connections)pc.close();};
+    if(farewell.length)setTimeout(closeAll,LINK_BYE_GRACE_MS);else closeAll();
+  }
   private summary(id:string,link:Link,now:number):LinkDiagnostic {
     return{peer:id===this.hostId?'host':'guest',local:link.local,remote:link.remoteTypes,gathering:link.pc.iceGatheringState,ice:link.pc.iceConnectionState,connection:link.pc.connectionState,signaling:link.pc.signalingState,channel:link.gate.draining?'drained':link.channel?.readyState??'none',
       sctp:link.pc.sctp?.state,signalling:{...link.remote.counts,...link.counts},restarts:{attempts:link.restart.attempts,max:link.restart.max,exhausted:link.restart.exhausted},healthy:link.health.direct(now),ageMs:now-link.createdAt,lastFailure:link.lastFailure};
