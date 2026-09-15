@@ -90,7 +90,9 @@ try {
       await page.locator('.match-recap-report').waitFor({ state: 'visible', timeout: smokeTimeout(20000) });
       const paused = snapshots.filter((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick < matchOverTick + 60);
       assert.ok(paused.length > 0 && paused.every((snapshot) => !snapshot.dialogOpen), 'the report must stay closed during the final-round pause');
-      assert.ok(snapshots.some((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick >= matchOverTick + 60 && snapshot.dialogOpen), 'the report opens after the pause');
+      // The dialog opens between snapshots and each record reaches Node through exposeFunction, so the first record that
+      // saw it open can land after the report is already visible (#130). Wait for that record instead of asserting at that instant.
+      await waitFor(() => snapshots.some((snapshot) => snapshot.phase === 'matchOver' && snapshot.tick >= matchOverTick + 60 && snapshot.dialogOpen), smokeTimeout(5000), 'the report opens after the pause');
       const layout = await assertRecapLayout(page);
       const screenshots = [`artifacts/match-recap-${tag}.png`];
       await page.screenshot({ path: screenshots[0]! });
