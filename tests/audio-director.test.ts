@@ -25,9 +25,12 @@ function fixture(stored: Partial<RadioState> = {}) {
     stops: () => stops, pauses: () => pauses, at: (seconds: number) => { position = seconds; }, sounding: (value: boolean) => { audible = value; },
   };
 }
-test('audio requires gesture unlock, routes independent mute and volume, and tolerates refusal', async () => {
-  const f = fixture(); f.director.message(f.snapshot(10)); f.director.update(); assert.equal(f.music.length, 0);
-  f.deny(); assert.equal(await f.director.unlock(), false); f.director.update(); assert.equal(f.music.length, 0);
+test('effects wait for a gesture unlock, music is armed before it, and mute and volume route independently', async () => {
+  const f = fixture(); f.director.message(f.snapshot(10)); f.director.update();
+  // The synth holds the track from the start so the first gesture can play it inside that gesture; a refused unlock does not re-hand it.
+  assert.deepEqual(f.music, [MUSIC_TRACKS[0].path], 'the track reaches the synth before any unlock');
+  f.deny(); assert.equal(await f.director.unlock(), false); f.director.update(); assert.equal(f.music.length, 1);
+  f.director.message(f.event(11, { type: 'explosion', bombId: 1 })); assert.equal(f.notes.length, 0, 'effects still need the unlock');
   f.director.setVolume('music', .6); f.director.setMuted('music', true); assert.equal(f.gains.get('music'), 0);
   f.director.setVolume('music', .8); assert.equal(f.gains.get('music'), 0); f.director.setMuted('music', false); assert.equal(f.gains.get('music'), .8);
   f.director.setVolume('effects', 2); assert.equal(f.gains.get('effects'), 1); f.director.setVolume('effects', -1); assert.equal(f.gains.get('effects'), 0);
@@ -111,7 +114,7 @@ test('new rounds keep the current track playing instead of restarting it', async
 });
 
 test('background music plays with no match attached and survives a hidden tab', async () => {
-  const f = fixture(); f.director.playBackground(); assert.equal(f.music.length, 0, 'a gesture is still required');
+  const f = fixture(); f.director.playBackground(); assert.equal(f.music.length, 1, 'armed at once; the synth plays it on the first gesture');
   await f.director.unlock(); f.director.update(); assert.deepEqual(f.music, [MUSIC_TRACKS[0].path]);
   f.director.disconnect(); assert.equal(f.stops(), 1);
   f.director.update(); assert.equal(f.music.length, 1, 'a stopped director stays silent until it is resumed');
@@ -136,14 +139,14 @@ test('a hidden tab keeps its music and only drops effect cues', async () => {
   assert.equal(f.music.length, 1, 'coming back resumes the same track rather than restarting it');
 });
 
-test('a browser that refuses audio stays silent until a later unlock succeeds', async () => {
+test('a refused unlock leaves the track armed in the synth, and a later unlock does not hand it over again', async () => {
   const f = fixture(); f.deny();
-  // The page asks for music at load; a gesture-gated browser refuses, so nothing may be fetched yet.
-  f.director.playBackground(); assert.equal(await f.director.unlock(), false); f.director.update();
-  assert.equal(f.music.length, 0);
-  f.allow(); // The first gesture anywhere retries the same unlock.
-  assert.equal(await f.director.unlock(), true); f.director.update();
-  assert.deepEqual(f.music, [MUSIC_TRACKS[0].path], 'the gesture starts the track the page already asked for');
+  // The page asks for music at load. The synth already holds the track, so the first tap on a phone plays it
+  // inside the synth's own unlock rather than only unlocking and leaving a second tap to play (the old two-tap bug).
+  f.director.playBackground(); assert.deepEqual(f.music, [MUSIC_TRACKS[0].path], 'armed at load, before any gesture');
+  assert.equal(await f.director.unlock(), false); f.director.update(); assert.equal(f.music.length, 1);
+  f.allow(); assert.equal(await f.director.unlock(), true); f.director.update();
+  assert.equal(f.music.length, 1, 'the same armed track is not restarted by the unlock that finally succeeds');
 });
 
 test('resume only revives background music, never a match that has not sent a snapshot', async () => {

@@ -15,21 +15,32 @@ export interface GameAudioOptions {
   toggleRadio?: () => void;
   /** The OS media session to mirror the radio onto; defaults to the browser's, or none. */
   mediaSession?: MediaSessionPort;
+  /** Music starts off until the listener turns it on; defaults to true on touch devices, where nothing can play before a tap anyway. */
+  musicOffByDefault?: boolean;
 }
 export interface GameAudio {
   director: AudioDirector;
   controls: HTMLElement;
   unlock: (confirm?: boolean) => void;
-  /** Wires an existing button as a music on/off toggle that stays in sync with the audio panel. */
+  /**
+   * Wires an existing button as the ♫ MUSIC ON / ♫ MUSIC OFF toggle. Its label is what a listener hears, not the
+   * setting: a page that has not been tapped yet, a paused radio and a muted channel all read OFF, and tapping OFF
+   * makes it sound (unmute, unpause, unlock) inside that gesture. Every page uses this same button and wording.
+   */
   bindMusicToggle: (button: HTMLButtonElement) => void;
 }
 
 const CHANNELS = ['music', 'effects'] as const;
+/** Phones and tablets: a touch-first device, where no track can play before the first tap. */
+const touchDevice = (): boolean => typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 const volumeOf = (value: unknown, fallback: number): number =>
   typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
-/** Mute and volume have to survive the full page load between the landing page and a room. */
-export function loadAudioSettings(storage: SafeStorage): AudioSettings {
-  const settings: AudioSettings = { muted: { music: false, effects: false }, volume: { ...DEFAULT_VOLUME } };
+/**
+ * Mute and volume have to survive the full page load between the landing page and a room. `musicOffByDefault`
+ * is the first-visit default only; a stored choice wins either way.
+ */
+export function loadAudioSettings(storage: SafeStorage, musicOffByDefault = false): AudioSettings {
+  const settings: AudioSettings = { muted: { music: musicOffByDefault, effects: false }, volume: { ...DEFAULT_VOLUME } };
   try {
     const stored: unknown = JSON.parse(storage.getItem(AUDIO_SETTINGS_KEY) ?? 'null');
     if (!stored || typeof stored !== 'object') return settings;
@@ -100,9 +111,9 @@ class WebAudioSynth implements GameSynth {
     oscillator.start(start); oscillator.stop(end + .01);
   }
   /**
-   * Music plays through a plain media element, never the Web Audio graph. A phone's silent switch and its
-   * volume keys only reach media elements — a decoded buffer routed through an AudioContext ignores both —
-   * and streaming the file also drops the ~60 MB of PCM the old whole-track decode held.
+   * Music plays through a plain media element, never the Web Audio graph: a phone's volume keys reach it, it
+   * streams instead of holding ~60 MB of decoded PCM per track, and it plays on while iOS suspends the effects
+   * context on lock. The silent switch is a session matter, see `requestAmbientAudio`.
    */
   music(path: string, offset: number): void {
     const element = this.element ??= this.createElement();
@@ -166,6 +177,19 @@ class WebAudioSynth implements GameSynth {
   stop(): void { for (const voice of this.voices) { voice.stop(); } this.voices.clear(); this.stopMusic(); }
 }
 
+/**
+ * Asks iOS to treat the page as ambient sound, which its silent switch mutes; the default session for a page with a
+ * media element is playback, which ignores the switch (WebKit's Audio Session API, Safari 17). Ambient audio also
+ * stops when the screen locks, so the lock-screen radio only plays while the phone is awake. Returns whether the
+ * host offered the API. Other browsers have no such switch and no such API.
+ */
+export function requestAmbientAudio(host: object = navigator): boolean {
+  if (!('audioSession' in host)) return false;
+  const session = host.audioSession;
+  if (typeof session !== 'object' || session === null || !('type' in session)) return false;
+  try { (session as { type: string }).type = 'ambient'; return true; } catch { return false; }
+}
+
 /** The real `navigator.mediaSession`, or undefined where the browser has none. */
 export function browserMediaSession(): MediaSessionPort | undefined {
   const session = typeof navigator === 'undefined' ? undefined : navigator.mediaSession;
@@ -193,7 +217,8 @@ const editable = (target: EventTarget | null): boolean => target instanceof HTML
  */
 export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = {}): GameAudio {
   const storage = options.storage ?? safeStorage(() => localStorage);
-  const settings = loadAudioSettings(storage);
+  requestAmbientAudio();
+  const settings = loadAudioSettings(storage, options.musicOffByDefault ?? touchDevice());
   const enable = element('button', 'audio-enable'); enable.type = 'button'; enable.textContent = `Enable ${deviceLabel} audio`;
   let running = false;
   const showState = (ok: boolean) => {
@@ -272,7 +297,7 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     slider.value = String(Math.round(settings.volume[channel] * 100)); slider.setAttribute('aria-label', `${label} volume`);
     slider.addEventListener('input', () => setVolume(channel, Number(slider.value) / 100)); row.append(slider);
     const mute = element('button', 'radio-toggle', `Mute ${label.toLowerCase()}`); mute.type = 'button';
-    const renderMute = () => mute.setAttribute('aria-pressed', String(settings.muted[channel]));
+    const renderMute = () => { const pressed = String(settings.muted[channel]); if (mute.getAttribute('aria-pressed') !== pressed) mute.setAttribute('aria-pressed', pressed); };
     rendered.add(renderMute); renderMute();
     mute.addEventListener('click', () => setMuted(channel, !settings.muted[channel]));
     mixer.append(row, mute);
@@ -291,7 +316,10 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   };
   panel.append(unit, enable, modes, mixer, element('h3', '', 'TRACKS'), tracks, playlistHeading, playlist, element('small', 'radio-hint', RADIO_SHORTCUT_HINT));
 
-  const renderTime = () => { const text = `${formatTrackTime(director.position())} / ${formatTrackTime(director.duration())}`; if (time.textContent !== text) time.textContent = text; media.refresh(); };
+  const renderTime = () => {
+    const text = `${formatTrackTime(director.position())} / ${formatTrackTime(director.duration())}`; if (time.textContent !== text) time.textContent = text;
+    media.refresh(); for (const render of rendered) render(); // The music toggle follows what is audible, which no event announces.
+  };
   let listsKey = '';
   function render(): void {
     const state = director.state; const queue = radioQueue(state); const index = queue.indexOf(state.track);
@@ -315,14 +343,25 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   }
   director.subscribe(render); render(); // Mute changes reach it through the director as well.
 
+  const sounding = () => !settings.muted.music && director.audible();
   const bindMusicToggle = (button: HTMLButtonElement) => {
     const render = () => {
       // The label carries the state, so no aria-pressed: "Turn music on, pressed" reads as a contradiction.
-      button.textContent = settings.muted.music ? '♫ MUSIC OFF' : '♫ MUSIC ON';
-      button.dataset.muted = String(settings.muted.music);
+      const text = sounding() ? '♫ MUSIC ON' : '♫ MUSIC OFF'; if (button.textContent !== text) button.textContent = text;
+      const muted = String(!sounding()); if (button.dataset.muted !== muted) button.dataset.muted = muted;
     };
     rendered.add(render); render();
-    button.addEventListener('click', () => { setMuted('music', !settings.muted.music); unlock(); });
+    // OFF while unmuted means the browser has not let the track play yet, so the tap plays it rather than muting.
+    // The decision is taken when the gesture starts: the page-wide unlock listeners run on pointerdown and touchend,
+    // before the click, and their play() already makes the track sound, so a click-time read would mute it again.
+    let wasSounding = false;
+    for (const type of ['pointerdown', 'keydown'] as const) button.addEventListener(type, () => { wasSounding = sounding(); });
+    button.addEventListener('click', () => {
+      if (wasSounding) { wasSounding = false; setMuted('music', true); return; }
+      if (settings.muted.music) setMuted('music', false);
+      if (director.state.paused) director.togglePause();
+      unlock(); render();
+    });
   };
   // Ctrl+A radio, Ctrl+M everything, Ctrl+Alt+M music, Ctrl+Alt+E effects. Capture phase, ahead of game keys.
   window.addEventListener('keydown', event => {

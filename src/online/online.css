@@ -132,37 +132,50 @@
 .online-app>.room-lobby{flex:1 0 auto}
 .online-join .avatar-options{grid-template-columns:repeat(auto-fit,minmax(64px,1fr))}.room-join .avatar-options{grid-template-columns:repeat(5,minmax(0,1fr))}
 .net-stats{position:fixed;left:8px;bottom:8px;z-index:60;margin:0;padding:6px 8px;font:11px/1.45 monospace;white-space:pre;color:#cfe6ff;background:rgba(2,6,20,.75);border:1px solid rgba(120,180,255,.35);pointer-events:none}
-/* Phone lobby (#134): a phone in the lobby is a scrolling screen, not the TV lobby and not the thirds controller. Same screen in both orientations. */
-.online-app.phone-lobby{padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));gap:10px;overflow:auto}
-.online-app.phone-lobby>.online-header{order:-3;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 0 8px;border-bottom:1px solid #1d5267}
-.online-app.phone-lobby .online-header .room-brand{flex:0 0 auto;font-size:13px}
-.online-app.phone-lobby.booting .online-header>.online-status{display:none}
-.online-app.phone-lobby .online-header>.online-status{flex:1 1 140px;order:0;min-width:140px;font-size:11px;color:#8ba3c0;text-align:right;overflow:hidden;max-height:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.online-app.phone-lobby .online-header button{order:1;flex:1 1 auto;min-height:40px;font-size:12px;padding:6px 8px;white-space:nowrap}
+/* Phone lobby (#134): a phone in the lobby is a scrolling screen, not the TV lobby and not the thirds controller. It is the desktop lobby stacked: brand row, headline, QR card, riders, actions — no card around the whole page. */
+.online-app.phone-lobby{padding:max(8px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));gap:14px;overflow:auto}
+.online-app.phone-lobby>.online-header{order:-3;display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 0 10px;border-bottom:1px solid #1d5267}
+/* Row one is the brand with the link status beside it; the buttons share the row beneath, so none of them ends up a lone box. */
+.online-app.phone-lobby .online-header .room-brand{flex:0 0 auto;font-size:14px;gap:8px}
+.online-app.phone-lobby .online-header .room-brand span{flex:0 0 auto}
+.online-app.phone-lobby .online-header>.online-status{flex:1 1 120px;order:0;min-width:0;font-size:10px;letter-spacing:1px;color:#6f8aa8;text-align:right;overflow:hidden;max-height:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.online-app.phone-lobby.booting .online-header>.online-status,.online-app.phone-lobby .online-header>.online-status:empty{display:none}
+.online-app.phone-lobby .online-header button{order:1;flex:1 1 auto;min-height:36px;font-size:11px;letter-spacing:1px;padding:6px 10px;white-space:nowrap}
 .online-app.phone-lobby .online-header .desktop-help{display:none}
-.online-app.phone-lobby>.online-join{order:-2;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px;border:1px solid #31556e;background:#061329}
-/* The scoreboard is display:contents, so the notice itself takes the flex order: it reads above the lobby card. */
+.online-app.phone-lobby>.online-join{order:-2;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:12px;border:1px solid #31556e;background:#061329}
 /* Nothing in the scrolling phone column may shrink below its content: a squeezed notice painted behind the QR card (#142). */
 .online-app.phone-lobby>*{flex-shrink:0}
-.online-app.phone-lobby .online-notice{order:-1;display:block;flex:0 0 auto;min-height:0;font-size:13px;color:#f8d35c;text-align:center;padding:0}
-.online-app.phone-lobby>.room-lobby{display:flex;flex-direction:column;gap:12px;padding:12px;margin:0;width:auto;min-height:0;flex:0 0 auto;align-items:stretch;border-width:1px}
-.online-app.phone-lobby .room-lobby-copy{display:none}
-.online-app.phone-lobby .room-qr-card{max-width:none;width:100%;display:grid;grid-template-columns:96px minmax(0,1fr);column-gap:12px;align-items:center;text-align:left;padding:10px;justify-self:stretch}
-.online-app.phone-lobby .room-qr-card img{grid-row:1/4;width:96px;max-width:none}
+/* The scoreboard is display:contents, so the notice itself takes the flex order (and is not a direct child, so it needs its own no-shrink): it reads above the lobby. */
+.online-app.phone-lobby .online-notice{order:-1;display:block;flex:0 0 auto;min-height:0;font-size:12px;letter-spacing:1px;line-height:1.4;color:#f8d35c;text-align:center;padding:0}
+.online-app.phone-lobby>.room-lobby{display:flex;flex-direction:column;gap:14px;padding:0;margin:0;width:auto;min-height:0;flex:0 0 auto;align-items:stretch;border:0;background:none;box-shadow:none}
+.online-app.phone-lobby .room-lobby h1{font-size:22px;line-height:1.3;margin:8px 0 0;text-shadow:3px 3px #192755}
+.online-app.phone-lobby .room-lobby .room-intro,.online-app.phone-lobby .room-lobby .room-howto{display:none}
+.online-app.phone-lobby .room-qr-card{max-width:none;width:100%;display:grid;grid-template-columns:108px minmax(0,1fr);column-gap:14px;align-items:center;text-align:left;padding:12px;justify-self:stretch}
+.online-app.phone-lobby .room-qr-card img{grid-row:1/4;width:108px;max-width:none}
 .online-app.phone-lobby .room-lobby .room-qr-card p{margin:0;font-size:9px;letter-spacing:2px}
-.online-app.phone-lobby .room-qr-card .shared-room-code{font-size:22px;letter-spacing:2px;margin:2px 0}
-.online-app.phone-lobby .room-qr-link{margin-top:4px;padding-top:6px;flex-direction:row;align-items:center;gap:8px}
+.online-app.phone-lobby .room-qr-card .shared-room-code{font-size:24px;letter-spacing:2px;margin:2px 0}
+.online-app.phone-lobby .room-qr-link{margin-top:6px;padding-top:8px;flex-direction:row;align-items:center;gap:8px}
 /* A phone has no room for a readable URL beside the button, so it copies the link without showing a truncated one (#142). */
 .online-app.phone-lobby .room-qr-url{display:none}
 .online-app.phone-lobby .room-qr-card .room-qr-copy{flex:1 1 auto;min-height:40px;padding:6px 10px}
-.online-app.phone-lobby .room-riders{gap:6px}.online-app.phone-lobby .room-rider{padding:8px 10px;gap:10px}
-.online-app.phone-lobby .room-rider .avatar-portrait{width:34px;height:34px;flex-basis:34px}.online-app.phone-lobby .room-rider strong{font-size:13px}.online-app.phone-lobby .room-empty{padding:14px;font-size:12px}
-.online-app.phone-lobby .room-lobby-footer{grid-column:auto;flex-direction:column;align-items:stretch;gap:10px;padding-top:12px}
+.online-app.phone-lobby .room-riders{gap:8px}
+.online-app.phone-lobby .room-rider{padding:8px 12px;gap:12px;border:0;border-left:3px solid var(--rider-color);background:#071125}
+.online-app.phone-lobby .room-rider .avatar-portrait{width:36px;height:36px;flex-basis:36px}
+.online-app.phone-lobby .room-rider strong{font-size:13px}
+.online-app.phone-lobby .room-empty{padding:14px 0;font-size:12px;border:0;color:#7c93b8;text-align:center}
+.online-app.phone-lobby .room-lobby-footer{grid-column:auto;flex-direction:column;align-items:stretch;gap:10px;padding-top:14px;font-size:11px;letter-spacing:1px}
 .online-app.phone-lobby .room-lobby-footer .online-host{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;justify-content:stretch}
 .online-app.phone-lobby .room-lobby-footer .online-host button{min-height:46px;font-size:12px;padding:8px}
-.online-app.phone-lobby .room-lobby-footer .online-host button:first-child{grid-column:1/-1;min-height:54px;font-size:15px}
+.online-app.phone-lobby .room-lobby-footer .online-host button:first-child{grid-column:1/-1;min-height:54px;font-size:15px;background:#00d9ff;color:#030919;border-color:#00d9ff}
+.online-app.phone-lobby .room-lobby-footer .online-host button:first-child:disabled{background:#08152b;color:#eefaff}
 .online-app.phone-lobby .room-lobby-footer .online-host button[hidden]{display:none}
-@media(orientation:landscape){.online-app.phone-lobby>.room-lobby{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto;align-items:start}.online-app.phone-lobby .room-qr-card{grid-column:1;grid-row:1/3}.online-app.phone-lobby .room-riders{grid-column:2}.online-app.phone-lobby .room-lobby-footer{grid-column:2}.online-app.phone-lobby .room-qr-card[hidden]~.room-riders{grid-column:1}.online-app.phone-lobby .room-qr-card[hidden]~.room-lobby-footer{grid-column:2;grid-row:1/3}}
+@media(orientation:landscape){.online-app.phone-lobby>.room-lobby{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto auto;align-items:start;column-gap:16px}
+.online-app.phone-lobby .room-lobby-copy{display:none}
+.online-app.phone-lobby .room-qr-card{grid-column:1;grid-row:1/3}
+.online-app.phone-lobby .room-riders{grid-column:2}
+.online-app.phone-lobby .room-lobby-footer{grid-column:2}
+.online-app.phone-lobby .room-qr-card[hidden]~.room-riders{grid-column:1}
+.online-app.phone-lobby .room-qr-card[hidden]~.room-lobby-footer{grid-column:2;grid-row:1/3}}
 
 /* --- AAA pass: in-arena announcements, elimination feed, link status tones, header hierarchy, phone HUD. --- */
 .online-announce{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;display:grid;gap:8px;justify-items:center;text-align:center;padding:18px 34px;max-width:min(92vw,720px);box-sizing:border-box;background:#020715db;border:3px solid #ff2e9d;box-shadow:0 0 40px #ff2e9d61;pointer-events:none}
