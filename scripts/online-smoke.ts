@@ -5,8 +5,15 @@ const browser=await (process.env.BROWSER==='webkit'?webkit:chromium).launch({hea
 try{
   const a=await browser.newContext({viewport:{width:1000,height:700}});a.setDefaultTimeout(smokeTimeout(30000));const host=await a.newPage();
   host.on('pageerror',error=>console.error('HOST ERROR',error));
-  await host.goto(process.env.ONLINE_URL??'http://localhost:8787/');await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();
+  await host.goto(process.env.ONLINE_URL??'http://localhost:8787/');
+  // CREATE ROOM swaps the landing view for the room in place: a page load would cost the soundtrack, because no
+  // browser autoplays before the new page has been tapped. The marker and the same media element are the evidence.
+  const music=()=>host.evaluate(()=>{const a=document.querySelector('audio');return {kept:'kept' in window,src:a?.getAttribute('src')??null,time:a?.currentTime??-1};});
+  await host.evaluate(()=>{(window as unknown as {kept:boolean}).kept=true;});const before=await music();assert.ok(before.src,'the landing page owns a music element');
+  await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();
   await host.waitForURL(/room=/);
+  {const after=await music();assert.ok(after.kept,'CREATE ROOM keeps the document, so the radio keeps playing');
+   assert.equal(after.src,before.src,'the room plays the same track the landing page did');assert.ok(after.time>=before.time,`the track never rewinds: ${before.time} -> ${after.time}`);}
   // Keep UI room creation coverage. Explicit CI fallback avoids six software-GL views
   // competing for one runner; dedicated Phaser gates test the intended renderer.
   if(process.env.ROOM_RENDERER==='canvas'){await host.getByPlaceholder('Your name').waitFor();const target=new URL(host.url());target.searchParams.set('renderer','canvas');await host.goto(target.href);}

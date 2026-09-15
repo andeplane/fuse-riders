@@ -21,7 +21,7 @@ Update 2026-09-15 (background music): the soundtrack is background music that pl
 - Mute and volume for both channels persist in `localStorage` under `fuse-riders-audio` through `safeStorage`, so turning music off on the landing page keeps it off through the page load into a room. Corrupt, partial, out-of-range or blocked storage falls back to the defaults.
 - The landing page carries a music on/off toggle in its top bar, in the same position as a room's `♫ AUDIO` button; both are wired to the same persisted state. (Superseded 2026-09-15: every page now carries the same **♫ MUSIC ON / OFF** toggle next to **♫ RADIO**; see below.)
 
-`tests/audio-director.test.ts` covers the round/match transitions, the hidden tab, the refused unlock and background playback; `tests/game-audio-settings.test.ts` covers the stored settings. `scripts/landing-music-smoke.ts` drives a real browser over the landing page: music playing with no room, the toggle's position and touch target, alt-tab not rewinding the track, and the setting surviving a reload.
+`tests/audio-director.test.ts` covers the round/match transitions, the hidden tab, the refused unlock and background playback; `tests/game-audio-settings.test.ts` covers the stored settings. `scripts/landing-music-smoke.ts` drives a real browser over the landing page: music playing with no room, the toggle's position and touch target, alt-tab not rewinding the track, and the setting surviving a reload. `scripts/online-smoke.ts` checks that CREATE ROOM keeps the document and the same media element, since a page load would cost the soundtrack until the new page is tapped.
 
 Update 2026-09-15 (Fuse Riders Radio, #112): the listener controls the music on top of the background-music rules above.
 

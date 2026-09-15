@@ -14,7 +14,7 @@ import { ControllerPointerBindings } from '../client/controller-pointers.js';
 import { drawArena } from '../client/main.js';
 import { createAvatarPicker, createAvatarPortrait } from '../client/avatar-heads.js';
 import { defaultTheme, loadThemeSprites } from '../client/themes.js';
-import { createGameAudio } from '../client/game-audio.js';
+import { createGameAudio, type GameAudio } from '../client/game-audio.js';
 import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
@@ -46,6 +46,11 @@ const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',fi
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
 const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
+// One radio for the document's whole life. Entering a room from the landing page swaps the view in place rather than
+// reloading (a page load costs the soundtrack: no browser will autoplay before the new page has been tapped), so a
+// second createGameAudio would leave two <audio> elements playing the same track. Ctrl+A goes to whichever view is up.
+let pageAudio:GameAudio|undefined,radioToggle:(()=>void)|undefined;
+const sharedAudio=(deviceLabel:string):GameAudio=>pageAudio??=createGameAudio(deviceLabel,{background:true,toggleRadio:()=>radioToggle?.()});
 export async function startOnline():Promise<void>{
   const app=document.querySelector<HTMLElement>('#app')!;app.className='online-app';
   const url=new URL(location.href);const solo=url.searchParams.get('solo')==='1';const code=solo?'SOLO':url.searchParams.get('room')?.toUpperCase();
@@ -69,18 +74,23 @@ export async function startOnline():Promise<void>{
     for(const [value,label] of [['devices','Each device'],['shared','Shared TV']] as const){const option=node('label'),radio=node('input');radio.type='radio';radio.name='landing-mode';radio.value=value;radio.checked=selectedMode===value;radio.onchange=()=>{selectedMode=value;};option.append(radio,node('span',label));mode.append(option);}
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
     const error=node('p');
-    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
-    join.onclick=()=>{const value=input.value.trim().toUpperCase();if(validRoomCode(value))location.href=appUrl(`?room=${value}`);else error.textContent='Enter a room code, for example AB42';};
+    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));enter(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
+    join.onclick=()=>{const value=input.value.trim().toUpperCase();if(validRoomCode(value))enter(`?room=${value}`);else error.textContent='Enter a room code, for example AB42';};
     mode.setAttribute('aria-label','Where will you play?');input.setAttribute('aria-label','Room code');error.setAttribute('role','alert');
     const createRow=node('div','','landing-create');createRow.append(mode,create);
     const joinRow=node('div','','landing-join');joinRow.append(input,join);input.onkeydown=event=>{if(event.key==='Enter')join.click();};
     form.append(createRow,joinRow,error);app.replaceChildren(card);
     let cleanup:(()=>void)|undefined,ended=false;
+    // Leaving the landing page for a room, keeping the document (and so the music) alive. Back goes through a reload,
+    // which is what a fresh load of either view does anyway.
+    const enter=(query:string)=>{ended=true;cleanup?.();window.addEventListener('popstate',()=>location.reload(),{once:true});history.pushState(null,'',appUrl(query));void startOnline();};
     window.addEventListener('pagehide',()=>{ended=true;cleanup?.();},{once:true});
     window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
     // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
-    const landingAudio=createGameAudio('Site',{background:true});landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
-    card.querySelector('.landing-audio')!.before(landingAudio.controls);
+    const landingAudio=sharedAudio('Site');landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
+    card.querySelector('.landing-audio')!.before(landingAudio.controls);radioToggle=()=>landingAudio.controls.toggleAttribute('open');
+    // PLAY SOLO is a real link for a new tab or a bookmark; a plain click takes the in-place route with the music.
+    card.querySelector<HTMLAnchorElement>('.solo-cta')!.addEventListener('click',event=>{if(event.button||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();enter('?solo=1');});
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
   if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
@@ -164,7 +174,7 @@ export async function startOnline():Promise<void>{
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
   const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
-  const audio=createGameAudio('Game',{background:true,toggleRadio:()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */}});audioButton.onclick=openRadio;
+  const audio=sharedAudio('Game');radioToggle=()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */};audioButton.onclick=openRadio;
   audio.bindMusicToggle(musicButton); // The same ♫ MUSIC ON / OFF toggle as the landing page, next to the same ♫ RADIO button.
   /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
