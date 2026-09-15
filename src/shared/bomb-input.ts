@@ -34,6 +34,16 @@ export class BombInputBuffer {
     this.aim = undefined;
   }
 
+  /** A rollback snapshot copies the latch state; the class has no other state. */
+  clone(): BombInputBuffer {
+    const copy = new BombInputBuffer();
+    copy.pending = this.pending.map(command => ({ ...command, ...(command.aim ? { aim: { ...command.aim } } : {}) }));
+    copy.held = this.held; copy.aim = this.aim ? { ...this.aim } : undefined; copy.needsRelease = this.needsRelease;
+    return copy;
+  }
+  /** Canonical form for hashing and snapshots. */
+  toJSON(): unknown { return { pending: this.pending, held: this.held, aim: this.aim, needsRelease: this.needsRelease }; }
+
   drain(): BombAction[] { return this.drainCommands().map(command => command.action); }
 
   drainCommands(): BombActionCommand[] {

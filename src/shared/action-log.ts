@@ -1,115 +1,182 @@
-import { addPlayer, removePlayer, setPlayerConnected, startMatch, startNextRound, returnToLobby, resetMatch, step, type GameState, type InputIntent, type PlayerIdentity, SLOT_COLORS } from './game.js';
+import { addPlayer, removePlayer, setPlayerConnected, startMatch, startNextRound, returnToLobby, resetMatch, step, SLOT_COLORS, MAX_PLAYERS, type GameState, type InputIntent } from './game.js';
+import { BombInputBuffer } from './bomb-input.js';
 import { isAvatarId, type AvatarId } from './avatars.js';
 import { parseRoomSettings, type RoomSettings } from './room-settings.js';
-import type { GameEvent } from './protocol.js';
+import type { AimPoint, GameEvent } from './protocol.js';
 
-export const REPLAY_RULES = 'fuse-actions-3';
-export type AimTuple = [number, number] | null;
-export type BombTuple = [number, AimTuple];
-/** Self-contained action timestamp; must equal the containing step's absolute tick. */
-export type ControlChange = [slot:number, appliedTick:number, flags:number, aim:AimTuple, bombs:BombTuple[]];
-export type GameOperation = [0, number, ControlChange[]] | [1, PlayerIdentity] | [2, string] |
-  [3, string, boolean] | [4, RoomSettings] | [5, number, string] | [6, string, AvatarId];
-export interface HeldControl { at: number; flags: number; aim: AimTuple }
-export interface ReplayState { game: GameState; held: Map<number, HeldControl> }
-const actions = ['press', 'release', 'cancel'] as const;
+/** Bump on any change to the fold or the simulation; replicas on different rules never share a room. */
+export const REPLAY_RULES = 'fuse-rollback-1';
+/** Ticks a simulator can rewind; older entries reach it only through a fresh baseline. */
+export const ROLLBACK_WINDOW_TICKS = 40;
+export const MAX_ENTRIES_PER_TICK = 32;
+
+/** Entry bodies. Player kinds 0-5 belong to any member's stream; management kinds 10-14 only to the creator's. */
+export type EntryBody =
+  | [kind: 0, flags: number]                                   // steer: left = 1, right = 2
+  | [kind: 1, x: number, y: number]                            // aim, 0..1 of the arena
+  | [kind: 2, gesture: number]                                 // press
+  | [kind: 3, gesture: number, x: number | null, y: number | null] // release with the final aim, if any
+  | [kind: 4, gesture: number]                                 // cancel
+  | [kind: 5, avatarId: AvatarId]
+  | [kind: 10, memberId: string, name: string, slot: number, avatarId: AvatarId | null] // join, or reconnect of a known member
+  | [kind: 11, memberId: string]                               // leave: removed between rounds, otherwise a no-op
+  | [kind: 12, memberId: string, connected: boolean]           // presence
+  | [kind: 13, settings: RoomSettings]                         // pending settings; active at once in the lobby
+  | [kind: 14, action: 'start' | 'rematch' | 'lobby', matchId: string];
+export type LogEntry = [seq: number, tick: number, ...EntryBody];
+export const isManagementKind = (kind: number): boolean => kind >= 10;
+
+export interface StreamState { flags: number; aim?: AimPoint; gesture?: number; bombs: BombInputBuffer }
+export interface ReplayState { game: GameState; pending: RoomSettings; streams: Map<string, StreamState> }
+
 const integer = (x: unknown, max = Number.MAX_SAFE_INTEGER): x is number => typeof x === 'number' && Number.isSafeInteger(x) && x >= 0 && x <= max;
-const text = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length <= 128;
-const aimTuple = (aim:{x:number;y:number}|undefined):AimTuple => aim ? [aim.x===0?0:aim.x,aim.y===0?0:aim.y] : null;
-export const validAim = (x: unknown): x is AimTuple => x === null || Array.isArray(x) && x.length === 2 && x.every(n => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1 && !Object.is(n,-0));
-export function validOperation(value: unknown): value is GameOperation {
-  if (!Array.isArray(value)) return false;
-  const [kind, a, b] = value;
+const unit = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 1 && !Object.is(x, -0);
+const text = (x: unknown, max = 128): x is string => typeof x === 'string' && x.length > 0 && x.length <= max;
+export function validEntry(value: unknown): value is LogEntry {
+  if (!Array.isArray(value) || value.length < 3 || !integer(value[0]) || value[0] < 1 || !integer(value[1]) || value[1] < 1) return false;
+  const [, , kind, a, b, c, d] = value;
   switch (kind) {
-    case 0: return value.length === 3 && integer(a) && Array.isArray(b) && b.length <= 5 && b.every(c => Array.isArray(c) && c.length === 5 && integer(c[0], 4) && integer(c[1]) && c[1] === a && integer(c[2], 7) && validAim(c[3]) && Array.isArray(c[4]) && c[4].length <= 128 && c[4].every((v: unknown) => Array.isArray(v) && v.length === 2 && integer(v[0], 2) && validAim(v[1])));
-    case 1: return value.length === 2 && a && typeof a === 'object' && !Array.isArray(a) && Object.keys(a).every(k => ['id','name','slot','color','avatarId','connected'].includes(k)) && text(a.id) && text(a.name) && a.name.trim().length > 0 && a.name.length <= 20 && integer(a.slot, 4) && a.color === SLOT_COLORS[a.slot] && (a.avatarId === undefined || isAvatarId(a.avatarId)) && (a.connected === undefined || typeof a.connected === 'boolean');
-    case 2: return value.length === 2 && text(a);
-    case 3: return value.length === 3 && text(a) && typeof b === 'boolean';
-    case 4: return value.length === 2 && parseRoomSettings(a) !== undefined;
-    case 5: return value.length === 3 && integer(a, 3) && typeof b === 'string' && b.length <= 128 && (a < 2 || b.length > 0);
-    case 6: return value.length === 3 && text(a) && isAvatarId(b);
+    case 0: return value.length === 4 && integer(a, 3);
+    case 1: return value.length === 5 && unit(a) && unit(b);
+    case 2: case 4: return value.length === 4 && integer(a);
+    case 3: return value.length === 6 && integer(a) && (b === null ? c === null : unit(b) && unit(c));
+    case 5: return value.length === 4 && isAvatarId(a);
+    case 10: return value.length === 7 && text(a) && text(b, 20) && (b as string).trim().length > 0 && integer(c, MAX_PLAYERS - 1) && (d === null || isAvatarId(d));
+    case 11: return value.length === 4 && text(a);
+    case 12: return value.length === 5 && text(a) && typeof b === 'boolean';
+    case 13: return value.length === 4 && parseRoomSettings(a) !== undefined;
+    case 14: return value.length === 5 && (a === 'start' || a === 'rematch' || a === 'lobby') && text(b);
     default: return false;
   }
 }
-/** All gameplay mutation is deterministic; callers validate a transaction before committing it. */
-export function applyOperation(state: ReplayState, op: GameOperation): GameEvent[] {
+
+export function createReplayState(game: GameState, pending: RoomSettings): ReplayState {
+  game.settings = structuredClone(pending);
+  return { game, pending: structuredClone(pending), streams: new Map() };
+}
+export function cloneState(state: ReplayState): ReplayState {
+  return { game: structuredClone(state.game), pending: structuredClone(state.pending), streams: new Map([...state.streams].map(([id, s]) => [id, { flags: s.flags, ...(s.aim ? { aim: { ...s.aim } } : {}), ...(s.gesture === undefined ? {} : { gesture: s.gesture }), bombs: s.bombs.clone() }])) };
+}
+function stream(state: ReplayState, id: string): StreamState {
+  let s = state.streams.get(id);
+  if (!s) { s = { flags: 0, bombs: new BombInputBuffer() }; state.streams.set(id, s); }
+  return s;
+}
+/** Charges and gestures never survive a phase change; held steering does, exactly as a held key would. */
+function resetGestures(state: ReplayState): void {
+  for (const s of state.streams.values()) { s.bombs = new BombInputBuffer(); s.gesture = undefined; s.aim = undefined; }
+}
+const connectedCount = (game: GameState): number => [...game.players.values()].filter(player => player.connected).length;
+const reclaimable = (game: GameState): boolean => ['lobby', 'roundOver', 'matchOver'].includes(game.phase);
+function pruneDisconnected(state: ReplayState): void {
+  for (const player of [...state.game.players.values()]) if (!player.connected) { removePlayer(state.game, player.id); state.streams.delete(player.id); }
+}
+
+/** Every precondition is a pure function of the folded state; a failing one makes the entry a no-op, never a throw. */
+function applyManagement(state: ReplayState, body: EntryBody): void {
   const game = state.game;
-  switch (op[0]) {
-    case 0: {
-      if (op[1] !== game.tick + 1) throw new Error('Noncontiguous simulation tick');
-      const inputs = new Map<string, InputIntent>();
-      const changed = new Set<number>();
-      for (const [slot, appliedTick, flags, aim, bombs] of op[2]) {
-        if (changed.has(slot) || ![...game.players.values()].some(p => p.slot === slot) || appliedTick !== op[1]) throw new Error('Invalid player action tick');
-        changed.add(slot); state.held.set(slot, {at: op[1], flags, aim});
-        const player = [...game.players.values()].find(p => p.slot === slot)!;
-        inputs.set(player.id, {left: !!(flags & 1), right: !!(flags & 2), bomb: !!(flags & 4), ...(aim ? {aim:{x:aim[0],y:aim[1]}} : {}), bombCommands: bombs.map(([action, target]) => ({action: actions[action]!, ...(target ? {aim:{x:target[0],y:target[1]}} : {})}))});
-      }
-      for (const player of game.players.values()) if (!inputs.has(player.id)) {
-        const held = state.held.get(player.slot);
-        const flags = held?.flags ?? 0, aim = held?.aim;
-        inputs.set(player.id, {left:!!(flags & 1),right:!!(flags & 2),bomb:!!(flags & 4), ...(aim ? {aim:{x:aim[0],y:aim[1]}} : {})});
-      }
-      return step(game, inputs).events;
+  switch (body[0]) {
+    case 10: {
+      const [, id, name, slot, avatarId] = body;
+      if (game.players.has(id)) { setPlayerConnected(game, id, true); return; }
+      if (reclaimable(game)) pruneDisconnected(state);
+      if (game.players.size >= MAX_PLAYERS || [...game.players.values()].some(player => player.slot === slot)) return;
+      if (!game.leaderboard.has(id) && game.leaderboard.size >= 128) return;
+      addPlayer(game, { id, name: name.trim(), slot, color: SLOT_COLORS[slot]!, ...(avatarId ? { avatarId } : {}) });
+      stream(state, id); return;
     }
-    case 1: addPlayer(game, op[1]); state.held.delete(op[1].slot); break;
-    case 2: { const slot = game.players.get(op[1])?.slot; removePlayer(game, op[1]); if (slot !== undefined) state.held.delete(slot); break; }
-    case 3: setPlayerConnected(game, op[1], op[2]); break;
-    case 4: game.settings = structuredClone(op[1]); break;
-    case 5:
-      if (op[1] === 0) startMatch(game);
-      else if (op[1] === 1) startNextRound(game);
-      else if (op[1] === 2) { const tick = game.tick; returnToLobby(game, op[2]); game.tick = tick; }
-      else resetMatch(game, op[2]);
-      state.held.clear(); break;
-    case 6: { const player = game.players.get(op[1]); if (!player) throw new Error('Unknown avatar player'); player.avatarId = op[2]; break; }
+    case 11: { if (game.players.has(body[1]) && reclaimable(game)) { removePlayer(game, body[1]); state.streams.delete(body[1]); } return; }
+    case 12: {
+      const [, id, connected] = body;
+      if (!game.players.has(id)) return;
+      setPlayerConnected(game, id, connected);
+      if (!connected) { const s = stream(state, id); s.flags = 0; s.aim = undefined; s.gesture = undefined; s.bombs = new BombInputBuffer(); s.bombs.cancel(); }
+      return;
+    }
+    case 13: { const settings = parseRoomSettings(body[1])!; state.pending = settings; if (game.phase === 'lobby') game.settings = structuredClone(settings); return; }
+    case 14: {
+      const [, action, matchId] = body;
+      if (action === 'lobby') { const tick = game.tick; returnToLobby(game, matchId); game.tick = tick; resetGestures(state); return; }
+      if (reclaimable(game)) pruneDisconnected(state);
+      if (connectedCount(game) < 2) return;
+      if (action === 'start' && game.phase === 'lobby') { game.settings = structuredClone(state.pending); startMatch(game); resetGestures(state); }
+      else if (action === 'rematch' && game.phase === 'matchOver') { game.settings = structuredClone(state.pending); resetMatch(game, matchId); resetGestures(state); }
+      return;
+    }
   }
-  return [];
+}
+
+function applyPlayer(state: ReplayState, id: string, body: EntryBody): void {
+  const s = stream(state, id);
+  switch (body[0]) {
+    case 0: s.flags = body[1]; return;
+    case 1: s.aim = { x: body[1], y: body[2] }; return;
+    case 2: {
+      if (s.gesture === body[1]) return;
+      if (s.gesture !== undefined) s.bombs.accept(false, 'cancel');
+      s.gesture = body[1]; s.bombs.accept(true, 'press', s.aim); return;
+    }
+    case 3: {
+      if (s.gesture !== body[1]) return;
+      if (body[2] !== null && body[3] !== null) s.aim = { x: body[2], y: body[3] };
+      s.bombs.accept(false, 'release', s.aim); s.gesture = undefined; return;
+    }
+    case 4: { if (s.gesture !== body[1]) return; s.bombs.accept(false, 'cancel'); s.gesture = undefined; return; }
+    case 5: { const player = state.game.players.get(id); if (player) player.avatarId = body[1]; return; }
+    default: return;
+  }
+}
+
+/**
+ * One simulation tick: the creator's management entries stamped T in seq order, then each member's player entries
+ * stamped T folded into held controls and ordered bomb commands, then the shared step and round progression.
+ * `entries` maps member id to that member's entries for tick T, already contiguous and sorted by seq.
+ */
+export function applyTick(state: ReplayState, tick: number, creatorId: string, entries: ReadonlyMap<string, readonly LogEntry[]>): GameEvent[] {
+  const game = state.game;
+  if (tick !== game.tick + 1) throw new Error(`applyTick expected tick ${game.tick + 1}, got ${tick}`);
+  const before = game.phase;
+  for (const [, , ...body] of entries.get(creatorId) ?? []) if (isManagementKind(body[0])) applyManagement(state, body as EntryBody);
+  for (const [id, list] of entries) for (const [, , ...body] of list) if (!isManagementKind(body[0]) && game.players.has(id)) applyPlayer(state, id, body as EntryBody);
+  const inputs = new Map<string, InputIntent>();
+  for (const player of game.players.values()) {
+    const s = state.streams.get(player.id);
+    inputs.set(player.id, s ? { left: !!(s.flags & 1), right: !!(s.flags & 2), bomb: s.gesture !== undefined, ...(s.aim ? { aim: { ...s.aim } } : {}), bombCommands: s.bombs.drainCommands() } : { left: false, right: false, bomb: false });
+  }
+  const events = step(game, inputs).events;
+  if (before !== game.phase) resetGestures(state);
+  if (game.phase !== 'playing') for (const player of game.players.values()) { player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
+  if (game.phase === 'roundOver' && game.phaseEndsAtTick !== undefined && game.tick >= game.phaseEndsAtTick) {
+    pruneDisconnected(state);
+    if (connectedCount(game) >= 2) { game.settings = { ...structuredClone(state.pending), match: game.settings!.match, length: game.settings!.length }; startNextRound(game); resetGestures(state); }
+  }
+  return events;
+}
+
+/** Edge entries that move a member's stream from `previous` to `intent`; used by the creator for bots and by tests. */
+export function edgesFrom(previous: { flags: number; aim?: AimPoint; gesture?: number }, intent: InputIntent, nextGesture: () => number): EntryBody[] {
+  const bodies: EntryBody[] = [];
+  const flags = Number(intent.left) | Number(intent.right) << 1;
+  if (flags !== previous.flags) bodies.push([0, flags]);
+  const aim = intent.aim;
+  if (aim && (aim.x !== previous.aim?.x || aim.y !== previous.aim?.y)) bodies.push([1, aim.x, aim.y]);
+  for (const command of intent.bombCommands ?? []) {
+    if (command.action === 'press') bodies.push([2, nextGesture()]);
+    else if (previous.gesture !== undefined) bodies.push(command.action === 'release' ? [3, previous.gesture, command.aim?.x ?? null, command.aim?.y ?? null] : [4, previous.gesture]);
+  }
+  return bodies;
 }
 
 /** Stable object keys, but Map order is semantic and must survive replay. */
 export function canonical(value: unknown): string {
   if (value instanceof Map) return `{"$map":${canonical([...value])}}`;
+  if (value instanceof BombInputBuffer) return canonical(value.toJSON());
   if (Array.isArray(value)) return `[${value.map(v => canonical(v)).join(',')}]`;
-  if (value && typeof value === 'object') return `{${Object.entries(value).filter(([,v]) => v !== undefined).sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0).map(([k,v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
-  return Object.is(value,-0)?'-0':JSON.stringify(value) ?? 'null';
+  if (value && typeof value === 'object') return `{${Object.entries(value).filter(([, v]) => v !== undefined).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
+  return Object.is(value, -0) ? '-0' : JSON.stringify(value) ?? 'null';
 }
 export function replayHash(state: ReplayState): string {
-  const raw = canonical(state); let a = 0x811c9dc5, b = 0x9e3779b9;
+  const raw = canonical({ game: state.game, pending: state.pending, streams: state.streams }); let a = 0x811c9dc5, b = 0x9e3779b9;
   for (let i = 0; i < raw.length; i++) { const c = raw.charCodeAt(i); a = Math.imul(a ^ c, 0x01000193); b = Math.imul(b ^ c, 0x85ebca6b); }
-  return `${(a>>>0).toString(16).padStart(8,'0')}${(b>>>0).toString(16).padStart(8,'0')}`;
-}
-interface Entry { seq:number; tick:number; bytes:number; op:GameOperation }
-export class ActionJournal {
-  readonly state: ReplayState;
-  private entries: Entry[] = [];
-  private bytes = 0;
-  sequence = 0;
-  constructor(game: GameState, readonly capture = false) { this.state = {game, held:new Map()}; }
-  apply(op: GameOperation): GameEvent[] {
-    const events = applyOperation(this.state, op);
-    if (this.capture) {
-      const copy = structuredClone(op), bytes = JSON.stringify(copy).length; // ponytail: JSON size as the retention budget; the wire codec can replace it
-      this.entries.push({seq:++this.sequence, tick:this.state.game.tick, bytes, op:copy}); this.bytes += bytes;
-      while (this.entries.length && (this.entries.length > 400 || this.bytes > 2_000_000 || this.entries[0]!.tick < this.state.game.tick - 400)) this.bytes -= this.entries.shift()!.bytes;
-    }
-    return events;
-  }
-  advance(inputs: ReadonlyMap<string, InputIntent>): GameEvent[] {
-    if (!this.capture) return step(this.state.game, inputs).events;
-    const tick = this.state.game.tick + 1, changes: ControlChange[] = [];
-    for (const player of this.state.game.players.values()) {
-      const input = inputs.get(player.id) ?? {left:false,right:false,bomb:false};
-      const flags = Number(input.left) | Number(input.right)<<1 | Number(input.bomb)<<2;
-      const aim = aimTuple(input.aim);
-      const bombs: BombTuple[] = (input.bombCommands ?? []).map(b => [actions.indexOf(b.action), aimTuple(b.aim)]);
-      const old = this.state.held.get(player.slot);
-      if (!old || old.flags !== flags || JSON.stringify(old.aim) !== JSON.stringify(aim) || bombs.length) changes.push([player.slot,tick,flags,aim,bombs]);
-    }
-    return this.apply([0,tick,changes]);
-  }
-  since(sequence: number): GameOperation[] | undefined {
-    if (!Number.isSafeInteger(sequence) || sequence < 0 || sequence > this.sequence || sequence < (this.entries[0]?.seq ?? this.sequence+1)-1) return;
-    return this.entries.filter(e => e.seq > sequence).map(e => structuredClone(e.op));
-  }
+  return `${(a >>> 0).toString(16).padStart(8, '0')}${(b >>> 0).toString(16).padStart(8, '0')}`;
 }

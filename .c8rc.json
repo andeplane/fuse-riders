@@ -51,7 +51,10 @@
     "src/service/signal.ts",
     "src/service/room-store.ts",
     "src/service/gateway.ts",
-    "src/service/room-bus.ts"
+    "src/service/room-bus.ts",
+    "src/online/rollback.ts",
+    "src/online/wire.ts",
+    "src/online/stream.ts"
   ],
   "reporter": [
     "text",

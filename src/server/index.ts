@@ -1,6 +1,6 @@
 import { BotController, BOT_ID_PREFIX, botRandom, type BotDependencies } from '../shared/bot-controller.js';
 import http from 'node:http';
-import { BombInputBuffer } from './bomb-input.js';
+import { BombInputBuffer } from '../shared/bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { readFile, stat } from 'node:fs/promises';
