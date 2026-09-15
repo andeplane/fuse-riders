@@ -188,8 +188,9 @@ class ArenaScene extends Phaser.Scene {
   private strokeTrail(graphics: Phaser.GameObjects.Graphics, paths: readonly (readonly TrailPoint[])[], tint: number, alive: boolean, theme: ThemeDefinition): void {
     const pixel = theme.rendering.pixelated;
     const glow = theme.rendering.trailGlow;
-    for (const [width, alpha, shade] of [[4 * glow, .25, tint], [5, 1, tint], [1, .95, 0xffffff]] as const) {
-      const core = shade === 0xffffff;
+    const passes = [[4 * glow, .25, tint], [5, 1, tint], [1, .95, 0xffffff]] as const;
+    for (const [index, [width, alpha, shade]] of passes.entries()) {
+      const core = index === passes.length - 1;
       graphics.lineStyle(width, shade, alpha * (alive ? 1 : .3)).fillStyle(shade, alpha * (alive ? 1 : .3));
       for (const path of paths) {
         if (path.length < 2) continue;
