@@ -124,8 +124,11 @@ export class RoomRuntime {
   held(id:string):{left:boolean;right:boolean}|undefined {const flags=(this.session?.sim??this.sim)?.state.streams.get(id)?.flags;return flags===undefined?undefined:{left:Boolean(flags&1),right:Boolean(flags&2)};}
   private requestResync(force=false):void {
     const now=this.dependencies.now();if(!force&&now-this.lastResync<RESYNC_INTERVAL_MS)return;
-    // Only a resync that left counts against the interval: one refused by a closing or gated channel is asked for again on the next trigger (#132).
-    const sent=this.transport.send(this.transport.hostId,{type:'resync'});this.netStats.record('resync');this.telemetry.log('resync',{force,sent});if(sent)this.lastResync=now;
+    // A resync refused by a connecting, hidden or gated channel is retried soon rather than after the full interval (#132),
+    // but no faster than the join retry: guestTick asks every tick while there is nothing to fold. Only a sent one is counted.
+    const sent=this.transport.send(this.transport.hostId,{type:'resync'});
+    if(!sent){this.lastResync=now-RESYNC_INTERVAL_MS+200;return;}
+    this.lastResync=now;this.netStats.record('resync');this.telemetry.log('resync',{force});
   }
   private receive(id:string,raw:unknown):void {
     if(Array.isArray(raw)){const message=unpackFast(raw);if(message)this.receiveFast(id,message);return;}

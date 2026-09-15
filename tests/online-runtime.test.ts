@@ -8,6 +8,7 @@ import type { RoomCommand } from '../src/online/host-session.js';
 import type { HostSession } from '../src/online/host-session.js';
 import type { ControllerView } from '../src/online/controller-status.js';
 import type { PeerTransport, TransportCallbacks } from '../src/online/peer-transport.js';
+import { unpackFast } from '../src/online/wire.js';
 
 /** Everything RoomRuntime asks of a transport; the room is driven by hand instead of over data channels. */
 class FakeTransport {
@@ -64,35 +65,44 @@ function trio(){
   const host=room('host','host',clock),guest=room('guest','host',clock),display=room('display','host',clock);
   host.fake.callbacks.peer('guest',true);host.fake.callbacks.peer('display',true);
   let toDisplay=true;
+  let repairCount=0;const countRepairs=(data:unknown)=>{if(Array.isArray(data)&&unpackFast(data)?.type==='repair')repairCount++;};
   const run=(ticks:number)=>{for(let i=0;i<ticks;i++){clock.now+=TICK_MS;host.tick();guest.tick();display.tick();
     for(const {to,data} of host.fake.sent.splice(0)){if(to==='guest')guest.fake.callbacks.message('host',data);if(to==='display'&&toDisplay)display.fake.callbacks.message('host',data);}
-    for(const {to,data} of guest.fake.sent.splice(0))if(to==='host')host.fake.callbacks.message('guest',data);
-    for(const {to,data} of display.fake.sent.splice(0))if(to==='host')host.fake.callbacks.message('display',data);}};
+    for(const {to,data} of guest.fake.sent.splice(0)){countRepairs(data);if(to==='host')host.fake.callbacks.message('guest',data);}
+    for(const {to,data} of display.fake.sent.splice(0)){countRepairs(data);if(to==='host')host.fake.callbacks.message('display',data);}}};
   host.runtime.command({type:'join',name:'Host'});guest.runtime.command({type:'join',name:'Guest'});
-  run(8);host.runtime.command({type:'action',action:'start'});run(60);
-  return {host,guest,display,run,deliverToDisplay:(on:boolean)=>{toDisplay=on;}};
+  run(8);host.runtime.command({type:'action',action:'start'});run(60);repairCount=0;
+  return {host,guest,display,run,repairs:()=>repairCount,deliverToDisplay:(on:boolean)=>{toDisplay=on;}};
 }
 const viewPhase=(r:Room)=>(r.runtime as unknown as {sim?:{state:{game:{phase:string}}}}).sim?.state.game.phase;
 
 // #132: MAIN MENU is one trailing entry in the host's stream, repeated only for the retention window. A view that loses every
 // copy never sees a later seq to expose the gap, so it used to keep playing a match the host had left.
 test('a view that misses the host\'s last entry for a whole retention window still reaches the lobby',()=>{
-  const {host,display,run,deliverToDisplay}=trio();
+  const {host,display,run,deliverToDisplay,repairs}=trio();
   assert.equal(viewPhase(display),'playing');
   deliverToDisplay(false);host.runtime.command({type:'action',action:'lobby'});run(50);deliverToDisplay(true);
   run(200); // 10 s: a repair, or a baseline once the entry is gone, well inside the smoke's 75 s
   assert.equal(internals(host.runtime).session!.game.phase,'lobby');
   assert.equal(viewPhase(display),'lobby','the display followed the host back to the lobby');
+  assert.ok(repairs()>0,'recovery went through the repair path, which the healthy test counts the same way');
 });
 
-test('a resync refused by the link is asked for again instead of waiting out the interval',()=>{
-  const {guest}=pair();
+test('a refused resync is retried after 200 ms, not every tick, and not after the full interval',()=>{
+  const {guest,clock}=pair();
   const resyncs=()=>guest.fake.sent.filter(s=>(s.data as {type?:string}).type==='resync').length;
-  guest.fake.block=data=>(data as {type?:string}).type==='resync';
-  internals(guest.runtime).requestResync();assert.equal(resyncs(),0,'refused');
-  guest.fake.block=undefined;
-  internals(guest.runtime).requestResync();assert.equal(resyncs(),1,'the next trigger sends it');
-  internals(guest.runtime).requestResync();assert.equal(resyncs(),1,'a sent resync still throttles the next');
+  let attempts=0;guest.fake.block=data=>{if((data as {type?:string}).type!=='resync')return false;attempts++;return true;};
+  for(let ms=0;ms<1000;ms+=10){clock.now+=10;internals(guest.runtime).requestResync();}
+  assert.ok(attempts>=4&&attempts<=6,`a second of refusals makes about five attempts, got ${attempts}`);assert.equal(resyncs(),0,'none got through');
+  guest.fake.block=undefined;clock.now+=200;
+  internals(guest.runtime).requestResync();assert.equal(resyncs(),1,'sent once the link accepts it, well before the 2 s interval');
+  clock.now+=500;internals(guest.runtime).requestResync();assert.equal(resyncs(),1,'a sent resync still throttles the next');
+});
+
+test('a healthy host, guest and display exchange no repairs',()=>{
+  const {host,run,repairs}=trio();
+  run(200);host.runtime.command({type:'action',action:'lobby'});run(100);
+  assert.equal(repairs(),0,'no stream looks behind without loss');
 });
 
 test('a resync keeps a joined guest playing: the baseline carries its own stream and its input keeps flowing',()=>{
