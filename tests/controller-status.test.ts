@@ -26,7 +26,7 @@ test('a controller phone gets the stripped state only when it changes and a smal
   }
   assert.ok(full<=3,`full states during countdown and early play: ${full}`);
   assert.ok(beats>=100/STATUS_HEARTBEAT_TICKS-full-1&&beats<=100/STATUS_HEARTBEAT_TICKS+1,`heartbeats: ${beats}`);
-  assert.ok(bytes/beats<=28,`heartbeat bytes: ${bytes/beats}`);
+  assert.ok(bytes/beats<=36,`heartbeat bytes: ${bytes/beats}`);
 });
 test('heartbeats move only the phone\'s own rider, carry the ledger forward, and a stale heartbeat is ignored',()=>{
   const f=fixture();f.publish();f.drain();f.host.command('host',{type:'action',action:'start'});
@@ -36,14 +36,14 @@ test('heartbeats move only the phone\'s own rider, carry the ledger forward, and
   const lastPos=f.wire.filter(m=>m.pos).at(-1)!.pos!;
   const frames=f.drain().filter(Boolean);const last=frames.at(-1)!;
   const me=last.snapshot.players.find(p=>p.id==='phone')!,bot=last.snapshot.players.find(p=>p.id.startsWith('bot:'))!;
-  assert.equal(me.x,lastPos[0]);assert.ok(Math.abs(me.x-f.host.game.players.get('phone')!.x)<8*STATUS_HEARTBEAT_TICKS);assert.notEqual(bot.x,f.host.game.players.get(bot.id)!.x,'other riders are not tracked');
+  assert.equal(me.x,lastPos[0]);assert.equal(me.angle,lastPos[2]);assert.ok(Math.abs(me.x-f.host.game.players.get('phone')!.x)<8*STATUS_HEARTBEAT_TICKS);const turned=me.angle-f.host.game.players.get('phone')!.angle;assert.ok(Math.abs(Math.atan2(Math.sin(turned),Math.cos(turned)))<0.15*(STATUS_HEARTBEAT_TICKS+1)+0.01,'heading follows the held turn');assert.notEqual(bot.x,f.host.game.players.get(bot.id)!.x,'other riders are not tracked');
   assert.equal(last.motion?.tick,last.snapshot.tick,'the ledger is carried forward to the heartbeat tick');assert.deepEqual(last.motion?.held,{left:true,right:false});
   assert.equal(f.view.receive({type:'status',tick:last.snapshot.tick-10,ack:-1,paused:false},'phone'),undefined);
 });
 test('malformed status is rejected and nothing renders before a full state',()=>{
   const view=new ControllerView();
   assert.equal(view.receive({type:'status',tick:5,ack:-1,paused:false,pos:[1,2]},'phone'),undefined);
-  for(const bad of [null,{type:'status'},{type:'status',tick:-1,ack:-1,paused:false},{type:'status',tick:1,ack:-1,paused:false,state:{},matchId:'m',round:1,settings:defaultRoomSettings()},{type:'status',tick:1,ack:-1,paused:false,settings:{bad:true}},{type:'status',tick:1,ack:-1,paused:false,pos:[NaN,1]},{type:'status',tick:1,ack:-1,paused:false,motion:{}}])assert.equal(view.receive(bad,'phone'),undefined);
+  for(const bad of [null,{type:'status'},{type:'status',tick:-1,ack:-1,paused:false},{type:'status',tick:1,ack:-1,paused:false,state:{},matchId:'m',round:1,settings:defaultRoomSettings()},{type:'status',tick:1,ack:-1,paused:false,settings:{bad:true}},{type:'status',tick:1,ack:-1,paused:false,pos:[NaN,1,0]},{type:'status',tick:1,ack:-1,paused:false,pos:[1,2]},{type:'status',tick:1,ack:-1,paused:false,motion:{}}])assert.equal(view.receive(bad,'phone'),undefined);
   const f=fixture();f.publish();assert.ok(view.receive(f.wire[0],'phone'));
 });
 test('matchOver status includes the recap statistics the phone opens',()=>{

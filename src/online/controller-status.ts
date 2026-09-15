@@ -9,7 +9,8 @@ import type { HostSession } from './host-session.js';
 /** Ticks between position/tick heartbeats to a controller phone when nothing else changed. */
 export const STATUS_HEARTBEAT_TICKS=5;
 /** What a shared-TV phone shows: phase, roster, its own cooldown/powerups and recap. No geometry, no projectiles. */
-export interface ControllerStatus { type:'status'; tick:number; ack:number; paused:boolean; matchId?:string; round?:number; state?:GameSnapshot; pos?:[number,number]|null; motion?:AppliedMotionState|null; settings?:RoomSettings }
+/** `pos` is the phone's own rider: x, y and heading, which the aim trackpad and the phone's steering feedback need. */
+export interface ControllerStatus { type:'status'; tick:number; ack:number; paused:boolean; matchId?:string; round?:number; state?:GameSnapshot; pos?:[number,number,number]|null; motion?:AppliedMotionState|null; settings?:RoomSettings }
 export function stripSnapshot(snapshot:GameSnapshot):GameSnapshot {
   const {portalPair:_portal,...rest}=snapshot;
   return {...rest,players:snapshot.players.map(player=>({...player,trail:[]})),bombs:[],blasts:[],pickups:[]};
@@ -31,7 +32,7 @@ export class ControllerSender {
     if(!changed&&game.tick-this.lastTick<STATUS_HEARTBEAT_TICKS)return;
     const player=game.players.get(id);
     const message:ControllerStatus={type:'status',tick:game.tick,ack:session.acknowledgements()[id]??-1,paused,
-      ...(player?{pos:[Math.round(player.x),Math.round(player.y)] as [number,number]}:{}),
+      ...(player?{pos:[Math.round(player.x),Math.round(player.y),Math.round(player.angle*1000)/1000] as [number,number,number]}:{}),
       ...(stateKey!==this.lastState?{matchId:game.matchId,round:game.round,state}:{}),
       ...(motionKey!==this.lastMotion?{motion:motion??null}:{}),
       ...(settingsKey!==this.lastSettings?{settings:session.settings}:{})};
@@ -61,12 +62,12 @@ export class ControllerView {
       this.state=v.state;this.matchId=matchId;this.round=round;
     }
     if(v.motion===null)this.motion=undefined;else if(v.motion!==undefined){if(!isAppliedMotionState(v.motion))return;this.motion=v.motion;}
-    if(v.pos!==undefined&&v.pos!==null&&!(Array.isArray(v.pos)&&v.pos.length===2&&v.pos.every(n=>Number.isFinite(n))))return;
+    if(v.pos!==undefined&&v.pos!==null&&!(Array.isArray(v.pos)&&v.pos.length===3&&v.pos.every(n=>Number.isFinite(n))))return;
     const state=this.state,settings=this.settings;
     if(!state||!settings)return;
     if(v.tick<this.tick&&v.state===undefined)return;
     this.tick=v.tick;
-    const players=v.pos?state.players.map(player=>player.id===selfId?{...player,x:v.pos![0],y:v.pos![1]}:player):state.players;
+    const players=v.pos?state.players.map(player=>player.id===selfId?{...player,x:v.pos![0],y:v.pos![1],angle:v.pos![2]}:player):state.players;
     if(v.pos)this.state={...state,players};
     const motion=this.motion&&{...this.motion,tick:v.tick};
     return {snapshot:{...state,players,tick:v.tick,round:this.round},settings,ack:v.ack,matchId:this.matchId,motion,paused:v.paused};

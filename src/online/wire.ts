@@ -64,7 +64,7 @@ export function unpackFast(value:unknown,scopeFor:(hash:number)=>InputControlSco
       const scope=scopeFor(value[5] as number);if(!scope)return;
       return {type:'tickPong',probeId,localSentAt,authorityTick,paused,scope};
     }
-    case 5: {if(value.length!==5)return;const [,tick,ack,paused,pos]=value as [number,number,number,boolean,[number,number]|null];return {type:'status',tick,ack,paused,...(pos===null?{}:{pos})};}
+    case 5: {if(value.length!==5)return;const [,tick,ack,paused,pos]=value as [number,number,number,boolean,[number,number,number]|null];return {type:'status',tick,ack,paused,...(pos===null?{}:{pos})};}
     default: return;
   }
 }
