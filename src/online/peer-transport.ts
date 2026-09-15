@@ -35,7 +35,13 @@ export class PeerTransport {
   private timeInterval?:ReturnType<typeof setInterval>;
   private healthInterval?:ReturnType<typeof setInterval>;
   private readonly visibility=()=>{this.authorityClock.invalidate();if(!document.hidden)this.sampleTime();};
-  authorityPermitted():boolean{return !!this.grant&&(this.id!==this.hostId||this.grant.holder===this.connectionId)&&this.authorityClock.permits(this.grant,this.id===this.hostId);}
+  private resampleAt=-Infinity;
+  authorityPermitted():boolean{
+    const permitted=!!this.grant&&(this.id!==this.hostId||this.grant.holder===this.connectionId)&&this.authorityClock.permits(this.grant,this.id===this.hostId);
+    // Permission lost to a stale sample: ask the service now, not at the next two-second tick.
+    if(!permitted&&this.grant){const now=performance.now();if(now-this.resampleAt>=500){this.resampleAt=now;this.sampleTime();}}
+    return permitted;
+  }
   private acceptGrant(raw:unknown):void {
     if(!isAuthorityGrant(raw))return;
     const previous=this.grant;
@@ -89,7 +95,7 @@ export class PeerTransport {
           if(this.id===this.hostId)for(const peer of message.peers){this.callbacks.peer(peer.id,true);await this.offer(peer.id);}
         }else if(message.type==='time'){
           const sent=this.probes.get(message.id);if(sent===undefined||sent!==message.sentAt)return;
-          this.probes.delete(message.id);this.acceptGrant(message.grant);this.authorityClock.synchronize(sent,message.serviceTime,this.id===this.hostId?500:2000);
+          this.probes.delete(message.id);this.acceptGrant(message.grant);this.authorityClock.synchronize(sent,message.serviceTime,this.id===this.hostId?1500:2000);
           if(this.id===this.hostId&&this.grant&&message.serviceTime>=this.grant.expiresAt){ws.close(4000,'Authority lease expired');return;}
           const scope=`${this.connectionId}:${this.grant?.epoch}`;
           if(this.authorityPermitted()&&this.readyScope!==scope){this.readyScope=scope;this.callbacks.welcome(this.id,this.hostId);this.callbacks.status('Room authority confirmed');}
