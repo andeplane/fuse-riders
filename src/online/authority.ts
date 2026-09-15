@@ -47,10 +47,11 @@ export class AuthorityClock {
   private roundTripMs?:number;
   diagnostics():{reason:string;roundTripMs?:number}{return{reason:this.reason,roundTripMs:this.roundTripMs};}
   constructor(private readonly now: () => number) {}
-  synchronize(sent: number, service: number): boolean {
+  /** `maxRoundTrip`: the authority's fence keeps the tight 500 ms bound; a view accepts a slower probe. */
+  synchronize(sent: number, service: number, maxRoundTrip = 500): boolean {
     const received = this.now();
     this.roundTripMs=received-sent;
-    if (![sent, service, received].every(Number.isFinite) || sent < 0 || service < 0 || received < sent || received - sent > 2000) {
+    if (![sent, service, received].every(Number.isFinite) || sent < 0 || service < 0 || received < sent || received - sent > maxRoundTrip) {
       this.invalidate();this.reason='invalid-round-trip'; return false;
     }
     this.sample = { received, lowerOffset: service - received, upperOffset: service - sent };

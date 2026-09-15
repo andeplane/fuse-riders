@@ -89,7 +89,7 @@ export class PeerTransport {
           if(this.id===this.hostId)for(const peer of message.peers){this.callbacks.peer(peer.id,true);await this.offer(peer.id);}
         }else if(message.type==='time'){
           const sent=this.probes.get(message.id);if(sent===undefined||sent!==message.sentAt)return;
-          this.probes.delete(message.id);this.acceptGrant(message.grant);this.authorityClock.synchronize(sent,message.serviceTime);
+          this.probes.delete(message.id);this.acceptGrant(message.grant);this.authorityClock.synchronize(sent,message.serviceTime,this.id===this.hostId?500:2000);
           if(this.id===this.hostId&&this.grant&&message.serviceTime>=this.grant.expiresAt){ws.close(4000,'Authority lease expired');return;}
           const scope=`${this.connectionId}:${this.grant?.epoch}`;
           if(this.authorityPermitted()&&this.readyScope!==scope){this.readyScope=scope;this.callbacks.welcome(this.id,this.hostId);this.callbacks.status('Room authority confirmed');}
