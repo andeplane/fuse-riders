@@ -31,7 +31,7 @@ export function createAvatarPicker(storage: Pick<Storage, 'getItem' | 'setItem'>
   const stored = storage.getItem('fuse-riders-avatar');
   let selected: AvatarId = isAvatarId(stored) ? stored : DEFAULT_AVATAR;
   const element = document.createElement('fieldset'); element.className = 'avatar-picker';
-  const legend = document.createElement('legend'); legend.textContent = 'Choose your head'; element.append(legend);
+  const legend = document.createElement('legend'); legend.textContent = 'Choose your avatar'; element.append(legend);
   const options = document.createElement('div'); options.className = 'avatar-options'; element.append(options);
   const buttons: HTMLButtonElement[] = [];
   for (const avatar of AVATARS) {

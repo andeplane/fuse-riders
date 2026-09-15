@@ -21,8 +21,14 @@
 .mobile-rotate-gate h2{font-size:28px}.mobile-rotate-gate p{max-width:320px;line-height:1.6}.mobile-play.mobile-portrait .online-controls,.mobile-play.mobile-tools-open .online-controls{pointer-events:none}
 .mobile-play.mobile-tools-open .online-header{display:flex!important;position:absolute;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));top:60px;max-height:calc(100dvh - 210px);overflow:auto;padding:12px;box-sizing:border-box;z-index:60;background:#061329f5;border:1px solid #42618a;gap:8px}
 .mobile-play.mobile-tools-open .online-host:not([hidden]){display:flex!important;position:absolute;bottom:max(8px,env(safe-area-inset-bottom));left:8px;right:8px;z-index:60;background:#061329f5;padding:8px;gap:6px;flex-wrap:wrap;justify-content:center;max-height:112px;overflow:auto}
+/* The open menu is one panel (#142): the link status on top, then its buttons in two even columns, without the brand or keyboard help. */
+.mobile-play.mobile-tools-open .online-header{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start}
+.mobile-play.mobile-tools-open .online-header>.room-brand,.mobile-play.mobile-tools-open .online-header>.desktop-help,.mobile-play.mobile-tools-open .online-header>button[hidden]{display:none}
+.mobile-play.mobile-tools-open .online-header>.online-status{grid-column:1/-1;font-size:12px;color:#8ba3c0}
 .mobile-play.mobile-tools-open .online-header button,.mobile-play.mobile-tools-open .online-host button{min-height:40px}
 .mobile-play.mobile-tools-open .online-roster:not([hidden]){display:flex!important;position:absolute;left:8px;right:8px;bottom:max(128px,calc(env(safe-area-inset-bottom) + 120px));z-index:60;flex-wrap:wrap;justify-content:center;gap:4px 12px;max-height:64px;overflow:auto;padding:8px;box-sizing:border-box;background:#061329f5;border:1px solid #42618a;font-size:12px}
+/* Roster cards fit the menu's short strip instead of being cut off by their own full-size avatar and × button (#142). */
+.mobile-play.mobile-tools-open .online-score-card{padding:2px 6px;gap:6px}.mobile-play.mobile-tools-open .online-score-card .avatar-portrait{width:22px;height:22px;flex-basis:22px}.mobile-play.mobile-tools-open .online-score-card button{min-height:28px;min-width:28px;padding:0 6px}
 .mobile-play .game-dialog{max-height:calc(100dvh - 24px);z-index:100}
 /* Shared-TV phones remain visibly dedicated controllers after arena hints fade. */
 .mobile-play.controller-only .online-controls>button{background:color-mix(in srgb,var(--player-color) 22%,#061023)!important;border-right:1px solid var(--player-color)!important}

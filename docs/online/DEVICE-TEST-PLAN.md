@@ -121,7 +121,7 @@ fail and needs a new issue with the press count, timing and screenshots.
 #134 replaced the lobby half of #13: on a phone the **lobby** is a plain
 screen (room code with join link and QR, riders, and for the host START
 RACE / ADD AI / ROOM SETTINGS / TV VIEW, with the join form inline before
-taking a seat) in either orientation, with no rotate gate and one MENU
+taking a seat) in either orientation, with no rotate gate and one ROOM
 button. From **countdown** through **matchOver** `mobilePlayPolicy` is
 active: the full-screen thirds are the only controller and roster/host
 actions live inside the ☰ MENU overlay, auto-opened for a phone host in
@@ -138,8 +138,8 @@ quality.
 1. Start music on the landing page, then CREATE ROOM on the phone
    (portrait). Confirm music resumes on the first tap on the room page
    (any tap, not only ♫ RADIO), continuing the same track.
-2. In the **lobby** screenshot the phone: one MENU button, the room code
-   with COPY and a QR, "0 riders ready", and — without scrolling inside any
+2. In the **lobby** screenshot the phone: one ROOM button, the room code
+   with COPY LINK and a QR, "0 riders ready", and — without scrolling inside any
    strip — START RACE, ROOM SETTINGS, TV VIEW and ADD AI reachable by
    normal page scrolling. No "Rotate your phone" gate.
 3. Rotate to landscape and back: the same lobby screen both times, nothing
@@ -217,7 +217,7 @@ issue naming the exact element, device, OS version and gesture.
 ## #12 — Cellular guest direct link
 
 Fixed in #39: STUN-race and buffering defects, a second STUN server, bounded
-ICE restarts, and a MENU → LINK DIAGNOSTICS panel that reports *why* a link
+ICE restarts, and a ROOM → LINK DIAGNOSTICS panel that reports *why* a link
 is not connected. #39's own "what the real test should show now" section
 predicts the header/diagnostics text below; nothing in that PR was verified
 against a real cellular guest — that verification is this section.
@@ -237,7 +237,7 @@ a second Wi-Fi network isolates that variable.
 3. Watch the guest's header for up to 30 seconds. Record the exact text —
    either `Connected · direct game link`, or
    `Waiting for direct connection — <reason>` / `Direct connection interrupted — <reason>`.
-4. On **both** host and guest, open ☰ MENU → LINK DIAGNOSTICS and copy the
+4. On **both** host and guest, open ☰ MENU → ROOM → LINK DIAGNOSTICS and copy the
    full panel text verbatim (it is pre-formatted, redacted text — candidate
    types/states/counts, never addresses). Do this once at first render and
    again after ~15 seconds if the link is still not healthy, since restarts
@@ -280,7 +280,7 @@ areas, full available-height board, three equal touch zones, shared-TV
 controller colors, hint fade, slide-in presses, simultaneous steer/fire,
 target aiming, pointer cancellation, no long-press selection (see
 [#14](#14--long-press-text-selection) above — do not re-derive that finding
-here, just confirm it holds on these specific devices), Menu/Audio/Head/
+here, just confirm it holds on these specific devices), Room/Audio/Avatar/
 Settings/Close reachability, and desktop keyboard (arrows/A-D/Space) with a
 phone guest connected.
 
@@ -315,7 +315,7 @@ test (see #12/#5 for that).
    exact device/OS build; do not treat this as new evidence for #14 if
    already tested this session — one line noting "reconfirmed, see [date]
    #14 evidence" is enough.
-7. Open ☰ MENU and confirm Menu itself, Audio, Head (avatar), Settings and
+7. Open ☰ MENU and confirm Room, Audio, Avatar, Settings and
    Close are all reachable and tappable without scrolling or overlap, at
    this device's actual landscape height.
 8. On the desktop host, with the phone as a connected guest, use arrow
@@ -356,7 +356,7 @@ framing — a smaller session is acceptable evidence as long as it's recorded
 as smaller than #5's full ask, not silently substituted for it.
 
 **Steps**:
-1. Record the candidate route: ☰ MENU → LINK DIAGNOSTICS `selected` pair on
+1. Record the candidate route: ☰ MENU → ROOM → LINK DIAGNOSTICS `selected` pair on
    each device, per the [#12](#12--cellular-guest-direct-link) capture
    method.
 2. Touch-to-photon latency has no in-repo phone instrumentation (the
