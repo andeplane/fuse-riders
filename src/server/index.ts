@@ -124,7 +124,7 @@ export async function createGameServer(options: ServerOptions = {}) {
           const { device, events } = JSON.parse(body) as { device: Record<string, unknown>; events: Record<string, unknown>[] };
           const room = String(device?.room ?? 'none').replace(/[^A-Za-z0-9_-]/g, '') || 'none', dir = path.join(ROOT, 'artifacts', 'telemetry');
           await mkdir(dir, { recursive: true });
-          await appendFile(path.join(dir, `${room}.ndjson`), events.map(event => JSON.stringify({ ...device, ...event, received: Date.now() })).join('\n') + '\n');
+          await appendFile(path.join(dir, `${room}.ndjson`), events.map(event => JSON.stringify({ ...event, device, received: Date.now() })).join('\n') + '\n');
           res.writeHead(204);
         } catch { res.writeHead(400); }
         res.end();

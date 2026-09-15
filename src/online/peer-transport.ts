@@ -35,7 +35,7 @@ export class PeerTransport {
   private timeInterval?:ReturnType<typeof setInterval>;
   private healthInterval?:ReturnType<typeof setInterval>;
   private readonly visibility=()=>{this.authorityClock.invalidate();if(!document.hidden)this.sampleTime();};
-  authorityPermitted():boolean{return !!this.grant&&(this.id!==this.hostId||this.grant.holder===this.connectionId)&&this.authorityClock.permits(this.grant);}
+  authorityPermitted():boolean{return !!this.grant&&(this.id!==this.hostId||this.grant.holder===this.connectionId)&&this.authorityClock.permits(this.grant,this.id===this.hostId);}
   private acceptGrant(raw:unknown):void {
     if(!isAuthorityGrant(raw))return;
     const previous=this.grant;

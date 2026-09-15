@@ -50,7 +50,7 @@ export class AuthorityClock {
   synchronize(sent: number, service: number): boolean {
     const received = this.now();
     this.roundTripMs=received-sent;
-    if (![sent, service, received].every(Number.isFinite) || sent < 0 || service < 0 || received < sent || received - sent > 500) {
+    if (![sent, service, received].every(Number.isFinite) || sent < 0 || service < 0 || received < sent || received - sent > 2000) {
       this.invalidate();this.reason='invalid-round-trip'; return false;
     }
     this.sample = { received, lowerOffset: service - received, upperOffset: service - sent };
@@ -58,18 +58,23 @@ export class AuthorityClock {
     return true;
   }
   invalidate(): void { this.sample = undefined; this.observed = undefined;this.reason='invalidated'; }
-  interval(): { earliest: number; latest: number } | undefined {
+  /**
+   * `strict` is the authority's own fence: a sample must be tight (round trip within the lease guard) and checked
+   * continuously, or it does not act. A view only needs to know the lease is current: a slow probe or a busy main
+   * thread on a phone must not pause it every two seconds.
+   */
+  interval(strict = true): { earliest: number; latest: number } | undefined {
     const now = this.now(), sample = this.sample;
     if (!sample || !Number.isFinite(now)) return;
     const age = now - sample.received;
-    if (age < 0 || age > 4000 || (this.observed !== undefined && now - this.observed > 500)) { this.invalidate();this.reason='stale-or-suspended'; return; }
+    if (age < 0 || age > 4000 || (strict && this.observed !== undefined && now - this.observed > 500)) { this.invalidate();this.reason='stale-or-suspended'; return; }
     this.observed = now;
     const drift = age * .001;
-    if (sample.upperOffset - sample.lowerOffset + 2 * drift > LEASE_GUARD_MS) {this.reason='uncertainty';return;}
+    if (strict && sample.upperOffset - sample.lowerOffset + 2 * drift > LEASE_GUARD_MS) {this.reason='uncertainty';return;}
     return { earliest: now + sample.lowerOffset - drift, latest: now + sample.upperOffset + drift };
   }
-  permits(grant: AuthorityGrant): boolean {
-    const time = this.interval();
+  permits(grant: AuthorityGrant, strict = true): boolean {
+    const time = this.interval(strict);
     const permitted=!!time && time.earliest >= grant.validFrom && time.latest < grant.expiresAt;
     if(time)this.reason=permitted?'permitted':'outside-lease';
     return permitted;
