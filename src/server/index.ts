@@ -8,6 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { WebSocket, WebSocketServer } from 'ws';
+import type { AddressInfo } from 'node:net';
+import type { ViteDevServer } from 'vite';
 import { parseClientMessage, type ErrorCode, type ServerMessage, type GameSnapshot } from '../shared/protocol.js';
 import {
   createGame, addPlayer, removePlayer, startMatch, startNextRound, resetMatch, returnToLobby,
@@ -43,6 +45,22 @@ export function lanAddress() {
 }
 export function catchUpSteps(elapsed: number) { return Math.min(5, Math.max(0, Math.floor(elapsed / 50))); }
 
+// Parallel worktrees and stale processes hold the usual ports; walk up rather than die on EADDRINUSE.
+export async function listenFree(server: http.Server, port: number, hostname: string, tries = 20): Promise<number> {
+  for (;;) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(port, hostname, () => { server.off('error', reject); resolve(); });
+      });
+      return (server.address() as AddressInfo).port;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE' || --tries <= 0) throw error;
+      port++;
+    }
+  }
+}
+
 export async function createGameServer(options: ServerOptions = {}) {
   const dependencies: ServerDependencies = {
     now: () => performance.now(), token: secret, botRandom,
@@ -56,9 +74,7 @@ export async function createGameServer(options: ServerOptions = {}) {
   const connections = new Map<WebSocket, Connection>();
   const joins = new Map<string, { since: number; count: number }>();
   let controllerUrl = '';
-  const vite = options.dev ? await (await import('vite')).createServer({
-    root: ROOT, server: { middlewareMode: true }, appType: 'spa',
-  }) : undefined;
+  let vite: ViteDevServer | undefined;
   const server = http.createServer(async (req, res) => {
     if (req.url?.split('?')[0] === '/api/config') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -76,7 +92,16 @@ export async function createGameServer(options: ServerOptions = {}) {
       res.end(await readFile(filename));
     } catch { res.writeHead(404); res.end('Not found'); }
   });
-  const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 2048 });
+  // HMR rides this http server instead of Vite's fixed 24678, so parallel dev servers never collide.
+  if (options.dev) vite = await (await import('vite')).createServer({
+    root: ROOT, server: { middlewareMode: true, hmr: { server } }, appType: 'spa',
+  });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 2048 });
+  server.on('upgrade', (req, socket, head) => {
+    // Vite's own upgrade listener picks up the rest (it answers only the vite-hmr subprotocol).
+    if (new URL(req.url || '/', 'http://local').pathname === '/ws') wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+    else if (!vite) socket.destroy();
+  });
   function send(ws: WebSocket, message: ServerMessage) {
     if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 512_000) ws.send(JSON.stringify(message));
   }
@@ -262,9 +287,7 @@ export async function createGameServer(options: ServerOptions = {}) {
     for (const [ip, rate] of joins) if (now - rate.since > 60_000) joins.delete(ip);
   }
   const stopWatchdog = dependencies.schedule(checkConnections, 1000);
-  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(options.port ?? Number(process.env.PORT || 3000), options.hostname ?? '0.0.0.0', resolve); });
-  const address = server.address();
-  const port = typeof address === 'object' && address ? address.port : 3000;
+  const port = await listenFree(server, options.port ?? Number(process.env.PORT || 3000), options.hostname ?? '0.0.0.0');
   const ip = options.lanAddress || lanAddress();
   controllerUrl = `http://${ip}:${port}/controller`;
   return {

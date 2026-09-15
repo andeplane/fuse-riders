@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
-import { createGameServer, catchUpSteps, controllerSnapshot } from '../src/server/index.js';
+import { createGameServer, catchUpSteps, controllerSnapshot, listenFree } from '../src/server/index.js';
 import { eliminatePlayer } from '../src/shared/game.js';
 import type { ClientMessage, MatchPlayerStats, ServerMessage } from '../src/shared/protocol.js';
 
@@ -460,4 +462,15 @@ test('a phone that vanishes mid-round keeps its seat for reconnection and never 
     assert.equal(f.app.game.players.get(gone.joined.playerId)!.connected, true);
     assert.equal(f.app.game.players.size, 5);
   } finally { await f.close(); }
+});
+
+test('listening walks past a port another dev server already holds', async () => {
+  const taken = http.createServer();
+  const held = await listenFree(taken, 0, '127.0.0.1');
+  const next = http.createServer();
+  const port = await listenFree(next, held, '127.0.0.1');
+  try {
+    assert.ok(port > held, `expected a port above ${held}, got ${port}`);
+    assert.equal((next.address() as AddressInfo).port, port);
+  } finally { await Promise.all([taken, next].map(s => new Promise<void>(resolve => s.close(() => resolve())))); }
 });
