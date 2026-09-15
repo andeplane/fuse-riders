@@ -149,6 +149,11 @@ by default, `?analytics=1` forces them on and `?analytics=0` forces them off; ei
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
+`HOME_URL=http://127.0.0.1:8899/ npx tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
+solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
+`artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
+request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game.
+
 ## Hosting and deployment status
 
 The online beta is deployed on **GitHub Pages, Cloud Run, Firestore room metadata and Pub/Sub signalling only**; the deployed client additionally reports [product analytics](docs/ANALYTICS.md) to Mixpanel, which carries no gameplay and no room credentials. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
