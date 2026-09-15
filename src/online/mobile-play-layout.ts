@@ -5,7 +5,8 @@ export function installMobilePlayLayout(app:HTMLElement,clearControls:()=>void){
  const compact=document.createElement('button');compact.className='mobile-tools-toggle';compact.textContent='☰ MENU';compact.setAttribute('aria-expanded','false');
  const gate=document.createElement('section');gate.className='mobile-rotate-gate';gate.setAttribute('role','status');
  const heading=document.createElement('h2');heading.textContent='Rotate your phone';const description=document.createElement('p');description.textContent='Play in landscape. Turn your phone sideways to see the whole arena.';
- const fullscreen=document.createElement('button');fullscreen.textContent='TRY FULLSCREEN';fullscreen.onclick=()=>{
+ const fullscreen=document.createElement('button');fullscreen.textContent='TRY FULLSCREEN';fullscreen.hidden=!document.fullscreenEnabled; // iPhone Safari: no element fullscreen, so only the rotate guidance (#142).
+ fullscreen.onclick=()=>{
   // Both calls start within this user gesture; unsupported iOS APIs simply leave the rotate guidance visible.
   void document.documentElement.requestFullscreen?.().catch(()=>{});
   const orientation=screen.orientation as ScreenOrientation&{lock?:(mode:string)=>Promise<void>};void orientation?.lock?.('landscape').catch(()=>{});

@@ -67,3 +67,18 @@ node scripts/public-release-smoke.mjs
 ```
 
 A message queued before the close, the pong-on-probe path in the issue's stack, is inside the window by construction: the probe arrives in the same libwebrtc callback batch as the closing state change, so no channel, connection or service signal can have drained the gate yet. The one-macrotask deferral, not the gate, is what closes that window. The gate covers every other send that happens after any early signal. A remote peer that vanishes with no signal at all reaching us before our next gameplay send (no closing task queued yet, no service notification yet) can still hit WebKit's queue error once; JavaScript has no earlier signal to act on, so that residual window is documented rather than claimed closed.
+
+## Follow-up: a page that closes on purpose says goodbye (issue #143)
+
+The residual window above came back as a flake: the WebKit shared-room smoke failed its page-error gate once during END ROOM with the same message, this time from `checkLinks → sendDirectProbe`. Ending the room closes the host's peer connections straight away. A guest or TV page only learns the room is over from the service's 4004 close, and meanwhile its 200 ms `checkLinks` can still send a `linkProbe` on a channel WebKit reports as `"open"` whose transport has already gone.
+
+For a deliberate close there *is* an earlier signal we control. `RoomRuntime.stop()` calls `PeerTransport.close(true)`: before invalidating its authority clock, the transport sends a `linkBye` probe envelope on every link the gate still permits, and it closes those peer connections `LINK_BYE_GRACE_MS` (150 ms) later rather than immediately, so the bye can leave WebKit's send queue. `receive` drains the link's gate on a direct `linkBye` that passed the usual envelope checks, so the peer's next probe, pong or gameplay send is refused before the transport disappears. Links with no bye to send still close at once.
+
+The bye covers END ROOM, LEAVE ROOM and `pagehide`, all of which run `stop()`. A close forced by the room socket (4004 room ended, 4001 revoked) deliberately sends no bye. Every member already receives that close, and a send at that moment could itself be the one that lands on a dead transport.
+
+Still not covered:
+- a page that disappears without running `stop()` (killed tab, lost network);
+- a receiver whose own authority is lapsed when the bye arrives, which ignores it;
+- the transport's own replacement paths (reconnect welcome, replaced connection, certificate change, forced re-offer), which still close a live peer's connection without a bye.
+
+Those remain the documented residual window.

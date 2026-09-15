@@ -368,6 +368,7 @@ function startDisplay(): void {
   menuButton.type = 'button'; menuButton.setAttribute('aria-label', 'Main menu'); menuButton.title = 'End current game and return to main menu'; menuButton.disabled = true;
   const leaderboardButton = element('button', 'leaderboard-toggle hidden', '🏆 SESSION');
   leaderboardButton.type = 'button'; leaderboardButton.setAttribute('aria-expanded', 'false');
+  const musicButton = element('button', 'leaderboard-toggle'); musicButton.type = 'button'; audio.bindMusicToggle(musicButton);
   const themeSelect = element('select', 'theme-select');
   themeSelect.setAttribute('aria-label', 'Visual style');
   for (const theme of Object.values(themes)) {
@@ -376,7 +377,7 @@ function startDisplay(): void {
   const fullscreen = element('button', 'fullscreen fullscreen-toolbar', '⛶');
   fullscreen.type = 'button'; fullscreen.title = 'Fullscreen'; fullscreen.setAttribute('aria-label', 'Fullscreen');
   const hostTools=element('div','host-tools');hostTools.append(addAIButton,menuButton);
-  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, fullscreen, hostTools, connection);
+  topbar.append(brand, scores, timer, leaderboardButton, themeSelect, audio.controls, musicButton, fullscreen, hostTools, connection);
 
   const stage = element('section', 'stage');
   let canvas = element('canvas', 'arena');
@@ -762,7 +763,7 @@ function startController(): void {
 
   const controls = element('section', 'controls hidden');
   const identity = element('div', 'controller-identity');
-  const identityMarker = element('button', 'identity-marker', 'HEAD');
+  const identityMarker = element('button', 'identity-marker', 'AVATAR');
   identityMarker.type = 'button'; identityMarker.setAttribute('aria-label', 'Change avatar'); identityMarker.title = 'Change avatar';
   const identityCopy = element('div'); identityCopy.append(element('small', '', 'YOU ARE'), element('strong', '', 'RIDER'));
   const stateBadge = element('span', 'state-badge', 'LOBBY');
