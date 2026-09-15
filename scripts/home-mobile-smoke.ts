@@ -25,6 +25,11 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
   try{
    await page.goto(base);await ready(page);await page.waitForFunction(()=>Number(document.querySelector('canvas')?.getAttribute('data-attract-tick'))>2);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'landing horizontal overflow');
+   const guide=page.getByRole('region',{name:'POWER-UPS'});assert.equal(await guide.getByRole('listitem').count(),12,'power-up guide lists every pickup');
+   await guide.getByText('STAR',{exact:true}).scrollIntoViewIfNeeded();await page.waitForFunction(()=>[...document.querySelectorAll<HTMLImageElement>('.landing-powerups img')].every(image=>image.complete&&image.naturalWidth>0),undefined,{timeout:10000});
+   const soloBox=await page.getByRole('link',{name:/PLAY SOLO/}).boundingBox(),createBox=await page.getByRole('button',{name:'CREATE ROOM'}).boundingBox(),guideBox=await guide.boundingBox();
+   assert.ok(soloBox&&createBox&&guideBox&&soloBox.y<guideBox.y&&createBox.y<guideBox.y,'play and room actions stay above the power-up guide');
+   await page.evaluate(()=>scrollTo(0,0));
    await page.getByRole('button',{name:/PAUSE BACKGROUND/}).click();await frames(page);const paused=await page.locator('canvas').getAttribute('data-attract-tick');await frames(page);assert.equal(await page.locator('canvas').getAttribute('data-attract-tick'),paused);
    await page.getByRole('button',{name:/PLAY BACKGROUND/}).click();await page.waitForFunction(t=>document.querySelector('canvas')?.getAttribute('data-attract-tick')!==t,paused);
    await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:/PLAY BACKGROUND/}).waitFor();await frames(page);const reduced=await page.locator('canvas').getAttribute('data-attract-tick');await frames(page);assert.equal(await page.locator('canvas').getAttribute('data-attract-tick'),reduced);
