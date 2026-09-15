@@ -29,7 +29,7 @@ Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host d
 
 `npm start` builds the latest browser assets before starting the server. For development, use `PORT=3030 npm run dev`: Vite serves current browser code and updates it as you edit, with no separate build needed. Changes to server code or its shared dependencies automatically restart the Node process. Each restart clears the in-memory game and session scores; open the new printed host link and refresh/rejoin phones. Production does not watch files or automatically refresh; stop and run `npm start` again between matches to pick up changes. The default port is 3000 when `PORT` is omitted.
 
-The room-creation home page requires a room service API. Use `/display` and `/controller` for LAN play; use the following command for online rooms.
+`npm run dev` also starts the local room service (`wrangler dev` on 127.0.0.1:8787) and proxies `/api` to it, so the home page's CREATE ROOM and JOIN ROOM work on the same LAN address as `/display` and `/controller`; set `ROOM_API=http://host:port` to use another room service instead. To run only the built app on the Worker, use the following command.
 
 ## Try online rooms locally
 
