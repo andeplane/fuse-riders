@@ -34,9 +34,11 @@ import { POWERUP_GUIDE } from '../client/powerup-guide.js';
 import { createPowerupGuide } from '../client/powerup-guide-view.js';
 const storage=safeStorage(()=>localStorage);
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
-/** Clipboard write with a selection fallback: an insecure origin or a denied permission still leaves the link selected and copyable. */
+/** Clipboard write with an execCommand fallback. `navigator.clipboard` is secure-context only, so on an
+ *  insecure origin it is undefined rather than throwing: only a write that actually ran reports success. */
 const copyText=async(text:string)=>{
-  try{await navigator.clipboard?.writeText(text);return true;}catch{/* Fall through to the legacy path below. */}
+  const clipboard=navigator.clipboard;
+  if(typeof clipboard?.writeText==='function'){try{await clipboard.writeText(text);return true;}catch{/* Fall through to the legacy path below. */}}
   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.cssText='position:fixed;top:-1000px;opacity:0';document.body.append(field);field.select();
   try{return document.execCommand('copy');}catch{return false;}finally{field.remove();}
 };
@@ -117,11 +119,10 @@ export async function startOnline():Promise<void>{
   const joinLink=new URL(appUrl(`?room=${code}`),location.origin).href;
   const qrCard=node('div','','room-qr-card'),lobbyQr=node('img');lobbyQr.alt='Scan to join this room';
   // The link lives next to the QR so a rider who cannot scan can still be handed the room: one tap copies it, and the label reports back.
-  const linkRow=node('div','','room-qr-link'),linkText=node('span',joinLink,'room-qr-url'),copyLink=node('button','COPY','room-qr-copy');copyLink.type='button';copyLink.title='Copy the join link';linkText.title=joinLink;linkRow.append(linkText,copyLink);
+  const linkRow=node('div','','room-qr-link'),linkText=node('span',joinLink,'room-qr-url'),copyLink=node('button','COPY','room-qr-copy');copyLink.type='button';copyLink.title='Copy the join link';linkRow.append(linkText,copyLink);
   let copyReset=0;
   copyLink.onclick=async()=>{const copied=await copyText(joinLink);copyLink.textContent=copied?'COPIED':'COPY FAILED';copyLink.classList.toggle('copied',copied);clearTimeout(copyReset);copyReset=window.setTimeout(()=>{copyLink.textContent='COPY';copyLink.classList.remove('copied');},1600);};
-  qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'),linkRow);
-  if(solo)linkRow.hidden=true;
+  qrCard.append(lobbyQr,node('p','SCAN TO JOIN'),node('strong',code,'shared-room-code'),...(solo?[]:[linkRow]));
   const lobbyRiders=node('div','','room-riders');const lobbyEmpty=node('p','Your crew belongs here. Share the code to get started.','room-empty');lobbyRiders.append(lobbyEmpty);
   const lobbyFooter=node('footer','','room-lobby-footer'),lobbyCount=node('span','Waiting for riders');lobbyFooter.append(lobbyCount);
   sharedLobby.append(lobbyCopy,qrCard,lobbyRiders,lobbyFooter);
