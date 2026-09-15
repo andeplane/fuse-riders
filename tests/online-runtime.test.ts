@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomRuntime, HASH_LAG_TICKS, ABSENT_MS, SILENCE_MS, type RoomRuntimeDependencies } from '../src/online/runtime.js';
-import { TICK_MS } from '../src/online/rollback.js';
+import { MAX_FUTURE_TICKS, TICK_MS } from '../src/online/rollback.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { REPLAY_RULES } from '../src/shared/action-log.js';
 import type { RoomCommand } from '../src/online/host-session.js';
@@ -116,6 +116,21 @@ test('a baseline declares the rules its receiver enforces',()=>{
   assert.ok(sent,'the resync produced a baseline to inspect');
   assert.equal(sent.rules,REPLAY_RULES,'a receiver rejects any other value as malformed');
   assert.ok(internals(guest.runtime).sim,'and the guest accepted it');
+});
+// A view stamped its own input from its clock alone. That clock runs a sample forward at real time, so on a host whose
+// simulation cannot fold at real time — a busy TV — it outruns the host's tick without bound, and every entry arrived
+// past MAX_FUTURE_TICKS and was refused: the phone steered and nothing moved.
+test('a view never stamps input past the window the authority will accept',()=>{
+  const {host,guest,clock}=pair();
+  const authority=internals(host.runtime).session!.tick;
+  // Wall time runs on while the host's simulation stands still.
+  clock.now+=120*TICK_MS;
+  guest.tick();
+  guest.runtime.command({type:'input',left:true,right:false,bomb:false});
+  const own=(guest.runtime as unknown as {own:{retained:readonly (readonly number[])[]}}).own;
+  const stamped=own.retained.at(-1)![1]!;
+  assert.ok(stamped>authority,'the stamp still leads the authority, so a press is not folded into its past');
+  assert.ok(stamped<=authority+MAX_FUTURE_TICKS,`stamped ${stamped}; a host at ${authority} refuses anything past ${authority+MAX_FUTURE_TICKS}`);
 });
 test('a resync storm gets one baseline per peer per half second',()=>{
   const clock={now:0},host=room('host','host',clock);
