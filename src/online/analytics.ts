@@ -22,13 +22,27 @@ const PREFIX = 'FlowRiders.';
 /** Also the queue: every `track` chains off it, so calls made before Mixpanel loads still arrive, in order. */
 let client: Promise<Mixpanel> | undefined;
 
+const OVERRIDE_KEY = 'fuse-analytics';
+
 /**
- * Only `analytics=1` turns reporting on and only `analytics=0` turns it off; any other value falls through to
- * the address. Treating "present" as on would make `?analytics=off` and `?analytics=false` report a dev session
- * into the production project, which is the opposite of what someone typing them wants.
+ * The override sticks for the browser rather than riding the URL. `appUrl` replaces the query string on every
+ * navigation out of the landing page — deliberately, so an invite can never inherit a capability — so a flag
+ * read only from `location.search` would last exactly one page: `?analytics=0` would come back on at CREATE
+ * ROOM, and `?analytics=1` could never reach the room half of the funnel it exists to verify.
+ *
+ * Only an exact `1` or `0` is honoured or stored. Treating any present value as "on" would make `?analytics=off`
+ * and `?analytics=false` report a dev session into the production project, the opposite of what someone typing
+ * them wants.
  */
-export function analyticsEnabled(search: string, port: string): boolean {
-  const override = new URLSearchParams(search).get('analytics');
+export function analyticsOverride(search: string, storage: Pick<Storage, 'getItem' | 'setItem'>): string | null {
+  const found = new URLSearchParams(search).get('analytics');
+  try {
+    if (found === '1' || found === '0') { storage.setItem(OVERRIDE_KEY, found); return found; }
+    return storage.getItem(OVERRIDE_KEY);
+  } catch { return found; }
+}
+
+export function analyticsEnabled(override: string | null, port: string): boolean {
   if (override === '1') return true;
   if (override === '0') return false;
   return port === '';
@@ -40,7 +54,7 @@ export function analyticsEnabled(search: string, port: string): boolean {
  * one's — which is what the boot-failure path wants when it reports against a room that had already started.
  */
 export function startAnalytics(superProperties: Record<string, unknown>): void {
-  if (!analyticsEnabled(location.search, location.port)) return;
+  if (!analyticsEnabled(analyticsOverride(location.search, localStorage), location.port)) return;
   // localStorage over cookies: the game stores everything else there too, and a batch that outlives a navigation
   // is what lets CREATE ROOM report before the page it triggers replaces this one.
   client ??= import('mixpanel-browser').then(module => {

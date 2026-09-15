@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { analyticsEnabled, matchEndedProps, matchStartKey } from '../src/online/analytics.js';
+import { analyticsEnabled, analyticsOverride, matchEndedProps, matchStartKey } from '../src/online/analytics.js';
 import { BOT_ID_PREFIX } from '../src/shared/bot-controller.js';
 import type { MatchPlayerStats } from '../src/shared/match-stats.js';
 
@@ -15,24 +15,48 @@ function rider(overrides: Partial<MatchPlayerStats> & { playerId: string; slot: 
   };
 }
 
+const fakeStorage = (initial: Record<string, string> = {}) => {
+  const values = new Map(Object.entries(initial));
+  return { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); }, values };
+};
+
 test('analytics stays off on a LAN or dev address and obeys the explicit override either way', () => {
-  assert.equal(analyticsEnabled('', '5173'), false, 'a port means local dev or LAN play');
-  assert.equal(analyticsEnabled('', ''), true, 'the deployed site has no port');
-  assert.equal(analyticsEnabled('?analytics=1', '5173'), true, 'forced on to verify a build');
-  assert.equal(analyticsEnabled('?analytics=0', ''), false, 'forced off beats every other rule');
-  assert.equal(analyticsEnabled('?analytics=0&analytics=1', ''), false, 'the first value decides');
-  assert.equal(analyticsEnabled('?room=AB42', '8080'), false);
+  assert.equal(analyticsEnabled(null, '5173'), false, 'a port means local dev or LAN play');
+  assert.equal(analyticsEnabled(null, ''), true, 'the deployed site has no port');
+  assert.equal(analyticsEnabled('1', '5173'), true, 'forced on to verify a build');
+  assert.equal(analyticsEnabled('0', ''), false, 'forced off beats every other rule');
 });
 
 test('only 1 and 0 override the address, so a plausible-looking opt-out cannot switch reporting on', () => {
   // Reading any `analytics` value as "on" would make each of these report a dev session into the production project.
   for (const value of ['off', 'false', 'no', '00', '', 'true', '2']) {
-    assert.equal(analyticsEnabled(`?analytics=${value}`, '5173'), false, `?analytics=${value} must not enable a dev address`);
+    assert.equal(analyticsEnabled(value, '5173'), false, `${value} must not enable a dev address`);
+    assert.equal(analyticsEnabled(value, ''), true, `${value} must not disable the deployed site`);
   }
-  // ...and must not switch the deployed site off either, where only an explicit 0 counts.
-  for (const value of ['off', 'false', 'no', '00', '']) {
-    assert.equal(analyticsEnabled(`?analytics=${value}`, ''), true, `?analytics=${value} must not disable the deployed site`);
-  }
+});
+
+test('the override sticks for the browser, because appUrl drops the query on the way into a room', () => {
+  const storage = fakeStorage();
+  assert.equal(analyticsOverride('?analytics=0', storage), '0');
+  // CREATE ROOM lands on `?room=AB42`: appUrl replaces the query string, so the flag is gone from the URL.
+  assert.equal(analyticsOverride('?room=AB42', storage), '0', 'the opt-out must outlive the navigation that drops it');
+  assert.equal(analyticsEnabled(analyticsOverride('?room=AB42', storage), ''), false);
+  // ...and the same in reverse, so ?analytics=1 can verify the room half of the funnel, not just the landing page.
+  assert.equal(analyticsOverride('?analytics=1', storage), '1');
+  assert.equal(analyticsEnabled(analyticsOverride('?room=AB42', storage), '5173'), true);
+});
+
+test('a junk override neither overwrites a stored choice nor is stored itself', () => {
+  const storage = fakeStorage({ 'fuse-analytics': '0' });
+  assert.equal(analyticsOverride('?analytics=maybe', storage), '0', 'junk falls through to the stored choice');
+  assert.equal(storage.values.get('fuse-analytics'), '0');
+  assert.equal(analyticsOverride('', fakeStorage()), null, 'no flag and nothing stored falls through to the address');
+});
+
+test('a browser that refuses storage still honours the flag in the address', () => {
+  const sealed = { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } };
+  assert.equal(analyticsOverride('?analytics=0', sealed), '0');
+  assert.equal(analyticsOverride('?room=AB42', sealed), null, 'without storage it cannot stick, and must not throw');
 });
 
 test('a finished match reports the arena shape and this device rider own line', () => {

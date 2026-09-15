@@ -19,6 +19,12 @@ Only exactly `1` and `0` override; any other value (`?analytics=off`, `?analytic
 falls through to the address rule rather than being read as "on", so a plausible-looking opt-out cannot report a
 dev session into the production project.
 
+The override sticks for the browser under `fuse-analytics`, rather than riding the URL. `appUrl` replaces the
+query string on every navigation out of the landing page — deliberately, so an invite can never inherit a
+capability — so a flag read only from `location.search` would last exactly one page: `?analytics=0` would come
+back on at CREATE ROOM, and `?analytics=1` could never reach the room half of the funnel it exists to verify.
+Set it once on any page; clear it with the opposite flag.
+
 Test rooms therefore never reach the production project, and `?analytics=1` is how a build gets verified against
 it on purpose. The Mixpanel bundle is imported only once analytics is on, so a LAN game never downloads it.
 

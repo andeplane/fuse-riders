@@ -145,7 +145,8 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 ## Product analytics
 
 The deployed site reports nine `FlowRiders.`-prefixed product events to Mixpanel. LAN play and local dev are off
-by default, `?analytics=1` forces them on and `?analytics=0` forces them off. See [product analytics](docs/ANALYTICS.md)
+by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
+browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
 ## Hosting and deployment status
