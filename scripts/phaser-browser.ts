@@ -8,8 +8,6 @@ const browser=process.env.BROWSER==='webkit'?await webkit.launch():await chromiu
 const page=await browser.newPage({viewport:{width:1600,height:1000},deviceScaleFactor:Number(process.env.DPR??2)});const errors:string[]=[];page.on('pageerror',e=>errors.push(e.stack ?? e.message));
 try{
  await page.addInitScript('window.__name = value => value');await page.goto(`http://127.0.0.1:${address.port}/`);
- // The recovery budget is polled by requestAnimationFrame, which crawls under software GL on a
- // loaded runner, so it is scaled like every other smoke deadline rather than fixed at 6s.
  const result=await page.evaluate(async(recoveryBudgetMs)=>{
   const {createPhaserArena}=await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
   const {visualFixture}=await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
@@ -89,16 +87,20 @@ try{
   let fallbackCanvas=document.createElement('canvas');fallbackCanvas.width=1600;fallbackCanvas.height=900;fallbackCanvas.style.cssText='width:100%;height:100%';fallbackWrapper.append(fallbackCanvas);
   const presentation=mountArenaPresentation(fallbackCanvas,ctx=>{ctx.fillStyle='#00ff00';ctx.fillRect(0,0,1600,900);},replacement=>{fallbackCanvas=replacement;});
   let raf=0;const render=()=>{presentation.render(visualFixture(40),performance.now(),themes['neon-pixel'],{},'fallback-test');raf=requestAnimationFrame(render);};render();
-  const until=async(predicate:()=>boolean)=>{const end=performance.now()+recoveryBudgetMs;while(!predicate()){if(performance.now()>end)throw Error('Presentation recovery timed out');await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}};
-  await until(()=>fallbackCanvas.dataset.renderer==='phaser-webgl');
+  // The presentation allows 10 s for renderer startup (then falls back) and 2 s before falling back from a lost
+  // context; 15 s covers both. Each wait names its stage and last state for diagnosis. The budget is polled by
+  // requestAnimationFrame, which crawls under software GL, so it scales with SMOKE_TIMEOUT_SCALE like every
+  // other smoke deadline rather than staying fixed.
+  const until=async(stage:string,predicate:()=>boolean)=>{const end=performance.now()+recoveryBudgetMs;while(!predicate()){if(performance.now()>end)throw Error(`Presentation recovery timed out waiting for ${stage} (renderer=${fallbackCanvas.dataset.renderer}, status=${fallbackCanvas.dataset.rendererStatus}, ${fallbackCanvas.width}x${fallbackCanvas.height})`);await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}};
+  await until('WebGL startup',()=>fallbackCanvas.dataset.renderer==='phaser-webgl');
   const extension=fallbackCanvas.getContext('webgl')!.getExtension('WEBGL_lose_context');
-  if(extension){extension.loseContext();await until(()=>fallbackCanvas.dataset.renderer==='canvas-fallback');const pixel=fallbackCanvas.getContext('2d')!.getImageData(20,20,1,1).data;if(pixel[1]!==255||fallbackCanvas.style.opacity!=='1')throw Error('Fallback did not repaint visibly');
-   await until(()=>fallbackCanvas.width===800*devicePixelRatio&&fallbackCanvas.height===450*devicePixelRatio);
+  if(extension){extension.loseContext();await until('canvas fallback after context loss',()=>fallbackCanvas.dataset.renderer==='canvas-fallback');const pixel=fallbackCanvas.getContext('2d')!.getImageData(20,20,1,1).data;if(pixel[1]!==255||fallbackCanvas.style.opacity!=='1')throw Error('Fallback did not repaint visibly');
+   await until('fallback 800x450 backing size',()=>fallbackCanvas.width===800*devicePixelRatio&&fallbackCanvas.height===450*devicePixelRatio);
    fallbackWrapper.style.width='400px';fallbackWrapper.style.height='225px';
-   await until(()=>fallbackCanvas.width===400*devicePixelRatio&&fallbackCanvas.height===225*devicePixelRatio);
+   await until('fallback 400x225 backing size',()=>fallbackCanvas.width===400*devicePixelRatio&&fallbackCanvas.height===225*devicePixelRatio);
   }
   cancelAnimationFrame(raf);presentation.destroy();fallbackWrapper.remove();
   return results;
- },smokeTimeout(6000));
+ },smokeTimeout(15000));
  assert.deepEqual(errors,[]);console.log(JSON.stringify({result,errors},null,2));
-}finally{await browser.close();await server.close();}
+}finally{if(errors.length)console.error('Page errors:',errors);await browser.close();await server.close();}
