@@ -36,7 +36,7 @@ class Socket implements GatewaySocket {
   close(code:number,reason:string){this.closes.push({code,reason});}
   frames(type:string){return this.messages.filter(m=>m.type===type);}
 }
-const HOST='a'.repeat(64),GUEST='b'.repeat(64),CODE='AABBCCDDEE';
+const HOST='a'.repeat(64),GUEST='b'.repeat(64),CODE='AB42';
 function fixture(makeStore:(database:RoomDatabase,dependencies:RoomStoreDependencies)=>RoomStore=(database,dependencies)=>new RoomStore(database,dependencies)){
   let now=1000,n=0;const database=new Database(),network=new Map<string,Bus>(),aBus=new Bus(network,'a'),bBus=new Bus(network,'b');
   const deps={now:()=>now,id:()=>`id-${++n}`,error:()=>{}};const store=makeStore(database,deps);

@@ -47,6 +47,24 @@ test('join, presence, leave and settings fold with guards instead of throws', ()
   tick(state, { [HOST]: [[14, 'lobby', 'match-2']] }); assert.equal(state.game.phase, 'lobby'); assert.equal(state.game.matchId, 'match-2');
   assert.equal(state.game.tick > 0, true, 'return to lobby keeps the transport tick');
 });
+test('settings entries validate aim time and replay applies it only at the next round', () => {
+  for (const bombChargeTicks of [2, 8, 40]) assert.ok(validEntry([1, 1, 13, { ...defaultRoomSettings(), bombChargeTicks }]), String(bombChargeTicks));
+  for (const bombChargeTicks of [0, 1, 41, 2.5, '8', null, Number.NaN]) assert.equal(validEntry([1, 1, 13, { ...defaultRoomSettings(), bombChargeTicks }]), false, String(bombChargeTicks));
+  const state = playing();
+  tick(state, { [HOST]: [[13, { ...defaultRoomSettings(), bombChargeTicks: 24 }]] });
+  assert.equal(state.pending.bombChargeTicks, 24); assert.equal(state.game.settings!.bombChargeTicks, 8, 'mid-round settings stay pending');
+  const guest = state.game.players.get('guest')!; guest.invulnerableUntilTick = 1e9; state.game.players.get(HOST)!.invulnerableUntilTick = 1e9;
+  guest.x = 400; guest.y = 450; guest.angle = 0;
+  tick(state, { guest: [[2, 1]] }); for (let i = 0; i < 7; i++) tick(state);
+  tick(state, { guest: [[3, 1, null, null]] });
+  const bomb = [...state.game.bombs.values()].find(b => b.ownerId === 'guest')!;
+  assert.ok(Math.abs(Math.hypot(bomb.x - bomb.launchX, bomb.y - bomb.launchY) - 400) < 1e-8, 'an 8-tick hold reaches full range under the still-active default');
+  state.game.players.get(HOST)!.invulnerableUntilTick = 0; state.game.players.get(HOST)!.alive = false;
+  const round = state.game.round;
+  for (let i = 0; i < 400 && state.game.round === round; i++) tick(state);
+  assert.equal(state.game.round, round + 1); assert.equal(state.game.settings!.bombChargeTicks, 24, 'the next round adopts the pending aim time');
+  const copy = cloneState(state); copy.pending = { ...copy.pending, bombChargeTicks: 12 }; assert.notEqual(replayHash(copy), replayHash(state), 'pending aim time is part of the replica hash');
+});
 test('press, release and cancel fold through one shared bomb buffer per stream', () => {
   const state = playing();
   for (const player of state.game.players.values()) player.invulnerableUntilTick = 1e9; // bounce off walls so the round outlasts the cooldown

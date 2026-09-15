@@ -18,7 +18,7 @@ test('controller snapshots strip the full match statistics table', () => {
     shieldPickups: 0, portalPickups: 0, portalTransits: 0, invulnerableTicks: 10, wallBounces: 2, earlyExits: 0,
   };
   const compact = controllerSnapshot({
-    phase: 'matchOver', width: 1600, height: 900, boundaryInset: 20,
+    phase: 'matchOver', bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20,
     players: [], bombs: [], blasts: [], pickups: [], leaderboard: [], roundPlacements: [], matchStats: [matchStats],
   });
   assert.deepEqual(compact.matchStats, []);

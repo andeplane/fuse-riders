@@ -13,7 +13,7 @@ This replaces the current 24-hour sliding lifetime, which every guest heartbeat 
 - Codes are deliberately enumerable and are not passwords. Existing 64-hex capability tokens, host hashing, authority incarnation/epoch fencing, six-socket cap and 30-creations/hour per-address limit remain unchanged. Knowing a room code still permits requesting a guest seat, as the current product intends; it never grants host authority.
 - Generate new codes uniformly with cryptographic random integers and rejection sampling, with injected randomness for deterministic tests. No Math.random or biased modulo mapping.
 - Creation retries at most 12 collision candidates. Each candidate is reserved by the existing authoritative transaction; a live room is never overwritten. Retry only the explicit room-exists conflict. Exhaustion returns a retryable 503. Creation-rate accounting happens once per user request, not once per collision.
-- Accept the new format and existing 10-character uppercase alphanumeric codes during transition. All newly generated codes use the short format. Shared validation is used by service, Worker and client; error copy uses `AB42`, not a ten-character requirement.
+- Accept the new format and existing 10-character uppercase alphanumeric codes during transition (the transition ended with #71: only the short format is accepted now). All newly generated codes use the short format. Shared validation is used by service, Worker and client; error copy uses `AB42`, not a ten-character requirement.
 
 ## Session lifetime and explicit end
 
@@ -30,7 +30,7 @@ This is metadata/signalling lifecycle work only; there is no gameplay service or
 
 ## Acceptance
 
-1. New codes exactly match `[A-Z]{2}[0-9]{2}`; deterministic boundaries and random rejection tested. Legacy input remains accepted; malformed codes rejected.
+1. New codes exactly match `[A-Z]{2}[0-9]{2}`; deterministic boundaries and random rejection tested. Legacy input remained accepted until #71 removed it; malformed codes rejected.
 2. Inject colliding candidates: existing live room/capability/authority is unchanged, the next candidate succeeds, and bounded exhaustion returns 503 without unbounded retries.
 3. Host heartbeat extends lifetime; guest heartbeat never does. At the exact deadline, get/admit/time/signal reject even if metadata remains. A valid host reconnect before the deadline resumes under existing fencing; after it fails.
 4. Explicit end requires the host capability, is idempotent without affecting a reused incarnation, closes routing, and does not run on round/match completion or ordinary refresh.

@@ -5,14 +5,12 @@ import { startAttract } from './attract.js';
 import { LocalRuntime } from './local-runtime.js';
 import type { Callbacks } from './runtime.js';
 import { installRoomLifecycle } from './room-lifecycle.js';
-import { isShotTransition, ShotFailureNotice } from './shot-failure.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
 import { ControllerInputState } from '../client/controller-state.js';
 import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
-import { LocalPrediction, RemoteWorldBuffer } from './prediction.js';
 import { drawArena } from '../client/main.js';
 import { createAvatarPicker, createAvatarPortrait } from '../client/avatar-heads.js';
 import { defaultTheme, loadThemeSprites } from '../client/themes.js';
@@ -26,11 +24,14 @@ import { RoomRuntime } from './runtime.js';
 import type { AvatarId } from '../shared/avatars.js';
 import QRCode from 'qrcode';
 import './online.css';
+import { formatNetStats } from './net-stats.js';
 import { installMobilePlayLayout } from './mobile-play-layout.js';
 import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
 import { createJoinCard, createJoinForm } from './join-form.js';
 import { safeStorage } from '../client/safe-storage.js';
+import { POWERUP_GUIDE } from '../client/powerup-guide.js';
+import { createPowerupGuide } from '../client/powerup-guide-view.js';
 const storage=safeStorage(()=>localStorage);
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
 const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
@@ -54,6 +55,8 @@ export async function startOnline():Promise<void>{
       <aside class="landing-live"><span class="live-dot"></span> LIVE AI FREE-FOR-ALL <small>Real riders. Real explosions.</small></aside>
       <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
     const form=card.querySelector<HTMLElement>('.landing-multiplayer')!;
+    const guide=node('section','','landing-guide'),guideTitle=node('h2','POWER-UPS','landing-section-label');guideTitle.id='landing-guide-title';guide.setAttribute('aria-labelledby',guideTitle.id);
+    guide.append(guideTitle,createPowerupGuide(POWERUP_GUIDE,{className:'landing-powerups',themeId:defaultTheme.id,offByDefaultNote:'(off by default, enable in room settings)'}).element);card.querySelector('.landing-content')!.append(guide);
     const mode=node('fieldset','','landing-mode');mode.setAttribute('aria-label','Where will you play?');mode.append(node('legend','Where will you play?'));let selectedMode=loadRoomSettings(localStorage).mode;
     for(const [value,label] of [['devices','Each device'],['shared','Shared TV']] as const){const option=node('label'),radio=node('input');radio.type='radio';radio.name='landing-mode';radio.value=value;radio.checked=selectedMode===value;radio.onchange=()=>{selectedMode=value;};option.append(radio,node('span',label));mode.append(option);}
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
@@ -80,8 +83,8 @@ export async function startOnline():Promise<void>{
   function peerToken(){const key=`fuse-peer-${code}`;const token=read(key)||secret();save(key,token);return token;}
   const forgetHostToken=()=>storage.removeItem(`fuse-room-${code}`);
   let id='',isHost=false,joined=false,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
-  const prediction=new LocalPrediction(()=>performance.now());const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;const worldBuffer=new RemoteWorldBuffer();
-  let seq=0,lastRecap='',rejoinPending=false;
+  const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;
+  let lastRecap='',rejoinPending=false;
   const responseBenchmark=url.searchParams.get('responseBenchmark')==='1';
   const benchmark=url.searchParams.get('benchmark')==='1'||responseBenchmark;let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
   const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
@@ -120,10 +123,9 @@ export async function startOnline():Promise<void>{
   const help=node('button','?','desktop-help');help.setAttribute('aria-label','Keyboard controls');help.title='Keyboard controls';
   const avatarButton=node('button','HEAD'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');fullscreen.onclick=()=>void document.documentElement.requestFullscreen?.();header.append(avatarButton,help,fullscreen);
   const dialog=node('dialog','','game-dialog');dialog.setAttribute('aria-label','Game menu');const close=node('button','✕  CLOSE');close.type='button';close.setAttribute('aria-label','CLOSE');close.onclick=()=>dialog.close();const rematch=node('button','REMATCH');rematch.type='button';rematch.hidden=true;rematch.title='Play the same match again';const dialogActions=node('span','','dialog-actions');dialogActions.append(rematch,close);const dialogBar=node('header','','dialog-bar'),dialogTitle=node('strong','GAME MENU');dialogBar.append(dialogTitle,dialogActions);const dialogBody=node('div','','dialog-body');dialog.append(dialogBar,dialogBody);dialog.addEventListener('close',()=>{rematch.hidden=true;dialog.classList.remove('recap-dialog');dialogTitle.textContent='GAME MENU';dialog.setAttribute('aria-label','Game menu');});dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
-  const shotNotice=node('p','','online-shot-error');shotNotice.setAttribute('role','alert');shotNotice.hidden=true;const shotFailure=new ShotFailureNotice(()=>performance.now());const updateShotNotice=()=>{const message=shotFailure.message();shotNotice.hidden=!message;if(message&&shotNotice.textContent!==message)shotNotice.textContent=message;};
   const scoreboard=node('div','','online-scoreboard');scoreboard.append(notice,roster);
   const footer=node('footer','','online-footer');footer.append(controls,hostControls);
-  app.replaceChildren(header,...(role==='joiner'?[]:[booting]),canvas,sharedLobby,scoreboard,shotNotice,joinPanel,footer,dialog);
+  app.replaceChildren(header,...(role==='joiner'?[]:[booting]),canvas,sharedLobby,scoreboard,joinPanel,footer,dialog);
   help.onclick=()=>{dialogBody.replaceChildren(node('h2','Keyboard controls'),node('p','← / A — steer left'),node('p','→ / D — steer right'),node('p','SPACE — hold to charge, release to fire'));dialog.showModal();};
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
   const desktopQuery=matchMedia('(min-width: 1000px) and (hover: hover) and (pointer: fine)');
@@ -158,18 +160,15 @@ export async function startOnline():Promise<void>{
   const callbacks:Callbacks={
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
     ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;},
-    shotFailed:()=>{shotFailure.show();updateShotNotice();},
     status:text=>{status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
     ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
     event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
-    clock:clockSample=>{const accepted=prediction.observeClock(clockSample);if(responseBenchmark)sample({kind:'response-clock',epochAt:performance.timeOrigin+performance.now(),accepted,sample:clockSample,diagnostics:prediction.clock.diagnostics()});},
-    state:(state,rules,ack,matchId,motion)=>{
+    state:(state,rules,matchId)=>{
       if(roomEnded)return;
       bootDone();
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
-      snapshot=state;const nextRenderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;if(nextRenderScope!==renderScope)prediction.resetExternalScope();renderScope=nextRenderScope;settings=rules;if(ack>=seq){seq=ack+1;inputState.setNextSequence(seq);}prediction.accept(state,id,ack,motion,renderScope);
-      worldBuffer.push(state,renderScope);
-      sample({kind:'snapshot',at:performance.now(),presentationDelayTicks:prediction.clock.presentationDelayTicks(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,motionResults:motion?.results,controlEpoch:motion?.scope.controlEpoch,heldMotion:motion?.held,correction:prediction.correction,ackMs:prediction.ackMs});
+      snapshot=state;renderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;settings=rules;
+      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.held(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
@@ -206,8 +205,10 @@ export async function startOnline():Promise<void>{
   if(solo)share.hidden=true;
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
+  // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
+  const statsPanel=node('pre','','net-stats');statsPanel.hidden=solo||!url.searchParams.has('stats');app.append(statsPanel);
   reset.onclick=()=>runtime.command({type:'action',action:'lobby'});rematch.onclick=()=>{dialog.close();start.click();};menu.onclick=()=>{dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}location.href=appUrl();};dialogBody.append(leave);
-    if(!solo){const diagnostics=node('pre','','link-diagnostics');diagnostics.textContent=app.dataset.linkDiagnostics??'collecting link diagnostics…';dialogBody.append(node('p','LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)'),diagnostics);const refresh=setInterval(()=>{if(!dialog.open){clearInterval(refresh);return;}diagnostics.textContent=app.dataset.linkDiagnostics??diagnostics.textContent;},1000);}
+    if(!solo){const diagnostics=node('pre','','link-diagnostics');diagnostics.textContent=app.dataset.linkDiagnostics??'collecting link diagnostics…';const statsToggle=node('button',statsPanel.hidden?'SHOW NETWORK STATS':'HIDE NETWORK STATS');statsToggle.onclick=()=>{statsPanel.hidden=!statsPanel.hidden;dialog.close();};dialogBody.append(statsToggle,node('p','LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)'),diagnostics);const refresh=setInterval(()=>{if(!dialog.open){clearInterval(refresh);return;}diagnostics.textContent=app.dataset.linkDiagnostics??diagnostics.textContent;},1000);}
     dialog.showModal();};
   avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your head'));const picker=createAvatarPicker(storage,chosen=>{joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
   share.onclick=async()=>{const link=new URL(appUrl(`?room=${code}`),location.origin).href;dialogBody.replaceChildren(node('h2',`Room ${code}`),node('p',link));const qr=node('img');qr.src=await QRCode.toDataURL(link);qr.alt='Scan to join';dialogBody.append(qr);const tv=node('a','OPEN TV VIEW');tv.href=appUrl(`?room=${code}&display=1`);tv.target='_blank';dialogBody.append(tv);dialog.showModal();};
@@ -215,7 +216,7 @@ export async function startOnline():Promise<void>{
     showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>dialog.close());
     dialog.showModal();
   };
-  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;seq=message.seq+1;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const scheduled=prediction.input(message.seq,message.left,message.right);const sent=scheduled?runtime.command({...message,...scheduled}):false;if(scheduled&&!sent)prediction.discard(message.seq);if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,scheduled:Boolean(scheduled),intendedTick:scheduled?.intendedTick,sent,...prediction.diagnostics()});if(!scheduled&&isShotTransition(message)){shotFailure.show();updateShotNotice();}return sent;}});
+  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const sent=runtime.command({type:'input',left:message.left,right:message.right,bomb:message.bomb,...(message.bombAction?{bombAction:message.bombAction}:{}),...(message.aim?{aim:message.aim}:{})});if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent});return sent;}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
@@ -230,13 +231,14 @@ export async function startOnline():Promise<void>{
   document.addEventListener('focusin',()=>{if(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))keyboard.clear();});
   new MutationObserver(()=>{if(dialog.open)clearControls();}).observe(dialog,{attributes:true,attributeFilter:['open']});
   window.addEventListener('pagehide',clearControls);
-  setInterval(()=>{if(joined&&!roomEnded)inputState.resend();audio.director.update();updateShotNotice();},50);
+  setInterval(()=>{if(joined&&!roomEnded)inputState.resend();audio.director.update();},50);
   runtime.start();
+  if(runtime instanceof RoomRuntime)setInterval(()=>{if(statsPanel.hidden)return;let path='none';try{const m=JSON.parse(app.dataset.metrics??'{}');path=m.direct?'direct':m.relayed?'relay':'none';}catch{}statsPanel.textContent=isHost?`host · ${snapshot?.players.filter(p=>p.connected).length??0} riders connected · stats are per phone: open them on a phone`:formatNetStats(runtime.netStats.summary(),path);},500);
   setInterval(()=>{void runtime.transport.stats().then(connection=>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;
-    app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),ackMs:prediction.ackMs,correction:prediction.correction,tick:snapshot?.tick??0});
+    app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),tick:snapshot?.tick??0});
     return runtime instanceof RoomRuntime?runtime.transport.diagnostics():undefined;
   }).then(report=>{if(report)app.dataset.linkDiagnostics=formatLinkDiagnostics(report.links,report.ice,report.socket);});},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const delayTicks=prediction.clock.presentationDelayTicks();const buffered=worldBuffer.render(prediction.clock.estimate()?.tick,delayTicks);if(buffered&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){const predicted=prediction.render(buffered,id);presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',delayTicks,clock:prediction.clock.diagnostics(),epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.render();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }
