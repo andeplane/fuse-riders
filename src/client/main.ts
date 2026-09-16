@@ -10,6 +10,7 @@ import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
 import { blastFrame } from './blast-animation.js';
+import { reloadRemaining, RELOAD_RING_RADIUS } from './reload-ring.js';
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
@@ -387,6 +388,16 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.restore();
     ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
     ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 29)); ctx.restore();
+    const reload = reloadRemaining(player, snapshot);
+    if (reload > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#080c22'; ctx.lineWidth = 5; ctx.globalAlpha = .95;
+      ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.globalAlpha = .2; ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, -Math.PI / 2 + (1 - reload) * Math.PI * 2, Math.PI * 1.5); ctx.stroke();
+      ctx.restore();
+    }
   }
   drawInkClouds(ctx, snapshot, snapshot.tick);
   drawBombTargets(ctx, snapshot);

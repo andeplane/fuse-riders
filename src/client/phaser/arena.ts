@@ -13,6 +13,7 @@ import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 import { blastFrame } from '../blast-animation.js';
+import { reloadRemaining, RELOAD_RING_RADIUS } from '../reload-ring.js';
 
 const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
@@ -366,6 +367,13 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,44,p.angle,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle; f.fillStyle(tint).fillTriangle(p.x+Math.cos(a)*31,p.y+Math.sin(a)*31,p.x+Math.cos(a+.27)*22,p.y+Math.sin(a+.27)*22,p.x+Math.cos(a-.27)*22,p.y+Math.sin(a-.27)*22);
       this.label(`P${p.slot+1}`,p.x,p.y-33,p.color);
+      const reload=reloadRemaining(p,s);
+      if(reload>0) {
+        const start=-Math.PI/2+(1-reload)*Math.PI*2;
+        f.lineStyle(5,0x080c22,.95).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(3,tint,.2).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(3,tint).beginPath().arc(p.x,p.y,RELOAD_RING_RADIUS,start,Math.PI*1.5,false).strokePath();
+      }
       if(p.shielded || p.shieldGraceUntilTick>s.tick) { f.lineStyle(2,0x8affff,.8).strokeCircle(p.x,p.y,29); const a=now/350; f.fillStyle(0xcaffff).fillRect(p.x+Math.cos(a)*29-4,p.y+Math.sin(a)*29-4,8,8); }
       if(p.portalGraceUntilTick>s.tick || p.invulnerableUntilTick>s.tick) f.lineStyle(3,0xffdbff,.6).strokeCircle(p.x,p.y,35+Math.sin(now/80)*2);
       if(p.drunkUntilTick>s.tick) { f.lineStyle(2,0xd799ff,.9).strokeEllipse(p.x,p.y-12,70,35); for(let i=0;i<4;i++){ const a=now/240+i*Math.PI/2; const sx=p.x+Math.cos(a)*36,sy=p.y-12+Math.sin(a)*20; f.fillStyle(i%2?0xffe790:0xffaa32).fillRect(sx-2,sy-8,4,16).fillRect(sx-8,sy-2,16,4); } this.label('DIZZY',p.x,p.y+37,'#fff078',9); }
