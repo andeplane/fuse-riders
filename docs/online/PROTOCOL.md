@@ -169,15 +169,14 @@ Fold rules `fuse-p2p-21` made map pickups persistent. Uncollected pickups last u
 
 No snapshot fields or transport envelopes change. Rules equality rejects older peers and snapshots because the same inputs now leave different pickups on the board. Refresh all peers together and start fresh rooms after rollback; there is no live-room migration.
 
-
 ## Projectiles through portal gates
 
 Current fold rules are `fuse-p2p-22`. A Green Shell and a Gun ray now carry through a portal gate the way a rider does, entering at the first gate met and leaving beside its partner at the same proportional height, keeping heading, speed and a shell's bounce count. Lobbed, Target and Singularity bombs do not: they resolve against a landing point rather than travelling, and are unchanged.
 
-A shell's tick is integrated in two passes split at the gate, so a bounce falling on either side of it still resolves against the wall or trail it actually met, and the teleport itself is not swept for rider contact — a rider standing between two gates is not in the shell's way. A shell carries its own `portalCooldownUntilTick`, a new optional `BombState` and checkpoint field of the same shape as the rider's, so a pair it is aimed down cannot hold it in a loop. It is not published in snapshots: presentation projects a shell forward from its own velocity and needs no interpolation guard.
+A shell's tick is integrated in two passes split at the gate, so a bounce falling on either side of it still resolves against the wall or trail it actually met, and the teleport itself is not swept for rider contact — a rider standing between two gates is not in the shell's way. A shell carries its own `portalCooldownUntilTick`, a new optional `BombState` and checkpoint field of the same shape as the rider's, so a pair it is aimed down cannot hold it in a loop. It reaches a joiner with the rest of the simulation, since the peer snapshot is the checkpoint codec; it is absent only from the render snapshot, which carries what a screen draws. Presentation projects a shell forward from its own velocity and needs no interpolation guard.
 
 A Gun ray is still resolved on the press tick. It may cross at most one gate per pair, so at most `MAX_PORTAL_PAIRS` hops, and each stretch past a gate gets its own 3-tick tracer record carrying the same owner and shot — the renderer keeps drawing every tracer as one straight line. Continuation tracers report no `bombPlaced` event and no placement statistic; the trigger was pulled once. Portal transits by a projectile are not counted as the owner's portal jumps.
 
-Projectile exits are refused only by arena bounds and by foreign portal walls, not by the rider rule: a projectile has no problem appearing beside a rider or a trail, and resolves that contact on the ticks that follow. A refused exit leaves the projectile travelling as though the gate were not there.
+Projectile exits are refused only by arena bounds and by foreign portal walls, not by the rider rule: a projectile has no problem appearing beside a rider or a trail. A shell put down on a rider resolves against them in that same tick with no swept travel; one put down in a trail bounces off it from the next. A refused exit leaves the projectile travelling as though the gate were not there.
 
 No snapshot fields or transport envelopes change. Rules equality rejects older peers and snapshots because the same inputs now put projectiles in different places. Refresh all peers together and start fresh rooms after rollback; there is no live-room migration.

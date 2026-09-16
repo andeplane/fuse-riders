@@ -28,6 +28,9 @@ export function advanceShell(shell: ShellMotion, bounds: { left: number; right: 
     const dt = Math.max(0, Math.min(endTime - t, tx, ty, hit?.time ?? Infinity));
     shell.x += dx * dt; shell.y += dy * dt; t += dt;
     path.push({ x: shell.x, y: shell.y, t });
+    // Whatever ends a shortened pass owns that instant: a contact landing exactly on a portal gate's
+    // mouth is the gate's, and reflecting here as well would send the shell out of the partner backwards.
+    if (t >= endTime && endTime < 1) break;
     if (hit && hit.time <= dt + 1e-9) {
       const dot = shell.vx * hit.nx + shell.vy * hit.ny;
       shell.vx -= 2 * dot * hit.nx; shell.vy -= 2 * dot * hit.ny;

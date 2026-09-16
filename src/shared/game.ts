@@ -1,4 +1,4 @@
-import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
+import { hypot2, sin, cos } from './deterministic-math.js';
 import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerReloadTicks, powerTrailLifetimeTicks } from './power-progression.js';
 export { pickupPacing } from './power-progression.js';
 import { advanceRiderPose } from './rider-motion.js';
@@ -1112,7 +1112,7 @@ function findShellPortalEntry(state: GameState, bomb: BombState, path: readonly 
     const from = path[i - 1]!; const to = path[i]!;
     const transit = findPortalTransit({
       pairs: state.portalPairs, tick: state.tick, from, to,
-      heading: atan2(bomb.shell.vy, bomb.shell.vx),
+      heading: 0, // Echoed back by findPortalTransit and read by no caller.
       cooldownUntilTick: bomb.portalCooldownUntilTick ?? 0,
       bounds: portalBounds(state), riderRadius: SHELL_RADIUS,
       isSafeExit: (point, radius, pairId) => isClearOfPortalWalls(state, point, radius, pairId),
@@ -1341,7 +1341,7 @@ function nextRandom(state: GameState): number {
 function findGunPortalEntry(state: GameState, from: PortalPoint, to: PortalPoint, spent: ReadonlySet<string>): { transit: PortalTransit; time: number } | undefined {
   const transit = findPortalTransit({
     pairs: state.portalPairs.filter((pair) => !spent.has(pair.id)), tick: state.tick, from, to,
-    heading: atan2(to.y - from.y, to.x - from.x), cooldownUntilTick: 0,
+    heading: 0, cooldownUntilTick: 0, // A ray lives for one tick, so it has no cooldown of its own.
     bounds: portalBounds(state), riderRadius: GUN_RADIUS,
     isSafeExit: (point, radius, pairId) => isClearOfPortalWalls(state, point, radius, pairId),
   });
