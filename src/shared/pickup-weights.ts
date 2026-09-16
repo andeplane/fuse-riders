@@ -1,9 +1,11 @@
 import type { PickupType } from './game.js';
-/** Target is about half its previous probability; other relative ratios are preserved. */
+import { POWER_TUNING } from './power-progression.js';
+/** Power supplies roughly four fifths of default drops; specials stay occasional. */
 export const PICKUP_WEIGHTS: ReadonlyArray<Readonly<{ type: PickupType; weight: number }>> = [
-  { type: 'gun', weight: 2250 }, { type: 'shell', weight: 533 }, { type: 'blast', weight: 6396 }, { type: 'beer', weight: 1599 }, { type: 'ink', weight: 1599 },
-  { type: 'triple', weight: 5535 }, { type: 'five', weight: 1845 }, { type: 'target', weight: 1650 },
-  { type: 'stopwatch', weight: 1599 }, { type: 'orbitShield', weight: 1599 }, { type: 'boost', weight: 1599 }, { type: 'gravity', weight: 1200 }, { type: 'portal', weight: 1599 },
+  { type: 'power', weight: POWER_TUNING.defaultDropWeight },
+  { type: 'gun', weight: 225 }, { type: 'shell', weight: 53 }, { type: 'beer', weight: 160 }, { type: 'ink', weight: 160 },
+  { type: 'triple', weight: 540 }, { type: 'five', weight: 180 }, { type: 'target', weight: 165 },
+  { type: 'orbitShield', weight: 160 }, { type: 'boost', weight: 160 }, { type: 'gravity', weight: 120 }, { type: 'portal', weight: 160 },
 ];
 export function pickupTypeForRoll(roll: number): PickupType {
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) throw new RangeError('roll must be in [0, 1)');

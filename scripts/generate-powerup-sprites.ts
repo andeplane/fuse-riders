@@ -5,6 +5,7 @@ import { writeFile } from 'node:fs/promises';
  * No fonts, filters or external resources: the SVGs also rasterize in Phaser.
  */
 const artwork: Record<string, string> = {
+  'pickup-power': `<path d="M32 6 52 32 32 58 12 32Z" fill="#ffbd35" stroke="#fff0a0" stroke-width="3"/><path d="m32 15 12 17-12 17-12-17Z" fill="#ffe86b"/><path d="M32 15v34L20 32Z" fill="#fff6ba"/>`,
   'pickup-gravity': `
     <circle cx="32" cy="32" r="21" fill="url(#body)" stroke="#b98cff" stroke-width="2.5"/>
     <ellipse cx="32" cy="32" rx="19" ry="7" fill="none" stroke="url(#violet)" stroke-width="3.5" transform="rotate(-20 32 32)"/>
@@ -24,19 +25,6 @@ const artwork: Record<string, string> = {
     <path d="M16 34a15 15 0 0 1 11-12" fill="none" stroke="#e7eeff" stroke-width="3.5" opacity=".9"/>
     <path d="M24 52a16 16 0 0 0 20-10" fill="none" stroke="#c24084" stroke-width="2" opacity=".65"/>
     <ellipse cx="23" cy="28" rx="4" ry="2" fill="#fff" opacity=".5" transform="rotate(-35 23 28)"/>`,
-  'pickup-stopwatch': `
-    <rect x="26" y="4" width="12" height="6" rx="2.5" fill="url(#gold)"/>
-    <path d="M32 10v5m14 2 4-4" stroke="#ffe9aa" stroke-width="4"/>
-    <circle cx="32" cy="36" r="21" fill="url(#gold)" stroke="#fff0b4" stroke-width="1.5"/>
-    <circle cx="32" cy="36" r="16.5" fill="url(#body)" stroke="#b6782a" stroke-width="1.5"/>
-    <path d="M32 23v3m13 10h-3M32 49v-3M19 36h3" stroke="#ffe49e" stroke-width="2"/>
-    <path d="M32 28v9l8 4" fill="none" stroke="#fff4cf" stroke-width="3"/>
-    <circle cx="32" cy="36" r="2.5" fill="#fff"/>`,
-  'pickup-blast': `
-    <circle cx="32" cy="32" r="24" fill="none" stroke="#ff9755" stroke-width="1.5" opacity=".45"/>
-    <path d="M28 10h8a3 3 0 0 1 3 3v12h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H39v12a3 3 0 0 1-3 3h-8a3 3 0 0 1-3-3V39H13a3 3 0 0 1-3-3v-8a3 3 0 0 1 3-3h12V13a3 3 0 0 1 3-3Z" fill="url(#orange)" stroke="#ffd590" stroke-width="1.5"/>
-    <path d="M32 17v30M17 32h30" stroke="#fff5c7" stroke-width="4"/>
-    <circle cx="32" cy="32" r="4" fill="#fff"/>`,
   'pickup-star': `
     <path d="m34.7 8.5 6.2 12.8 14.2 2.1c2.4.3 3.3 3.3 1.5 5l-10.3 10 2.5 14.2c.4 2.4-2.1 4.2-4.2 3.1L32 49l-12.6 6.7c-2.1 1.1-4.6-.7-4.2-3.1l2.5-14.2-10.3-10c-1.8-1.7-.9-4.7 1.5-5l14.2-2.1 6.2-12.8c1.1-2.2 4.3-2.2 5.4 0Z" fill="url(#gold)" stroke="#fff1a8" stroke-width="2"/>
     <path d="m31 17-5 10-11 2" fill="none" stroke="#fffbd9" stroke-width="3"/>

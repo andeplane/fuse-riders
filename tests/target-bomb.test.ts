@@ -1,6 +1,7 @@
+import { powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addPlayer, createGame, startMatch, step, COUNTDOWN_TICKS, BOMB_FUSE_TICKS, BOMB_COOLDOWN_TICKS, BOMB_BLAST_RANGE, BLAST_LEVEL_RANGE, RIDER_RADIUS, toSnapshot, eliminatePlayer, startNextRound, type InputIntent } from '../src/shared/game.ts';
+import { addPlayer, createGame, startMatch, step, COUNTDOWN_TICKS, BOMB_FUSE_TICKS, BOMB_COOLDOWN_TICKS, BOMB_BLAST_RANGE, RIDER_RADIUS, toSnapshot, eliminatePlayer, startNextRound, type InputIntent } from '../src/shared/game.ts';
 import { BombInputBuffer } from '../src/shared/bomb-input.ts';
 function fixture() {
   const game = createGame('target');
@@ -15,7 +16,7 @@ test('target collection arms one normal-strength bomb and preserves volley upgra
   const { game, player, input } = fixture();
   game.pickups.push({ id: 99, type: 'target', x: player.x, y: player.y, expiresAtTick: game.tick + 30 }); input({});
   assert.equal(player.targetBombArmed, true); assert.equal(game.matchStats.get('p0')!.targetPickups, 1);
-  player.fiveShotArmed = true; player.tripleShotArmed = true; player.blastLevel = 2;
+  player.fiveShotArmed = true; player.tripleShotArmed = true; player.powerPickups = 2;
   input({ bomb: true, bombCommands: [{ action: 'press', aim: { x: .25, y: .5 } }] });
   assert.deepEqual(player.bombTarget, { x: 400, y: 450 });
   const snapshot = toSnapshot(game); snapshot.players[0]!.bombTarget!.x = 10; assert.equal(player.bombTarget!.x, 400);
@@ -23,8 +24,8 @@ test('target collection arms one normal-strength bomb and preserves volley upgra
   input({ bombCommands: [{ action: 'release', aim: { x: .8, y: .2 } }] });
   assert.equal(game.bombs.size, 0); const blast = game.blasts[0]!;
   assert.equal(blast.circle.x, 1280); assert.equal(blast.circle.y, 180);
-  assert.equal(blast.circle.radius, (BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE) * .7);
-  assert.equal(player.bombReadyAtTick, game.tick + BOMB_COOLDOWN_TICKS); assert.equal(player.targetBombArmed, false); assert.equal(player.bombTarget, undefined);
+  assert.equal(blast.circle.radius, powerBlastRadius(player.powerPickups) * .7);
+  assert.equal(player.bombReadyAtTick, game.tick + powerReloadTicks(player.powerPickups)); assert.equal(player.targetBombArmed, false); assert.equal(player.bombTarget, undefined);
   assert.equal(player.fiveShotArmed, true); assert.equal(player.tripleShotArmed, true);
 });
 test('targeting requires pickup and clamps to the current safe field', () => {

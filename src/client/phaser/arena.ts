@@ -1,3 +1,4 @@
+import { POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from '../power-indicator.js';
 import { assetUrl } from '../asset-url.js';
 import { GRAVITY_FIELD_TICKS, PICKUP_TYPES } from '../../shared/game.js';
 import Phaser from 'phaser';
@@ -253,7 +254,7 @@ class ArenaScene extends Phaser.Scene {
     const key = this.textures.exists(texture) ? texture : this.textures.exists(fallback) ? fallback : 'spark';
     return image.setDepth(3).setBlendMode(Phaser.BlendModes.NORMAL).setVisible(true).setTexture(key, frame).setPosition(x,y).setDisplaySize(size,size).setRotation(rotation).setAlpha(1).clearTint();
   }
-  private label(text: string, x: number, y: number, tint: string, size = 11, depth = 5): void {
+  private label(text: string, x: number, y: number, tint: string, size = 11, depth = 5): Phaser.GameObjects.Text {
     let label = this.labels[this.labelIndex++];
     if (!label) { label = this.add.text(0,0,'',{ fontFamily: 'monospace', fontSize: size, fontStyle: 'bold', stroke: '#020715', strokeThickness: 3 }).setOrigin(.5).setDepth(7); this.labels.push(label); this.world.add(label); }
     if (label.text !== text) label.setText(text);
@@ -262,6 +263,7 @@ class ArenaScene extends Phaser.Scene {
     label.setDepth(depth).setVisible(true).setPosition(x,y);
     if(label.style.color!==tint)label.setColor(tint);
     if(label.style.fontSize!==`${size}px`)label.setFontSize(size);
+    return label;
   }
   paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string, selfId?: string): void {
     this.imageIndex = 0; this.labelIndex = 0;
@@ -311,9 +313,10 @@ class ArenaScene extends Phaser.Scene {
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(12,p.x,p.y); }
     for(const p of s.pickups) {
       const pulse=1+Math.sin(now/210+p.id)*.06;
-      g.lineStyle(2,0x65fff2,.5).strokeCircle(p.x,p.y,24*pulse).lineStyle(7,0x65fff2,.05).strokeCircle(p.x,p.y,26*pulse);
-      this.sprite(`${theme.id}:${p.type}`,p.x,p.y,34*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
-      this.label(p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
+      const power=p.type==='power';
+      if(!power) g.lineStyle(2,0x65fff2,.5).strokeCircle(p.x,p.y,24*pulse).lineStyle(7,0x65fff2,.05).strokeCircle(p.x,p.y,26*pulse);
+      this.sprite(`${theme.id}:${p.type}`,p.x,p.y,(power?24:34)*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
+      if(!power) this.label(p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
     }
     const livePortals=s.portalPairs.filter(pair=>pair.expiresAtTick>s.tick);
     const portalTints=portalPalettes(livePortals.map(pair=>pair.id));
@@ -380,10 +383,17 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
       f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
-      // The local rider reads YOU with a breathing ring so a player finds themselves at a glance (five identical heads otherwise).
-      // Radii follow #202's smaller portrait and #198's reload ring (17): the ring hugs them and stays clear of the 29px shield.
-      if(p.id===selfId){f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,22+Math.sin(now/180)*2);this.label('YOU',p.x,p.y-30,'#ffffff',12);}
-      else this.label(`P${p.slot+1}`,p.x,p.y-27,p.color);
+      const self=p.id===selfId, labelY=p.y-(self?30:27);
+      if(self)f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,22+Math.sin(now/180)*2);
+      const name=this.label(self?'YOU':p.name,p.x,labelY,self?'#ffffff':p.color,self?12:10);
+      const power=this.label(String(p.powerPickups),p.x,labelY,POWER_COLOR);
+      const gap=8, left=p.x-(name.width+gap+POWER_ICON_SIZE+POWER_ICON_GAP+power.width)/2;
+      name.setX(left+name.width/2);
+      const iconX=left+name.width+gap+POWER_ICON_SIZE/2, iconY=labelY, radius=POWER_ICON_SIZE/2;
+      f.fillStyle(color(POWER_COLOR)).lineStyle(2,0x020715).beginPath()
+        .moveTo(iconX,iconY-radius).lineTo(iconX+radius,iconY).lineTo(iconX,iconY+radius).lineTo(iconX-radius,iconY)
+        .closePath().fillPath().strokePath();
+      power.setX(iconX+radius+POWER_ICON_GAP+power.width/2);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;

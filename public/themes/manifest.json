@@ -42,16 +42,6 @@
       "tint": false,
       "description": "Centered blast spark; anchor at bottom."
     },
-    "pickup-blast": {
-      "file": "pickup-blast.svg",
-      "anchor": [
-        16,
-        16
-      ],
-      "baseAngle": 0,
-      "tint": false,
-      "description": "Orange cross upgrade icon with white-hot core."
-    },
     "pickup-star": {
       "file": "pickup-star.svg",
       "anchor": [
@@ -132,16 +122,6 @@
       "tint": false,
       "description": "Rare Target Bomb: slide Fire to place its public reticle."
     },
-    "pickup-stopwatch": {
-      "file": "pickup-stopwatch.svg",
-      "anchor": [
-        16,
-        16
-      ],
-      "baseAngle": 0,
-      "tint": false,
-      "description": "Gold stopwatch for shorter bomb fuses."
-    },
     "pickup-gun": {
       "file": "pickup-gun.svg",
       "anchor": [
@@ -181,6 +161,16 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Spiral collapsing into a dark core; the next bomb leaves a pull that drags riders in."
+    },
+    "pickup-power": {
+      "file": "pickup-power.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Gold diamond: collect Power to level up blast radius and reload speed."
     }
   }
 }

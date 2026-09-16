@@ -132,7 +132,7 @@ test('bots are simulated on every replica and the same log always folds to the s
   const a = build(), b = build();
   assert.equal(hashRoomState(a), hashRoomState(b)); assert.equal(canonicalRoomState(a), canonicalRoomState(b));
   assert.ok([...a.game.matchStats.values()].some(stats => stats.distanceUnits > 0), 'bots moved');
-  assert.match(hashText('x'), /^[0-9a-f]{16}$/); assert.notEqual(hashText('a'), hashText('b')); assert.equal(RULES, 'fuse-p2p-5');
+  assert.match(hashText('x'), /^[0-9a-f]{16}$/); assert.notEqual(hashText('a'), hashText('b')); assert.equal(RULES, 'fuse-p2p-9');
   const reordered = createRoomState('room', settings); reordered.game.players = new Map([...a.game.players].reverse()); reordered.game.tick = a.game.tick;
   assert.notEqual(hashRoomState(reordered), hashRoomState(a));
   const shuffled = structuredClone(a); shuffled.game.players = new Map([...a.game.players].reverse()); assert.equal(hashRoomState(shuffled), hashRoomState(a), 'map order never matters');

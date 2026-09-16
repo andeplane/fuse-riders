@@ -1,4 +1,6 @@
 import { hypot2, sin, cos } from './deterministic-math.js';
+import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerReloadTicks } from './power-progression.js';
+export { pickupPacing } from './power-progression.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { roomPickup, type RoomSettings } from './room-settings.js';
 import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
@@ -74,23 +76,15 @@ export const TRAIL_LIFETIME_TICKS = 160;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
 export const BOMB_FUSE_TICKS = 40;
-export function bombFuseTicks(level = 0): number { return BOMB_FUSE_TICKS - Math.min(2, Math.max(0, level)) * 10; }
-export const BOMB_COOLDOWN_TICKS = 80;
-export const BOMB_BLAST_RANGE = 90;
+export const BOMB_COOLDOWN_TICKS = POWER_TUNING.baseReloadTicks;
+export const BOMB_BLAST_RANGE = POWER_TUNING.baseBlastRadius;
 export const BLAST_VISIBLE_TICKS = 8;
-export const BLAST_LEVEL_RANGE = 25;
-/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with blast level like the blast itself (#166). */
+/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with collected Power like the blast itself (#166). */
 export const GRAVITY_FIELD_TICKS = 80;
 /** Peak pull at the centre, as a share of a tick's travel. Well under 1, so a rider is dragged and slowed, never captured. */
 export const GRAVITY_PULL_PER_TICK = 0.45;
 
-export const PICKUP_SPAWN_INTERVAL_TICKS = 80;
 export const PICKUP_LIFETIME_TICKS = 300;
-export const MAX_ACTIVE_PICKUPS = 3;
-export function pickupPacing(elapsedTicks: number): { interval: number; cap: number } {
-  const stage = Math.min(3, Math.max(0, Math.floor(elapsedTicks / 400)));
-  return { interval: [80, 53, 40, 27][stage]!, cap: MAX_ACTIVE_PICKUPS + stage };
-}
 export const PICKUP_SPAWN_ATTEMPTS = 24;
 export const PICKUP_RADIUS = 14;
 export const PICKUP_SPAWN_MARGIN = 40;
@@ -113,7 +107,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = ['stopwatch', 'gun', 'shell', 'target', 'blast', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
+export const PICKUP_TYPES = ['power', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
 export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
@@ -145,8 +139,9 @@ export interface PlayerState extends Required<PlayerIdentity> {
   /** The next ordinary launch leaves a gravity field behind its blast (#166). */
   gravityArmed: boolean;
   bombTarget?: AimPoint;
-  fuseLevel?: number;
-  blastLevel: 0 | 1 | 2;
+  powerPickups: number;
+  /** Captured at launch so collecting a level never distorts an active reload ring. */
+  reloadDurationTicks: number;
   invulnerableUntilTick: number;
   /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
   boostUntilTick: number;
@@ -308,7 +303,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     alive: false,
     roundWins: 0,
     bombReadyAtTick: 0,
-    blastLevel: 0,
+    powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
     invulnerableUntilTick: 0,
     boostUntilTick: 0,
     drunkUntilTick: 0, inkUntilTick: 0,
@@ -411,11 +406,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.blasts = state.blasts.filter((blast) => blast.expiresAtTick > state.tick);
   state.pickups = state.pickups.filter((pickup) => pickup.expiresAtTick > state.tick);
 
+  const pickupSchedule = pickupPacing([...state.players.values()].filter(player => player.alive).length);
   if (state.phase === 'countdown' && state.phaseEndsAtTick !== undefined && state.tick >= state.phaseEndsAtTick) {
     state.phase = 'playing';
     state.phaseEndsAtTick = undefined;
     state.roundStartedTick = state.tick;
-    state.nextPickupSpawnTick = state.tick + PICKUP_SPAWN_INTERVAL_TICKS;
+    state.nextPickupSpawnTick = state.tick + pickupSchedule.interval;
   }
 
   if (state.phase !== 'playing') return { snapshot: toSnapshot(state), events };
@@ -443,8 +439,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   if (state.tick >= state.nextPickupSpawnTick) {
-    state.nextPickupSpawnTick = state.tick + pickupPacing(elapsed).interval;
-    maybeSpawnPickup(state);
+    state.nextPickupSpawnTick = state.tick + pickupSchedule.interval;
+    maybeSpawnPickup(state, pickupSchedule.cap);
   }
 
   const movements = new Map<PlayerId, Movement>();
@@ -807,7 +803,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
-      fuseLevel: player.fuseLevel ?? 0, blastLevel: player.blastLevel,
+      powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
       invulnerableUntilTick: player.invulnerableUntilTick,
       boostUntilTick: player.boostUntilTick,
       drunkUntilTick: player.drunkUntilTick,
@@ -881,7 +877,7 @@ function prepareRound(state: GameState): void {
     player.trail = [];
     player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     player.bombReadyAtTick = state.tick;
-    player.fuseLevel = 0; player.blastLevel = 0;
+    player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
     player.invulnerableUntilTick = 0;
     player.boostUntilTick = 0;
     player.drunkUntilTick = 0;
@@ -905,8 +901,8 @@ function prepareRound(state: GameState): void {
   });
 }
 
-function maybeSpawnPickup(state: GameState): void {
-  if (state.pickups.length >= pickupPacing(state.tick - (state.roundStartedTick ?? state.tick)).cap) return;
+function maybeSpawnPickup(state: GameState, cap: number): void {
+  if (state.pickups.length >= cap) return;
   const typeRoll = nextRandom(state);
   const type = state.settings ? roomPickup(typeRoll, state.settings.weights) : pickupTypeForRoll(typeRoll);
   if (!type) return;
@@ -971,8 +967,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     consumed.add(pickup.id);
     events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
     recordPickup(state.matchStats, collector.id, pickup.type);
-    if (pickup.type === 'stopwatch') {
-      collector.fuseLevel = Math.min(2, (collector.fuseLevel ?? 0) + 1);
+    if (pickup.type === 'power') {
+      collector.powerPickups = Math.min(MAX_POWER_PICKUPS, collector.powerPickups + 1);
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
     } else if (pickup.type === 'gravity') {
@@ -981,8 +977,6 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.shellArmed = true;
     } else if (pickup.type === 'target') {
       collector.targetBombArmed = true;
-    } else if (pickup.type === 'blast') {
-      collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
     } else if (pickup.type === 'boost') {
@@ -1117,7 +1111,8 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         landsAtTick: deadline, explodeAtTick: deadline,
         blastRange: 0, flightPath: [], shell: { vx: cos(player.angle) * speed, vy: sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
       if (gun) player.gunArmed = false; else player.shellArmed = false;
-      player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+      player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
+      player.bombReadyAtTick = state.tick + player.reloadDurationTicks;
       recordBombPlaced(state.matchStats, player.id);
       events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
@@ -1149,15 +1144,16 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
         ...(gravityLaunch && flightPath === paths[0] ? { gravity: true } : {}),
-        explodeAtTick: target ? state.tick : state.tick + bombFuseTicks(player.fuseLevel),
-        blastRange: (BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE) * (target ? .7 : 1),
+        explodeAtTick: target ? state.tick : state.tick + BOMB_FUSE_TICKS,
+        blastRange: powerBlastRadius(player.powerPickups) * (target ? .7 : 1),
         flightPath,
       };
       state.bombs.set(bomb.id, bomb);
       recordBombPlaced(state.matchStats, player.id);
       events.push({ type: 'bombPlaced', bombId: bomb.id, playerId: player.id });
     }
-    player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+    player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
+    player.bombReadyAtTick = state.tick + player.reloadDurationTicks;
   }
 }
 
@@ -1299,6 +1295,10 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
 }
 
 function recordElimination(state: GameState, playerId: PlayerId): void {
+  // Freeze the remaining trail, including the fatal contact segment. Keep a finite
+  // deadline for snapshots, bots and renderers; blasts/walls still cut it and the
+  // next round clears it. Dead riders never append new segments.
+  for (const segment of requirePlayer(state, playerId).trail) segment.expiresAtTick = Number.MAX_SAFE_INTEGER;
   const participant = state.roundParticipants.get(playerId);
   if (participant && participant.eliminatedAtTick === undefined) participant.eliminatedAtTick = state.tick;
 }

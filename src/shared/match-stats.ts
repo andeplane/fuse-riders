@@ -33,7 +33,7 @@ export interface MatchPlayerStats {
   eliminations: number;
   deathsByCause: MatchDeathCounts;
   pickupsCollected: number;
-  blastPickups: number;
+  powerPickups: number;
   starPickups: number;
   beerPickups: number;
   inkPickups: number;
@@ -80,7 +80,7 @@ export function beginMatchParticipant(stats: MatchStatsState, identity: MatchPla
     eliminations: 0,
     deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 },
     pickupsCollected: 0,
-    blastPickups: 0,
+    powerPickups: 0,
     starPickups: 0,
     beerPickups: 0, inkPickups: 0,
     triplePickups: 0,
@@ -128,7 +128,7 @@ export function recordPickup(
   const entry = requireEntry(stats, playerId);
   entry.pickupsCollected += 1;
   if (type === 'target') entry.targetPickups += 1;
-  else if (type === 'blast') entry.blastPickups += 1;
+  else if (type === 'power') entry.powerPickups += 1;
   else if (type === 'star') entry.starPickups += 1;
   else if (type === 'ink') entry.inkPickups += 1;
   else if (type === 'beer') entry.beerPickups += 1;
@@ -203,7 +203,7 @@ export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsSt
       eliminations: entry.eliminations,
       deathsByCause: { ...entry.deathsByCause },
       pickupsCollected: entry.pickupsCollected,
-      blastPickups: entry.blastPickups,
+      powerPickups: entry.powerPickups,
       starPickups: entry.starPickups,
       beerPickups: entry.beerPickups,
       inkPickups: entry.inkPickups,
