@@ -8,6 +8,29 @@ import type { TrailSegment } from './protocol.js';
 export const BOT_ID_PREFIX='bot:';
 export const BOT_LOOKAHEAD_TICKS=32;
 export const BOT_MAX_NEARBY_TRAILS=512;
+/** Ticks a lapse of attention lasts. Keyed off the tick number, so it is replayed, never remembered. */
+export const BOT_BLUNDER_WINDOW=4;
+
+export type BotDifficulty='easy'|'medium'|'hard';
+export const BOT_DIFFICULTIES=['easy','medium','hard'] as const;
+/**
+ * lookaheadTicks is how far the rider plans, aimError how badly it throws a target bomb, and blunderRate how often it
+ * stops steering well for a moment, the way a distracted human does. Every knob must be a pure function of folded
+ * state: the controller runs inside the fold on every device, and a rollback replays it without restoring anything it
+ * kept for itself, so a remembered decision would replay differently than it was first played and diverge the room.
+ */
+export interface BotTier { lookaheadTicks:number; aimError:number; blunderRate:number }
+export const BOT_TIERS:Record<BotDifficulty,BotTier>={
+  easy:{lookaheadTicks:8,aimError:260,blunderRate:.35},
+  medium:{lookaheadTicks:16,aimError:110,blunderRate:.1},
+  hard:{lookaheadTicks:BOT_LOOKAHEAD_TICKS,aimError:0,blunderRate:0},
+};
+const DIFFICULTY_LABELS:Record<BotDifficulty,string>={easy:'Easy',medium:'Medium',hard:'Hard'};
+/** The log carries nothing per bot but its name, so the tier rides in the name: one writer, one reader, never out of step. */
+export function botDisplayName(base:string,difficulty:BotDifficulty):string{return `AI ${base} · ${DIFFICULTY_LABELS[difficulty]}`;}
+/** A name with no tier is full strength: the tiers add weaker riders, they never quietly downgrade an existing one. */
+export function botDifficulty(name:string):BotDifficulty{return BOT_DIFFICULTIES.find(difficulty=>name.endsWith(`· ${DIFFICULTY_LABELS[difficulty]}`))??'hard';}
+export function rollBotDifficulty(roll:number):BotDifficulty{return BOT_DIFFICULTIES[Math.min(BOT_DIFFICULTIES.length-1,Math.floor(Math.max(0,roll)*BOT_DIFFICULTIES.length))]!;}
 export interface BotDependencies { random:(seed:number,id:string,tick:number)=>number }
 /** Stateless separate random stream: AI decisions never consume pickup randomness. */
 export function botRandom(seed:number,id:string,tick:number):number {
@@ -31,8 +54,8 @@ const SAFETY_MARGIN=2;
 const TRAIL_CLEARANCE=RIDER_RADIUS+TRAIL_WIDTH/2+SAFETY_MARGIN;
 
 /** Replan every tick, but evaluate short turns followed by straight escape paths. */
-function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:PlayerState[],target:{x:number;y:number}|undefined,random:number):number {
-  const reach=BOT_LOOKAHEAD_TICKS*RIDER_SPEED*BOOST_SPEED/TICK_HZ+TRAIL_CLEARANCE;
+function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:PlayerState[],target:{x:number;y:number}|undefined,random:number,lookahead:number):number {
+  const reach=lookahead*RIDER_SPEED*BOOST_SPEED/TICK_HZ+TRAIL_CLEARANCE;
   const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===player.id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
     .filter(candidate=>(candidate.trail.detached || candidate.trail.expiresAtTick>game.tick)&&candidate.distance<reach*reach)
     .sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
@@ -40,22 +63,22 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
   // Their predicted trail remains dangerous after their head has passed a crossing.
   const enemyPaths=enemies.filter(enemy=>squared(enemy.x-player.x)+squared(enemy.y-player.y)<squared(reach*2)).map(enemy=>{
     let pose={x:enemy.x,y:enemy.y,angle:enemy.angle,drunkHeadingOffset:enemy.drunkHeadingOffset};
-    const path=Array.from({length:BOT_LOOKAHEAD_TICKS},(_,index)=>{
+    const path=Array.from({length:lookahead},(_,index)=>{
       const tick=game.tick+index+1,previous=pose;
       pose=advanceRiderPose(previous,NEUTRAL,{distance:(enemy.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/TICK_HZ,
         turn:riderTurnRate(enemy)/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,enemy.id,tick,enemy.drunkStartedTick,enemy.drunkUntilTick)});
-      return {x1:previous.x,y1:previous.y,x2:pose.x,y2:pose.y,createdTick:tick,expiresAtTick:tick+BOT_LOOKAHEAD_TICKS};
+      return {x1:previous.x,y1:previous.y,x2:pose.x,y2:pose.y,createdTick:tick,expiresAtTick:tick+lookahead};
     });
     return {path,straight:enemy.drunkUntilTick<=game.tick&&enemy.drunkHeadingOffset===0};
   });
   const directions=random<.5?[-1,1]:[1,-1];
-  const plans:SteeringPlan[]=[{direction:0,turnTicks:0},...directions.flatMap(direction=>TURN_DURATIONS.map(turnTicks=>({direction,turnTicks})))];
+  const plans:SteeringPlan[]=[{direction:0,turnTicks:0},...directions.flatMap(direction=>TURN_DURATIONS.filter(turnTicks=>turnTicks<=lookahead).map(turnTicks=>({direction,turnTicks})))];
   const bombs=[...game.bombs.values()];
   let chosen=0,bestSurvived=-1,bestScore=-Infinity;
   for(const plan of plans){
     let pose={x:player.x,y:player.y,angle:player.angle,drunkHeadingOffset:player.drunkHeadingOffset},score=0,survived=0;
     const ownPath:TrailSegment[]=[];
-    for(let future=1;future<=BOT_LOOKAHEAD_TICKS;future++){
+    for(let future=1;future<=lookahead;future++){
       const tick=game.tick+future,previous=pose;
       const distance=(player.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/TICK_HZ;
       pose=advanceRiderPose(previous,{left:plan.direction<0&&future<=plan.turnTicks,right:plan.direction>0&&future<=plan.turnTicks},
@@ -90,10 +113,10 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
       clearance=Math.min(clearance,Math.sqrt(trailDistanceSquared)-RIDER_RADIUS-TRAIL_WIDTH/2);
       score+=Math.min(60,clearance)*.05;
       survived++;
-      ownPath.push({x1:previous.x,y1:previous.y,x2:x,y2:y,createdTick:tick,expiresAtTick:tick+BOT_LOOKAHEAD_TICKS});
+      ownPath.push({x1:previous.x,y1:previous.y,x2:x,y2:y,createdTick:tick,expiresAtTick:tick+lookahead});
     }
-    if(target&&survived===BOT_LOOKAHEAD_TICKS)score-=hypot2(target.x-pose.x,target.y-pose.y)*.025;
-    if(plan.direction===0&&survived===BOT_LOOKAHEAD_TICKS)score+=1;
+    if(target&&survived===lookahead)score-=hypot2(target.x-pose.x,target.y-pose.y)*.025;
+    if(plan.direction===0&&survived===lookahead)score+=1;
     // Survival is lexicographic: a pickup or extra clearance can never buy a
     // shorter predicted life. Among equally safe paths, prefer breathing room.
     if(survived>bestSurvived||(survived===bestSurvived&&score>bestScore)){
@@ -113,13 +136,24 @@ export class BotController {
     const nearest=enemies.reduce<PlayerState|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const pickup=game.pickups.filter(candidate=>candidate.type!=='grip'||!player.grip).reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const target=pickup??nearest;
-    const chosen=chooseSteering(game,player,enemies,target,this.dependencies.random(game.seed,id,game.tick));
+    const tier=BOT_TIERS[botDifficulty(player.name)];
+    let chosen=chooseSteering(game,player,enemies,target,this.dependencies.random(game.seed,id,game.tick),tier.lookaheadTicks);
+    // A lapse holds for a whole window so it costs something, and both draws come from the tick, not from memory.
+    if(tier.blunderRate){
+      const window=Math.floor(game.tick/BOT_BLUNDER_WINDOW);
+      if(this.dependencies.random(game.seed,id+':lapse',window)<tier.blunderRate){
+        const swerve=this.dependencies.random(game.seed,id+':swerve',window);
+        chosen=swerve<1/3?0:swerve<2/3?-1:1;
+      }
+    }
     const intent:InputIntent={left:chosen<0,right:chosen>0,bomb:false};
     if(!nearest||game.tick<player.bombReadyAtTick)return intent;
     const distance=hypot2(nearest.x-player.x,nearest.y-player.y);
     const bearing=atan2(nearest.y-player.y,nearest.x-player.x);
     const aimed=player.targetBombArmed&&!player.gunArmed&&!player.shellArmed;
-    const aim=aimed?{x:Math.max(0,Math.min(1,nearest.x/game.width)),y:Math.max(0,Math.min(1,nearest.y/game.height))}:undefined;
+    // One fixed miss per shot: the cooldown stamp is stable while charging, so a weak rider commits to its bad aim.
+    const scatter=(axis:string)=>(Math.max(0,Math.min(1,this.dependencies.random(game.seed,id+axis,player.bombReadyAtTick)))*2-1)*tier.aimError;
+    const aim=aimed?{x:Math.max(0,Math.min(1,(nearest.x+scatter(':aimX'))/game.width)),y:Math.max(0,Math.min(1,(nearest.y+scatter(':aimY'))/game.height))}:undefined;
     const maxChargeTicks=game.settings?.bombChargeTicks??BOMB_MAX_CHARGE_TICKS;
     const wantedCharge=aimed||player.gunArmed||player.shellArmed?1:Math.max(1,Math.min(maxChargeTicks,Math.round((distance-BOMB_MIN_LAUNCH_DISTANCE)/(BOMB_MAX_LAUNCH_DISTANCE-BOMB_MIN_LAUNCH_DISTANCE)*maxChargeTicks)));
     if(player.bombChargeStartedTick!==undefined){

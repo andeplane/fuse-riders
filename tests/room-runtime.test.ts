@@ -28,6 +28,8 @@ test('the creator opens a fresh world, seats joiners, adds bots and starts; ever
   assert.equal(host.command({ type: 'bot', action: 'add' }), true); assert.equal(guest.command({ type: 'bot', action: 'add' }), false);
   assert.equal(host.command({ type: 'action', action: 'start' }), true); net.step(100);
   assert.equal(net.frame(GUESTS[0]!)!.phase, 'countdown'); assert.equal(net.frame(GUESTS[0]!)!.players.length, 3);
+  const botName = net.frame(GUESTS[0]!)!.players.find(p => p.id.startsWith('bot:'))!.name;
+  assert.match(botName, /^AI \w+ · (Easy|Medium|Hard)$/, 'an added AI carries the difficulty it was rolled, so every roster shows it');
   assert.equal(host.command({ type: 'action', action: 'start' }), false, 'already running');
   net.step(COUNTDOWN_TICKS * 50 + 200);
   assert.equal(net.frame(HOST)!.phase, 'playing'); assert.equal(net.frame(GUESTS[0]!)!.phase, 'playing');

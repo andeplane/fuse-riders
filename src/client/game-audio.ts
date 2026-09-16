@@ -28,6 +28,8 @@ export interface GameAudio {
    * first gesture anywhere starts it. Tapping OFF unmutes, unpauses and unlocks. Every page uses this button and wording.
    */
   bindMusicToggle: (button: HTMLButtonElement) => void;
+  /** The EFFECTS ON / EFFECTS OFF counterpart for the settings dialog: the effects channel's mute, and nothing else. */
+  bindEffectsToggle: (button: HTMLButtonElement) => void;
 }
 
 const CHANNELS = ['music', 'effects'] as const;
@@ -346,19 +348,20 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   // The setting, not what is coming out of the speaker: a browser that has not been tapped yet still reads ON, because
   // music IS on and the first gesture anywhere starts it. Reporting silence as OFF made a plain page load look broken.
   const musicOn = () => !settings.muted.music && !director.state.paused;
-  const bindMusicToggle = (button: HTMLButtonElement) => {
+  const bindToggle = (button: HTMLButtonElement, on: () => boolean, labels: readonly [string, string], set: (on: boolean) => void) => {
     const render = () => {
       // The label carries the state, so no aria-pressed: "Turn music on, pressed" reads as a contradiction.
-      const text = musicOn() ? '♫ MUSIC ON' : '♫ MUSIC OFF'; if (button.textContent !== text) button.textContent = text;
-      const muted = String(!musicOn()); if (button.dataset.muted !== muted) button.dataset.muted = muted;
+      const text = on() ? labels[0] : labels[1]; if (button.textContent !== text) button.textContent = text;
+      const muted = String(!on()); if (button.dataset.muted !== muted) button.dataset.muted = muted;
     };
     rendered.add(render); render();
-    button.addEventListener('click', () => {
-      if (musicOn()) setMuted('music', true);
-      else { setMuted('music', false); if (director.state.paused) director.togglePause(); unlock(); }
-      render();
-    });
+    button.addEventListener('click', () => { set(!on()); render(); });
   };
+  const bindMusicToggle = (button: HTMLButtonElement) => bindToggle(button, musicOn, ['♫ MUSIC ON', '♫ MUSIC OFF'], on => {
+    if (!on) setMuted('music', true);
+    else { setMuted('music', false); if (director.state.paused) director.togglePause(); unlock(); }
+  });
+  const bindEffectsToggle = (button: HTMLButtonElement) => bindToggle(button, () => !settings.muted.effects, ['EFFECTS ON', 'EFFECTS OFF'], on => setMuted('effects', !on));
   // Ctrl+A radio, Ctrl+M everything, Ctrl+Alt+M music, Ctrl+Alt+E effects. Capture phase, ahead of game keys.
   window.addEventListener('keydown', event => {
     const shortcut = radioShortcut(event);
@@ -387,5 +390,5 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   window.addEventListener('pagehide', () => director.disconnect()); // Saves the position before stopping.
   if (options.background) director.playBackground();
   unlock(); // Autoplay usually refuses here; the gesture listeners above pick it up.
-  return { director, controls, unlock, bindMusicToggle };
+  return { director, controls, unlock, bindMusicToggle, bindEffectsToggle };
 }

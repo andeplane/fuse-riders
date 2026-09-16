@@ -100,7 +100,7 @@ test('every pickup improves blast strength with diminishing returns and bounded 
   assert.equal(powerBlastRadius(0), tuning.baseBlastRadius);
   assert.equal(powerReloadTicks(0), tuning.baseReloadTicks);
   assert.equal(powerBlastRadius(tuning.halfStrengthPickups), 135);
-  assert.equal(powerReloadTicks(tuning.halfStrengthPickups), 63);
+  assert.equal(powerReloadTicks(tuning.halfStrengthPickups), 30);
   let previousGain = Infinity;
   for (let count = 1; count <= 100; count++) {
     const gain = powerBlastRadius(count) - powerBlastRadius(count - 1);
@@ -111,18 +111,44 @@ test('every pickup improves blast strength with diminishing returns and bounded 
   assert.ok(powerReloadTicks(1) < tuning.baseReloadTicks, 'the very first pickup improves reload');
   assert.ok(powerBlastRadius(MAX_POWER_PICKUPS) < tuning.maxBlastRadius);
   assert.ok(powerReloadTicks(MAX_POWER_PICKUPS) >= tuning.minReloadTicks);
-  assert.ok(tuning.minReloadTicks > BOMB_FUSE_TICKS);
+  assert.equal(powerReloadTicks(0), BOMB_FUSE_TICKS);
+  assert.equal(powerReloadTicks(MAX_POWER_PICKUPS), 20);
 });
 
-test('each pickup improves a shot; reload finishes at the upgraded deadline', () => {
-  for (const count of [1, 2, 3, 4, 5, tuning.halfStrengthPickups]) {
+test('default and upgraded ordinary shots can fire again on the explosion tick, never while a volley is live', () => {
+  for (const count of [0, 1, tuning.halfStrengthPickups, MAX_POWER_PICKUPS]) {
     const game = playing(), player = game.players.get('p0')!;
     player.powerPickups = count;
+    player.extraBombs = 1;
+    step(game, fire);
+    const firstBombs = [...game.bombs.values()];
+    assert.equal(firstBombs.length, 2);
+    const restored = decodeGameState(encodeGameState(game)); assert.ok(restored);
+    while (game.tick < firstBombs[0]!.explodeAtTick - 1) {
+      assert.deepEqual(step(restored, fire), step(game, fire));
+      assert.equal(game.nextBombId, 3, 'reload completion cannot bypass the live volley');
+      assert.equal(player.bombChargeStartedTick, undefined);
+    }
+    const result = step(game, fire);
+    assert.deepEqual(step(restored, fire), result);
+    assert.deepEqual(result.events.filter(event => event.type === 'explosion').map(event => event.bombId), firstBombs.map(bomb => bomb.id));
+    assert.equal(result.events.filter(event => event.type === 'bombPlaced').length, 2);
+    assert.equal(game.nextBombId, 5, 'the next volley launches on the same tick the first explodes');
+    assert.equal(encodeGameState(restored), encodeGameState(game));
+  }
+});
+
+test('each pickup improves a shot; shortened fuses allow firing at the upgraded reload deadline', () => {
+  for (const count of [0, 1, 2, 3, 4, 5, tuning.halfStrengthPickups, MAX_POWER_PICKUPS]) {
+    const game = playing(), player = game.players.get('p0')!;
+    for (const rider of game.players.values()) rider.invulnerableUntilTick = game.tick + 100;
+    player.powerPickups = count;
+    player.fuseLevel = 2;
     step(game, fire);
     const firstBombId = game.nextBombId;
     const bomb = [...game.bombs.values()][0]!;
     assert.equal(bomb.blastRange, powerBlastRadius(count));
-    assert.equal(bomb.explodeAtTick - bomb.launchedTick, BOMB_FUSE_TICKS);
+    assert.equal(bomb.explodeAtTick - bomb.launchedTick, 20);
     const ticks = powerReloadTicks(count);
     const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
     assert.equal(reloadRemaining(snapshot.players[0]!, snapshot), 1);

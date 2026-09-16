@@ -10,7 +10,7 @@ import { BOT_NAMES, RULES, actingCreator, createRoomState, freeSlot, reclaimable
 import { ACTION, AIM, AVATAR, BOT, CANCEL, JOIN, LEAVE, MAX_NAME_LENGTH, PRESENCE, PRESS, RELEASE, SETTINGS, STEER, quantizeAim } from '../shared/input-log.js';
 import { isAvatarId, type AvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
-import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
+import { botDisplayName, botRandom, rollBotDifficulty, BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import type { AimPoint, GameEvent } from '../shared/protocol.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import { uuid } from '../shared/uuid.js';
@@ -405,7 +405,9 @@ export class RoomRuntime {
       if (command.action === 'add') {
         const slot = this.claimSlot(); if (slot < 0) { this.status.notice('Room is full (5 players including AI)'); return false; }
         const pending = this.pending(); let number = 1; while (game.leaderboard.has(`${BOT_ID_PREFIX}${number}`) || pending.ids.has(`${BOT_ID_PREFIX}${number}`)) number++;
-        this.append(BOT, 'add', `${BOT_ID_PREFIX}${number}`, `AI ${BOT_NAMES[slot]}`, slot); return true;
+        const id = `${BOT_ID_PREFIX}${number}`;
+        const difficulty = rollBotDifficulty(botRandom(game.seed, id, game.tick));
+        this.append(BOT, 'add', id, botDisplayName(BOT_NAMES[slot]!, difficulty), slot); return true;
       }
       if (typeof command.id !== 'string' || !this.world.state.bots.has(command.id)) { this.status.notice('AI rider not found'); return false; }
       if (!reclaimable(game)) { this.status.notice('Remove AI between rounds or return to menu'); return false; }
