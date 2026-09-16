@@ -316,7 +316,7 @@ class ArenaScene extends Phaser.Scene {
       const power=p.type==='power';
       if(!power) g.lineStyle(2,0x65fff2,.5).strokeCircle(p.x,p.y,24*pulse).lineStyle(7,0x65fff2,.05).strokeCircle(p.x,p.y,26*pulse);
       this.sprite(`${theme.id}:${p.type}`,p.x,p.y,(power?24:34)*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
-      if(!power) this.label(p.type==='extraBomb'?'+1 BOMB':p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
+      if(!power) this.label(p.type==='stopwatch'?'FUSE':p.type==='extraBomb'?'+1 BOMB':p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
     }
     const livePortals=s.portalPairs.filter(pair=>pair.expiresAtTick>s.tick);
     const portalTints=portalPalettes(livePortals.map(pair=>pair.id));
