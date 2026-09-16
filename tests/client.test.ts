@@ -34,9 +34,11 @@ test('LAN bomb preview uses fractional rider time with a one-tick cap and intact
   const shown = renderedSnapshot(frames, 126)!;
   const player = shown.players[0]!;
   assert.equal(player.presentationTick, 12.5);
+  assert.equal(shown.presentationTick, 12.5, 'blast animation receives fractional world time');
   assert.equal(bombPreviewDistance(player.presentationTick! - player.bombChargeStartedTick!), 193.75);
   assert.equal(shown.tick, 12, 'world and discrete effects retain the authoritative tick');
   assert.equal(renderedSnapshot(frames, 9999)!.players[0]!.presentationTick, 13);
+  assert.equal(renderedSnapshot(frames, 9999)!.presentationTick, 13, 'cosmetic time also stops after one missing tick');
   assert.deepEqual(frames, original);
   const next = playingFrame(13, 151, 122.5);
   assert.equal(renderedSnapshot([frames[1]!, next], 176)!.players[0]!.bombChargeStartedTick, undefined, 'release/cancel removes the preview immediately');

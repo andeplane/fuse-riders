@@ -3,8 +3,6 @@ import { showRoomSettings } from './room-settings-menu.js';
 import { keyboardShortcuts } from './keyboard-shortcuts.js';
 import { validRoomCode } from '../shared/room-code.js';
 import { startAttract } from './attract.js';
-import { LocalRuntime } from './local-runtime.js';
-import type { Callbacks } from './runtime.js';
 import { installRoomLifecycle } from './room-lifecycle.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
@@ -21,7 +19,10 @@ import type { PickupType } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
-import { RoomRuntime } from './runtime.js';
+import { RoomRuntime, type Callbacks } from './room-runtime.js';
+import { PeerTransport } from './peer-transport.js';
+import { NetStats } from './net-stats.js';
+import { Telemetry, telemetryEndpoint } from './telemetry.js';
 import type { AvatarId } from '../shared/avatars.js';
 import QRCode from 'qrcode';
 import './online.css';
@@ -113,9 +114,12 @@ export async function startOnline():Promise<void>{
   let seatTracked=false,matchStartedAt=0,matchNumber=0,startedMatch='';
   const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;
   let lastRecap='',rejoinPending=false;
-  const responseBenchmark=url.searchParams.get('responseBenchmark')==='1';
-  const benchmark=url.searchParams.get('benchmark')==='1'||responseBenchmark;let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
+  const benchmark=url.searchParams.get('benchmark')==='1';let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
   const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
+  // Development diagnostics: every device posts its runtime metrics and status changes to the dev server once a second.
+  const telemetry=new Telemetry(solo?undefined:telemetryEndpoint());
+  // A saved draft is the room's settings once its log entry folds, a tick or two later; until the folded settings move (or a second passes) the draft stays current.
+  let pendingSettings:{draft:RoomSettings;before:string;at:number}|undefined;
   // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
   let roomEnded=false;
   const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ RADIO'),musicButton=node('button','♫ MUSIC OFF'),results=node('button','RESULTS'),menu=node('button',solo?'EXIT':'ROOM'),styleButton=node('button','');
@@ -223,26 +227,27 @@ export async function startOnline():Promise<void>{
   results.onclick=()=>{track('Recap Reopened');openRecap();};
   const callbacks:Callbacks={
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
-    ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;},
-    status:text=>{status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
+    ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;telemetry.identify({room:code,id:peerId,role:host?'creator':displayOnly?'display':'guest',ua:navigator.userAgent.slice(0,80)});},
+    status:text=>{if(status.textContent!==text)telemetry.log('status',{text});status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
     // An ended room is no longer joined play (#44): the thirds controller gives way to the ordinary header so the status
     // reads without opening ☰ MENU. `controller-only` is only ever recomputed from a state update, and none arrives after the end.
     ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
-    event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
-    state:(state,rules,matchId)=>{
+    event:(event,matchId,round,tick)=>{audio.director.message({type:'event',matchId,round,tick,event});sample({kind:'event',at:performance.now(),event,matchId,round,tick});telemetry.log('event',{type:event.type,matchId,round,tick});},
+    state:(state,rules)=>{
       if(roomEnded)return;
       bootDone();
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
-      const startKey=matchStartKey(matchId,state.phase,state.round);
+      const startKey=matchStartKey(state.matchId,state.phase,state.round);
       if(startKey&&startedMatch!==startKey){startedMatch=startKey;matchStartedAt=Date.now();matchNumber+=1;track('Match Started',{matchNumber,playerCount:state.players.length,botCount:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length,mode:rules.mode,match:rules.match,matchLength:rules.length,powerupTypes:Object.values(rules.weights??{}).filter(weight=>weight>0).length,host:isHost});}
-      snapshot=state;renderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;settings=rules;
-      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.held(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard});
+      const matchId=state.matchId;snapshot=state;renderScope=`${matchId}:${state.round}`;
+      if(pendingSettings&&(JSON.stringify(rules)!==pendingSettings.before||performance.now()-pendingSettings.at>1000))pendingSettings=undefined;settings=pendingSettings?.draft??rules;
+      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.heldControls(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,metrics:runtime.metrics()});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
       const recapReady=state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0);results.hidden=!recapReady;
       if(state.phase==='lobby')lastRecap='';joined=Boolean(player);if(player&&!seatTracked){seatTracked=true;track('Seat Taken',{avatarId:player.avatarId,playerCount:state.players.length});}const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost,recapReady});joinPanel.hidden=joined||displayOnly;avatarButton.hidden=!joined;/* Before a seat the join form carries the avatar. */controls.hidden=!joined||displayOnly;
-      // A rider the host still lists as offline (page reload mid-round, host checkpoint restore) reconnects by itself; anyone absent goes through the join card.
+      // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       if(player&&!player.connected&&!displayOnly){if(!rejoinPending){rejoinPending=true;runtime.command({type:'join',name:player.name,avatarId:player.avatarId});}}else rejoinPending=false;
       // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
       // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / BACK TO LOBBY.
@@ -279,7 +284,8 @@ export async function startOnline():Promise<void>{
       hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // BACK TO LOBBY means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
     }
   };
-  const runtime=solo?new LocalRuntime(settings,callbacks):new RoomRuntime(code,token,settings,callbacks);
+  // Solo is the same runtime with no transport: one rider and four AI riders fold the log locally.
+  const runtime=new RoomRuntime(code,settings,callbacks,solo?{humanName:read('fuse-riders-player-name')??undefined}:{transport:events=>new PeerTransport(code,token,events),displayOnly});
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
@@ -291,7 +297,7 @@ export async function startOnline():Promise<void>{
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title='Open this room on a shared screen';share.onclick=()=>{window.open(appUrl(`?room=${code}&display=1`),'_blank','noopener');};
   const openSettings=(start:'main'|'powerups'='main')=>{
-    showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>dialog.close(),start);
+    showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;pendingSettings={draft,before:JSON.stringify(settings),at:performance.now()};settings=draft;save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>dialog.close(),start);
     if(!dialog.open)dialog.showModal();
   };
   settingsButton.onclick=()=>openSettings();
@@ -303,7 +309,7 @@ export async function startOnline():Promise<void>{
     if(dialog.open||roomEnded||!(isHost||solo))return;
     event.preventDefault();openSettings('powerups');
   });
-  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const sent=runtime.command({type:'input',left:message.left,right:message.right,bomb:message.bomb,...(message.bombAction?{bombAction:message.bombAction}:{}),...(message.aim?{aim:message.aim}:{})});if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent});return sent;}});
+  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;const controlsKey=`${message.left}:${message.right}:${message.bomb}`,changed=controlsKey!==lastControls;if(changed){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const sent=runtime.command(message);if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent,tick:runtime.tick});if(changed||message.bombAction)telemetry.log('input',{seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent,tick:runtime.tick});return sent;}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
@@ -320,12 +326,15 @@ export async function startOnline():Promise<void>{
   window.addEventListener('pagehide',clearControls);
   setInterval(()=>{if(joined&&!roomEnded)inputState.resend();audio.director.update();},50);
   runtime.start();
-  if(runtime instanceof RoomRuntime)setInterval(()=>{if(statsPanel.hidden)return;let path='none';try{const m=JSON.parse(app.dataset.metrics??'{}');path=m.direct?'direct':m.relayed?'relay':'none';}catch{}statsPanel.textContent=isHost?`host · ${snapshot?.players.filter(p=>p.connected).length??0} riders connected · stats are per phone: open them on a phone`:formatNetStats(runtime.netStats.summary(),path);},500);
-  setInterval(()=>{void runtime.transport.stats().then(connection=>{
+  // Every device simulates and links to every other, so every device has its own link quality to show.
+  const netStats=new NetStats(()=>performance.now());
+  if(!solo)setInterval(()=>{netStats.record(runtime.metrics());if(statsPanel.hidden)return;let path='none';try{const m=JSON.parse(app.dataset.metrics??'{}');path=m.direct?'direct':m.relayed?'relay':'none';}catch{}statsPanel.textContent=formatNetStats(netStats.summary(),path);},500);
+  setInterval(()=>{void (runtime.transport?.stats()??Promise.resolve({direct:0,relayed:0,buffered:0})).then(connection=>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;
-    app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),tick:snapshot?.tick??0});
-    return runtime instanceof RoomRuntime?runtime.transport.diagnostics():undefined;
+    const metrics=runtime.metrics();telemetry.log('metrics',{...metrics});
+    app.dataset.metrics=JSON.stringify({...connection,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),...metrics});
+    return runtime.transport instanceof PeerTransport?runtime.transport.diagnostics():undefined;
   }).then(report=>{if(report)app.dataset.linkDiagnostics=formatLinkDiagnostics(report.links,report.ice,report.socket);});},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.render();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.view();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,sprites,renderScope);if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }

@@ -1,6 +1,6 @@
 # Rollback netcode: plan for restructuring the stacked PRs
 
-Date: 2026-09-15. Status: revised after three independent reviews (netcode correctness, git mechanics, simplicity); awaiting the user's go-ahead before any branch is rewritten. Reference: the user's brief `Fuse Riders Netcode Brief` (peer-to-peer input log). This plan keeps the host as time authority and relay and does not build the peer mesh.
+Date: 2026-09-15. Status: **superseded**. The host-anchored rollback stack this plan sequenced was replaced by the peer-to-peer mesh cutover in [P2P-INPUT-LOG-BRIEF.md](P2P-INPUT-LOG-BRIEF.md) (branch `p2p`), which removed `runtime.ts`, `host-session.ts`, `wire.ts`, `action-log.ts` and the controller-phone status path. Kept for the review history. Original status: revised after three independent reviews (netcode correctness, git mechanics, simplicity); awaiting the user's go-ahead before any branch is rewritten. Reference: the user's brief `Fuse Riders Netcode Brief` (peer-to-peer input log). This plan keeps the host as time authority and relay and does not build the peer mesh.
 
 ## 0. Why the current stack failed on the LAN
 

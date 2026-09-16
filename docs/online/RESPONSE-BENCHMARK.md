@@ -1,5 +1,7 @@
 # Actual heading response benchmark
 
+> **Status (2026-09-15): historical.** `scripts/benchmark-response.ts` and the `responseBenchmark=1` diagnostics were removed with the host-star runtime; `scripts/p2p-measure.ts` now reports input-to-state latencies for the peer-to-peer runtime.
+
 Design reviewed and approved independently by root before implementation, 2026-09-14. Run only against an isolated authorized fixture with a build containing `responseBenchmark=1` diagnostics:
 
 ```sh

@@ -23,7 +23,9 @@ The [smooth-trail follow-up](online/SMOOTH-TRAILS-2026-09-14.md) enables antiali
 
 The [fractional presentation audit](online/FRACTIONAL-PRESENTATION.md) describes the held-bomb preview fix, its per-rider visual time, and remaining opportunities for smoother rendering.
 
-The scene batches sprites, draws simple layered blasts, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include smooth luminous trails, restrained rider outlines, animated charge/fuse/target markers, readable shell/cannon silhouettes, layered radial fire, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
+The scene batches sprites, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include smooth luminous trails, restrained rider outlines, animated charge/fuse/target markers, readable shell/cannon silhouettes, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
+
+`src/client/blast-animation.ts` samples the same explosion geometry for Phaser and the Canvas fallback: nine irregular orange/amber circles pop outward with staggered starts and a small size overshoot, then shrink and separate as the bright core collapses first. Six small square embers finish the effect. Seeded cosmetic offsets depend on bomb identity, so repeated frames and rollback do not jitter or consume simulation randomness. The faint full-radius footprint and the expanding ring stay within the supplied blast radius, as do every lobe and ember. The animation fits the existing eight-tick (400 ms) lifetime; it does not extend damage or retain expired explosions. Online uses its fractional snapshot tick; LAN supplies bounded fractional `presentationTick` metadata for cosmetics while keeping the authoritative tick intact. Blast sparks are sampled directly rather than emitted as Phaser particles; the bounded particle pool still handles rider deaths.
 
 Desktop quality reserves 480 particles (mobile-width quality: 160), with matching live-particle limits. Phaser's total-object limit is one higher because its `atLimit` includes reserved dead particles. Sprite and label pools shrink to the current snapshot's needs plus 16 and 8 spare objects. These pools do not cap or omit valid authoritative projectiles. The snapshot validation boundary must still bound world complexity.
 
@@ -49,6 +51,8 @@ The dedicated browser check passed in Chrome and WebKit: WebGL plus forced Phase
 ```sh
 npm run typecheck
 npx tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
+npx tsx scripts/blast-browser.ts
+BROWSER=webkit npx tsx scripts/blast-browser.ts
 npx tsx scripts/phaser-browser.ts
 BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts

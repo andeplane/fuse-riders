@@ -9,6 +9,7 @@ import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
+import { blastFrame } from './blast-animation.js';
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
@@ -349,16 +350,24 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
   }
 
   for (const blast of snapshot.blasts) {
-    const alpha = clamp((blast.expiresAtTick - snapshot.tick) / 8, 0.15, 1);
+    const frame = blastFrame(blast, snapshot.presentationTick ?? snapshot.tick);
     const { x, y, radius } = blast.circle;
+    const colors = { outer: theme.palette.blast, warm: '#ffb52e', core: theme.palette.blastCore };
     ctx.save();
     ctx.beginPath(); ctx.rect(snapshot.boundaryInset, snapshot.boundaryInset, snapshot.width - 2 * snapshot.boundaryInset, snapshot.height - 2 * snapshot.boundaryInset); ctx.clip();
-    ctx.globalAlpha = alpha;
-    // Smooth discs use the supplied radius without theme-dependent grid snapping.
-    for (const [scale, color] of [[1, theme.palette.blast], [.84, '#ffb21e'], [.56, theme.palette.blastCore]] as const) {
-      ctx.fillStyle = color; ctx.beginPath();
-      ctx.arc(x, y, radius * scale, 0, Math.PI * 2);
-      ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = frame.footprintAlpha; ctx.fillStyle = colors.outer;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = frame.ring.alpha; ctx.strokeStyle = colors.warm; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, frame.ring.radius, 0, Math.PI * 2); ctx.stroke();
+    for (const circle of frame.circles) {
+      ctx.globalAlpha = circle.alpha; ctx.fillStyle = colors[circle.tone];
+      ctx.beginPath(); ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = colors.warm;
+    for (const spark of frame.sparks) {
+      ctx.globalAlpha = spark.alpha;
+      ctx.fillRect(spark.x - spark.size / 2, spark.y - spark.size / 2, spark.size, spark.size);
     }
     ctx.restore();
   }

@@ -12,6 +12,7 @@ import { EffectTransitions, bombPose } from './effects.js';
 import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
+import { blastFrame } from '../blast-animation.js';
 
 const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
@@ -301,7 +302,6 @@ class ArenaScene extends Phaser.Scene {
     this.trailTips.clear();
     for (const player of s.players) this.strokeTrail(this.trailTips, [trailTip(player, s.tick, s.phase)], color(player.color), player.alive, theme);
     const events = this.transitions.accept(s,matchId);
-    for(const blast of events.explosions) { this.sparks.setParticleTint([0xffffff,0xffed8d,0xff9a22,0xff397e]); for(let ray=0;ray<8;ray++){const a=ray*Math.PI/4;this.sparks.explode(Math.min(3,Math.ceil(blast.circle.radius/32)),blast.circle.x+Math.cos(a)*blast.circle.radius*.72,blast.circle.y+Math.sin(a)*blast.circle.radius*.72);} }
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(12,p.x,p.y); }
     for(const p of s.pickups) {
       const pulse=1+Math.sin(now/210+p.id)*.06;
@@ -351,11 +351,12 @@ class ArenaScene extends Phaser.Scene {
       g.fillStyle(0x0a0618,.95).fillCircle(field.x,field.y,field.radius*.16);
     }
     for(const blast of s.blasts) {
-      const age=clamp(1-(blast.expiresAtTick-s.tick)/8,0,1), {x,y,radius:r}=blast.circle;
-      // Smooth concentric discs retain the supplied radius without grid snapping.
-      for(const [scale,tint] of [[1,color(theme.palette.blast)],[.84,0xffb21e],[.56,color(theme.palette.blastCore)]] as const) {
-        g.fillStyle(tint,Math.max(.15,1-age)).fillCircle(x,y,r*scale);
-      }
+      const frame=blastFrame(blast,s.presentationTick??s.tick), {x,y,radius}=blast.circle;
+      const tints={outer:color(theme.palette.blast),warm:0xffb52e,core:color(theme.palette.blastCore)};
+      g.fillStyle(tints.outer,frame.footprintAlpha).fillCircle(x,y,radius);
+      g.lineStyle(1.5,tints.warm,frame.ring.alpha).strokeCircle(x,y,frame.ring.radius);
+      for(const circle of frame.circles) g.fillStyle(tints[circle.tone],circle.alpha).fillCircle(circle.x,circle.y,circle.radius);
+      for(const spark of frame.sparks) g.fillStyle(tints.warm,spark.alpha).fillRect(spark.x-spark.size/2,spark.y-spark.size/2,spark.size,spark.size);
     }
     for(const p of s.players) {
       const tint=color(p.color);
