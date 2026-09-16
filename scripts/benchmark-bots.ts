@@ -1,11 +1,11 @@
 import { performance } from 'node:perf_hooks';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { BotController } from '../src/shared/bot-controller.js';
+import { BotController, botDisplayName } from '../src/shared/bot-controller.js';
 import { createGame, addPlayer, startMatch, step, SLOT_COLORS } from '../src/shared/game.js';
 const results=[];
 for(const trailsPerRider of [0,160,800]){
   const game=createGame('bot-benchmark');
-  for(let slot=0;slot<5;slot++)addPlayer(game,{id:slot?'bot:'+slot:'human',name:'Rider '+slot,slot,color:SLOT_COLORS[slot]!});
+  for(let slot=0;slot<5;slot++)addPlayer(game,{id:slot?'bot:'+slot:'human',name:botDisplayName('Rider'+slot,'hard'),slot,color:SLOT_COLORS[slot]!});
   startMatch(game);for(let tick=0;tick<60;tick++)step(game,new Map());
   for(const [slot,player]of [...game.players.values()].entries()){
     player.trail=Array.from({length:trailsPerRider},(_,i)=>({x1:40+(i%40)*38,y1:40+Math.floor(i/40)*38+slot,x2:54+(i%40)*38,y2:46+Math.floor(i/40)*38+slot,createdTick:0,expiresAtTick:2000}));

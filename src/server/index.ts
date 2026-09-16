@@ -1,4 +1,4 @@
-import { BotController, BOT_ID_PREFIX, botRandom, type BotDependencies } from '../shared/bot-controller.js';
+import { BotController, botDisplayName, rollBotDifficulty, BOT_ID_PREFIX, BOT_NAMES, botRandom, type BotDependencies } from '../shared/bot-controller.js';
 import http from 'node:http';
 import { BombInputBuffer } from '../shared/bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -279,7 +279,8 @@ export async function createGameServer(options: ServerOptions = {}) {
           if(game.players.size>=5||game.leaderboard.size>=128){error(ws,'full');return;}
           const slot=COLORS.findIndex((_,slot)=>![...game.players.values()].some(player=>player.slot===slot));
           let number=1;while(game.leaderboard.has(`${BOT_ID_PREFIX}${number}`))number++;
-          const id=`${BOT_ID_PREFIX}${number}`;addPlayer(game,{id,name:`AI ${['Ada','Turing','Hopper','Nova','Byte'][slot]}`,slot,color:COLORS[slot]!,avatarId:'robot',connected:true});bots.add(id);
+          const id=`${BOT_ID_PREFIX}${number}`,difficulty=rollBotDifficulty(dependencies.botRandom(game.seed,id,game.tick));
+          addPlayer(game,{id,name:botDisplayName(BOT_NAMES[slot]!,difficulty),slot,color:COLORS[slot]!,avatarId:'robot',connected:true});bots.add(id);
         }else{
           if(!seatReclaimable()){error(ws,'invalid_phase');return;}
           if(!message.id||!bots.has(message.id)){error(ws,'invalid_message');return;}

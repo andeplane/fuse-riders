@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BotController, botRandom } from '../src/shared/bot-controller.js';
+import { BotController, botRandom, botDifficulty, botDisplayName, rollBotDifficulty, BOT_DIFFICULTIES, BOT_NAMES, BOT_TIERS, type BotDifficulty } from '../src/shared/bot-controller.js';
 import { createGame, addPlayer, startMatch, step, SLOT_COLORS, type GameState } from '../src/shared/game.js';
 import { HostSession } from '../src/online/host-session.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
@@ -18,7 +18,7 @@ const aiCommand={type:'bot',action:'add'} as const;
 test('AI is deterministic, uses its injected random stream and never mutates the observed world',()=>{
   const game=fixture(),before=structuredClone(game);let calls=0;
   const bot=new BotController({random:()=>{calls++;return.5;}});
-  assert.deepEqual(bot.input(game,'bot:1'),bot.input(game,'bot:1'));assert.equal(calls,2);assert.deepEqual(game,before);
+  assert.deepEqual(bot.input(game,'bot:1'),bot.input(game,'bot:1'));assert.equal(calls,1,'one draw per decision, and the reaction window reuses it');assert.deepEqual(game,before);
   assert.equal(botRandom(42,'bot:1',17),botRandom(42,'bot:1',17));assert.notEqual(botRandom(42,'bot:1',17),botRandom(42,'bot:2',17));
 });
 
@@ -69,7 +69,10 @@ test('AI target/gun/shell shots use normal input actions and target aim is bound
     const game=fixture(),bot=new BotController(),player=game.players.get('bot:1')!;
     game.players.get('human')!.x=600;player[powerup]=true;
     const press=bot.input(game,player.id);assert.equal(press.bombCommands?.[0]?.action,'press');
-    if(powerup==='targetBombArmed')assert.deepEqual(press.aim,{x:600/game.width,y:450/game.height});
+    if(powerup==='targetBombArmed'){
+      const aim=press.aim!;assert.ok(aim.x>=0&&aim.x<=1&&aim.y>=0&&aim.y<=1,'aim stays inside the arena');
+      assert.ok(Math.abs(aim.x*game.width-600)<=BOT_TIERS[botDifficulty('AI')].aimError&&Math.abs(aim.y*game.height-450)<=BOT_TIERS[botDifficulty('AI')].aimError,'aim misses by at most the AI error');
+    }
     step(game,new Map([[player.id,press]]));step(game,new Map([[player.id,bot.input(game,player.id)]]));
     const release=bot.input(game,player.id);assert.equal(release.bombCommands?.[0]?.action,'release');
     step(game,new Map([[player.id,release]]));assert.equal(player[powerup],false);
@@ -122,4 +125,60 @@ test('Checkpoint v3 restores only validated bot ownership and rejects malformed 
   for(const ids of [['human'],['host'],['bot:missing'],['bot:1','bot:1'],['bot:1',7],null]){assert.equal(restored.restore(JSON.stringify({...encoded,botIds:ids})),false);assert.equal(restored.checkpoint(),before);}
   assert.equal(restored.restore(JSON.stringify({...encoded,version:2})),false);
   assert.equal(restored.command('bot:1',{type:'join',name:'Spoof'}),'AI riders are controlled by the host');
+});
+
+test('An AI that values space refuses a dead end it could not turn around inside',()=>{
+  const decide=(difficulty:BotDifficulty,capped:boolean)=>{
+    const game=fixture(),rider=game.players.get('bot:1')!,other=game.players.get('human')!;
+    Object.assign(rider,{x:400,y:450,angle:0,trail:[],name:botDisplayName('Ada',difficulty)});
+    Object.assign(other,{x:400,y:80,alive:false,trail:[]});
+    game.pickups=[];game.bombs.clear();game.blasts=[];
+    const wall=(x1:number,y1:number,x2:number,y2:number)=>{
+      const steps=Math.ceil(Math.hypot(x2-x1,y2-y1)/8);
+      for(let i=0;i<steps;i++)other.trail.push({x1:x1+(x2-x1)*i/steps,y1:y1+(y2-y1)*i/steps,x2:x1+(x2-x1)*(i+1)/steps,y2:y1+(y2-y1)*(i+1)/steps,createdTick:0,expiresAtTick:game.tick+999});
+    };
+    // A 100px corridor: narrower than the ~107px a rider needs to turn around, so the capped one is fatal to enter.
+    wall(430,400,900,400);wall(430,500,900,500);if(capped)wall(900,400,900,500);
+    const input=new BotController().input(game,rider.id);return input.left||input.right;
+  };
+  for(const difficulty of ['medium','hard'] as const){
+    assert.equal(decide(difficulty,true),true,`${difficulty} must refuse a dead end while there is still room to turn`);
+    assert.equal(decide(difficulty,false),false,`${difficulty} must still enter a corridor that leads somewhere`);
+  }
+  assert.equal(decide('easy',true),false,'the easy rider weighs no space at all and drives into it');
+});
+
+test('Every AI is rolled a difficulty that shows in its name and steers its own controller',()=>{
+  assert.deepEqual([0,.34,.67,.99].map(rollBotDifficulty),['easy','medium','hard','hard']);
+  for(const base of BOT_NAMES)for(const difficulty of BOT_DIFFICULTIES){
+    const name=botDisplayName(base,difficulty);
+    assert.equal(botDifficulty(name),difficulty,`${name} must read back its own tier`);
+    assert.ok(name.length<=20,`${name} must fit the 20 character rider name the action log accepts`);
+  }
+  assert.equal(botDifficulty('Ada'),'medium','a name carrying no tier falls back to the middle');
+  const [easy,medium,hard]=BOT_DIFFICULTIES.map(difficulty=>BOT_TIERS[difficulty]);
+  assert.ok(easy!.aimError>medium!.aimError&&medium!.aimError>hard!.aimError,'a harder AI aims better');
+  assert.ok(easy!.reactionTicks>medium!.reactionTicks&&medium!.reactionTicks>hard!.reactionTicks,'a harder AI answers sooner');
+  assert.ok(hard!.lookaheadTicks>=medium!.lookaheadTicks&&medium!.lookaheadTicks>easy!.lookaheadTicks,'a harder AI looks further');
+});
+
+test('AI target-bomb aim misses by a bounded amount that stays fixed for one shot',()=>{
+  const game=fixture(),bot=new BotController(),player=game.players.get('bot:1')!,enemy=game.players.get('human')!;
+  enemy.x=600;player.targetBombArmed=true;
+  const press=bot.input(game,player.id),aim=press.aim!;
+  const miss={x:aim.x*game.width-enemy.x,y:aim.y*game.height-enemy.y};
+  assert.ok(miss.x!==0&&miss.y!==0,'a real random stream never aims perfectly');
+  assert.ok(Math.abs(miss.x)<=BOT_TIERS[botDifficulty('AI')].aimError&&Math.abs(miss.y)<=BOT_TIERS[botDifficulty('AI')].aimError,'the miss stays within the AI error');
+  step(game,new Map([[player.id,press]]));
+  const holding=bot.input(game,player.id)!;
+  const held={x:holding.aim!.x*game.width-enemy.x,y:holding.aim!.y*game.height-enemy.y};
+  assert.ok(Math.abs(held.x-miss.x)<1e-6&&Math.abs(held.y-miss.y)<1e-6,'the same shot keeps the same miss while charging');
+  assert.deepEqual(new BotController({random:()=>.5}).input(game,player.id).aim,{x:enemy.x/game.width,y:enemy.y/game.height},'a centred stream aims dead on');
+});
+
+test('Adding an AI rolls its difficulty and shows it on the roster',()=>{
+  const session=room();session.command('host',{type:'join',name:'Host'});session.command('host',aiCommand);session.advance();
+  const bot=session.game.players.get('bot:1')!;
+  assert.equal(bot.name,botDisplayName('Turing','easy'),'the injected roll lands on easy and the roster says so');
+  assert.equal(botDifficulty(bot.name),'easy');
 });

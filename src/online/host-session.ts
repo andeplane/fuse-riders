@@ -2,7 +2,7 @@ import { Simulation } from './rollback.js';
 import { StreamSender } from './stream.js';
 import { InputEdges } from './input-edges.js';
 import { createReplayState, edgesFrom, replayHash, validEntry, REPLAY_RULES, type EntryBody, type LogEntry, type ReplayState } from '../shared/action-log.js';
-import { BotController, BOT_ID_PREFIX, type BotDependencies } from '../shared/bot-controller.js';
+import { BotController, botDisplayName, botRandom, rollBotDifficulty, BOT_ID_PREFIX, BOT_NAMES, type BotDependencies } from '../shared/bot-controller.js';
 import { createGame, toSnapshot, SLOT_COLORS, type GameState } from '../shared/game.js';
 import { decodeCheckpoint, encodeCheckpoint, encodeGameState } from './checkpoint.js';
 import { isAvatarId, type AvatarId } from '../shared/avatars.js';
@@ -44,11 +44,13 @@ export class HostSession {
   private readonly edges = new Map<string, InputEdges>();
   private readonly bots = new Set<string>();
   private readonly botController: BotController;
+  private readonly rollRandom: BotDependencies['random'];
   private botGesture = 0;
   private pendingEvents: GameEvent[] = [];
   constructor(readonly hostId: string, public settings: RoomSettings, private readonly dependencies: HostDependencies) {
     this.sim = new Simulation(createReplayState(createGame(dependencies.token()), settings), hostId);
-    this.botController = new BotController(dependencies.botRandom ? { random: dependencies.botRandom } : undefined);
+    this.rollRandom = dependencies.botRandom ?? botRandom;
+    this.botController = new BotController({ random: this.rollRandom });
   }
   get game(): GameState { return this.sim.state.game; }
   get tick(): number { return this.sim.tick; }
@@ -78,8 +80,9 @@ export class HostSession {
         const slot = this.freeSlot(); if (slot < 0) return 'Room is full (5 players including AI)';
         if (this.game.leaderboard.size >= 128) return 'Start a fresh room before adding more riders';
         let number = 1; while (this.game.leaderboard.has(`${BOT_ID_PREFIX}${number}`) || this.known(`${BOT_ID_PREFIX}${number}`)) number++;
-        const id = `${BOT_ID_PREFIX}${number}`, names = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'];
-        this.bots.add(id); this.author(this.hostId, [10, id, `AI ${names[slot]!}`, slot, 'robot']); return;
+        const id = `${BOT_ID_PREFIX}${number}`;
+        const difficulty = rollBotDifficulty(this.rollRandom(this.game.seed, id, this.game.tick));
+        this.bots.add(id); this.author(this.hostId, [10, id, botDisplayName(BOT_NAMES[slot]!, difficulty), slot, 'robot']); return;
       }
       if (command.action === 'remove' && typeof command.id === 'string') {
         if (!this.bots.has(command.id)) return 'AI rider not found';
