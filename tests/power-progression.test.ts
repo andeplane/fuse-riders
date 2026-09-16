@@ -25,9 +25,9 @@ test('trail capacity starts at eight seconds and grows by two seconds per diamon
     assert.equal(powerTrailLifetimeTicks(count) - powerTrailLifetimeTicks(count - 1), 40);
   }
   assert.equal(powerTrailLifetimeTicks(21), 1000);
-  assert.equal(powerTrailLifetimeTicks(22), MAX_CHECKPOINT_TRAILS);
-  assert.equal(powerTrailLifetimeTicks(23), MAX_CHECKPOINT_TRAILS);
-  assert.equal(powerTrailLifetimeTicks(MAX_POWER_PICKUPS), MAX_CHECKPOINT_TRAILS);
+  assert.equal(powerTrailLifetimeTicks(22), tuning.maxTrailLifetimeTicks);
+  assert.equal(powerTrailLifetimeTicks(23), tuning.maxTrailLifetimeTicks);
+  assert.equal(powerTrailLifetimeTicks(MAX_POWER_PICKUPS), tuning.maxTrailLifetimeTicks);
 });
 
 test('a saturated trail grows immediately with each collected diamond and expires at the extended deadline', () => {
@@ -89,8 +89,9 @@ test('maximum progression keeps a long-running trail within the checkpoint budge
   const game = playing(), player = game.players.get('p0')!;
   for (const rider of game.players.values()) rider.invulnerableUntilTick = game.tick + 1600;
   player.powerPickups = MAX_POWER_PICKUPS;
-  for (let i = 0; i < MAX_CHECKPOINT_TRAILS + 5; i++) step(game, new Map());
-  assert.equal(player.trail.length, MAX_CHECKPOINT_TRAILS);
+  for (let i = 0; i < tuning.maxTrailLifetimeTicks + 5; i++) step(game, new Map());
+  assert.equal(player.trail.length, tuning.maxTrailLifetimeTicks);
+  assert.ok(player.trail.length <= MAX_CHECKPOINT_TRAILS);
   const deadline = player.trail[1]!.expiresAtTick;
   game.pickups = [{ id: game.nextPickupId++, type: 'power', x: player.x, y: player.y, expiresAtTick: game.tick + 100 }];
   step(game, new Map());

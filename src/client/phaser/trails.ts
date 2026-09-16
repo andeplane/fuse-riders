@@ -13,7 +13,7 @@ export function trailPaths(segments: readonly TrailSegment[]): TrailPoint[][] {
   const paths: TrailPoint[][] = [];
   let previous: TrailSegment | undefined;
   for (const segment of segments) {
-    if (!previous || segment.createdTick !== previous.createdTick + 1 ||
+    if (!previous || segment.detached?.id !== previous.detached?.id || segment.createdTick !== previous.createdTick + 1 ||
         !samePoint(previous.x2, previous.y2, segment.x1, segment.y1)) {
       paths.push([{ x: segment.x1, y: segment.y1 }]);
     }
@@ -39,14 +39,27 @@ export class TrailHistoryCache {
         Math.max(0, player.trail.length - 1) === old.segments.length && old.segments.every((segment, i) => {
           const next = player.trail[i]!;
           return segment.x1 === next.x1 && segment.y1 === next.y1 && segment.x2 === next.x2 && segment.y2 === next.y2 &&
-            segment.createdTick === next.createdTick;
+            segment.createdTick === next.createdTick && segment.detached?.id === next.detached?.id;
         });
     });
     if (unchanged) return { changed: false, strokes: this.strokes };
     this.scope = scope;
     this.riders = players.map(player => ({ id: player.id, color: player.color, alive: player.alive,
       segments: player.trail.slice(0, -1).map(segment => ({ ...segment })) }));
-    this.strokes = this.riders.map(player => ({ color: player.color, alive: player.alive, paths: trailPaths(player.segments) }));
+    this.strokes = this.riders.flatMap(player => {
+      const groups: TrailStroke[] = [];
+      let segments: TrailSegment[] = [];
+      const flush = () => {
+        if (segments.length) groups.push({ color: player.color, alive: player.alive && !segments[0]!.detached, paths: trailPaths(segments) });
+        segments = [];
+      };
+      for (const segment of player.segments) {
+        if (segments.length && !!segment.detached !== !!segments[0]!.detached) flush();
+        segments.push(segment);
+      }
+      flush();
+      return groups;
+    });
     return { changed: true, strokes: this.strokes };
   }
 }
@@ -57,7 +70,7 @@ export function trailTip(player: Rider, tick: number, phase: ViewSnapshot['phase
   if (!last) return [];
   const points = [{ x: last.x1, y: last.y1 }, { x: last.x2, y: last.y2 }];
   const distance = Math.hypot(player.x - last.x2, player.y - last.y2);
-  if (phase === 'playing' && player.alive && last.createdTick === Math.floor(tick) &&
+  if (phase === 'playing' && player.alive && !last.detached && last.createdTick === Math.floor(tick) &&
       player.portalCooldownUntilTick <= tick && distance > 1e-6 && distance <= RIDER_SPEED / TICK_HZ + 1e-6) {
     points.push({ x: player.x, y: player.y });
   }

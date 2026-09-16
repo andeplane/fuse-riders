@@ -63,7 +63,10 @@ test('overtime trims dead and living trails before collision and snapshot, retai
   const result = step(state, new Map());
   assert.equal(rider.alive, true, 'closed-field trail must not kill an inside rider');
   assert.equal(state.boundaryInset, 20.5);
-  assert.deepEqual(owner.trail, [segment(20.5, 100, 100, 100), segment(1500, 100, 1579.5, 100)]);
+  assert.deepEqual(owner.trail, [
+    { ...segment(20.5, 100, 100, 100), detached: { id: 1, decayStartTick: state.tick + 20 } },
+    { ...segment(1500, 100, 1579.5, 100), detached: { id: 2, decayStartTick: state.tick + 20 } },
+  ]);
   assert.deepEqual(result.snapshot.players.find(player => player.id === 'p1')!.trail, owner.trail);
   step(state, new Map());
   assert.equal(owner.trail[0]!.x1, 21);

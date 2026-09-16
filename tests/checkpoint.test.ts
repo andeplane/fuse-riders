@@ -156,3 +156,36 @@ test('the decided round is held to its own consistency and the clock, and may ou
   rejected(game, data => { data.decidedRound = { ...decided(), extra: 1 }; }, 'an unexpected key');
   rejected(game, data => { data.decidedRound = decided({ round: 0 }); }, 'round zero');
 });
+
+test('detached trail identity, schedule and ownership are validated before replacement', () => {
+  const game = playing(), p = game.players.get('p0')!;
+  game.nextTrailPieceId = 3;
+  p.trail = [
+    { x1: 100, y1: 100, x2: 200, y2: 100, createdTick: 1, expiresAtTick: 81, detached: { id: 1, decayStartTick: 30 } },
+    { x1: 200, y1: 100, x2: 300, y2: 100, createdTick: 2, expiresAtTick: 82, detached: { id: 1, decayStartTick: 30 } },
+  ];
+  assert.ok(decodeGameState(encodeGameState(game)));
+  const segments = (data: Record<string, unknown>) => list(object(mapped(data.players)[0]![1]).trail).map(object);
+  for (const detached of [{ id: 0, decayStartTick: 30 }, { id: 3, decayStartTick: 30 }, { id: 1, decayStartTick: 1 }, { id: 1, decayStartTick: game.tick + 21 }, { id: 1, decayStartTick: 30, mode: 'unknown' }, { id: 1 }]) {
+    rejected(game, data => { segments(data)[0]!.detached = detached; }, 'invalid lifecycle metadata');
+  }
+  rejected(game, data => { object(segments(data)[1]!.detached).decayStartTick = 31; }, 'one clock per piece');
+  rejected(game, data => { segments(data)[1]!.x1 = 201; }, 'no gap within a detached run');
+  rejected(game, data => { segments(data)[1]!.createdTick = 1; }, 'ordered consecutive creation ticks');
+  rejected(game, data => { delete segments(data)[0]!.detached; }, 'active segments cannot precede detached pieces');
+  rejected(game, data => { object(mapped(data.players)[1]![1]).trail = structuredClone(segments(data)); }, 'piece ids cannot cross owners');
+  rejected(game, data => { delete data.nextTrailPieceId; }, 'older checkpoints cannot silently restore');
+  assert.ok(decodeGameState(encodeGameState(game)), 'rejections leave the healthy world untouched');
+});
+
+test('five riders at the total segment cap remain within checkpoint byte and parser budgets', () => {
+  const game = createGame('max-trail-checkpoint');
+  for (let slot = 0; slot < 5; slot++) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: SLOT_COLORS[slot]! });
+  startMatch(game); game.tick = 2200; game.nextTrailPieceId = 6;
+  for (const player of game.players.values()) player.trail = Array.from({ length: MAX_CHECKPOINT_TRAILS }, (_, i) => ({
+    x1: 100.12345678901234 + i % 2, y1: 200.12345678901234, x2: 100.12345678901234 + (i + 1) % 2, y2: 200.12345678901234,
+    createdTick: i + 1, expiresAtTick: i + 1025, detached: { id: player.slot + 1, decayStartTick: 2200 },
+  }));
+  const encoded = encodeGameState(game);
+  assert.ok(decodeGameState(encoded), `saturated checkpoint (${encoded.length} bytes) must restore`);
+});

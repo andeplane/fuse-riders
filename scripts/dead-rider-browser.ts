@@ -23,6 +23,7 @@ try {
       const { createPhaserArena } = await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
       const { visualFixture } = await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
       const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
+      const { advanceTrail } = await import(String('/src/shared/trail-lifecycle.ts')) as typeof import('../src/shared/trail-lifecycle.js');
       const { createGame, addPlayer, startMatch, eliminatePlayer } = await import(String('/src/shared/game.ts')) as typeof import('../src/shared/game.js');
       document.body.replaceChildren(); document.body.style.cssText = 'margin:0;background:#020715';
       const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 900;
@@ -63,7 +64,8 @@ try {
         const livingTrail = regionDifference(alive, empty, 250, 198, 300, 4);
         if (livingTrail <= 0) throw Error('Live trail missing');
         if (regionDifference(alive, empty, 750, 395, 100, 110) === 0) throw Error('Live avatar missing');
-        const game = createGame('persistent-trail');
+        const game = createGame('decaying-trail');
+        game.tick = 100;
         addPlayer(game, { id: player.id, name: player.name, slot: 0, color: player.color });
         addPlayer(game, { id: 'other', name: 'Other', slot: 1, color: '#ff4fa3' });
         startMatch(game);
@@ -77,16 +79,23 @@ try {
         const crashed = paint([dead]);
         if (regionDifference(crashed, empty, 750, 395, 100, 110) !== 0) throw Error('Dead rider obscures crash');
         const deadRatio = regionDifference(crashed, empty, 250, 198, 300, 4) / livingTrail;
-        if (deadRatio < .7) throw Error(`Dead trail too faint: ${deadRatio}`);
-        // Resupply the trails well past the original expiry: dead trails do not age away.
-        const persistent = paint([{ ...dead, trail: structuredClone(dead.trail) }], 500);
-        const persistentRatio = regionDifference(persistent, empty, 250, 198, 300, 4) / livingTrail;
-        if (Math.abs(persistentRatio - deadRatio) > .01) throw Error(`Dead trail fades over time: ${persistentRatio}`);
-        const removed = paint([{ ...dead, trail: [] }], 501);
-        if (regionDifference(removed, empty, 250, 198, 300, 4) !== 0) throw Error('Removed trail remains visible');
+        if (deadRatio < .5 || deadRatio > .8) throw Error(`Dead trail too faint: ${deadRatio}`);
+        const detached = paint([{ ...player, trail: dead.trail }]);
+        const detachedRatio = regionDifference(detached, empty, 250, 198, 300, 4) / livingTrail;
+        if (Math.abs(detachedRatio - deadRatio) > .01) throw Error('Living detached pieces have different opacity');
+        const paused = paint([dead], 120);
+        const pausedRatio = regionDifference(paused, empty, 250, 198, 300, 4) / livingTrail;
+        if (Math.abs(pausedRatio - deadRatio) > .01) throw Error('Pause faded the whole trail');
+        const shrinking = { ...dead, trail: advanceTrail(dead.trail, 160, 120) };
+        const eroded = paint([shrinking], 160);
+        if (regionDifference(eroded, empty, 210, 190, 50, 20) !== 0) throw Error('Old endpoint did not shrink');
+        if (regionDifference(eroded, empty, 540, 190, 50, 20) !== 0) throw Error('New endpoint did not shrink');
+        if (regionDifference(eroded, empty, 300, 198, 200, 4) <= 0) throw Error('Surviving middle vanished');
+        const removed = paint([{ ...dead, trail: advanceTrail(shrinking.trail, 240, 160) }], 240);
+        if (regionDifference(removed, empty, 200, 190, 400, 20) !== 0) throw Error('Eroded trail remains visible');
         const revived = paint([player]);
         if (regionDifference(revived, empty, 750, 395, 100, 110) === 0) throw Error('Live avatar did not return');
-        results.push({ theme, deadRatio, persistentRatio });
+        results.push({ theme, deadRatio, detachedRatio, pausedRatio });
         paint([dead]); arena.reset(); paint([dead]);
       }
       Reflect.set(window, 'disposeDeadRiderCheck', () => { arena.destroy(); canvas.remove(); });
