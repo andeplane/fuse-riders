@@ -88,7 +88,9 @@ function proxyUpgrade(target: URL, req: http.IncomingMessage, socket: import('no
 }
 
 export function controllerSnapshot(state: GameSnapshot): GameSnapshot {
-  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], matchStats: [], moments: [] };
+  // A phone controller never reports analytics, and LAN play never does at all, so the decided round's log stays home.
+  const { decidedRound: _decidedRound, ...rest } = state;
+  return { ...rest, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], matchStats: [], moments: [] };
 }
 
 export function lanAddress() {
