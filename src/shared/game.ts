@@ -106,7 +106,8 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export type PickupType = 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal' | 'boost';
+export const PICKUP_TYPES = ['stopwatch', 'gun', 'shell', 'target', 'blast', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost'] as const;
+export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
   id: PlayerId;

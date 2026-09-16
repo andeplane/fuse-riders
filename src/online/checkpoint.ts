@@ -1,7 +1,7 @@
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { isBombChargeTicks } from '../shared/bomb-launch.js';
 import type { GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
+import { ARENA_WIDTH, ARENA_HEIGHT, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
@@ -46,7 +46,7 @@ const bombFields = {
 } satisfies Record<keyof BombState, Guard>;
 const bomb = shape(bombFields);
 const blast = shape({ bombId: integer, ownerId: text, circle: shape({ x: position, y: position, radius: range(0, 1000) }), expiresAtTick: integer } satisfies Record<keyof BlastState, Guard>);
-const pickup = shape({ id: integer, type: v => typeof v === 'string' && ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal','boost'].includes(v), x: position, y: position, expiresAtTick: integer } satisfies Record<keyof PickupState, Guard>);
+const pickup = shape({ id: integer, type: v => typeof v === 'string' && (PICKUP_TYPES as readonly string[]).includes(v), x: position, y: position, expiresAtTick: integer } satisfies Record<keyof PickupState, Guard>);
 const statsFields = {
   playerId: text, name, slot: count(4), color: text, roundsPlayed: integer, roundWins: integer, roundsDrawn: integer,
   survivalTicks: integer, longestSurvivalTicks: integer, distanceUnits: range(0, Number.MAX_SAFE_INTEGER), bombsPlaced: integer, bombsExploded: integer, eliminations: integer,

@@ -4,7 +4,7 @@ import { BOMB_MIN_CHARGE_TICKS, BOMB_CHARGE_TICKS_LIMIT } from '../shared/bomb-l
 import './room-settings-menu.css';
 const element=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const result=document.createElement(tag);result.textContent=text;return result;};
 /** One draft survives submenu navigation; only Save publishes it. */
-export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boolean,labels:Record<string,string>,save:(draft:RoomSettings)=>boolean,close:()=>void,start:'main'|'powerups'='main'):void{
+export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boolean,labels:Record<PickupType,string>,save:(draft:RoomSettings)=>boolean,close:()=>void,start:'main'|'powerups'='main'):void{
   const draft=structuredClone(settings);
   // Typed aim text outlives submenu rebuilds so an off-grid value is still rejected on Save instead of being silently rounded.
   let aimText=String(draft.bombChargeTicks/TICK_HZ);
