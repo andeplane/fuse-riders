@@ -4,6 +4,7 @@ import { decodeGameState, encodeGameState, MAX_CHECKPOINT_TRAILS } from '../src/
 import { BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, type GameState } from '../src/shared/game.js';
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
 import { MAX_PORTAL_PAIRS, createPortalPair } from '../src/shared/portal.js';
+import { MOMENT_KINDS } from '../src/shared/moments.js';
 
 // The replica state a joiner installs comes from any peer, so decodeGameState is an untrusted boundary: every shape and
 // cross-reference guard here is what keeps a corrupt or hostile snapshot from replacing a healthy world.
@@ -76,4 +77,33 @@ test('every phase of a long match encodes to a state that decodes back to itself
     step(game, new Map());
     if (tick % 17 === 0) { const restored = decodeGameState(encodeGameState(game)); assert.ok(restored, `phase ${game.phase}, tick ${game.tick}`); assert.equal(encodeGameState(restored), encodeGameState(game)); }
   }
+});
+
+test('highlight moments and shell bounces round-trip, and malformed ones are rejected (ADR 043)', () => {
+  const game = withBomb(playing());
+  const tick = game.tick;
+  game.moments.push({ kind: 'cutOff', round: 1, tick, elapsed: 1, playerId: 'p0', targetIds: ['p1'], value: 5 }, { kind: 'ownGoal', round: 1, tick, elapsed: 1, playerId: 'p1', targetIds: [], value: 1 });
+  game.bombs.get(1)!.shell = { vx: 450, vy: 0, bounces: 2 };
+  assert.deepEqual(decodeGameState(encodeGameState(game))?.moments, game.moments);
+  assert.equal(decodeGameState(encodeGameState(game))?.bombs.get(1)?.shell?.bounces, 2);
+  const first = (data: Record<string, unknown>) => object(list(data.moments)[0]);
+  rejected(game, data => { delete data.moments; }, 'the list is required');
+  rejected(game, data => { first(data).kind = 'closeCall'; }, 'unknown kind');
+  rejected(game, data => { first(data).tick = tick + 1; }, 'a moment from the future');
+  rejected(game, data => { first(data).elapsed = tick + 1; }, 'elapsed beyond its tick');
+  rejected(game, data => { first(data).round = 2; }, 'a round that has not happened');
+  rejected(game, data => { first(data).playerId = 'nobody'; }, 'an unknown protagonist');
+  rejected(game, data => { first(data).targetIds = ['nobody']; }, 'an unknown target');
+  rejected(game, data => { first(data).targetIds = ['p0']; }, 'the protagonist as its own target');
+  rejected(game, data => { first(data).targetIds = ['p1', 'p1']; }, 'a duplicate target');
+  rejected(game, data => { first(data).value = 1.5; }, 'a fractional value');
+  rejected(game, data => { first(data).extra = true; }, 'an extra field');
+  rejected(game, data => { const moments = list(data.moments); moments.push(...Array.from({ length: 8 }, () => ({ ...moments[0] as object }))); }, 'a ninth of one kind');
+  rejected(game, data => { list(data.moments).length = 0; list(data.moments).push(...Array.from({ length: 65 }, (_, i) => ({ kind: MOMENT_KINDS[i % MOMENT_KINDS.length], round: 1, tick, elapsed: 1, playerId: 'p0', targetIds: [], value: 1 }))); }, 'more than every kind can keep');
+  rejected(game, data => { object(object(mapped(data.bombs)[0]![1]).shell).bounces = -1; }, 'a negative bounce count');
+  rejected(game, data => { object(object(mapped(data.bombs)[0]![1]).shell).bounces = 0; }, 'a zero the fold never writes');
+  const lobby = createGame('lobby-moments');
+  addPlayer(lobby, { id: 'p0', name: 'P0', slot: 0, color: SLOT_COLORS[0]!, connected: true });
+  assert.ok(decodeGameState(encodeGameState(lobby)));
+  rejected(lobby, data => { list(data.moments).push({ kind: 'ownGoal', round: 1, tick: 0, elapsed: 0, playerId: 'p0', targetIds: [], value: 1 }); }, 'a lobby carries no moments');
 });
