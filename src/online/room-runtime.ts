@@ -255,7 +255,9 @@ export class RoomRuntime {
     const tick = decoded.state.game.tick, previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state); else this.world = new World(decoded.state, this.hostId, this.id);
     for (const stream of decoded.streams) {
-      if (stream.id === this.id) continue;
+      // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
+      // its presence switched) install like anyone else's, and the own-stream creation then retires them in order.
+      if (stream.id === this.id && stream.generation >= this.generation) continue;
       const log = this.world.stream(stream.id, stream.generation, { seq: stream.seq, tick, gesture: stream.gesture });
       const member = this.members.get(stream.id); if (member && member.generation < stream.generation) member.generation = stream.generation;
       for (let offset = 0; offset < stream.entries.length; offset += PACKET_ENTRIES) { const part = stream.entries.slice(offset, offset + PACKET_ENTRIES); log.receive(part, part.at(-1)![0], tick, tick + 60, tick); }

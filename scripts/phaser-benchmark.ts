@@ -50,7 +50,8 @@ try{
     if(!frames.length)throw Error('No timing samples');const fitScale=Math.min(config.width/1600,config.height/900)*config.dpr;
     const expectedScale=engine&&config.resolution==='display'?Math.min(fitScale,2.4):1;
     if(canvas.width!==Math.round(1600*expectedScale)||canvas.height!==Math.round(900*expectedScale))throw Error('Backing dimensions differ from requested workload');
-    if(engine){if(engine.metrics().automaticLoopRunning)throw Error('Phaser automatic loop still running');if(Math.max(...particles)<=0||Math.max(...particles)>(config.quality==='low'?160:480))throw Error('Particle emission/bound regression');}
+    // This all-living fixture samples blast geometry; only deaths now emit pooled particles.
+    if(engine){if(engine.metrics().automaticLoopRunning)throw Error('Phaser automatic loop still running');if(Math.max(...particles)>(config.quality==='low'?160:480))throw Error('Particle bound regression');}
     return {mode,backing:{width:canvas.width,height:canvas.height},css:{width:canvas.getBoundingClientRect().width,height:canvas.getBoundingClientRect().height},backend:engine?.metrics().renderer??'2d',samples:frames.length,frame:{p50:percentile(frames,.5),p95:percentile(frames,.95),p99:percentile(frames,.99),max:Math.max(...frames)},cpu:{p50:percentile(cpu,.5),p95:percentile(cpu,.95),p99:percentile(cpu,.99)},maxObjects:Math.max(0,...objects),maxParticles:Math.max(0,...particles),trailHistoryBuilds:engine?.metrics().trailHistoryBuilds,raw:{frames,cpu}};
    },{config,mode});
    results.push(result);
