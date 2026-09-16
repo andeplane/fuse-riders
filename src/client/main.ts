@@ -391,9 +391,9 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     const reload = reloadRemaining(player, snapshot);
     if (reload > 0) {
       ctx.save();
-      ctx.strokeStyle = '#080c22'; ctx.lineWidth = 5; ctx.globalAlpha = .95;
+      ctx.strokeStyle = '#080c22'; ctx.lineWidth = 2; ctx.globalAlpha = .95;
       ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.globalAlpha = .2; ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .2; ctx.stroke();
       ctx.globalAlpha = 1;
       ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, -Math.PI / 2 + (1 - reload) * Math.PI * 2, Math.PI * 1.5); ctx.stroke();
       ctx.restore();

@@ -26,6 +26,7 @@ try {
       const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
       const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
       const { BOMB_COOLDOWN_TICKS } = await import(String('/src/shared/game.ts')) as typeof import('../src/shared/game.js');
+      const { RELOAD_RING_RADIUS } = await import(String('/src/client/reload-ring.ts')) as typeof import('../src/client/reload-ring.js');
       type Snapshot = import('../src/client/snapshot-stream.js').ViewSnapshot;
       document.body.replaceChildren(); document.body.style.cssText = 'margin:0;background:#020715';
       const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 900;
@@ -62,7 +63,7 @@ try {
           let count = 0;
           for (let y = 422; y < 479; y++) for (let x = 772; x < 829; x++) {
             const radius = Math.hypot(x - 800, y - 450);
-            if (radius < 23 || radius > 27) continue;
+            if (radius < RELOAD_RING_RADIUS - 2 || radius > RELOAD_RING_RADIUS + 2) continue;
             const offset = ((mode === 'webgl' ? 899 - y : y) * 1600 + x) * 4;
             if (pixels[offset + 1]! > ready[offset + 1]! + 60 && pixels[offset + 2]! > ready[offset + 2]! + 60) count++;
           }
@@ -95,6 +96,7 @@ try {
       return results;
     }, mode);
     await page.screenshot({ path: `artifacts/reload-ring-${mode}-${browserName}.png` });
+    await page.screenshot({ path: `artifacts/reload-ring-detail-${mode}-${browserName}.png`, clip: { x: 195, y: 405, width: 1210, height: 90 } });
     await page.evaluate(() => { (Reflect.get(window, 'disposeReloadCheck') as () => void)(); });
     console.log(JSON.stringify({ mode, results }));
   }
