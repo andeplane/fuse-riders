@@ -253,3 +253,4 @@
 /* Compact personal progression; arena labels carry opponents' levels. */
 .online-power-status { position: fixed; z-index: 8; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 8px 12px; border: 1px solid #ffdf55; background: #071022e8; color: #ffdf55; font: 10px/1.4 'Press Start 2P', monospace; white-space: nowrap; pointer-events: none; }
 .online-power-status[hidden] { display: none; }
+.settings-list{display:grid;gap:8px}.settings-list>button{width:100%;min-height:44px}.settings-list>button[data-muted="true"]{color:#8ba3c0;border-color:#365477}.settings-list .settings-group{margin:10px 0 0;font-size:12px;letter-spacing:1px;color:#16e7ff}.settings-style{display:grid;grid-template-columns:1fr 1fr;gap:8px}.settings-style button[aria-pressed="true"]{color:#02131a;background:#16e7ff;border-color:#a6f7ff}

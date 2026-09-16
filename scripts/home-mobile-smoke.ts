@@ -47,7 +47,7 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    // Avoid spontaneous end-of-match recaps while reviewing modal layouts.
    if(await page.locator('.mobile-tools-toggle').isVisible())await page.locator('.mobile-tools-toggle').click();
    await page.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();await powerHud.waitFor({state:'hidden'});
-   for(const name of ['ROOM SETTINGS','♫ RADIO','AVATAR','EXIT']){
+   for(const name of ['ROOM SETTINGS','SETTINGS','AVATAR','EXIT']){
     await page.getByRole('button',{name,exact:true}).click();const dialog=page.getByRole('dialog');await dialog.waitFor({state:'visible'});await inside(page,dialog);assert.ok(await page.locator('.dialog-body').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'dialog body horizontal overflow');
     if(name==='ROOM SETTINGS'){
       assert.equal(await dialog.locator('select').count(),0,'room settings use styled choices');
@@ -75,8 +75,8 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
       await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await power.inputValue(),'42');await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
     }
     if(name==='AVATAR'){for(const option of await dialog.locator('.avatar-option').all()){await inside(page,option);assert.ok(await option.evaluate(e=>{const text=e.lastElementChild!,a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&text.scrollWidth<=text.clientWidth+1;}),'avatar name clipped');}}
-    if(name==='♫ RADIO'){await page.locator('.audio-panel').waitFor({state:'visible'});for(const slider of await page.locator('.audio-panel input[type=range]').all())await inside(page,slider);}
-    await page.locator('.dialog-body').evaluate(e=>{e.scrollTop=e.scrollHeight;});await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));await page.screenshot({path:`artifacts/menu-${tag}-${name==='♫ RADIO'?'audio':name.replaceAll(' ','-')}.png`});await page.getByRole('button',{name:'CLOSE',exact:true}).click();await dialog.waitFor({state:'hidden'});
+    if(name==='SETTINGS'){await inside(page,page.getByRole('button',{name:'EFFECTS ON',exact:true}));await page.getByRole('button',{name:'♫ RADIO',exact:true}).click();await page.locator('.audio-panel').waitFor({state:'visible'});for(const slider of await page.locator('.audio-panel input[type=range]').all())await inside(page,slider);}
+    await page.locator('.dialog-body').evaluate(e=>{e.scrollTop=e.scrollHeight;});await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));await page.screenshot({path:`artifacts/menu-${tag}-${name==='SETTINGS'?'audio':name.replaceAll(' ','-')}.png`});await page.getByRole('button',{name:'CLOSE',exact:true}).click();await dialog.waitFor({state:'hidden'});
    }
    await page.reload();await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);assert.equal(await page.locator('.online-roster>span').count(),5);
    const solo=new URL(base);solo.search='?solo=1&display=1';await page.goto(solo.href);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);assert.equal(await page.locator('.online-arena').isVisible(),true);

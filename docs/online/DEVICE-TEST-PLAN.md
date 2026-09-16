@@ -141,7 +141,7 @@ quality.
 **Steps**:
 1. Start music on the landing page, then CREATE ROOM on the phone
    (portrait). Confirm music resumes on the first tap on the room page
-   (any tap, not only ♫ RADIO), continuing the same track.
+   (any tap, not only SETTINGS → ♫ RADIO), continuing the same track.
 2. In the **lobby** screenshot the phone: one ROOM button, the room code
    with COPY LINK and a QR, "0 riders ready", and — without scrolling inside any
    strip — START RACE, ROOM SETTINGS and ADD AI reachable by normal page
