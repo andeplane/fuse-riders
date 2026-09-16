@@ -6,6 +6,9 @@
 .online-score-card>span:not(.avatar-portrait){min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
 .online-score-card .avatar-portrait{width:28px;height:28px;flex:0 0 28px}
 .online-score-card.out{opacity:.5}
+.online-score-label{display:inline-flex;gap:4px;align-items:center}
+.online-score-label .online-score-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.online-score-label .online-score-points{flex:0 0 auto;white-space:nowrap}
 .controller-only .online-score-card{padding:2px 4px;border:0;background:none}
 .controller-only .online-score-card .avatar-portrait{display:none}
 /* The desktop arena gets everything below one compact game bar. The renderer

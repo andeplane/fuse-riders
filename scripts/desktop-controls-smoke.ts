@@ -99,6 +99,12 @@ try {
     })).jsonValue();
     assert.ok(layout);
     assert.equal(layout.overflow, false);
+    const scores = await page.locator('.online-score-points').evaluateAll(elements => elements.map(element => {
+      const score = element.getBoundingClientRect(), label = element.parentElement!.getBoundingClientRect();
+      return { text: element.textContent, fits: score.left >= label.left && score.right <= label.right + 1 };
+    }));
+    assert.equal(scores.length, 5);
+    assert.ok(scores.every(score => score.fits && /\d+ PTS · \+\d+/.test(score.text ?? '')), 'long rider names must not truncate match points or the round award');
     assert.ok(layout.arena.y >= layout.bar.bottom && layout.arena.y <= layout.bar.bottom + 5, `Arena/bar placement: ${JSON.stringify(layout)}`);
     assert.ok(layout.arena.height >= viewport.height - layout.bar.height - 13);
     if (viewport.width === 2048) {
