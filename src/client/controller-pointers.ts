@@ -73,7 +73,7 @@ export class ControllerPointerBindings {
     }
   }
 
-  bindKeyboard(target: EventTarget, enabled: () => boolean): void {
+  bindKeyboard(target: EventTarget, enabled: () => boolean, used: () => void = () => {}): void {
     // Synthetic IDs stay separate from browser pointer IDs, allowing mouse/touch
     // and keyboard to hold the same control without releasing one another.
     const keys = new Map<string, readonly [number, ControllerControl]>([
@@ -86,7 +86,7 @@ export class ControllerPointerBindings {
       if (!binding || !enabled() || key.altKey || key.ctrlKey || key.metaKey) return;
       key.preventDefault();
       if (key.repeat) return;
-      this.state.pointerDown(...binding);
+      used();this.state.pointerDown(...binding);
       this.sync();
     });
     target.addEventListener('keyup', event => {

@@ -4,8 +4,9 @@ import { BOMB_MIN_CHARGE_TICKS, BOMB_CHARGE_TICKS_LIMIT } from '../shared/bomb-l
 import './room-settings-menu.css';
 const element=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const result=document.createElement(tag);result.textContent=text;return result;};
 /** One draft survives submenu navigation; only Save publishes it. */
-export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boolean,labels:Record<PickupType,string>,save:(draft:RoomSettings)=>boolean,close:()=>void,start:'main'|'powerups'='main'):void{
+export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boolean,labels:Record<PickupType,string>,save:(draft:RoomSettings)=>boolean,close:()=>void,start:'main'|'powerups'='main',targetAvailable:()=>boolean=()=>true):()=>void{
   const draft=structuredClone(settings);
+  let refreshPowerups=()=>{};
   // Typed aim text outlives submenu rebuilds so an off-grid value is still rejected on Save instead of being silently rounded.
   let aimText=String(draft.bombChargeTicks/TICK_HZ);
   // Match length lands in the draft on every keystroke, so both SAVE buttons check the draft rather than the inputs of one page (#168).
@@ -30,11 +31,14 @@ export function showRoomSettings(body:HTMLElement,settings:RoomSettings,solo:boo
   const powerups=()=>{
     body.replaceChildren(element('h2','Configure powerups'));const back=element('button','← BACK TO ROOM SETTINGS');back.onclick=main;body.append(back,element('p','Set a weight to 0 to disable a powerup. Higher weights make it more common.'));
     // Ctrl+P opens this page directly (#168), so it saves here too, through the same validate() as the main page.
-    const percentages=new Map<string,HTMLElement>();const recalc=()=>{const total=Object.values(draft.weights).reduce((sum,weight)=>sum+(weight??0),0);for(const [type,output] of percentages)output.textContent=`${total?((draft.weights[type as PickupType]??0)/total*100).toFixed(1):'0'}%`;};
-    for(const [type,title] of Object.entries(labels)){const label=element('label',title),input=element('input'),percent=element('span');input.type='number';input.min='0';input.max='10000';input.value=String(draft.weights[type as PickupType]??0);input.oninput=()=>{draft.weights[type as PickupType]=Math.max(0,Math.min(10000,Math.round(Number(input.value)||0)));recalc();};label.append(input,percent);percentages.set(type,percent);body.append(label);}recalc();body.scrollTop=0;
+    const reason=element('p','Target Bomb requires every human rider to be on a phone using touch controls. Saved weight is kept for phone-only games.');body.append(reason);
+    const inputs=new Map<string,HTMLInputElement>();
+    const percentages=new Map<string,HTMLElement>();const recalc=()=>{const available=targetAvailable();reason.hidden=available;const target=inputs.get('target');if(target)target.disabled=!available;const total=Object.entries(draft.weights).reduce((sum,[type,weight])=>sum+(!available&&type==='target'?0:weight??0),0);for(const [type,output] of percentages)output.textContent=`${total?((!available&&type==='target'?0:draft.weights[type as PickupType]??0)/total*100).toFixed(1):'0'}%`;};
+    for(const [type,title] of Object.entries(labels)){const label=element('label',title),input=element('input'),percent=element('span');input.type='number';inputs.set(type,input);input.min='0';input.max='10000';input.value=String(draft.weights[type as PickupType]??0);input.oninput=()=>{draft.weights[type as PickupType]=Math.max(0,Math.min(10000,Math.round(Number(input.value)||0)));recalc();};label.append(input,percent);percentages.set(type,percent);body.append(label);}refreshPowerups=recalc;recalc();body.scrollTop=0;
     const powerupError=element('p');powerupError.setAttribute('role','alert');const powerupApply=element('button','SAVE SETTINGS');
     powerupApply.onclick=()=>{const invalid=validate();if(invalid){powerupError.textContent=`${invalid} Go back to room settings to fix it.`;return;}if(save(draft))close();else powerupError.textContent='Could not save settings. Check the room connection and try again.';};
     body.append(powerupError,powerupApply);
   };
   if(start==='powerups')powerups();else main(); // Ctrl+P opens the power-up page directly (#168).
+  return ()=>refreshPowerups();
 }

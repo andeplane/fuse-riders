@@ -325,3 +325,26 @@ test('a creator and four joiners that all connect at once open one world and eve
   assert.equal(hashes(net, all).size, 1); assert.ok(!net.recorded.get(HOST)!.statuses.some(text => /reload/.test(text)));
   for (const runtime of runtimes) runtime.stop();
 });
+
+test('device reports converge over packet loss and reordering, refresh on rejoin and ignore TV viewers', () => {
+  const { net } = room({ loss: .15, baseMs: 20, jitterMs: 100, reliableMs: 30 }, 71);
+  const phone = { device: 'phone', input: 'touch' } as const, keyboard = { device: 'desktop', input: 'keyboard' } as const;
+  const seat = (id: string) => {
+    const runtime = net.add(id, settings); assert.equal(runtime.command({ type: 'deviceProfile', profile: phone }), true);
+    runtime.start(); runtime.command({ type: 'join', name: id }); return runtime;
+  };
+  const host = seat(HOST); net.step(200); const guest = seat(GUESTS[0]!); net.step(2000);
+  const tv = net.add(TV, settings, { displayOnly: true }); tv.start();
+  assert.equal(tv.command({ type: 'deviceProfile', profile: keyboard }), false); net.step(2000);
+  for (const id of [HOST, GUESTS[0]!, TV]) assert.ok(net.frame(id)!.players.every(player => player.deviceProfile?.device === 'phone'));
+  guest.command({ type: 'deviceProfile', profile: keyboard });
+  guest.command({ type: 'deviceProfile', profile: phone });
+  guest.command({ type: 'deviceProfile', profile: { ...phone, input: 'keyboard' } });
+  net.step(2000);
+  for (const id of [HOST, GUESTS[0]!, TV]) assert.deepEqual(net.frame(id)!.players.find(player => player.id === GUESTS[0])!.deviceProfile, { ...phone, input: 'keyboard' });
+  const returning = net.reload(GUESTS[0]!, settings);
+  returning.command({ type: 'deviceProfile', profile: keyboard }); returning.command({ type: 'join', name: 'Returned' }); net.step(3500);
+  for (const id of [HOST, GUESTS[0]!, TV]) assert.deepEqual(net.frame(id)!.players.find(player => player.id === GUESTS[0])!.deviceProfile, keyboard);
+  assert.ok(net.droppedFast > 0); assert.equal(hashes(net, [HOST, GUESTS[0]!, TV]).size, 1);
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});

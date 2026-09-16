@@ -5,7 +5,7 @@ import { addPlayer, createGame, startMatch, step, COUNTDOWN_TICKS, BOMB_FUSE_TIC
 import { BombInputBuffer } from '../src/shared/bomb-input.ts';
 function fixture() {
   const game = createGame('target');
-  for (let i = 0; i < 2; i++) addPlayer(game, { id: `p${i}`, name: `P${i}`, slot: i, color: '#fff' });
+  for (let i = 0; i < 2; i++) addPlayer(game, { id: `p${i}`, name: `P${i}`, slot: i, color: '#fff', deviceProfile: { device: 'phone', input: 'touch' } });
   startMatch(game); for (let i = 0; i < COUNTDOWN_TICKS; i++) step(game, new Map());
   const player = game.players.get('p0')!; player.x = 500; player.y = 450; player.angle = 0;
   const other = game.players.get('p1')!; other.x = 1200; other.y = 700;

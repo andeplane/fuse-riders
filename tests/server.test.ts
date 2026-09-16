@@ -1,3 +1,4 @@
+import type { DeviceProfile } from '../src/shared/device-profile.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -58,8 +59,8 @@ async function fixture() {
     const peer = new Peer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`)); peers.push(peer);
     await once(peer.socket, 'open'); await peer.take('snapshot'); return peer;
   }
-  async function join(name: string) {
-    const peer = await connect(); peer.send({ type: 'join', name });
+  async function join(name: string, deviceProfile?: DeviceProfile) {
+    const peer = await connect(); peer.send({ type: 'join', name, ...(deviceProfile ? { deviceProfile } : {}) });
     const joined = await peer.take('joined'); return { peer, joined };
   }
   async function host() { const peer = await connect(); peer.send({ type: 'hostAuth', token: app.hostToken }); await peer.take('hostAuthenticated'); return peer; }
@@ -376,7 +377,7 @@ for (const phase of ['countdown', 'playing'] as const) test(`late ${phase} joins
 test('target release aim survives newer input packets through real socket transport', async () => {
   const f = await fixture();
   try {
-    const host = await f.host(); const a = await f.join('A'); await f.join('B');
+    const host = await f.host(); const a = await f.join('A', { device: 'phone', input: 'touch' }); await f.join('B', { device: 'phone', input: 'touch' });
     host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', m => m.state.phase === 'countdown'); f.app.advance(60);
     const player = f.app.game.players.get(a.joined.playerId)!; player.targetBombArmed = true;
     a.peer.send({ type: 'input', seq: 0, left: false, right: false, bomb: true, bombAction: 'press', aim: { x: .1, y: .1 } });
@@ -519,4 +520,22 @@ test('listening walks past a port another dev server already holds', async () =>
     assert.ok(port > held, `expected a port above ${held}, got ${port}`);
     assert.equal((next.address() as AddressInfo).port, port);
   } finally { await Promise.all([taken, next].map(s => new Promise<void>(resolve => s.close(() => resolve())))); }
+});
+
+test('LAN device reports are scoped to the controller seat and refresh on reconnect', async () => {
+  const f = await fixture();
+  try {
+    const phone = { device: 'phone', input: 'touch' } as const;
+    const spectator = await f.connect(); spectator.send({ type: 'deviceProfile', profile: phone });
+    assert.equal((await spectator.take('error')).code, 'unauthorized');
+    const a = await f.join('Phone', phone);
+    const initial = await a.peer.take('snapshot', message => message.state.players.some(player => player.id === a.joined.playerId));
+    assert.deepEqual(initial.state.players.find(player => player.id === a.joined.playerId)!.deviceProfile, phone);
+    a.peer.send({ type: 'deviceProfile', profile: { ...phone, input: 'keyboard' } });
+    const changed = await a.peer.take('snapshot', message => message.state.players.some(player => player.deviceProfile?.input === 'keyboard'));
+    assert.deepEqual(changed.state.players[0]!.deviceProfile, { ...phone, input: 'keyboard' });
+    const resumed = await f.connect(); resumed.send({ type: 'join', name: 'Phone', playerToken: a.joined.playerToken }); await resumed.take('joined');
+    const restored = await resumed.take('snapshot', message => message.state.players.some(player => player.deviceProfile?.device === 'unknown'));
+    assert.equal(restored.state.players[0]!.deviceProfile!.input, 'unknown', 'missing reconnect metadata never inherits old phone capability');
+  } finally { await f.close(); }
 });

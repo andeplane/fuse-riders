@@ -1,10 +1,11 @@
+import { isDeviceProfile, type DeviceProfile } from './device-profile.js';
 import { isAvatarId, type AvatarId } from './avatars.js';
 import { parseRoomSettings, type RoomSettings } from './room-settings.js';
 import type { AimPoint, BombActionCommand } from './protocol.js';
 import type { InputIntent } from './game.js';
 
 /** Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's. */
-export const STEER = 0, AIM = 1, PRESS = 2, RELEASE = 3, CANCEL = 4, AVATAR = 5;
+export const STEER = 0, AIM = 1, PRESS = 2, RELEASE = 3, CANCEL = 4, AVATAR = 5, DEVICE = 6;
 export const JOIN = 10, LEAVE = 11, PRESENCE = 12, SETTINGS = 13, ACTION = 14, BOT = 15;
 export const UINT16_MAX = 0xffff, UINT32_MAX = 0xffff_ffff;
 export const MAX_NAME_LENGTH = 20;
@@ -17,6 +18,7 @@ export type Entry =
   | [seq: number, tick: number, kind: 3, gesture: number, x: number, y: number]
   | [seq: number, tick: number, kind: 4, gesture: number]
   | [seq: number, tick: number, kind: 5, avatarId: AvatarId]
+  | [seq: number, tick: number, kind: 6, device: DeviceProfile['device'], input: DeviceProfile['input']]
   | [seq: number, tick: number, kind: 10, memberId: string, name: string, slot: number, avatarId: AvatarId, generation: number]
   | [seq: number, tick: number, kind: 11, memberId: string]
   | [seq: number, tick: number, kind: 12, memberId: string, connected: boolean, generation: number]
@@ -42,6 +44,7 @@ export function isEntry(raw: unknown): raw is Entry {
     case AIM: return raw.length === 5 && uint16(raw[3]) && uint16(raw[4]);
     case PRESS: case CANCEL: return raw.length === 4 && uint32(raw[3]) && raw[3] > 0;
     case RELEASE: return (raw.length === 4 || (raw.length === 6 && uint16(raw[4]) && uint16(raw[5]))) && uint32(raw[3]) && raw[3] > 0;
+    case DEVICE: return raw.length === 5 && isDeviceProfile({ device: raw[3], input: raw[4] });
     case AVATAR: return raw.length === 4 && isAvatarId(raw[3]);
     case JOIN: return raw.length === 8 && memberId(raw[3]) && name(raw[4]) && slot(raw[5]) && isAvatarId(raw[6]) && uint32(raw[7]);
     case LEAVE: return raw.length === 4 && memberId(raw[3]);

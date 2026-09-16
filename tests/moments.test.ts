@@ -215,6 +215,7 @@ test('leaving a blast zone in the last half second is a dodge; owners, immune ri
 test('a Target Bomb resolved in the launch tick feeds the same detector', () => {
   // The victims ride on separate rows: on the launch tick they have already laid a trail each.
   const state = scene(3, 3); place(state, 'p0', 900, 700); place(state, 'p1', 500, 450); place(state, 'p2', 520, 480);
+  for (const player of state.players.values()) player.deviceProfile = { device: 'phone', input: 'touch' };
   const thrower = state.players.get('p0')!; thrower.targetBombArmed = true;
   step(state, new Map([['p0', { left: false, right: false, bomb: true, bombCommands: [{ action: 'press', aim: { x: 510 / state.width, y: 450 / state.height } }] }]]));
   step(state, new Map([['p0', { left: false, right: false, bomb: false, bombCommands: [{ action: 'release', aim: { x: 510 / state.width, y: 450 / state.height } }] }]]));

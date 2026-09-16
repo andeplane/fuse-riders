@@ -1,11 +1,12 @@
 import { addPlayer, createGame, removePlayer, resetMatch, returnToLobby, setPlayerConnected, SLOT_COLORS, startMatch, startNextRound, step, type GameState, type InputIntent } from './game.js';
 import { BotController, BOT_ID_PREFIX } from './bot-controller.js';
 import { parseRoomSettings, type RoomSettings } from './room-settings.js';
-import { ACTION, AVATAR, BOT, JOIN, LEAVE, PRESENCE, SETTINGS, foldPlayerEntries, intentOf, isManagementKind, neutralControls, type Entry, type HeldControls } from './input-log.js';
+import { unknownDevice } from './device-profile.js';
+import { ACTION, AVATAR, DEVICE, BOT, JOIN, LEAVE, PRESENCE, SETTINGS, foldPlayerEntries, intentOf, isManagementKind, neutralControls, type Entry, type HeldControls } from './input-log.js';
 import type { GameEvent } from './protocol.js';
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = 'fuse-p2p-7'; // 7: staggered single pickups scale with living riders; 6 introduced Power progression (#201).
+export const RULES = 'fuse-p2p-8'; // 8: synchronized device/input profiles and phone-only Target Bombs.
 export const RECLAIMABLE_PHASES = ['lobby', 'roundOver', 'matchOver'] as const;
 export const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'] as const;
 
@@ -64,7 +65,7 @@ function applyManagement(state: RoomState, entry: Entry, newMatchIdTick: number)
       case JOIN: {
         const [, , , id, playerName, slot, avatarId, generation] = entry;
         const existing = game.players.get(id);
-        if (existing) { setPlayerConnected(game, id, true); state.folds.set(id, { ...neutralControls(), generation }); return; }
+        if (existing) { existing.deviceProfile = unknownDevice(); setPlayerConnected(game, id, true); state.folds.set(id, { ...neutralControls(), generation }); return; }
         addPlayer(game, { id, name: playerName.trim(), slot, color: SLOT_COLORS[slot]!, avatarId, connected: true });
         state.folds.set(id, { ...neutralControls(), generation }); return;
       }
@@ -76,6 +77,7 @@ function applyManagement(state: RoomState, entry: Entry, newMatchIdTick: number)
       }
       case PRESENCE: {
         const [, , , id, connected, generation] = entry; if (!game.players.has(id) || state.bots.has(id)) return;
+        if (state.folds.get(id)?.generation !== generation) game.players.get(id)!.deviceProfile = unknownDevice();
         setPlayerConnected(game, id, connected);
         state.folds.set(id, { ...neutralControls(), generation }); return;
       }
@@ -128,7 +130,10 @@ export function applyTick(state: RoomState, creatorId: string, streams: Readonly
     // Chosen after the management entries applied: a presence that switches the fold's generation takes this tick's input from the new stream.
     const stream = streams.get(player.id), source = stream === undefined ? undefined : stream.generation === fold.generation ? stream : stream.retired?.find(old => old.generation === fold.generation);
     const entries = source ? source.entries.filter(entry => entry[1] === tick && !isManagementKind(entry[2])) : [];
-    for (const entry of entries) if (entry[2] === AVATAR) player.avatarId = entry[3];
+    for (const entry of entries) {
+      if (entry[2] === AVATAR) player.avatarId = entry[3];
+      if (entry[2] === DEVICE) player.deviceProfile = { device: entry[3], input: entry[4] };
+    }
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }
   const result = step(game, inputs);

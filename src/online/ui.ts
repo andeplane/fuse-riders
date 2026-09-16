@@ -1,3 +1,5 @@
+import { browserDeviceProfile } from '../client/device-profile.js';
+import { deviceLabel, targetBombAvailable } from '../shared/device-profile.js';
 import { displayPowerLevel } from '../client/power-indicator.js';
 import { powerProgress, POWER_TUNING } from '../shared/power-progression.js';
 import { uuid } from '../shared/uuid.js';
@@ -187,6 +189,7 @@ export async function startOnline():Promise<void>{
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);controls.addEventListener('selectstart',event=>event.preventDefault());controls.addEventListener('contextmenu',event=>event.preventDefault());
   for(const [button,key,label] of [[leftButton,'ArrowLeft A','Steer left'],[fireButton,'Space','Hold to charge, release to fire'],[rightButton,'ArrowRight D','Steer right']] as const){button.setAttribute('aria-keyshortcuts',key);button.title=`${label} (${key})`;}
   const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','BACK TO LOBBY'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','TV VIEW'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
+  let refreshRoomSettings=()=>{};
   const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;head:HTMLElement;avatar:AvatarId;remove:HTMLButtonElement}>();
   const help=node('button','?','desktop-help');help.setAttribute('aria-label','Keyboard controls');help.title='Keyboard controls';
   const avatarButton=node('button','AVATAR'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');avatarButton.hidden=true;
@@ -265,7 +268,7 @@ export async function startOnline():Promise<void>{
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
       const startKey=matchStartKey(state.matchId,state.phase,state.round);
       if(startKey&&startedMatch!==startKey){startedMatch=startKey;matchStartedAt=Date.now();matchNumber+=1;track('Match Started',{matchNumber,playerCount:state.players.length,botCount:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length,mode:rules.mode,match:rules.match,matchLength:rules.length,powerupTypes:Object.values(rules.weights??{}).filter(weight=>weight>0).length,host:isHost});}
-      const matchId=state.matchId;snapshot=state;renderScope=`${matchId}:${state.round}`;
+      const matchId=state.matchId;snapshot=state;if(dialog.open)refreshRoomSettings();renderScope=`${matchId}:${state.round}`;
       if(pendingSettings&&(JSON.stringify(rules)!==pendingSettings.before||performance.now()-pendingSettings.at>1000))pendingSettings=undefined;settings=pendingSettings?.draft??rules;
       sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,phaseEndsAtTick:state.phaseEndsAtTick,playerId:id,heldMotion:runtime.heldControls(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,metrics:runtime.metrics()});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
@@ -282,7 +285,7 @@ export async function startOnline():Promise<void>{
       sharedLobby.hidden=!(state.phase==='lobby'||recapReady)||joining||(!phoneLobby&&(solo||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active()));app.classList.toggle('room-waiting',!sharedLobby.hidden);
       const ready=state.players.filter(p=>p.connected).length;lobbyCount.textContent=`${ready} ${ready===1?'rider':'riders'} ready`;lobbyEmpty.hidden=state.players.length>0;
       for(const [playerId,row] of lobbyEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();lobbyEntries.delete(playerId);}
-      for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
+      for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=`${p.connected?'READY':'OFFLINE'} · ${p.id.startsWith(BOT_ID_PREFIX)?'AI':deviceLabel(p.deviceProfile)}`;}
       roster.hidden=!sharedLobby.hidden;
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
       canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;if(!canvas.hidden)replay.observe(state,state.matchId,performance.now());styleButton.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
@@ -302,7 +305,7 @@ export async function startOnline():Promise<void>{
       for(const p of state.players){
         let row=rosterEntries.get(p.id);
         if(!row){const entry=node('span','','online-score-card'),label=node('span'),head=createAvatarPortrait(p.avatarId),remove=node('button','×');entry.append(head,label,remove);remove.onclick=()=>runtime.command({type:'bot',action:'remove',id:p.id});row={entry,label,head,avatar:p.avatarId,remove};rosterEntries.set(p.id,row);roster.append(entry);}
-        const label=`${p.name} · ${p.roundWins}${p.waitingForNextRound?' · next round':p.connected?'':' · offline'}`;if(row.label.textContent!==label)row.label.textContent=label;row.label.title=`${p.name} · ${p.roundWins} round wins`;row.label.setAttribute('aria-label',row.label.title);row.entry.style.color=p.color;row.entry.style.setProperty('--rider-color',p.color);row.entry.classList.toggle('out',!p.alive&&!['lobby','countdown'].includes(state.phase));
+        const label=`${p.name} · ${p.roundWins}${p.waitingForNextRound?' · next round':p.connected?'':' · offline'}`;if(row.label.textContent!==label)row.label.textContent=label;row.entry.dataset.device=p.deviceProfile?.device??'unknown';row.entry.dataset.input=p.deviceProfile?.input??'unknown';row.label.title=`${p.name} · ${p.roundWins} round wins · ${p.id.startsWith(BOT_ID_PREFIX)?'AI':deviceLabel(p.deviceProfile)}`;row.label.setAttribute('aria-label',row.label.title);row.entry.style.color=p.color;row.entry.style.setProperty('--rider-color',p.color);row.entry.classList.toggle('out',!p.alive&&!['lobby','countdown'].includes(state.phase));
         if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}
         const removeParent=sharedLobby.hidden?row.entry:lobbyEntries.get(p.id)!.entry;if(row.remove.parentElement!==removeParent)removeParent.append(row.remove);
         row.remove.hidden=!isHost||!p.id.startsWith(BOT_ID_PREFIX);row.remove.disabled=!['lobby','roundOver','matchOver'].includes(state.phase);row.remove.setAttribute('aria-label',`Remove ${p.name}`);row.remove.title=row.remove.disabled?'Remove AI between rounds or return to menu':'Remove AI rider';
@@ -313,7 +316,7 @@ export async function startOnline():Promise<void>{
     }
   };
   // Solo is the same runtime with no transport: one rider and four AI riders fold the log locally.
-  const runtime=new RoomRuntime(code,settings,callbacks,solo?{humanName:read('fuse-riders-player-name')??undefined}:{transport:events=>new PeerTransport(code,token,events),displayOnly});
+  const runtime=new RoomRuntime(code,settings,callbacks,solo?{deviceProfile:browserDeviceProfile(),humanName:read('fuse-riders-player-name')??undefined}:{deviceProfile:browserDeviceProfile(),transport:events=>new PeerTransport(code,token,events),displayOnly});
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
@@ -325,7 +328,7 @@ export async function startOnline():Promise<void>{
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title='Open this room on a shared screen';share.onclick=()=>{window.open(appUrl(`?room=${code}&display=1`),'_blank','noopener');};
   const openSettings=(start:'main'|'powerups'='main')=>{
-    showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;pendingSettings={draft,before:JSON.stringify(settings),at:performance.now()};settings=draft;save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>dialog.close(),start);
+    refreshRoomSettings=showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;pendingSettings={draft,before:JSON.stringify(settings),at:performance.now()};settings=draft;save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>dialog.close(),start,()=>targetBombAvailable(snapshot?.players??[]));
     if(!dialog.open)dialog.showModal();
   };
   settingsButton.onclick=()=>openSettings();
@@ -341,7 +344,7 @@ export async function startOnline():Promise<void>{
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
-  const keyboard=new ControllerKeyboardBindings(inputState,()=>joined&&!roomEnded&&!mobileLayout.blocked()&&!dialog.open&&!document.hidden&&!leftButton.disabled&&!Boolean(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')),()=>{for(const [button,control] of [[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']] as const)button.classList.toggle('active',inputState.isHeld(control));});
+  const keyboard=new ControllerKeyboardBindings(inputState,()=>joined&&!roomEnded&&!mobileLayout.blocked()&&!dialog.open&&!document.hidden&&!leftButton.disabled&&!Boolean(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')),()=>{for(const [button,control] of [[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']] as const)button.classList.toggle('active',inputState.isHeld(control));},()=>runtime.command({type:'deviceProfile',profile:{...browserDeviceProfile(),input:'keyboard'}}));
   window.addEventListener('keydown',event=>keyboard.down(event));
   window.addEventListener('keyup',event=>keyboard.up(event));
   const clearControls=()=>{keyboard.clear();bindings.clear(true,true);};

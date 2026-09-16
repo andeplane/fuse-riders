@@ -1,5 +1,5 @@
 import { POWER_TUNING, powerBlastRadius } from '../src/shared/power-progression.js';
-import { chromium, webkit, type Page } from 'playwright';
+import { chromium, webkit, devices, type Page } from 'playwright';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -116,7 +116,7 @@ try {
   await host.screenshot({ path: 'artifacts/tv-lobby.png' });
   const phones: Page[] = [];
   for (let i = 0; i < 5; i++) {
-    const context = await browser.newContext({ viewport: i === 0 ? { width: 390, height: 844 } : { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+    const context = await browser.newContext({ ...devices['iPhone 13'], viewport: i === 0 ? { width: 390, height: 844 } : { width: 844, height: 390 }, isMobile: true, hasTouch: true });
     const phone = await context.newPage(); monitor(phone); phones.push(phone);
     await phone.goto(`${origin}/controller`);
     assert.equal(await phone.locator('.join-screen .avatar-option').count(), 10);

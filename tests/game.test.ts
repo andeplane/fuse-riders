@@ -1094,6 +1094,7 @@ test('shell persists beyond five seconds and permits another shot after cooldown
   const owner = state.players.get('p0')!; owner.x = 500; owner.y = 450; owner.angle = 0;
   state.pickups = [{ id: 999, type: 'shell', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
   step(state, new Map()); assert.equal(owner.shellArmed, true);
+  for (const player of state.players.values()) player.deviceProfile = { device: 'phone', input: 'touch' };
   owner.fiveShotArmed = true; owner.targetBombArmed = true;
   step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));

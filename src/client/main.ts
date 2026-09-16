@@ -1,3 +1,4 @@
+import { browserDeviceProfile } from './device-profile.js';
 import { displayPowerLevel, powerRingProgress, POWER_RING_RADIUS, POWER_RING_COLOR } from './power-indicator.js';
 import { powerProgress, POWER_TUNING } from '../shared/power-progression.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
@@ -933,9 +934,10 @@ function startController(): void {
   } });
 
   function status(text: string, error = false): void { joinStatus.textContent = text; joinStatus.classList.toggle('error', error); }
+  let deviceProfile = browserDeviceProfile();
   function currentJoin(reconnectOnly = true): ClientMessage | undefined {
     if (!name || (reconnectOnly && !playerToken)) return undefined;
-    return playerToken ? { type: 'join', name, playerToken } : { type: 'join', name, avatarId: avatarPicker.selected() };
+    return { type: 'join', name, deviceProfile, ...(playerToken ? { playerToken } : { avatarId: avatarPicker.selected() }) };
   }
   function updateResend(): void {
     window.clearInterval(resendTimer);
@@ -1072,7 +1074,10 @@ function startController(): void {
     const element = document.elementFromPoint(x, y);
     return [left, bomb, right].find(button => element !== null && button.contains(element));
   });
-  pointerBindings.bindKeyboard(window, () => Boolean(playerId) && !hasLeft && !controls.classList.contains('hidden') && !document.hidden && !document.querySelector('dialog[open]') && !document.activeElement?.closest('input,textarea,select,[contenteditable]'));
+  pointerBindings.bindKeyboard(window, () => Boolean(playerId) && !hasLeft && !controls.classList.contains('hidden') && !document.hidden && !document.querySelector('dialog[open]') && !document.activeElement?.closest('input,textarea,select,[contenteditable]'), () => {
+    if (deviceProfile.input === 'keyboard') return;
+    deviceProfile = { ...deviceProfile, input: 'keyboard' };socket.send({ type: 'deviceProfile', profile: deviceProfile });
+  });
   leave.addEventListener('click', () => {
     hasLeft = true; clearControls(); socket.send({ type: 'leave' }); socket.close();
     localStorageSafe.removeItem(PLAYER_TOKEN_KEY); playerToken = ''; playerId = ''; latestSnapshot = undefined;
