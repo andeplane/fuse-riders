@@ -63,6 +63,7 @@ try {
         const empty = paint([]);
         const alive = paint([player]);
         const livingTrail = regionDifference(alive, empty, 250, 198, 300, 4);
+        if (livingTrail <= 0) throw Error('Live trail missing');
         if (regionDifference(alive, empty, 750, 395, 100, 110) === 0) throw Error('Live avatar missing');
         const dead = { ...player, alive: false };
         paint([dead]);
