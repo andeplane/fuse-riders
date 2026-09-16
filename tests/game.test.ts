@@ -315,7 +315,7 @@ test('quick bomb action bursts launch at minimum range and cancel paths never la
 test('bomb uses the configured aim time while steering and follows the release heading', () => {
   for (const [bombChargeTicks, distance] of [[undefined, 400], [24, 200], [2, 400]] as const) {
     const state = gameWithPlayers();
-    if (bombChargeTicks !== undefined) state.settings = { ...defaultRoomSettings(), bombChargeTicks };
+    if (bombChargeTicks !== undefined) state.settings = { ...defaultRoomSettings(), bombChargeTicks, aimBounce: false };
     enterPlaying(state);
     const owner = state.players.get('p0')!;
     owner.x = 500; owner.y = 300; owner.angle = 0;

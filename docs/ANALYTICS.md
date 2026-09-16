@@ -46,7 +46,7 @@ super property on every event. `mode` and `solo` are registered only on the room
 | `Match Started` | the first round of a match id reaches its countdown | `matchNumber`, `playerCount`, `botCount`, `match`, `matchLength`, `powerupTypes`, `host` |
 | `Match Ended` | the recap becomes available | always `playerCount`, `botCount`, `humanCount`, `rounds`, `played`; plus `placement`, `won`, `roundWins`, `eliminations`, `pickups`, `bombsPlaced`, `bombsExploded`, `distance`, `survivalSeconds` and `deathsWall` / `deathsTrail` / `deathsExplosion` / `deathsRider` when this device held a rider; plus `durationSeconds` when it also saw the match start |
 | `Recap Reopened` | the RESULTS button | — |
-| `Settings Changed` | a draft the runtime accepted | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `powerupTypes` |
+| `Settings Changed` | a draft the runtime accepted | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `powerupTypes` |
 | `Connect Failed` | 20s with no link to the host | `status` (the status line, `null` if none yet), `secondsWaiting` |
 | `Boot Failed` | the boot-failure card is shown | `message` |
 
