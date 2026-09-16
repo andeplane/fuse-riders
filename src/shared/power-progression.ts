@@ -15,8 +15,8 @@ export const POWER_TUNING = {
   baseReloadTicks: 40,
   minReloadTicks: 20,
   halfStrengthPickups: 30,
-  baseTrailLifetimeTicks: 80,
-  trailTicksPerPickup: 10,
+  baseTrailLifetimeTicks: 160,
+  trailTicksPerPickup: 40,
   // Resource ceiling: at most one new segment per rider per tick.
   maxTrailLifetimeTicks: 1024,
 } as const;

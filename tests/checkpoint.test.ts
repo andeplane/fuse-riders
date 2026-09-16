@@ -38,6 +38,10 @@ test('bombs, gravity fields and portal pairs must name issued bombs, seated owne
   const game = withBomb(playing());
   rejected(game, data => { object(mapped(data.bombs)[0]![1]).ownerId = 'ghost'; }, 'a bomb from nobody');
   rejected(game, data => { object(object(mapped(data.bombs)[0]![1]).shell).vx = 1e9; }, 'a shell faster than the guard allows');
+  assert.ok(corrupt(game, data => { object(mapped(data.bombs)[0]![1]).shot = 1; }), 'a bomb naming its own pull restores');
+  assert.ok(corrupt(game, data => { delete object(mapped(data.bombs)[0]![1]).shot; }), 'and one naming none still restores');
+  rejected(game, data => { object(mapped(data.bombs)[0]![1]).shot = 2; }, 'a bomb naming a pull issued after it');
+  rejected(game, data => { object(mapped(data.bombs)[0]![1]).shot = 0; }, 'a shot id no bomb ever had');
   rejected(game, data => { object(mapped(data.bombs)[0]![1]).flightPath = []; object(mapped(data.bombs)[0]![1]).x = 'here'; }, 'a position that is not a number');
   const field = (over: Record<string, unknown> = {}) => ({ bombId: 1, ownerId: 'p1', x: 400, y: 400, radius: 90, expiresAtTick: game.tick + GRAVITY_FIELD_TICKS, ...over });
   assert.ok(corrupt(game, data => { list(data.gravityFields).push(field()); }), 'a field naming the issued bomb restores');
@@ -106,6 +110,51 @@ test('highlight moments and shell bounces round-trip, and malformed ones are rej
   addPlayer(lobby, { id: 'p0', name: 'P0', slot: 0, color: SLOT_COLORS[0]!, connected: true });
   assert.ok(decodeGameState(encodeGameState(lobby)));
   rejected(lobby, data => { list(data.moments).push({ kind: 'ownGoal', round: 1, tick: 0, elapsed: 0, playerId: 'p0', targetIds: [], value: 1 }); }, 'a lobby carries no moments');
+});
+
+test('the round shot log names issued pulls and seated riders, and kills each rider at most once', () => {
+  const game = withBomb(playing());
+  const shot = (over: Record<string, unknown> = {}) => ({ shot: 1, shooterId: 'p0', weapon: 'gun', elapsed: 10, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills: [], ...over });
+  assert.ok(corrupt(game, data => { list(data.shots).push(shot({ kills: [{ victimId: 'p1', elapsed: 12 }] })); }), 'a pull that killed restores');
+  assert.ok(corrupt(game, data => { list(data.shots).push(shot()); }), 'and so does a miss');
+  rejected(game, data => { delete data.shots; }, 'a state without its log');
+  rejected(game, data => { list(data.shots).push(shot({ weapon: 'railgun' })); }, 'a weapon the game does not have');
+  rejected(game, data => { list(data.shots).push(shot({ shot: 2 })); }, 'a pull that was never issued');
+  rejected(game, data => { list(data.shots).push(shot(), shot()); }, 'the same pull twice');
+  rejected(game, data => { list(data.shots).push(shot({ shooterId: 'ghost' })); }, 'a pull by nobody');
+  rejected(game, data => { list(data.shots).push(shot({ kills: [{ victimId: 'p0', elapsed: 12 }] })); }, 'a rider killed by its own shot');
+  rejected(game, data => { list(data.shots).push(shot({ kills: [{ victimId: 'ghost', elapsed: 12 }] })); }, 'a kill of nobody');
+  rejected(game, data => { list(data.shots).push(shot({ kills: [{ victimId: 'p1', elapsed: 9 }] })); }, 'a kill before its pull');
+  rejected(game, data => { list(data.shots).push(shot({ kills: [{ victimId: 'p1', elapsed: 12 }, { victimId: 'p1', elapsed: 13 }] })); }, 'a rider killed twice in a round');
+  // Distinct victims, so it is the four-kill cap that refuses this and not the killed-twice rule.
+  rejected(game, data => { list(data.shots).push(shot({ kills: ['a', 'b', 'c', 'd', 'e'].map(victimId => ({ victimId, elapsed: 12 })) })); }, 'more kills than a pull can make');
+  rejected(game, data => { list(data.shots).push(shot({ elapsed: -1 })); }, 'a pull before the round');
+  rejected(game, data => { list(data.shots).push(shot({ bombs: 0 })); }, 'a pull that launched nothing');
+  rejected(game, data => { list(data.shots).push(shot({ bombs: 99 })); }, 'a bigger volley than the game can fire');
+  rejected(game, data => { list(data.shots).push(shot({ fuseLevel: 3 })); }, 'a fuse level past the cap');
+  rejected(game, data => { list(data.shots).push(shot({ extraBombs: 9 })); }, 'more Extra Bombs than the cap');
+  rejected(game, data => { list(data.shots).push(shot({ grip: 1 })); }, 'a GRIP flag that is not a boolean');
+  rejected(game, data => { const entry = shot(); delete (entry as Record<string, unknown>).power; list(data.shots).push(entry); }, 'a pull missing its upgrades');
+  const lobby = createGame('checkpoint-lobby');
+  addPlayer(lobby, { id: 'p0', name: 'P0', slot: 0, color: SLOT_COLORS[0]!, connected: true });
+  assert.ok(decodeGameState(encodeGameState(lobby)), 'the lobby control restores, so the rejection below is the log');
+  rejected(lobby, data => { list(data.shots).push(shot()); }, 'a lobby carrying a round log');
+});
+
+test('the decided round is held to its own consistency and the clock, and may outlive the riders it names', () => {
+  const game = withBomb(playing());
+  const pull = (over: Record<string, unknown> = {}) => ({ shot: 3, shooterId: 'p0', weapon: 'shell', elapsed: 10, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills: [], ...over });
+  const decided = (over: Record<string, unknown> = {}) => ({ matchId: game.matchId, round: 1, tick: game.tick, shots: [pull({ kills: [{ victimId: 'p1', elapsed: 20 }] })], ...over });
+  assert.ok(corrupt(game, data => { data.decidedRound = decided(); }), 'a decided round restores');
+  assert.ok(corrupt(game, data => { data.decidedRound = decided({ matchId: 'an-earlier-match', round: 7, shots: [pull({ shooterId: 'gone', shot: 99 })] }); }),
+    'including one from before a rematch or the lobby, naming riders and bomb ids that no longer exist');
+  rejected(game, data => { data.decidedRound = decided({ tick: game.tick + 1 }); }, 'a round decided in the future');
+  rejected(game, data => { data.decidedRound = decided({ round: game.round + 1 }); }, 'a round of this match that has not been played');
+  rejected(game, data => { data.decidedRound = decided({ shots: [pull({ kills: [{ victimId: 'p0', elapsed: 20 }] })] }); }, 'a decided self-kill');
+  rejected(game, data => { data.decidedRound = decided({ shots: [pull(), pull()] }); }, 'the same pull twice');
+  rejected(game, data => { data.decidedRound = decided({ shots: [pull({ weapon: 'railgun' })] }); }, 'an unknown weapon');
+  rejected(game, data => { data.decidedRound = { ...decided(), extra: 1 }; }, 'an unexpected key');
+  rejected(game, data => { data.decidedRound = decided({ round: 0 }); }, 'round zero');
 });
 
 test('detached trail identity, schedule and ownership are validated before replacement', () => {

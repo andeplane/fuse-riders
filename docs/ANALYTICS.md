@@ -1,7 +1,8 @@
 # Product analytics
 
-[`src/online/analytics.ts`](../src/online/analytics.ts) reports nine product events to Mixpanel. It answers one
-question — do riders get from the landing page into a match, and what happened when they did — and nothing else.
+[`src/online/analytics.ts`](../src/online/analytics.ts) reports eleven product events to Mixpanel. It answers two
+questions — do riders get from the landing page into a match and what happened when they did, and which powerups
+kill and how often they miss — and nothing else.
 It is unrelated to [`src/online/telemetry.ts`](../src/online/telemetry.ts), which posts raw runtime diagnostics
 (inputs, packets, repairs, rewinds) to `/telemetry` on whatever origin served the page — normally a dev server,
 since it too is on only for a ported address or `?telemetry=1`.
@@ -45,6 +46,8 @@ super property on every event. `mode` and `solo` are registered only on the room
 | `Seat Taken` | first snapshot showing this device holding a rider | `avatarId`, `playerCount` |
 | `Match Started` | the first round of a match id reaches its countdown | `matchNumber`, `playerCount`, `botCount`, `match`, `matchLength`, `powerupTypes`, `host` |
 | `Match Ended` | the recap becomes available | always `playerCount`, `botCount`, `humanCount`, `rounds`, `played`; plus `placement`, `won`, `roundWins`, `eliminations`, `pickups`, `bombsPlaced`, `bombsExploded`, `distance`, `survivalSeconds` and `deathsWall` / `deathsTrail` / `deathsExplosion` / `deathsRider` when this device held a rider; plus `durationSeconds` when it also saw the match start |
+| `Kill` | once per rider this device's rider killed, once that round is decided and confirmed | the pull's properties below, plus `victimBot`, `shotKills`, `firstKillOfShot`, `secondsToKill` |
+| `Miss` | once per pull of this device's rider that killed nobody, once that round is decided and confirmed | the pull's properties below |
 | `Recap Reopened` | the RESULTS button | — |
 | `Settings Changed` | a draft the runtime accepted | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `powerupTypes` |
 | `Connect Failed` | 20s with no link to the host | `status` (the status line, `null` if none yet), `secondsWaiting` |
@@ -60,6 +63,82 @@ the match before the first snapshot reaches the UI. Two consequences worth knowi
 device that loads into a match already past round 1 reports `Match Ended` but no `Match Started` and no
 `durationSeconds`, so ended can exceed started; and a reload mid-match restarts `matchNumber`.
 
+### Which powerup kills, and how often it misses
+
+`Kill` and `Miss` are the one place analytics reports per occurrence rather than per match: one `Kill` per rider
+killed and one `Miss` per trigger pull that killed nobody. `weapon` is what the pull fired — `bomb` (the ordinary
+lobbed bomb every rider has, the baseline), `triple`, `five`, `target`, `gun`, `shell` or `gravity`.
+
+The point is histograms, so both events carry every dimension an outcome might be broken down by:
+
+| Property | On | Meaning |
+| --- | --- | --- |
+| `weapon` | both | what the pull fired |
+| `bombs` | both | bombs the pull put in the air — 1 for Gun, Shell and Target, more for a volley or with Extra Bomb |
+| `power`, `extraBombs`, `fuseLevel`, `grip` | both | the shooter's round-long upgrades at the moment of the pull, not at the round's end |
+| `round`, `secondsIntoRound` | both | when the trigger was pulled, to a tenth of a second |
+| `riders`, `bots` | both | the room when the round was reported |
+| `victimBot` | `Kill` | whether the rider killed was an AI |
+| `secondsToKill` | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target |
+| `shotKills`, `firstKillOfShot` | `Kill` | how many riders the pull killed, and one `true` per pull |
+
+| Reading | Mixpanel |
+| --- | --- |
+| Which powerup kills most | `Kill`, broken down by `weapon` |
+| How often a powerup misses | `Miss` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
+| Kills per pull | `Kill` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
+| Whether it beats a plain bomb | any of the above against `weapon = bomb` |
+
+**Exactly one device sends each event**: the shooter's own. A kill is reported only by the killer's device and a
+miss only by the device of the rider who pulled the trigger, so a room of four still sends one `Kill` per kill.
+The victim, the other riders, a shared-TV display and a spectator send nothing about it, and nobody reports a
+bot's pulls.
+
+**They are sent after the round, once it is final — not live.** Every replica simulates ahead of confirmed input,
+and a rollback cannot retract an event already sent, so a kill reported the moment it appeared on one screen could
+be one a late packet undoes. Even the round-over screen a device shows is its own prediction. So the simulation
+keeps a log of the round's pulls and kills in the state every replica agrees on, and when the round is decided it
+keeps that log (with the tick it was decided at) until the next round is decided. The shooter's device reports
+from it once every connected rider's input is confirmed through that tick — normally a fraction of a second into
+the round-over pause.
+
+The last reported round is remembered per rider in local storage, so a reload or a reopened tab does not send it
+twice, while a second tab seated as a different rider still reports its own. Because the decided log lasts through
+the whole next round, a device that catches up past the round-over pause in one jump (a backgrounded phone, a
+resynchronised snapshot) still reports it. What is lost: a round whose shooter's device leaves before it is
+confirmed, and a round a device skips entirely by catching up across two decisions at once.
+
+A pull whose bomb, shell or bullet is still in the air when the round ends — and has killed nobody — is **not** a
+`Miss`: the round's end interrupted it. Without that rule, weapons that stay in flight longest (Shell, lobbed
+bombs) would be charged misses they never had the chance to turn into kills.
+
+A **pull** is one trigger press: a volley is one pull however many bombs it puts in the air, and every bomb of it
+names the pull. A rider can hold several weapons at once and a pull spends only some of them, so it is labelled
+with the first of these that it spent:
+
+`gun` → `shell` → `target` → `gravity` → `five` → `triple` → `bomb`
+
+Gun and Shell come first because they launch on a path of their own; a rider holding Target as well keeps it
+armed for the next pull, so nothing is lost. Below them Target wins because it is the only one the others cannot
+combine with, then Gravity, so a gravity volley is `weapon = gravity` — which under-counts `five` and `triple` by
+the rare pull that spent both, where the alternative would lose Gravity, the harder of the two to judge. The
+round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse and GRIP sharpen every pull rather than
+being spent by one.
+
+A **kill** is exactly an elimination credited to an explosion, as the recap's `eliminations` counts it: a wall, a
+trail or a rider collision has no weapon behind it, blowing yourself up credits nobody, and two riders whose blasts
+reach the same victim share the blame so neither is credited. Where several of one rider's bombs reach the same
+victim, the one with the lowest id names the pull, so every replica logs the same one. `shotKills` is how many
+riders that pull killed, so a double kill is two `Kill` events that agree on it, and `firstKillOfShot` is true on
+exactly one — which is what turns kills back into pulls for a miss rate.
+
+Two consequences of chain reactions, both inherited from how eliminations have always been credited: a bomb set
+off by someone else's blast still belongs to its owner, so a rider whose Five bomb a rival detonates is credited
+the kill; and where a rider's own older plain bomb chains alongside its Target, the lowest-id rule credits `bomb`.
+What cannot be seen at all: a Gravity field that drags a rider into a wall is a `wall` death with no owner. And a
+pull whose only effect was uncredited — an own goal, a blast shared with another rider, or setting off someone
+else's bomb — is a `Miss`, because no kill is credited to it.
+
 **Never name a property `length`.** Mixpanel's bundled Underscore-style `each` treats any object whose `length`
 is a number as an array, so one such key makes it iterate indices instead of keys and drop the whole property
 bag — super properties included — while the API still answers `200`. The room setting called `length` is
@@ -67,9 +146,10 @@ reported as `matchLength` for exactly this reason.
 
 ## What is deliberately not tracked
 
-- **Per-tick, per-pickup, per-elimination and per-explosion events.** A match produces thousands of these. Its
-  detail rides along on `Match Ended` instead, read from the authoritative `matchStats` the recap renders, so a
-  busy arena still costs one event.
+- **Per-tick, per-pickup and per-explosion events, and eliminations other than weapon kills.** A match produces
+  thousands of these. Its detail rides along on `Match Ended` instead, read from the authoritative `matchStats`
+  the recap renders. `Kill` and `Miss` are the deliberate exception, bounded by pulls rather than ticks: a rider
+  can pull the trigger at most once per reload, and only its own device reports.
 - **The LAN `/controller` and `/display` paths.** Those devices are frequently offline, and analytics is off on
   a ported address anyway.
 - **Bots.** They are counted in `botCount` and never identified as users.
@@ -85,7 +165,10 @@ reported as `matchLength` for exactly this reason.
 
 The Mixpanel project is the repository owner's, and this change enables no paid service. Event volume is bounded
 by design — one event per match rather than per pickup or per tick — so a busy arena cannot run the project's
-plan up; check the plan's own ceiling before reading that as a guarantee.
+plan up; check the plan's own ceiling before reading that as a guarantee. `Kill` and `Miss` are the largest
+source: one per pull. A rider cannot pull again while its own lobbed bomb or bullet is still in the air, so an
+ordinary bomb allows roughly one pull every three to four seconds; only spent pickups come faster. Only human
+riders' own devices send them, and nothing is sent for bots.
 
 ## The bundle cost
 

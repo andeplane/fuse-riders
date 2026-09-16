@@ -1,8 +1,7 @@
 # Decaying trail pieces (#213)
 
 Keep ordered segments as the collision/snapshot representation. Active segments have no
-`detached` metadata and retain the current Power-adjusted lifetime (80 base ticks, not
-the issue's historical 160). Detached drawable runs carry a shared immutable piece id
+`detached` metadata and retain the current Power-adjusted lifetime (160 base ticks plus 40 per pickup). Detached drawable runs carry a shared immutable piece id
 and decay-start tick. Round-scoped ids come from `nextTrailPieceId`; crossing coordinates
 never merge pieces. Portal gaps preserve the active tail's logical relationship, but
 become separate drawable pieces on detachment/death.

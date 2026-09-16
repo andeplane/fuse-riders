@@ -83,12 +83,42 @@ Fold rules `fuse-p2p-12` introduced GRIP; `fuse-p2p-13` softened steering from 2
 
 ### Linear Power trail growth
 
-Fold rules `fuse-p2p-14` introduced the current active-tail tuning. Living riders start with an 80-tick trail lifetime instead of 160. Each Power pickup adds ten ticks linearly, up to the 1,024-tick active lifetime ceiling; at normal speed this is 600 units initially plus 75 per diamond, reaching the previous length after eight diamonds. Collection extends every surviving segment by the lifetime increase, and new segments use the upgraded lifetime on the same tick. Expiry still runs before collection, so removed trail is never restored. Power and trail reset each round; rule 15 replaces the permanent eliminated trails described above. Blast/reload progression is unchanged. No snapshot fields or transport envelopes change, but deterministic simulation does: rule equality rejects older peers and snapshots. Refresh every peer together and use fresh rooms after rollback.
+Fold rules `fuse-p2p-16` introduced the current active-tail tuning. Living riders start with a 160-tick (8-second) trail lifetime, and each Power pickup adds 40 ticks (2 seconds) linearly, up to the 1,024-tick active lifetime ceiling. At normal speed this is 1,200 units initially plus 300 per diamond, reaching 16 seconds after four diamonds and 24 seconds after eight. Rules 14 and 15 used 80 ticks initially plus ten per diamond. Collection extends every surviving active segment by the lifetime increase, and new segments use the upgraded lifetime on the same tick. Expiry still runs before collection, so removed trail is never restored. Power and trail reset each round; rule 17 replaces permanent eliminated trails with decay, described below. Blast/reload progression is unchanged. No snapshot fields or transport envelopes change, but deterministic simulation does: rule equality rejects older peers and snapshots. Refresh every peer together and use fresh rooms after rollback.
+
+## Round shot log
+
+Fold rules `fuse-p2p-15` introduced the following, retained in rule 17. Game state requires `shots`, the current round's trigger pulls: each entry
+is `{ shot, shooterId, weapon, elapsed, bombs, power, extraBombs, fuseLevel, grip, kills: [{ victimId, elapsed }] }`,
+where `shot` is the id of the first bomb the pull launched, `weapon` is one of `bomb`, `triple`, `five`, `target`,
+`gun`, `shell`, `gravity`, `elapsed` counts ticks into the round, and `bombs` through `grip` record what the pull
+launched and the shooter's upgrades at that moment. A bomb carries an optional `shot` naming its pull. Game state
+also carries an optional `decidedRound` — `{ matchId, round, tick, shots }` — written when a round is decided and
+kept until the next round is decided, through a rematch and a return to the lobby. Its `shots` leave out pulls
+that killed nobody and still had a bomb in the air at the decision, which the round's end interrupted. Nothing in
+the simulation reads any of this; it exists so product analytics can report one `Kill` per kill and one `Miss`
+per pull that killed nobody (see [product analytics](../ANALYTICS.md)).
+
+`shots` is cleared at the start of every round, because bomb ids restart there, and capped at 512 pulls. Public
+snapshots carry only `decidedRound`, never the round in play; the reporting device waits until its runtime's
+`confirmedTick()` — every connected rider's input confirmed — reaches `decidedRound.tick`, because the snapshot it
+renders is its own prediction. LAN phone controller snapshots strip `decidedRound`. A bomb's `shot` reaches no
+snapshot; it travels only in checkpoints, and the shot of a blast lives on the copy `resolveExplosions` hands its
+caller for one tick's kill attribution.
+
+Checkpoint decoding rejects, in either log, an unknown weapon, a zero or duplicated pull id, a rider killed by its
+own pull or twice in a round, a kill logged before its pull, more than four kills on one pull, a pull of zero bombs
+or more than a volley can hold, upgrades outside their caps, and more than 512 pulls. The round in play must also
+name issued pull ids and riders with match statistics, and be empty in the lobby; a bomb may not name a pull issued
+after it. `decidedRound` may name riders and bomb ids that no longer exist, since it outlives the round and the
+match, but may not be decided after the current tick, or name a round of this match not yet played. A bomb with
+no `shot` is accepted so a missing one never becomes a wrong one — its kill is simply not logged. Both logs enter
+the canonical state hash, so rule equality rejects older peers and snapshots: refresh all peers together, and use
+fresh rooms after rollback. Room-service and transport envelopes are unchanged.
 
 
 ### Detached trail decay (#213)
 
-Current fold rules are `fuse-p2p-16` (halved erosion speed from rule 15). Ordered trail segments carry optional
+Current fold rules are `fuse-p2p-17`, combining the shot log, eight-second Power trails and slower detached-trail decay. Ordered trail segments carry optional
 `detached: { id, decayStartTick }`; absence means the living, age-limited active tail.
 The required game-state `nextTrailPieceId` issues positive, round-scoped piece ids across
 all riders. Segments in each detached piece are consecutive, touching, ordered history,
@@ -104,7 +134,7 @@ subsequent playing tick consumes 1.875 world units from each end before weapons/
 Each end now shrinks at 37.5 units/second: a 300-unit piece lasts five seconds total, including the pause, instead of three. Child pieces inherit the original clock when recut. Death never refreshes old debris.
 Decay ignores original expiry and owner speed/boost/Power; only active segments receive
 Power lifetime extensions. Non-playing phases freeze trail geometry, and round reset
-clears it and resets piece allocation. The current 80-tick base/Power regrowth remains.
+clears it and resets piece allocation. The current 160-tick base and 40 ticks per Power pickup remain.
 
 Each rider is bounded to 2,048 total segments/pieces; saturation drops oldest detached
 segments before touching active capacity. Runtime validation rejects unknown metadata,

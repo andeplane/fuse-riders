@@ -5,11 +5,13 @@ import type { MatchPlayerStats } from './match-stats.js';
 import type { FlightPoint } from './launch-modifiers.js';
 import type { PickupType } from './game.js'; // the type alone: this module never needs the tuple's value
 import type { Moment } from './moments.js';
+import type { DecidedRound } from './shot-log.js';
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
 export type { FlightPoint } from './launch-modifiers.js';
 export type { Moment, MomentKind } from './moments.js';
+export type { DecidedRound, RoundShot, ShotKill, Weapon } from './shot-log.js';
 
 export type PlayerId = string;
 export type PlayerToken = string;
@@ -60,6 +62,8 @@ export interface GameSnapshot {
   matchStats: ReadonlyArray<MatchPlayerStats>;
   /** Highlight moments of the match; like `matchStats`, present only once the match is over (ADR 043). */
   moments: ReadonlyArray<Moment>;
+  /** The most recently decided round's trigger pulls and whom each killed, kept until the next round is decided. */
+  decidedRound?: DecidedRound;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }

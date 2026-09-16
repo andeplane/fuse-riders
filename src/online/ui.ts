@@ -35,12 +35,14 @@ import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
 import { createJoinCard, createJoinForm } from './join-form.js';
 import { safeStorage } from '../client/safe-storage.js';
-import { matchEndedProps, matchStartKey, startAnalytics, track } from './analytics.js';
+import { decidedRoundReport, matchEndedProps, matchStartKey, startAnalytics, track } from './analytics.js';
 import { POWERUP_GUIDE } from '../client/powerup-guide.js';
 import { createPowerupGuide } from '../client/powerup-guide-view.js';
 import { announcementFor, eliminationLine, roundClock } from '../client/arena-announcer.js';
 import { plainStatus } from './status-copy.js';
 const LAST_ROOM_KEY='fuse-last-room';
+/** The last decided round (and rider) whose Kill and Miss events this browser sent, so a reload or a reopened tab does not send them twice. */
+const SHOTS_REPORTED_KEY='fuse-shots-reported';
 const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 const storage=safeStorage(()=>localStorage);
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{const e=document.createElement(tag);e.textContent=text;e.className=className;return e;};
@@ -135,7 +137,8 @@ export async function startOnline():Promise<void>{
   let id='',isHost=false,joined=false,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
   startAnalytics({role,mode:settings.mode,solo});track('App Opened');
   // Funnel bookkeeping, per page load: a seat is reported once, and a match only where this device saw it begin.
-  let seatTracked=false,matchStartedAt=0,matchNumber=0,startedMatch='';
+  // The in-memory copy is the real guard: storage can refuse, and a round-over snapshot arrives twenty times a second.
+  let seatTracked=false,matchStartedAt=0,matchNumber=0,startedMatch='',reportedShots=read(SHOTS_REPORTED_KEY)??'';
   const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;
   let lastRecap='',rejoinPending=false;
   const benchmark=url.searchParams.get('benchmark')==='1';let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
@@ -312,6 +315,8 @@ export async function startOnline():Promise<void>{
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
       const startKey=matchStartKey(state.matchId,state.phase,state.round);
       if(startKey&&startedMatch!==startKey){startedMatch=startKey;matchStartedAt=Date.now();matchNumber+=1;track('Match Started',{matchNumber,playerCount:state.players.length,botCount:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length,mode:rules.mode,match:rules.match,matchLength:rules.length,powerupTypes:Object.values(rules.weights??{}).filter(weight=>weight>0).length,host:isHost});}
+      const shotReport=decidedRoundReport(state.decidedRound,id,runtime.confirmedTick(),reportedShots,{riders:state.players.length,bots:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length});
+      if(shotReport){reportedShots=shotReport.key;save(SHOTS_REPORTED_KEY,shotReport.key);for(const shot of shotReport.events)track(shot.event,shot.properties);}
       const matchId=state.matchId;snapshot=state;renderScope=`${matchId}:${state.round}`;
       if(pendingSettings&&(JSON.stringify(rules)!==pendingSettings.before||performance.now()-pendingSettings.at>1000))pendingSettings=undefined;settings=pendingSettings?.draft??rules;
       sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,phaseEndsAtTick:state.phaseEndsAtTick,playerId:id,heldMotion:runtime.heldControls(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,metrics:runtime.metrics()});
