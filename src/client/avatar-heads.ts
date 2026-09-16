@@ -9,7 +9,7 @@ export function drawAvatarHead(ctx: CanvasRenderingContext2D, id: AvatarId, x: n
   const { column, row } = avatarCell(id);
   const width = atlas.naturalWidth / 5; const height = atlas.naturalHeight / 2;
   ctx.save(); ctx.translate(x, y); ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#080c22'; ctx.strokeStyle = color; ctx.lineWidth = 2;
+  ctx.fillStyle = '#080c22'; ctx.strokeStyle = color; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.drawImage(atlas, column * width, row * height, width, height, -16, -16, 32, 32);
   ctx.restore(); return true;
