@@ -22,9 +22,13 @@ export class StreamLog {
   readonly baseTick: number;
   private readonly baseSeq: number;
   private gestureFloor = 0;
+  /** Presses that can no longer be replayed (the construction base and pruned entries): the floor a base at any later tick starts from. */
+  private baseGesture = 0;
+  /** The highest pruned seq: a base at a later tick starts there, since pruned entries are folded into every retained snapshot. */
+  private prunedSeq = 0;
   private rotation = 0;
   constructor(public generation: number, base: { seq: number; tick: number; gesture?: number } = { seq: 0, tick: 0 }) {
-    this.contiguous = base.seq; this.baseSeq = base.seq; this.lastSeq = base.seq; this.baseTick = base.tick; this.through = base.tick; this.gestureFloor = base.gesture ?? 0;
+    this.contiguous = base.seq; this.baseSeq = base.seq; this.lastSeq = base.seq; this.baseTick = base.tick; this.through = base.tick; this.gestureFloor = this.baseGesture = base.gesture ?? 0;
   }
   /** Own stream only: the next seq, always contiguous. */
   append(tick: number, body: readonly unknown[]): Entry {
@@ -53,6 +57,8 @@ export class StreamLog {
     for (const entry of this.entries.values()) if (entry[0] > this.contiguous && entry[1] - 1 < through) through = entry[1] - 1;
     return through;
   }
+  /** What can never change: with a gap, only ticks up to the last contiguous entry, since a missing entry's tick is unknown. */
+  confirmedThrough(): number { return this.gap ? Math.min(this.through, this.latestTick()) : this.through; }
   firstMissing(): number | undefined { return this.gap ? this.contiguous + 1 : undefined; }
   /** Highest press gesture id in the contiguous prefix; presses must keep increasing across it. */
   latestGesture(): number {
@@ -114,11 +120,15 @@ export class StreamLog {
   }
   /** Where a joiner's copy of this stream starts when it installs a snapshot taken at `tick`. */
   baseAt(tick: number): { seq: number; tick: number; gesture: number } {
-    let seq = this.contiguous, gesture = this.gestureFloor;
+    // Every held entry stamped at or before `tick` is folded into the state served at `tick`, including entries waiting behind a
+    // gap: the world at `tick` was simulated without the missing entry, and the joiner must not wait for it either (the serving
+    // peer only serves past a gap once it is stalled on it, so a gap that a nack can still repair is served from before it).
+    // Only presses at or before `tick` count: a press appended for a later tick travels in the replayed entries and must not be refused as reused.
+    let seq = Math.max(this.baseSeq, this.prunedSeq), gesture = this.baseGesture;
     for (const entry of this.entries.values()) {
-      if (entry[0] > this.contiguous) continue;
-      if (entry[1] > tick) seq = Math.min(seq, entry[0] - 1);
-      else if (entry[2] === PRESS && entry[3] > gesture) gesture = entry[3];
+      if (entry[1] > tick) continue;
+      seq = Math.max(seq, entry[0]);
+      if (entry[2] === PRESS && entry[3] > gesture) gesture = entry[3];
     }
     return { seq, tick, gesture };
   }
@@ -127,7 +137,9 @@ export class StreamLog {
   /** Entries at or before `tick` can never be re-simulated again. */
   prune(tick: number): void {
     for (const [seq, entry] of this.entries) if (entry[1] <= tick && seq <= this.contiguous) {
+      if (entry[2] === PRESS && entry[3] > this.baseGesture) this.baseGesture = entry[3];
       if (entry[2] === PRESS && entry[3] > this.gestureFloor) this.gestureFloor = entry[3];
+      if (seq > this.prunedSeq) this.prunedSeq = seq;
       this.entries.delete(seq);
     }
   }

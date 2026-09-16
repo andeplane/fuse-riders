@@ -18,6 +18,8 @@ export interface Frame extends ViewSnapshot { matchId: string }
  */
 export class World {
   readonly streams = new Map<string, StreamLog>();
+  /** Streams a newer generation replaced: their entries still apply to folds of their generation when a rollback replays those ticks. */
+  private retired = new Map<string, StreamLog[]>();
   private snapshots = new Map<number, RoomState>();
   private frames: Frame[] = [];
   private emitted = new Set<string>();
@@ -31,13 +33,19 @@ export class World {
   stream(id: string, generation: number, base?: { seq: number; tick: number; gesture?: number }): StreamLog {
     const existing = this.streams.get(id);
     if (existing && existing.generation === generation) return existing;
+    if (existing) this.retired.set(id, [...(this.retired.get(id) ?? []).filter(old => old.generation !== generation), existing]);
     const stream = new StreamLog(generation, base ?? { seq: 0, tick: 0 });
     this.streams.set(id, stream); return stream;
   }
   private frame(state: RoomState): Frame { return { ...toSnapshot(state.game), tick: state.game.tick, round: state.game.round, matchId: state.game.matchId }; }
-  private entriesAt(tick: number): Map<string, StreamEntries> {
+  /** Each member's entries at `tick` from the stream whose generation the fold holds at that point of the replay, else the current one. */
+  private entriesAt(tick: number, state: RoomState): Map<string, StreamEntries> {
     const streams = new Map<string, StreamEntries>();
-    for (const [id, stream] of this.streams) streams.set(id, { generation: stream.generation, entries: stream.entriesAt(tick) });
+    for (const [id, current] of this.streams) {
+      const wanted = state.folds.get(id)?.generation, retired = wanted === undefined || wanted === current.generation ? undefined : this.retired.get(id)?.find(old => old.generation === wanted);
+      const stream = retired ?? current;
+      streams.set(id, { generation: stream.generation, entries: stream.entriesAt(tick) });
+    }
     return streams;
   }
   /** Entries in the applicable log that disconnect `id` after the current tick: the stall rule may not wait past them. */
@@ -100,7 +108,7 @@ export class World {
   private simulate(state: RoomState, target: number, events: WorldEvent[]): void {
     while (state.game.tick < target) {
       const tick = state.game.tick + 1, matchId = state.game.matchId, round = state.game.round;
-      const produced = applyTick(state, this.creatorId, this.entriesAt(tick), this.bots);
+      const produced = applyTick(state, this.creatorId, this.entriesAt(tick, state), this.bots);
       produced.forEach((event, index) => { const key = `${matchId}:${round}:${tick}:${index}`; if (this.emitted.has(key)) return; this.emitted.add(key); events.push({ tick, round, matchId, event }); });
       if (tick % SNAPSHOT_INTERVAL === 0) this.snapshots.set(tick, structuredClone(state));
       if (target - tick <= 1) { this.frames.unshift(this.frame(state)); if (this.frames.length > 2) this.frames.length = 2; }
@@ -113,6 +121,8 @@ export class World {
     while (ticks.length > SNAPSHOTS_RETAINED) this.snapshots.delete(ticks.shift()!);
     const oldest = ticks[0] ?? this.tick;
     for (const stream of this.streams.values()) stream.prune(oldest);
+    // A retired stream is history once nothing it holds can be replayed again.
+    for (const [id, olds] of this.retired) { const kept = olds.filter(old => old.latestTick() > oldest); if (kept.length) this.retired.set(id, kept); else this.retired.delete(id); }
     for (const key of this.emitted) if (Number(key.split(':').at(-2)) <= oldest) this.emitted.delete(key);
   }
   get oldestSnapshotTick(): number { return Math.min(...this.snapshots.keys()); }
@@ -121,7 +131,7 @@ export class World {
     let complete = Infinity;
     for (const player of this.state.game.players.values()) {
       if (!player.connected || this.state.bots.has(player.id)) continue;
-      const stream = this.streams.get(player.id); complete = Math.min(complete, stream ? stream.completeThrough() : -1);
+      const stream = this.streams.get(player.id); complete = Math.min(complete, stream ? stream.confirmedThrough() : -1);
     }
     return complete;
   }
@@ -140,6 +150,6 @@ export class World {
   hashAt(tick: number): string | undefined { const state = this.snapshots.get(tick); return state ? hashRoomState(state) : undefined; }
   /** Replace the world wholesale from a validated snapshot; the caller re-creates streams from its metadata. */
   install(state: RoomState): void {
-    this.state = state; this.snapshots = new Map([[state.game.tick, structuredClone(state)]]); this.frames = [this.frame(state)]; this.emitted.clear(); this.streams.clear();
+    this.state = state; this.snapshots = new Map([[state.game.tick, structuredClone(state)]]); this.frames = [this.frame(state)]; this.emitted.clear(); this.streams.clear(); this.retired.clear();
   }
 }

@@ -50,8 +50,10 @@ interface Member { generation: number; snapshotServedAt: number; lastPacketAt: n
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
 export const SNAPSHOT_BUFFER_LIMIT = 4_000_000, STALLED_GAP_MS = 1500, SNAPSHOT_SERVE_MS = 500;
 export const HASH_INTERVAL = 20, HASH_LAG = 40, CATCHUP_TICKS = 8, BEHIND_TICKS = 400, NACK_INTERVAL_MS = 100, DIVERGENCE_WINDOW_MS = 60_000, DIVERGENCE_LIMIT = 3, FRESH_WORLD_WAIT_MS = 3000;
+/** A page's generation: 100 ms units since 2020-09-13, so two loads of the same page never share one (the previous whole-second value collided on quick reloads); wraps in 2034. */
+export const pageGeneration = (nowMs = Date.now()): number => Math.floor((nowMs - 1_600_000_000_000) / 100) >>> 0;
 const browserDependencies: RuntimeDependencies = {
-  now: () => performance.now(), hidden: () => document.hidden, token: uuid, generation: () => Math.floor(Date.now() / 1000) >>> 0,
+  now: () => performance.now(), hidden: () => document.hidden, token: uuid, generation: () => pageGeneration(),
   schedule: (callback, ms) => { const timer = setInterval(callback, ms); return () => clearInterval(timer); },
   onVisibilityChange: callback => { document.addEventListener('visibilitychange', callback); return () => document.removeEventListener('visibilitychange', callback); },
 };
@@ -73,7 +75,8 @@ export class RoomRuntime {
   private hostId = '';
   private room = 0;
   private welcomeAt = -Infinity;
-  private noWorld = new Set<string>();
+  /** Peers that answered a snapshot request with `noWorld`, and when: an answer older than the retry interval is asked again. */
+  private noWorld = new Map<string, number>();
   private held = { flags: -1, aim: undefined as [number, number] | undefined, aimTick: -1, active: 0, latest: 0 };
   private lastOwnTick = 0;
   private lastPacketTick = -1;
@@ -168,7 +171,7 @@ export class RoomRuntime {
         const now = this.deps.now(); if (now - member.snapshotServedAt < SNAPSHOT_SERVE_MS) return; member.snapshotServedAt = now;
         if (this.world) { for (const chunk of encodeSnapshot(this.world, this.room)) if (!this.transport!.send(id, chunk, SNAPSHOT_BUFFER_LIMIT)) break; } else this.transport!.send(id, { type: 'noWorld' }); return;
       }
-      case 'noWorld': this.noWorld.add(id); return;
+      case 'noWorld': this.noWorld.set(id, this.deps.now()); if (this.snapshotRequest?.to === id) { this.snapshotRequest = undefined; this.assembler = undefined; } return;
       case 'snapshot': this.acceptSnapshotChunk(id, raw); return;
       case 'error': if (typeof data.error === 'string') this.status.notice(data.error.slice(0, 120)); return;
       default: return;
@@ -225,9 +228,11 @@ export class RoomRuntime {
     this.status.recurring(this.solo ? 'Solo · you and four AI riders' : 'Connected · direct game link');
     if (this.pendingJoin) this.sendJoin();
   }
+  private saidNoWorld(id: string): boolean { return this.deps.now() - (this.noWorld.get(id) ?? -Infinity) < SNAPSHOT_RETRY_MS; }
   private requestSnapshot(preferred?: string): void {
     if (!this.transport) return;
-    const linked = [...this.members.keys()].filter(id => this.transport!.linked(id)).sort();
+    const all = [...this.members.keys()].filter(id => this.transport!.linked(id)).sort(), holders = all.filter(id => !this.saidNoWorld(id));
+    const linked = holders.length ? holders : all;
     if (!linked.length) return;
     const authority = this.authority();
     const previous = this.snapshotRequest?.to, next = linked[(linked.indexOf(previous ?? '') + 1) % linked.length]!;
@@ -447,13 +452,13 @@ export class RoomRuntime {
     if (this.transport && this.id === '') return;
     for (const [id, member] of this.members) this.greet(id, member);
     if (this.needsWorld()) {
-      if (!this.snapshotRequest && !this.creator) this.requestSnapshot();
+      if (!this.snapshotRequest && !this.creator && [...this.members.keys()].some(id => this.transport!.linked(id) && !this.saidNoWorld(id))) this.requestSnapshot();
       if (this.creator && this.transport && !this.snapshotRequest) {
         // A fresh world is opened only when nobody can have one: the room is empty, or every linked member answered
         // that it holds none. A returning creator with peers waits for their snapshot however long the links take;
         // opening a lobby on a timer would let the authority serve that lobby over the match its peers are playing.
         const linked = [...this.members.keys()].filter(id => this.transport!.linked(id));
-        const nobodyHasIt = linked.length > 0 && linked.every(id => this.noWorld.has(id));
+        const nobodyHasIt = linked.length > 0 && linked.every(id => this.saidNoWorld(id));
         if (this.members.size === 0 || nobodyHasIt) { this.createWorld(this.settings); this.publish(); }
         else if (now - this.welcomeAt > FRESH_WORLD_WAIT_MS) this.status.recurring(`Recovering the room from ${linked.length ? 'a rider' : 'the riders'} — ${this.transport.explain([...this.members.keys()].sort()[0]!)}`);
       }

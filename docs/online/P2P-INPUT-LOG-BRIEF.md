@@ -267,3 +267,11 @@ An adversarial review of the pull request found six defects, all reproduced in t
 - Delegation only covered the creator's own absence: the acting creator now carries every duty, and succession skips riders that dropped with the creator (rule above).
 - A snapshot was served at the speculative tick, so a requester's own entries still in flight were lost from the replay: a peer serves the newest retained state no later than its complete tick, unless it is itself stalled on a gap nobody can repair.
 - Snapshot requests are answered at most once per peer per half second.
+
+A second review reproduced five more, all fixed with regression tests:
+
+- A rider's replaced stream (new generation after a reload) discarded its old entries while retained snapshots still needed them, so a rollback across the replacement replayed without them: the world keeps retired streams until nothing they hold can be replayed, and a replay uses the stream whose generation the fold holds at that tick.
+- A snapshot base carried the newest appended gesture even when that press was after the snapshot tick, so the joiner refused the replayed press as reused: the base counts only presses at or before its tick, plus pruned ones.
+- A creator and a joiner connecting together both asked each other for a world; a `noWorld` answer left the request pending, so the creator never opened a fresh world: `noWorld` completes the request, a peer that answered it is not asked again for two seconds, and the empty-room decision runs.
+- Completeness was claimed up to the first entry waiting behind a gap although the missing entry could sit anywhere before it: hashes, snapshot serving and the divergence check use the confirmed contiguous history (`confirmedThrough`), and a snapshot served past a gap the peer is stalled on folds the waiting entries by absence so the joiner does not inherit an unrepairable gap.
+- Page generations were whole seconds, so two reloads within a second shared one and peers rejected the restarted stream: generations are 100 ms units since 2020-09-13.

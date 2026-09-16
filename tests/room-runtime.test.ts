@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FakeNetwork, type NetworkOptions } from './fixtures/fake-room.js';
-import { RoomRuntime, CREATOR_SILENCE_MS, DISCONNECT_MS, SNAPSHOT_RETRY_MS, SNAPSHOT_SERVE_MS } from '../src/online/room-runtime.js';
+import { RoomRuntime, CREATOR_SILENCE_MS, DISCONNECT_MS, SNAPSHOT_RETRY_MS, SNAPSHOT_SERVE_MS, pageGeneration } from '../src/online/room-runtime.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { COUNTDOWN_TICKS } from '../src/shared/game.js';
 import { roomHash, packMessage } from '../src/online/packet.js';
@@ -300,4 +300,20 @@ test('an undecodable snapshot waits for the retry timer instead of asking again 
   net.step(SNAPSHOT_RETRY_MS - 200); assert.equal(requests(), 1, 'no new request inside the retry window');
   net.step(400); assert.equal(requests(), 2, 'one retry after the window');
   host.stop(); guest.stop();
+});
+
+test('a creator and a joiner that connect at the same moment open one fresh world: a noWorld answer completes the request', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); const guest = join(GUESTS[0]!, 'Guest'); net.step(3500);
+  assert.deepEqual(net.frame(HOST)?.players.map(p => p.name).sort(), ['Guest', 'Host'], 'the creator opened a lobby and seated the joiner');
+  assert.deepEqual(net.frame(GUESTS[0]!)?.players.map(p => p.name).sort(), ['Guest', 'Host'], 'the joiner got the world');
+  assert.ok(net.frame(HOST)!.tick > 20, 'the room is ticking'); assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  assert.ok(!net.recorded.get(HOST)!.statuses.some(text => /reload/.test(text)), 'no reload warning');
+  host.stop(); guest.stop();
+});
+
+test('page generations differ for loads a tenth of a second apart and fit the packet field', () => {
+  const at = Date.parse('2026-09-16T00:00:00Z');
+  assert.notEqual(pageGeneration(at), pageGeneration(at + 100)); assert.ok(pageGeneration(at + 100) > pageGeneration(at));
+  assert.ok(Number.isInteger(pageGeneration(at)) && pageGeneration(at) < 2 ** 32);
 });

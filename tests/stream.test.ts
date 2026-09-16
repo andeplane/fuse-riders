@@ -76,5 +76,23 @@ test('snapshot bases exclude entries after the snapshot tick and replay everythi
   remote.receive([e(1, 10, PRESS, 1), e(2, 12, RELEASE, 1), e(3, 14, PRESS, 2), e(5, 16, STEER, 1)], 5, 16, 20, 20);
   assert.deepEqual(remote.baseAt(13), { seq: 2, tick: 13, gesture: 1 });
   assert.deepEqual(remote.entriesAfter(2).map(entry => entry[0]), [3, 5]);
-  remote.prune(12); assert.deepEqual(remote.baseAt(13), { seq: 2, tick: 13, gesture: 1 }); assert.deepEqual(remote.baseAt(20), { seq: 3, tick: 20, gesture: 2 });
+  remote.prune(12); assert.deepEqual(remote.baseAt(13), { seq: 2, tick: 13, gesture: 1 });
+  assert.deepEqual(remote.baseAt(20), { seq: 5, tick: 20, gesture: 2 }, 'a base past the gap folds the waiting entry by absence: the served world never applied seq 4 or 5');
+});
+
+test('a snapshot base at an earlier tick excludes presses appended for later ticks, and pruned presses raise it', () => {
+  const own = new StreamLog(1); own.append(60, [STEER, 1]); own.append(76, [PRESS, 1]); own.append(77, [RELEASE, 1]);
+  assert.deepEqual(own.baseAt(64), { seq: 1, tick: 64, gesture: 0 }, 'the press at 76 is after the base');
+  assert.equal(own.baseAt(76).gesture, 1);
+  const replica = new StreamLog(1, own.baseAt(64));
+  assert.equal(replica.receive(own.entriesAfter(1, 64), 3, 80, 80, 64).status, 'accepted', 'the replayed press is not a reused gesture');
+  own.through = 80; own.prune(76); assert.equal(own.baseAt(78).gesture, 1, 'a pruned press still counts for later bases');
+});
+
+test('confirmed completeness stops at the last contiguous entry when a gap hides where the missing entry belongs', () => {
+  const remote = new StreamLog(1); assert.equal(remote.receive([e(1, 50, STEER, 1)], 1, 60, 60, 60).status, 'accepted');
+  assert.equal(remote.receive([e(3, 80, STEER, 0)], 3, 90, 90, 90).status, 'accepted');
+  assert.equal(remote.completeThrough(), 79, 'the stall rule may still run up to the buffered entry');
+  assert.equal(remote.confirmedThrough(), 50, 'but nothing past the last contiguous entry is final: seq 2 may sit anywhere from 50 to 80');
+  assert.equal(remote.receive([e(2, 70, STEER, 2)], 3, 90, 90, 90).status, 'accepted'); assert.equal(remote.confirmedThrough(), 90);
 });

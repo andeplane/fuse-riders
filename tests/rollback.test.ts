@@ -128,3 +128,24 @@ test('six replicas on a deterministic lossy, reordering network agree on every r
   assert.equal([...replicas.values()].every(w => w.stallBound().tick < Infinity), true, 'every replica bounds itself on the other riders');
   assert.equal(new StreamLog(1).retained().length, 0);
 });
+
+import { COUNTDOWN_TICKS as COUNTDOWN } from '../src/shared/game.js';
+import { PRESENCE as PRESENCE_KIND } from '../src/shared/input-log.js';
+test('a rider\'s replaced stream keeps its history: a rollback across the replacement replays the old generation\'s inputs', () => {
+  const build = (lateFirst: boolean) => {
+    const w = new World(createRoomState('m', defaultRoomSettings()), 'creator', 'creator');
+    const creator = w.stream('creator', 1), guest = w.stream('guest', 1); w.stream('other', 1);
+    creator.append(1, [JOIN, 'creator', 'Creator', 0, 'fox', 1]); creator.append(1, [JOIN, 'guest', 'Guest', 1, 'cat', 1]); creator.append(1, [JOIN, 'other', 'Other', 2, 'robot', 1]); creator.append(2, [ACTION, 'start', 'm']);
+    const start = COUNTDOWN + 10;
+    for (let tick = start; tick < start + 30; tick++) guest.append(tick, [STEER, tick % 2 ? 1 : 2]);
+    if (lateFirst) w.receive('other', [[1, start + 20, STEER, 1] as Entry], 1, start + 20, start + 20);
+    for (const stream of w.streams.values()) stream.through = start + 60;
+    w.advance(start + 30);
+    const replaced = w.stream('guest', 2, { seq: 0, tick: start + 30 }); creator.append(start + 31, [PRESENCE_KIND, 'guest', true, 2]); replaced.through = start + 60;
+    for (let tick = start + 32; tick < start + 40; tick++) replaced.append(tick, [STEER, 1]);
+    w.advance(start + 40);
+    if (!lateFirst) { const result = w.receive('other', [[1, start + 20, STEER, 1] as Entry], 1, start + 60, start + 40); assert.ok(result.rollbackTicks > 0, 'the late entry rolled the world back across the replacement'); }
+    return w;
+  };
+  assert.equal(hashRoomState(build(false).state), hashRoomState(build(true).state), 'replaying with the old generation\'s entries gives the same world as never having rolled back');
+});
