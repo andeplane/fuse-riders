@@ -34,7 +34,12 @@ for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const
  const calloutSelectors=await page.evaluate(async()=>(await Promise.all([...document.styleSheets].flatMap(sheet=>sheet.href?[fetch(sheet.href).then(r=>r.text())]:[]))).join('\n').match(/[^{}]+\{[^{}]*-webkit-touch-callout:\s*none[^{}]*\}/g)?.flatMap(rule=>rule.slice(0,rule.indexOf('{')).split(',').map(sel=>sel.trim()))??[]);
  const noSelect=await page.locator('.online-controls>button,.mobile-control-hints span,.mobile-rotate-gate,.mobile-tools-toggle,.online-notice').evaluateAll((elements,selectors)=>elements.map(e=>{const s=getComputedStyle(e);return{userSelect:s.userSelect,webkitUserSelect:s.webkitUserSelect,touchAction:s.touchAction,touchCallout:selectors.some(sel=>e.matches(sel))?'none':'missing'};}),calloutSelectors);
  assert.equal(noSelect.length,9);for(const style of noSelect)assert.deepEqual(style,{userSelect:'none',webkitUserSelect:'none',touchAction:'none',touchCallout:'none'});
- await page.waitForTimeout(3100);assert.equal(await hintsOpacity(),0);
+ // The fade restarts on every entry into countdown and playing, because mobile-play-layout removes and re-appends
+ // the element, so across an ~11s round cycle the opacity is 1 for about two seconds after each restart and
+ // non-zero for over half of it. Sampling once lands wherever the round clock happens to be -- and sleeping longer
+ // makes that worse, not better. Poll for the fade instead: where in the cycle it starts stops mattering, and the
+ // wait fails loudly if the hints never disappear.
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.mobile-control-hints')!).opacity==='0',undefined,{timeout:smokeTimeout(10000)});
  await page.screenshot({path:`artifacts/mobile-landscape-faded-${name}.png`});await press(page,100,200);await page.setViewportSize({width:390,height:844});await page.locator('.mobile-rotate-gate').waitFor({state:'visible'});assert.equal(await page.locator('.online-controls button.active').count(),0);await page.mouse.up();
  // The tools overlay closes by design whenever a solo round enters countdown/play (mobile-play-layout.ts), which can
  // happen between opening it and clicking a button inside it; reopen and retry instead of racing the round clock.
