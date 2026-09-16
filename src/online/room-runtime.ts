@@ -151,20 +151,23 @@ export class RoomRuntime {
   }
   private greet(id: string, member: Member): void {
     if (member.helloed || !this.transport!.linked(id)) return;
-    member.helloed = this.transport!.send(id, { type: 'hello', generation: this.generation, full: this.full, rules: RULES });
+    member.helloed = this.transport!.send(id, { type: 'hello', generation: this.generation, full: this.full, rules: RULES, world: this.world !== undefined });
     if (!member.helloed) return;
     if (this.needsWorld() && !this.snapshotRequest) this.requestSnapshot(id);
     if (this.pendingJoin && id === this.managerId()) this.sendJoin();
   }
   private message(id: string, raw: unknown): void {
     if (!raw || typeof raw !== 'object') return;
-    const data = raw as { type?: unknown; generation?: unknown; full?: unknown; rules?: unknown; name?: unknown; avatarId?: unknown; error?: unknown };
+    const data = raw as { type?: unknown; generation?: unknown; full?: unknown; rules?: unknown; name?: unknown; avatarId?: unknown; error?: unknown; world?: unknown };
     const member = this.members.get(id); if (!member) return;
     switch (data.type) {
       case 'hello':
         if (data.rules !== RULES) { this.status.notice('A rider is on a different game version — everyone should reload'); return; }
         if (typeof data.generation === 'number' && Number.isSafeInteger(data.generation) && data.generation >= 0) this.bump(id, member, data.generation);
-        member.full = data.full === true; return;
+        member.full = data.full === true;
+        // A peer announcing a world is worth asking again, whatever it answered before.
+        if (data.world === true) this.noWorld.delete(id);
+        return;
       case 'join': if (this.manager && typeof data.name === 'string') { const error = this.join(id, data.name, isAvatarId(data.avatarId) ? data.avatarId : undefined); if (error) this.transport!.send(id, { type: 'error', error }); } return;
       case 'snapshotRequest': {
         // One snapshot per peer per half second: a requester retries on its own timer, so a storm of requests cannot make this replica encode and queue megabytes.
@@ -226,6 +229,8 @@ export class RoomRuntime {
     this.world.stream(this.id, this.generation);
     this.clock.start(0); this.lastOwnTick = 0; this.resetHeld();
     this.status.recurring(this.solo ? 'Solo · you and four AI riders' : 'Connected · direct game link');
+    // Peers that asked while there was nothing to serve re-hear a hello that now announces a world.
+    for (const member of this.members.values()) member.helloed = false;
     if (this.pendingJoin) this.sendJoin();
   }
   private saidNoWorld(id: string): boolean { return this.deps.now() - (this.noWorld.get(id) ?? -Infinity) < SNAPSHOT_RETRY_MS; }
@@ -452,7 +457,8 @@ export class RoomRuntime {
     if (this.transport && this.id === '') return;
     for (const [id, member] of this.members) this.greet(id, member);
     if (this.needsWorld()) {
-      if (!this.snapshotRequest && !this.creator && [...this.members.keys()].some(id => this.transport!.linked(id) && !this.saidNoWorld(id))) this.requestSnapshot();
+      // Creator included: a room whose members all connected together has no world anywhere until every linked peer has said so.
+      if (!this.snapshotRequest && [...this.members.keys()].some(id => this.transport!.linked(id) && !this.saidNoWorld(id))) this.requestSnapshot();
       if (this.creator && this.transport && !this.snapshotRequest) {
         // A fresh world is opened only when nobody can have one: the room is empty, or every linked member answered
         // that it holds none. A returning creator with peers waits for their snapshot however long the links take;

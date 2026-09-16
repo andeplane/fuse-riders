@@ -317,3 +317,11 @@ test('page generations differ for loads a tenth of a second apart and fit the pa
   assert.notEqual(pageGeneration(at), pageGeneration(at + 100)); assert.ok(pageGeneration(at + 100) > pageGeneration(at));
   assert.ok(Number.isInteger(pageGeneration(at)) && pageGeneration(at) < 2 ** 32);
 });
+
+test('a creator and four joiners that all connect at once open one world and everyone is seated within three seconds', () => {
+  const { net, join } = room();
+  const all = [HOST, ...GUESTS], runtimes = all.map(id => join(id, id)); net.step(3000);
+  for (const id of all) assert.deepEqual(net.frame(id)?.players.map(p => p.id).sort(), [...all].sort(), `${id} sees every rider`);
+  assert.equal(hashes(net, all).size, 1); assert.ok(!net.recorded.get(HOST)!.statuses.some(text => /reload/.test(text)));
+  for (const runtime of runtimes) runtime.stop();
+});
