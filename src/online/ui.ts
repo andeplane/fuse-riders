@@ -17,7 +17,10 @@ import { defaultRoomSettings, loadRoomSettings, parseRoomSettings, SETTINGS_KEY,
 import type { PickupType } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
-import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import type { Moment } from '../shared/moments.js';
+import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import { ReplayDirector, describeClip } from '../client/replay.js';
+import { createReplayOverlay } from '../client/replay-overlay.js';
 import { RoomRuntime, type Callbacks } from './room-runtime.js';
 import { PeerTransport } from './peer-transport.js';
 import { NetStats } from './net-stats.js';
@@ -145,6 +148,8 @@ export async function startOnline():Promise<void>{
   const paintStyleButton=()=>{styleButton.textContent=theme.label.toUpperCase();styleButton.title='Switch the arena visual style';styleButton.setAttribute('aria-label',`Visual style: ${theme.label}. Switch.`);};
   paintStyleButton();
   styleButton.onclick=()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();};
+  // Instant replay (ADR 044): presentation only. A controller-only phone has no arena and records nothing.
+  const replay=new ReplayDirector(),replayOverlay=createReplayOverlay();document.body.append(replayOverlay.element);let replayKey='',reopenRecap=false;
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
@@ -210,19 +215,22 @@ export async function startOnline():Promise<void>{
   const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
   const audio=createGameAudio('Game',{background:true,toggleRadio:()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */}});audioButton.onclick=openRadio;
   audio.bindMusicToggle(musicButton); // The same ♫ MUSIC ON / OFF toggle as the landing page, next to the same ♫ RADIO button.
-  /** Podium, totals, awards and rider comparison built from the authoritative match statistics. */
-  const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>)=>{
-    const recap=buildMatchRecap(stats);const root=node('section','','match-recap-report');
+  /** Podium, totals, highlight reel, awards and rider comparison built from the authoritative match statistics and moments. */
+  const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>,moments:ReadonlyArray<Moment>)=>{
+    const recap=buildMatchRecap(stats,moments);const root=node('section','','match-recap-report');
     const heading=node('header','','recap-heading'),copy=node('div');copy.append(node('p',RECAP_KICKER,'kicker'),node('h2',RECAP_TITLE));heading.append(copy);root.append(heading);
     if(!recap.comparison.length){root.append(node('p',RECAP_EMPTY_MESSAGE,'recap-empty'));return root;}
     const podium=node('div','','recap-podium');for(const entry of recap.podium){const card=node('article','',`podium-card podium-place-${entry.placement}`);card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.placeLabel,'podium-place'),node('strong',entry.name),node('small',entry.winsLabel));podium.append(card);}
     const totals=node('div','','recap-totals');for(const total of recap.totals){const cell=node('div','','recap-total');cell.append(node('strong',total.value),node('small',total.label));totals.append(cell);}
+    const reel=node('div','','recap-highlights');reel.append(node('p',HIGHLIGHTS_TITLE,'reel-title'));for(const entry of recap.highlights){const card=node('article','','award-card highlight-card');card.style.setProperty('--player-color',entry.color);card.append(node('span',entry.icon,'award-icon'),node('small',entry.when),node('strong',entry.title),node('em',entry.copy));
+      const clip=replay.recorder.clip(entry.key);if(clip&&!canvas.hidden){const watch=node('button','▶ WATCH','watch-again');watch.type='button';watch.title='Replay this moment';watch.onclick=()=>{audio.unlock();reopenRecap=true;dialog.close();replay.play(clip,performance.now());};card.append(watch);}
+      reel.append(card);}
     const awards=node('div','','recap-awards');for(const award of recap.awards){const card=node('article','','award-card');card.append(node('span',award.icon,'award-icon'),node('small',award.title),node('strong',award.winnerText),node('em',award.detail));awards.append(card);}
     const comparison=node('div','','recap-comparison');comparison.append(node('p',COMPARISON_KEY,'comparison-key'));const columns=node('div','','comparison-row comparison-header');for(const label of ['RIDER',...COMPARISON_COLUMNS.map(column=>column.label)])columns.append(node('span',label));comparison.append(columns);
     for(const entry of recap.comparison){const row=node('div','','comparison-row');row.style.setProperty('--player-color',entry.color);const rider=node('span','','comparison-rider'),riderCopy=node('span');riderCopy.append(node('b',entry.riderLabel),node('small',entry.riderNote));rider.append(node('i'),riderCopy);row.append(rider);for(const column of COMPARISON_COLUMNS)row.append(node(column.key==='wins'?'strong':'span',entry[column.key],column.key==='pickups'?'pickup-counts':column.key==='deaths'?'death-counts':''));comparison.append(row);}
-    root.append(podium,totals);if(recap.awards.length)root.append(awards);root.append(comparison);return root;
+    root.append(podium,totals);if(recap.highlights.length)root.append(reel);if(recap.awards.length)root.append(awards);root.append(comparison);return root;
   };
-  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;dialog.showModal();dialogBody.scrollTop=0;};
+  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats,snapshot.moments));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;dialog.showModal();dialogBody.scrollTop=0;};
   results.onclick=()=>{track('Recap Reopened');openRecap();};
   const callbacks:Callbacks={
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
@@ -230,8 +238,8 @@ export async function startOnline():Promise<void>{
     status:text=>{if(status.textContent!==text)telemetry.log('status',{text});status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
     // An ended room is no longer joined play (#44): the thirds controller gives way to the ordinary header so the status
     // reads without opening ☰ MENU. `controller-only` is only ever recomputed from a state update, and none arrives after the end.
-    ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
-    event:(event,matchId,round,tick)=>{audio.director.message({type:'event',matchId,round,tick,event});sample({kind:'event',at:performance.now(),event,matchId,round,tick});telemetry.log('event',{type:event.type,matchId,round,tick});},
+    ended:()=>{bootDone();roomEnded=true;replay.cancel();replayOverlay.stop(canvas);app.classList.remove('replaying');replayKey='';reopenRecap=false;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
+    event:(event,matchId,round,tick)=>{audio.director.message({type:'event',matchId,round,tick,event});sample({kind:'event',at:performance.now(),event,matchId,round,tick});telemetry.log('event',{type:event.type,matchId,round,tick});if(event.type==='moment')replay.moment(event.moment,matchId,round);},
     state:(state,rules)=>{
       if(roomEnded)return;
       bootDone();
@@ -240,7 +248,7 @@ export async function startOnline():Promise<void>{
       if(startKey&&startedMatch!==startKey){startedMatch=startKey;matchStartedAt=Date.now();matchNumber+=1;track('Match Started',{matchNumber,playerCount:state.players.length,botCount:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length,mode:rules.mode,match:rules.match,matchLength:rules.length,powerupTypes:Object.values(rules.weights??{}).filter(weight=>weight>0).length,host:isHost});}
       const matchId=state.matchId;snapshot=state;renderScope=`${matchId}:${state.round}`;
       if(pendingSettings&&(JSON.stringify(rules)!==pendingSettings.before||performance.now()-pendingSettings.at>1000))pendingSettings=undefined;settings=pendingSettings?.draft??rules;
-      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.heldControls(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,metrics:runtime.metrics()});
+      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,phaseEndsAtTick:state.phaseEndsAtTick,playerId:id,heldMotion:runtime.heldControls(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,metrics:runtime.metrics()});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
@@ -258,7 +266,7 @@ export async function startOnline():Promise<void>{
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
-      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;styleButton.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
+      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;if(!canvas.hidden)replay.observe(state,state.matchId,performance.now());styleButton.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
       if(state.phase==='countdown'&&joined&&!keyHintShown&&app.classList.contains('desktop-game')){keyHintShown=true;keyHint.hidden=false;}
       // Opened after the layout above so the close button can say where it lands.
       if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();
@@ -334,6 +342,19 @@ export async function startOnline():Promise<void>{
     app.dataset.metrics=JSON.stringify({...connection,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),...metrics});
     return runtime.transport instanceof PeerTransport?runtime.transport.diagnostics():undefined;
   }).then(report=>{if(report)app.dataset.linkDiagnostics=formatLinkDiagnostics(report.links,report.ice,report.socket);});},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.view();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,renderScope);if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  /** A running replay takes over the arena: its clip renders under a scope of its own, the overlay dresses it, and live play returns on `done`. */
+  function replayFrame(now:number,predicted:ViewSnapshot|undefined):boolean{
+    const update=replay.frame(now);if(!update)return false;
+    // The arena left the screen under a replay (MAIN MENU, a controller-only seat): take the dressing down and forget the clip.
+    if(canvas.hidden){replay.cancel();replay.frame(now);replayOverlay.stop(canvas);app.classList.remove('replaying');replayKey='';reopenRecap=false;return false;}
+    if(update.clip.key!==replayKey){replayKey=update.clip.key;const {card,color}=describeClip(update.clip);replayOverlay.start(card,color);}
+    app.classList.toggle('replaying',update.stage!=='hold'&&update.stage!=='done');
+    for(const cue of update.cues)audio.director.replayCue(cue);
+    const shown=update.snapshot??predicted;
+    if(shown){presentation.render(shown,now,theme,update.snapshot?`${renderScope}:replay:${update.clip.key}`:renderScope);replayOverlay.update(update,canvas,{width:shown.width,height:shown.height});}
+    if(update.stage==='done'){replayKey='';if(reopenRecap){reopenRecap=false;if(snapshot?.phase==='matchOver')openRecap();}}
+    return true;
+  }
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.view();if(replayFrame(now,predicted)){requestAnimationFrame(frame);return;}if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,renderScope);if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }

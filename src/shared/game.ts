@@ -51,6 +51,7 @@ import {
   createVolleyFlightPaths,
   type LaunchBounds,
 } from './launch-modifiers.js';
+import { detectMoments, roundHasMoment, DODGE_LOOKBACK_TICKS, REPLAY_PAUSE_TICKS, type Moment, type TickObservations } from './moments.js';
 
 export type { BlastCircle, BombAction, GameEvent, GameSnapshot, PlayerId, TrailSegment } from './protocol.js';
 
@@ -171,7 +172,8 @@ export interface BombState {
   flightPath: FlightPoint[];
   placedTick: number;
   explodeAtTick: number;
-  blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean };
+  /** `bounces` counts a shell's wall and trail reflections since launch; a gun bullet never bounces and never carries it. */
+  blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
 }
 
 export interface GravityField {
@@ -225,6 +227,8 @@ export interface GameState {
   roundPlacements: RoundPlacement[];
   roundScored: boolean;
   matchStats: MatchStatsState;
+  /** Highlight moments of the match, bounded per kind and cleared with `matchStats` (ADR 043). */
+  moments: Moment[];
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -279,6 +283,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     roundPlacements: [],
     roundScored: false,
     matchStats: new Map(),
+    moments: [],
   };
 }
 
@@ -386,6 +391,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
   state.seed = hashSeed(newMatchId);
   state.randomState = state.seed;
   state.matchStats = new Map();
+  state.moments = [];
   state.round = 1;
   for (const player of state.players.values()) player.roundWins = 0;
   prepareRound(state);
@@ -489,15 +495,31 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       shellPaths.set(bomb.id, [from, to]); bomb.x = to.x; bomb.y = to.y;
       bomb.shell = { ...velocity, gun: true }; continue;
     }
-    const motion = { x: bomb.x, y: bomb.y, ...bomb.shell };
+    const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx, vy: bomb.shell.vy, bounces: bomb.shell.bounces ?? 0 };
     shellPaths.set(bomb.id, advanceShell(motion, { left: state.boundaryInset + SHELL_RADIUS,
       right: state.width - state.boundaryInset - SHELL_RADIUS, top: state.boundaryInset + SHELL_RADIUS,
       bottom: state.height - state.boundaryInset - SHELL_RADIUS },
       [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6 ? [] : player.trail), TRAIL_WIDTH));
-    bomb.x = motion.x; bomb.y = motion.y; bomb.shell = { vx: motion.vx, vy: motion.vy };
+    bomb.x = motion.x; bomb.y = motion.y; bomb.shell = { vx: motion.vx, vy: motion.vy, ...(motion.bounces ? { bounces: motion.bounces } : {}) };
   }
   // Trails burn away once the sweep below has appended any gun-on-rider blasts (#26).
   const newBlasts = resolveExplosions(state, events);
+
+  // Highlight observations (ADR 043): what the sweep learns about each death, and where every rider was before a blast.
+  const observations: TickObservations = { deaths: [], dodges: [] };
+  const landingHits = new Map<PlayerId, PlayerId>();
+  const shellHits = new Map<PlayerId, { ownerId: PlayerId; bounces: number; age: number }>();
+  const trailHits = new Map<PlayerId, { ownerId: PlayerId; age: number }>();
+  let origins: Map<PlayerId, { x: number; y: number }> | undefined;
+  /** Where each rider stood DODGE_LOOKBACK_TICKS ago, read from its own trail before this tick's blasts burn that segment away. */
+  const captureOrigins = (): void => {
+    if (origins) return;
+    origins = new Map();
+    for (const player of state.players.values()) {
+      const segment = player.trail.find(candidate => candidate.createdTick === state.tick - DODGE_LOOKBACK_TICKS);
+      if (segment) origins.set(player.id, { x: segment.x2, y: segment.y2 });
+    }
+  };
 
   const causes = new Map<PlayerId, EliminationCause>();
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
@@ -510,6 +532,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         if (movement.player.id === bomb.ownerId || isHazardImmune(movement.player, state.tick)) continue;
         if (square(movement.x - bomb.x) + square(movement.y - bomb.y) <= square(RIDER_RADIUS + SHELL_RADIUS)) {
           markCause(causes, causeOwners, movement.player.id, 'explosion', bomb.ownerId);
+          if (!landingHits.has(movement.player.id)) landingHits.set(movement.player.id, bomb.ownerId);
         }
       }
       continue;
@@ -536,6 +559,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     }
     if (hit) {
       markCause(causes, causeOwners, hit.player.id, 'explosion', bomb.ownerId);
+      if (!bomb.shell?.gun && !shellHits.has(hit.player.id)) shellHits.set(hit.player.id, { ownerId: bomb.ownerId, bounces: bomb.shell?.bounces ?? 0, age: state.tick - bomb.launchedTick });
       if (bomb.shell?.gun) {
         detonateGun(bomb, state.tick, hit.oldX + (hit.x - hit.oldX) * hitTime, hit.oldY + (hit.y - hit.oldY) * hitTime);
         newBlasts.push(...resolveExplosions(state, events));
@@ -544,6 +568,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   if (newBlasts.length > 0) {
+    captureOrigins();
     for (const player of state.players.values()) {
       player.trail = player.trail.filter((segment) =>
         !newBlasts.some((blast) => segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)),
@@ -578,6 +603,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
           trail.x1, trail.y1, trail.x2, trail.y2,
         ) <= square(RIDER_RADIUS + TRAIL_WIDTH / 2) + EPSILON) {
           markCause(causes, causeOwners, movement.player.id, 'trail', owner.id);
+          if (!trailHits.has(movement.player.id)) trailHits.set(movement.player.id, { ownerId: owner.id, age: state.tick - trail.createdTick });
           break;
         }
       }
@@ -642,6 +668,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       recordElimination(state, movement.player.id);
       recordDeath(state.matchStats, movement.player.id, cause, soleCreditedOwner(causeOwners, movement.player.id, cause));
       events.push({ type: 'playerEliminated', playerId: movement.player.id, cause });
+      const trailHit = cause === 'trail' ? trailHits.get(movement.player.id) : undefined;
+      const landingHit = landingHits.get(movement.player.id), shellHit = shellHits.get(movement.player.id);
+      observations.deaths.push({
+        victimId: movement.player.id, cause, owners: [...(causeOwners.get(movement.player.id)?.get(cause) ?? [])], x: movement.x, y: movement.y,
+        ...(trailHit ? { trailAge: trailHit.age } : {}), ...(landingHit ? { landingHit } : {}), ...(shellHit ? { shellHit } : {}),
+      });
       continue;
     }
     const transit = transits.get(movement.player.id);
@@ -675,6 +707,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   // Resolve released Target Bombs in this same tick, after every rider has launched.
   const instantBlasts = resolveExplosions(state, events);
   if (instantBlasts.length) {
+    captureOrigins();
     for (const player of state.players.values()) {
       player.trail = player.trail.filter(segment => !instantBlasts.some(blast =>
         segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)));
@@ -687,8 +720,24 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       const owners = new Set(hits.map(blast => blast.ownerId));
       recordDeath(state.matchStats, player.id, 'explosion', owners.size === 1 ? hits[0]!.ownerId : undefined);
       events.push({ type: 'playerEliminated', playerId: player.id, cause: 'explosion' });
+      observations.deaths.push({ victimId: player.id, cause: 'explosion', owners: [...owners], x: player.x, y: player.y });
     }
   }
+  // A dodge is having been inside a blast's radius before it went off and being alive outside it now; the owner's
+  // own retreat and any immune rider do not count. One per rider per tick, against the first such blast in id order.
+  if (origins) {
+    const blasts = [...newBlasts, ...instantBlasts];
+    for (const player of sortedPlayers(state)) {
+      const origin = origins.get(player.id);
+      if (!origin || !player.alive || isHazardImmune(player, state.tick)) continue;
+      for (const blast of blasts) {
+        if (blast.ownerId === player.id || square(origin.x - blast.circle.x) + square(origin.y - blast.circle.y) > square(blast.circle.radius)) continue;
+        observations.dodges.push({ playerId: player.id, ownerId: blast.ownerId, clearance: Math.round(hypot2(player.x - blast.circle.x, player.y - blast.circle.y) - blast.circle.radius - RIDER_RADIUS) });
+        break;
+      }
+    }
+  }
+  for (const moment of detectMoments(state, elapsed, observations)) events.push({ type: 'moment', moment: { ...moment, targetIds: [...moment.targetIds] } });
   resolveRound(state, events, elapsed);
   return { snapshot: toSnapshot(state), events };
 }
@@ -754,6 +803,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
     matchStats: state.phase === 'matchOver' ? snapshotMatchStats(state.matchStats) : [],
+    moments: state.phase === 'matchOver' ? state.moments.map((moment) => ({ ...moment, targetIds: [...moment.targetIds] })) : [],
     ...(state.roundWinnerId === undefined ? {} : { roundWinnerId: state.roundWinnerId }),
     ...(state.matchWinnerId === undefined ? {} : { matchWinnerId: state.matchWinnerId }),
   };
@@ -1196,14 +1246,16 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   if (matchWinnerId !== undefined || fixedEnd) state.matchWinnerId = matchWinnerId;
   scoreRoundOnce(state, placements, winnerId, matchWinnerId);
   events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
+  // A round with a highlight pauses longer so every screen can replay it before the next countdown or the recap (ADR 044).
+  const pause = roundHasMoment(state) ? REPLAY_PAUSE_TICKS : 0;
   if (matchWinnerId !== undefined || fixedEnd) {
     state.phase = 'matchOver';
-    state.phaseEndsAtTick = state.tick + 60;
+    state.phaseEndsAtTick = state.tick + 60 + pause;
     events.push({ type: 'matchEnded', ...(matchWinnerId ? { winnerId: matchWinnerId } : {}) });
     return;
   }
   state.phase = 'roundOver';
-  state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS;
+  state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS + pause;
 }
 
 function recordElimination(state: GameState, playerId: PlayerId): void {
@@ -1295,7 +1347,7 @@ function square(value: number): number {
   return value * value;
 }
 
-function segmentDistanceSquared(
+export function segmentDistanceSquared(
   ax: number, ay: number, bx: number, by: number,
   cx: number, cy: number, dx: number, dy: number,
 ): number {

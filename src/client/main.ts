@@ -10,8 +10,10 @@ import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats } from '.
 import { ControllerInputState } from './controller-state.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
-import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
 import { applyThemeProperties, selectedTheme, storeTheme, themes, type ThemeId } from './themes.js';
+import { ReplayDirector, describeClip } from './replay.js';
+import { createReplayOverlay } from './replay-overlay.js';
 import { POWERUP_GUIDE } from './powerup-guide.js';
 import { createPowerupGuide } from './powerup-guide-view.js';
 import { safeStorage } from './safe-storage.js';
@@ -151,9 +153,10 @@ function startDisplay(): void {
   const recapAction = element('button', 'host-action recap-rematch', 'REMATCH'); recapAction.type = 'button';
   recapHeading.append(recapTitle, recapAction);
   const podium = element('div', 'recap-podium');
+  const highlights = element('div', 'recap-highlights hidden');
   const awards = element('div', 'recap-awards');
   const comparison = element('div', 'recap-comparison');
-  matchRecap.append(recapHeading, podium, awards, comparison);
+  matchRecap.append(recapHeading, podium, highlights, awards, comparison);
   const performanceDisplay = element('output', 'perf-overlay hidden', 'FPS --  RENDER --ms');
   const roundBadge = element('div', 'round-badge', 'ROUND 1');
   stage.append(canvas, lobby, roundBadge, announcement, matchRecap, leaderboardDrawer, performanceDisplay);
@@ -173,6 +176,11 @@ function startDisplay(): void {
   if (!hostToken) connection.textContent = 'HOST LINK REQUIRED';
   let authenticated = false;
   let latest: SnapshotFrame | undefined;
+  // Instant replay (ADR 044): presentation only, fed by the same snapshots and events the display already receives.
+  const replay = new ReplayDirector();
+  const replayOverlay = createReplayOverlay();
+  document.body.append(replayOverlay.element);
+  let replayKey = '';
   const snapshotStream = new SnapshotStream();
   const frames: SnapshotFrame[] = [];
   const handledEvents = new Set<string>();
@@ -251,13 +259,29 @@ function startDisplay(): void {
   }
 
   function renderMatchRecap(snapshot: ScoredSnapshot): void {
-    const recap = buildMatchRecap(snapshot.matchStats ?? []);
+    const recap = buildMatchRecap(snapshot.matchStats ?? [], snapshot.moments ?? []);
     if (recap.signature === recapSignature) return;
     recapSignature = recap.signature;
-    podium.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
+    podium.replaceChildren(); highlights.replaceChildren(); awards.replaceChildren(); comparison.replaceChildren();
+    // The reel is a fifth grid row; the recap grid only makes room for it when it is shown.
+    highlights.classList.toggle('hidden', !recap.highlights.length);
+    matchRecap.classList.toggle('with-reel', recap.highlights.length > 0);
     if (!recap.comparison.length) {
       podium.append(element('p', 'recap-empty', RECAP_EMPTY_MESSAGE));
       return;
+    }
+    if (recap.highlights.length) highlights.append(element('p', 'reel-title', HIGHLIGHTS_TITLE));
+    for (const entry of recap.highlights) {
+      const card = element('article', 'award-card highlight-card');
+      card.style.setProperty('--player-color', escapeColor(entry.color));
+      card.append(element('span', 'award-icon', entry.icon), element('small', '', entry.when), element('strong', '', entry.title), element('em', '', entry.copy));
+      const clip = replay.recorder.clip(entry.key);
+      if (clip) {
+        const watch = element('button', 'watch-again', '▶ WATCH'); watch.type = 'button'; watch.title = 'Replay this moment';
+        watch.addEventListener('click', () => { audio.unlock(); replay.play(clip, performance.now()); if (latest) updateUi(latest.snapshot); });
+        card.append(watch);
+      }
+      highlights.append(card);
     }
     for (const entry of recap.podium) {
       const card = element('article', `podium-card podium-place-${entry.placement}`);
@@ -302,7 +326,7 @@ function startDisplay(): void {
     renderRoster(snapshot);
     lobby.classList.toggle('hidden', snapshot.phase !== 'lobby');
     const finalRoundPause = snapshot.phase === 'matchOver' && snapshot.phaseEndsAtTick !== undefined && snapshot.tick < snapshot.phaseEndsAtTick;
-    matchRecap.classList.toggle('hidden', snapshot.phase !== 'matchOver' || finalRoundPause);
+    matchRecap.classList.toggle('hidden', snapshot.phase !== 'matchOver' || finalRoundPause || replay.active);
     addAIButton.disabled=!authenticated||snapshot.players.length>=5;
     menuButton.disabled = !authenticated || snapshot.phase === 'lobby';
     recapAction.disabled = !authenticated || playerCount < 2;
@@ -381,6 +405,7 @@ function startDisplay(): void {
         if (!latest || latest.matchId !== message.matchId || latest.round !== message.round) frames.length = 0;
         latest = { snapshot: accepted, matchId: message.matchId, round: message.round, receivedAt: performance.now() };
         frames.push(latest); if (frames.length > 5) frames.shift();
+        replay.observe(accepted, message.matchId, performance.now());
         updateUi(accepted);
       } else if (message.type === 'event') {
         if (!document.hidden) audio.director.message(message);
@@ -388,6 +413,7 @@ function startDisplay(): void {
         if (handledEvents.has(key)) return;
         handledEvents.add(key);
         if (handledEvents.size > 100) handledEvents.delete(handledEvents.values().next().value!);
+        if (message.event.type === 'moment') replay.moment(message.event.moment, message.matchId, message.round);
         handleEvent(message.event);
       }
     },
@@ -447,7 +473,17 @@ function startDisplay(): void {
     averageFrameMs = averageFrameMs * .94 + Math.min(250, now - previousFrameAt) * .06;
     previousFrameAt = now;
     const snapshot = renderedSnapshot(frames, now);
-    if (snapshot) presentation.render(snapshot, now, activeTheme, latest?.matchId ?? 'lan');
+    const update = replay.frame(now);
+    if (update) {
+      // A clip renders under its own scope so the renderer replays its bursts and trails from scratch, then resets again for live play.
+      if (update.clip.key !== replayKey) { replayKey = update.clip.key; const { card, color } = describeClip(update.clip); replayOverlay.start(card, color); }
+      stage.classList.toggle('replaying', update.stage !== 'hold' && update.stage !== 'done');
+      for (const cue of update.cues) audio.director.replayCue(cue);
+      const shown = update.snapshot ?? snapshot;
+      if (shown) presentation.render(shown, now, activeTheme, update.snapshot ? `${latest?.matchId ?? 'lan'}:replay:${update.clip.key}` : latest?.matchId ?? 'lan');
+      if (shown) replayOverlay.update(update, canvas, { width: shown.width, height: shown.height });
+      if (update.stage === 'done') { replayKey = ''; if (latest) updateUi(latest.snapshot); }
+    } else if (snapshot) presentation.render(snapshot, now, activeTheme, latest?.matchId ?? 'lan');
     averageRenderMs = averageRenderMs * .9 + (performance.now() - renderStartedAt) * .1;
     if (showPerformance && now - lastMetricsAt > 500) {
       const age = latest ? Math.max(0, now - latest.receivedAt) : 0;

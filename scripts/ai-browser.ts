@@ -10,15 +10,15 @@ try{
     const context=await browser.newContext({viewport,...(name==='phone'?{isMobile:true,hasTouch:true}:{})});const page=await context.newPage();
     await page.goto(onlineUrl);await page.getByRole('button',{name:'CREATE ROOM',exact:true}).click();await page.waitForURL(/room=/);
     await page.getByPlaceholder('Your name').fill('Solo host');await page.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
-    await page.locator('.online-roster').getByText('Solo host · 0 wins',{exact:true}).waitFor();
-    await page.getByRole('button',{name:'ADD AI',exact:true}).click();await page.locator('.online-roster').getByText('AI Turing · 0 wins',{exact:true}).waitFor();
-    await page.getByRole('button',{name:'Remove AI Turing',exact:true}).click();await page.locator('.online-roster').getByText('AI Turing · 0 wins',{exact:true}).waitFor({state:'detached'});
-    await page.getByRole('button',{name:'ADD AI',exact:true}).click();await page.locator('.online-roster').getByText('AI Turing · 0 wins',{exact:true}).waitFor();
+    await page.locator('.room-riders').getByText('Solo host',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'ADD AI',exact:true}).click();await page.locator('.room-riders').getByText('AI Turing',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Remove AI Turing',exact:true}).click();await page.locator('.room-riders').getByText('AI Turing',{exact:true}).waitFor({state:'detached'});
+    await page.getByRole('button',{name:'ADD AI',exact:true}).click();await page.locator('.room-riders').getByText('AI Turing',{exact:true}).waitFor();
     await page.screenshot({path:`artifacts/ai-online-${name}.png`});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'phone host controls must fit without horizontal scrolling');
     await page.getByRole('button',{name:'START RACE',exact:true}).click();await page.locator('.online-notice').filter({hasText:/READY/}).waitFor();
-    assert.equal(await page.getByRole('button',{name:'Remove AI Turing',exact:true}).isDisabled(),true);
-    await page.locator('.online-roster').getByText(/ · [1-9] wins/).first().waitFor({timeout:25000});
+    assert.equal(await page.getByRole('button',{name:'Remove AI Turing',exact:true,includeHidden:true}).isDisabled(),true);
+    await page.locator('.online-roster [aria-label]').filter({hasText:/ · [1-9]/}).first().waitFor({state:'attached',timeout:25000});
     console.log(`PASS ${name}: solo host added/removed AI, started a real round and normal scoring occurred`);
     await context.close();
   }

@@ -13,6 +13,7 @@ import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 import { blastFrame } from '../blast-animation.js';
+import { reloadRemaining, RELOAD_RING_RADIUS } from '../reload-ring.js';
 
 const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
@@ -193,7 +194,8 @@ class ArenaScene extends Phaser.Scene {
     const passes = [[4 * glow, .25, tint], [5, 1, tint], [1, .95, 0xffffff]] as const;
     for (const [index, [width, alpha, shade]] of passes.entries()) {
       const core = index === passes.length - 1;
-      graphics.lineStyle(width, shade, alpha * (alive ? 1 : .3)).fillStyle(shade, alpha * (alive ? 1 : .3));
+      // Remaining trail geometry is still solid even after its rider crashes.
+      graphics.lineStyle(width, shade, alpha * (alive ? 1 : .8)).fillStyle(shade, alpha * (alive ? 1 : .8));
       for (const path of paths) {
         if (path.length < 2) continue;
         if (core && pixel) {
@@ -359,12 +361,19 @@ class ArenaScene extends Phaser.Scene {
       for(const spark of frame.sparks) g.fillStyle(tints.warm,spark.alpha).fillRect(spark.x-spark.size/2,spark.y-spark.size/2,spark.size,spark.size);
     }
     for(const p of s.players) {
-      const tint=color(p.color);
-      f.lineStyle(3,tint,p.alive?1:.25).strokeCircle(p.x,p.y,20);
-      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,44,p.angle,this.textures.exists('avatars')?p.avatarId:undefined).setAlpha(p.alive?1:.22);
-      const a=p.angle; f.fillStyle(tint,p.alive?1:.2).fillTriangle(p.x+Math.cos(a)*31,p.y+Math.sin(a)*31,p.x+Math.cos(a+.27)*22,p.y+Math.sin(a+.27)*22,p.x+Math.cos(a-.27)*22,p.y+Math.sin(a-.27)*22);
       if(!p.alive) continue;
+      const tint=color(p.color);
+      f.lineStyle(1,tint).strokeCircle(p.x,p.y,20);
+      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,44,p.angle,this.textures.exists('avatars')?p.avatarId:undefined);
+      const a=p.angle; f.fillStyle(tint).fillTriangle(p.x+Math.cos(a)*31,p.y+Math.sin(a)*31,p.x+Math.cos(a+.27)*22,p.y+Math.sin(a+.27)*22,p.x+Math.cos(a-.27)*22,p.y+Math.sin(a-.27)*22);
       this.label(`P${p.slot+1}`,p.x,p.y-33,p.color);
+      const reload=reloadRemaining(p,s);
+      if(reload>0) {
+        const start=-Math.PI/2+(1-reload)*Math.PI*2;
+        f.lineStyle(2,0x080c22,.95).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(2,tint,.2).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(2,tint).beginPath().arc(p.x,p.y,RELOAD_RING_RADIUS,start,Math.PI*1.5,false).strokePath();
+      }
       if(p.shielded || p.shieldGraceUntilTick>s.tick) { f.lineStyle(2,0x8affff,.8).strokeCircle(p.x,p.y,29); const a=now/350; f.fillStyle(0xcaffff).fillRect(p.x+Math.cos(a)*29-4,p.y+Math.sin(a)*29-4,8,8); }
       if(p.portalGraceUntilTick>s.tick || p.invulnerableUntilTick>s.tick) f.lineStyle(3,0xffdbff,.6).strokeCircle(p.x,p.y,35+Math.sin(now/80)*2);
       if(p.drunkUntilTick>s.tick) { f.lineStyle(2,0xd799ff,.9).strokeEllipse(p.x,p.y-12,70,35); for(let i=0;i<4;i++){ const a=now/240+i*Math.PI/2; const sx=p.x+Math.cos(a)*36,sy=p.y-12+Math.sin(a)*20; f.fillStyle(i%2?0xffe790:0xffaa32).fillRect(sx-2,sy-8,4,16).fillRect(sx-8,sy-2,16,4); } this.label('DIZZY',p.x,p.y+37,'#fff078',9); }

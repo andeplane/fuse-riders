@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BotController, botRandom } from '../src/shared/bot-controller.js';
-import { createGame, addPlayer, startMatch, step, SLOT_COLORS, type GameState } from '../src/shared/game.js';
+import { createGame, addPlayer, startMatch, step, SLOT_COLORS, OVERTIME_START_TICK, type GameState } from '../src/shared/game.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { applyTick, createRoomState, freeSlot, type StreamEntries } from '../src/shared/apply-tick.js';
 import { ACTION, BOT, JOIN, STEER, type Entry } from '../src/shared/input-log.js';
@@ -42,6 +42,62 @@ test('AI turns away from imminent walls, trails and rider paths',()=>{
     if(hazard==='rider'){other.x=490;other.angle=Math.PI;}
     const input=bot.input(game,player.id);assert.ok(input.left||input.right,`${hazard} should provoke avoidance`);
   }
+});
+
+function steeringFixture(){
+  const game=fixture();
+  game.nextPickupSpawnTick=Number.MAX_SAFE_INTEGER;
+  for(const player of game.players.values()){
+    player.trail=[];
+    player.bombReadyAtTick=Number.MAX_SAFE_INTEGER;
+  }
+  // Keep the other rider alive so an early round ending cannot hide a bot crash.
+  Object.assign(game.players.get('human')!,{x:1200,y:650,angle:0,invulnerableUntilTick:game.tick+300});
+  return game;
+}
+
+function steerFor(game:GameState,ticks:number){
+  const bot=new BotController();
+  for(let tick=0;tick<ticks;tick++){
+    step(game,new Map([['bot:1',bot.input(game,'bot:1')]]));
+    assert.equal(game.players.get('bot:1')!.alive,true,`bot crashed after ${tick+1} ticks`);
+    assert.equal(game.phase,'playing','the full steering scenario must actually run');
+  }
+}
+
+test('AI escapes an approaching corner and keeps surviving its own fresh trails',()=>{
+  const game=steeringFixture();
+  Object.assign(game.players.get('bot:1')!,{x:1470,y:770,angle:Math.PI/4});
+  steerFor(game,240);
+});
+
+test('AI escapes a corner as overtime starts shrinking the walls',()=>{
+  const game=steeringFixture(),inset=game.boundaryInset;
+  game.roundStartedTick=game.tick-OVERTIME_START_TICK+10;
+  Object.assign(game.players.get('bot:1')!,{x:1470,y:770,angle:Math.PI/4});
+  steerFor(game,120);
+  assert.ok(game.boundaryInset>inset);
+});
+
+test('AI avoids the trail a crossing rider will leave, including active and expiring boosts',()=>{
+  for(const boostTicks of [0,4,240]){
+    const game=steeringFixture();
+    Object.assign(game.players.get('human')!,{x:500,y:boostTicks?400:410,angle:Math.PI/2});
+    if(boostTicks)for(const player of game.players.values())player.boostUntilTick=game.tick+boostTicks;
+    // An expiring boost case covers the crossing and speed transition; the
+    // sustained cases also exercise several seconds of subsequent steering.
+    steerFor(game,boostTicks===4?40:120);
+  }
+});
+
+test('steering replay from a restored world needs no hidden planner state',()=>{
+  const game=steeringFixture();
+  Object.assign(game.players.get('human')!,{x:500,y:410,angle:Math.PI/2});
+  steerFor(game,40);
+  const restored=structuredClone(game);
+  steerFor(game,80);
+  steerFor(restored,80);
+  assert.deepEqual(restored,game);
 });
 
 test('AI considers expired and recent own trails, pickups, blasts, shells and drunk heading without changing physics',()=>{

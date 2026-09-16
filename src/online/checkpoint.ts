@@ -3,6 +3,7 @@ import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
+import { MAX_MOMENTS, MAX_MOMENTS_PER_KIND, MOMENT_KINDS, type Moment, type MomentKind } from '../shared/moments.js';
 
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
@@ -37,7 +38,7 @@ const bombFields = {
   launchedTick: integer, landsAtTick: integer, placedTick: integer, explodeAtTick: integer, blastRange: range(0, 1000),
   flightPath: array(shape({ x: position, y: position, angle: number }), 32),
   gravity: optional(boolean),
-  shell: optional(shape({ vx: range(-1000, 1000), vy: range(-1000, 1000), gun: optional(boolean) })),
+  shell: optional(shape({ vx: range(-1000, 1000), vy: range(-1000, 1000), gun: optional(boolean), bounces: optional(v => count(1_000_000)(v) && v !== 0) })),
 } satisfies Record<keyof BombState, Guard>;
 const bomb = shape(bombFields);
 const blast = shape({ bombId: integer, ownerId: text, circle: shape({ x: position, y: position, radius: range(0, 1000) }), expiresAtTick: integer } satisfies Record<keyof BlastState, Guard>);
@@ -50,6 +51,11 @@ const statsFields = {
   shieldPickups: integer, portalPickups: integer, portalTransits: integer, invulnerableTicks: integer, wallBounces: integer, earlyExits: integer, currentRoundSurvivalTicks: integer,
 } satisfies Record<keyof MatchPlayerStatsState, Guard>;
 const stats = shape(statsFields);
+const momentFields = {
+  kind: v => typeof v === 'string' && MOMENT_KINDS.includes(v as MomentKind), round: v => integer(v) && (v as number) > 0, tick: integer, elapsed: integer,
+  playerId: text, targetIds: array(text, 4), value: integer,
+} satisfies Record<keyof Moment, Guard>;
+const moment = shape(momentFields);
 const settings: Guard = v => v === undefined || parseRoomSettings(v) !== undefined;
 const gravityField: Guard = shape({ bombId: integer, ownerId: text, x: position, y: position, radius: range(0, 1000), expiresAtTick: integer });
 const gameShape = shape({
@@ -63,7 +69,7 @@ const gameShape = shape({
   leaderboard: map(text, shape({ id: text, name, totalScoreUnits: integer, roundsPlayed: integer, roundWins: integer, matchWins: integer }), MAX_HISTORY),
   roundParticipants: map(text, shape({ id: text, name, eliminatedAtTick: optional(integer) }), 5),
   roundPlacements: array(shape({ playerId: text, name, place: v => count(5)(v) && v !== 0, scoreUnits: integer }), 5), roundScored: boolean,
-  matchStats: map(text, stats, MAX_HISTORY), roundWinnerId: optional(text), matchWinnerId: optional(text),
+  matchStats: map(text, stats, MAX_HISTORY), moments: array(moment, MAX_MOMENTS), roundWinnerId: optional(text), matchWinnerId: optional(text),
 } satisfies Record<keyof GameState, Guard>);
 
 /** A bounded traversal precedes map construction and catches deep/large hostile storage. */
@@ -124,6 +130,17 @@ function gameInvariants(game: GameState): boolean {
   for (const pair of game.portalPairs) { if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false; portalIds.add(pair.id); }
   const fieldBombIds = new Set<number>();
   for (const field of game.gravityFields) { if (fieldBombIds.has(field.bombId) || field.bombId >= game.nextBombId || !game.matchStats.has(field.ownerId) || field.expiresAtTick <= game.tick) return false; fieldBombIds.add(field.bombId); }
+  // Moments name riders by match statistics, which outlive a seat; the lobby has cleared both.
+  if (game.phase === 'lobby' && game.moments.length > 0) return false;
+  const perKind = new Map<string, number>();
+  for (const m of game.moments) {
+    if (m.round > game.round || m.tick > game.tick || m.elapsed > m.tick || !game.matchStats.has(m.playerId)) return false;
+    const targets = new Set(m.targetIds);
+    if (targets.size !== m.targetIds.length || targets.has(m.playerId) || m.targetIds.some(id => !game.matchStats.has(id))) return false;
+    const kept = (perKind.get(m.kind) ?? 0) + 1;
+    if (kept > MAX_MOMENTS_PER_KIND) return false;
+    perKind.set(m.kind, kept);
+  }
   return true;
 }
 
