@@ -5,7 +5,7 @@ import { World } from '../src/online/rollback.js';
 import { ACTION, JOIN } from '../src/shared/input-log.js';
 import { createRoomState } from '../src/shared/apply-tick.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
-import { COUNTDOWN_TICKS, RIDER_SPEED, RIDER_TURN_RATE, TICK_HZ } from '../src/shared/game.js';
+import { COUNTDOWN_TICKS, riderMotionStep } from '../src/shared/game.js';
 import { advanceRiderPose } from '../src/shared/rider-motion.js';
 import { bombPreviewDistance } from '../src/client/bomb-preview.js';
 
@@ -40,7 +40,7 @@ test('presentation leads the local rider by its held controls and marks its pres
   assert.equal(plain.tick, newer.tick - .25); assert.equal(plain.players[0]!.presentationTick, undefined);
   const led = presentWorld(older, newer, newer.tick, { id: 'h', controls: { left: true, right: false }, lead: 1 });
   const rider = led.players.find(p => p.id === 'h')!, base = newer.players.find(p => p.id === 'h')!;
-  const expected = advanceRiderPose({ x: base.x, y: base.y, angle: base.angle, drunkHeadingOffset: 0 }, { left: true, right: false }, { distance: RIDER_SPEED / TICK_HZ, turn: RIDER_TURN_RATE / TICK_HZ, drunkHeadingOffset: 0 });
+  const expected = advanceRiderPose({ x: base.x, y: base.y, angle: base.angle, drunkHeadingOffset: 0 }, { left: true, right: false }, { ...riderMotionStep(base, newer.tick + 1, newer.roundStartedTick), drunkHeadingOffset: 0 });
   assert.deepEqual({ x: rider.x, y: rider.y, angle: rider.angle }, { x: expected.x, y: expected.y, angle: expected.angle });
   assert.equal(rider.presentationTick, newer.tick + 1); assert.equal(rider.trail.length, base.trail.length + 1, 'a cosmetic trail segment bridges the lead');
   assert.deepEqual(led.players.find(p => p.id === 'p'), newer.players.find(p => p.id === 'p'), 'remote riders are shown as simulated');

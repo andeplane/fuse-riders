@@ -28,6 +28,7 @@ import {
   TRAIL_LIFETIME_TICKS,
   addPlayer,
   createGame,
+  riderMotionStep,
   eliminatePlayer,
   removePlayer,
   resetMatch,
@@ -223,7 +224,7 @@ test('following riders survive when their swept paths are close but their bodies
       }
       const result = step(state, new Map());
       assert.ok([...state.players.values()].every(player => player.alive));
-      assert.equal(state.players.get(ahead)!.x - state.players.get(behind)!.x, 20);
+      assert.ok(Math.abs(state.players.get(ahead)!.x - state.players.get(behind)!.x - 20) < 1e-9);
       assert.equal(result.events.some(event => event.type === 'playerEliminated'), false);
       assert.equal(state.phase, 'playing');
     }
@@ -791,8 +792,9 @@ test('beer pickup debuffs every other living rider, refreshes, and keeps the col
   const startedTick = target.drunkStartedTick;
   const angleBefore = target.angle;
   const expectedNoise = drunkHeadingOffset(state.seed, target.id, state.tick + 1, target.drunkStartedTick, target.drunkUntilTick) - target.drunkHeadingOffset;
+  const { turn } = riderMotionStep(target, state.tick + 1, state.roundStartedTick);
   step(state, inputs(['p1', { left: true }]));
-  const expectedAngle = ((angleBefore - 2.8 / 20 + expectedNoise) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  const expectedAngle = ((angleBefore - turn + expectedNoise) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
   assert.ok(Math.abs(target.angle - expectedAngle) < 1e-10, 'normal steering and deterministic wobble are added');
 
   state.pickups = [{ id: 2, type: 'beer', x: collector.x + 3, y: collector.y, expiresAtTick: state.tick + 100 }];

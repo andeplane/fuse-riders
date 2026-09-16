@@ -71,7 +71,7 @@ test('head interpolation never extends a stale, destroyed, teleported or dead tr
   assert.deepEqual(trailTip(player, 9.5, 'playing'), original);
   assert.deepEqual(trailTip(player, 10.5, 'roundOver'), original);
   assert.deepEqual(trailTip({ ...player, alive: false }, 10.5, 'playing'), original);
-  assert.deepEqual(trailTip({ ...player, x: 28 }, 10.5, 'playing'), original);
+  assert.deepEqual(trailTip({ ...player, x: 40 }, 10.5, 'playing'), original, 'farther than a boosted, fully ramped stride');
   assert.deepEqual(trailTip({ ...player, portalCooldownUntilTick: 25 }, 10.5, 'playing'), original);
   assert.deepEqual(trailTip({ ...player, trail: [] }, 10.5, 'playing'), []);
   assert.equal(trailTip({ ...player, trail: player.trail.slice(0, -1) }, 10.5, 'playing').length, 2);

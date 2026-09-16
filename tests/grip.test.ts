@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addPlayer, createGame, startMatch, startNextRound, step, toSnapshot, SLOT_COLORS, RIDER_SPEED, RIDER_TURN_RATE, TICK_HZ, TRAIL_WIDTH, RIDER_CONTACT_RADIUS, COUNTDOWN_TICKS, type GameState, type InputIntent } from '../src/shared/game.js';
+import { addPlayer, createGame, startMatch, startNextRound, step, toSnapshot, SLOT_COLORS, riderMotionStep, TRAIL_WIDTH, RIDER_CONTACT_RADIUS, COUNTDOWN_TICKS, type GameState, type InputIntent } from '../src/shared/game.js';
 import { decodeGameState, encodeGameState } from '../src/online/checkpoint.js';
 import { presentWorld } from '../src/online/prediction.js';
 import { powerLabel } from '../src/client/power-indicator.js';
@@ -28,12 +28,14 @@ test('GRIP increases left/right steering by 75% from the next tick without chang
     const input = new Map([['p0', steering(right)]]);
     drop(game); step(game, input);
     assert.equal(p.grip, true);
-    const turn = right ? RIDER_TURN_RATE / TICK_HZ : Math.PI * 2 - RIDER_TURN_RATE / TICK_HZ;
+    const plain = riderMotionStep({ boostUntilTick: 0, grip: false }, game.tick, game.roundStartedTick).turn;
+    const turn = right ? plain : Math.PI * 2 - plain;
     assert.ok(Math.abs(p.angle - turn) < 1e-12, 'collection tick uses ordinary steering');
     const before = { ...p };
     step(game, input);
-    assert.ok(Math.abs(Math.abs(p.angle - before.angle) - 1.75 * RIDER_TURN_RATE / TICK_HZ) < 1e-12);
-    assert.ok(Math.abs(Math.hypot(p.x - before.x, p.y - before.y) - RIDER_SPEED / TICK_HZ) < 1e-12);
+    const ungripped = riderMotionStep({ boostUntilTick: 0, grip: false }, game.tick, game.roundStartedTick);
+    assert.ok(Math.abs(Math.abs(p.angle - before.angle) - 1.75 * ungripped.turn) < 1e-12);
+    assert.ok(Math.abs(Math.hypot(p.x - before.x, p.y - before.y) - ungripped.distance) < 1e-12);
     for (const controls of [{ left: false, right: false, bomb: false }, { left: true, right: true, bomb: false }]) {
       const angle = p.angle; step(game, new Map([['p0', controls]])); assert.equal(p.angle, angle);
     }
