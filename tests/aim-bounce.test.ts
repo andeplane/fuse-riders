@@ -9,6 +9,16 @@ test('without bounce the ramp stops at full reach, as it always has', () => {
   for (const held of [max, max + 1, max * 3]) assert.equal(bombLaunchDistance(held, max, false), BOMB_MAX_LAUNCH_DISTANCE);
   assert.equal(bombLaunchDistance(0, max, false), BOMB_MIN_LAUNCH_DISTANCE);
 });
+test('the ramp holds its shape for every aim window a host can choose', () => {
+  for (const window of [2, 3, 5, 8, 24, 40]) {
+    assert.equal(bombLaunchDistance(window, window, true), BOMB_MAX_LAUNCH_DISTANCE, `window ${window} peaks at the top`);
+    assert.equal(bombLaunchDistance(window * 2, window, true), BOMB_MIN_LAUNCH_DISTANCE, `window ${window} returns to the bottom`);
+    for (let held = 0; held <= window * 3; held += 1) {
+      assert.equal(bombLaunchDistance(held, window, true), bombLaunchDistance(held + window * 2, window, true), `window ${window} repeats every period`);
+      assert.equal(chargeRamp(held, window, true), chargeRamp(window * 2 - (held % (window * 2)), window, true), `window ${window} is symmetric about the peak`);
+    }
+  }
+});
 test('with bounce the range walks back to the minimum and climbs again, on a period of twice the window', () => {
   assert.equal(bombLaunchDistance(max, max, true), BOMB_MAX_LAUNCH_DISTANCE, 'still peaks at the top of the ramp');
   assert.equal(bombLaunchDistance(max * 2, max, true), BOMB_MIN_LAUNCH_DISTANCE, 'a full period later it is back at the bottom');
@@ -35,10 +45,11 @@ test('the preview follows the same ramp, including across the turnaround', () =>
   assert.ok(bombPreviewDistance(max + 0.5, max, true) < BOMB_MAX_LAUNCH_DISTANCE, 'the preview turns around with the ramp');
   assert.equal(bombPreviewDistance(max + 0.5, max, false), BOMB_MAX_LAUNCH_DISTANCE, 'clamped previews still park at maximum');
 });
-test('a room saved before the setting keeps the clamped aim, while a new room bounces', () => {
+test('the saved-settings round trip is a fixed point: both defaults agree', () => {
   const { aimBounce, ...older } = defaultRoomSettings();
   assert.equal(aimBounce, true, 'new rooms bounce by default');
-  assert.equal(parseRoomSettings(older)?.aimBounce, false, 'an older payload aimed with a ramp that stopped at the top');
+  assert.equal(parseRoomSettings(older)?.aimBounce, true, 'a blob saved before the flag reads as what a new room would choose');
+  assert.deepEqual(parseRoomSettings(defaultRoomSettings()), defaultRoomSettings(), 'the defaults survive a round trip unchanged');
   assert.equal(parseRoomSettings({ ...defaultRoomSettings(), aimBounce: false })?.aimBounce, false);
   assert.equal(parseRoomSettings({ ...defaultRoomSettings(), aimBounce: 'yes' }), undefined);
 });

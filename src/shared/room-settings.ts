@@ -25,8 +25,9 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   // Settings saved before #166 have no flag; they played with chaining on, so that is what they keep.
   const chainReaction = value.chainReaction === undefined ? true : value.chainReaction;
   if (typeof chainReaction !== 'boolean') return;
-  // Rooms saved before the setting existed aimed with a ramp that stopped at the top.
-  const aimBounce = value.aimBounce === undefined ? false : value.aimBounce;
+  // Matches defaultRoomSettings, so a blob saved before the flag round-trips to what a new room would choose rather than
+  // silently turning the feature off for anyone who has ever pressed SAVE SETTINGS.
+  const aimBounce = value.aimBounce === undefined ? true : value.aimBounce;
   if (typeof aimBounce !== 'boolean') return;
   if (value.version !== 1 || !['shared','devices'].includes(value.mode) || !['wins','rounds'].includes(value.match) || !Number.isInteger(value.length) || value.length < 1 || value.length > 20 || !value.weights || typeof value.weights !== 'object') return;
   const allowed = new Set([...PICKUP_WEIGHTS.map(row => row.type), 'star']);
