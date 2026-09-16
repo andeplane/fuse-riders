@@ -165,6 +165,19 @@ Existing `shell.gun` bomb records now carry harmless 3-tick tracers: launch coor
 
 ## Persistent map pickups
 
-Current fold rules are `fuse-p2p-21`. Uncollected pickups last until round reset, with `expiresAtTick` set to `Number.MAX_SAFE_INTEGER` so existing finite snapshot/checkpoint fields and sprite opacity remain valid. Pickup expiry no longer runs. Every newly resolved bomb blast destroys pickups whose centers are strictly within 60% of its radius (more than 40% of the radius inward from the edge). The exact boundary and outer blast fringe survive. This includes chained, Target and Singularity bombs; lingering blast visuals, gravity fields, shells and Gun tracers do not destroy pickups. Collection still precedes explosions within a tick. The living-rider spawn cap remains unchanged, so a full board pauses spawning until slots open. Round preparation clears remaining pickups.
+Fold rules `fuse-p2p-21` made map pickups persistent. Uncollected pickups last until round reset, with `expiresAtTick` set to `Number.MAX_SAFE_INTEGER` so existing finite snapshot/checkpoint fields and sprite opacity remain valid. Pickup expiry no longer runs. Every newly resolved bomb blast destroys pickups whose centers are strictly within 60% of its radius (more than 40% of the radius inward from the edge). The exact boundary and outer blast fringe survive. This includes chained, Target and Singularity bombs; lingering blast visuals, gravity fields, shells and Gun tracers do not destroy pickups. Collection still precedes explosions within a tick. The living-rider spawn cap remains unchanged, so a full board pauses spawning until slots open. Round preparation clears remaining pickups.
 
 No snapshot fields or transport envelopes change. Rules equality rejects older peers and snapshots because the same inputs now leave different pickups on the board. Refresh all peers together and start fresh rooms after rollback; there is no live-room migration.
+
+
+## Projectiles through portal gates
+
+Current fold rules are `fuse-p2p-22`. A Green Shell and a Gun ray now carry through a portal gate the way a rider does, entering at the first gate met and leaving beside its partner at the same proportional height, keeping heading, speed and a shell's bounce count. Lobbed, Target and Singularity bombs do not: they resolve against a landing point rather than travelling, and are unchanged.
+
+A shell's tick is integrated in two passes split at the gate, so a bounce falling on either side of it still resolves against the wall or trail it actually met, and the teleport itself is not swept for rider contact — a rider standing between two gates is not in the shell's way. A shell carries its own `portalCooldownUntilTick`, a new optional `BombState` and checkpoint field of the same shape as the rider's, so a pair it is aimed down cannot hold it in a loop. It is not published in snapshots: presentation projects a shell forward from its own velocity and needs no interpolation guard.
+
+A Gun ray is still resolved on the press tick. It may cross at most one gate per pair, so at most `MAX_PORTAL_PAIRS` hops, and each stretch past a gate gets its own 3-tick tracer record carrying the same owner and shot — the renderer keeps drawing every tracer as one straight line. Continuation tracers report no `bombPlaced` event and no placement statistic; the trigger was pulled once. Portal transits by a projectile are not counted as the owner's portal jumps.
+
+Projectile exits are refused only by arena bounds and by foreign portal walls, not by the rider rule: a projectile has no problem appearing beside a rider or a trail, and resolves that contact on the ticks that follow. A refused exit leaves the projectile travelling as though the gate were not there.
+
+No snapshot fields or transport envelopes change. Rules equality rejects older peers and snapshots because the same inputs now put projectiles in different places. Refresh all peers together and start fresh rooms after rollback; there is no live-room migration.

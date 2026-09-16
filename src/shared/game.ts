@@ -1,4 +1,4 @@
-import { hypot2, sin, cos } from './deterministic-math.js';
+import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
 import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerReloadTicks, powerTrailLifetimeTicks } from './power-progression.js';
 export { pickupPacing } from './power-progression.js';
 import { advanceRiderPose } from './rider-motion.js';
@@ -204,6 +204,8 @@ export interface BombState {
   explodeAtTick: number;
   /** `bounces` counts a shell's wall and trail reflections since launch; a gun bullet never bounces and never carries it. */
   blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
+  /** A shell's own portal re-entry cooldown, so a gate pair it is aimed down cannot hold it in a loop. */
+  portalCooldownUntilTick?: number;
   /**
    * The trigger pull that put this bomb in the air — its entry in `GameState.shots` — so a kill can name the shot.
    * Statistics only: nothing in the simulation reads it, and it never reaches a public snapshot. Optional as defence
@@ -521,7 +523,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     }
   }
 
-  const shellPaths = new Map<number, ShellPoint[]>();
+  // One run per portal hop. The gap between runs is travel the shell never made, so the sweep below
+  // must not read across it: a rider standing between two gates is not in the way of a teleport.
+  const shellPaths = new Map<number, ShellPoint[][]>();
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
     // Gun damage was resolved on press; these are stationary, harmless tracers.
@@ -529,11 +533,23 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       if (state.tick >= bomb.explodeAtTick) state.bombs.delete(bomb.id);
       continue;
     }
-    const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx, vy: bomb.shell.vy, bounces: bomb.shell.bounces ?? 0 };
-    shellPaths.set(bomb.id, advanceShell(motion, { left: state.boundaryInset + SHELL_RADIUS,
+    const shellBounds = { left: state.boundaryInset + SHELL_RADIUS,
       right: state.width - state.boundaryInset - SHELL_RADIUS, top: state.boundaryInset + SHELL_RADIUS,
-      bottom: state.height - state.boundaryInset - SHELL_RADIUS },
-      [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS ? [] : player.trail), TRAIL_WIDTH));
+      bottom: state.height - state.boundaryInset - SHELL_RADIUS };
+    const trails = [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS ? [] : player.trail);
+    const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx, vy: bomb.shell.vy, bounces: bomb.shell.bounces ?? 0 };
+    // A bounce can fall on either side of a gate within one tick, so the tick is integrated twice
+    // rather than rewound: this throwaway pass only says whether, and when, a gate is met.
+    const provisional = advanceShell({ ...motion }, shellBounds, trails, TRAIL_WIDTH);
+    const entry = findShellPortalEntry(state, bomb, provisional);
+    if (entry) {
+      const approach = advanceShell(motion, shellBounds, trails, TRAIL_WIDTH, 0, entry.time);
+      motion.x = entry.transit.exitPoint.x; motion.y = entry.transit.exitPoint.y;
+      shellPaths.set(bomb.id, [approach, advanceShell(motion, shellBounds, trails, TRAIL_WIDTH, entry.time)]);
+      bomb.portalCooldownUntilTick = entry.transit.cooldownUntilTick;
+    } else {
+      shellPaths.set(bomb.id, [advanceShell(motion, shellBounds, trails, TRAIL_WIDTH)]);
+    }
     bomb.x = motion.x; bomb.y = motion.y; bomb.shell = { vx: motion.vx, vy: motion.vy, ...(motion.bounces ? { bounces: motion.bounces } : {}) };
   }
   const newBlasts = resolveExplosions(state, events);
@@ -584,9 +600,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       }
       continue;
     }
-    const path = shellPaths.get(bomb.id) ?? [];
     let hit: Movement | undefined; let hitTime = Infinity;
-    for (let i = 1; i < path.length; i++) {
+    for (const path of shellPaths.get(bomb.id) ?? []) for (let i = 1; i < path.length; i++) {
       const start = path[i - 1]!; const end = path[i]!;
       for (const movement of movements.values()) {
         if ((movement.player.id === bomb.ownerId && (state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS)) || isHazardImmune(movement.player, state.tick)) continue;
@@ -1087,6 +1102,30 @@ function portalBounds(state: GameState) {
 }
 
 /**
+ * The first gate a shell's swept path meets this tick, as a fraction of the tick, or nothing.
+ * Projectiles are held only to portal-wall clearance at the exit, not to the rider rule: a shell has
+ * no problem appearing beside a rider or a trail, and resolves that contact on the ticks that follow.
+ */
+function findShellPortalEntry(state: GameState, bomb: BombState, path: readonly ShellPoint[]): { transit: PortalTransit; time: number } | undefined {
+  if (!bomb.shell) return undefined;
+  for (let i = 1; i < path.length; i += 1) {
+    const from = path[i - 1]!; const to = path[i]!;
+    const transit = findPortalTransit({
+      pairs: state.portalPairs, tick: state.tick, from, to,
+      heading: atan2(bomb.shell.vy, bomb.shell.vx),
+      cooldownUntilTick: bomb.portalCooldownUntilTick ?? 0,
+      bounds: portalBounds(state), riderRadius: SHELL_RADIUS,
+      isSafeExit: (point, radius, pairId) => isClearOfPortalWalls(state, point, radius, pairId),
+    });
+    if (!transit) continue;
+    const span = hypot2(to.x - from.x, to.y - from.y);
+    const reached = span > 0 ? hypot2(transit.entryPoint.x - from.x, transit.entryPoint.y - from.y) / span : 0;
+    return { transit, time: from.t + (to.t - from.t) * Math.max(0, Math.min(1, reached)) };
+  }
+  return undefined;
+}
+
+/**
  * Clearance from live portal walls, for two callers with different exemptions. Placement passes no
  * exemption, so a new pair is never laid over a running one. A transit exempts the pair being used,
  * whose own gate the exit deliberately hugs at PORTAL_WALL_HALF_WIDTH + RIDER_RADIUS + 1, and so
@@ -1294,41 +1333,89 @@ function nextRandom(state: GameState): number {
   return ((value ^ (value >>> 14)) >>> 0) / 0x1_0000_0000;
 }
 
+/**
+ * The first unspent gate a gun ray meets, as a fraction of the cast segment. A bullet is a point at
+ * this scale, so only portal-wall clearance can refuse the exit — a rider or a trail waiting there is
+ * exactly what the shooter aimed for.
+ */
+function findGunPortalEntry(state: GameState, from: PortalPoint, to: PortalPoint, spent: ReadonlySet<string>): { transit: PortalTransit; time: number } | undefined {
+  const transit = findPortalTransit({
+    pairs: state.portalPairs.filter((pair) => !spent.has(pair.id)), tick: state.tick, from, to,
+    heading: atan2(to.y - from.y, to.x - from.x), cooldownUntilTick: 0,
+    bounds: portalBounds(state), riderRadius: GUN_RADIUS,
+    isSafeExit: (point, radius, pairId) => isClearOfPortalWalls(state, point, radius, pairId),
+  });
+  if (!transit) return undefined;
+  const span = hypot2(to.x - from.x, to.y - from.y);
+  if (span === 0) return undefined;
+  return { transit, time: hypot2(transit.entryPoint.x - from.x, transit.entryPoint.y - from.y) / span };
+}
+
+/**
+ * One more tracer for the stretch of a ray past a gate, so the renderer keeps drawing every segment as
+ * the straight line it is. It records no placement: the trigger was pulled once, and this is still that bullet.
+ */
+function continueGunTracer(state: GameState, bomb: BombState, from: PortalPoint): BombState {
+  const id = state.nextBombId++;
+  const tracer: BombState = {
+    ...bomb, id, launchX: from.x, launchY: from.y, x: from.x, y: from.y, flightPath: [],
+    shell: { vx: bomb.shell!.vx, vy: bomb.shell!.vy, gun: true },
+  };
+  state.bombs.set(id, tracer);
+  return tracer;
+}
+
 /** Raycast against heads, trails and walls. All shots see the same board, including simultaneous volleys. */
 function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; ownerId: PlayerId; shot?: number }[]> {
   const hits = new Map<PlayerId, { bombId: number; ownerId: PlayerId; shot?: number }[]>();
   const impacts: { x: number; y: number }[] = [];
+  // Snapshot first: a ray that crosses a gate adds tracers for the segments past it, and those are
+  // already resolved — re-reading them here would cast the same bullet twice.
   for (const bomb of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
     if (!bomb.shell?.gun || bomb.launchedTick !== state.tick) continue;
     const { vx, vy } = bomb.shell;
-    const x = bomb.launchX, y = bomb.launchY;
-    const inset = state.boundaryInset + GUN_RADIUS;
-    const wallX = vx > 0 ? (state.width - inset - x) / vx : vx < 0 ? (inset - x) / vx : Infinity;
-    const wallY = vy > 0 ? (state.height - inset - y) / vy : vy < 0 ? (inset - y) / vy : Infinity;
-    const distance = Math.max(0, Math.min(wallX, wallY));
-    const dx = vx * distance, dy = vy * distance;
-    let contact = 1;
-    let hit: PlayerState | undefined;
-    // Slot order is stable even when a checkpoint was decoded with another Map insertion order.
-    for (const player of sortedPlayers(state)) {
-      if (player.id === bomb.ownerId) continue;
-      const consider = (x1: number, y1: number, x2: number, y2: number, radius: number): void => {
-        const touches = (t: number): boolean => segmentDistanceSquared(x, y, x + dx * t, y + dy * t, x1, y1, x2, y2) <= square(radius);
-        if (!touches(contact)) return;
-        const time = firstContactTime(touches);
-        if (time < contact || !hit) { contact = time; hit = player; }
-      };
-      if (player.alive) consider(player.x, player.y, player.x, player.y, RIDER_RADIUS + GUN_RADIUS);
-      for (const trail of player.trail) consider(trail.x1, trail.y1, trail.x2, trail.y2, TRAIL_WIDTH / 2 + GUN_RADIUS);
-    }
-    bomb.x = x + dx * contact; bomb.y = y + dy * contact;
-    if (!hit) continue;
-    impacts.push({ x: bomb.x, y: bomb.y });
-    // A body hit is only lethal near that body's own living head, never through splash.
-    if (hit.alive && square(hit.x - bomb.x) + square(hit.y - bomb.y) <= square(GUN_HEADSHOT_RADIUS)) {
-      const previous = hits.get(hit.id) ?? [];
-      previous.push({ bombId: bomb.id, ownerId: bomb.ownerId, shot: bomb.shot });
-      hits.set(hit.id, previous);
+    let segment = bomb;
+    // Each pair carries a ray once, so two gates facing each other cannot hold a bullet in a loop.
+    const spent = new Set<string>();
+    for (let hop = 0; hop <= MAX_PORTAL_PAIRS; hop += 1) {
+      const x = segment.launchX, y = segment.launchY;
+      const inset = state.boundaryInset + GUN_RADIUS;
+      const wallX = vx > 0 ? (state.width - inset - x) / vx : vx < 0 ? (inset - x) / vx : Infinity;
+      const wallY = vy > 0 ? (state.height - inset - y) / vy : vy < 0 ? (inset - y) / vy : Infinity;
+      const distance = Math.max(0, Math.min(wallX, wallY));
+      const dx = vx * distance, dy = vy * distance;
+      let contact = 1;
+      let hit: PlayerState | undefined;
+      // Slot order is stable even when a checkpoint was decoded with another Map insertion order.
+      for (const player of sortedPlayers(state)) {
+        if (player.id === bomb.ownerId) continue;
+        const consider = (x1: number, y1: number, x2: number, y2: number, radius: number): void => {
+          const touches = (t: number): boolean => segmentDistanceSquared(x, y, x + dx * t, y + dy * t, x1, y1, x2, y2) <= square(radius);
+          if (!touches(contact)) return;
+          const time = firstContactTime(touches);
+          if (time < contact || !hit) { contact = time; hit = player; }
+        };
+        if (player.alive) consider(player.x, player.y, player.x, player.y, RIDER_RADIUS + GUN_RADIUS);
+        for (const trail of player.trail) consider(trail.x1, trail.y1, trail.x2, trail.y2, TRAIL_WIDTH / 2 + GUN_RADIUS);
+      }
+      const gate = findGunPortalEntry(state, { x, y }, { x: x + dx, y: y + dy }, spent);
+      // A gate reached before anything solid takes the bullet; whatever stood beyond it never saw this ray.
+      if (gate && gate.time < contact && hop < MAX_PORTAL_PAIRS) {
+        segment.x = gate.transit.entryPoint.x; segment.y = gate.transit.entryPoint.y;
+        spent.add(gate.transit.pairId);
+        segment = continueGunTracer(state, bomb, gate.transit.exitPoint);
+        continue;
+      }
+      segment.x = x + dx * contact; segment.y = y + dy * contact;
+      if (!hit) break;
+      impacts.push({ x: segment.x, y: segment.y });
+      // A body hit is only lethal near that body's own living head, never through splash.
+      if (hit.alive && square(hit.x - segment.x) + square(hit.y - segment.y) <= square(GUN_HEADSHOT_RADIUS)) {
+        const previous = hits.get(hit.id) ?? [];
+        previous.push({ bombId: bomb.id, ownerId: bomb.ownerId, shot: bomb.shot });
+        hits.set(hit.id, previous);
+      }
+      break;
     }
   }
   for (const impact of impacts) for (const player of sortedPlayers(state)) {

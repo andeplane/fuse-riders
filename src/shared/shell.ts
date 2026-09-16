@@ -5,23 +5,27 @@ export interface ShellPoint { x: number; y: number; t: number }
 export interface ShellTrail { x1: number; y1: number; x2: number; y2: number }
 export const SHELL_SPEED = 450;
 export const SHELL_RADIUS = 14;
-/** Piecewise path preserves wall contact rather than cutting diagonally across a bounce. */
-export function advanceShell(shell: ShellMotion, bounds: { left: number; right: number; top: number; bottom: number }, trails: readonly ShellTrail[] = [], trailWidth = 6): ShellPoint[] {
+/**
+ * Piecewise path preserves wall contact rather than cutting diagonally across a bounce.
+ * `startTime` and `endTime` bound the slice of the tick to integrate, so a caller that splits the
+ * tick at a portal gate can run the approach and the continuation as separate, exact passes.
+ */
+export function advanceShell(shell: ShellMotion, bounds: { left: number; right: number; top: number; bottom: number }, trails: readonly ShellTrail[] = [], trailWidth = 6, startTime = 0, endTime = 1): ShellPoint[] {
   shell.x = Math.max(bounds.left, Math.min(bounds.right, shell.x));
   shell.y = Math.max(bounds.top, Math.min(bounds.bottom, shell.y));
-  const path: ShellPoint[] = [{ x: shell.x, y: shell.y, t: 0 }];
+  const path: ShellPoint[] = [{ x: shell.x, y: shell.y, t: startTime }];
   const bounce = (): void => { if (shell.bounces !== undefined) shell.bounces += 1; };
-  let t = 0;
-  for (let iteration = 0; t < 1 && iteration < 8; iteration++) {
+  let t = startTime;
+  for (let iteration = 0; t < endTime && iteration < 8; iteration++) {
     const dx = shell.vx / 20; const dy = shell.vy / 20;
     const tx = dx > 0 ? (bounds.right - shell.x) / dx : dx < 0 ? (bounds.left - shell.x) / dx : Infinity;
     const ty = dy > 0 ? (bounds.bottom - shell.y) / dy : dy < 0 ? (bounds.top - shell.y) / dy : Infinity;
     let hit: { time: number; nx: number; ny: number } | undefined;
     for (const trail of trails) {
-      const candidate = trailContact(shell.x, shell.y, dx, dy, Math.min(1 - t, tx, ty), trail, SHELL_RADIUS + trailWidth / 2);
+      const candidate = trailContact(shell.x, shell.y, dx, dy, Math.min(endTime - t, tx, ty), trail, SHELL_RADIUS + trailWidth / 2);
       if (candidate && (!hit || candidate.time < hit.time)) hit = candidate;
     }
-    const dt = Math.max(0, Math.min(1 - t, tx, ty, hit?.time ?? Infinity));
+    const dt = Math.max(0, Math.min(endTime - t, tx, ty, hit?.time ?? Infinity));
     shell.x += dx * dt; shell.y += dy * dt; t += dt;
     path.push({ x: shell.x, y: shell.y, t });
     if (hit && hit.time <= dt + 1e-9) {

@@ -24,7 +24,7 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   gun: ['GUN', 'tap to fire instantly ahead; stops at the first body, cuts a small hole, and kills near its head'],
   stopwatch: ['FUSE', `shorter bomb fuses for this round: ${[0, 1, 2].map(level => seconds(bombFuseTicks(level))).join(' → ')}`],
   orbitShield: ['SHIELD', 'blocks one crash'],
-  portal: ['PORTAL', 'opens a pair of linked gates'],
+  portal: ['PORTAL', 'opens a pair of linked gates; shells and gun shots come through them too'],
   beer: ['BEER', `rivals wobble for ${seconds(DRUNK_DURATION_TICKS)}`],
   ink: ['INK', `clouds rivals' view for ${seconds(INK_DURATION_TICKS)}`],
   star: ['STAR', `invulnerable for ${seconds(STAR_DURATION_TICKS)}`],
