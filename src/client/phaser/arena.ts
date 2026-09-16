@@ -360,11 +360,14 @@ class ArenaScene extends Phaser.Scene {
     }
     for(const p of s.players) {
       const tint=color(p.color);
-      f.lineStyle(3,tint,p.alive?1:.25).strokeCircle(p.x,p.y,20);
-      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,44,p.angle,this.textures.exists('avatars')?p.avatarId:undefined).setAlpha(p.alive?1:.22);
-      const a=p.angle; f.fillStyle(tint,p.alive?1:.2).fillTriangle(p.x+Math.cos(a)*31,p.y+Math.sin(a)*31,p.x+Math.cos(a+.27)*22,p.y+Math.sin(a+.27)*22,p.x+Math.cos(a-.27)*22,p.y+Math.sin(a-.27)*22);
+      // The portrait stays upright at the trail head; only its direction marker turns.
+      g.fillStyle(0x080c22,p.alive?1:.22).fillCircle(p.x,p.y,15);
+      f.lineStyle(2,tint,p.alive?1:.25).strokeCircle(p.x,p.y,15);
+      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined).setAlpha(p.alive?1:.22);
+      const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
+      f.fillStyle(tint,p.alive?1:.2).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
       if(!p.alive) continue;
-      this.label(`P${p.slot+1}`,p.x,p.y-33,p.color);
+      this.label(`P${p.slot+1}`,p.x,p.y-27,p.color);
       if(p.shielded || p.shieldGraceUntilTick>s.tick) { f.lineStyle(2,0x8affff,.8).strokeCircle(p.x,p.y,29); const a=now/350; f.fillStyle(0xcaffff).fillRect(p.x+Math.cos(a)*29-4,p.y+Math.sin(a)*29-4,8,8); }
       if(p.portalGraceUntilTick>s.tick || p.invulnerableUntilTick>s.tick) f.lineStyle(3,0xffdbff,.6).strokeCircle(p.x,p.y,35+Math.sin(now/80)*2);
       if(p.drunkUntilTick>s.tick) { f.lineStyle(2,0xd799ff,.9).strokeEllipse(p.x,p.y-12,70,35); for(let i=0;i<4;i++){ const a=now/240+i*Math.PI/2; const sx=p.x+Math.cos(a)*36,sy=p.y-12+Math.sin(a)*20; f.fillStyle(i%2?0xffe790:0xffaa32).fillRect(sx-2,sy-8,4,16).fillRect(sx-8,sy-2,16,4); } this.label('DIZZY',p.x,p.y+37,'#fff078',9); }

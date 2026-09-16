@@ -379,13 +379,16 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     drawOrbitShield(ctx, player, snapshot.tick, now);
     drawPortalGrace(ctx, player, snapshot.tick, now);
     ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
-    if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, player.angle, color)) { /* Atlas head includes color and heading cues. */ }
-    else if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
-    else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    // The portrait stays upright at the trail head; only its direction marker turns.
+    if (!drawAvatarHead(ctx, player.avatarId, player.x, player.y, color) && sprites.rider) {
+      drawSprite(ctx, sprites.rider, player.x, player.y, 32, 0, color, theme.rendering.pixelated);
+    }
+    ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
     if (player.alive) {
       ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-      ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 29)); ctx.restore();
+      ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 27)); ctx.restore();
     }
   }
   drawInkClouds(ctx, snapshot, snapshot.tick);
