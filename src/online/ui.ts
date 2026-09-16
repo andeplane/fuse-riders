@@ -139,7 +139,7 @@ export async function startOnline():Promise<void>{
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt=performance.now();let connectFailed=false;
   // 20s is where connectHint gives up on progress and says "different network": the one drop-off the funnel cannot otherwise see.
-  const bootTick=()=>{const waited=performance.now()-bootAt;bootNote.textContent=connectHint(rawStatus,waited);if(waited>=20000&&!connectFailed){connectFailed=true;track('Connect Failed',{status:status.textContent,secondsWaiting:Math.round(waited/1000)});}};
+  const bootTick=()=>{const waited=performance.now()-bootAt;bootNote.textContent=connectHint(rawStatus,waited);if(waited>=20000&&!connectFailed){connectFailed=true;track('Connect Failed',{status:rawStatus||null,secondsWaiting:Math.round(waited/1000)});}};
   const bootPoll=setInterval(bootTick,1000);
   const bootDone=()=>{if(!bootNote.isConnected)return;clearInterval(bootPoll);booting.remove();bootNote.remove();app.classList.remove('booting');};
   const overCard=node('div','','room-boot room-over-card'),overNote=node('p','Room ended — return to menu to start again','room-boot-note'),overHome=node('a','BACK TO MENU','room-over-home');
