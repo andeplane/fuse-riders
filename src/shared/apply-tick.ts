@@ -5,7 +5,7 @@ import { ACTION, AVATAR, BOT, JOIN, LEAVE, PRESENCE, SETTINGS, foldPlayerEntries
 import type { GameEvent } from './protocol.js';
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = 'fuse-p2p-15'; // 15: a per-round log of trigger pulls and their kills, kept once decided, and a bomb names the pull that fired it.
+export const RULES = 'fuse-p2p-16'; // 16: eight-second initial trails, growing by two seconds per Power.
 export const RECLAIMABLE_PHASES = ['lobby', 'roundOver', 'matchOver'] as const;
 export const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'] as const;
 

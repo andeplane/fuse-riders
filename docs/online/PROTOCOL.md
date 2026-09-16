@@ -83,11 +83,11 @@ Fold rules `fuse-p2p-12` introduced GRIP; `fuse-p2p-13` softened steering from 2
 
 ### Linear Power trail growth
 
-Fold rules `fuse-p2p-14` introduced the following, still in force. Living riders start with an 80-tick trail lifetime instead of 160. Each Power pickup adds ten ticks linearly, up to the existing 1,024-segment checkpoint budget; at normal speed this is 600 units initially plus 75 per diamond, reaching the previous length after eight diamonds. Collection extends every surviving segment by the lifetime increase, and new segments use the upgraded lifetime on the same tick. Expiry still runs before collection, so removed trail is never restored. Power and trail reset each round; eliminated trails remain fixed until the next round and can still be destroyed. Blast/reload progression is unchanged. No snapshot fields or transport envelopes change, but deterministic simulation does: rule equality rejects older peers and snapshots. Refresh every peer together and use fresh rooms after rollback.
+Current fold rules are `fuse-p2p-16`. Living riders start with a 160-tick (8-second) trail lifetime, and each Power pickup adds 40 ticks (2 seconds) linearly, up to the existing 1,024-segment checkpoint budget. At normal speed this is 1,200 units initially plus 300 per diamond, reaching 16 seconds after four diamonds and 24 seconds after eight. Rules 14 and 15 used 80 ticks initially plus ten per diamond. Collection extends every surviving segment by the lifetime increase, and new segments use the upgraded lifetime on the same tick. Expiry still runs before collection, so removed trail is never restored. Power and trail reset each round; eliminated trails remain fixed until the next round and can still be destroyed. Blast/reload progression is unchanged. No snapshot fields or transport envelopes change, but deterministic simulation does: rule equality rejects older peers and snapshots. Refresh every peer together and use fresh rooms after rollback.
 
 ## Round shot log
 
-Current fold rules are `fuse-p2p-15`. Game state requires `shots`, the current round's trigger pulls: each entry
+Fold rules `fuse-p2p-15` introduced the following, retained in rule 16. Game state requires `shots`, the current round's trigger pulls: each entry
 is `{ shot, shooterId, weapon, elapsed, bombs, power, extraBombs, fuseLevel, grip, kills: [{ victimId, elapsed }] }`,
 where `shot` is the id of the first bomb the pull launched, `weapon` is one of `bomb`, `triple`, `five`, `target`,
 `gun`, `shell`, `gravity`, `elapsed` counts ticks into the round, and `bombs` through `grip` record what the pull
