@@ -386,7 +386,7 @@ class ArenaScene extends Phaser.Scene {
       const self=p.id===selfId, labelY=p.y-(self?30:27);
       if(self)f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,22+Math.sin(now/180)*2);
       const name=this.label(self?'YOU':p.name,p.x,labelY,self?'#ffffff':p.color,self?12:10);
-      const power=this.label(powerCountText(p.powerPickups, p.extraBombs),p.x,labelY,POWER_COLOR);
+      const power=this.label(powerCountText(p.powerPickups, p.extraBombs, p.grip),p.x,labelY,POWER_COLOR);
       const gap=8, left=p.x-(name.width+gap+POWER_ICON_SIZE+POWER_ICON_GAP+power.width)/2;
       name.setX(left+name.width/2);
       const iconX=left+name.width+gap+POWER_ICON_SIZE/2, iconY=labelY, radius=POWER_ICON_SIZE/2;

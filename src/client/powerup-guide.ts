@@ -27,6 +27,7 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   beer: ['BEER', `rivals wobble for ${seconds(DRUNK_DURATION_TICKS)}`],
   ink: ['INK', `clouds rivals' view for ${seconds(INK_DURATION_TICKS)}`],
   star: ['STAR', `invulnerable for ${seconds(STAR_DURATION_TICKS)}`],
+  grip: ['GRIP', '43% tighter turn radius for this round; collect once, leave later drops for rivals'],
   boost: ['BOOST', `a quarter faster for ${seconds(BOOST_DURATION_TICKS)}`],
   gravity: ['SINGULARITY', `next bomb leaves a pull that drags riders in for ${seconds(GRAVITY_FIELD_TICKS)}`],
 };
