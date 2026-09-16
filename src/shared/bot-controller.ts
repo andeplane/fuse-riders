@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, riderTurnRate, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -66,7 +66,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
     const path=Array.from({length:lookahead},(_,index)=>{
       const tick=game.tick+index+1,previous=pose;
       pose=advanceRiderPose(previous,NEUTRAL,{distance:(enemy.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/TICK_HZ,
-        turn:RIDER_TURN_RATE/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,enemy.id,tick,enemy.drunkStartedTick,enemy.drunkUntilTick)});
+        turn:riderTurnRate(enemy)/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,enemy.id,tick,enemy.drunkStartedTick,enemy.drunkUntilTick)});
       return {x1:previous.x,y1:previous.y,x2:pose.x,y2:pose.y,createdTick:tick,expiresAtTick:tick+lookahead};
     });
     return {path,straight:enemy.drunkUntilTick<=game.tick&&enemy.drunkHeadingOffset===0};
@@ -82,7 +82,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
       const tick=game.tick+future,previous=pose;
       const distance=(player.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/TICK_HZ;
       pose=advanceRiderPose(previous,{left:plan.direction<0&&future<=plan.turnTicks,right:plan.direction>0&&future<=plan.turnTicks},
-        {distance,turn:RIDER_TURN_RATE/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,player.id,tick,player.drunkStartedTick,player.drunkUntilTick)});
+        {distance,turn:riderTurnRate(player)/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,player.id,tick,player.drunkStartedTick,player.drunkUntilTick)});
       const {x,y}=pose;
       const elapsed=game.tick-(game.roundStartedTick??game.tick);
       const inset=game.boundaryInset+(Math.max(0,elapsed+future-OVERTIME_START_TICK)-Math.max(0,elapsed-OVERTIME_START_TICK))*OVERTIME_INSET_PER_TICK;
@@ -134,7 +134,7 @@ export class BotController {
     if(game.phase!=='playing'||!player?.alive||!player.connected)return{...NEUTRAL};
     const enemies=[...game.players.values()].filter(candidate=>candidate.id!==id&&candidate.alive);
     const nearest=enemies.reduce<PlayerState|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
-    const pickup=game.pickups.reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
+    const pickup=game.pickups.filter(candidate=>candidate.type!=='grip'||!player.grip).reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const target=pickup??nearest;
     const tier=BOT_TIERS[botDifficulty(player.name)];
     let chosen=chooseSteering(game,player,enemies,target,this.dependencies.random(game.seed,id,game.tick),tier.lookaheadTicks);

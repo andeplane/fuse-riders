@@ -34,6 +34,12 @@ test('power-up guide durations follow the simulation constants', () => {
   assert.match(entry('beer').description, new RegExp(`${seconds(DRUNK_DURATION_TICKS)}$`));
   assert.match(entry('ink').description, new RegExp(`${seconds(INK_DURATION_TICKS)}$`));
   assert.match(entry('star').description, new RegExp(`${seconds(STAR_DURATION_TICKS)}$`));
-  assert.equal(entry('stopwatch').description, `your bombs: ${seconds(bombFuseTicks(0))} → ${seconds(bombFuseTicks(1))} → ${seconds(bombFuseTicks(2))}`);
-  assert.equal(entry('stopwatch').description, 'your bombs: 2s → 1.5s → 1s');
+});
+
+test('power guide explains immediate pickup benefits', () => { assert.match(entry('power').description, /each pickup improves blast size and reload/); });
+
+test('shorter-fuse guide describes both round upgrades using simulation durations', () => {
+  assert.equal(entry('stopwatch').spawnsByDefault, true);
+  assert.ok(entry('stopwatch').description.includes([0, 1, 2].map(level => `${bombFuseTicks(level) / TICK_HZ}s`).join(' → ')));
+  assert.match(entry('stopwatch').description, /for this round/);
 });

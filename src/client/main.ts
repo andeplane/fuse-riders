@@ -1,3 +1,4 @@
+import { powerCountText, powerLabel, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from './power-indicator.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { drawBombTargets } from './target-renderer.js';
@@ -5,7 +6,7 @@ import { createAvatarPicker, createAvatarPortrait, drawAvatarHead } from './avat
 import { drawInkClouds } from './ink-renderer.js';
 import { ControllerPointerBindings } from './controller-pointers.js';
 import { createGameAudio } from './game-audio.js';
-import { volleyAngles } from '../shared/launch-modifiers.js';
+import { bombsPerShot, volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
@@ -274,7 +275,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks, snapshot.aimBounce);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
-    const angles = player.tripleShotArmed || player.fiveShotArmed ? volleyAngles(player.angle, player.fiveShotArmed ? 5 : 3) : [player.angle];
+    const angles = volleyAngles(player.angle, bombsPerShot(player));
     for (const angle of angles) {
       const targetX = clamp(player.x + Math.cos(angle) * distance, snapshot.boundaryInset + 20, width - snapshot.boundaryInset - 20);
       const targetY = clamp(player.y + Math.sin(angle) * distance, snapshot.boundaryInset + 20, height - snapshot.boundaryInset - 20);
@@ -398,8 +399,23 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     // Radii follow #202's smaller portrait and #198's reload ring (17): the ring hugs them and stays clear of the 29px shield.
     const self = player.id === selfId;
     if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 22 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
-    ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'center'; ctx.fillStyle = self ? '#ffffff' : color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-    ctx.fillText(self ? 'YOU' : `P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - (self ? 30 : 27))); ctx.restore();
+    const riderLabel = self ? 'YOU' : player.name, labelColor = self ? '#ffffff' : color;
+    ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'left';
+    const powerText = powerCountText(player.powerPickups, player.extraBombs, player.grip), gap = 8;
+    const nameWidth = ctx.measureText(riderLabel).width;
+    const labelX = Math.round(player.x - (nameWidth + gap + POWER_ICON_SIZE + POWER_ICON_GAP + ctx.measureText(powerText).width) / 2);
+    const labelY = Math.round(player.y - (self ? 30 : 27));
+    ctx.lineWidth = 3; ctx.strokeStyle = '#020715';
+    ctx.strokeText(riderLabel, labelX, labelY); ctx.fillStyle = labelColor;
+    ctx.fillText(riderLabel, labelX, labelY);
+    const radius = POWER_ICON_SIZE / 2, iconX = labelX + nameWidth + gap + radius, iconY = labelY - 5;
+    ctx.fillStyle = POWER_COLOR; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(iconX, iconY - radius); ctx.lineTo(iconX + radius, iconY);
+    ctx.lineTo(iconX, iconY + radius); ctx.lineTo(iconX - radius, iconY); ctx.closePath(); ctx.fill(); ctx.stroke();
+    const countX = iconX + radius + POWER_ICON_GAP;
+    ctx.lineWidth = 3; ctx.strokeText(powerText, countX, labelY);
+    ctx.fillText(powerText, countX, labelY);
+    ctx.restore();
     const reload = reloadRemaining(player, snapshot);
     if (reload > 0) {
       ctx.save();
@@ -864,8 +880,7 @@ function startController(): void {
   identity.append(identityMarker, identityCopy, stateBadge);
   const instruction = element('p', 'controller-instruction', 'Waiting for the host to start…');
   const powerStrip = element('div', 'power-strip');
-  const fusePower = element('span', 'power-chip', '⏱ FUSE · 2s');
-  const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
+  const countPower = element('span', 'power-chip power-count', powerLabel(0));
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
   const inkPower = element('span', 'power-chip', 'INK · --');
   const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
@@ -873,7 +888,7 @@ function startController(): void {
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(fusePower, blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
+  powerStrip.append(countPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
@@ -954,8 +969,7 @@ function startController(): void {
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
-    fusePower.textContent = `⏱ FUSE · ${2 - Math.min(2, player.fuseLevel ?? 0) * .5}s`;
-    blastPower.textContent = player.blastLevel > 0 ? `BLAST · +${player.blastLevel}` : 'BLAST · BASE';
+    countPower.textContent = powerLabel(player.powerPickups, player.extraBombs, player.grip);
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;

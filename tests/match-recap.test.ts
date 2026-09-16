@@ -24,7 +24,7 @@ function rider(overrides: Partial<MatchPlayerStats> & { playerId: string; slot: 
   return {
     name: overrides.playerId.toUpperCase(), color: `#00000${overrides.slot}`, roundsPlayed: 0, roundWins: 0, roundsDrawn: 0,
     survivalTicks: 0, longestSurvivalTicks: 0, distanceUnits: 0, bombsPlaced: 0, bombsExploded: 0, eliminations: 0,
-    deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 0, blastPickups: 0, starPickups: 0,
+    deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 0, powerPickups: 0, starPickups: 0,
     beerPickups: 0, inkPickups: 0, triplePickups: 0, fivePickups: 0, targetPickups: 0, shieldPickups: 0, portalPickups: 0,
     portalTransits: 0, invulnerableTicks: 0, wallBounces: 0, earlyExits: 0,
     ...overrides,
@@ -182,7 +182,7 @@ test('singular award details read naturally', () => {
 
 test('comparison rows order by placement then seat and format every recorded counter', () => {
   const stats = [
-    rider({ playerId: 'late', slot: 3, matchPlacement: 2, roundWins: 1, survivalTicks: 1300, longestSurvivalTicks: 700, distanceUnits: 99.5, bombsPlaced: 5, bombsExploded: 4, eliminations: 2, pickupsCollected: 9, blastPickups: 1, starPickups: 2, beerPickups: 1, inkPickups: 1, triplePickups: 1, fivePickups: 1, targetPickups: 1, shieldPickups: 1, portalPickups: 1, portalTransits: 2, invulnerableTicks: 45, wallBounces: 3, earlyExits: 1, deathsByCause: { wall: 1, trail: 2, explosion: 3, rider: 4 } }),
+    rider({ playerId: 'late', slot: 3, matchPlacement: 2, roundWins: 1, survivalTicks: 1300, longestSurvivalTicks: 700, distanceUnits: 99.5, bombsPlaced: 5, bombsExploded: 4, eliminations: 2, pickupsCollected: 9, powerPickups: 1, starPickups: 2, beerPickups: 1, inkPickups: 1, triplePickups: 1, fivePickups: 1, targetPickups: 1, shieldPickups: 1, portalPickups: 1, portalTransits: 2, invulnerableTicks: 45, wallBounces: 3, earlyExits: 1, deathsByCause: { wall: 1, trail: 2, explosion: 3, rider: 4 } }),
     rider({ playerId: 'early', slot: 1, matchPlacement: 2, roundWins: 1 }),
     rider({ playerId: 'champ', slot: 4, matchPlacement: 1, roundWins: 2 }),
   ];
@@ -195,7 +195,7 @@ test('comparison rows order by placement then seat and format every recorded cou
   assert.equal(late.distance, '100');
   assert.equal(late.bombs, '4/5');
   assert.equal(late.eliminations, '2');
-  assert.equal(late.pickups, '9 · blast 1 · star 2 · beer 1 · ink 1 · triple 1 · five 1 · target 1 · shield 1 · portal 1 · 2 jumps');
+  assert.equal(late.pickups, '9 · power 1 · star 2 · beer 1 · ink 1 · triple 1 · five 1 · target 1 · shield 1 · portal 1 · 2 jumps');
   assert.match(comparisonRows([{ ...stats[0]!, portalTransits: 1 }])[0]!.pickups, /· 1 jump$/);
   assert.equal(late.star, '2.3s');
   assert.equal(late.deaths, 'wall 1 · trail 2 · blast 3 · rider 4');

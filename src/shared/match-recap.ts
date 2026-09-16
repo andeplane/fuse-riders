@@ -34,7 +34,7 @@ export function orderedStats(stats: ReadonlyArray<MatchPlayerStats>): MatchPlaye
 export function recapSignature(stats: ReadonlyArray<MatchPlayerStats>, moments: ReadonlyArray<Moment> = []): string {
   const figures = orderedStats(stats).map((entry) => [entry.playerId, entry.matchPlacement, entry.roundsPlayed, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
     entry.longestSurvivalTicks, entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected,
-    entry.invulnerableTicks, entry.wallBounces, entry.earlyExits, entry.blastPickups, entry.starPickups, entry.beerPickups, entry.inkPickups,
+    entry.invulnerableTicks, entry.wallBounces, entry.earlyExits, entry.powerPickups, entry.starPickups, entry.beerPickups, entry.inkPickups,
     entry.triplePickups, entry.fivePickups, entry.targetPickups, entry.shieldPickups, entry.portalPickups, entry.portalTransits,
     entry.deathsByCause.wall, entry.deathsByCause.trail, entry.deathsByCause.explosion, entry.deathsByCause.rider].join(':')).join('|');
   return moments.length ? `${figures}#${moments.map((moment) => `${moment.kind}:${moment.round}:${moment.tick}:${moment.playerId}:${moment.value}`).join(',')}` : figures;
@@ -269,7 +269,7 @@ export function comparisonRows(stats: ReadonlyArray<MatchPlayerStats>): Comparis
       distance: distanceText(entry.distanceUnits),
       bombs: `${entry.bombsExploded}/${entry.bombsPlaced}`,
       eliminations: String(entry.eliminations),
-      pickups: entry.pickupsCollected ? `${entry.pickupsCollected} · ${countList([['blast', entry.blastPickups], ['star', entry.starPickups], ['beer', entry.beerPickups], ['ink', entry.inkPickups], ['triple', entry.triplePickups], ['five', entry.fivePickups], ['target', entry.targetPickups], ['shield', entry.shieldPickups], ['portal', entry.portalPickups]])}${entry.portalTransits ? ` · ${entry.portalTransits} ${entry.portalTransits === 1 ? 'jump' : 'jumps'}` : ''}` : '—',
+      pickups: entry.pickupsCollected ? `${entry.pickupsCollected} · ${countList([['power', entry.powerPickups], ['star', entry.starPickups], ['beer', entry.beerPickups], ['ink', entry.inkPickups], ['triple', entry.triplePickups], ['five', entry.fivePickups], ['target', entry.targetPickups], ['shield', entry.shieldPickups], ['portal', entry.portalPickups]])}${entry.portalTransits ? ` · ${entry.portalTransits} ${entry.portalTransits === 1 ? 'jump' : 'jumps'}` : ''}` : '—',
       star: entry.invulnerableTicks ? durationText(entry.invulnerableTicks) : '—',
       deaths: countList([['wall', deaths.wall], ['trail', deaths.trail], ['blast', deaths.explosion], ['rider', deaths.rider]]),
     };

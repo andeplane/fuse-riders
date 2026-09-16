@@ -188,3 +188,23 @@ test('A weak rider lapses on a schedule the tick decides, so a rollback replays 
   const sober=new BotController(rigged).input(game,player.id);
   assert.notDeepEqual({left:sober.left,right:sober.right},{left:lapsed.left,right:lapsed.right},'the top tier never lapses');
 });
+
+test('GRIP bots plan tighter turns and survive a corner using ordinary simulation inputs', () => {
+  const game = steeringFixture();
+  Object.assign(game.players.get('bot:1')!, { x: 1500, y: 800, angle: Math.PI / 4, grip: true });
+  steerFor(game, 120);
+});
+
+
+test('an upgraded bot ignores nearby GRIP drops and continues toward useful pickups', () => {
+  const game = steeringFixture(), player = game.players.get('bot:1')!;
+  player.grip = true;
+  const bot = new BotController({ random: () => .25 });
+  game.pickups = [{ id: 1, type: 'power', x: 460, y: 550, expiresAtTick: 999 }];
+  const useful = bot.input(game, player.id);
+  assert.equal(useful.right, true, 'the useful pickup lies to the right');
+  game.pickups.push({ id: 2, type: 'grip', x: 430, y: 420, expiresAtTick: 999 });
+  assert.deepEqual(bot.input(game, player.id), useful, 'uncollectible GRIP must not distract the bot');
+  player.grip = false;
+  assert.equal(bot.input(game, player.id).left, true, 'an eligible bot still pursues GRIP');
+});

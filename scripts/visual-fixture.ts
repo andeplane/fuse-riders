@@ -40,7 +40,7 @@ try {
   for (const [id,x,y] of [[1,405,145],[2,1040,355],[3,670,605]]) app.game.bombs.set(id,{id,ownerId:`p${id}`,launchX:x,launchY:y,x,y,placedTick:940,launchedTick:940,landsAtTick:946,explodeAtTick:980+id*5,blastRange:150,flightPath:Array.from({length:7},()=>({x,y,angle:0}))});
   app.game.blasts.push({ bombId: 5, ownerId: 'p0', circle: { x: 510, y: 340, radius: 150 }, expiresAtTick:968 });
   app.game.pickups = [
-    { id: 1, type: 'blast', x: 1250, y: 320, expiresAtTick: 1200 },
+    { id: 1, type: 'power', x: 1250, y: 320, expiresAtTick: 1200 },
     { id: 3, type: 'five', x: 1350, y: 420, expiresAtTick: 1200 },
     { id: 2, type: 'star', x: 1250, y: 520, expiresAtTick: 1200 },
   ];

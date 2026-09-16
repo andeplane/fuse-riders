@@ -20,13 +20,10 @@ function pickupImage(theme: ThemeDefinition, type: PickupType): HTMLImageElement
   return image;
 }
 
-function fallbackCross(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
-  const arm = size * 0.3;
-  ctx.fillStyle = '#ff7b16';
-  ctx.fillRect(x - arm, y - size / 2, arm * 2, size);
-  ctx.fillRect(x - size / 2, y - arm, size, arm * 2);
-  ctx.fillStyle = '#fff6b0';
-  ctx.fillRect(x - arm * 0.42, y - arm * 0.42, arm * 0.84, arm * 0.84);
+function fallbackPower(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  ctx.fillStyle = '#ffdf55'; ctx.strokeStyle = '#fff6b0'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, y - size / 2); ctx.lineTo(x + size / 3, y);
+  ctx.lineTo(x, y + size / 2); ctx.lineTo(x - size / 3, y); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
 function fallbackStar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
@@ -68,9 +65,21 @@ function fallbackPowerup(ctx: CanvasRenderingContext2D, type: PickupType, x: num
   } else if (type === 'ink') {
     ctx.fillStyle = '#171026'; ctx.beginPath(); ctx.arc(x, y, size * .4, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#d399ff'; ctx.lineWidth = 2; ctx.stroke();
+  } else if (type === 'extraBomb') {
+    ctx.fillStyle = '#26334d'; ctx.strokeStyle = '#ff8ed2'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, size * .3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff4bf'; ctx.font = `bold ${size * .4}px sans-serif`; ctx.textAlign = 'center';
+    ctx.fillText('+1', x, y + size * .13);
   } else if (type === 'triple' || type === 'five') {
     ctx.fillStyle = '#ff55bd';
     for (const offset of (type === 'five' ? [-.36, -.18, 0, .18, .36] : [-.24, 0, .24])) { ctx.beginPath(); ctx.arc(x + size * offset, y, size * .13, 0, Math.PI * 2); ctx.fill(); }
+  } else if (type === 'grip') {
+    ctx.strokeStyle = '#a3ffb0'; ctx.lineWidth = 4; ctx.beginPath();
+    ctx.moveTo(x + size * .3, y + size * .3); ctx.lineTo(x + size * .3, y - size * .1);
+    ctx.arc(x, y - size * .1, size * .3, 0, -Math.PI, true);
+    ctx.lineTo(x - size * .3, y + size * .3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - size * .45, y + size * .1); ctx.lineTo(x - size * .3, y + size * .3);
+    ctx.lineTo(x - size * .1, y + size * .1); ctx.stroke();
   } else if (type === 'orbitShield') {
     ctx.strokeStyle = '#5cf4ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, size * .35, 0, Math.PI * 2); ctx.stroke();
   } else {
@@ -105,22 +114,23 @@ export function drawPickups(
     if (remaining <= 0) continue;
     const alpha = remaining < PICKUP_FADE_TICKS ? Math.max(0.15, remaining / PICKUP_FADE_TICKS) : 1;
     const pulse = 1 + Math.sin(now / 180 + pickup.id) * 0.06;
-    const size = 34 * pulse;
+    const size = (pickup.type === 'power' ? 24 : 34) * pulse;
     const image = pickupImage(theme, pickup.type);
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'orbitShield' ? '#5cf4ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
-    ctx.shadowBlur = 5;
+    ctx.shadowColor = pickup.type === 'power' ? '#ffdf55' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'orbitShield' ? '#5cf4ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
+    ctx.shadowBlur = pickup.type === 'power' ? 2 : 5;
     if (image?.complete && image.naturalWidth > 0) ctx.drawImage(image, pickup.x - size / 2, pickup.y - size / 2, size, size);
-    else if (pickup.type === 'blast') fallbackCross(ctx, pickup.x, pickup.y, size);
+    else if (pickup.type === 'power') fallbackPower(ctx, pickup.x, pickup.y, size);
     else if (pickup.type === 'beer') fallbackBeer(ctx, pickup.x, pickup.y, size);
     else if (pickup.type === 'star') fallbackStar(ctx, pickup.x, pickup.y, size);
     else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
-    const labels: Record<PickupType, string> = { stopwatch: 'FUSE', gun: 'GUN', shell: 'SHELL', blast: 'BLAST+', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' , boost: 'BOOST', gravity: 'SINGULARITY'};
+    if (pickup.type === 'power') continue;
+    const labels: Record<PickupType, string> = { stopwatch: 'FUSE', extraBomb: '+1 BOMB', gun: 'GUN', shell: 'SHELL', power: 'POWER', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' , grip: 'GRIP', boost: 'BOOST', gravity: 'SINGULARITY'};
     const text = labels[pickup.type];
-    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
+    const color = pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);
   }
 }
