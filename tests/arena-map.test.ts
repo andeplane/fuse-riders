@@ -157,22 +157,33 @@ test('the map owns the ground, the style still owns the grid spacing', () => {
   for (const map of ARENA_MAPS) assert.ok(ARENA_MAP_LABELS[map].length > 0);
 });
 
-test('every obstacle kind draws something inside its own footprint', () => {
+test('every obstacle kind draws its whole footprint, and nothing outside it', () => {
+  // Both directions matter, and for the same reason: the footprint is exactly what the simulation kills against.
+  // Drawing past it promises cover that is not there; leaving part of it bare kills riders that touched nothing.
   for (const kind of Object.keys(OBSTACLE_STYLES) as Obstacle['kind'][]) {
-    const obstacle: Obstacle = { id: 3, kind, x: 500, y: 400, halfWidth: 60, halfHeight: 45 };
-    const parts = obstacleParts(obstacle);
-    assert.ok(parts.length > 1, `${kind} draws more than a shadow`);
-    assert.deepEqual(parts, obstacleParts(obstacle), `${kind} is stable between frames`);
-    const bounds = rect(obstacle);
-    for (const part of parts.slice(1)) {
-      const [minX, maxX, minY, maxY] = part.shape === 'circle'
-        ? [part.x - part.radius, part.x + part.radius, part.y - part.radius, part.y + part.radius]
-        : [part.x, part.x + part.width, part.y, part.y + part.height];
-      assert.ok(minX >= bounds.minX - 1 && maxX <= bounds.maxX + 1, `${kind} drew outside its width`);
-      assert.ok(minY >= bounds.minY - 1 && maxY <= bounds.maxY + 1, `${kind} drew outside its height`);
-      assert.match(part.color, /^#[0-9a-f]{6}$/);
-      if (part.shape === 'rect') assert.ok(part.width > 0 && part.height > 0, `${kind} drew an empty rectangle`);
-      else assert.ok(part.radius > 0);
+    for (const [halfWidth, halfHeight] of [[60, 45], [29, 20], [22, 36], [15, 15]] as const) {
+      const obstacle: Obstacle = { id: 3, kind, x: 500, y: 400, halfWidth, halfHeight };
+      const parts = obstacleParts(obstacle);
+      const where = `${kind} at ${halfWidth}x${halfHeight}`;
+      assert.ok(parts.length > 1, `${where} draws more than a shadow`);
+      assert.deepEqual(parts, obstacleParts(obstacle), `${where} is stable between frames`);
+      const bounds = rect(obstacle);
+      // The shadow is deliberately offset onto the ground and is excluded from both checks.
+      const drawn = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+      for (const part of parts.slice(1)) {
+        const [minX, maxX, minY, maxY] = part.shape === 'ellipse'
+          ? [part.x - part.radiusX, part.x + part.radiusX, part.y - part.radiusY, part.y + part.radiusY]
+          : [part.x, part.x + part.width, part.y, part.y + part.height];
+        assert.ok(minX >= bounds.minX - 1 && maxX <= bounds.maxX + 1, `${where} drew outside its width`);
+        assert.ok(minY >= bounds.minY - 1 && maxY <= bounds.maxY + 1, `${where} drew outside its height`);
+        assert.match(part.color, /^#[0-9a-f]{6}$/);
+        if (part.shape === 'rect') assert.ok(part.width > 0 && part.height > 0, `${where} drew an empty rectangle`);
+        else assert.ok(part.radiusX > 0 && part.radiusY > 0);
+        drawn.minX = Math.min(drawn.minX, minX); drawn.maxX = Math.max(drawn.maxX, maxX);
+        drawn.minY = Math.min(drawn.minY, minY); drawn.maxY = Math.max(drawn.maxY, maxY);
+      }
+      assert.ok(drawn.minX <= bounds.minX + 1 && drawn.maxX >= bounds.maxX - 1, `${where} left part of its width undrawn`);
+      assert.ok(drawn.minY <= bounds.minY + 1 && drawn.maxY >= bounds.maxY - 1, `${where} left part of its height undrawn`);
     }
   }
   // Two buildings light different windows, so a city block is not a repeated stamp.

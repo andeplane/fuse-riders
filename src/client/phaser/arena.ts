@@ -249,7 +249,7 @@ class ArenaScene extends Phaser.Scene {
   private drawObstacles(obstacles: ViewSnapshot['obstacles']): void {
     for (const obstacle of obstacles) for (const part of obstacleParts(obstacle)) {
       this.floor.fillStyle(color(part.color), part.alpha ?? 1);
-      if (part.shape === 'circle') this.floor.fillCircle(part.x, part.y, part.radius);
+      if (part.shape === 'ellipse') this.floor.fillEllipse(part.x, part.y, part.radiusX * 2, part.radiusY * 2);
       else this.floor.fillRect(part.x, part.y, part.width, part.height);
     }
   }

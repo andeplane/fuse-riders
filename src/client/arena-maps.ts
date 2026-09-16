@@ -41,7 +41,7 @@ export function mapGround(map: ArenaMapId, theme: ThemeDefinition): MapGround {
 
 export type ObstaclePart =
   | { shape: 'rect'; x: number; y: number; width: number; height: number; color: string; alpha?: number }
-  | { shape: 'circle'; x: number; y: number; radius: number; color: string; alpha?: number };
+  | { shape: 'ellipse'; x: number; y: number; radiusX: number; radiusY: number; color: string; alpha?: number };
 
 interface ObstacleStyle {
   body: string;
@@ -76,16 +76,17 @@ export function obstacleParts(obstacle: Obstacle): ObstaclePart[] {
   // under a tree would advertise a footprint the crown does not fill.
   const parts: ObstaclePart[] = [];
   if (style.build === 'tree') {
-    // The crown fills the footprint, because the footprint is what the simulation kills against: a small canopy
-    // floating in a larger lethal square would kill riders that never touched anything drawn.
-    const canopy = Math.min(hw, hh);
+    // The crown is an ellipse on the footprint's own half extents, not a circle on the smaller of them: the
+    // footprint is what the simulation kills against, and a crown that does not reach its edges would kill riders
+    // that touched nothing drawn. Tree and bush sizes are rolled per axis, so they are rarely square.
+    parts.push({ shape: 'ellipse', x: x + 4, y: y + 6, radiusX: hw, radiusY: hh, color: '#000000', alpha: .35 });
+    parts.push({ shape: 'ellipse', x, y, radiusX: hw, radiusY: hh, color: style.shade });
+    parts.push({ shape: 'ellipse', x: x - hw * .12, y: y - hh * .1, radiusX: hw * .78, radiusY: hh * .78, color: style.body });
+    parts.push({ shape: 'ellipse', x: x + hw * .2, y: y + hh * .18, radiusX: hw * .5, radiusY: hh * .5, color: style.body });
+    parts.push({ shape: 'ellipse', x: x - hw * .22, y: y - hh * .28, radiusX: hw * .3, radiusY: hh * .3, color: style.top });
+    // The trunk base, peeking out at the foot of the crown, is what tells a tree from a rock at a glance.
     const trunkWidth = Math.max(6, width * .18);
-    parts.push({ shape: 'circle', x: x + 4, y: y + 6, radius: canopy, color: '#000000', alpha: .35 });
-    parts.push({ shape: 'rect', x: x - trunkWidth / 2, y, width: trunkWidth, height: hh, color: style.detail });
-    parts.push({ shape: 'circle', x, y, radius: canopy, color: style.shade });
-    parts.push({ shape: 'circle', x: x - canopy * .28, y: y - canopy * .2, radius: canopy * .62, color: style.body });
-    parts.push({ shape: 'circle', x: x + canopy * .26, y: y + canopy * .12, radius: canopy * .56, color: style.body });
-    parts.push({ shape: 'circle', x: x - canopy * .18, y: y - canopy * .34, radius: canopy * .3, color: style.top });
+    parts.push({ shape: 'rect', x: x - trunkWidth / 2, y: y + hh * .55, width: trunkWidth, height: hh * .45, color: style.detail });
     return parts;
   }
   parts.push({ shape: 'rect', x: left + 4, y: top + 6, width, height, color: '#000000', alpha: .35 });

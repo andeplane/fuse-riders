@@ -703,6 +703,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
     // Obstacles are solid the way the boundary is, and kill under the same cause. A hazard-immune rider passes
     // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
+    // Only the contact time is recorded here; the cause is decided below, once the trail and rider contacts of
+    // this tick are known and can be compared against it.
     for (const obstacle of state.obstacles) {
       if (isHazardImmune(movement.player, state.tick)) break;
       const touches = (time: number): boolean => obstacleBlocksPath(obstacle,
@@ -711,7 +713,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         movement.oldY + (movement.y - movement.oldY) * time, RIDER_RADIUS);
       const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
       if (!touches(previous)) continue;
-      markCause(causes, causeOwners, movement.player.id, 'wall');
       obstacleContactTimes.set(movement.player.id, firstContactTime(touches, previous));
     }
 
@@ -769,11 +770,27 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     }
   }
 
+  /**
+   * Scenery kills under `wall`, which outranks `trail` and `rider`. Unlike the boundary, which a rider can only
+   * reach at the end of its step, an obstacle can be met anywhere along it — so a rock a rider would have reached
+   * later in the tick must not take a kill away from the trail or the rider that actually stopped it first.
+   * A rider already dead by explosion still keeps its contact, which is what the shield below bounces off.
+   */
+  for (const movement of movementList) {
+    const contact = obstacleContactTimes.get(movement.player.id);
+    if (contact === undefined) continue;
+    const reachedFirst = Math.min(trailContactTimes.get(movement.player.id) ?? 1, riderContactTimes.get(movement.player.id) ?? 1);
+    if (reachedFirst <= contact) { obstacleContactTimes.delete(movement.player.id); continue; }
+    markCause(causes, causeOwners, movement.player.id, 'wall');
+  }
+
   for (const movement of movementList) {
     if (!causes.has(movement.player.id) || !movement.player.shielded) continue;
     movement.player.shielded = false;
     movement.player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
-    const obstacleTime = causes.get(movement.player.id) === 'wall' ? obstacleContactTimes.get(movement.player.id) : undefined;
+    // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
+    // blast must not leave it inside the rock, riding out its grace ticks in there.
+    const obstacleTime = obstacleContactTimes.get(movement.player.id);
     if (obstacleTime !== undefined && reflectAtObstacle(state, movement, obstacleTime)) bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
     causes.delete(movement.player.id);
@@ -876,7 +893,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   // Resolve every gun against the same committed board before applying cuts or deaths.
   const gunHits = resolveGunShots(state);
 
-  // Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched.
+  /**
+   * Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched — and so after
+   * the sweep above. A rider that crashed into scenery earlier in this tick died against a board that was still
+   * standing when it got there, and a Target Bomb landing afterwards then clears that same rock: chronological
+   * within the tick, and the same order in which a pickup collected this tick survives a blast opened by it.
+   * Ordinary fuses run before movement instead (`newBlasts`), so what they clear is gone before anyone rides into it.
+   */
   const instantBlasts = resolveExplosions(state, events);
   if (instantBlasts.length || gunHits.size) {
     captureOrigins();

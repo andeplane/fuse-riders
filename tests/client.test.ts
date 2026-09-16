@@ -27,6 +27,24 @@ test('visual projection uses authoritative tick spacing during packet bursts', (
   assert.equal(projected.players[0]!.x, 122.5, 'two-tick velocity projects at most one 7.5-unit step');
 });
 
+test('a projected shell bounces off scenery instead of sliding through it', () => {
+  // The simulation reflects a shell off an obstacle, so the projection has to as well: otherwise the sprite slides
+  // into a building between authoritative ticks and snaps back out on the next one.
+  const shell = { id: 1, ownerId: 'other', launchX: 0, launchY: 0, x: 415, y: 100, launchedTick: 0, landsAtTick: 9e9,
+    explodeAtTick: 9e9, blastRange: 0, flightPath: [], shell: { vx: 450, vy: 0 } };
+  // Parked one projected frame short of the wall's face: 22.5 units of travel against 11 units of gap.
+  const shot = (obstacles: GameSnapshot['obstacles']): number => {
+    const frames = [playingFrame(10, 100, 100), playingFrame(12, 101, 115)];
+    for (const frame of frames) Object.assign(frame.snapshot, { bombs: [{ ...shell, shell: { ...shell.shell } }], obstacles });
+    return renderedSnapshot(frames, 151)!.bombs[0]!.x;
+  };
+  const open = shot([]);
+  assert.equal(open, 437.5, 'an open lane carries the shell past where the wall would stand');
+  const blocked = shot([{ id: 1, kind: 'building', x: 500, y: 100, halfWidth: 60, halfHeight: 60 }]);
+  assert.ok(blocked <= 500 - 60 - 14 + 1e-6, `the wall turns it at its face, not at ${blocked}`);
+  assert.ok(blocked < open, 'and it never reaches where an open lane would have carried it');
+});
+
 test('LAN bomb preview uses fractional rider time with a one-tick cap and intact authoritative state', () => {
   const frames = [playingFrame(10, 100, 100), playingFrame(12, 101, 115)];
   for (const frame of frames) frame.snapshot.players[0]!.bombChargeStartedTick = 10;

@@ -32,6 +32,8 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
   if (projectionDuration === 0) return newer.snapshot;
   const factor = projectionDuration / authoritativeDuration;
   const oldById = new Map(older.snapshot.players.map((player) => [player.id, player]));
+  // Built once per projected frame rather than once per shell: the edges are the same board for every bomb.
+  const obstacleWalls = newer.snapshot.obstacles.flatMap(obstacleEdges);
   return {
     ...newer.snapshot,
     // Cosmetic world effects use the same bounded fractional time as rider presentation.
@@ -47,7 +49,7 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
         bottom: newer.snapshot.height - newer.snapshot.boundaryInset - SHELL_RADIUS },
         // Scenery bounces a shell in the simulation, so the projection has to bounce it too or the sprite
         // slides through a building until the next authoritative tick snaps it back.
-        [...newer.snapshot.obstacles.flatMap(obstacleEdges),
+        [...obstacleWalls,
           ...newer.snapshot.players.flatMap(player => player.id === bomb.ownerId && newer.snapshot.tick - bomb.launchedTick < 6 ? [] : [...player.trail])]);
       return { ...bomb, x: motion.x, y: motion.y };
     }),

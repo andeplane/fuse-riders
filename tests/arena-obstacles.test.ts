@@ -7,7 +7,7 @@ import {
 } from '../src/shared/game.js';
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
 import {
-  ARENA_MAPS, obstacleBlocksPath, obstacleDistanceSquared, obstacleTouchesCircle, type Obstacle,
+  ARENA_MAPS, MAX_OBSTACLES, obstacleBlocksPath, obstacleDistanceSquared, obstacleTouchesCircle, type Obstacle,
 } from '../src/shared/arena-map.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { BotController } from '../src/shared/bot-controller.js';
@@ -48,10 +48,11 @@ test('a rider that rides into scenery dies against its face, not inside it', () 
   assert.equal(dead.alive, false, 'the rock stopped the rider');
   assert.ok(events.some(event => event.type === 'playerEliminated' && event.playerId === 'p0' && event.cause === 'wall'),
     'a crash is reported like any other solid contact');
-  // Stopped at the surface: touching it, but never carried inside.
-  const gap = Math.sqrt(obstacleDistanceSquared(game.obstacles[0]!, dead.x, dead.y));
-  assert.ok(gap <= RIDER_RADIUS + 1e-6 && gap > RIDER_RADIUS - 1, `stopped ${gap} from the rock`);
-  assert.ok(dead.x < 700 - 60, 'the wreck is short of the far face');
+  // Stopped exactly where it first touched: the rock's near face is at x = 640, and a rider touches at its own
+  // radius from it. Anything later in the step is the crash being resolved somewhere inside the rock.
+  assert.ok(Math.abs(dead.x - (700 - 60 - RIDER_RADIUS)) < 1e-6, `stopped at ${dead.x}, not at the face`);
+  assert.equal(dead.y, 450, 'and on the line it was riding');
+  assert.ok(Math.sqrt(obstacleDistanceSquared(game.obstacles[0]!, dead.x, dead.y)) <= RIDER_RADIUS + 1e-6);
   const wreck = dead.trail.at(-1)!;
   assert.ok(Math.abs(wreck.x2 - dead.x) < 1e-6, 'the trail it laid reaches the crash and stops there');
 });
@@ -81,6 +82,59 @@ test('a shielded rider is turned away from the scenery it crashed into', () => {
   assert.ok(survivor.x < 700 - 60 - RIDER_RADIUS + 1e-6, 'and stopped at the rock rather than inside it');
   step(game, new Map());
   assert.ok(survivor.x < 700 - 60 - RIDER_RADIUS, 'and rides away from it');
+});
+
+test('scenery further along the step never steals the kill from the trail that stopped the rider first', () => {
+  // `wall` outranks `trail`, and unlike the boundary an obstacle can be met anywhere along a step. A rock the
+  // rider would only have reached later in the tick must not turn a credited trail kill into an uncredited crash.
+  // One step of about 7.5 units from x=640 meets the trail at x=648.5 first and the rock's face at x=653 after it,
+  // so both contacts fall inside this very tick and only their order can tell them apart.
+  const crash = (withRock: boolean) => {
+    const game = scene(withRock ? [boulder({ x: 713, y: 450, halfWidth: 60, halfHeight: 60 })] : []);
+    const victim = rider(game), owner = rider(game, 'p1');
+    Object.assign(victim, { x: 640, y: 450, angle: 0, trail: [] });
+    Object.assign(owner, { x: 200, y: 100, angle: 0, trail: [{ x1: 648.5, y1: 300, x2: 648.5, y2: 600, createdTick: game.tick - 5, expiresAtTick: game.tick + 500 }] });
+    const events = step(game, new Map()).events;
+    return { game, victim, cause: events.flatMap(event => event.type === 'playerEliminated' ? [event.cause] : [])[0] };
+  };
+  // The fixture is only meaningful if the rock is genuinely in reach of this step: without the trail, it kills.
+  const rockOnly = scene([boulder({ x: 713, y: 450, halfWidth: 60, halfHeight: 60 })]);
+  Object.assign(rider(rockOnly), { x: 640, y: 450, angle: 0, trail: [] });
+  Object.assign(rider(rockOnly, 'p1'), { x: 200, y: 100, angle: 0, trail: [] });
+  step(rockOnly, new Map());
+  assert.equal(rider(rockOnly).alive, false, 'the rock is inside this step\'s travel');
+  const open = crash(false);
+  assert.equal(open.cause, 'trail', 'the fixture does kill on the trail when nothing else is near');
+  const rocky = crash(true);
+  assert.equal(rocky.cause, 'trail', 'and the rock a step further on does not take it over');
+  assert.equal(rocky.game.matchStats.get('p1')?.eliminations, open.game.matchStats.get('p1')?.eliminations, 'the trail owner keeps the kill');
+  assert.equal(rocky.game.matchStats.get('p0')?.deathsByCause.trail, 1);
+  assert.ok(Math.abs(rocky.victim.x - open.victim.x) < 1e-9, 'and the wreck is left where the trail stopped it');
+});
+
+test('a shield absorbing a blast still stands the rider against the scenery it hit that tick', () => {
+  // The blast outranks the crash as a cause, but the rider reached the rock: leaving it inside would let it ride
+  // the interior out under its shield grace and die in there.
+  const game = scene([boulder({ x: 700, y: 450, halfWidth: 60, halfHeight: 60 })]);
+  const survivor = rider(game);
+  Object.assign(survivor, { x: 640 - RIDER_RADIUS - 4, y: 450, angle: 0, shielded: true });
+  // A shell rather than a bomb: any blast big enough to reach a rider standing this close to a rock would clear
+  // the rock as well, and a shell kills under the same `explosion` cause without touching the scenery.
+  game.bombs.set(1, {
+    id: 1, ownerId: 'p1', launchX: 620, launchY: 560, x: 620, y: 478,
+    launchedTick: game.tick - 10, placedTick: game.tick - 10,
+    landsAtTick: Number.MAX_SAFE_INTEGER, explodeAtTick: Number.MAX_SAFE_INTEGER, blastRange: 0,
+    flightPath: [], shell: { vx: 0, vy: -450 },
+  });
+  step(game, new Map());
+  assert.deepEqual(game.obstacles.map(obstacle => obstacle.id), [1], 'the rock is still standing, so this is about the crash');
+  assert.equal(survivor.alive, true, 'the shield absorbed it');
+  assert.equal(survivor.shielded, false);
+  assert.ok(survivor.x <= 700 - 60 - RIDER_RADIUS + 1e-6, `left at ${survivor.x}, inside the rock`);
+  assert.ok(Math.abs(Math.cos(survivor.angle) + 1) < 1e-6, 'and turned away from the face it hit');
+  // Through the grace ticks and out the other side of them, still clear of the rock.
+  for (let tick = 0; tick < 12; tick += 1) step(game, new Map());
+  assert.ok(survivor.alive, 'it did not die inside the scenery once the grace ran out');
 });
 
 test('a blast clears the scenery it covers and leaves the rest standing', () => {
@@ -268,6 +322,8 @@ test('the board travels in snapshots and checkpoints, and a controller is not se
   assert.equal(corrupt(obstacles => { obstacles[1]!.id = obstacles[0]!.id; }), undefined, 'duplicate ids are rejected');
   assert.equal(corrupt(obstacles => { obstacles[0]!.kind = 'castle'; }), undefined, 'an unknown kind is rejected');
   assert.equal(corrupt(obstacles => { obstacles[0]!.x = 1590; }), undefined, 'an obstacle hanging out of the arena is rejected');
+  assert.equal(corrupt(obstacles => { while (obstacles.length <= MAX_OBSTACLES) obstacles.push({ ...obstacles[0]!, id: obstacles.length + 1 }); }),
+    undefined, 'a board larger than the cap is rejected');
   assert.ok(corrupt(obstacles => { obstacles.pop(); }), 'a smaller board still restores');
 });
 

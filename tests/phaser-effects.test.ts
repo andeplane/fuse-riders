@@ -13,6 +13,18 @@ test('effects do not replay on repeated snapshots or across authority/match rese
  assert.equal(effects.accept({...s,round:2,blasts:[blast]},'epoch2:match1').explosions.length,0);
  effects.reset(); assert.equal(effects.accept({...s,blasts:[blast]},'epoch2:match1').explosions.length,0);
 });
+test('scenery cleared from the board puffs once, and a fresh board is not all rubble',()=>{
+ const effects=new EffectTransitions(); const s=frame();
+ const standing={...s,obstacles:[{id:1,kind:'rock' as const,x:300,y:200,halfWidth:40,halfHeight:30},{id:2,kind:'tree' as const,x:800,y:400,halfWidth:20,halfHeight:20}]};
+ assert.deepEqual(effects.accept(standing,'room:a').rubble,[],'the board it first sees is standing, not destroyed');
+ const cleared={...standing,obstacles:[standing.obstacles[1]!]};
+ assert.deepEqual(effects.accept(cleared,'room:a').rubble.map(o=>o.id),[1],'the rock that left the board puffs where it stood');
+ assert.deepEqual(effects.accept(cleared,'room:a').rubble,[],'and only once');
+ // A new round lays a new board: every piece of the old one is gone, and none of it is an explosion to draw.
+ assert.deepEqual(effects.accept({...cleared,round:2,obstacles:[]},'room:a').rubble,[]);
+ effects.accept(standing,'room:b');
+ assert.deepEqual(effects.accept({...standing,obstacles:[]},'room:c').rubble,[],'nor across a match reset');
+});
 test('bomb flight sprite follows segmented path while damage radius stays at landing point',()=>{
  const bomb={id:1,ownerId:'p',launchX:0,launchY:0,x:100,y:100,launchedTick:0,landsAtTick:10,explodeAtTick:50,blastRange:90,flightPath:[{x:0,y:0,angle:0},{x:100,y:0,angle:0},{x:100,y:100,angle:0}]};
  assert.deepEqual(bombPose(bomb,2.5),{x:50,y:0,flight:.25});
