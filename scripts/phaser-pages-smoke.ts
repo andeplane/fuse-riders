@@ -1,9 +1,10 @@
 import { preview } from 'vite';
+import { AVATAR_ATLAS_URL } from '../src/shared/avatars.js';
+import { defaultTheme, themes } from '../src/client/themes.js';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 import { chromium } from 'playwright';
 import { readdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import { defaultTheme } from '../src/client/themes.js';
 import { visualFixture } from '../src/client/phaser/benchmark-fixture.js';
 const directory=process.env.BUILD_DIRECTORY??'artifacts/phaser-pages-dist';
 const chunk=(await readdir(`${directory}/assets`)).find(file=>file.startsWith('arena-')&&file.endsWith('.js'));assert.ok(chunk,'Phaser chunk exists');
@@ -22,6 +23,11 @@ try{
    arena.render(state,performance.now(),theme,'pages-test');
    arena.destroy();canvas.remove();
  },{chunk,state:visualFixture(20),theme:defaultTheme});
- assert.deepEqual(failures,[]);const expected=2*(2+POWERUP_GUIDE.length)+1;assert.equal(assets.length,expected,`theme/avatar assets loaded: ${assets.length}, expected ${expected}`);assert.ok(assets.every(path=>path.startsWith('/fuse-riders/')&&!path.includes('/fuse-riders/fuse-riders/')));
+ assert.deepEqual(failures,[]);
+ // The landing page loads assets of its own — an attract arena, the legend icons, the theme sprites — before this smoke builds
+ // its arena, so how many *responses* arrive depends on composition and timing. What must hold is which paths were fetched, and
+ // that every one of them resolved below the subpath. Asserting the set is also the arity guard for the every() below.
+ const expected=new Set([...Object.values(themes).flatMap(theme=>[theme.sprites.rider,theme.sprites.bomb,...POWERUP_GUIDE.map(entry=>`/themes/${theme.id}/pickup-${entry.type}.svg`)]),defaultTheme.sprites.flame,AVATAR_ATLAS_URL].map(path=>`/fuse-riders${path}`));
+ assert.deepEqual(new Set(assets),expected);assert.ok(assets.every(path=>path.startsWith('/fuse-riders/')&&!path.includes('/fuse-riders/fuse-riders/')));
  console.log(`Pages subpath smoke passed: ${assets.length} theme/avatar assets loaded successfully below /fuse-riders/.`);
 }finally{await browser.close();await new Promise<void>((resolve,reject)=>server.httpServer.close(error=>error?reject(error):resolve()));}
