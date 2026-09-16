@@ -48,11 +48,11 @@ try {
   assert.equal(playing.paused, false, 'music plays on the landing page, with no room and no match');
   assert.ok(playing.volume > 0 && playing.volume <= 1, `music has a real volume, got ${playing.volume}`);
 
-  // The toggle sits in the landing top bar, on the same side as the room header's audio button.
+  // The toggle sits in the landing top bar, on the same side as the room header's SETTINGS button.
   const bar = (await page.locator('.landing-top').boundingBox())!;
   const button = (await page.locator('.landing-audio').boundingBox())!;
   assert.ok(button.y >= bar.y - 1 && button.y + button.height <= bar.y + bar.height + 1, 'the toggle sits inside the top bar');
-  assert.ok(button.x > bar.x + bar.width / 2, 'the toggle sits on the right, like the room header audio button');
+  assert.ok(button.x > bar.x + bar.width / 2, 'the toggle sits on the right, like the room header SETTINGS button');
   assert.ok(button.height >= 40, `the toggle is a real touch target, got ${button.height}px`);
   assert.equal(await label(), '♫ MUSIC ON');
   await page.screenshot({ path: 'artifacts/landing-music.png' });

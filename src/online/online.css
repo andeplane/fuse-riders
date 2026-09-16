@@ -224,7 +224,7 @@
 .desktop-game .online-header>button,.desktop-game .online-header>.online-round{order:4}
 .desktop-game .online-header>.online-status{position:static;max-width:30%;padding:0 6px;font-size:11px;background:none}
 .desktop-game .online-host button:first-child:not(:disabled){background:var(--player-color);color:#030919;font-weight:900;letter-spacing:1px;border-color:#fff}
-.desktop-game .online-header>.desktop-help,.desktop-game .online-header>button[aria-label=Fullscreen]{opacity:.75}
+.desktop-game .online-header>.desktop-help,
 .desktop-game .online-notice{top:calc(100% + 8px)}
 .online-app .landing-rejoin{border-color:#b6ff4d;color:#e6ffc6;white-space:nowrap}
 /* Recap and standings: the local rider is outlined so a table of five reads at a glance. */

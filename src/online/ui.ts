@@ -264,7 +264,7 @@ export async function startOnline():Promise<void>{
   window.addEventListener('resize',updateDesktopLayout);
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
-  const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
+  const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogTitle.textContent='RADIO';dialog.setAttribute('aria-label','Radio');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
   const audio=sharedAudio();radioToggle=()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */};
   // Device preferences: music, effects, radio, visual style and fullscreen are this device's own and change nothing shared, so
   // they sit behind one SETTINGS button instead of five in the header. Built once; the dialog body adopts the same nodes each open.
