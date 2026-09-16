@@ -354,7 +354,7 @@ test('head-on swept rider collision eliminates both and produces a draw', () => 
   assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
   // Everybody dying to each other is a highlight moment: it is announced before the round ends (ADR 043/044).
   assert.deepEqual(result.events.map((event) => event.type), ['playerEliminated', 'playerEliminated', 'moment', 'roundEnded']);
-  assert.ok(state.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 4 * POINT_UNIT));
+  assert.ok(state.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 0));
   assert.equal(state.matchStats.get('p0')!.eliminations, 1);
   assert.equal(state.matchStats.get('p1')!.eliminations, 1);
   assert.ok([...state.matchStats.values()].every((entry) => entry.roundsDrawn === 1 && entry.deathsByCause.rider === 1));
@@ -527,15 +527,15 @@ test('invalid release and cancellation preserve launch modifiers', () => {
   assert.equal(owner.tripleShotArmed, true);
 });
 
-test('round wins score once, first to three ends the match, and rematch resets wins and scope', () => {
+test('points score once, five rounds end the default match, and rematch resets match points and scope', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  for (let win = 1; win <= 3; win += 1) {
+  for (let win = 1; win <= 5; win += 1) {
     eliminatePlayer(state, 'p1');
     const result = step(state, new Map());
     assert.equal(state.players.get('p0')!.roundWins, win);
     assert.equal(result.events.filter((event) => event.type === 'roundEnded').length, 1);
-    if (win < 3) {
+    if (win < 5) {
       assert.equal(state.phase, 'roundOver');
       state.tick = state.phaseEndsAtTick!;
       startNextRound(state);
@@ -547,15 +547,15 @@ test('round wins score once, first to three ends the match, and rematch resets w
   const matchStats = toSnapshot(state).matchStats;
   assert.equal(matchStats.length, 2);
   assert.deepEqual(matchStats.map((entry) => [entry.playerId, entry.roundWins, entry.roundsPlayed, entry.matchPlacement]), [
-    ['p0', 3, 3, 1], ['p1', 0, 3, 2],
+    ['p0', 5, 5, 1], ['p1', 0, 5, 2],
   ]);
   assert.deepEqual(state.leaderboard.get('p0'), {
-    id: 'p0', name: 'Player 1', totalScoreUnits: 15 * POINT_UNIT,
-    roundsPlayed: 3, roundWins: 3, matchWins: 1,
+    id: 'p0', name: 'Player 1', totalScoreUnits: 10 * POINT_UNIT,
+    roundsPlayed: 5, roundWins: 5, matchWins: 1,
   });
   assert.deepEqual(state.leaderboard.get('p1'), {
-    id: 'p1', name: 'Player 2', totalScoreUnits: 9 * POINT_UNIT,
-    roundsPlayed: 3, roundWins: 0, matchWins: 0,
+    id: 'p1', name: 'Player 2', totalScoreUnits: 0,
+    roundsPlayed: 5, roundWins: 0, matchWins: 0,
   });
   resetMatch(state, 'rematch');
   assert.equal(state.matchId, 'rematch');
@@ -567,8 +567,8 @@ test('round wins score once, first to three ends the match, and rematch resets w
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
   eliminatePlayer(state, 'p1');
   step(state, new Map());
-  assert.equal(state.leaderboard.get('p0')!.roundsPlayed, 4);
-  assert.equal(state.leaderboard.get('p0')!.totalScoreUnits, 20 * POINT_UNIT);
+  assert.equal(state.leaderboard.get('p0')!.roundsPlayed, 6);
+  assert.equal(state.leaderboard.get('p0')!.totalScoreUnits, 12 * POINT_UNIT);
 });
 
 test('overtime inset updates before collision and a 90-second unresolved round draws', () => {
@@ -587,8 +587,8 @@ test('overtime inset updates before collision and a 90-second unresolved round d
   assert.equal(timeout.phase, 'roundOver');
   assert.equal(timeout.roundWinnerId, undefined);
   assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
-  assert.ok(timeout.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 4 * POINT_UNIT));
-  assert.ok([...timeout.leaderboard.values()].every((entry) => entry.totalScoreUnits === 4 * POINT_UNIT && entry.roundsPlayed === 1));
+  assert.ok(timeout.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 0));
+  assert.ok([...timeout.leaderboard.values()].every((entry) => entry.totalScoreUnits === 0 && entry.roundsPlayed === 1));
 });
 
 test('lifecycle commands enforce phase, capacity, identity, and connected-player guards', () => {
@@ -646,7 +646,7 @@ test('wall and explosion causes are authoritative, clipped, and blast visuals ex
 test('a finished match can replace every seat and start a clean rematch without restarting the server', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  state.players.get('p0')!.roundWins = 2;
+  state.round = 5;
   eliminatePlayer(state, 'p1');
   step(state, new Map());
   assert.equal(state.phase, 'matchOver');
@@ -918,8 +918,8 @@ test('countdown leave is stamped, scored once, and a later join receives no prio
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
   assert.equal(state.phase, 'roundOver');
   assert.deepEqual(state.roundPlacements.map((placement) => [placement.playerId, placement.place, placement.scoreUnits]), [
-    ['p0', 1, 5 * POINT_UNIT],
-    ['p1', 2, 3 * POINT_UNIT],
+    ['p0', 1, 2 * POINT_UNIT],
+    ['p1', 2, 0],
   ]);
   const totalAfterRound = state.leaderboard.get('p0')!.totalScoreUnits;
   step(state, new Map());
@@ -954,7 +954,7 @@ test('overlapping blast owners receive no speculative elimination credit', () =>
 test('match-over recap is frozen and deeply detached from engine state', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  state.players.get('p0')!.roundWins = 2;
+  state.round = 5;
   eliminatePlayer(state, 'p1');
   step(state, new Map());
   const before = toSnapshot(state).matchStats;
@@ -1304,11 +1304,11 @@ test('a fixed-rounds match ends on the standings leader even when another rider 
   assert.equal(state.matchWinnerId, 'p0');
   assert.equal(state.roundWinnerId, 'p1', 'the final round still belongs to its survivor');
   assert.deepEqual(state.leaderboard.get('p0'), {
-    id: 'p0', name: 'Player 1', totalScoreUnits: 13 * POINT_UNIT,
+    id: 'p0', name: 'Player 1', totalScoreUnits: 4 * POINT_UNIT,
     roundsPlayed: 3, roundWins: 2, matchWins: 1,
   });
   assert.deepEqual(state.leaderboard.get('p1'), {
-    id: 'p1', name: 'Player 2', totalScoreUnits: 11 * POINT_UNIT,
+    id: 'p1', name: 'Player 2', totalScoreUnits: 2 * POINT_UNIT,
     roundsPlayed: 3, roundWins: 1, matchWins: 0,
   });
   // The state must stay usable: a crashed resolveRound used to re-throw on every later step.
@@ -1338,11 +1338,11 @@ test('a drawn final round still awards the fixed-rounds match to the standings l
   assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
   assert.ok(result.events.some((event) => event.type === 'matchEnded' && event.winnerId === 'p0'));
   assert.deepEqual(state.leaderboard.get('p0'), {
-    id: 'p0', name: 'Player 1', totalScoreUnits: 9 * POINT_UNIT,
+    id: 'p0', name: 'Player 1', totalScoreUnits: 2 * POINT_UNIT,
     roundsPlayed: 2, roundWins: 1, matchWins: 1,
   });
   assert.deepEqual(state.leaderboard.get('p1'), {
-    id: 'p1', name: 'Player 2', totalScoreUnits: 7 * POINT_UNIT,
+    id: 'p1', name: 'Player 2', totalScoreUnits: 0 * POINT_UNIT,
     roundsPlayed: 2, roundWins: 0, matchWins: 0,
   });
 });
@@ -1363,13 +1363,13 @@ test('a fixed-rounds leader who also wins the final round is credited exactly on
   assert.equal(state.phase, 'matchOver');
   assert.equal(state.matchWinnerId, 'p0');
   assert.deepEqual(state.leaderboard.get('p0'), {
-    id: 'p0', name: 'Player 1', totalScoreUnits: 10 * POINT_UNIT,
+    id: 'p0', name: 'Player 1', totalScoreUnits: 4 * POINT_UNIT,
     roundsPlayed: 2, roundWins: 2, matchWins: 1,
   });
   assert.equal(state.leaderboard.get('p1')!.matchWins, 0);
 });
 
-test('a fixed-rounds match tied at the final round ends without a match winner', () => {
+test('a tied match shares victory and credits both champions once', () => {
   const state = gameWithPlayers();
   state.settings = { ...defaultRoomSettings(), match: 'rounds', length: 2 };
   enterPlaying(state);
@@ -1384,7 +1384,7 @@ test('a fixed-rounds match tied at the final round ends without a match winner',
   assert.equal(state.phase, 'matchOver');
   assert.equal(state.matchWinnerId, undefined);
   assert.ok(result.events.some((event) => event.type === 'matchEnded' && event.winnerId === undefined));
-  assert.ok([...state.leaderboard.values()].every((entry) => entry.matchWins === 0 && entry.roundWins === 1));
+  assert.ok([...state.leaderboard.values()].every((entry) => entry.matchWins === 1 && entry.roundWins === 1));
 });
 
 // The preview reads this flag off the snapshot, so if it stops tracking the room's setting every rider aims with a

@@ -37,7 +37,7 @@ test('records authoritative actions and returns detached snapshots', () => {
 
   const snapshot = snapshotMatchStats(stats);
   assert.deepEqual(snapshot[0], {
-    playerId: 'a', name: 'A', slot: 0, color: 'color-0', roundsPlayed: 1, roundWins: 1,
+    playerId: 'a', name: 'A', slot: 0, color: 'color-0', roundsPlayed: 1, roundWins: 1, matchScoreUnits: 0,
     roundsDrawn: 0, matchPlacement: 1, survivalTicks: 1, longestSurvivalTicks: 1,
     distanceUnits: 7.5, bombsPlaced: 1, bombsExploded: 1, eliminations: 1,
     deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 7,

@@ -1,3 +1,4 @@
+import { POINT_UNIT } from './leaderboard.js';
 import { durationText } from './duration-text.js';
 import type { MatchPlayerStats } from './match-stats.js';
 import { CUT_OFF_MAX_AGE_TICKS, MOMENT_KINDS, momentKey, type Moment, type MomentKind } from './moments.js';
@@ -32,7 +33,7 @@ export function orderedStats(stats: ReadonlyArray<MatchPlayerStats>): MatchPlaye
 
 /** Changes whenever any rendered figure changes; renderers use it to skip identical rebuilds. */
 export function recapSignature(stats: ReadonlyArray<MatchPlayerStats>, moments: ReadonlyArray<Moment> = []): string {
-  const figures = orderedStats(stats).map((entry) => [entry.playerId, entry.matchPlacement, entry.roundsPlayed, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
+  const figures = orderedStats(stats).map((entry) => [entry.playerId, entry.matchPlacement, entry.roundsPlayed, entry.matchScoreUnits, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
     entry.longestSurvivalTicks, entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected,
     entry.invulnerableTicks, entry.wallBounces, entry.earlyExits, entry.powerPickups, entry.starPickups, entry.beerPickups, entry.inkPickups,
     entry.triplePickups, entry.fivePickups, entry.targetPickups, entry.shieldPickups, entry.portalPickups, entry.portalTransits,
@@ -167,7 +168,7 @@ export function podiumOrder(stats: ReadonlyArray<MatchPlayerStats>): PodiumEntry
     roundWins: entry.roundWins,
     champion: entry.matchPlacement === 1,
     placeLabel: entry.matchPlacement === 1 ? '♛  #1' : `#${entry.matchPlacement}`,
-    winsLabel: `${entry.roundWins} ROUND ${entry.roundWins === 1 ? 'WIN' : 'WINS'}`,
+    winsLabel: `${entry.matchScoreUnits / POINT_UNIT} PTS · ${entry.roundWins} ROUND ${entry.roundWins === 1 ? 'WIN' : 'WINS'}`,
   }));
 }
 
@@ -228,6 +229,7 @@ export interface ComparisonRow {
   placement: number;
   riderLabel: string;
   riderNote: string;
+  points: string;
   wins: string;
   survived: string;
   best: string;
@@ -242,6 +244,7 @@ export interface ComparisonRow {
 export type ComparisonColumnKey = Exclude<keyof ComparisonRow, 'playerId' | 'name' | 'color' | 'placement' | 'riderLabel' | 'riderNote'>;
 
 export const COMPARISON_COLUMNS: ReadonlyArray<{ key: ComparisonColumnKey; label: string }> = [
+  { key: 'points', label: 'PTS' },
   { key: 'wins', label: 'WINS' },
   { key: 'survived', label: 'SURVIVED' },
   { key: 'best', label: 'BEST' },
@@ -263,6 +266,7 @@ export function comparisonRows(stats: ReadonlyArray<MatchPlayerStats>): Comparis
       placement: entry.matchPlacement,
       riderLabel: `#${entry.matchPlacement} ${entry.name}`,
       riderNote: `${entry.wallBounces} BOUNCE · ${entry.earlyExits} EXIT`,
+      points: String(entry.matchScoreUnits / POINT_UNIT),
       wins: String(entry.roundWins),
       survived: durationText(entry.survivalTicks),
       best: durationText(entry.longestSurvivalTicks),

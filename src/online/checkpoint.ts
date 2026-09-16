@@ -1,4 +1,5 @@
 import { MAX_TRAIL_SEGMENTS, TRAIL_DECAY_PAUSE_TICKS, trailSegmentsConnect } from '../shared/trail-lifecycle.js';
+import { POINT_UNIT } from '../shared/leaderboard.js';
 import { MAX_EXTRA_BOMBS, MAX_VOLLEY_BOMBS } from '../shared/launch-modifiers.js';
 import { MAX_BOARD_PICKUPS, MAX_POWER_PICKUPS, POWER_TUNING } from '../shared/power-progression.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
@@ -48,7 +49,7 @@ const bomb = shape(bombFields);
 const blast = shape({ bombId: integer, ownerId: text, circle: shape({ x: position, y: position, radius: range(0, 1000) }), expiresAtTick: integer } satisfies Record<keyof BlastState, Guard>);
 const pickup = shape({ id: integer, type: v => typeof v === 'string' && (PICKUP_TYPES as readonly string[]).includes(v), x: position, y: position, expiresAtTick: integer } satisfies Record<keyof PickupState, Guard>);
 const statsFields = {
-  playerId: text, name, slot: count(4), color: text, roundsPlayed: integer, roundWins: integer, roundsDrawn: integer,
+  playerId: text, name, slot: count(4), color: text, roundsPlayed: integer, roundWins: integer, matchScoreUnits: integer, roundsDrawn: integer,
   survivalTicks: integer, longestSurvivalTicks: integer, distanceUnits: range(0, Number.MAX_SAFE_INTEGER), bombsPlaced: integer, bombsExploded: integer, eliminations: integer,
   deathsByCause: shape({ wall: integer, trail: integer, explosion: integer, rider: integer }), pickupsCollected: integer,
   powerPickups: integer, starPickups: integer, beerPickups: integer, inkPickups: integer, triplePickups: integer, fivePickups: integer, targetPickups: integer,
@@ -135,7 +136,7 @@ function gameInvariants(game: GameState): boolean {
     }
   }
   for (const [id, entry] of game.leaderboard) if (id !== entry.id) return false;
-  for (const [id, entry] of game.matchStats) if (id !== entry.playerId || !game.leaderboard.has(id)) return false;
+  for (const [id, entry] of game.matchStats) if (id !== entry.playerId || !game.leaderboard.has(id) || entry.matchScoreUnits % POINT_UNIT !== 0 || entry.matchScoreUnits > entry.roundsPlayed * 5 * POINT_UNIT) return false;
   for (const [id, entry] of game.roundParticipants) if (id !== entry.id || !game.matchStats.has(id) || (entry.eliminatedAtTick !== undefined && entry.eliminatedAtTick > game.tick)) return false;
   if (game.roundStartedTick !== undefined && game.roundStartedTick > game.tick) return false;
   if (['countdown','roundOver','matchOver'].includes(game.phase) && game.phaseEndsAtTick === undefined) return false;

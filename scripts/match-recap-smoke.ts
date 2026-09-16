@@ -39,7 +39,9 @@ async function assertRecapLayout(page: Page): Promise<{ podium: number; awards: 
   assert.ok(awards >= 1, 'at least one award card');
   assert.equal(totals, 8, 'gameplay totals strip');
   assert.equal(rows, 5, 'one comparison row per rider');
-  assert.equal(await page.locator('.comparison-header span').count(), 10, 'comparison header columns');
+  assert.ok((await page.locator('.podium-card small').allTextContents()).every(text => text.includes(' PTS · ')), 'podium explains match points and round wins');
+  await page.locator('.comparison-header').getByText('PTS', { exact: true }).waitFor();
+  assert.equal(await page.locator('.comparison-header span').count(), 11, 'comparison header columns');
   const comparisonScrolls = await page.locator('.recap-comparison').evaluate((element) => element.scrollWidth > element.clientWidth + 1);
   return { podium, awards, totals, rows, comparisonScrolls };
 }
@@ -74,7 +76,8 @@ try {
         // The desktop run picks the shortest format through the real settings menu; a new length applies to the next match.
         await page.getByRole('button', { name: 'ROOM SETTINGS', exact: true }).click();
         const dialog = page.getByRole('dialog'); await dialog.waitFor({ state: 'visible' });
-        await dialog.getByLabel('Play N rounds').check();
+        await dialog.getByRole('button', { name: '3 ROUNDS · QUICK', exact: true }).click();
+        assert.equal(await page.getByLabel('Match length').inputValue(), '3');
         await page.getByLabel('Match length').fill('1');
         await page.getByRole('button', { name: 'SAVE SETTINGS', exact: true }).click(); await dialog.waitFor({ state: 'hidden' });
         await page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }).click();

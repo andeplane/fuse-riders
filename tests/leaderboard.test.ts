@@ -15,18 +15,18 @@ test('awards five-player placement points', () => {
   ]);
 });
 
-test('two participants use winner five and runner-up three', () => {
+test('two participants award two points for a win and zero for first death', () => {
   const result = rankRound([p('a', 10), p('b')]);
-  assert.deepEqual(result.map(x => x.scoreUnits), [5 * POINT_UNIT, 3 * POINT_UNIT]);
+  assert.deepEqual(result.map(x => x.scoreUnits), [2 * POINT_UNIT, 0]);
 });
 
-test('averages simultaneous elimination places exactly', () => {
+test('simultaneous deaths only count strictly earlier deaths', () => {
   const result = rankRound([p('a', 10), p('b', 10), p('c')]);
   assert.deepEqual(result.map(x => [x.playerId, x.place, x.scoreUnits]), [
-    ['c', 1, 5 * POINT_UNIT], ['a', 2, 2.5 * POINT_UNIT], ['b', 2, 2.5 * POINT_UNIT],
+    ['c', 1, 3 * POINT_UNIT], ['a', 2, 0], ['b', 2, 0],
   ]);
   const allDraw = rankRound([p('a', 20), p('b', 20), p('c', 20), p('d', 20), p('e', 20)]);
-  assert.ok(allDraw.every(x => x.scoreUnits === (300 + 180 + 120 + 60) / 5));
+  assert.ok(allDraw.every(x => x.scoreUnits === 0));
 });
 
 test('does not mutate participants and rejects invalid groups', () => {
@@ -40,15 +40,15 @@ test('does not mutate participants and rejects invalid groups', () => {
   assert.throws(() => rankRound([p('a'), p('b'), p('c'), p('d'), p('e'), p('f')]));
 });
 
-test('survivors share the top occupied ranks at timeout and points remain conserved', () => {
+test('timeout survivors earn survival points without a win bonus', () => {
   const placements = rankRound([p('a'), p('b'), p('c', 40), p('d', 20)]);
   assert.deepEqual(placements.map(x => [x.playerId, x.place, x.scoreUnits]), [
-    ['a', 1, 4 * POINT_UNIT],
-    ['b', 1, 4 * POINT_UNIT],
-    ['c', 3, 2 * POINT_UNIT],
-    ['d', 4, POINT_UNIT],
+    ['a', 1, 2 * POINT_UNIT],
+    ['b', 1, 2 * POINT_UNIT],
+    ['c', 3, POINT_UNIT],
+    ['d', 4, 0],
   ]);
-  assert.equal(placements.reduce((sum, placement) => sum + placement.scoreUnits, 0), 11 * POINT_UNIT);
+  assert.equal(placements.reduce((sum, placement) => sum + placement.scoreUnits, 0), 5 * POINT_UNIT);
 });
 
 test('score application validates the complete result before mutating totals', () => {
@@ -69,7 +69,7 @@ test('accumulates repeated matches and preserves departures', () => {
   const first = rankRound([p('a', 10), p('b')]);
   applyRoundScores(entries, first, 'b', 'b');
   applyRoundScores(entries, first, 'b');
-  assert.deepEqual(entries.get('b'), { id: 'b', name: 'B', totalScoreUnits: 10 * POINT_UNIT, roundsPlayed: 2, roundWins: 2, matchWins: 1 });
+  assert.deepEqual(entries.get('b'), { id: 'b', name: 'B', totalScoreUnits: 4 * POINT_UNIT, roundsPlayed: 2, roundWins: 2, matchWins: 1 });
   assert.equal(entries.get('a')?.roundsPlayed, 2);
   entries.delete('a');
   assert.ok(entries.get('b'));

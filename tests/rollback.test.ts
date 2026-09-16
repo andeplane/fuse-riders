@@ -300,3 +300,34 @@ test('late duplicated and reordered Target releases converge through debris deca
   assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
   assert.equal(hashRoomState(recovered.state), hashRoomState(reference.state));
 });
+
+test('repair across the final elimination replaces speculative points and duplicate inputs cannot score twice', () => {
+  const fixture = world(); playing(fixture);
+  fixture.state.game.round = 5;
+  Object.assign(guest(fixture), { x: 34.45, y: 350, angle: Math.PI, trail: [] });
+  Object.assign(fixture.state.game.players.get('creator')!, { x: 900, y: 600, angle: 0, trail: [] });
+  const start = fixture.tick, end = start + 1;
+  const entries: Entry[] = [[1, end, STEER, 1], [2, end + 1, STEER, 0]];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end + 1; w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica(); reference.receive('b', entries, 2, end + 1, end + 1); reference.advance(end);
+  assert.equal(reference.state.game.phase, 'playing');
+  const delayed = replica(); delayed.advance(end);
+  assert.equal(delayed.state.game.phase, 'matchOver');
+  assert.equal(delayed.state.game.matchStats.get('creator')!.matchScoreUnits, 120);
+  delayed.receive('b', [entries[1]!], 2, end + 1, end + 1);
+  const repaired = delayed.receive('b', [entries[0]!], 2, end + 1, end + 1);
+  assert.ok(repaired.rollbackTicks > 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.equal(delayed.state.game.matchStats.get('creator')!.matchScoreUnits, 0);
+  for (const w of [reference, delayed]) w.advance(end + 1);
+  assert.equal(delayed.state.game.phase, 'matchOver');
+  const settled = hashRoomState(delayed.state);
+  assert.deepEqual(delayed.receive('b', entries, 2, end + 1, end + 1).events, []);
+  assert.equal(hashRoomState(delayed.state), settled);
+  assert.equal(settled, hashRoomState(reference.state));
+  assert.equal(delayed.state.game.leaderboard.get('creator')!.matchWins, 1);
+});

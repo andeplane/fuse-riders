@@ -6,6 +6,9 @@
 .online-score-card>span:not(.avatar-portrait){min-width:0;overflow-wrap:anywhere;font-size:11px;line-height:1.5}
 .online-score-card .avatar-portrait{width:28px;height:28px;flex:0 0 28px}
 .online-score-card.out{opacity:.5}
+.online-score-label{display:inline-flex;gap:4px;align-items:center}
+.online-score-label .online-score-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.online-score-label .online-score-points{flex:0 0 auto;white-space:nowrap}
 .controller-only .online-score-card{padding:2px 4px;border:0;background:none}
 .controller-only .online-score-card .avatar-portrait{display:none}
 /* The desktop arena gets everything below one compact game bar. The renderer
@@ -114,7 +117,7 @@
 .match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
 .match-recap-report .recap-highlights{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .match-recap-report .recap-comparison{overflow-x:auto;overflow-y:hidden;max-width:100%}
-.match-recap-report .comparison-row{min-width:820px;grid-template-columns:minmax(150px,1.55fr) repeat(6,minmax(52px,1fr)) minmax(230px,2.4fr) repeat(2,minmax(52px,1fr))}
+.match-recap-report .comparison-row{min-width:820px;grid-template-columns:minmax(150px,1.55fr) repeat(7,minmax(52px,1fr)) minmax(230px,2.4fr) repeat(2,minmax(52px,1fr))}
 .match-recap-report .recap-empty{margin:0;padding:24px 0;color:#8da3c4;text-align:center}
 @media(max-width:700px){.match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.match-recap-report .recap-highlights{grid-template-columns:1fr}.match-recap-report .recap-totals{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(orientation:landscape) and (max-height:550px){

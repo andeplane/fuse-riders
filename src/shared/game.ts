@@ -32,6 +32,7 @@ import {
 } from './leaderboard.js';
 import {
   beginMatchParticipant,
+  compareMatchScores,
   finalizeMatchStatsRound,
   recordBombExploded,
   recordBombPlaced,
@@ -832,6 +833,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
 export function toSnapshot(state: GameState): GameSnapshot {
   return {
+    matchLength: state.settings?.length ?? 5,
     bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
     aimBounce: state.settings?.aimBounce ?? false,
     phase: state.phase,
@@ -853,6 +855,8 @@ export function toSnapshot(state: GameState): GameSnapshot {
       alive: player.alive,
       waitingForNextRound: state.phase !== 'lobby' && !state.roundParticipants.has(player.id),
       roundWins: player.roundWins,
+      matchScoreUnits: state.matchStats.get(player.id)?.matchScoreUnits ?? 0,
+      roundScoreUnits: state.roundPlacements.find(placement => placement.playerId === player.id)?.scoreUnits ?? 0,
       bombReadyAtTick: player.bombReadyAtTick,
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
       extraBombs: player.extraBombs, fuseLevel: player.fuseLevel, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
@@ -1353,25 +1357,21 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   // cannot leave the state half-updated and re-throwing on every later step (#19).
   const winner = alive.length === 1 ? alive[0] : undefined;
   const winnerId = winner?.id;
-  const winsAfterRound = (player: PlayerState): number => player.roundWins + (player.id === winnerId ? 1 : 0);
-
-  let matchWinnerId: PlayerId | undefined;
-  if (winner && (state.settings?.match ?? 'wins') === 'wins' && winsAfterRound(winner) >= (state.settings?.length ?? 3)) {
-    matchWinnerId = winner.id;
-  }
-  const fixedEnd = state.settings?.match === 'rounds' && state.round >= state.settings.length;
-  if (fixedEnd) {
-    const ranking = sortedPlayers(state).sort((a, b) => winsAfterRound(b) - winsAfterRound(a));
-    matchWinnerId = ranking[0] && winsAfterRound(ranking[0]) > (ranking[1] ? winsAfterRound(ranking[1]) : -1)
-      ? ranking[0].id
-      : undefined;
-  }
   const placements = state.roundScored ? undefined : rankRound([...state.roundParticipants.values()]);
+  const scores = new Map(placements?.map(placement => [placement.playerId, placement.scoreUnits]));
+  const fixedEnd = state.round >= (state.settings?.length ?? 5);
+  const ranking = [...state.matchStats.values()].map(entry => ({
+    ...entry,
+    matchScoreUnits: entry.matchScoreUnits + (scores.get(entry.playerId) ?? 0),
+    roundWins: entry.roundWins + (entry.playerId === winnerId ? 1 : 0),
+  })).sort(compareMatchScores);
+  const champions = fixedEnd ? ranking.filter(entry => compareMatchScores(entry, ranking[0]!) === 0).map(entry => entry.playerId) : [];
+  const matchWinnerId = champions.length === 1 ? champions[0] : undefined;
 
   if (winner) winner.roundWins += 1;
   state.roundWinnerId = winnerId;
   if (matchWinnerId !== undefined || fixedEnd) state.matchWinnerId = matchWinnerId;
-  scoreRoundOnce(state, placements, winnerId, matchWinnerId);
+  scoreRoundOnce(state, placements, winnerId, champions);
   events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
   // A round with a highlight pauses longer so every screen can replay it before the next countdown or the recap (ADR 044).
   const pause = roundHasMoment(state) ? REPLAY_PAUSE_TICKS : 0;
@@ -1418,14 +1418,12 @@ function scoreRoundOnce(
   state: GameState,
   placements: RoundPlacement[] | undefined,
   winnerId?: PlayerId,
-  matchWinnerId?: PlayerId,
+  champions: readonly PlayerId[] = [],
 ): void {
   if (state.roundScored || !placements) return;
-  // applyRoundScores' match-winner argument means "this round's win clinched the match",
-  // so a fixed-rounds standings winner who did not win the final round is credited here (#19).
-  applyRoundScores(state.leaderboard, placements, winnerId, matchWinnerId === winnerId ? matchWinnerId : undefined);
-  if (matchWinnerId !== undefined && matchWinnerId !== winnerId) creditMatchWin(state, matchWinnerId);
-  finalizeMatchStatsRound(state.matchStats, [...state.roundParticipants.keys()], winnerId);
+  applyRoundScores(state.leaderboard, placements, winnerId);
+  for (const champion of champions) creditMatchWin(state, champion);
+  finalizeMatchStatsRound(state.matchStats, [...state.roundParticipants.keys()], winnerId, placements);
   state.roundPlacements = placements;
   state.roundScored = true;
 }

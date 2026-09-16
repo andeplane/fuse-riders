@@ -22,7 +22,7 @@ import {
 
 function rider(overrides: Partial<MatchPlayerStats> & { playerId: string; slot: number; matchPlacement: number }): MatchPlayerStats {
   return {
-    name: overrides.playerId.toUpperCase(), color: `#00000${overrides.slot}`, roundsPlayed: 0, roundWins: 0, roundsDrawn: 0,
+    name: overrides.playerId.toUpperCase(), color: `#00000${overrides.slot}`, roundsPlayed: 0, roundWins: 0, matchScoreUnits: 0, roundsDrawn: 0,
     survivalTicks: 0, longestSurvivalTicks: 0, distanceUnits: 0, bombsPlaced: 0, bombsExploded: 0, eliminations: 0,
     deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 0, powerPickups: 0, starPickups: 0,
     beerPickups: 0, inkPickups: 0, triplePickups: 0, fivePickups: 0, targetPickups: 0, shieldPickups: 0, portalPickups: 0,
@@ -104,7 +104,7 @@ test('highlight copy covers every kind, and a wipe outranks everything', () => {
 test('a single rider stands alone as champion, wins every non-zero award and fills the table', () => {
   const solo = rider({ playerId: 'a', slot: 2, matchPlacement: 1, roundsPlayed: 2, roundWins: 2, survivalTicks: 400, longestSurvivalTicks: 260, distanceUnits: 512.4, bombsPlaced: 3, bombsExploded: 2 });
   const recap = buildMatchRecap([solo]);
-  assert.deepEqual(recap.podium.map((entry) => [entry.playerId, entry.placement, entry.champion, entry.placeLabel, entry.winsLabel]), [['a', 1, true, '♛  #1', '2 ROUND WINS']]);
+  assert.deepEqual(recap.podium.map((entry) => [entry.playerId, entry.placement, entry.champion, entry.placeLabel, entry.winsLabel]), [['a', 1, true, '♛  #1', '0 PTS · 2 ROUND WINS']]);
   assert.deepEqual(recap.awards.map((award) => [award.id, award.winnerText, award.detail]), [
     ['demolition', 'A', '2 BOMBS BOOMED'],
     ['trailblazer', 'A', '512 TRAVELLED'],
@@ -115,7 +115,7 @@ test('a single rider stands alone as champion, wins every non-zero award and fil
   const row = recap.comparison[0]!;
   assert.equal(row.riderLabel, '#1 A');
   assert.equal(row.riderNote, '0 BOUNCE · 0 EXIT');
-  assert.deepEqual(COMPARISON_COLUMNS.map((column) => row[column.key]), ['2', '20s', '13s', '512', '2/3', '0', '—', '—', '—']);
+  assert.deepEqual(COMPARISON_COLUMNS.map((column) => row[column.key]), ['0', '2', '20s', '13s', '512', '2/3', '0', '—', '—', '—']);
 });
 
 test('podium centres champions, keeps side places in seat order and excludes placements beyond third', () => {
@@ -128,7 +128,7 @@ test('podium centres champions, keeps side places in seat order and excludes pla
   ];
   assert.deepEqual(podiumOrder(stats).map((entry) => `${entry.placement}:${entry.playerId}`), ['2:second', '1:first', '3:third']);
   assert.deepEqual(podiumOrder(stats).map((entry) => entry.placeLabel), ['#2', '♛  #1', '#3']);
-  assert.equal(podiumOrder(stats)[2]!.winsLabel, '1 ROUND WIN');
+  assert.equal(podiumOrder(stats)[2]!.winsLabel, '0 PTS · 1 ROUND WIN');
 });
 
 test('a tied first place shows every champion in the centre and no second place', () => {
@@ -145,7 +145,7 @@ test('a tied first place shows every champion in the centre and no second place'
 test('a match where nobody won any round places everyone on the podium as champions', () => {
   const stats = [0, 1, 2, 3, 4].map((slot) => rider({ playerId: `p${slot}`, slot, matchPlacement: 1, roundsPlayed: 1, roundsDrawn: 1 }));
   assert.equal(podiumOrder(stats).length, 5);
-  assert.ok(podiumOrder(stats).every((entry) => entry.champion && entry.winsLabel === '0 ROUND WINS'));
+  assert.ok(podiumOrder(stats).every((entry) => entry.champion && entry.winsLabel === '0 PTS · 0 ROUND WINS'));
   assert.equal(matchTotals(stats)[0]!.value, '1 · 1 DRAWN');
 });
 

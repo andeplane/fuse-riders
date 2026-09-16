@@ -34,21 +34,21 @@ export function announcementFor(snapshot: ViewSnapshot, selfId: string, touch: b
     return { kind: 'round', round: snapshot.round, title, placements, next: left > 0 ? `NEXT ROUND IN ${Math.ceil(left / TICK_HZ)}` : 'NEXT ROUND' };
   }
   if (snapshot.phase === 'matchOver') {
-    const winner = snapshot.players.find(player => player.id === snapshot.matchWinnerId);
-    return { kind: 'final', title: !winner ? 'MATCH COMPLETE' : winner.id === selfId ? 'YOU RULE THE GRID' : `${winner.name} WINS!`, subtitle: left > 0 ? 'FINAL ROUND' : 'MATCH COMPLETE' };
+    const winner = snapshot.matchStats.find(player => player.playerId === snapshot.matchWinnerId);
+    return { kind: 'final', title: !winner ? 'SHARED VICTORY' : winner.playerId === selfId ? 'YOU RULE THE GRID' : `${winner.name} WINS!`, subtitle: left > 0 ? 'FINAL ROUND' : 'MATCH COMPLETE' };
   }
   return { kind: 'hidden' };
 }
 
-/** "ROUND 2 · 01:12" for the header chip; the clock counts down to the draw, mirroring the LAN TV timer. */
+/** "ROUND 2/5 · 01:12" for the header chip; the clock counts down to the draw, mirroring the LAN TV timer. */
 export function roundClock(snapshot: ViewSnapshot): string {
   if (snapshot.phase === 'lobby') return '';
   const remaining = snapshot.phase === 'playing' && snapshot.roundStartedTick !== undefined
     ? Math.max(0, ROUND_DRAW_TICK - (snapshot.tick - snapshot.roundStartedTick))
     : snapshot.phase === 'countdown' ? Math.min(COUNTDOWN_TICKS, Math.max(0, (snapshot.phaseEndsAtTick ?? snapshot.tick) - snapshot.tick)) : undefined;
-  if (remaining === undefined) return `ROUND ${snapshot.round}`;
+  if (remaining === undefined) return `ROUND ${snapshot.round}/${snapshot.matchLength}`;
   const seconds = Math.ceil(remaining / TICK_HZ);
-  return `ROUND ${snapshot.round} · ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  return `ROUND ${snapshot.round}/${snapshot.matchLength} · ${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
 const CAUSES = { wall: 'hit the wall', trail: 'clipped a trail', explosion: 'caught a blast', rider: 'rammed a rider' } as const;

@@ -1,3 +1,4 @@
+import type { RoundPlacement } from './leaderboard.js';
 import type { PickupType } from './game.js';
 
 export type MatchDeathCause = 'wall' | 'trail' | 'explosion' | 'rider';
@@ -23,6 +24,7 @@ export interface MatchPlayerStats {
   color: string;
   roundsPlayed: number;
   roundWins: number;
+  matchScoreUnits: number;
   roundsDrawn: number;
   matchPlacement: number;
   survivalTicks: number;
@@ -71,6 +73,7 @@ export function beginMatchParticipant(stats: MatchStatsState, identity: MatchPla
     color: identity.color,
     roundsPlayed: 0,
     roundWins: 0,
+    matchScoreUnits: 0,
     roundsDrawn: 0,
     survivalTicks: 0,
     longestSurvivalTicks: 0,
@@ -164,14 +167,21 @@ export function finalizeMatchStatsRound(
   stats: MatchStatsState,
   participantIds: readonly string[],
   winnerId?: string,
+  placements: readonly RoundPlacement[] = [],
 ): void {
   const uniqueIds = new Set(participantIds);
   if (uniqueIds.size !== participantIds.length) throw new Error('Round participants must have unique ids');
   if (winnerId !== undefined && !uniqueIds.has(winnerId)) throw new Error('Round winner must be a participant');
   const entries = participantIds.map((playerId) => requireEntry(stats, playerId));
+  const scores = new Map<string, number>();
+  for (const placement of placements) {
+    if (!uniqueIds.has(placement.playerId) || scores.has(placement.playerId) || !Number.isSafeInteger(placement.scoreUnits) || placement.scoreUnits < 0) throw new Error('Invalid round score');
+    scores.set(placement.playerId, placement.scoreUnits);
+  }
   const draw = winnerId === undefined;
   for (const entry of entries) {
     entry.roundsPlayed += 1;
+    entry.matchScoreUnits += scores.get(entry.playerId) ?? 0;
     if (entry.playerId === winnerId) entry.roundWins += 1;
     if (draw) entry.roundsDrawn += 1;
     entry.longestSurvivalTicks = Math.max(entry.longestSurvivalTicks, entry.currentRoundSurvivalTicks);
@@ -179,13 +189,18 @@ export function finalizeMatchStatsRound(
   }
 }
 
+/** Competitive ties use points, then round wins; display ordering never decides a winner. */
+export function compareMatchScores(a: Pick<MatchPlayerStats, 'matchScoreUnits' | 'roundWins'>, b: Pick<MatchPlayerStats, 'matchScoreUnits' | 'roundWins'>): number {
+  return b.matchScoreUnits - a.matchScoreUnits || b.roundWins - a.roundWins;
+}
+
 export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsState>): MatchPlayerStats[] {
-  const ordered = [...stats.values()].sort((a, b) => b.roundWins - a.roundWins || a.slot - b.slot || a.playerId.localeCompare(b.playerId));
-  let priorWins: number | undefined;
+  const ordered = [...stats.values()].sort((a, b) => compareMatchScores(a, b) || a.slot - b.slot || a.playerId.localeCompare(b.playerId));
+  let prior: MatchPlayerStatsState | undefined;
   let placement = 0;
   return ordered.map((entry, index) => {
-    if (entry.roundWins !== priorWins) placement = index + 1;
-    priorWins = entry.roundWins;
+    if (!prior || compareMatchScores(entry, prior) !== 0) placement = index + 1;
+    prior = entry;
     return {
       playerId: entry.playerId,
       name: entry.name,
@@ -193,6 +208,7 @@ export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsSt
       color: entry.color,
       roundsPlayed: entry.roundsPlayed,
       roundWins: entry.roundWins,
+      matchScoreUnits: entry.matchScoreUnits,
       roundsDrawn: entry.roundsDrawn,
       matchPlacement: placement,
       survivalTicks: entry.survivalTicks,

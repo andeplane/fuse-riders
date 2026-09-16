@@ -87,7 +87,7 @@ Fold rules `fuse-p2p-16` introduced the current active-tail tuning. Living rider
 
 ## Round shot log
 
-Fold rules `fuse-p2p-15` introduced the following, retained in rule 17. Game state requires `shots`, the current round's trigger pulls: each entry
+Fold rules `fuse-p2p-15` introduced the following, retained in rules 17 and 18. Game state requires `shots`, the current round's trigger pulls: each entry
 is `{ shot, shooterId, weapon, elapsed, bombs, power, extraBombs, fuseLevel, grip, kills: [{ victimId, elapsed }] }`,
 where `shot` is the id of the first bomb the pull launched, `weapon` is one of `bomb`, `triple`, `five`, `target`,
 `gun`, `shell`, `gravity`, `elapsed` counts ticks into the round, and `bombs` through `grip` record what the pull
@@ -118,7 +118,7 @@ fresh rooms after rollback. Room-service and transport envelopes are unchanged.
 
 ### Detached trail decay (#213)
 
-Current fold rules are `fuse-p2p-17`, combining the shot log, eight-second Power trails and slower detached-trail decay. Ordered trail segments carry optional
+Fold rules `fuse-p2p-17` combined the shot log, eight-second Power trails and slower detached-trail decay. Ordered trail segments carry optional
 `detached: { id, decayStartTick }`; absence means the living, age-limited active tail.
 The required game-state `nextTrailPieceId` issues positive, round-scoped piece ids across
 all riders. Segments in each detached piece are consecutive, touching, ordered history,
@@ -147,3 +147,7 @@ render detached/dead trails at 60% opacity; cosmetic flying fragments remain sep
 Peer hello and snapshot rules equality rejects older builds. Refresh all peers together;
 there is no live-room migration. Start fresh rooms when rolling back. This change does
 not deploy production or change packet transport envelopes.
+
+## Survival scoring
+
+Current fold rules are `fuse-p2p-18`. Matches now default to five rounds and rank by match survival points, then round wins, sharing any remaining tie. One point is awarded per strictly earlier elimination, plus one for the sole survivor. Same-tick deaths and timeout survivors do not outlast each other. Match statistics retain `matchScoreUnits` independently of session totals, including departed participants; checkpoints require that field. Presentation snapshots include `matchLength` and each seated rider's `matchScoreUnits` and `roundScoreUnits`. Round scores are applied exactly once at round end. Shared champions each receive a session match win; `matchWinnerId` remains absent when there is more than one champion, and the recap identifies champions by placement 1. Browser preferences from the old wins format migrate to five rounds; wire settings only accept rounds. Refresh every peer together; old rules and snapshots are incompatible, and rollback requires fresh rooms.

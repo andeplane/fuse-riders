@@ -129,12 +129,12 @@ test('match rematch resets scope and wins, then round-over automatically starts 
     app.advance(60);
 
     const [winner, loser] = [...app.game.players.values()].sort((a, b) => a.slot - b.slot);
-    winner!.roundWins = 2;
+    app.game.round = 5;
     winner!.x = 900; winner!.y = 600;
     loser!.x = app.game.boundaryInset + 7.1; loser!.y = 300; loser!.angle = Math.PI;
     app.advance();
     assert.equal(app.game.phase, 'matchOver');
-    assert.equal(winner!.roundWins, 3);
+    assert.equal(winner!.roundWins, 1);
     const oldMatchId = app.game.matchId;
 
     host.send({ type: 'hostAction', action: 'rematch' });

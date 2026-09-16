@@ -4,7 +4,7 @@ import { PICKUP_TYPES, type PickupType } from './game.js';
 export interface RoomSettings {
   version: 1;
   mode: 'shared' | 'devices';
-  match: 'wins' | 'rounds';
+  match: 'rounds';
   length: number;
   bombChargeTicks: number;
   /** A bomb caught in another's blast explodes with it. Off means every bomb waits for its own fuse (#166). */
@@ -15,7 +15,7 @@ export interface RoomSettings {
 }
 export const SETTINGS_KEY = 'fuse-riders-room-settings-v1';
 export function defaultRoomSettings(): RoomSettings {
-  return { version: 1, mode: 'devices', match: 'wins', length: 3, bombChargeTicks: BOMB_MAX_CHARGE_TICKS, chainReaction: true, aimBounce: true, weights: Object.fromEntries(PICKUP_WEIGHTS.map(row => [row.type, row.weight])) };
+  return { version: 1, mode: 'devices', match: 'rounds', length: 5, bombChargeTicks: BOMB_MAX_CHARGE_TICKS, chainReaction: true, aimBounce: true, weights: Object.fromEntries(PICKUP_WEIGHTS.map(row => [row.type, row.weight])) };
 }
 export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   if (!raw || typeof raw !== 'object') return;
@@ -29,7 +29,7 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   // silently turning the feature off for anyone who has ever pressed SAVE SETTINGS.
   const aimBounce = value.aimBounce === undefined ? true : value.aimBounce;
   if (typeof aimBounce !== 'boolean') return;
-  if (value.version !== 1 || !['shared','devices'].includes(value.mode) || !['wins','rounds'].includes(value.match) || !Number.isInteger(value.length) || value.length < 1 || value.length > 20 || !value.weights || typeof value.weights !== 'object') return;
+  if (value.version !== 1 || !['shared','devices'].includes(value.mode) || value.match !== 'rounds' || !Number.isInteger(value.length) || value.length < 1 || value.length > 20 || !value.weights || typeof value.weights !== 'object') return;
   const allowed = new Set<string>(PICKUP_TYPES);
   const weights: RoomSettings['weights'] = {};
   for (const [type, weight] of Object.entries(value.weights)) {
@@ -39,7 +39,13 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   return { version: 1, mode: value.mode, match: value.match, length: value.length, bombChargeTicks, chainReaction, aimBounce, weights };
 }
 export function loadRoomSettings(storage: Pick<Storage,'getItem'>): RoomSettings {
-  try { return parseRoomSettings(JSON.parse(storage.getItem(SETTINGS_KEY) ?? 'null')) ?? defaultRoomSettings(); } catch { return defaultRoomSettings(); }
+  try {
+    const saved: unknown = JSON.parse(storage.getItem(SETTINGS_KEY) ?? 'null');
+    // Migrate browser preferences only; old rules are never accepted on the wire.
+    const migrated = saved && typeof saved === 'object' && 'match' in saved && saved.match === 'wins'
+      ? { ...saved, match: 'rounds', length: 5 } : saved;
+    return parseRoomSettings(migrated) ?? defaultRoomSettings();
+  } catch { return defaultRoomSettings(); }
 }
 export function roomPickup(roll: number, weights: RoomSettings['weights']): PickupType | undefined {
   const entries = Object.entries(weights) as [PickupType,number][];

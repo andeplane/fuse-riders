@@ -13,7 +13,7 @@ import type { ClientMessage, MatchPlayerStats, ServerMessage } from '../src/shar
 
 test('controller snapshots strip the full match statistics table', () => {
   const matchStats: MatchPlayerStats = {
-    playerId: 'p0', name: 'Private recap', slot: 0, color: '#fff', roundsPlayed: 5, roundWins: 5,
+    playerId: 'p0', name: 'Private recap', slot: 0, color: '#fff', roundsPlayed: 5, matchScoreUnits: 0, roundWins: 5,
     roundsDrawn: 0, matchPlacement: 1, survivalTicks: 100, longestSurvivalTicks: 25,
     distanceUnits: 750, bombsPlaced: 9, bombsExploded: 8, eliminations: 4,
     deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 3,
@@ -21,7 +21,7 @@ test('controller snapshots strip the full match statistics table', () => {
     shieldPickups: 0, portalPickups: 0, portalTransits: 0, invulnerableTicks: 10, wallBounces: 2, earlyExits: 0,
   };
   const compact = controllerSnapshot({
-    phase: 'matchOver', aimBounce: false, bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20,
+    phase: 'matchOver', matchLength: 5, aimBounce: false, bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20,
     players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], leaderboard: [], roundPlacements: [], matchStats: [matchStats],
     moments: [{ kind: 'ownGoal', round: 1, tick: 90, elapsed: 30, playerId: 'p0', targetIds: [], value: 1 }],
     decidedRound: { matchId: 'm', round: 1, tick: 90, shots: [{ shot: 1, shooterId: 'p0', weapon: 'gun', elapsed: 20, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills: [{ victimId: 'p1', elapsed: 24 }] }] },
@@ -293,7 +293,7 @@ test('a finished match can accept fresh phones after every original player leave
   try {
     const host = await f.host(); const a = await f.join('A'); const b = await f.join('B');
     host.send({ type: 'hostAction', action: 'start' }); await host.take('snapshot', s => s.state.phase === 'countdown'); f.app.advance(60);
-    f.app.game.players.get(a.joined.playerId)!.roundWins = 2;
+    f.app.game.round = 5;
     eliminatePlayer(f.app.game, b.joined.playerId); f.app.advance(); assert.equal(f.app.game.phase, 'matchOver');
     a.peer.send({ type: 'leave' }); await a.peer.flush(); b.peer.send({ type: 'leave' }); await b.peer.flush();
     assert.equal(f.app.game.players.size, 0);

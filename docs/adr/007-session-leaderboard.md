@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-09-13
 
+> Scoring update (#226): the historical scoring/ranking below is superseded by [survival scoring](../online/PROTOCOL.md#survival-scoring). Matches rank by points, then round wins; session totals remain separate.
+
 ## Context
 
 An evening game should reward consistent placement across multiple first-to-five matches, while still showing each round's result clearly. Scores must be fair when riders are eliminated on the same simulation tick and must survive ordinary seat removal and rematches.
