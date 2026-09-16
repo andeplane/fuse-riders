@@ -79,6 +79,13 @@ test('AI escapes a corner as overtime starts shrinking the walls',()=>{
   assert.ok(game.boundaryInset>inset);
 });
 
+test('AI keeps escaping corners and its own trails at full round speed',()=>{
+  const game=steeringFixture();
+  game.roundStartedTick=game.tick-OVERTIME_START_TICK;
+  Object.assign(game.players.get('bot:1')!,{x:1470,y:770,angle:Math.PI/4});
+  steerFor(game,240);
+});
+
 test('AI avoids the trail a crossing rider will leave, including active and expiring boosts',()=>{
   for(const boostTicks of [0,4,240]){
     const game=steeringFixture();

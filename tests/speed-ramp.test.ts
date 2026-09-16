@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   COUNTDOWN_TICKS, OVERTIME_START_TICK, RIDER_SPEED, RIDER_TURN_RATE, SLOT_COLORS, SPEED_RAMP_MAX, TICK_HZ,
-  addPlayer, createGame, roundSpeedMultiplier, startMatch, startNextRound, step, type GameState,
+  addPlayer, createGame, roundSpeedMultiplier, startMatch, startNextRound, step, toSnapshot, type GameState,
 } from '../src/shared/game.js';
 import { decodeGameState, encodeGameState } from '../src/online/checkpoint.js';
+import { presentWorld } from '../src/online/prediction.js';
 
 function playing(seed = 31, pickups = false): GameState {
   const game = createGame('speed-ramp', seed);
@@ -43,6 +44,27 @@ test('riders travel faster as the round goes on, with turning circles kept the s
   assert.ok(Math.abs(late.distance - RIDER_SPEED / TICK_HZ * SPEED_RAMP_MAX) < 1e-9);
   assert.ok(Math.abs(late.turn - RIDER_TURN_RATE / TICK_HZ * SPEED_RAMP_MAX) < 1e-9, 'steering speeds up with the rider');
   for (const sample of [early, middle]) assert.ok(Math.abs(sample.distance / sample.turn - late.distance / late.turn) < 1e-6, 'the turn radius never changes');
+});
+
+test('a boost stacks on top of the full ramp', () => {
+  const game = playing();
+  game.roundStartedTick = game.tick - OVERTIME_START_TICK;
+  game.players.get('p0')!.boostUntilTick = game.tick + 10;
+  const boosted = measure(game);
+  assert.ok(Math.abs(boosted.distance - RIDER_SPEED / TICK_HZ * SPEED_RAMP_MAX * 1.25) < 1e-9, `${boosted.distance}`);
+  assert.ok(Math.abs(boosted.turn - RIDER_TURN_RATE / TICK_HZ * SPEED_RAMP_MAX) < 1e-9, 'boost widens turns; only the ramp speeds steering');
+});
+
+test('a local rider shown ahead late in the round lands where the next simulated tick puts it', () => {
+  const game = playing();
+  game.roundStartedTick = game.tick - OVERTIME_START_TICK / 2;
+  for (const player of game.players.values()) Object.assign(player, { x: 400 + player.slot * 600, y: 450, angle: 0, trail: [] });
+  const controls = { left: true, right: false };
+  const shown = presentWorld(undefined, { ...toSnapshot(game), tick: game.tick, round: game.round }, game.tick, { id: 'p0', controls, lead: 1 }).players.find(p => p.id === 'p0')!;
+  step(game, new Map([['p0', { ...controls, bomb: false }]]));
+  const simulated = game.players.get('p0')!;
+  assert.ok(Math.hypot(shown.x - simulated.x, shown.y - simulated.y) < 1e-9, `lead ${shown.x},${shown.y} vs tick ${simulated.x},${simulated.y}`);
+  assert.ok(Math.abs(shown.angle - simulated.angle) < 1e-9);
 });
 
 test('the next round starts at normal speed again', () => {

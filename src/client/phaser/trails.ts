@@ -1,4 +1,4 @@
-import { BOOST_SPEED, RIDER_SPEED, SPEED_RAMP_MAX, TICK_HZ } from '../../shared/game.js';
+import { BOOST_SPEED, GRAVITY_PULL_PER_TICK, RIDER_SPEED, SPEED_RAMP_MAX, TICK_HZ } from '../../shared/game.js';
 import type { TrailSegment } from '../../shared/protocol.js';
 import type { ViewSnapshot } from '../snapshot-stream.js';
 
@@ -71,7 +71,7 @@ export function trailTip(player: Rider, tick: number, phase: ViewSnapshot['phase
   const points = [{ x: last.x1, y: last.y1 }, { x: last.x2, y: last.y2 }];
   const distance = Math.hypot(player.x - last.x2, player.y - last.y2);
   if (phase === 'playing' && player.alive && !last.detached && last.createdTick === Math.floor(tick) &&
-      player.portalCooldownUntilTick <= tick && distance > 1e-6 && distance <= RIDER_SPEED * BOOST_SPEED * SPEED_RAMP_MAX / TICK_HZ + 1e-6) {
+      player.portalCooldownUntilTick <= tick && distance > 1e-6 && distance <= RIDER_SPEED * BOOST_SPEED * SPEED_RAMP_MAX * (1 + GRAVITY_PULL_PER_TICK) / TICK_HZ + 1e-6) {
     points.push({ x: player.x, y: player.y });
   }
   return points;
