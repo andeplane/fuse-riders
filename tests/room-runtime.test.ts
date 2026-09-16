@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FakeNetwork, type NetworkOptions } from './fixtures/fake-room.js';
-import { RoomRuntime, CREATOR_SILENCE_MS, DISCONNECT_MS, SNAPSHOT_RETRY_MS } from '../src/online/room-runtime.js';
+import { RoomRuntime, CREATOR_SILENCE_MS, DISCONNECT_MS, SNAPSHOT_RETRY_MS, SNAPSHOT_SERVE_MS } from '../src/online/room-runtime.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { COUNTDOWN_TICKS } from '../src/shared/game.js';
 import { roomHash, packMessage } from '../src/online/packet.js';
@@ -186,4 +186,35 @@ test('solo runs a room with no peers: one human, four AI, a paused clock while h
   assert.equal(runtime.command({ type: 'bot', action: 'remove', id: 'nope' }), false); assert.equal(runtime.command({ type: 'bot', action: 'add' }), false, 'five seats are taken');
   assert.equal(runtime.command({ type: 'avatar', avatarId: 'robot' }), true); net.step(60); assert.equal(frame!.players[0]!.avatarId, 'robot');
   runtime.stop(); runtime.stop(); assert.equal(runtime.command({ type: 'action', action: 'lobby' }), true, 'commands still fold locally after stop');
+});
+
+test('a storm of snapshot requests gets one snapshot per peer per half second', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  const transport = net.transports.get(HOST)!; net.step(SNAPSHOT_SERVE_MS); // The join's own snapshot was served inside the window.
+  const before = transport.reliableSends; transport.events.message(GUESTS[0]!, { type: 'snapshotRequest' });
+  const chunks = transport.reliableSends - before; assert.ok(chunks >= 1, 'a request is answered with the snapshot chunks');
+  for (let i = 0; i < 20; i++) transport.events.message(GUESTS[0]!, { type: 'snapshotRequest' });
+  assert.equal(transport.reliableSends - before, chunks, 'repeats inside the window are ignored');
+  net.step(SNAPSHOT_SERVE_MS + 10); transport.events.message(GUESTS[0]!, { type: 'snapshotRequest' });
+  assert.equal(transport.reliableSends - before, 2 * chunks, 'the next window is served again');
+  host.stop(); guest.stop();
+});
+
+test('a press during a second of lost packets still charges from the original tick once the link returns, and the release fires it', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  assert.equal(host.command({ type: 'action', action: 'start' }), true); net.step(COUNTDOWN_TICKS * 50 + 300);
+  net.muted.add(GUESTS[0]!);
+  guest.command({ type: 'input', seq: 1, left: false, right: false, bomb: true, bombAction: 'press' }); net.step(60);
+  const pressTick = net.frame(GUESTS[0]!)!.players.find(p => p.id === GUESTS[0])!.bombChargeStartedTick; assert.ok(pressTick !== undefined, 'the guest charges at once');
+  for (let i = 0; i < 18; i++) { guest.command({ type: 'input', seq: 2 + i, left: false, right: false, bomb: true }); net.step(50); }
+  assert.equal(net.frame(HOST)!.players.find(p => p.id === GUESTS[0])!.bombChargeStartedTick, undefined, 'the host has not heard the press');
+  net.muted.delete(GUESTS[0]!); net.step(400);
+  assert.equal(net.frame(HOST)!.players.find(p => p.id === GUESTS[0])!.bombChargeStartedTick, pressTick, 'the late press rolled the host back to the original tick');
+  guest.command({ type: 'input', seq: 30, left: false, right: false, bomb: false, bombAction: 'release' }); net.step(400);
+  const bomb = net.frame(HOST)!.bombs.find(b => b.ownerId === GUESTS[0]); assert.ok(bomb, 'the release launched a bomb on the host');
+  assert.ok(bomb.launchedTick - pressTick >= 20, `charged for ${bomb.launchedTick - pressTick} ticks`);
+  assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  host.stop(); guest.stop();
 });

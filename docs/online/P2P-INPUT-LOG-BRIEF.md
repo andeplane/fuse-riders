@@ -209,7 +209,7 @@ Idle cadence throttle (20 Hz active, 5 Hz idle). Adaptive input delay from measu
 
 ## 15. Results (2026-09-15)
 
-Implemented in `src/shared/input-log.ts`, `apply-tick.ts`, `deterministic-math.ts` and `src/online/stream.ts`, `rollback.ts`, `clock.ts`, `packet.ts`, `snapshot.ts`, `room-runtime.ts`, with `peer-transport.ts`, `ui.ts`, `attract.ts`, `src/service/gateway.ts` and `worker/index.ts` changed and the host-star modules deleted. The networking layer (`stream`, `rollback`, `clock`, `packet`, `snapshot`, `room-runtime`) is about 1,050 lines; with the shared log and reducer about 1,300.
+Implemented in `src/shared/input-log.ts`, `apply-tick.ts`, `deterministic-math.ts` and `src/online/stream.ts`, `rollback.ts`, `clock.ts`, `packet.ts`, `snapshot.ts`, `room-runtime.ts`, with `peer-transport.ts`, `ui.ts`, `attract.ts`, `src/service/gateway.ts` changed and the host-star modules deleted. The networking layer (`stream`, `rollback`, `clock`, `packet`, `snapshot`, `room-runtime`) is about 1,050 lines; with the shared log and reducer about 1,300.
 
 ### Deviations from §3–§8, and why
 

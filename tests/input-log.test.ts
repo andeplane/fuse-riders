@@ -46,6 +46,19 @@ test('the gesture fold mirrors the LAN bomb buffer: press, replacement, matching
   assert.deepEqual(foldPlayerEntries(held, [entry(11, 8, CANCEL, 3), entry(12, 8, AVATAR, 'fox')]), { left: false, right: false, bomb: false });
 });
 
+test('a rematch drops the riders lost during the finished match and restarts with the rest', () => {
+  const r = playing();
+  r.tick(streams(['creator', [r.at('creator', BOT, 'add', 'bot:1', 'AI Hopper', 2)]]));
+  r.tick(streams(['creator', [r.at('creator', PRESENCE, 'guest', false, 1)]]));
+  assert.equal(r.state.game.players.get('guest')!.connected, false, 'a mid-match loss keeps the seat');
+  r.tick(streams(['creator', [r.at('creator', ACTION, 'rematch', 'match-3')]]));
+  assert.equal(r.state.game.phase, 'playing', 'a rematch during play is a no-op');
+  r.state.game.phase = 'matchOver'; r.state.game.phaseEndsAtTick = r.state.game.tick;
+  r.tick(streams(['creator', [r.at('creator', ACTION, 'rematch', 'match-3')]]));
+  assert.deepEqual([...r.state.game.players.keys()], ['creator', 'bot:1'], 'the lost rider is gone, the AI rider stays');
+  assert.equal(r.state.game.matchId, 'match-3'); assert.equal(r.state.game.phase, 'countdown');
+});
+
 test('management entries join, seat, start, change settings, add and remove bots, leave and return to the lobby', () => {
   const r = playing();
   assert.deepEqual([...r.state.game.players.keys()], ['creator', 'guest']); assert.equal(r.state.game.players.get('guest')!.avatarId, 'cat');

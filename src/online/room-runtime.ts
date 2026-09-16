@@ -45,10 +45,10 @@ export interface Callbacks { state(frame: Frame, settings: RoomSettings): void; 
 /** What the runtime can report about its own health: per link, per stream and for the fold as a whole. */
 export interface RuntimeMetrics { tick: number; clockTick: number; rollbacks: number; rollbackTicks: number; rtt: Record<string, number>; heard: Record<string, number>; clock: ReturnType<TickClock['diagnostics']>; sentBytes: number; snapshotRequest: boolean; mismatches: number; stall: { tick: number; waitingFor?: string }; streams: Record<string, { generation: number; contiguous: number; lastSeq: number; through: number; complete: number; gap: boolean; base: number; rejected: number }> }
 export interface RuntimeOptions { transport?: (events: TransportEvents) => RoomTransport; displayOnly?: boolean; humanName?: string; dependencies?: RuntimeDependencies }
-interface Member { generation: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; clockTick?: number; gapSince: number; rejected: number; presence?: { connected: boolean; tick: number; at: number } }
+interface Member { generation: number; snapshotServedAt: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; clockTick?: number; gapSince: number; rejected: number; presence?: { connected: boolean; tick: number; at: number } }
 
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
-export const SNAPSHOT_BUFFER_LIMIT = 4_000_000, STALLED_GAP_MS = 1500;
+export const SNAPSHOT_BUFFER_LIMIT = 4_000_000, STALLED_GAP_MS = 1500, SNAPSHOT_SERVE_MS = 500;
 export const HASH_INTERVAL = 20, HASH_LAG = 40, CATCHUP_TICKS = 8, BEHIND_TICKS = 400, NACK_INTERVAL_MS = 100, DIVERGENCE_WINDOW_MS = 60_000, DIVERGENCE_LIMIT = 3, FRESH_WORLD_WAIT_MS = 3000;
 const browserDependencies: RuntimeDependencies = {
   now: () => performance.now(), hidden: () => document.hidden, token: uuid, generation: () => Math.floor(Date.now() / 1000) >>> 0,
@@ -131,7 +131,7 @@ export class RoomRuntime {
     this.callbacks.ready(id, id === hostId);
   }
   private peer(id: string, online: boolean): void {
-    if (online) { if (!this.members.has(id)) this.members.set(id, { generation: 0, lastPacketAt: -Infinity, lastSentAt: 0, lastSentReceivedAt: 0, full: true, nackAt: -Infinity, helloed: false, gapSince: -Infinity, rejected: 0 }); return; }
+    if (online) { if (!this.members.has(id)) this.members.set(id, { generation: 0, snapshotServedAt: -Infinity, lastPacketAt: -Infinity, lastSentAt: 0, lastSentReceivedAt: 0, full: true, nackAt: -Infinity, helloed: false, gapSince: -Infinity, rejected: 0 }); return; }
     this.members.delete(id); this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
     if (this.creator && this.world?.state.game.players.has(id)) this.append(LEAVE, id);
@@ -159,7 +159,11 @@ export class RoomRuntime {
         if (typeof data.generation === 'number' && Number.isSafeInteger(data.generation) && data.generation >= 0) this.bump(id, member, data.generation);
         member.full = data.full === true; return;
       case 'join': if (this.creator && typeof data.name === 'string') { const error = this.join(id, data.name, isAvatarId(data.avatarId) ? data.avatarId : undefined); if (error) this.transport!.send(id, { type: 'error', error }); } return;
-      case 'snapshotRequest': if (this.world) { for (const chunk of encodeSnapshot(this.world, this.room)) if (!this.transport!.send(id, chunk, SNAPSHOT_BUFFER_LIMIT)) break; } else this.transport!.send(id, { type: 'noWorld' }); return;
+      case 'snapshotRequest': {
+        // One snapshot per peer per half second: a requester retries on its own timer, so a storm of requests cannot make this replica encode and queue megabytes.
+        const now = this.deps.now(); if (now - member.snapshotServedAt < SNAPSHOT_SERVE_MS) return; member.snapshotServedAt = now;
+        if (this.world) { for (const chunk of encodeSnapshot(this.world, this.room)) if (!this.transport!.send(id, chunk, SNAPSHOT_BUFFER_LIMIT)) break; } else this.transport!.send(id, { type: 'noWorld' }); return;
+      }
       case 'noWorld': this.noWorld.add(id); return;
       case 'snapshot': this.acceptSnapshotChunk(id, raw); return;
       case 'error': if (typeof data.error === 'string') this.status.notice(data.error.slice(0, 120)); return;
@@ -304,7 +308,7 @@ export class RoomRuntime {
     const seat = [...game.players.values()].find(player => !player.connected && !pending.freed.has(player.id)); if (!seat) return -1;
     this.append(LEAVE, seat.id); return seat.slot;
   }
-  private selfMember(): Member { return { generation: this.generation, lastPacketAt: this.deps.now(), lastSentAt: 0, lastSentReceivedAt: 0, full: this.full, nackAt: 0, helloed: true, gapSince: -Infinity, rejected: 0 }; }
+  private selfMember(): Member { return { generation: this.generation, snapshotServedAt: -Infinity, lastPacketAt: this.deps.now(), lastSentAt: 0, lastSentReceivedAt: 0, full: this.full, nackAt: 0, helloed: true, gapSince: -Infinity, rejected: 0 }; }
   private ensurePresence(id: string, member: Member): void {
     const player = this.world?.state.game.players.get(id); if (!player || member.generation === 0 && id !== this.id) return;
     const fold = this.world!.state.folds.get(id);

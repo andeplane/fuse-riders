@@ -247,7 +247,7 @@ export async function startOnline():Promise<void>{
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
       const recapReady=state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0);results.hidden=!recapReady;
       if(state.phase==='lobby')lastRecap='';joined=Boolean(player);if(player&&!seatTracked){seatTracked=true;track('Seat Taken',{avatarId:player.avatarId,playerCount:state.players.length});}const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost,recapReady});joinPanel.hidden=joined||displayOnly;avatarButton.hidden=!joined;/* Before a seat the join form carries the avatar. */controls.hidden=!joined||displayOnly;
-      // A rider the host still lists as offline (page reload mid-round, host checkpoint restore) reconnects by itself; anyone absent goes through the join card.
+      // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       if(player&&!player.connected&&!displayOnly){if(!rejoinPending){rejoinPending=true;runtime.command({type:'join',name:player.name,avatarId:player.avatarId});}}else rejoinPending=false;
       // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
       // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / BACK TO LOBBY.

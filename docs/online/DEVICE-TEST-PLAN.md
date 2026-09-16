@@ -90,19 +90,20 @@ phone as guest instead, laptop as host.
 **Steps**:
 1. Host a fresh room from the phone at the public URL (or join as guest for
    the repeat run). Note the room code.
-2. From the laptop, run the real-phone probe mode against the deployed URL:
-   `BENCH_ALLOW_REMOTE=1 ONLINE_URL=https://andeplane.github.io/fuse-riders/ PROBE_ROOM=<code> npx tsx scripts/input-drop-probe.ts`
-   (see [NETWORK-HARNESS.md § Input drop probe](NETWORK-HARNESS.md#input-drop-probe)
-   for flags). Start the race from the phone once the probe's guest context
-   has joined.
-3. While the probe runs (default 60 s), physically operate the phone: hold
+2. Serve the room from the laptop with `npm run dev` (the dev server records
+   every device's telemetry) and join from the phone over the LAN address, or
+   open the deployed URL with `?telemetry=1` on the phone. Start the race
+   once the laptop's guest has joined.
+3. For about 60 s, physically operate the phone: hold
    left/right steer continuously across direction changes, fire repeatedly
    including while steering, and charge-and-release a bomb a few times. Count
    your own button presses and, independently, count visible responses
    (steering change, shot fired, bomb notice) — do this for at least 50
    discrete presses total.
-4. Save `artifacts/input-drop-probe.json` from the laptop run into the
-   evidence folder.
+4. Save `artifacts/telemetry/<ROOM>.ndjson` and the output of
+   `npx tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson`
+   into the evidence folder: inputs, rollbacks, gaps and status changes per
+   device.
 
 **Capture**: revision, both device models/OS/browser versions, the saved
 probe JSON (laptop-guest-side local-rejection percentage and fire-edge
