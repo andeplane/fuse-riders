@@ -19,11 +19,10 @@ try {
   await page.addInitScript('window.__name = value => value');
   await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
   await page.getByText('Invalid room code', { exact: true }).waitFor();
-  for (const mode of ['webgl', 'phaser-canvas', 'canvas'] as const) {
+  for (const mode of ['webgl', 'phaser-canvas'] as const) {
     const results = await page.evaluate(async mode => {
       const { createPhaserArena } = await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
       const { visualFixture } = await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
-      const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
       const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
       const { BOMB_COOLDOWN_TICKS } = await import(String('/src/shared/game.ts')) as typeof import('../src/shared/game.js');
       const { RELOAD_RING_RADIUS } = await import(String('/src/client/reload-ring.ts')) as typeof import('../src/client/reload-ring.js');
@@ -31,24 +30,11 @@ try {
       document.body.replaceChildren(); document.body.style.cssText = 'margin:0;background:#020715';
       const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 900;
       document.body.append(canvas);
-      const arena = mode === 'canvas' ? undefined : createPhaserArena(canvas, { renderer: mode === 'webgl' ? 'auto' : 'canvas', resolution: 'world' });
-      if (arena) await arena.ready;
-      if (mode === 'webgl' && arena!.metrics().renderer !== 'webgl') throw Error('WebGL did not start');
-      const ctx = arena ? null : canvas.getContext('2d')!;
+      const arena = createPhaserArena(canvas, { renderer: mode === 'webgl' ? 'auto' : 'canvas', resolution: 'world' });
+      await arena.ready;
+      if (mode === 'webgl' && arena.metrics().renderer !== 'webgl') throw Error('WebGL did not start');
       const fixture = visualFixture(100);
       const player = { ...fixture.players[0]!, color: '#22d3ee', x: 800, y: 450, angle: 0, shielded: false, trail: [], bombReadyAtTick: 100 + BOMB_COOLDOWN_TICKS };
-      if (ctx) {
-        const { drawAvatarHead } = await import(String('/src/client/avatar-heads.ts')) as typeof import('../src/client/avatar-heads.js');
-        const deadline = performance.now() + 5000;
-        await new Promise<void>((resolve, reject) => {
-          const check = () => {
-            if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, player.color)) resolve();
-            else if (performance.now() > deadline) reject(Error('Avatar atlas did not load'));
-            else requestAnimationFrame(check);
-          };
-          check();
-        });
-      }
       const base: Snapshot = { ...fixture, players: [player], bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [] };
       const read = (): Uint8Array => {
         const gl = mode === 'webgl' ? canvas.getContext('webgl') : null;
@@ -60,8 +46,7 @@ try {
       const results = [];
       for (const theme of ['neon-pixel', 'clean-neon'] as const) {
         const paint = (snapshot: Snapshot, now = 1000) => {
-          if (arena) arena.render(snapshot, now, themes[theme], 'reload-ring-browser');
-          else drawArena(ctx!, snapshot, now, themes[theme], {});
+          arena.render(snapshot, now, themes[theme], 'reload-ring-browser');
           return read();
         };
         const equal = (a: Uint8Array, b: Uint8Array, message: string) => {
@@ -92,20 +77,19 @@ try {
         equal(full, paint(base), 'rollback did not restore full cooldown');
         equal(ready, paint({ ...base, tick: player.bombReadyAtTick }), 'ring remains when ready');
         equal(ready, paint({ ...base, phase: 'countdown' }), 'ring remains outside play');
-        arena?.reset();
+        arena.reset();
         const dead = { ...player, alive: false };
         const crashed = paint({ ...base, players: [dead] });
         equal(crashed, paint({ ...base, players: [{ ...dead, bombReadyAtTick: 0 }] }), 'dead rider retains reload ring');
-        arena?.reset();
+        arena.reset();
         equal(full, paint(base), 'reset lost cooldown');
         results.push({ theme, fullPixels, halfPixels });
       }
       // Visual review strip: full, 3/4, 1/2, 1/4 and ready in their ordinary rider colors.
       const strip = { ...base, players: fixture.players.map((p, i) => ({ ...player, id: p.id, slot: p.slot, avatarId: p.avatarId, color: p.color,
         x: 240 + i * 280, bombReadyAtTick: 100 + BOMB_COOLDOWN_TICKS * (1 - i / 4) })) };
-      if (arena) arena.render(strip, 1000, themes['neon-pixel'], 'reload-ring-browser');
-      else drawArena(ctx!, strip, 1000, themes['neon-pixel'], {});
-      Reflect.set(window, 'disposeReloadCheck', () => { arena?.destroy(); canvas.remove(); });
+      arena.render(strip, 1000, themes['neon-pixel'], 'reload-ring-browser');
+      Reflect.set(window, 'disposeReloadCheck', () => { arena.destroy(); canvas.remove(); });
       return results;
     }, mode);
     await page.screenshot({ path: `artifacts/reload-ring-${mode}-${browserName}.png` });

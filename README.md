@@ -92,7 +92,7 @@ The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript
 | --- | --- |
 | `src/shared/` | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops |
 | `src/server/` | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling |
-| `src/client/` | Phaser presentation, Canvas fallback, themes, audio, avatars and phone pointer controls |
+| `src/client/` | Phaser presentation (WebGL/Canvas), themes, audio, avatars and phone pointer controls |
 | `src/shared/input-log.ts`, `apply-tick.ts` | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries |
 | `src/online/stream.ts`, `rollback.ts`, `clock.ts` | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock |
 | `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts` | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation |

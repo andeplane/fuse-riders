@@ -100,18 +100,18 @@ jobs:
         run: npx tsx scripts/desktop-controls-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
-      # Keep five-peer functional assertions on Canvas; six software-GL views
+      # Keep five-peer functional assertions on Phaser Canvas; six software-GL views
       # overloaded the runner. Single-view Phaser remains a separate required gate.
-      - name: Online WebRTC room smoke (Canvas)
+      - name: Online WebRTC room smoke (Phaser Canvas)
         run: npx tsx scripts/online-smoke.ts
         env:
-          ROOM_RENDERER: canvas
-      - name: Online WebKit room smoke (Canvas)
+          ROOM_RENDERER: phaser-canvas
+      - name: Online WebKit room smoke (Phaser Canvas)
         run: npx tsx scripts/online-smoke.ts
         env:
           SMOKE_RIDERS: 3
           BROWSER: webkit
-          ROOM_RENDERER: canvas
+          ROOM_RENDERER: phaser-canvas
       # The unit tests pin the charge ramp; this is the only thing that renders it, and a new room bounces by
       # default, so without it CI never draws the ramp most rooms actually use (#176).
       - name: Chrome bomb charge preview
@@ -120,9 +120,9 @@ jobs:
         run: npx tsx scripts/bomb-preview-smoke.ts
         env:
           BROWSER: webkit
-      - name: Chrome Phaser lifecycle and fallback
+      - name: Chrome Phaser lifecycle and graphics retry
         run: npx tsx scripts/phaser-browser.ts
-      - name: WebKit Phaser lifecycle and fallback
+      - name: WebKit Phaser lifecycle and graphics retry
         run: npx tsx scripts/phaser-browser.ts
         env:
           BROWSER: webkit

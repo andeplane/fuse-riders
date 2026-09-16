@@ -103,18 +103,3 @@ export class TrailDebris {
     });
   }
 }
-
-export function drawTrailDebris(ctx: CanvasRenderingContext2D, pieces: readonly DebrisStroke[], snapshot: ViewSnapshot): void {
-  ctx.save();
-  const b = snapshot.boundaryInset;
-  ctx.beginPath(); ctx.rect(b, b, snapshot.width - 2 * b, snapshot.height - 2 * b); ctx.clip();
-  ctx.shadowBlur = 0; ctx.lineCap = 'round';
-  for (const piece of pieces) {
-    ctx.beginPath(); ctx.moveTo(piece.x1, piece.y1); ctx.lineTo(piece.x2, piece.y2);
-    ctx.strokeStyle = piece.color;
-    ctx.lineWidth = piece.width + 5; ctx.globalAlpha = piece.alpha * .16; ctx.stroke();
-    ctx.lineWidth = piece.width; ctx.globalAlpha = piece.alpha; ctx.stroke();
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.globalAlpha = piece.alpha * .65; ctx.stroke();
-  }
-  ctx.restore();
-}

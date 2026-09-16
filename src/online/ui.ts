@@ -11,9 +11,8 @@ import { apiUrl, appUrl } from './endpoints.js';
 import { ControllerInputState } from '../client/controller-state.js';
 import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
-import { drawArena } from '../client/main.js';
 import { createAvatarPicker, createAvatarPortrait } from '../client/avatar-heads.js';
-import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from '../client/themes.js';
+import { applyThemeProperties, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId } from '../client/themes.js';
 import { createGameAudio, type GameAudio } from '../client/game-audio.js';
 import { defaultRoomSettings, loadRoomSettings, parseRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
@@ -168,13 +167,13 @@ export async function startOnline():Promise<void>{
   overCard.setAttribute('role','status');overHome.href=appUrl();overCard.append(node('p','ROOM CLOSED','room-boot-title'),node('strong',code,'shared-room-code'),overNote,overHome);
   app.classList.toggle('booting',role!=='joiner');app.classList.toggle('joining',role==='joiner');
   app.replaceChildren(header,role==='joiner'?joinPanel:booting);
-  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});let theme:ThemeDefinition=selectedTheme();let sprites:ThemeSprites=await loadThemeSprites(theme);
+  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,replacement=>{canvas=replacement;});let theme:ThemeDefinition=selectedTheme();
   // Both styles' textures are preloaded by the Phaser arena and every palette is read per frame, so switching needs no reload.
   applyThemeProperties(theme);
   const styleIds=Object.keys(themes) as ThemeId[];
   const paintStyleButton=()=>{styleButton.textContent=theme.label.toUpperCase();styleButton.title='Switch the arena visual style';styleButton.setAttribute('aria-label',`Visual style: ${theme.label}. Switch.`);};
   paintStyleButton();
-  styleButton.onclick=async()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();const loaded=await loadThemeSprites(next);if(theme.id===next.id)sprites=loaded;};
+  styleButton.onclick=()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();};
   // Instant replay (ADR 044): presentation only. A controller-only phone has no arena and records nothing.
   const replay=new ReplayDirector(),replayOverlay=createReplayOverlay();document.body.append(replayOverlay.element);let replayKey='',reopenRecap=false;
   const powerStatus=node('div','','online-power-status');powerStatus.hidden=true;
@@ -423,10 +422,10 @@ export async function startOnline():Promise<void>{
     app.classList.toggle('replaying',update.stage!=='hold'&&update.stage!=='done');
     for(const cue of update.cues)audio.director.replayCue(cue);
     const shown=update.snapshot??predicted;
-    if(shown){presentation.render(shown,now,theme,sprites,update.snapshot?`${renderScope}:replay:${update.clip.key}`:renderScope,id);replayOverlay.update(update,canvas,{width:shown.width,height:shown.height});}
+    if(shown){presentation.render(shown,now,theme,update.snapshot?`${renderScope}:replay:${update.clip.key}`:renderScope,id);replayOverlay.update(update,canvas,{width:shown.width,height:shown.height});}
     if(update.stage==='done'){replayKey='';if(reopenRecap){reopenRecap=false;if(snapshot?.phase==='matchOver')openRecap();}}
     return true;
   }
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.view();if(replayFrame(now,predicted)){requestAnimationFrame(frame);return;}if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,sprites,renderScope,id);if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.view();if(replayFrame(now,predicted)){requestAnimationFrame(frame);return;}if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,renderScope,id);if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }

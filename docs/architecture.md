@@ -30,7 +30,7 @@ Production tokens use 24 cryptographically random bytes. The owning controller r
 | `src/server/index.ts`, `bomb-input.ts` | HTTP/WebSockets, authentication, seats, fixed scheduling and ordered bomb actions. |
 | `src/client/snapshot-stream.ts`, `render-snapshot.ts` | Forward snapshot acceptance and bounded visual projection. |
 | `src/client/controller-state.ts`, `controller-pointers.ts` | Typed input state and browser pointer/capture lifecycle. |
-| `src/client/main.ts`, `pickup-renderer.ts`, `themes.ts` | TV/controller presentation, effects and interchangeable visual themes. |
+| `src/client/main.ts`, `phaser/arena.ts`, `themes.ts` | TV/controller presentation, effects and interchangeable visual themes. |
 | `src/client/viewport-lock.ts` | Controller gesture suppression and readable input sizing. |
 
 `ServerDependencies` injects `now`, `token`, and `schedule`; the scheduler returns its cancellation function. `createGameServer` also accepts `manualTicks` and `buildDirectory`, and exposes `advance`, `checkConnections`, and `close` for isolated verification. Tests use actual serialized WebSocket messages while controlling simulation and watchdog time.

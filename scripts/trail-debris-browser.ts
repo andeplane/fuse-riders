@@ -13,16 +13,14 @@ const browser = browserName === 'webkit' ? await webkit.launch() : await chromiu
 const errors: string[] = [];
 try {
   await mkdir('artifacts', { recursive: true });
-  for (const mode of ['webgl', 'phaser-canvas', 'canvas'] as const) {
+  for (const mode of ['webgl', 'phaser-canvas'] as const) {
     const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript('window.__name = value => value');
-    await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID${mode === 'canvas' ? '&renderer=canvas' : ''}`);
+    await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
     await page.getByText('Invalid room code', { exact: true }).waitFor();
     const removed = await page.evaluate(async mode => {
       const { createPhaserArena } = await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
-      const { mountArenaPresentation } = await import(String('/src/client/phaser/presentation.ts')) as typeof import('../src/client/phaser/presentation.js');
-      const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
       const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
       const { createGame, addPlayer, startMatch, toSnapshot, step } = await import(String('/src/shared/game.ts')) as typeof import('../src/shared/game.js');
       const game = createGame('trail-debris-browser', 42);
@@ -46,12 +44,10 @@ try {
       const removed = before.players.reduce((n, p) => n + p.trail.length, 0) - after.players.reduce((n, p) => n + p.trail.length, 0);
       document.body.replaceChildren(); document.body.style.cssText = 'margin:0;background:#020715';
       let canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 900; document.body.append(canvas);
-      const arena = mode === 'canvas' ? undefined : createPhaserArena(canvas, { renderer: mode === 'webgl' ? 'auto' : 'canvas', resolution: 'world' });
-      if (arena) await arena.ready;
-      const legacy = arena ? undefined : mountArenaPresentation(canvas, drawArena, replacement => { canvas = replacement; });
+      const arena = createPhaserArena(canvas, { renderer: mode === 'webgl' ? 'auto' : 'canvas', resolution: 'world' });
+      await arena.ready;
       const paint = (snapshot: ViewSnapshot, now: number) => {
-        if (arena) arena.render(snapshot, now, themes['neon-pixel'], 'debris');
-        else legacy!.render(snapshot, now, themes['neon-pixel'], {}, 'debris');
+        arena.render(snapshot, now, themes['neon-pixel'], 'debris');
       };
       paint(before, 1000); paint(after, 1050);
       const pixels = () => {
@@ -69,7 +65,7 @@ try {
         for (let i = 0; i < moving.length; i += 4) if (Math.abs(moving[i]! - cleared[i]!) + Math.abs(moving[i + 1]! - cleared[i + 1]!) + Math.abs(moving[i + 2]! - cleared[i + 2]!) > 70) changed++;
         paint(tail, 2200); const expired = pixels();
         if (!cleared.every((value, i) => value === expired[i])) throw Error('Debris survived expiry');
-        arena?.destroy(); legacy?.destroy(); return changed;
+        arena.destroy(); return changed;
       });
       return removed;
     }, mode);

@@ -2,19 +2,6 @@ import { assetUrl } from './asset-url.js';
 import { AVATARS, AVATAR_ATLAS_URL, DEFAULT_AVATAR, avatarCell, isAvatarId, type AvatarId } from '../shared/avatars.js';
 import './avatar-heads.css';
 
-let atlas: HTMLImageElement | undefined;
-export function drawAvatarHead(ctx: CanvasRenderingContext2D, id: AvatarId, x: number, y: number, color: string): boolean {
-  if (!atlas) { atlas = new Image(); atlas.src = assetUrl(AVATAR_ATLAS_URL); }
-  if (!atlas.complete || atlas.naturalWidth === 0) return false;
-  const { column, row } = avatarCell(id);
-  const width = atlas.naturalWidth / 5; const height = atlas.naturalHeight / 2;
-  ctx.save(); ctx.translate(x, y); ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#080c22'; ctx.strokeStyle = color; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.drawImage(atlas, column * width, row * height, width, height, -16, -16, 32, 32);
-  ctx.restore(); return true;
-}
-
 export function createAvatarPortrait(id: AvatarId): HTMLSpanElement {
   const portrait = document.createElement('span');
   portrait.className = 'avatar-portrait'; portrait.style.backgroundImage = `url("${assetUrl(AVATAR_ATLAS_URL)}")`;

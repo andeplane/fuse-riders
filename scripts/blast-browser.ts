@@ -19,24 +19,21 @@ try {
   await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
   await page.getByText('Invalid room code', { exact: true }).waitFor();
   const reports = [];
-  for (const mode of ['webgl', 'phaser-canvas', 'canvas'] as const) {
+  for (const mode of ['webgl', 'phaser-canvas'] as const) {
     const report = await page.evaluate(async mode => {
       const { createPhaserArena } = await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
       const { visualFixture } = await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
-      const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
       const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
       document.body.replaceChildren(); document.body.style.cssText = 'margin:0;background:#020715';
       const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 900;
       document.body.append(canvas);
-      const arena = mode === 'canvas' ? undefined : createPhaserArena(canvas, { renderer: mode === 'webgl' ? 'auto' : 'canvas', resolution: 'world' });
-      if (arena) await arena.ready;
+      const arena = createPhaserArena(canvas, { renderer: mode === 'webgl' ? 'auto' : 'canvas', resolution: 'world' });
+      await arena.ready;
       if (mode === 'webgl' && arena!.metrics().renderer !== 'webgl') throw Error('WebGL did not start');
-      const ctx = arena ? null : canvas.getContext('2d')!;
       const base = { ...visualFixture(100), players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [] };
       const blast = { bombId: 42, circle: { x: 800, y: 450, radius: 140 }, expiresAtTick: 108 };
       const paint = (snapshot: typeof base | (Omit<typeof base, 'blasts'> & { blasts: typeof blast[] }), theme: keyof typeof themes) => {
-        if (arena) arena.render(snapshot, 1000, themes[theme], 'blast-browser');
-        else drawArena(ctx!, snapshot, 1000, themes[theme], {});
+        arena.render(snapshot, 1000, themes[theme], 'blast-browser');
       };
       const read = (): Uint8Array => {
         const gl = mode === 'webgl' ? canvas.getContext('webgl') : null;
@@ -77,7 +74,7 @@ try {
         label.style.cssText = `position:absolute;top:${top}px;left:60px`; captions.append(label);
       }
       document.body.append(captions);
-      Reflect.set(window, 'disposeBlastCheck', () => { arena?.destroy(); canvas.remove(); });
+      Reflect.set(window, 'disposeBlastCheck', () => { arena.destroy(); canvas.remove(); });
       return { mode, results };
     }, mode);
     for (const result of report.results) {
