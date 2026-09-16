@@ -50,7 +50,7 @@ import {
   bombLaunchDistance,
 } from './bomb-launch.js';
 import {
-  createVolleyFlightPaths,
+  MAX_EXTRA_BOMBS, bombsPerShot, createVolleyFlightPaths,
   type LaunchBounds,
 } from './launch-modifiers.js';
 import { detectMoments, roundHasMoment, DODGE_LOOKBACK_TICKS, REPLAY_PAUSE_TICKS, type Moment, type TickObservations } from './moments.js';
@@ -107,7 +107,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = ['power', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
+export const PICKUP_TYPES = ['power', 'extraBomb', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
 export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
@@ -139,6 +139,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   /** The next ordinary launch leaves a gravity field behind its blast (#166). */
   gravityArmed: boolean;
   bombTarget?: AimPoint;
+  /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
+  extraBombs: number;
   powerPickups: number;
   /** Captured at launch so collecting a level never distorts an active reload ring. */
   reloadDurationTicks: number;
@@ -303,7 +305,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     alive: false,
     roundWins: 0,
     bombReadyAtTick: 0,
-    powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
+    extraBombs: 0, powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
     invulnerableUntilTick: 0,
     boostUntilTick: 0,
     drunkUntilTick: 0, inkUntilTick: 0,
@@ -803,7 +805,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
-      powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
+      extraBombs: player.extraBombs, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
       invulnerableUntilTick: player.invulnerableUntilTick,
       boostUntilTick: player.boostUntilTick,
       drunkUntilTick: player.drunkUntilTick,
@@ -877,7 +879,7 @@ function prepareRound(state: GameState): void {
     player.trail = [];
     player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     player.bombReadyAtTick = state.tick;
-    player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
+    player.extraBombs = 0; player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
     player.invulnerableUntilTick = 0;
     player.boostUntilTick = 0;
     player.drunkUntilTick = 0;
@@ -994,6 +996,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       }
     } else if (pickup.type === 'five') {
       collector.fiveShotArmed = true;
+    } else if (pickup.type === 'extraBomb') {
+      collector.extraBombs = Math.min(MAX_EXTRA_BOMBS, collector.extraBombs + 1);
     } else if (pickup.type === 'triple') {
       collector.tripleShotArmed = true;
     } else if (pickup.type === 'orbitShield') {
@@ -1124,8 +1128,8 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       minY: state.boundaryInset + RIDER_RADIUS,
       maxY: state.height - state.boundaryInset - RIDER_RADIUS,
     };
-    const paths = target ? [[{ ...target, angle: player.angle }]] : player.tripleShotArmed || player.fiveShotArmed
-      ? createVolleyFlightPaths(player, player.angle, distance, bounds, player.fiveShotArmed ? 5 : 3)
+    const paths = target ? [[{ ...target, angle: player.angle }]] : bombsPerShot(player) > 1
+      ? createVolleyFlightPaths(player, player.angle, distance, bounds, bombsPerShot(player))
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
     if (target) player.targetBombArmed = false;
     else { player.tripleShotArmed = false; player.fiveShotArmed = false; }

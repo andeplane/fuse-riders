@@ -179,3 +179,27 @@ test('a rider\'s replaced stream keeps its history: a rollback across the replac
   };
   assert.equal(hashRoomState(build(false).state), hashRoomState(build(true).state), 'replaying with the old generation\'s entries gives the same world as never having rolled back');
 });
+
+test('Extra Bomb collection and volley converge after dropped, reordered and duplicated fire entries', () => {
+  const fixture = world(); playing(fixture);
+  const rider = guest(fixture), start = fixture.tick, end = start + 12;
+  fixture.state.game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  fixture.state.game.pickups = [{ id: fixture.state.game.nextPickupId++, type: 'extraBomb', x: rider.x, y: rider.y, expiresAtTick: end + 10 }];
+  const entries: Entry[] = [[1, start + 2, PRESS, 1], [2, start + 5, RELEASE, 1]];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end;
+    w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica(); reference.receive('b', entries, 2, end, end); reference.advance(end);
+  const delayed = replica(); delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  const repaired = delayed.receive('b', [entries[0]!], 2, end, end);
+  assert.ok(repaired.rollbackTicks > 0);
+  assert.equal(guest(delayed).extraBombs, 1);
+  assert.equal(delayed.state.game.bombs.size, 2);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.deepEqual(delayed.receive('b', entries, 2, end, end).events, []);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});

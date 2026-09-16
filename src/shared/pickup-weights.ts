@@ -3,6 +3,7 @@ import { POWER_TUNING } from './power-progression.js';
 /** Power supplies roughly four fifths of default drops; specials stay occasional. */
 export const PICKUP_WEIGHTS: ReadonlyArray<Readonly<{ type: PickupType; weight: number }>> = [
   { type: 'power', weight: POWER_TUNING.defaultDropWeight },
+  { type: 'extraBomb', weight: 100 },
   { type: 'gun', weight: 225 }, { type: 'shell', weight: 53 }, { type: 'beer', weight: 160 }, { type: 'ink', weight: 160 },
   { type: 'triple', weight: 540 }, { type: 'five', weight: 180 }, { type: 'target', weight: 165 },
   { type: 'orbitShield', weight: 160 }, { type: 'boost', weight: 160 }, { type: 'gravity', weight: 120 }, { type: 'portal', weight: 160 },

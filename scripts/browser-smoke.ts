@@ -230,6 +230,9 @@ try {
   assert.equal(poweredRider.inkUntilTick, 0, 'ink collector is unaffected');
   assert.equal(app.game.matchStats.get(poweredRider.id)!.inkPickups, 1);
   await host.screenshot({ path: 'artifacts/ink-clouds.png' });
+  app.game.pickups.push({ id: 9_040, type: 'extraBomb', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('◆ 1 · B×2', { exact: true }).waitFor();
+  assert.equal(poweredRider.extraBombs, 1);
   app.game.pickups.push({ id: 9_004, type: 'triple', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_004), false, 'triple pickup consumed authoritatively');
@@ -264,7 +267,7 @@ try {
     for (const bomb of document.querySelectorAll('.bomb')) observer.observe(bomb, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
   });
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
-  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 5, 'Five overrides Triple and releases five bombs');
+  await new Promise(r => setTimeout(r, 50)); app.advance(2); assert.equal(app.game.bombs.size, 6, 'Five overrides Triple and stacks with Extra Bomb');
   await phones[0].waitForFunction(() => (Reflect.get(window, '__launchSeen') as { launched: boolean }).launched, undefined, { timeout: smokeTimeout(10_000) });
   app.game.bombs.clear(); poweredRider.bombReadyAtTick = app.game.tick;
   app.game.pickups.push({ id: 9_009, type: 'shell', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
@@ -284,7 +287,7 @@ try {
   app.advance(4); // Let the projectile separate from the rider for visual inspection.
   await host.screenshot({ path: 'artifacts/gun-projectile.png' }); app.game.bombs.clear();
   app.game.pickups.push({ id: 9_011, type: 'power', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('◆ 2', { exact: true }).waitFor();
+  app.advance(2); await phones[0].getByText('◆ 2 · B×2', { exact: true }).waitFor();
   assert.equal(poweredRider.powerPickups, 2);
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();

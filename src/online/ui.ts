@@ -53,7 +53,7 @@ const copyText=async(text:string)=>{
   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.cssText='position:fixed;top:-1000px;opacity:0';document.body.append(field);field.select();
   try{return document.execCommand('copy');}catch{return false;}finally{field.remove();}
 };
-const labels:Record<PickupType,string>={power:'Power',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',boost:'Speed boost',gravity:'Singularity'};
+const labels:Record<PickupType,string>={extraBomb:'Extra Bomb',power:'Power',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',boost:'Speed boost',gravity:'Singularity'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
 const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
@@ -334,7 +334,7 @@ export async function startOnline():Promise<void>{
         track('Match Ended',{...matchEndedProps(state.matchStats,id),...(sawStart&&matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});}
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       powerStatus.hidden=!player||displayOnly||!['playing','countdown'].includes(state.phase);
-      powerStatus.textContent=player?powerLabel(player.powerPickups):'';
+      powerStatus.textContent=player?powerLabel(player.powerPickups, player.extraBombs):'';
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?(state.roundWinnerId===id?'You win this round':`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`):state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
       for(const [playerId,row] of rosterEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();rosterEntries.delete(playerId);}
