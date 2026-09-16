@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BLAST_LEVEL_RANGE, BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, toSnapshot, type GameState } from '../src/shared/game.js';
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
-import { RIDER_SPEED, TICK_HZ, GRAVITY_PULL_PER_TICK } from '../src/shared/game.js';
+import { INITIAL_BOUNDARY_INSET, RIDER_SPEED, TICK_HZ, GRAVITY_PULL_PER_TICK } from '../src/shared/game.js';
+import { controllerSnapshot } from '../src/server/index.js';
+import { stripSnapshot } from '../src/online/controller-status.js';
 
 const flightPath = (x: number, y: number) => Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));
 function playing(seed = 5): GameState {
@@ -130,9 +132,21 @@ test('a target bomb leaves the pickup armed for an ordinary launch', () => {
 });
 test('a field caught by the closing wall is pulled back inside, so it cannot drag a rider out', () => {
   const state = playing();
-  state.boundaryInset = 80; // overtime has closed the walls well past the field's original home
+  // Overtime has to be staged the way the simulation computes it: boundaryInset is recomputed from roundStartedTick
+  // on every playing tick, so poking the inset directly is overwritten before the clamp ever runs. Staged this way
+  // the clamp reaches the live wall (~420) where the previous ordering reached last tick's (20), so this pins which.
+  state.roundStartedTick = state.tick - 2000;
   state.gravityFields.push({ bombId: 1, ownerId: 'p1', x: 10, y: 400, radius: 180, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
   step(state, new Map());
   const field = state.gravityFields[0]!;
+  assert.ok(state.boundaryInset > INITIAL_BOUNDARY_INSET, 'the wall actually closed, or the clamp is unexercised');
   assert.ok(field.x >= state.boundaryInset, `the field stayed at ${field.x}, outside the wall at ${state.boundaryInset}`);
+});
+test('a phone is never sent the field geometry it cannot draw, on either transport', () => {
+  const state = playing();
+  state.gravityFields.push({ bombId: 0, ownerId: 'p1', x: 400, y: 400, radius: 90, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
+  const full = toSnapshot(state);
+  assert.equal(full.gravityFields.length, 1, 'the fixture carries a field, so the strips below are not vacuous');
+  assert.deepEqual(controllerSnapshot(full).gravityFields, [], 'the LAN server strips it');
+  assert.deepEqual(stripSnapshot(full).gravityFields, [], 'and so does the online room');
 });

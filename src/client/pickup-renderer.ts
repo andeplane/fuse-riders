@@ -1,9 +1,8 @@
 import { assetUrl } from './asset-url.js';
 import type { GameSnapshot } from '../shared/protocol.js';
-import { GRAVITY_FIELD_TICKS } from '../shared/game.js';
+import { GRAVITY_FIELD_TICKS, TICK_HZ } from '../shared/game.js';
 import type { ThemeDefinition } from './themes.js';
 
-const TICK_HZ = 20;
 const PICKUP_FADE_TICKS = 2 * TICK_HZ;
 const imageCache = new Map<string, HTMLImageElement | null>();
 
