@@ -146,12 +146,12 @@ export async function startOnline():Promise<void>{
   let pendingSettings:{draft:RoomSettings;before:string;at:number}|undefined;
   // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
   let roomEnded=false;
-  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ RADIO'),musicButton=node('button','♫ MUSIC OFF'),results=node('button','RESULTS'),menu=node('button',solo?'EXIT':'ROOM'),styleButton=node('button','');
+  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),results=node('button','RESULTS'),menu=node('button',solo?'EXIT':'ROOM'),prefsButton=node('button','SETTINGS');
   // Players read three link states (connected / connecting / trouble); the runtime's full wording stays in the tooltip and the ROOM diagnostics.
   const statusAction=node('button','RETRY','online-status-action');statusAction.hidden=true;statusAction.onclick=()=>location.reload();
   const roundChip=node('span','','online-round');roundChip.hidden=true;
   let rawStatus='',replacedHost=false;
-  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,audioButton,musicButton,styleButton,results,menu);
+  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,results);
   const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
   const bootNote=node('p','Warming up the arena…','room-boot-note');
   const booting=node('div','','room-boot');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'));
@@ -171,9 +171,12 @@ export async function startOnline():Promise<void>{
   // Both styles' textures are preloaded by the Phaser arena and every palette is read per frame, so switching needs no reload.
   applyThemeProperties(theme);
   const styleIds=Object.keys(themes) as ThemeId[];
-  const paintStyleButton=()=>{styleButton.textContent=theme.label.toUpperCase();styleButton.title='Switch the arena visual style';styleButton.setAttribute('aria-label',`Visual style: ${theme.label}. Switch.`);};
-  paintStyleButton();
-  styleButton.onclick=()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();};
+  // Visual style is one of the device preferences behind SETTINGS: two pressed/unpressed options instead of a cycling header button.
+  const styleHeading=node('h3','VISUAL STYLE','settings-group'),styleRow=node('div','','settings-style');
+  const applyStyle=(next:ThemeDefinition)=>{theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyle();};
+  const styleOptions=styleIds.map(styleId=>{const option=node('button',themes[styleId].label.toUpperCase());option.type='button';option.setAttribute('aria-label',`Visual style: ${themes[styleId].label}`);option.onclick=()=>applyStyle(themes[styleId]);styleRow.append(option);return option;});
+  const paintStyle=()=>{styleOptions.forEach((option,index)=>option.setAttribute('aria-pressed',String(styleIds[index]===theme.id)));};
+  paintStyle();
   // Instant replay (ADR 044): presentation only. A controller-only phone has no arena and records nothing.
   const replay=new ReplayDirector(),replayOverlay=createReplayOverlay();document.body.append(replayOverlay.element);let replayKey='',reopenRecap=false;
   const powerStatus=node('div','','online-power-status');powerStatus.hidden=true;
@@ -220,9 +223,7 @@ export async function startOnline():Promise<void>{
   const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','BACK TO LOBBY'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','TV VIEW'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
   const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;head:HTMLElement;avatar:AvatarId;remove:HTMLButtonElement}>();
   const help=node('button','?','desktop-help');help.setAttribute('aria-label','Keyboard controls');help.title='Keyboard controls';
-  const avatarButton=node('button','AVATAR'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');avatarButton.hidden=true;
-  // iPhone Safari has no element fullscreen (#142): a button that can do nothing is not shown.
-  fullscreen.hidden=!document.fullscreenEnabled;fullscreen.onclick=()=>void (document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen())?.catch(()=>{});header.append(avatarButton,help,fullscreen);
+  const avatarButton=node('button','AVATAR');avatarButton.hidden=true;header.append(avatarButton,prefsButton,menu,help);
   const dialog=node('dialog','','game-dialog');dialog.setAttribute('aria-label','Game menu');const close=node('button','✕  CLOSE');close.type='button';close.setAttribute('aria-label','CLOSE');close.onclick=()=>dialog.close();const rematch=node('button','REMATCH');rematch.type='button';rematch.hidden=true;rematch.title='Play the same match again';const dialogActions=node('span','','dialog-actions');dialogActions.append(rematch,close);const dialogBar=node('header','','dialog-bar'),dialogTitle=node('strong','GAME MENU');dialogBar.append(dialogTitle,dialogActions);const dialogBody=node('div','','dialog-body');dialog.append(dialogBar,dialogBody);dialog.addEventListener('close',()=>{rematch.hidden=true;close.textContent='✕  CLOSE';close.setAttribute('aria-label','CLOSE');dialog.classList.remove('recap-dialog');dialogTitle.textContent='GAME MENU';dialog.setAttribute('aria-label','Game menu');});dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
   // Desktop hides the on-screen controls entirely, so a first-timer has only the ? button. One fading reminder on the first countdown of the session.
   const keyHint=node('div','','key-hint');keyHint.hidden=true;keyHint.setAttribute('aria-hidden','true');
@@ -253,18 +254,26 @@ export async function startOnline():Promise<void>{
     const desktop=desktopQuery.matches&&!app.classList.contains('mobile-play')&&!app.classList.contains('controller-only')&&!app.classList.contains('joining')&&sharedLobby.hidden;
     app.classList.toggle('desktop-game',desktop);
     const rosterParent=desktop?header:scoreboard;
-    if(roster.parentElement!==rosterParent){if(desktop)header.insertBefore(roster,audioButton);else scoreboard.append(roster);}
+    if(roster.parentElement!==rosterParent){if(desktop)header.insertBefore(roster,results);else scoreboard.append(roster);}
     const actionsParent=!sharedLobby.hidden?lobbyFooter:desktop?header:footer;
-    if(hostControls.parentElement!==actionsParent){if(desktop)header.insertBefore(hostControls,audioButton);else actionsParent.append(hostControls);}
+    if(hostControls.parentElement!==actionsParent){if(desktop)header.insertBefore(hostControls,results);else actionsParent.append(hostControls);}
     const noticeParent=desktop?header:scoreboard;
     if(notice.parentElement!==noticeParent)noticeParent.append(notice);
   };
   window.addEventListener('resize',updateDesktopLayout);
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
-  const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
-  const audio=sharedAudio();radioToggle=()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */};audioButton.onclick=openRadio;
-  audio.bindMusicToggle(musicButton); // The same ♫ MUSIC ON / OFF toggle as the landing page, next to the same ♫ RADIO button.
+  const openRadio=()=>{audio.unlock();audio.controls.setAttribute('open','');dialogTitle.textContent='RADIO';dialog.setAttribute('aria-label','Radio');dialogBody.replaceChildren(node('h2','Fuse Riders Radio'),audio.controls);if(!dialog.open)dialog.showModal();};
+  const audio=sharedAudio();radioToggle=()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */};
+  // Device preferences: music, effects, radio, visual style and fullscreen are this device's own and change nothing shared, so
+  // they sit behind one SETTINGS button instead of five in the header. Built once; the dialog body adopts the same nodes each open.
+  const prefs=node('div','','settings-list');const musicButton=node('button'),effectsButton=node('button'),radioButton=node('button','♫ RADIO'),fullscreen=node('button','FULLSCREEN');
+  audio.bindMusicToggle(musicButton);audio.bindEffectsToggle(effectsButton);radioButton.onclick=openRadio; // The same ♫ MUSIC ON / OFF toggle as the landing page.
+  // iPhone Safari has no element fullscreen (#142): a button that can do nothing is not shown.
+  fullscreen.hidden=!document.fullscreenEnabled;fullscreen.onclick=()=>void (document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen())?.catch(()=>{});
+  document.addEventListener('fullscreenchange',()=>{fullscreen.textContent=document.fullscreenElement?'EXIT FULLSCREEN':'FULLSCREEN';});
+  prefs.append(musicButton,effectsButton,radioButton,styleHeading,styleRow,fullscreen);
+  prefsButton.onclick=()=>{dialogTitle.textContent='SETTINGS';dialog.setAttribute('aria-label','Settings');dialogBody.replaceChildren(prefs);dialog.showModal();};
   /** Podium, totals, highlight reel, awards and rider comparison built from the authoritative match statistics and moments. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>,moments:ReadonlyArray<Moment>)=>{
     const recap=buildMatchRecap(stats,moments);const root=node('section','','match-recap-report');
@@ -323,7 +332,7 @@ export async function startOnline():Promise<void>{
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
-      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;if(!canvas.hidden)replay.observe(state,state.matchId,performance.now());styleButton.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
+      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;if(!canvas.hidden)replay.observe(state,state.matchId,performance.now());styleHeading.hidden=styleRow.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
       if(state.phase==='countdown'&&joined&&!keyHintShown&&app.classList.contains('desktop-game')){keyHintShown=true;keyHint.hidden=false;}
       // Opened after the layout above so the close button can say where it lands.
       if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();

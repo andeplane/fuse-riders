@@ -56,18 +56,20 @@ try{
   // #68 flattened every visual style to one thin rim in both renderers, so the two modes became
   // indistinguishable and the room had no way to switch. Both must stay reachable and distinct.
   {
-   const style=host.getByRole('button',{name:/^Visual style: /});
-   const applied=()=>host.evaluate(()=>document.documentElement.dataset.theme);
-   const before=await style.getAttribute('aria-label');const themeBefore=await applied();
+   await host.getByRole('button',{name:'SETTINGS',exact:true}).click();
+   const styles=host.getByRole('button',{name:/^Visual style: /});assert.equal(await styles.count(),2,'both visual styles are offered under SETTINGS');
+   const applied=()=>host.evaluate(()=>document.documentElement.dataset.theme);const themeBefore=await applied();
    assert.ok(themeBefore,'the room applies a visual style');
-   await style.click();
+   const current=styles.and(host.locator('[aria-pressed="true"]')),other=styles.and(host.locator('[aria-pressed="false"]'));
+   const before=await current.getAttribute('aria-label'),after=await other.getAttribute('aria-label');
+   await other.click();
    await host.waitForFunction(id=>document.documentElement.dataset.theme!==id,themeBefore);
-   const after=await style.getAttribute('aria-label');
-   assert.notEqual(after,before,'STYLE relabels itself with the style now showing');
-   await style.click();
+   assert.equal(await current.getAttribute('aria-label'),after,'the pressed option follows the style now showing');
+   await other.click();
    await host.waitForFunction(id=>document.documentElement.dataset.theme===id,themeBefore);
-   assert.equal(await style.getAttribute('aria-label'),before,'STYLE cycles back through the registry');
-   console.log(`Visual style switched and cycled back (${before} -> ${after})`);
+   assert.equal(await current.getAttribute('aria-label'),before,'switching back restores the first style');
+   await host.getByRole('button',{name:'CLOSE',exact:true}).click();
+   console.log(`Visual style switched and switched back (${before} -> ${after})`);
   }
   // Idle riders drive into the walls, so rounds end on their own: three rounds of the same match on every device.
   await waitPhase(host,['playing']);await waitRound(host,3);await waitRound(guest,3);
