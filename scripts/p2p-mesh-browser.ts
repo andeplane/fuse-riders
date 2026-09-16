@@ -18,15 +18,19 @@ const bundle = await build({ stdin: { contents: `
 import { PeerTransport } from './src/online/peer-transport.ts';
 import { encodePacket, decodePacket, roomHash } from './src/online/packet.ts';
 globalThis.startMesh = (code, token) => {
-  const peers = new Set(), links = new Set(), received = new Map(), messages = [], errors = [], statuses = [];
+  let linkDrops = 0; const peers = new Set(), links = new Set(), received = new Map(), messages = [], errors = [], statuses = [];
   let dropFast = false; const originalSend = RTCDataChannel.prototype.send;
   // Browser impairment harness only: a send blackhole on the input channel, never real packet loss.
   RTCDataChannel.prototype.send = function (data) { if (dropFast && this.label === 'input') return; return originalSend.call(this, data); };
   const channels = []; const originalCreate = RTCPeerConnection.prototype.createDataChannel;
   RTCPeerConnection.prototype.createDataChannel = function (...args) { const channel = originalCreate.apply(this, args); channels.push(channel); return channel; };
+  // The lower peer id offers every link, so a peer whose id sorts above all others creates no channel at all: record
+  // the answerer's side too, or closeInput finds nothing to close for that peer.
+  const onDataChannel = Object.getOwnPropertyDescriptor(RTCPeerConnection.prototype, 'ondatachannel');
+  Object.defineProperty(RTCPeerConnection.prototype, 'ondatachannel', { ...onDataChannel, set(handler) { onDataChannel.set.call(this, handler && (event => { channels.push(event.channel); return handler.call(this, event); })); } });
   const transport = new PeerTransport(code, token, {
     welcome: () => {}, peer: (id, online) => { if (online) peers.add(id); else { peers.delete(id); links.delete(id); } },
-    link: (id, open) => { if (open) links.add(id); else links.delete(id); },
+    link: (id, open) => { if (open) links.add(id); else { links.delete(id); linkDrops++; } },
     message: (id, data) => messages.push({ from: id, data }),
     fast: (id, bytes) => { const decoded = decodePacket(bytes); if (decoded && 'packet' in decoded) received.set(id, (received.get(id) ?? 0) + 1); },
     status: text => { statuses.push(text); if (statuses.length > 40) statuses.shift(); },
@@ -42,7 +46,7 @@ globalThis.startMesh = (code, token) => {
     received: () => Object.fromEntries(received), receivedFromAll: () => received.size === 5 && [...received.values()].every(count => count > 0),
     reliable: () => { let sent = 0; for (const id of peers) if (transport.send(id, { type: 'hello', generation: 1, full: true, rules: 'harness' })) sent++; return sent; },
     messagesFromAll: () => new Set(messages.map(message => message.from)).size === 5,
-    blackhole: value => { dropFast = value; },
+    blackhole: value => { dropFast = value; }, linkDrops: () => linkDrops,
     closeInput: () => { const channel = channels.find(item => item.label === 'input' && item.readyState === 'open'); if (!channel) return false; channel.close(); return true; },
     snapshot: async () => ({ id: transport.id, peers: [...peers], links: [...links], received: Object.fromEntries(received), errors, statuses, stats: await transport.stats(), diagnostics: await transport.diagnostics() }),
     stop: () => transport.close(),
@@ -87,8 +91,10 @@ try {
   for (const [index, page] of pages.entries()) if (page !== victim) await page.waitForFunction(([id, count]) => ((globalThis as unknown as { mesh: { received(): Record<string, number> } }).mesh.received()[id as string] ?? 0) > (count as number), [victimId, before[index]![victimId] ?? 0], { timeout: smokeTimeout(10_000) });
   console.log('Fast delivery from the blackholed peer resumed', Math.round(performance.now() - recoveryStart), 'ms after the three-second send blackhole ended.');
   phase = 'channel-closure';
+  // A drained link can rebuild before a poll for "not ready" ever runs, so wait for the drop event itself.
+  const drops = await mesh<number>(victim, 'mesh.linkDrops()');
   assert.equal(await mesh<boolean>(victim, 'mesh.closeInput()'), true);
-  await victim.waitForFunction(() => !(globalThis as unknown as { mesh: { ready(): boolean } }).mesh.ready(), undefined, { timeout: smokeTimeout(10_000) });
+  await victim.waitForFunction(count => (globalThis as unknown as { mesh: { linkDrops(): number } }).mesh.linkDrops() > count, drops, { timeout: smokeTimeout(10_000) });
   await waitReady('channel-rebuild', smokeTimeout(60_000));
   for (const page of pages) assert.equal(await mesh<number>(page, 'mesh.send()'), 5);
   console.log('A closed input channel drained its link and the initiator rebuilt it; every peer sends again.');

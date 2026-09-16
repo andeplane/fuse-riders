@@ -26,6 +26,8 @@ try{
   // CREATE ROOM swaps the landing view for the room in place: a page load would cost the soundtrack, because no
   // browser autoplays before the new page has been tapped. The marker and the same media element are the evidence.
   const music=()=>host.evaluate(()=>{const element=document.querySelector('audio');return {kept:'kept' in window,src:element?.getAttribute('src')??null,time:element?.currentTime??-1};});
+  // The radio attaches its <audio> and sets the track from the page's first audio update, after `load` resolves goto.
+  await host.waitForFunction(()=>!!document.querySelector('audio')?.getAttribute('src'));
   await host.evaluate(()=>{Reflect.set(window,'kept',true);});const beforeEnter=await music();assert.ok(beforeEnter.src,'the landing page owns a music element');
   await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();
   await host.waitForURL(/room=/);

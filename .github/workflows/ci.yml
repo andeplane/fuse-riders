@@ -53,8 +53,14 @@ jobs:
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Each smoke may run twice (scripts/ci-smoke.sh), so the stop sits above the ~10-minute matrix doubled.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      # scripts/ci-smoke.sh comments on the `flaky-test` issue when a smoke on main passes only on retry.
+      issues: write
     env:
+      GH_TOKEN: ${{ github.token }}
       # A two-core runner drives several browser contexts at once, some on software GL, so the
       # deadlines these smokes were written against are not deadlines here: three different steps
       # timed out on three consecutive runs whose code was fine. Scaling them keeps every assertion
@@ -73,13 +79,13 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chrome chromium webkit
       - name: Chrome five-phone smoke
-        run: npm run test:browser
+        run: scripts/ci-smoke.sh "Chrome five-phone smoke" npm run test:browser
       - name: WebKit five-phone smoke
-        run: npm run test:browser
+        run: scripts/ci-smoke.sh "WebKit five-phone smoke" npm run test:browser
         env:
           BROWSER: webkit
       - name: Small-phone avatar picker layout
-        run: npx tsx scripts/avatar-layout.ts
+        run: scripts/ci-smoke.sh "Small-phone avatar picker layout" npx tsx scripts/avatar-layout.ts
       # The production room protocol (src/service) over in-memory metadata, serving dist/.
       - name: Start local online room service
         run: |
@@ -92,22 +98,22 @@ jobs:
           cat artifacts/room-service.log
           exit 1
       - name: Desktop keyboard steering and firing
-        run: npx tsx scripts/keyboard-smoke.ts
+        run: scripts/ci-smoke.sh "Desktop keyboard steering and firing" npx tsx scripts/keyboard-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
       # Compact desktop bar, ultrawide fit, resize recovery and the ? help — uncovered until #166 found it broken.
       - name: Desktop control bar and keyboard help
-        run: npx tsx scripts/desktop-controls-smoke.ts
+        run: scripts/ci-smoke.sh "Desktop control bar and keyboard help" npx tsx scripts/desktop-controls-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
       # Keep five-peer functional assertions on Phaser Canvas; six software-GL views
       # overloaded the runner. Single-view Phaser remains a separate required gate.
       - name: Online WebRTC room smoke (Phaser Canvas)
-        run: npx tsx scripts/online-smoke.ts
+        run: scripts/ci-smoke.sh "Online WebRTC room smoke (Phaser Canvas)" npx tsx scripts/online-smoke.ts
         env:
           ROOM_RENDERER: phaser-canvas
       - name: Online WebKit room smoke (Phaser Canvas)
-        run: npx tsx scripts/online-smoke.ts
+        run: scripts/ci-smoke.sh "Online WebKit room smoke (Phaser Canvas)" npx tsx scripts/online-smoke.ts
         env:
           SMOKE_RIDERS: 3
           BROWSER: webkit
@@ -115,46 +121,46 @@ jobs:
       # The unit tests pin the charge ramp; this is the only thing that renders it, and a new room bounces by
       # default, so without it CI never draws the ramp most rooms actually use (#176).
       - name: Chrome bomb charge preview
-        run: npx tsx scripts/bomb-preview-smoke.ts
+        run: scripts/ci-smoke.sh "Chrome bomb charge preview" npx tsx scripts/bomb-preview-smoke.ts
       - name: WebKit bomb charge preview
-        run: npx tsx scripts/bomb-preview-smoke.ts
+        run: scripts/ci-smoke.sh "WebKit bomb charge preview" npx tsx scripts/bomb-preview-smoke.ts
         env:
           BROWSER: webkit
       - name: Chrome Phaser lifecycle and graphics retry
-        run: npx tsx scripts/phaser-browser.ts
+        run: scripts/ci-smoke.sh "Chrome Phaser lifecycle and graphics retry" npx tsx scripts/phaser-browser.ts
       - name: WebKit Phaser lifecycle and graphics retry
-        run: npx tsx scripts/phaser-browser.ts
+        run: scripts/ci-smoke.sh "WebKit Phaser lifecycle and graphics retry" npx tsx scripts/phaser-browser.ts
         env:
           BROWSER: webkit
       - name: Landing, offline solo and mobile menus
-        run: npx tsx scripts/home-mobile-smoke.ts
+        run: scripts/ci-smoke.sh "Landing, offline solo and mobile menus" npx tsx scripts/home-mobile-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
       - name: Landscape gameplay and touch zones
-        run: npx tsx scripts/mobile-landscape-smoke.ts
+        run: scripts/ci-smoke.sh "Landscape gameplay and touch zones" npx tsx scripts/mobile-landscape-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
       - name: One controller presentation across phone phases
-        run: npx tsx scripts/mobile-phase-smoke.ts
+        run: scripts/ci-smoke.sh "One controller presentation across phone phases" npx tsx scripts/mobile-phase-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
       - name: Chrome end-of-match recap
-        run: npx tsx scripts/match-recap-smoke.ts
+        run: scripts/ci-smoke.sh "Chrome end-of-match recap" npx tsx scripts/match-recap-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
       - name: WebKit end-of-match recap
-        run: npx tsx scripts/match-recap-smoke.ts
+        run: scripts/ci-smoke.sh "WebKit end-of-match recap" npx tsx scripts/match-recap-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
           BROWSER: webkit
       - name: Shared QR lobby and room termination regression
-        run: npx tsx scripts/shared-room-smoke.ts
+        run: scripts/ci-smoke.sh "Shared QR lobby and room termination regression" npx tsx scripts/shared-room-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
       - name: Cross-engine determinism replay
-        run: npx tsx scripts/determinism-replay.ts
+        run: scripts/ci-smoke.sh "Cross-engine determinism replay" npx tsx scripts/determinism-replay.ts
       - name: Six-peer WebRTC mesh transport
-        run: npx tsx scripts/p2p-mesh-browser.ts
+        run: scripts/ci-smoke.sh "Six-peer WebRTC mesh transport" npx tsx scripts/p2p-mesh-browser.ts
         env:
           ONLINE_URL: http://localhost:8787/
       - name: Save browser evidence
@@ -165,6 +171,7 @@ jobs:
           path: |
             artifacts/*.png
             artifacts/room-service.log
+            artifacts/flaky/*.log
             artifacts/shared-room-smoke.json
             docs/online/*benchmark.json
             docs/online/browser-network.json
