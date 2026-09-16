@@ -28,6 +28,8 @@ test('cosmetic offsets are stable across replay and vary between bombs without m
   at(.9); at(.01);
   assert.deepEqual(at(.3), bloom, 'no frame order or retained random state');
   assert.notDeepEqual(blastFrame({ ...blast, bombId: 43 }, 102.4), bloom);
+  const volley = [42, 43, 44, 45, 46].map(bombId => JSON.stringify(blastFrame({ ...blast, bombId }, 102.4)));
+  assert.equal(new Set(volley).size, 5, 'five simultaneous bombs each have a distinct pattern');
   assert.deepEqual(blast, original);
   assert.notDeepEqual(at(.31), bloom, 'fractional ticks animate between simulation steps');
 });

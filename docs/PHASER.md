@@ -51,6 +51,8 @@ The dedicated browser check passed in Chrome and WebKit: WebGL plus forced Phase
 ```sh
 npm run typecheck
 npx tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
+npx tsx scripts/blast-browser.ts
+BROWSER=webkit npx tsx scripts/blast-browser.ts
 npx tsx scripts/phaser-browser.ts
 BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts

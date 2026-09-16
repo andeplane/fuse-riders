@@ -10,7 +10,7 @@ const tag=process.env.BENCH_TAG??'';if(!/^[a-z0-9-]*$/.test(tag))throw Error('In
 const resolution=process.env.RESOLUTION??'display';if(resolution!=='display'&&resolution!=='world')throw Error('Invalid RESOLUTION');
 const config={width,height,dpr,quality,resolution,duration:option('DURATION_MS',15000,2000,1800000)};
 const revision=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-const sourceHashes=Object.fromEntries(await Promise.all(['src/client/phaser/arena.ts','src/client/phaser/trails.ts','src/client/phaser/viewport.ts','src/client/main.ts','src/client/themes.ts','src/client/phaser/benchmark-fixture.ts','scripts/phaser-benchmark.ts'].map(async path=>[path,createHash('sha256').update(await readFile(path)).digest('hex')])));
+const sourceHashes=Object.fromEntries(await Promise.all(['src/client/phaser/arena.ts','src/client/blast-animation.ts','src/client/phaser/trails.ts','src/client/phaser/viewport.ts','src/client/main.ts','src/client/themes.ts','src/client/phaser/benchmark-fixture.ts','scripts/phaser-benchmark.ts'].map(async path=>[path,createHash('sha256').update(await readFile(path)).digest('hex')])));
 const server=await createServer({server:{port:0,host:'127.0.0.1',hmr:false}});await server.listen();
 const address=server.httpServer!.address();if(!address||typeof address==='string')throw Error('No server');
 const browser=process.env.BROWSER==='webkit'?await webkit.launch():await chromium.launch({channel:'chrome',args:['--enable-webgl']});
