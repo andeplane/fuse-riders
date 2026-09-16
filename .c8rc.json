@@ -18,6 +18,7 @@
     "src/client/asset-url.ts",
     "src/client/legend-src.ts",
     "src/client/arena-wall.ts",
+    "src/client/arena-maps.ts",
     "src/client/powerup-guide.ts",
     "src/service/memory-database.ts",
     "src/service/http.ts",

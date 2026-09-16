@@ -33,6 +33,8 @@ function scene() {
   Object.assign(bystander!, { x: 1400, y: 300, angle: 0, trail: [] });
   Object.assign(spare!, { x: 1400, y: 800, angle: 0, trail: [] });
   game.portalPairs = [pair()];
+  // An open board: these tests place gates, rays and shells at exact coordinates, so no scenery stands in them.
+  game.obstacles = [];
   game.nextPickupSpawnTick = game.tick + 10_000;
   return { game, shooter: shooter!, victim: victim!, bystander: bystander!, spare: spare! };
 }

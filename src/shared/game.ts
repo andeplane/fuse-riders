@@ -1,16 +1,21 @@
-import { hypot2, sin, cos } from './deterministic-math.js';
+import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
 import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerReloadTicks, powerTrailLifetimeTicks } from './power-progression.js';
 export { pickupPacing } from './power-progression.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { roomPickup, type RoomSettings } from './room-settings.js';
 import { cutTrailHole, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_HEADSHOT_RADIUS, GUN_TRACER_TICKS } from './gun.js';
-import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
+import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint, type ShellTrail } from './shell.js';
 import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
 import { advanceTrail, boundTrail, cutTrail, detachTrail } from './trail-lifecycle.js';
 import { clipTrailSegment } from './trail-clipping.js';
 import { pickupTypeForRoll } from './pickup-weights.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
 import { createPortalPair, findPortalTransit, fitPortalPair, MAX_PORTAL_PAIRS, PORTAL_WALL_HALF_WIDTH, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
+import {
+  chooseArenaMap, generateObstacles, obstacleBlocksPath, obstacleBounceNormal, obstacleDistanceSquared, obstacleEdges,
+  obstacleInsideBounds, obstacleTouchesCircle,
+  segmentObstacleDistanceSquared, OBSTACLE_WALL_MARGIN, type ArenaMapId, type ClearCapsule, type Obstacle,
+} from './arena-map.js';
 import type {
   AimPoint,
   BombActionCommand,
@@ -120,6 +125,12 @@ export const SNAIL_SPEED = 0.5;
 export const MAX_SPEED_EFFECT_STACK = 32;
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
+
+/** Pickups never sit against an obstacle, where collecting one would mean crashing into it. */
+export const PICKUP_OBSTACLE_CLEARANCE = 30;
+/** Every rider starts clear of the scenery, with this much open road along its heading to pick a line. */
+export const SPAWN_CORRIDOR_LENGTH = 220;
+export const SPAWN_CORRIDOR_RADIUS = 56;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
@@ -281,6 +292,10 @@ export interface GameState {
   width: number;
   height: number;
   boundaryInset: number;
+  /** The ground this round is played on, chosen once in `prepareRound` from the room's setting. */
+  map: ArenaMapId;
+  /** Solid scenery: lethal on contact, cleared by a blast, and gone once the overtime walls pass it. */
+  obstacles: Obstacle[];
   players: Map<PlayerId, PlayerState>;
   bombs: Map<number, BombState>;
   blasts: BlastState[];
@@ -340,6 +355,8 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     width: ARENA_WIDTH,
     height: ARENA_HEIGHT,
     boundaryInset: INITIAL_BOUNDARY_INSET,
+    map: 'classic',
+    obstacles: [],
     players: new Map(),
     bombs: new Map(),
     blasts: [],
@@ -501,6 +518,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.portalPairs = state.portalPairs
     .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
     .filter((pair): pair is PortalPair => pair !== undefined);
+  // Scenery is not resized the way a gate is: an obstacle the closing walls have reached is rubble.
+  state.obstacles = state.obstacles.filter((obstacle) => obstacleInsideBounds(obstacle, trailBounds));
   // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out
   // of bounds. Clamped against the inset computed just above, like the portal fit, rather than last tick's.
   for (const field of state.gravityFields) {
@@ -551,6 +570,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   // One run per portal hop. The gap between runs is travel the shell never made, so the sweep below
   // must not read across it: a rider standing between two gates is not in the way of a teleport.
   const shellPaths = new Map<number, ShellPoint[][]>();
+  const obstacleWalls = state.obstacles.flatMap(obstacleEdges);
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
     // Gun damage was resolved on press; these are stationary, harmless tracers.
@@ -561,7 +581,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const shellBounds = { left: state.boundaryInset + SHELL_RADIUS,
       right: state.width - state.boundaryInset - SHELL_RADIUS, top: state.boundaryInset + SHELL_RADIUS,
       bottom: state.height - state.boundaryInset - SHELL_RADIUS };
-    const trails = [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS ? [] : player.trail);
+    // Scenery reflects a shell exactly as a trail does; it is the one surface a shell meets that it cannot cut.
+    const trails: ShellTrail[] = [...obstacleWalls,
+      ...[...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS ? [] : player.trail)];
     const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx, vy: bomb.shell.vy, bounces: bomb.shell.bounces ?? 0 };
     // A bounce can fall on either side of a gate within one tick, so the tick is integrated twice
     // rather than rewound: this throwaway pass only says whether, and when, a gate is met.
@@ -610,6 +632,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   };
   const trailContactTimes = new Map<PlayerId, number>();
   const riderContactTimes = new Map<PlayerId, number>();
+  /** Crashing into scenery is `wall`, and only these riders stop against what they hit rather than at the boundary. */
+  const obstacleContactTimes = new Map<PlayerId, number>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
     if (bomb.shell?.gun || bomb.launchedTick >= state.tick || (!bomb.shell && bomb.landsAtTick < state.tick)) continue;
@@ -677,6 +701,20 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       markCause(causes, causeOwners, movement.player.id, 'wall');
     }
 
+    // Obstacles are solid the way the boundary is, and kill under the same cause. A hazard-immune rider passes
+    // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
+    for (const obstacle of state.obstacles) {
+      if (isHazardImmune(movement.player, state.tick)) break;
+      const touches = (time: number): boolean => obstacleBlocksPath(obstacle,
+        movement.oldX, movement.oldY,
+        movement.oldX + (movement.x - movement.oldX) * time,
+        movement.oldY + (movement.y - movement.oldY) * time, RIDER_RADIUS);
+      const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
+      if (!touches(previous)) continue;
+      markCause(causes, causeOwners, movement.player.id, 'wall');
+      obstacleContactTimes.set(movement.player.id, firstContactTime(touches, previous));
+    }
+
     for (const owner of state.players.values()) {
       if (isHazardImmune(movement.player, state.tick)) break;
       for (const trail of owner.trail) {
@@ -735,6 +773,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     if (!causes.has(movement.player.id) || !movement.player.shielded) continue;
     movement.player.shielded = false;
     movement.player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
+    const obstacleTime = causes.get(movement.player.id) === 'wall' ? obstacleContactTimes.get(movement.player.id) : undefined;
+    if (obstacleTime !== undefined && reflectAtObstacle(state, movement, obstacleTime)) bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
     causes.delete(movement.player.id);
     causeOwners.delete(movement.player.id);
@@ -759,7 +799,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const movement of movementList) {
     const cause = causes.get(movement.player.id);
     const contactTime = cause === 'trail' ? trailContactTimes.get(movement.player.id)
-      : cause === 'rider' ? riderContactTimes.get(movement.player.id) : undefined;
+      : cause === 'rider' ? riderContactTimes.get(movement.player.id)
+      : cause === 'wall' ? obstacleContactTimes.get(movement.player.id) : undefined;
     if (contactTime !== undefined) {
       movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
       movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
@@ -777,7 +818,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const movement of movementList) {
     const cause = causes.get(movement.player.id);
     if (cause) {
-      if (cause === 'trail' || cause === 'rider') {
+      // A wreck against scenery is left where it hit, with the trail it laid getting there; the boundary keeps
+      // its own behaviour, where the rider has already been carried out of bounds.
+      if (cause === 'trail' || cause === 'rider' || (cause === 'wall' && obstacleContactTimes.has(movement.player.id))) {
         movement.player.x = movement.x;
         movement.player.y = movement.y;
         movement.player.angle = movement.angle;
@@ -884,6 +927,8 @@ export function toSnapshot(state: GameState): GameSnapshot {
     width: state.width,
     height: state.height,
     boundaryInset: state.boundaryInset,
+    map: state.map,
+    obstacles: state.obstacles.map((obstacle) => ({ ...obstacle })),
     players: sortedPlayers(state).map((player) => ({
       id: player.id,
       name: player.name,
@@ -1004,6 +1049,24 @@ function prepareRound(state: GameState): void {
     player.angle = normalizeAngle(spawnAngle + Math.PI / 2);
     player.alive = true;
   });
+  // The layout is laid around riders already standing on the board, so nobody starts inside a rock or facing one
+  // with no room to turn. Drawn from the round's own stream, after every participant has a pose.
+  state.map = chooseArenaMap(state.settings?.map ?? 'rotate', state.seed, state.round);
+  const keepClear: ClearCapsule[] = participants.map((player) => ({
+    x1: player.x, y1: player.y,
+    x2: player.x + cos(player.angle) * SPAWN_CORRIDOR_LENGTH,
+    y2: player.y + sin(player.angle) * SPAWN_CORRIDOR_LENGTH,
+    radius: SPAWN_CORRIDOR_RADIUS,
+  }));
+  state.obstacles = generateObstacles({
+    map: state.map,
+    bounds: {
+      minX: state.boundaryInset + OBSTACLE_WALL_MARGIN, minY: state.boundaryInset + OBSTACLE_WALL_MARGIN,
+      maxX: state.width - state.boundaryInset - OBSTACLE_WALL_MARGIN, maxY: state.height - state.boundaryInset - OBSTACLE_WALL_MARGIN,
+    },
+    random: () => nextRandom(state),
+    keepClear,
+  });
 }
 
 function maybeSpawnPickup(state: GameState, cap: number): void {
@@ -1043,6 +1106,7 @@ function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
     if (bomb.shell?.gun) continue;
     if (square(bomb.x - x) + square(bomb.y - y) < square(PICKUP_RIDER_BOMB_CLEARANCE)) return false;
   }
+  if (state.obstacles.some(obstacle => obstacleTouchesCircle(obstacle, x, y, PICKUP_RADIUS + PICKUP_OBSTACLE_CLEARANCE))) return false;
   return state.pickups.every((pickup) =>
     square(pickup.x - x) + square(pickup.y - y) >= square(PICKUP_SEPARATION),
   );
@@ -1202,6 +1266,8 @@ function isSafePortalPosition(
     if (movement && !deaths.has(player.id) && pointSegmentDistanceSquared(point.x, point.y,
       movement.oldX, movement.oldY, transit?.entryPoint.x ?? movement.x, transit?.entryPoint.y ?? movement.y) <= square(radius + TRAIL_WIDTH / 2)) return false;
   }
+  // A gate laid across scenery, or an exit inside it, would drop a rider straight into a lethal wall.
+  if (state.obstacles.some(obstacle => obstacleTouchesCircle(obstacle, point.x, point.y, radius))) return false;
   // Reserve both current flight location and landing site of live projectiles.
   for (const bomb of state.bombs.values()) {
     if (bomb.shell?.gun) continue;
@@ -1232,6 +1298,28 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
   movement.y = Math.max(top, Math.min(bottom, movement.y));
   if (hitX) { movement.angle = normalizeAngle(Math.PI - movement.angle); movement.player.drunkHeadingOffset *= -1; }
   if (hitY) { movement.angle = normalizeAngle(-movement.angle); movement.player.drunkHeadingOffset *= -1; }
+  return true;
+}
+
+/**
+ * An absorbed crash leaves the rider against the face it hit, turned away from it: the same deal the boundary gives a
+ * shielded rider, and without it a shield would only buy the ticks of grace it takes to die inside the same obstacle.
+ */
+function reflectAtObstacle(state: GameState, movement: Movement, contactTime: number): boolean {
+  movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
+  movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
+  let hit: Obstacle | undefined; let nearest = Infinity;
+  for (const obstacle of state.obstacles) {
+    const distance = obstacleDistanceSquared(obstacle, movement.x, movement.y);
+    if (distance < nearest) { nearest = distance; hit = obstacle; }
+  }
+  if (!hit) return false;
+  const { nx, ny } = obstacleBounceNormal(hit, movement.x, movement.y);
+  const heading = { x: cos(movement.angle), y: sin(movement.angle) };
+  const approach = heading.x * nx + heading.y * ny;
+  if (approach >= 0) return false; // already turned away from the face by this tick's steering
+  movement.angle = normalizeAngle(atan2(heading.y - 2 * approach * ny, heading.x - 2 * approach * nx));
+  movement.player.drunkHeadingOffset *= -1;
   return true;
 }
 
@@ -1443,6 +1531,14 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
         if (player.alive) consider(player.x, player.y, player.x, player.y, RIDER_RADIUS + GUN_RADIUS);
         for (const trail of player.trail) consider(trail.x1, trail.y1, trail.x2, trail.y2, TRAIL_WIDTH / 2 + GUN_RADIUS);
       }
+      // Scenery stops a bullet without taking damage from it: only a blast clears an obstacle. Whatever stood
+      // behind it was never in this ray's line, so an earlier obstacle contact also drops the rider it found.
+      for (const obstacle of state.obstacles) {
+        const touches = (t: number): boolean => segmentObstacleDistanceSquared(obstacle, x, y, x + dx * t, y + dy * t) <= square(GUN_RADIUS);
+        if (!touches(contact)) continue;
+        contact = firstContactTime(touches, contact);
+        hit = undefined;
+      }
       const gate = findGunPortalEntry(state, { x, y }, { x: x + dx, y: y + dy }, spent);
       // A gate reached before anything solid takes the bullet; whatever stood beyond it never saw this ray.
       if (gate && gate.time < contact && hop < MAX_PORTAL_PAIRS) {
@@ -1509,6 +1605,8 @@ function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
     const circle = { x: bomb.x, y: bomb.y, radius: bomb.blastRange };
     state.pickups = state.pickups.filter(pickup =>
       square(pickup.x - circle.x) + square(pickup.y - circle.y) >= square(circle.radius * PICKUP_DESTRUCTION_RADIUS_RATIO));
+    // Scenery goes at the full radius rather than the pickups' inner disk: clearing a path is the point of the shot.
+    state.obstacles = state.obstacles.filter(obstacle => !obstacleTouchesCircle(obstacle, circle.x, circle.y, circle.radius));
     // Stored and returned separately: `state.blasts` is checkpointed and validated field by field, so the
     // statistics-only shot stays in the returned copy this tick's kill attribution reads.
     const blast: BlastState = { bombId: id, ownerId: bomb.ownerId, circle, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS };

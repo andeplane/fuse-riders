@@ -153,6 +153,10 @@ try {
   app.advance(60);
   await phones[0].getByRole('button', { name: 'Drop bomb' }).waitFor({ state: 'visible' });
   await waitFor(() => app.game.phase === 'playing', 'playing');
+  // The scripted rides below park riders on exact coordinates and drop pickups under them for a whole match; the
+  // classic board keeps that a test of the controller and HUD. Arena maps have their own coverage in
+  // `tests/arena-obstacles.test.ts` and `scripts/arena-map-fixture.ts`.
+  app.game.obstacles = [];
   await phones[0].getByRole('button', { name: 'Change avatar', exact: true }).click();
   await phones[0].getByRole('button', { name: 'Slime', exact: true }).click();
   await host.locator('.score-card .avatar-portrait[data-avatar-id=slime]').waitFor();

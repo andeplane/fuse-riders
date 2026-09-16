@@ -9,6 +9,8 @@ function fixture(){
   const game=createGame('bot-fixture');
   addPlayer(game,{id:'bot:1',name:'AI',slot:0,color:SLOT_COLORS[0]});addPlayer(game,{id:'human',name:'Player',slot:1,color:SLOT_COLORS[1]});
   startMatch(game);for(let i=0;i<60;i++)step(game,new Map());
+  // An open board: obstacle avoidance has its own test, and these measure steering against walls and trails.
+  game.obstacles=[];
   Object.assign(game.players.get('bot:1')!,{x:400,y:450,angle:0});Object.assign(game.players.get('human')!,{x:1100,y:450,angle:Math.PI});
   return game;
 }

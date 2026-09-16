@@ -13,6 +13,8 @@ function playing(seed = 5): GameState {
   startMatch(state);
   while (state.phase === 'countdown') step(state, new Map());
   state.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  // An open board: a field's pull is measured as travel, which scenery in the way would cut short.
+  state.obstacles = [];
   for (const player of state.players.values()) Object.assign(player, { x: 300, y: 200 + player.slot * 400, angle: 0, trail: [] });
   return state;
 }

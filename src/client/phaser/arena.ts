@@ -12,6 +12,7 @@ import { portalPalettes } from '../portal-palettes.js';
 import { EffectTransitions, bombPose } from './effects.js';
 import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
+import { mapGround, obstacleParts } from '../arena-maps.js';
 import { observeArenaDisplay } from './viewport.js';
 import { blastFrame } from '../blast-animation.js';
 import { reloadRemaining, RELOAD_RING_RADIUS } from '../reload-ring.js';
@@ -244,6 +245,14 @@ class ArenaScene extends Phaser.Scene {
       this.floor.fillStyle(color(theme.palette.blastCore)).fillRect(stud.x + 2, stud.y + 2, 3, 3);
     }
   }
+  /** Scenery is static until a blast clears it, so it is baked into the floor pass rather than redrawn each frame. */
+  private drawObstacles(obstacles: ViewSnapshot['obstacles']): void {
+    for (const obstacle of obstacles) for (const part of obstacleParts(obstacle)) {
+      this.floor.fillStyle(color(part.color), part.alpha ?? 1);
+      if (part.shape === 'circle') this.floor.fillCircle(part.x, part.y, part.radius);
+      else this.floor.fillRect(part.x, part.y, part.width, part.height);
+    }
+  }
   private sprite(texture: string, x: number, y: number, size: number, rotation = 0, frame?: string): Phaser.GameObjects.Image {
     let image = this.images[this.imageIndex++];
     if (!image) { image = this.add.image(0,0,'spark').setDepth(3); this.images.push(image); this.world.add(image); }
@@ -266,7 +275,8 @@ class ArenaScene extends Phaser.Scene {
     this.imageIndex = 0; this.labelIndex = 0;
     const g = this.dynamic.clear(); const f = this.front.clear();
     const { width:w, height:h, boundaryInset:b } = s;
-    const backgroundKey = `${w}:${h}:${theme.id}`;
+    const ground = mapGround(s.map, theme);
+    const backgroundKey = `${w}:${h}:${theme.id}:${s.map}`;
     if (backgroundKey !== this.backgroundKey) {
       this.backgroundKey = backgroundKey;
       // The pre-Phaser floor: a soft radial wash and a grid anchored to the arena,
@@ -274,28 +284,31 @@ class ArenaScene extends Phaser.Scene {
       this.floorTexture.setSize(w, h);
       const ctx = this.floorTexture.context;
       const gradient = ctx.createRadialGradient(w / 2, h / 2, 30, w / 2, h / 2, w * .7);
-      gradient.addColorStop(0, theme.palette.floorCenter);
-      gradient.addColorStop(1, theme.palette.floorEdge);
+      gradient.addColorStop(0, ground.floorCenter);
+      gradient.addColorStop(1, ground.floorEdge);
       ctx.fillStyle = gradient; ctx.fillRect(0, 0, w, h);
       this.floorTexture.refresh();
       // Upload resets filtering; preserve smooth backdrop scaling.
       this.floorTexture.setFilter(Phaser.Textures.FilterMode.LINEAR);
       this.floorImage.setDisplaySize(w, h);
     }
-    const floorKey = `${backgroundKey}:${b}`;
+    // Obstacles are only ever removed within a round, so their count identifies the standing set.
+    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${s.obstacles.length}`;
     if (floorKey !== this.floorKey) {
       this.floorKey = floorKey;
       // Boundary motion must not redraw/upload the full background texture each tick.
       this.floor.clear();
       // Draw grid lines as geometry: baking them into a texture loses lines on small boards.
-      const grid = Phaser.Display.Color.RGBStringToColor(theme.palette.grid.replace(/,\s*\./, ',0.'));
+      const grid = Phaser.Display.Color.RGBStringToColor(ground.grid.replace(/,\s*\./, ',0.'));
       this.floor.lineStyle(1,grid.color,grid.alphaGL);
-      for(let x=0;x<=w;x+=theme.rendering.gridSize)this.floor.lineBetween(x,0,x,h);
-      for(let y=0;y<=h;y+=theme.rendering.gridSize)this.floor.lineBetween(0,y,w,y);
+      for(let x=0;x<=w;x+=ground.gridSize)this.floor.lineBetween(x,0,x,h);
+      for(let y=0;y<=h;y+=ground.gridSize)this.floor.lineBetween(0,y,w,y);
       this.floor.fillStyle(0x00020c,.67)
         .fillRect(0,0,w,b).fillRect(0,h-b,w,b)
         .fillRect(0,b,b,h-2*b).fillRect(w-b,b,b,h-2*b);
       this.drawWall(w,h,b,theme);
+      // After the boundary band: an obstacle the closing walls have reached is already gone from the state.
+      this.drawObstacles(s.obstacles);
       this.maskShape.clear().fillStyle(0xffffff).fillRect(b,b,w-2*b,h-2*b);
     }
     const history = this.trailHistory.update(s.players, `${matchId}:${s.round}:${theme.id}`);
@@ -308,6 +321,7 @@ class ArenaScene extends Phaser.Scene {
     for (const player of s.players) this.strokeTrail(this.trailTips, [trailTip(player, s.tick, s.phase)], color(player.color), player.alive && !player.trail.at(-1)?.detached, theme);
     const events = this.transitions.accept(s,matchId);
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(12,p.x,p.y); }
+    for(const piece of events.rubble) { this.sparks.setParticleTint(color(ground.dust)); this.sparks.explode(10,piece.x,piece.y); }
     for(const p of s.pickups) {
       const pulse=1+Math.sin(now/210+p.id)*.06;
       const power=p.type==='power';

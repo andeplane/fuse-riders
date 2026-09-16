@@ -8,7 +8,9 @@ import { roomHash, packMessage } from '../src/online/packet.js';
 import { RULES } from '../src/shared/apply-tick.js';
 import { hashRoomState } from '../src/shared/apply-tick.js';
 
-const settings = defaultRoomSettings();
+// The classic arena: these rooms are driven by idle riders, and scenery would end their rounds before the
+// membership, resync and delegation behaviour under test had played out.
+const settings = { ...defaultRoomSettings(), map: 'classic' as const };
 const HOST = 'a-host', GUESTS = ['b-guest', 'c-guest', 'd-guest', 'e-guest'], TV = 'f-tv';
 function room(options: NetworkOptions = { loss: 0, baseMs: 20, jitterMs: 0, reliableMs: 30 }, seed = 1) {
   const net = new FakeNetwork(HOST, options, seed);

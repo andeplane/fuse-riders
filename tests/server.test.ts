@@ -22,7 +22,7 @@ test('controller snapshots strip the full match statistics table', () => {
   };
   const compact = controllerSnapshot({
     phase: 'matchOver', matchLength: 5, aimBounce: false, bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20,
-    players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], leaderboard: [], roundPlacements: [], matchStats: [matchStats],
+    players: [], map: 'classic', obstacles: [], bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], leaderboard: [], roundPlacements: [], matchStats: [matchStats],
     moments: [{ kind: 'ownGoal', round: 1, tick: 90, elapsed: 30, playerId: 'p0', targetIds: [], value: 1 }],
     decidedRound: { matchId: 'm', round: 1, tick: 90, shots: [{ shot: 1, shooterId: 'p0', weapon: 'gun', elapsed: 20, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills: [{ victimId: 'p1', elapsed: 24 }] }] },
   });

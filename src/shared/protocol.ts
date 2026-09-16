@@ -1,5 +1,6 @@
 import { isAvatarId, type AvatarId } from './avatars.js';
 import type { PortalPair } from './portal.js';
+import type { ArenaMapId, Obstacle } from './arena-map.js';
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 import type { MatchPlayerStats } from './match-stats.js';
 import type { FlightPoint } from './launch-modifiers.js';
@@ -7,6 +8,7 @@ import type { PickupType } from './game.js'; // the type alone: this module neve
 import type { Moment } from './moments.js';
 import type { DecidedRound } from './shot-log.js';
 
+export type { ArenaMapId, Obstacle, ObstacleKind } from './arena-map.js';
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
 export type { FlightPoint } from './launch-modifiers.js';
@@ -42,6 +44,8 @@ export interface GameSnapshot {
   phaseEndsAtTick?: number;
   roundStartedTick?: number;
   width: number; height: number; boundaryInset: number;
+  /** The round's ground, and the scenery standing on it: lethal to touch, and cleared by a blast. */
+  map: ArenaMapId; obstacles: ReadonlyArray<Obstacle>;
   players: ReadonlyArray<{
     id: PlayerId; name: string; slot: number; color: string; connected: boolean; avatarId: AvatarId;
     x: number; y: number; angle: number; alive: boolean; roundWins: number; matchScoreUnits: number; roundScoreUnits: number; waitingForNextRound?: boolean;

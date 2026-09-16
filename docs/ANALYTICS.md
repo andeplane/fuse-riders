@@ -49,7 +49,7 @@ super property on every event. `mode` and `solo` are registered only on the room
 | `Kill` | once per rider this device's rider killed, once that round is decided and confirmed | the pull's properties below, plus `victimBot`, `shotKills`, `firstKillOfShot`, `secondsToKill` |
 | `Miss` | once per pull of this device's rider that killed nobody, once that round is decided and confirmed | the pull's properties below |
 | `Recap Reopened` | the RESULTS button | — |
-| `Settings Changed` | a draft the runtime accepted | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `powerupTypes` |
+| `Settings Changed` | a draft the runtime accepted | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `map`, `powerupTypes` |
 | `Connect Failed` | 20s with no link to the host | `status` (the status line, `null` if none yet), `secondsWaiting` |
 | `Boot Failed` | the boot-failure card is shown | `message` |
 

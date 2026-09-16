@@ -33,8 +33,9 @@ function fixture(riders = 2, settings?: RoomSettings): { game: GameState; player
   for (let slot = 0; slot < riders; slot += 1) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: SLOT_COLORS[slot]! });
   startMatch(game);
   while (game.phase === 'countdown') step(game, new Map());
-  // No drops of its own: every powerup in these tests is armed on purpose.
+  // No drops or scenery of its own: every powerup is armed on purpose, and every shot has a clear board.
   game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  game.obstacles = [];
   const player = game.players.get('p0')!;
   Object.assign(player, { x: 400, y: 450, angle: 0, trail: [] });
   for (let slot = 1; slot < riders; slot += 1) Object.assign(game.players.get(`p${slot}`)!, { x: 900 + slot * 120, y: 200 * slot, angle: 0, trail: [] });

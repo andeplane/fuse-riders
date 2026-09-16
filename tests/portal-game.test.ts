@@ -9,6 +9,8 @@ function arena() {
   for (let slot = 0; slot < 3; slot++) addPlayer(state, { id: `p${slot}`, name: `P${slot}`, slot, color: '#fff' });
   startMatch(state);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(state, new Map());
+  // An open board: gate placement and transits are measured against riders and trails alone.
+  state.obstacles = [];
   for (const [index, player] of [...state.players.values()].entries()) Object.assign(player, { x: 185 + index * 500, y: 200 + index * 200, angle: 0, trail: [] });
   state.portalPairs = [{ id: 'pair', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 200 }];
   return state;
@@ -160,6 +162,7 @@ test('wall placement remains useful on an occupied five-rider field across seeds
     for (let slot = 0; slot < 5; slot++) addPlayer(state, { id: `p${slot}`, name: `P${slot}`, slot, color: '#fff' });
     startMatch(state);
     for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(state, new Map());
+    state.obstacles = [];
     for (const [slot, player] of [...state.players.values()].entries()) {
       const x = 200 + slot * 280; const y = slot % 2 ? 600 : 260;
       Object.assign(player, { x, y, angle: 0, invulnerableUntilTick: state.tick + 10 });

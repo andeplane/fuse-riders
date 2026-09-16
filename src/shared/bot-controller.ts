@@ -2,6 +2,7 @@ import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
 import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
+import { obstacleBlocksPath, obstacleDistanceSquared } from './arena-map.js';
 import { drunkHeadingOffset } from './drunk.js';
 import type { TrailSegment } from './protocol.js';
 
@@ -79,6 +80,9 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
   const directions=random<.5?[-1,1]:[1,-1];
   const plans:SteeringPlan[]=[{direction:0,turnTicks:0},...directions.flatMap(direction=>TURN_DURATIONS.filter(turnTicks=>turnTicks<=lookahead).map(turnTicks=>({direction,turnTicks})))];
   const bombs=[...game.bombs.values()].filter(bomb=>!bomb.shell?.gun);
+  // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
+  // of this plan are worth testing each step.
+  const obstacles=game.obstacles.filter(obstacle=>obstacleDistanceSquared(obstacle,player.x,player.y)<reach*reach);
   let chosen=0,bestSurvived=-1,bestScore=-Infinity;
   for(const plan of plans){
     let pose={x:player.x,y:player.y,angle:player.angle,drunkHeadingOffset:player.drunkHeadingOffset},score=0,survived=0;
@@ -111,6 +115,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
         for(let index=0;index<future-1;index++)if(hitsTrail(path[index]!))return true;
         return false;
       }))break;
+      if(obstacles.some(obstacle=>obstacleBlocksPath(obstacle,previous.x,previous.y,x,y,TRAIL_CLEARANCE)))break;
       if(game.blasts.some(blast=>blast.expiresAtTick>tick&&distanceToSegmentSquared(blast.circle.x,blast.circle.y,{x1:previous.x,y1:previous.y,x2:x,y2:y,createdTick:tick,expiresAtTick:tick})<squared(blast.circle.radius+RIDER_RADIUS)))break;
       if(bombs.some(bomb=>bomb.shell
         ?segmentDistanceSquared(previous.x,previous.y,x,y,bomb.x+bomb.shell.vx*(future-1)/TICK_HZ,bomb.y+bomb.shell.vy*(future-1)/TICK_HZ,bomb.x+bomb.shell.vx*future/TICK_HZ,bomb.y+bomb.shell.vy*future/TICK_HZ)<squared(RIDER_RADIUS+18)

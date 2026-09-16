@@ -1,4 +1,5 @@
 import { PICKUP_WEIGHTS } from './pickup-weights.js';
+import { ARENA_MAP_CHOICES, type ArenaMapChoice } from './arena-map.js';
 import { BOMB_MAX_CHARGE_TICKS, isBombChargeTicks } from './bomb-launch.js';
 import { PICKUP_TYPES, type PickupType } from './game.js';
 export interface RoomSettings {
@@ -11,11 +12,13 @@ export interface RoomSettings {
   chainReaction: boolean;
   /** Holding past full reach walks the aim back down and up again instead of parking at maximum (#166). */
   aimBounce: boolean;
+  /** Which ground and obstacles a round is played on. `rotate` cycles them; `classic` is the obstacle-free arena. */
+  map: ArenaMapChoice;
   weights: Partial<Record<PickupType, number>>;
 }
 export const SETTINGS_KEY = 'fuse-riders-room-settings-v1';
 export function defaultRoomSettings(): RoomSettings {
-  return { version: 1, mode: 'devices', match: 'rounds', length: 5, bombChargeTicks: BOMB_MAX_CHARGE_TICKS, chainReaction: true, aimBounce: true, weights: Object.fromEntries(PICKUP_WEIGHTS.map(row => [row.type, row.weight])) };
+  return { version: 1, mode: 'devices', match: 'rounds', length: 5, bombChargeTicks: BOMB_MAX_CHARGE_TICKS, chainReaction: true, aimBounce: true, map: 'rotate', weights: Object.fromEntries(PICKUP_WEIGHTS.map(row => [row.type, row.weight])) };
 }
 export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   if (!raw || typeof raw !== 'object') return;
@@ -29,6 +32,10 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   // silently turning the feature off for anyone who has ever pressed SAVE SETTINGS.
   const aimBounce = value.aimBounce === undefined ? true : value.aimBounce;
   if (typeof aimBounce !== 'boolean') return;
+  // Like the flags above: a blob saved before maps existed round-trips to what a new room would choose, rather than
+  // pinning every returning host to the classic arena for good.
+  const map = value.map === undefined ? 'rotate' : value.map;
+  if (!(ARENA_MAP_CHOICES as readonly string[]).includes(map)) return;
   if (value.version !== 1 || !['shared','devices'].includes(value.mode) || value.match !== 'rounds' || !Number.isInteger(value.length) || value.length < 1 || value.length > 20 || !value.weights || typeof value.weights !== 'object') return;
   const allowed = new Set<string>(PICKUP_TYPES);
   const weights: RoomSettings['weights'] = {};
@@ -36,7 +43,7 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
     if (!allowed.has(type as PickupType) || typeof weight !== 'number' || !Number.isFinite(weight) || weight < 0 || weight > 10000) return;
     weights[type as PickupType] = weight;
   }
-  return { version: 1, mode: value.mode, match: value.match, length: value.length, bombChargeTicks, chainReaction, aimBounce, weights };
+  return { version: 1, mode: value.mode, match: value.match, length: value.length, bombChargeTicks, chainReaction, aimBounce, map, weights };
 }
 export function loadRoomSettings(storage: Pick<Storage,'getItem'>): RoomSettings {
   try {

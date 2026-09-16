@@ -5,6 +5,7 @@ import { MAX_BOARD_PICKUPS, MAX_POWER_PICKUPS, POWER_TUNING } from '../shared/po
 import { ARENA_WIDTH, ARENA_HEIGHT, MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, PICKUP_TYPES, SLOT_COLORS, SNAIL_DURATION_TICKS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
+import { ARENA_MAPS, MAX_OBSTACLES, OBSTACLE_KINDS, type Obstacle } from '../shared/arena-map.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 import { MAX_ROUND_SHOTS, WEAPONS, type RoundShot } from '../shared/shot-log.js';
@@ -68,11 +69,17 @@ const shotRecord = shape({
   kills: array(shape({ victimId: text, elapsed: integer }), 4),
 } satisfies Record<keyof RoundShot, Guard>);
 const settings: Guard = v => v === undefined || parseRoomSettings(v) !== undefined;
+/** Half extents are bounded well under the arena: scenery is something a rider rides around, not a second wall. */
+const obstacle: Guard = shape({
+  id: v => integer(v) && v !== 0, kind: v => typeof v === 'string' && (OBSTACLE_KINDS as readonly string[]).includes(v),
+  x: position, y: position, halfWidth: range(1, ARENA_WIDTH / 4), halfHeight: range(1, ARENA_HEIGHT / 4),
+} satisfies Record<keyof Obstacle, Guard>);
 const gravityField: Guard = shape({ bombId: integer, ownerId: text, x: position, y: position, radius: range(0, 1000), expiresAtTick: integer });
 const gameShape = shape({
   settings, matchId: text, round: v => integer(v) && (v as number) > 0, tick: integer,
   phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v), phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
   width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),
+  map: v => typeof v === 'string' && (ARENA_MAPS as readonly string[]).includes(v), obstacles: array(obstacle, MAX_OBSTACLES),
   players: map(text, player, 5), bombs: map(integer, bomb, 256), blasts: array(blast, 256), pickups: array(pickup, MAX_BOARD_PICKUPS),
   portalPairs: array(portalPair, MAX_PORTAL_PAIRS),
   gravityFields: array(gravityField, 256),
@@ -163,6 +170,15 @@ function gameInvariants(game: GameState): boolean {
   // Transit exit safety exempts the pair in use by id, so duplicate ids would exempt a foreign wall.
   const portalIds = new Set<string>();
   for (const pair of game.portalPairs) { if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false; portalIds.add(pair.id); }
+  // Obstacles are addressed by id by nothing but the renderer's rubble diff, which a duplicate would confuse into
+  // reporting a standing obstacle as destroyed; they are also never anywhere but inside the arena.
+  const obstacleIds = new Set<number>();
+  for (const piece of game.obstacles) {
+    if (obstacleIds.has(piece.id)) return false;
+    obstacleIds.add(piece.id);
+    if (piece.x - piece.halfWidth < 0 || piece.x + piece.halfWidth > game.width ||
+        piece.y - piece.halfHeight < 0 || piece.y + piece.halfHeight > game.height) return false;
+  }
   const fieldBombIds = new Set<number>();
   for (const field of game.gravityFields) { if (fieldBombIds.has(field.bombId) || field.bombId >= game.nextBombId || !game.matchStats.has(field.ownerId) || field.expiresAtTick <= game.tick) return false; fieldBombIds.add(field.bombId); }
   // Moments name riders by match statistics, which outlive a seat; the lobby has cleared both.

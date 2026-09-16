@@ -46,6 +46,9 @@ test('the round clock counts down to the draw and is empty in the lobby', () => 
 test('eliminations become one readable feed line', () => {
   const players = [{ id: 'me', name: 'Anders' }, { id: 'ai', name: 'AI Ada' }];
   assert.equal(eliminationLine({ type: 'playerEliminated', playerId: 'ai', cause: 'wall' }, players, 'me'), 'AI Ada hit the wall');
+  // A board with scenery reports crashes under the same cause, so the line stops naming the wall.
+  assert.equal(eliminationLine({ type: 'playerEliminated', playerId: 'ai', cause: 'wall' }, players, 'me', 'desert'), 'AI Ada crashed');
+  assert.equal(eliminationLine({ type: 'playerEliminated', playerId: 'me', cause: 'trail' }, players, 'me', 'city'), 'YOU clipped a trail');
   assert.equal(eliminationLine({ type: 'playerEliminated', playerId: 'me', cause: 'explosion' }, players, 'me'), 'YOU caught a blast');
   assert.equal(eliminationLine({ type: 'explosion', bombId: 1 }, players, 'me'), undefined);
 });
