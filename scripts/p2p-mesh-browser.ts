@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { build } from 'esbuild';
 import { chromium, webkit, type Page } from 'playwright';
+import { smokeTimeout } from './smoke-timeout.js';
 
 // Phase 3 gate: six contexts alternating Chromium and WebKit establish all fifteen links, exchange packets in all
 // thirty directions, recover from a three-second send blackhole and rebuild a closed channel with zero page errors.
@@ -54,10 +55,10 @@ const pages: Page[] = [], errors: string[] = [];
 const tokens = Array.from({ length: 6 }, (_, index) => index === 0 ? room.token : randomBytes(32).toString('hex'));
 let phase = 'bootstrap';
 const report: Record<string, unknown> = { revision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), url, phases: {} as Record<string, unknown> };
-const waitReady = async (label: string, timeout = 40_000) => { const started = performance.now(); for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { ready(): boolean } }).mesh.ready(), undefined, { timeout }); (report.phases as Record<string, unknown>)[label] = Math.round(performance.now() - started); };
+const waitReady = async (label: string, timeout = smokeTimeout(40_000)) => { const started = performance.now(); for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { ready(): boolean } }).mesh.ready(), undefined, { timeout }); (report.phases as Record<string, unknown>)[label] = Math.round(performance.now() - started); };
 try {
   for (let index = 0; index < 6; index++) {
-    const context = await browsers[index % 2]!.newContext(); const page = await context.newPage(); pages.push(page);
+    const context = await browsers[index % 2]!.newContext(); const page = await context.newPage(); page.setDefaultTimeout(smokeTimeout(30_000)); pages.push(page);
     page.on('pageerror', error => { errors.push(`peer ${index} ${index % 2 ? 'webkit' : 'chromium'} ${phase}: ${error.stack || error.message}`); });
     // A real HTTP response keeps the browser's local-network address-space classification intact.
     await page.goto(new URL('/mesh-fixture.html', url).href); await page.addScriptTag({ content: bundle.outputFiles[0]!.text });
@@ -69,26 +70,26 @@ try {
   console.log('Six peers (Chromium and WebKit alternating) established fifteen direct links with game and input channels.');
   phase = 'packets';
   for (const page of pages) assert.equal(await mesh<number>(page, 'mesh.send()'), 5);
-  for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { receivedFromAll(): boolean } }).mesh.receivedFromAll(), undefined, { timeout: 10_000 });
+  for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { receivedFromAll(): boolean } }).mesh.receivedFromAll(), undefined, { timeout: smokeTimeout(10_000) });
   for (const page of pages) assert.equal(await mesh<number>(page, 'mesh.reliable()'), 5);
-  for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { messagesFromAll(): boolean } }).mesh.messagesFromAll(), undefined, { timeout: 10_000 });
+  for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { messagesFromAll(): boolean } }).mesh.messagesFromAll(), undefined, { timeout: smokeTimeout(10_000) });
   console.log('Packets and reliable messages delivered in all thirty directions.');
   phase = 'blackhole';
   const victim = pages[1]!;
   await mesh(victim, 'mesh.blackhole(true)'); await victim.waitForTimeout(3000);
-  for (let round = 0; round < 3; round++) { await mesh(victim, 'mesh.send()'); await victim.waitForTimeout(100); }
+  for (let round = 0; round < 3; round++) { await mesh(victim, 'mesh.send()'); await victim.waitForTimeout(smokeTimeout(100)); }
   const before = await Promise.all(pages.map(page => mesh<Record<string, number>>(page, 'mesh.received()')));
   const recoveryStart = performance.now();
   await mesh(victim, 'mesh.blackhole(false)');
-  await waitReady('blackhole-recovery', 10_000);
-  for (let attempt = 0; attempt < 20; attempt++) { await mesh(victim, 'mesh.send()'); await victim.waitForTimeout(50); }
+  await waitReady('blackhole-recovery', smokeTimeout(10_000));
+  for (let attempt = 0; attempt < 20; attempt++) { await mesh(victim, 'mesh.send()'); await victim.waitForTimeout(smokeTimeout(50)); }
   const victimId = await mesh<string>(victim, 'mesh.id()');
-  for (const [index, page] of pages.entries()) if (page !== victim) await page.waitForFunction(([id, count]) => ((globalThis as unknown as { mesh: { received(): Record<string, number> } }).mesh.received()[id as string] ?? 0) > (count as number), [victimId, before[index]![victimId] ?? 0], { timeout: 10_000 });
+  for (const [index, page] of pages.entries()) if (page !== victim) await page.waitForFunction(([id, count]) => ((globalThis as unknown as { mesh: { received(): Record<string, number> } }).mesh.received()[id as string] ?? 0) > (count as number), [victimId, before[index]![victimId] ?? 0], { timeout: smokeTimeout(10_000) });
   console.log('Fast delivery from the blackholed peer resumed', Math.round(performance.now() - recoveryStart), 'ms after the three-second send blackhole ended.');
   phase = 'channel-closure';
   assert.equal(await mesh<boolean>(victim, 'mesh.closeInput()'), true);
-  await victim.waitForFunction(() => !(globalThis as unknown as { mesh: { ready(): boolean } }).mesh.ready(), undefined, { timeout: 10_000 });
-  await waitReady('channel-rebuild', 60_000);
+  await victim.waitForFunction(() => !(globalThis as unknown as { mesh: { ready(): boolean } }).mesh.ready(), undefined, { timeout: smokeTimeout(10_000) });
+  await waitReady('channel-rebuild', smokeTimeout(60_000));
   for (const page of pages) assert.equal(await mesh<number>(page, 'mesh.send()'), 5);
   console.log('A closed input channel drained its link and the initiator rebuilt it; every peer sends again.');
   const final = await Promise.all(pages.map(page => mesh<Snapshot>(page, 'mesh.snapshot()')));
