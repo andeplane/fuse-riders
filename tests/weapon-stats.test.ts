@@ -87,6 +87,11 @@ test('every launch logs one shot under the powerup it spent, and its bombs name 
     // Gun and Shell launch on their own path, so they outrank Target — which stays armed for the next pull.
     [{ gunArmed: true, targetBombArmed: true }, 'gun', 1],
     [{ shellArmed: true, targetBombArmed: true }, 'shell', 1],
+    // Triple, Five and Extra Bomb fan Gun and Shell out too; the pull is still labelled by the projectile.
+    [{ gunArmed: true, tripleShotArmed: true }, 'gun', 3],
+    [{ gunArmed: true, fiveShotArmed: true }, 'gun', 5],
+    [{ shellArmed: true, tripleShotArmed: true }, 'shell', 3],
+    [{ shellArmed: true, fiveShotArmed: true, extraBombs: 1 }, 'shell', 6],
   ];
   for (const [armed, weapon, launched] of cases) {
     const { game, player, input } = fixture();
@@ -104,7 +109,12 @@ test('every launch logs one shot under the powerup it spent, and its bombs name 
     if (bombs.length) assert.equal(game.shots[0]!.shot, Math.min(...bombs.map(bomb => bomb.id)), 'whose id is its first bomb');
     assert.equal(game.shots[0]!.bombs, launched, 'and the log records how many bombs the pull launched');
     // Whatever the pull did not spend is still armed, so no later shot goes uncounted.
-    if (weapon === 'gun' || weapon === 'shell') assert.equal(player.targetBombArmed, armed.targetBombArmed === true);
+    if (weapon === 'gun' || weapon === 'shell') {
+      assert.equal(player.targetBombArmed, armed.targetBombArmed === true);
+      assert.equal(player.tripleShotArmed || player.fiveShotArmed, false, 'a projectile pull spends Triple and Five');
+      const headings = bombs.map(bomb => Math.atan2(bomb.shell!.vy, bomb.shell!.vx));
+      assert.equal(new Set(headings.map(h => h.toFixed(6))).size, launched, 'each projectile flies its own heading');
+    }
   }
 });
 

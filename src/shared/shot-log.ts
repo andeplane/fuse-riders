@@ -35,7 +35,7 @@ export interface RoundShot {
   weapon: Weapon;
   /** Ticks into the round when the trigger was pulled. */
   elapsed: number;
-  /** Bombs the pull put in the air: 1 for Gun, Shell and Target, more for a volley or with Extra Bomb. */
+  /** Bombs the pull put in the air: 1 for Target, more for a volley or with Extra Bomb, which fan out Gun and Shell too. */
   bombs: number;
   /** The shooter's round-long upgrades at the moment of the pull, so outcomes can be split by them. */
   power: number;

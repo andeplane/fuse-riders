@@ -53,7 +53,7 @@ import {
   bombLaunchDistance,
 } from './bomb-launch.js';
 import {
-  MAX_EXTRA_BOMBS, bombsPerShot, createVolleyFlightPaths,
+  MAX_EXTRA_BOMBS, bombsPerShot, createVolleyFlightPaths, volleyAngles,
   type LaunchBounds,
 } from './launch-modifiers.js';
 import { detectMoments, roundHasMoment, DODGE_LOOKBACK_TICKS, REPLAY_PAUSE_TICKS, type Moment, type TickObservations } from './moments.js';
@@ -1181,17 +1181,23 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       const weapon: Weapon = gun ? 'gun' : 'shell';
       const deadline = gun ? state.tick + GUN_LIFETIME_TICKS : Number.MAX_SAFE_INTEGER;
       const speed = gun ? GUN_SPEED : SHELL_SPEED;
-      const id = state.nextBombId++;
-      state.bombs.set(id, { id, ownerId: player.id, launchX: player.x, launchY: player.y,
-        x: player.x, y: player.y, launchedTick: state.tick, placedTick: state.tick,
-        landsAtTick: deadline, explodeAtTick: deadline,
-        blastRange: 0, flightPath: [], shot: id, shell: { vx: cos(player.angle) * speed, vy: sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
+      // Triple, Five and Extra Bomb fan the projectile out exactly as they fan a lob; the pull spends Triple and Five.
+      const angles = volleyAngles(player.angle, bombsPerShot(player));
+      const shot = state.nextBombId;
+      logShot(state, player, shot, weapon, angles.length);
+      for (const angle of angles) {
+        const id = state.nextBombId++;
+        state.bombs.set(id, { id, ownerId: player.id, launchX: player.x, launchY: player.y,
+          x: player.x, y: player.y, launchedTick: state.tick, placedTick: state.tick,
+          landsAtTick: deadline, explodeAtTick: deadline,
+          blastRange: 0, flightPath: [], shot, shell: { vx: cos(angle) * speed, vy: sin(angle) * speed, ...(gun ? { gun: true } : {}) } });
+        recordBombPlaced(state.matchStats, player.id);
+        events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
+      }
       if (gun) player.gunArmed = false; else player.shellArmed = false;
+      player.tripleShotArmed = false; player.fiveShotArmed = false;
       player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
       player.bombReadyAtTick = state.tick + player.reloadDurationTicks;
-      recordBombPlaced(state.matchStats, player.id);
-      logShot(state, player, id, weapon, 1);
-      events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
     }
     const distance = bombLaunchDistance(state.tick - chargeStartedTick, state.settings?.bombChargeTicks, state.settings?.aimBounce ?? false);
@@ -1213,7 +1219,8 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
     if (gravityLaunch) player.gravityArmed = false;
     /**
      * One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
-     * is why they outrank everything, and why a rider holding Target as well keeps it armed for the next pull.
+     * is why they outrank everything (a Triple or Five they fan out is spent under their label), and why a rider
+     * holding Target as well keeps it armed for the next pull.
      * Among the launches that do reach here: Target first, because it is the only one the others cannot combine
      * with; then Gravity, so a gravity volley is reported as `gravity`. That under-counts `triple` and `five` by
      * the rare pull that spent both, and the alternative loses Gravity, the harder of the two to judge.
