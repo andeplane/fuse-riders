@@ -279,7 +279,8 @@ try {
   await phones[0].getByText('GREEN SHELL · HOLD + RELEASE', { exact: true }).waitFor();
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(2);
-  assert.equal(app.game.bombs.size, 1); assert.ok([...app.game.bombs.values()][0]!.shell);
+  // Extra Bomb fans the Shell out too (#229): one per bomb in the volley.
+  assert.equal(app.game.bombs.size, 1 + poweredRider.extraBombs, 'Shell fans out with Extra Bomb'); assert.ok([...app.game.bombs.values()].every(bomb => bomb.shell));
   await host.screenshot({ path: 'artifacts/green-shell.png' });
   app.game.bombs.clear();
   poweredRider.bombReadyAtTick = app.game.tick;
@@ -287,7 +288,7 @@ try {
   app.advance(2); await phones[0].getByText('GUN · HOLD + RELEASE', { exact: true }).waitFor();
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(1);
-  assert.equal(app.game.bombs.size, 1); assert.equal([...app.game.bombs.values()][0]!.shell?.gun, true);
+  assert.equal(app.game.bombs.size, 1 + poweredRider.extraBombs, 'Gun fans out with Extra Bomb'); assert.ok([...app.game.bombs.values()].every(bomb => bomb.shell?.gun === true));
   app.advance(4); // Let the projectile separate from the rider for visual inspection.
   await host.screenshot({ path: 'artifacts/gun-projectile.png' }); app.game.bombs.clear();
   app.game.pickups.push({ id: 9_011, type: 'power', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
