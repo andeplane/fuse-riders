@@ -1,3 +1,4 @@
+import { unknownDevice } from '../shared/device-profile.js';
 import { BotController, BOT_ID_PREFIX, botRandom, type BotDependencies } from '../shared/bot-controller.js';
 import http from 'node:http';
 import { BombInputBuffer } from '../shared/bomb-input.js';
@@ -315,12 +316,14 @@ export async function createGameServer(options: ServerOptions = {}) {
           addPlayer(game, { id: seat.id, name: message.name, avatarId: message.avatarId, slot, color: COLORS[slot], connected: true });
           seats.set(seat.id, seat);
         }
+        game.players.get(seat.id)!.deviceProfile = { ...(message.deviceProfile ?? unknownDevice()) };
         c.seat = seat; seat.socket = ws; setPlayerConnected(game, seat.id, true);
         send(ws, { type: 'joined', playerId: seat.id, playerToken: seat.token, slot: seat.slot, color: COLORS[seat.slot], nextInputSeq: seat.seq + 1 });
         snapshot(); return;
       }
       const seat = c.seat;
       if (!seat || seat.socket !== ws || seat.leaving) { error(ws, 'unauthorized'); return; }
+      if (message.type === 'deviceProfile') { game.players.get(seat.id)!.deviceProfile = { ...message.profile }; snapshot(); return; }
       if (message.type === 'setAvatar') {
         game.players.get(seat.id)!.avatarId = message.avatarId;
         snapshot(); return;

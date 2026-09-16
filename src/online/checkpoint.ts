@@ -1,5 +1,6 @@
 import { MAX_BOARD_PICKUPS, MAX_POWER_PICKUPS, POWER_TUNING } from '../shared/power-progression.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
+import { isDeviceProfile } from '../shared/device-profile.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
@@ -26,7 +27,7 @@ const position = range(-1000, ARENA_WIDTH + 1000);
 const portalPair: Guard = shape({ id: text, gates: v => Array.isArray(v) && v.length === 2 && v.every(shape({ x: position, y: position, halfLength: range(0.001, 150) })), expiresAtTick: integer });
 const trail: Guard = v => shape({ x1: position, y1: position, x2: position, y2: position, createdTick: integer, expiresAtTick: integer })(v) && record(v) && (v.expiresAtTick as number) > (v.createdTick as number);
 const playerFields = {
-  id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
+  id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId, deviceProfile: isDeviceProfile,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
   bombTarget: optional(shape({ x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT) })), gravityArmed: boolean, powerPickups: count(MAX_POWER_PICKUPS), reloadDurationTicks: v => integer(v) && range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v), invulnerableUntilTick: integer, boostUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,

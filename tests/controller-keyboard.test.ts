@@ -19,3 +19,14 @@ test('browser modifier shortcuts remain untouched while keyup releases an earlie
 });
 
 test('A and D aliases retain independent held ownership from arrow keys',()=>{const f=fixture();for(const [arrow,alias,control] of [['ArrowLeft','KeyA','left'],['ArrowRight','KeyD','right']] as const){f.keyboard.down(f.event(arrow));f.keyboard.down(f.event(alias));f.keyboard.up(f.event(arrow));assert.equal(f.state.isHeld(control),true);f.keyboard.up(f.event(alias));assert.equal(f.state.isHeld(control),false);}assert.equal(f.state.hasHeld(),false);});
+
+test('only an accepted gameplay key reports keyboard use, before sending its input',()=>{
+  const order:string[]=[];let allowed=true;
+  const state=new ControllerInputState({send:()=>{order.push('input');return true;}});
+  const bindings=new ControllerKeyboardBindings(state,()=>allowed,()=>{},()=>order.push('keyboard'));
+  const event=(code:string,repeat=false)=>({code,repeat,preventDefault:()=>{}});
+  bindings.down(event('KeyZ'));bindings.down({...event('Space'),ctrlKey:true});bindings.clear();assert.deepEqual(order,[]);
+  allowed=false;bindings.down(event('Space'));assert.deepEqual(order,[]);allowed=true;
+  bindings.down(event('Space'));assert.deepEqual(order,['keyboard','input']);
+  bindings.down(event('Space',true));assert.deepEqual(order,['keyboard','input']);
+});

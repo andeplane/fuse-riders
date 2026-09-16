@@ -126,6 +126,7 @@ test('AI presses, holds and releases ordinary bombs through the same charge/cool
 test('AI target/gun/shell shots use normal input actions and target aim is bounded',()=>{
   for(const powerup of ['targetBombArmed','gunArmed','shellArmed'] as const){
     const game=fixture(),bot=new BotController(),player=game.players.get('bot:1')!;
+    game.players.get('human')!.deviceProfile={device:'phone',input:'touch'};
     game.players.get('human')!.x=600;player[powerup]=true;
     const press=bot.input(game,player.id);assert.equal(press.bombCommands?.[0]?.action,'press');
     if(powerup==='targetBombArmed')assert.deepEqual(press.aim,{x:600/game.width,y:450/game.height});

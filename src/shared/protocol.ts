@@ -1,3 +1,4 @@
+import { isDeviceProfile, type DeviceProfile } from './device-profile.js';
 import { isAvatarId, type AvatarId } from './avatars.js';
 import type { PortalPair } from './portal.js';
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
@@ -17,8 +18,9 @@ export interface AimPoint { x: number; y: number }
 export interface BombActionCommand { action: BombAction; aim?: AimPoint }
 export type BombAction = 'press' | 'release' | 'cancel';
 export type ClientMessage =
-  | { type: 'join'; name: string; playerToken?: PlayerToken; avatarId?: AvatarId }
+  | { type: 'join'; name: string; playerToken?: PlayerToken; avatarId?: AvatarId; deviceProfile?: DeviceProfile }
   | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: BombAction; aim?: AimPoint }
+  | { type: 'deviceProfile'; profile: DeviceProfile }
   | { type: 'setAvatar'; avatarId: AvatarId }
   | { type: 'heartbeat' }
   | { type: 'ping'; id: number; sentAt: number }
@@ -36,7 +38,7 @@ export interface GameSnapshot {
   roundStartedTick?: number;
   width: number; height: number; boundaryInset: number;
   players: ReadonlyArray<{
-    id: PlayerId; name: string; slot: number; color: string; connected: boolean; avatarId: AvatarId;
+    id: PlayerId; name: string; slot: number; color: string; connected: boolean; avatarId: AvatarId; deviceProfile?: DeviceProfile;
     x: number; y: number; angle: number; alive: boolean; roundWins: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     powerPickups: number; reloadDurationTicks: number; invulnerableUntilTick: number; boostUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
@@ -87,10 +89,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   const token = (x: unknown) => typeof x === 'string' && /^[a-f0-9]{32,64}$/.test(x);
   switch (v.type) {
     case 'join':
-      if (!keys('type', 'name', 'playerToken', 'avatarId') || typeof v.name !== 'string' ||
+      if (!keys('type', 'name', 'playerToken', 'avatarId', 'deviceProfile') || typeof v.name !== 'string' ||
         !v.name.trim() || Array.from(v.name.trim()).length > 18 || /[\u0000-\u001f\u007f]/.test(v.name) ||
-        (v.playerToken !== undefined && !token(v.playerToken)) || (v.avatarId !== undefined && !isAvatarId(v.avatarId))) return null;
-      return { type: 'join', name: v.name.trim(), ...(v.playerToken ? { playerToken: v.playerToken as string } : {}), ...(isAvatarId(v.avatarId) ? { avatarId: v.avatarId } : {}) };
+        (v.playerToken !== undefined && !token(v.playerToken)) || (v.avatarId !== undefined && !isAvatarId(v.avatarId)) || (v.deviceProfile !== undefined && !isDeviceProfile(v.deviceProfile))) return null;
+      return { type: 'join', name: v.name.trim(), ...(v.playerToken ? { playerToken: v.playerToken as string } : {}), ...(isAvatarId(v.avatarId) ? { avatarId: v.avatarId } : {}), ...(isDeviceProfile(v.deviceProfile) ? { deviceProfile: v.deviceProfile } : {}) };
     case 'input':
       if (!keys('type', 'seq', 'left', 'right', 'bomb', 'bombAction', 'aim') || !Number.isSafeInteger(v.seq) || (v.seq as number) < 0 ||
         !['left', 'right', 'bomb'].every(k => typeof v[k] === 'boolean')) return null;
@@ -103,6 +105,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       if ((v.bombAction === 'press' && v.bomb !== true) ||
         ((v.bombAction === 'release' || v.bombAction === 'cancel') && v.bomb !== false)) return null;
       return v as Extract<ClientMessage, { type: 'input' }>;
+    case 'deviceProfile': return keys('type', 'profile') && isDeviceProfile(v.profile) ? v as ClientMessage : null;
     case 'setAvatar': return keys('type', 'avatarId') && isAvatarId(v.avatarId) ? v as ClientMessage : null;
     case 'heartbeat': case 'leave': return keys('type') ? v as ClientMessage : null;
     case 'ping': return keys('type', 'id', 'sentAt') && Number.isSafeInteger(v.id) && (v.id as number) >= 0 && typeof v.sentAt === 'number' && Number.isFinite(v.sentAt) && v.sentAt >= 0 ? v as ClientMessage : null;

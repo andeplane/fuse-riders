@@ -124,6 +124,7 @@ test('one armed pickup opens one field, even when the launch is a volley', () =>
 test('a target bomb leaves the pickup armed for an ordinary launch', () => {
   const state = playing();
   const rider = state.players.get('p0')!;
+  for (const player of state.players.values()) player.deviceProfile = { device: 'phone', input: 'touch' };
   Object.assign(rider, { x: 500, y: 500, angle: 0, gravityArmed: true, targetBombArmed: true, bombReadyAtTick: state.tick });
   step(state, inputsFor('p0', { bomb: true, bombCommands: [{ action: 'press' }], aim: { x: .5, y: .5 } }));
   step(state, inputsFor('p0', { bombCommands: [{ action: 'release' }], aim: { x: .5, y: .5 } }));

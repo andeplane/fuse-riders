@@ -1,3 +1,4 @@
+import { isDeviceProfile, sameDeviceProfile, unknownDevice, type DeviceProfile } from '../shared/device-profile.js';
 import { StatusNotices } from './status-notices.js';
 import { TickClock } from './clock.js';
 import { World, type Frame } from './rollback.js';
@@ -7,7 +8,7 @@ import { decodePacket, encodeNack, encodePacketTrimmed, roomHash, wrapDelta, wra
 import { SnapshotAssembler, decodeSnapshot, encodeSnapshot } from './snapshot.js';
 import { presentWorld } from './prediction.js';
 import { BOT_NAMES, RULES, actingCreator, createRoomState, freeSlot, reclaimable, successionOrder } from '../shared/apply-tick.js';
-import { ACTION, AIM, AVATAR, BOT, CANCEL, JOIN, LEAVE, MAX_NAME_LENGTH, PRESENCE, PRESS, RELEASE, SETTINGS, STEER, quantizeAim } from '../shared/input-log.js';
+import { ACTION, AIM, AVATAR, DEVICE, BOT, CANCEL, JOIN, LEAVE, MAX_NAME_LENGTH, PRESENCE, PRESS, RELEASE, SETTINGS, STEER, quantizeAim } from '../shared/input-log.js';
 import { isAvatarId, type AvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
@@ -18,6 +19,7 @@ import { uuid } from '../shared/uuid.js';
 export type RoomCommand =
   | { type: 'join'; name: string; avatarId?: AvatarId }
   | { type: 'input'; seq: number; left: boolean; right: boolean; bomb: boolean; bombAction?: 'press' | 'release' | 'cancel'; aim?: AimPoint }
+  | { type: 'deviceProfile'; profile: DeviceProfile }
   | { type: 'avatar'; avatarId: AvatarId }
   | { type: 'action'; action: 'start' | 'lobby' | 'rematch' }
   | { type: 'settings'; settings: RoomSettings }
@@ -44,7 +46,7 @@ export interface RuntimeDependencies { now(): number; hidden(): boolean; token()
 export interface Callbacks { state(frame: Frame, settings: RoomSettings): void; event(event: GameEvent, matchId: string, round: number, tick: number): void; status(text: string): void; ready(id: string, host: boolean): void; ended?(): void }
 /** What the runtime can report about its own health: per link, per stream and for the fold as a whole. */
 export interface RuntimeMetrics { tick: number; clockTick: number; rollbacks: number; rollbackTicks: number; rtt: Record<string, number>; heard: Record<string, number>; clock: ReturnType<TickClock['diagnostics']>; sentBytes: number; snapshotRequest: boolean; mismatches: number; stall: { tick: number; waitingFor?: string }; streams: Record<string, { generation: number; contiguous: number; lastSeq: number; through: number; complete: number; gap: boolean; base: number; rejected: number }> }
-export interface RuntimeOptions { transport?: (events: TransportEvents) => RoomTransport; displayOnly?: boolean; humanName?: string; dependencies?: RuntimeDependencies }
+export interface RuntimeOptions { transport?: (events: TransportEvents) => RoomTransport; displayOnly?: boolean; humanName?: string; deviceProfile?: DeviceProfile; dependencies?: RuntimeDependencies }
 interface Member { generation: number; snapshotServedAt: number; lastPacketAt: number; lastSentAt: number; lastSentReceivedAt: number; rttMs?: number; full: boolean; nackAt: number; helloed: boolean; clockTick?: number; gapSince: number; rejected: number; presence?: { connected: boolean; tick: number; at: number } }
 
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
@@ -78,6 +80,7 @@ export class RoomRuntime {
   /** Peers that answered a snapshot request with `noWorld`, and when: an answer older than the retry interval is asked again. */
   private noWorld = new Map<string, number>();
   private held = { flags: -1, aim: undefined as [number, number] | undefined, aimTick: -1, active: 0, latest: 0 };
+  private deviceProfile: DeviceProfile;
   private lastOwnTick = 0;
   private lastPacketTick = -1;
   private lastFrameTick = -1;
@@ -91,6 +94,7 @@ export class RoomRuntime {
   private cancelTick?: () => void;
   private cancelVisibility?: () => void;
   constructor(readonly code: string, private readonly settings: RoomSettings, private readonly callbacks: Callbacks, private readonly options: RuntimeOptions = {}) {
+    this.deviceProfile = isDeviceProfile(options.deviceProfile) ? { ...options.deviceProfile } : unknownDevice();
     this.deps = options.dependencies ?? browserDependencies;
     this.status = new StatusNotices(() => this.deps.now(), text => callbacks.status(text));
     this.clock = new TickClock(() => this.deps.now());
@@ -382,6 +386,10 @@ export class RoomRuntime {
   }
   command(command: RoomCommand): boolean {
     if (!command || typeof command !== 'object') return false;
+    if (command.type === 'deviceProfile') {
+      if (!isDeviceProfile(command.profile) || this.options.displayOnly) return false;
+      this.deviceProfile = { ...command.profile }; this.syncDeviceProfile(); return true;
+    }
     if (command.type === 'join') {
       if (this.options.displayOnly) return false;
       this.pendingJoin = { name: command.name, avatarId: command.avatarId, sentAt: -Infinity };
@@ -412,6 +420,14 @@ export class RoomRuntime {
       this.append(BOT, 'remove', command.id); return true;
     }
     return false;
+  }
+  /** Retry until the current-generation fold applies it; the ordinary log repairs loss and reordering. */
+  private syncDeviceProfile(): void {
+    const player = this.player();
+    if (!player?.connected || this.world!.state.folds.get(this.id)?.generation !== this.generation) return;
+    const pending = [...this.own().entries.values()].filter(entry => entry[1] > this.world!.tick && entry[2] === DEVICE).at(-1);
+    const latest = pending?.[2] === DEVICE ? { device: pending[3], input: pending[4] } : player.deviceProfile;
+    if (!sameDeviceProfile(latest, this.deviceProfile)) this.append(DEVICE, this.deviceProfile.device, this.deviceProfile.input);
   }
   private sendJoin(): boolean {
     const join = this.pendingJoin; if (!join) return false;
@@ -476,6 +492,7 @@ export class RoomRuntime {
       return;
     }
     const world = this.world!, tick = Math.floor(this.clock.tick());
+    this.syncDeviceProfile();
     if (this.snapshotRequest && now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS) this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
     if (!this.hiddenState && tick > world.tick) {

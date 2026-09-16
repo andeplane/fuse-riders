@@ -192,3 +192,12 @@ test('cancelled or cleared contacts cannot slide-reactivate before lifting', () 
   fire(f.terminal, 'pointercancel', 1); fire(f.terminal, 'pointermove', 1); assert.equal(f.state.hasHeld(), false);
   fire(f.left, 'pointerdown', 1); assert.equal(f.left.active, true);
 });
+
+test('LAN keyboard bindings report actual gameplay use before sending the first input', () => {
+  const f = fixture(); let enabled = false, reports = 0;
+  f.bindings.bindKeyboard(f.terminal, () => enabled, () => { assert.equal(f.messages.length, 0); reports++; });
+  key(f.terminal, 'keydown', 'Space'); enabled = true;
+  key(f.terminal, 'keydown', 'KeyZ'); key(f.terminal, 'keydown', 'Space', { ctrlKey: true });
+  key(f.terminal, 'keydown', 'Space', { repeat: true }); assert.equal(reports, 0);
+  key(f.terminal, 'keydown', 'Space'); assert.equal(reports, 1); assert.equal(f.messages.length, 1);
+});

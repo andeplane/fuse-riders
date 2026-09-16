@@ -7,7 +7,8 @@ import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_
 import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
 import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
 import { clipTrailSegment } from './trail-clipping.js';
-import { pickupTypeForRoll } from './pickup-weights.js';
+import { PICKUP_WEIGHTS } from './pickup-weights.js';
+import { targetBombAvailable, unknownDevice, type DeviceProfile } from './device-profile.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
 import { createPortalPair, findPortalTransit, fitPortalPair, MAX_PORTAL_PAIRS, PORTAL_WALL_HALF_WIDTH, type PortalPair, type PortalPoint, type PortalTransit } from './portal.js';
 import type {
@@ -117,6 +118,7 @@ export interface PlayerIdentity {
   color: string;
   connected?: boolean;
   avatarId?: AvatarId;
+  deviceProfile?: DeviceProfile;
 }
 
 export interface InputIntent {
@@ -297,6 +299,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     ...identity,
     connected: identity.connected ?? true,
     avatarId: identity.avatarId ?? DEFAULT_AVATAR,
+    deviceProfile: { ...(identity.deviceProfile ?? unknownDevice()) },
     x: state.width / 2,
     y: state.height / 2,
     angle: 0,
@@ -372,7 +375,7 @@ export function returnToLobby(state: GameState, newMatchId: string): void {
   fresh.leaderboard = state.leaderboard;
   fresh.settings = state.settings;
   for (const player of sortedPlayers(state)) {
-    if (player.connected) addPlayer(fresh, { id: player.id, name: player.name, avatarId: player.avatarId, slot: player.slot, color: player.color, connected: true });
+    if (player.connected) addPlayer(fresh, { id: player.id, name: player.name, avatarId: player.avatarId, deviceProfile: player.deviceProfile, slot: player.slot, color: player.color, connected: true });
   }
   Object.assign(state, fresh, {
     phaseEndsAtTick: undefined, roundStartedTick: undefined, portalPairs: [], gravityFields: [],
@@ -396,6 +399,12 @@ export function resetMatch(state: GameState, newMatchId: string): void {
 
 export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent>): TickResult {
   state.tick += 1;
+  if (!targetBombAvailable(state.players.values())) {
+    state.pickups = state.pickups.filter(pickup => pickup.type !== 'target');
+    for (const player of state.players.values()) {
+      if (player.targetBombArmed) { player.targetBombArmed = false; player.bombTarget = undefined; player.bombChargeStartedTick = undefined; }
+    }
+  }
   state.portalPairs = state.portalPairs.filter((pair) => state.tick < pair.expiresAtTick);
   state.gravityFields = state.gravityFields.filter((field) => state.tick < field.expiresAtTick);
   const events: GameEvent[] = [];
@@ -792,6 +801,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       id: player.id,
       name: player.name,
       avatarId: player.avatarId,
+      deviceProfile: { ...player.deviceProfile },
       slot: player.slot,
       color: player.color,
       connected: player.connected,
@@ -904,7 +914,8 @@ function prepareRound(state: GameState): void {
 function maybeSpawnPickup(state: GameState, cap: number): void {
   if (state.pickups.length >= cap) return;
   const typeRoll = nextRandom(state);
-  const type = state.settings ? roomPickup(typeRoll, state.settings.weights) : pickupTypeForRoll(typeRoll);
+  const weights = state.settings?.weights ?? Object.fromEntries(PICKUP_WEIGHTS.map(row => [row.type, row.weight]));
+  const type = roomPickup(typeRoll, targetBombAvailable(state.players.values()) ? weights : { ...weights, target: 0 });
   if (!type) return;
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;

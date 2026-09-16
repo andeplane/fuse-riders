@@ -100,6 +100,17 @@ jobs:
         run: npx tsx scripts/desktop-controls-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
+      - name: Device profiles and phone-only Target Bomb (Chromium)
+        run: npx tsx scripts/device-profile-smoke.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
+      - name: Device profiles and phone-only Target Bomb (WebKit)
+        run: npx tsx scripts/device-profile-smoke.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
+          BROWSER: webkit
+      - name: LAN device profiles and keyboard reconnect
+        run: npx tsx scripts/device-profile-lan-smoke.ts
       # Keep five-peer functional assertions on Canvas; six software-GL views
       # overloaded the runner. Single-view Phaser remains a separate required gate.
       - name: Online WebRTC room smoke (Canvas)
