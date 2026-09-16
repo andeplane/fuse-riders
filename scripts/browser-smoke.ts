@@ -302,6 +302,12 @@ try {
   app.game.pickups.push({ id: 9_013, type: 'grip', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2);
   assert.equal(app.game.pickups.some(pickup => pickup.id === 9_013), true, 'repeat GRIP stays available for another rider');
+  // Nitro stacks per pickup: two collected together read as four times speed on the phone, with the time left.
+  app.game.pickups.push({ id: 9_014, type: 'nitro', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.game.pickups.push({ id: 9_015, type: 'nitro', x: poweredRider.x + 2, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText(/^NITRO · ×4 · \d\.\ds$/).waitFor();
+  assert.equal(poweredRider.nitroUntilTicks.length, 2, 'both Nitros are their own deadlines');
+  poweredRider.nitroUntilTicks = []; // hand the speed back so the rest of the scripted run keeps its geometry
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');

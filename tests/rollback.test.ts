@@ -331,3 +331,31 @@ test('repair across the final elimination replaces speculative points and duplic
   assert.equal(settled, hashRoomState(reference.state));
   assert.equal(delayed.state.game.leaderboard.get('creator')!.matchWins, 1);
 });
+
+test('late reordered inputs converge through Nitro and Snail collection, and a duplicate never stacks a second deadline', () => {
+  const fixture = world(); playing(fixture);
+  Object.assign(fixture.state.game.players.get('creator')!, { x: 1100, y: 700, angle: 0, trail: [] });
+  Object.assign(guest(fixture), { x: 500, y: 350, angle: 0, trail: [] });
+  fixture.state.game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  fixture.state.game.pickups = (['nitro', 'nitro', 'snail'] as const).map((type, index) => ({ id: fixture.state.game.nextPickupId++, type, x: 505 + index * 12, y: 350, expiresAtTick: fixture.tick + 100 }));
+  const start = fixture.tick, end = start + 12;
+  const entries: Entry[] = [[1, start + 1, STEER, 1], [2, start + 8, STEER, 0]];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end; w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica(); reference.receive('b', entries, 2, end, end); reference.advance(end);
+  const delayed = replica(); delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  const repair = delayed.receive('b', [entries[0]!], 2, end, end);
+  assert.ok(repair.rollbackTicks > 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.equal(guest(delayed).nitroUntilTicks.length, 2, 'both Nitros landed as their own deadlines');
+  assert.equal(delayed.state.game.players.get('creator')!.snailUntilTicks.length, 1, 'the guest\'s Snail slowed the creator');
+  assert.deepEqual(guest(delayed).snailUntilTicks, []);
+  assert.equal(delayed.state.game.pickups.length, 0);
+  const duplicate = delayed.receive('b', entries, 2, end, end);
+  assert.deepEqual(duplicate.events, []); assert.equal(duplicate.rollbackTicks, 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});

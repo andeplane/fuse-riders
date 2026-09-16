@@ -1,4 +1,4 @@
-import { bombFuseTicks, BOOST_DURATION_TICKS, GRAVITY_FIELD_TICKS, INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ, type PickupType } from '../shared/game.js';
+import { bombFuseTicks, BOOST_DURATION_TICKS, GRAVITY_FIELD_TICKS, INK_DURATION_TICKS, NITRO_DURATION_TICKS, NITRO_SPEED, SNAIL_DURATION_TICKS, SNAIL_SPEED, STAR_DURATION_TICKS, TICK_HZ, type PickupType } from '../shared/game.js';
 import { DRUNK_DURATION_TICKS } from '../shared/drunk.js';
 import { PICKUP_WEIGHTS } from '../shared/pickup-weights.js';
 import { POWER_TUNING } from '../shared/power-progression.js';
@@ -30,6 +30,8 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   star: ['STAR', `invulnerable for ${seconds(STAR_DURATION_TICKS)}`],
   grip: ['GRIP', '43% tighter turn radius for this round; collect once, leave later drops for rivals'],
   boost: ['BOOST', `a quarter faster for ${seconds(BOOST_DURATION_TICKS)}`],
+  nitro: ['NITRO', `${NITRO_SPEED}× speed for ${seconds(NITRO_DURATION_TICKS)}; every pickup stacks, so two run at ${NITRO_SPEED * NITRO_SPEED}×`],
+  snail: ['SNAIL', `rivals crawl at ${SNAIL_SPEED}× speed for ${seconds(SNAIL_DURATION_TICKS)}; stacks, and cancels a Nitro one for one`],
   gravity: ['SINGULARITY', `next bomb leaves a pull that drags riders in for ${seconds(GRAVITY_FIELD_TICKS)}`],
 };
 

@@ -33,6 +33,6 @@ export function presentWorld(older: ViewSnapshot | undefined, newer: ViewSnapsho
   const motion = riderMotionStep(rider, newer.tick + 1, newer.roundStartedTick);
   const pose = advanceRiderPose({ x: rider.x, y: rider.y, angle: rider.angle, drunkHeadingOffset: 0 }, local!.controls, { distance: motion.distance * lead, turn: motion.turn * lead, drunkHeadingOffset: 0 });
   const distance = hypot2(pose.x - rider.x, pose.y - rider.y);
-  const trail = distance > 0 && distance <= 40 ? [...rider.trail, { x1: rider.x, y1: rider.y, x2: pose.x, y2: pose.y, createdTick: newer.tick, expiresAtTick: newer.tick + 4 }] : rider.trail;
+  const trail = distance > 0 && distance <= motion.distance + 1e-6 ? [...rider.trail, { x1: rider.x, y1: rider.y, x2: pose.x, y2: pose.y, createdTick: newer.tick, expiresAtTick: newer.tick + 4 }] : rider.trail;
   return { ...shown, players: shown.players.map(p => p.id === rider.id ? { ...p, x: pose.x, y: pose.y, angle: pose.angle, trail, presentationTick: presentationTick + lead } : p) };
 }

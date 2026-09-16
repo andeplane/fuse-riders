@@ -201,6 +201,26 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Green U-turn arrow: 43% tighter turn radius for this round; collectible once per rider."
+    },
+    "pickup-nitro": {
+      "file": "pickup-nitro.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Orange fast-forward chevrons: double speed for five seconds, stacking per pickup."
+    },
+    "pickup-snail": {
+      "file": "pickup-snail.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Gold-shelled snail: rivals crawl at half speed for five seconds, stacking per pickup."
     }
   }
 }

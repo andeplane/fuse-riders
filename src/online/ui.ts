@@ -54,7 +54,7 @@ const copyText=async(text:string)=>{
   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.cssText='position:fixed;top:-1000px;opacity:0';document.body.append(field);field.select();
   try{return document.execCommand('copy');}catch{return false;}finally{field.remove();}
 };
-const labels:Record<PickupType,string>={stopwatch:'Shorter fuse',extraBomb:'Extra Bomb',power:'Power',triple:'Triple shot',five:'Five shot',gun:'Gun',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',grip:'Grip',boost:'Speed boost',gravity:'Singularity'};
+const labels:Record<PickupType,string>={stopwatch:'Shorter fuse',extraBomb:'Extra Bomb',power:'Power',triple:'Triple shot',five:'Five shot',gun:'Gun',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',grip:'Grip',boost:'Speed boost',nitro:'Nitro',snail:'Snail',gravity:'Singularity'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
 const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');

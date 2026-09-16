@@ -64,7 +64,7 @@ try {
         const canvas = document.querySelector('canvas')!;
         const arena = createPhaserArena(canvas, { renderer: backend }); await arena.ready;
         const fixture = visualFixture(40);
-        // Spacing follows the count: at fourteen pickups a fixed 125 would run the row off the 1600px arena.
+        // Spacing follows the count: past a dozen pickups a fixed 125 would run the row off the 1600px arena.
         const spacing = Math.min(125, 1380 / Math.max(1, types.length - 1));
         fixture.pickups = types.map((type, index) => ({ id: index, type, x: 110 + index * spacing, y: 780, expiresAtTick: 100 }));
         fixture.bombs = fixture.bombs.filter(bomb => !bomb.shell).slice(0, 3).map((bomb, index) => ({ ...bomb, x: 450 + index * 250, y: 250, explodeAtTick: 43 + index * 8 }));

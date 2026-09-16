@@ -59,7 +59,7 @@ test('bombs, gravity fields and portal pairs must name issued bombs, seated owne
 test('players, trails, history and statistics are bounded and internally consistent', () => {
   const game = playing();
   for (const key of ['players', 'bombs', 'pickups', 'leaderboard', 'roundParticipants', 'matchStats', 'randomState', 'roundScored', 'gravityFields', 'portalPairs']) rejected(game, data => { delete data[key]; }, `missing ${key}`);
-  for (const key of ['trail', 'alive', 'drunkHeadingOffset', 'shielded', 'avatarId', 'gravityArmed', 'boostUntilTick', 'grip']) rejected(game, data => { delete object(mapped(data.players)[0]![1])[key]; }, `player without ${key}`);
+  for (const key of ['trail', 'alive', 'drunkHeadingOffset', 'shielded', 'avatarId', 'gravityArmed', 'boostUntilTick', 'nitroUntilTicks', 'snailUntilTicks', 'grip']) rejected(game, data => { delete object(mapped(data.players)[0]![1])[key]; }, `player without ${key}`);
   for (const key of ['deathsByCause', 'currentRoundSurvivalTicks', 'distanceUnits']) rejected(game, data => { delete object(mapped(data.matchStats)[0]![1])[key]; }, `stats without ${key}`);
   rejected(game, data => { object(mapped(data.players)[0]![1]).trail = Array.from({ length: MAX_CHECKPOINT_TRAILS + 1 }, () => ({ x1: 1, y1: 1, x2: 2, y2: 2, createdTick: 1, expiresAtTick: 161 })); }, 'more trail than the cap');
   rejected(game, data => { object(mapped(data.players)[0]![1]).trail = [{ x1: 1, y1: 1, x2: 2, y2: 2, createdTick: 99, expiresAtTick: 2 }]; }, 'a trail that expires before it was drawn');
