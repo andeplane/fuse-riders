@@ -99,7 +99,8 @@ function prepareTrailBatches(trail: ReadonlyArray<TrailSegment>, tick: number): 
   const cached = trailBatchCache.get(trail);
   if (cached) return cached;
   const batches = Array.from({ length: 4 }, (_, index): TrailBatch => ({
-    path: new Path2D(), alpha: [.24, .48, .74, 1][index], pixels: [], fragments: [],
+    // Hittable segments must remain readable even just before expiry.
+    path: new Path2D(), alpha: [.8, .85, .9, 1][index], pixels: [], fragments: [],
   }));
   for (const segment of trail) {
     const life = clamp((segment.expiresAtTick - tick) / 40, .15, 1);
@@ -124,7 +125,7 @@ function prepareTrailBatches(trail: ReadonlyArray<TrailSegment>, tick: number): 
 
 function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<TrailSegment>, tick: number, alive: boolean, color: string, theme: ThemeDefinition): void {
   const batches = prepareTrailBatches(trail, tick);
-  const aliveAlpha = alive ? 1 : .55;
+  const aliveAlpha = alive ? 1 : .8;
   ctx.save(); ctx.lineCap = theme.rendering.trailCap; ctx.lineJoin = theme.rendering.trailCap === 'round' ? 'round' : 'bevel';
   for (const batch of batches) {
     if (!batch.pixels.length) continue;
@@ -373,20 +374,19 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
   }
 
   for (const player of snapshot.players) {
+    if (!player.alive) continue;
     const color = escapeColor(player.color);
     if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);
     if (player.drunkUntilTick > snapshot.tick) drawDrunkAura(ctx, player, snapshot.tick, now);
     drawOrbitShield(ctx, player, snapshot.tick, now);
     drawPortalGrace(ctx, player, snapshot.tick, now);
-    ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
+    ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 18;
     if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, player.angle, color)) { /* Atlas head includes color and heading cues. */ }
     else if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
     else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     ctx.restore();
-    if (player.alive) {
-      ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-      ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 29)); ctx.restore();
-    }
+    ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
+    ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 29)); ctx.restore();
   }
   drawInkClouds(ctx, snapshot, snapshot.tick);
   drawBombTargets(ctx, snapshot);
