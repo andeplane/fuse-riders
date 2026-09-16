@@ -18,7 +18,9 @@ const fromBase64 = (text: string): Uint8Array => Uint8Array.from(atob(text), cha
 export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
   const { state, tick } = world.servable();
   const folds = [...state.folds].map(([id, fold]) => [id, fold.generation, fold.flags, fold.aim?.x ?? null, fold.aim?.y ?? null, fold.activeGesture, fold.latestGesture]);
-  const streams = [...world.streams].map(([id, stream]) => { const base = stream.baseAt(tick); return [id, stream.generation, base.seq, base.gesture, stream.entriesAfter(base.seq, tick).slice(0, MAX_SNAPSHOT_ENTRIES)]; });
+  const encodeStream = (id: string, stream: World['streams'] extends Map<string, infer S> ? S : never) => { const base = stream.baseAt(tick); return [id, stream.generation, base.seq, base.gesture, stream.entriesAfter(base.seq, tick).slice(0, MAX_SNAPSHOT_ENTRIES)]; };
+  // Retired generations first, so a joiner installing in order ends with the current stream; only those with entries left to replay travel.
+  const streams = [...world.retiredStreams().filter(({ stream }) => stream.entriesAfter(stream.baseAt(tick).seq, tick).length).map(({ id, stream }) => encodeStream(id, stream)), ...[...world.streams].map(([id, stream]) => encodeStream(id, stream))];
   const bytes = packMessage([RULES, room, tick, encodeGameState(state.game), state.settings, folds, [...state.bots], streams, hashRoomState(state)]);
   if (bytes.byteLength > MAX_SNAPSHOT_BYTES) throw new Error('Snapshot too large');
   // One base64 text split by characters: chunking the bytes first would leave padding in the middle.
@@ -72,10 +74,13 @@ export function decodeSnapshot(bytes: Uint8Array, room: number): DecodedSnapshot
   for (const raw of rawStreams) {
     if (!Array.isArray(raw) || raw.length !== 5) return;
     const [id, generation, seq, gesture, entries] = raw;
-    if (!memberId(id) || seen.has(id) || !uint32(generation) || !uint32(seq) || !uint32(gesture) || !Array.isArray(entries) || entries.length > MAX_SNAPSHOT_ENTRIES) return;
+    // One stream per member and generation; a member's retired generations precede its current one.
+    if (!memberId(id) || !uint32(generation) || seen.has(`${id}:${generation}`) || !uint32(seq) || !uint32(gesture) || !Array.isArray(entries) || entries.length > MAX_SNAPSHOT_ENTRIES) return;
     let previous = seq;
     for (const entry of entries) { if (!isEntry(entry) || entry[0] <= previous) return; previous = entry[0]; }
-    seen.add(id); streams.push({ id, generation, seq, gesture, entries: entries as Entry[] });
+    let previousGeneration: number | undefined; for (const stream of streams) if (stream.id === id) previousGeneration = stream.generation;
+    if (previousGeneration !== undefined && previousGeneration >= generation) return;
+    seen.add(`${id}:${generation}`); streams.push({ id, generation, seq, gesture, entries: entries as Entry[] });
   }
   return { state, streams };
 }

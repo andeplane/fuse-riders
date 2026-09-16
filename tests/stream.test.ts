@@ -93,6 +93,8 @@ test('confirmed completeness stops at the last contiguous entry when a gap hides
   const remote = new StreamLog(1); assert.equal(remote.receive([e(1, 50, STEER, 1)], 1, 60, 60, 60).status, 'accepted');
   assert.equal(remote.receive([e(3, 80, STEER, 0)], 3, 90, 90, 90).status, 'accepted');
   assert.equal(remote.completeThrough(), 79, 'the stall rule may still run up to the buffered entry');
-  assert.equal(remote.confirmedThrough(), 50, 'but nothing past the last contiguous entry is final: seq 2 may sit anywhere from 50 to 80');
+  assert.equal(remote.confirmedThrough(), 60, 'but only what the gap-free packet confirmed is final: seq 2 may sit anywhere from 61 to 80');
+  const sameTick = new StreamLog(1); sameTick.receive([e(1, 72, STEER, 1), e(3, 80, STEER, 0)], 3, 90, 90, 90);
+  assert.equal(sameTick.confirmedThrough(), 71, 'a missing entry may share the last contiguous entry\'s tick');
   assert.equal(remote.receive([e(2, 70, STEER, 2)], 3, 90, 90, 90).status, 'accepted'); assert.equal(remote.confirmedThrough(), 90);
 });

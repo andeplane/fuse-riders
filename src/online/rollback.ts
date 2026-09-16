@@ -38,16 +38,17 @@ export class World {
     this.streams.set(id, stream); return stream;
   }
   private frame(state: RoomState): Frame { return { ...toSnapshot(state.game), tick: state.game.tick, round: state.game.round, matchId: state.game.matchId }; }
-  /** Each member's entries at `tick` from the stream whose generation the fold holds at that point of the replay, else the current one. */
-  private entriesAt(tick: number, state: RoomState): Map<string, StreamEntries> {
+  /** Each member's entries at `tick` from its current stream and from any retired generation still replayable; the reducer picks by fold generation. */
+  private entriesAt(tick: number): Map<string, StreamEntries> {
     const streams = new Map<string, StreamEntries>();
     for (const [id, current] of this.streams) {
-      const wanted = state.folds.get(id)?.generation, retired = wanted === undefined || wanted === current.generation ? undefined : this.retired.get(id)?.find(old => old.generation === wanted);
-      const stream = retired ?? current;
-      streams.set(id, { generation: stream.generation, entries: stream.entriesAt(tick) });
+      const retired = (this.retired.get(id) ?? []).map(old => ({ generation: old.generation, entries: old.entriesAt(tick) }));
+      streams.set(id, { generation: current.generation, entries: current.entriesAt(tick), ...(retired.length ? { retired } : {}) });
     }
     return streams;
   }
+  /** Retired streams, oldest generation first, that a snapshot must carry so a joiner can replay the ticks before their replacement. */
+  retiredStreams(): { id: string; stream: StreamLog }[] { return [...this.retired].flatMap(([id, olds]) => olds.map(stream => ({ id, stream }))); }
   /** Entries in the applicable log that disconnect `id` after the current tick: the stall rule may not wait past them. */
   private pendingDisconnect(id: string): number | undefined {
     let earliest: number | undefined;
@@ -108,7 +109,7 @@ export class World {
   private simulate(state: RoomState, target: number, events: WorldEvent[]): void {
     while (state.game.tick < target) {
       const tick = state.game.tick + 1, matchId = state.game.matchId, round = state.game.round;
-      const produced = applyTick(state, this.creatorId, this.entriesAt(tick, state), this.bots);
+      const produced = applyTick(state, this.creatorId, this.entriesAt(tick), this.bots);
       produced.forEach((event, index) => { const key = `${matchId}:${round}:${tick}:${index}`; if (this.emitted.has(key)) return; this.emitted.add(key); events.push({ tick, round, matchId, event }); });
       if (tick % SNAPSHOT_INTERVAL === 0) this.snapshots.set(tick, structuredClone(state));
       if (target - tick <= 1) { this.frames.unshift(this.frame(state)); if (this.frames.length > 2) this.frames.length = 2; }

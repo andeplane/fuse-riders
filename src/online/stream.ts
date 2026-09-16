@@ -26,9 +26,11 @@ export class StreamLog {
   private baseGesture = 0;
   /** The highest pruned seq: a base at a later tick starts there, since pruned entries are folded into every retained snapshot. */
   private prunedSeq = 0;
+  /** The highest `through` declared while the stream had no gap: final whatever gap opens later. */
+  private confirmedTick = 0;
   private rotation = 0;
   constructor(public generation: number, base: { seq: number; tick: number; gesture?: number } = { seq: 0, tick: 0 }) {
-    this.contiguous = base.seq; this.baseSeq = base.seq; this.lastSeq = base.seq; this.baseTick = base.tick; this.through = base.tick; this.gestureFloor = this.baseGesture = base.gesture ?? 0;
+    this.contiguous = base.seq; this.baseSeq = base.seq; this.lastSeq = base.seq; this.baseTick = base.tick; this.through = this.confirmedTick = base.tick; this.gestureFloor = this.baseGesture = base.gesture ?? 0;
   }
   /** Own stream only: the next seq, always contiguous. */
   append(tick: number, body: readonly unknown[]): Entry {
@@ -58,7 +60,7 @@ export class StreamLog {
     return through;
   }
   /** What can never change: with a gap, only ticks up to the last contiguous entry, since a missing entry's tick is unknown. */
-  confirmedThrough(): number { return this.gap ? Math.min(this.through, this.latestTick()) : this.through; }
+  confirmedThrough(): number { return this.gap ? Math.max(this.confirmedTick, Math.min(this.through, this.latestTick() - 1)) : this.through; }
   firstMissing(): number | undefined { return this.gap ? this.contiguous + 1 : undefined; }
   /** Highest press gesture id in the contiguous prefix; presses must keep increasing across it. */
   latestGesture(): number {
@@ -93,6 +95,7 @@ export class StreamLog {
     this.lastSeq = Math.max(this.lastSeq, lastSeq); this.through = Math.max(this.through, through);
     const added: Entry[] = [];
     while (this.entries.has(this.contiguous + 1)) { this.contiguous++; added.push(this.entries.get(this.contiguous)!); }
+    if (!this.gap) this.confirmedTick = Math.max(this.confirmedTick, this.through);
     if (!added.length) return { status: 'accepted', added };
     const earliest = Math.min(...added.map(entry => entry[1]));
     if (earliest <= this.baseTick || earliest <= currentTick - ROLLBACK_TICKS) return { status: 'unrepairable', added };

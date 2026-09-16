@@ -12,7 +12,8 @@ export const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'] as const;
 export interface Fold extends HeldControls { generation: number }
 /** State at tick T is a pure fold of the seed and every entry with tick ≤ T. */
 export interface RoomState { game: GameState; settings: RoomSettings; folds: Map<string, Fold>; bots: Set<string> }
-export interface StreamEntries { generation: number; entries: readonly Entry[] }
+/** A member's entries for one tick from its current stream, plus any retired (older-generation) streams still replayable, oldest first. */
+export interface StreamEntries { generation: number; entries: readonly Entry[]; retired?: readonly { generation: number; entries: readonly Entry[] }[] }
 
 export function createRoomState(matchId: string, settings: RoomSettings): RoomState {
   const game = createGame(matchId); game.settings = settings;
@@ -111,7 +112,8 @@ export function applyTick(state: RoomState, creatorId: string, streams: Readonly
   const game = state.game, tick = game.tick + 1;
   for (const manager of successionOrder(state, creatorId)) {
     const stream = streams.get(manager); if (!stream) continue;
-    for (const entry of stream.entries) {
+    // Management entries are not gated by generation: a returning creator's new stream must be able to log its own presence.
+    for (const entry of [...(stream.retired ?? []).flatMap(old => old.entries), ...stream.entries]) {
       if (entry[1] !== tick || !isManagementKind(entry[2])) continue;
       // Delegation is re-evaluated per entry: the creator's own return revokes the acting creator mid-tick.
       if (!permitted(state, creatorId, manager, entry)) continue;
@@ -123,8 +125,9 @@ export function applyTick(state: RoomState, creatorId: string, streams: Readonly
     if (state.bots.has(player.id)) { inputs.set(player.id, bots.input(game, player.id)); continue; }
     const fold = state.folds.get(player.id); if (!fold) continue;
     if (!player.connected) { Object.assign(fold, neutralControls()); inputs.set(player.id, intentOf(fold)); continue; }
-    const stream = streams.get(player.id);
-    const entries = stream && stream.generation === fold.generation ? stream.entries.filter(entry => entry[1] === tick && !isManagementKind(entry[2])) : [];
+    // Chosen after the management entries applied: a presence that switches the fold's generation takes this tick's input from the new stream.
+    const stream = streams.get(player.id), source = stream === undefined ? undefined : stream.generation === fold.generation ? stream : stream.retired?.find(old => old.generation === fold.generation);
+    const entries = source ? source.entries.filter(entry => entry[1] === tick && !isManagementKind(entry[2])) : [];
     for (const entry of entries) if (entry[2] === AVATAR) player.avatarId = entry[3];
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }

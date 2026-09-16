@@ -275,3 +275,9 @@ A second review reproduced five more, all fixed with regression tests:
 - A creator and a joiner connecting together both asked each other for a world; a `noWorld` answer left the request pending, so the creator never opened a fresh world: `noWorld` completes the request, a peer that answered it is not asked again for two seconds, and the empty-room decision runs.
 - Completeness was claimed up to the first entry waiting behind a gap although the missing entry could sit anywhere before it: hashes, snapshot serving and the divergence check use the confirmed contiguous history (`confirmedThrough`), and a snapshot served past a gap the peer is stalled on folds the waiting entries by absence so the joiner does not inherit an unrepairable gap.
 - Page generations were whole seconds, so two reloads within a second shared one and peers rejected the restarted stream: generations are 100 ms units since 2020-09-13.
+
+A third round, reproduced as public-API tests (`tests/generation-replay.test.ts`), fixed the remaining generation and completeness gaps:
+
+- After a generation change the reducer only read the fold's generation, so a returning creator's new stream could never log its own presence, and input logged on the presence tick was lost: the reducer now reads management entries from every generation of a member's stream and picks player entries by the fold's generation after management applied; snapshots carry retired streams (oldest first) that still have entries to replay.
+- Confirmed completeness fell to zero when a gap opened after gap-free heartbeats, and a missing entry could share the last contiguous entry's tick: the confirmed tick is monotone (the highest `through` declared without a gap) and a gap caps it one tick before the last contiguous entry.
+- Several members connecting at once never opened a world: any replica without one keeps asking peers that have not said `noWorld`, and a creator announces a fresh world in its hello.
