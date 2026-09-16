@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BLAST_LEVEL_RANGE, BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, toSnapshot, type GameState } from '../src/shared/game.js';
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
+import { RIDER_SPEED, TICK_HZ, GRAVITY_PULL_PER_TICK } from '../src/shared/game.js';
 
 const flightPath = (x: number, y: number) => Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));
 function playing(seed = 5): GameState {
@@ -64,4 +65,67 @@ test('a rider outside the radius is untouched, so the pull is local', () => {
   for (let tick = 0; tick < 10; tick += 1) { step(state, new Map()); step(control, new Map()); }
   assert.equal(state.players.get('p0')!.x, control.players.get('p0')!.x);
   assert.equal(state.players.get('p0')!.y, control.players.get('p0')!.y);
+});
+
+const inputsFor = (id: string, intent: Record<string, unknown>) => new Map([[id, { left: false, right: false, bomb: false, ...intent }]]) as never;
+const MOVE_PER_TICK = RIDER_SPEED / TICK_HZ;
+const travelled = (state: GameState, id: string) => {
+  const rider = state.players.get(id)!, fromX = rider.x, fromY = rider.y;
+  step(state, new Map());
+  return Math.hypot(rider.x - fromX, rider.y - fromY);
+};
+
+test('a rider steering away is slowed but never held: net travel stays above the cap, however many fields overlap', () => {
+  // The cap applies to the summed drag, so the floor is (1 - GRAVITY_PULL_PER_TICK) of a tick's travel whatever the stack.
+  const floor = MOVE_PER_TICK * (1 - GRAVITY_PULL_PER_TICK);
+  for (const fields of [1, 2, 4, 8]) {
+    const state = playing();
+    const rider = state.players.get('p0')!;
+    for (let index = 0; index < fields; index += 1) {
+      state.gravityFields.push({ bombId: index + 1, ownerId: 'p1', x: rider.x - 1, y: rider.y, radius: 200, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
+    }
+    const moved = travelled(state, 'p0');
+    assert.ok(moved >= floor - 1e-9, `${fields} fields dragged a rider to ${moved}, below the ${floor} floor`);
+  }
+});
+test('the pull falls off with distance: dead centre drags hardest, the rim not at all', () => {
+  const near = playing(), far = playing(), rim = playing(), control = playing();
+  const place = (state: GameState, offset: number) => {
+    const rider = state.players.get('p0')!;
+    state.gravityFields.push({ bombId: 1, ownerId: 'p1', x: rider.x, y: rider.y + offset, radius: 200, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
+  };
+  place(near, 10); place(far, 150); place(rim, 200);
+  for (const state of [near, far, rim, control]) step(state, new Map());
+  const drift = (state: GameState) => state.players.get('p0')!.y - control.players.get('p0')!.y;
+  assert.ok(drift(near) > drift(far), 'closer to the centre pulls harder');
+  assert.ok(drift(far) > 0, 'inside the radius still pulls');
+  assert.equal(drift(rim), 0, 'a rider exactly at the rim is untouched');
+});
+test('one armed pickup opens one field, even when the launch is a volley', () => {
+  const state = playing();
+  const rider = state.players.get('p0')!;
+  Object.assign(rider, { x: 500, y: 500, angle: 0, gravityArmed: true, tripleShotArmed: true, bombReadyAtTick: state.tick });
+  step(state, inputsFor('p0', { bomb: true, bombCommands: [{ action: 'press' }] }));
+  step(state, inputsFor('p0', { bombCommands: [{ action: 'release' }] }));
+  const bombs = [...state.bombs.values()];
+  assert.equal(bombs.length, 3, 'a triple volley launched');
+  assert.equal(bombs.filter(bomb => bomb.gravity).length, 1, 'exactly one bomb carries the field');
+  assert.equal(state.players.get('p0')!.gravityArmed, false, 'the pickup was consumed');
+});
+test('a target bomb leaves the pickup armed for an ordinary launch', () => {
+  const state = playing();
+  const rider = state.players.get('p0')!;
+  Object.assign(rider, { x: 500, y: 500, angle: 0, gravityArmed: true, targetBombArmed: true, bombReadyAtTick: state.tick });
+  step(state, inputsFor('p0', { bomb: true, bombCommands: [{ action: 'press' }], aim: { x: .5, y: .5 } }));
+  step(state, inputsFor('p0', { bombCommands: [{ action: 'release' }], aim: { x: .5, y: .5 } }));
+  assert.deepEqual([...state.bombs.values()].filter(bomb => bomb.gravity), [], 'a placed, instant blast does not open a field');
+  assert.equal(state.players.get('p0')!.gravityArmed, true, 'so the pickup is still there for the next throw');
+});
+test('a field caught by the closing wall is pulled back inside, so it cannot drag a rider out', () => {
+  const state = playing();
+  state.boundaryInset = 80; // overtime has closed the walls well past the field's original home
+  state.gravityFields.push({ bombId: 1, ownerId: 'p1', x: 10, y: 400, radius: 180, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
+  step(state, new Map());
+  const field = state.gravityFields[0]!;
+  assert.ok(field.x >= state.boundaryInset, `the field stayed at ${field.x}, outside the wall at ${state.boundaryInset}`);
 });

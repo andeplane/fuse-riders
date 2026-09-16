@@ -395,6 +395,14 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.tick += 1;
   state.portalPairs = state.portalPairs.filter((pair) => state.tick < pair.expiresAtTick);
   state.gravityFields = state.gravityFields.filter((field) => state.tick < field.expiresAtTick);
+  // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out of bounds.
+  {
+    const bounds = portalBounds(state);
+    for (const field of state.gravityFields) {
+      field.x = Math.max(bounds.minX, Math.min(bounds.maxX, field.x));
+      field.y = Math.max(bounds.minY, Math.min(bounds.maxY, field.y));
+    }
+  }
   const events: GameEvent[] = [];
 
   for (const player of state.players.values()) {
@@ -1038,7 +1046,8 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
     if (target) player.targetBombArmed = false;
     else { player.tripleShotArmed = false; player.fiveShotArmed = false; }
-    const gravityLaunch = player.gravityArmed; player.gravityArmed = false;
+    const gravityLaunch = player.gravityArmed && !target;
+    if (gravityLaunch) player.gravityArmed = false;
     for (const flightPath of paths) {
       const landing = flightPath[flightPath.length - 1]!;
       const bomb: BombState = {
@@ -1121,6 +1130,7 @@ function applyGravity(state: GameState, x: number, y: number, distance: number):
   if (drag > limit) { dx = dx / drag * limit; dy = dy / drag * limit; }
   return { x: x + dx, y: y + dy };
 }
+
 function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {
   // #166: with chaining off a bomb only ever answers to its own fuse, neither to a blast already on the field nor to one opened this tick.
   const chain = state.settings?.chainReaction ?? true;

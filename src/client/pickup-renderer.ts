@@ -164,6 +164,30 @@ export function portalPalettes(ids: readonly string[]): Array<readonly [string, 
   });
 }
 
+export function drawGravityFields(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {
+  for (const field of snapshot.gravityFields) {
+    const life = Math.max(0, Math.min(1, (field.expiresAtTick - tick) / 80));
+    const swirl = now / 900;
+    ctx.save();
+    ctx.globalAlpha = 0.28 + life * 0.3;
+    const glow = ctx.createRadialGradient(field.x, field.y, field.radius * 0.1, field.x, field.y, field.radius);
+    glow.addColorStop(0, '#0a0618');
+    glow.addColorStop(0.55, 'rgba(120, 78, 214, .55)');
+    glow.addColorStop(1, 'rgba(120, 78, 214, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(field.x, field.y, field.radius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c9a6ff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.5 + life * 0.3;
+    // Infalling arcs: the direction of the pull, turning so a still image still reads as motion.
+    for (let arm = 0; arm < 3; arm += 1) {
+      const start = swirl + (arm * Math.PI * 2) / 3;
+      ctx.beginPath(); ctx.arc(field.x, field.y, field.radius * (0.35 + 0.2 * arm), start, start + 1.1); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.fillStyle = '#0a0618';
+    ctx.beginPath(); ctx.arc(field.x, field.y, field.radius * 0.16, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
 export function drawPortals(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {
   const live = snapshot.portalPairs.filter((pair) => pair.expiresAtTick > tick);
   const palettes = portalPalettes(live.map((pair) => pair.id));

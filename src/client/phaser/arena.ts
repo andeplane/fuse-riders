@@ -343,6 +343,13 @@ class ArenaScene extends Phaser.Scene {
       }
       if(airborne) g.lineStyle(2,0xff73c5,.6).strokeEllipse(bomb.x,bomb.y,34,15);
     }
+    for(const field of s.gravityFields) {
+      const life=clamp((field.expiresAtTick-s.tick)/80,0,1), swirl=now/900;
+      g.fillStyle(0x784ed6,.16+life*.16).fillCircle(field.x,field.y,field.radius);
+      g.lineStyle(2,0xc9a6ff,.45+life*.3);
+      for(let arm=0;arm<3;arm++) { const start=swirl+arm*Math.PI*2/3; g.beginPath(); g.arc(field.x,field.y,field.radius*(.35+.2*arm),start,start+1.1,false); g.strokePath(); }
+      g.fillStyle(0x0a0618,.95).fillCircle(field.x,field.y,field.radius*.16);
+    }
     for(const blast of s.blasts) {
       const age=clamp(1-(blast.expiresAtTick-s.tick)/8,0,1), {x,y,radius:r}=blast.circle;
       // Smooth concentric discs retain the supplied radius without grid snapping.
