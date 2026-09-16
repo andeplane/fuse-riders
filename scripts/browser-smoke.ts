@@ -330,16 +330,19 @@ try {
   await phones[0].locator('.controls:not(.hidden)').waitFor(); assert.deepEqual([...app.game.players.keys()], previousIds);
   // Exercise complete first-to-three / automatic round restart / host rematch UI.
   const winner = previousIds[0];
-  for (let round = 0; round < 3; round++) {
-    if (app.game.phase === 'countdown') await advanceDelivered(60);
+  for (let round = 0; round < 3 && app.game.phase !== 'matchOver'; round++) {
+    // Earlier weapon/portal exercises may already have ended round one. Finish its
+    // authoritative pause (including any replay) before starting the next round.
+    if (app.game.phase === 'roundOver') await advanceDelivered(app.game.phaseEndsAtTick! - app.game.tick);
+    if (app.game.phase === 'countdown') await advanceDelivered(app.game.phaseEndsAtTick! - app.game.tick);
+    assert.equal(String(app.game.phase), 'playing', 'the next round reaches active play');
     for (const id of previousIds) if (id !== winner) eliminatePlayer(app.game, id);
     await advanceDelivered(2);
-    if (app.game.phase !== 'matchOver') await advanceDelivered(60);
   }
   assert.equal(app.game.phase, 'matchOver');
   await host.getByText('FINAL ROUND', { exact: true }).waitFor();
   assert.equal(await host.locator('.match-recap:not(.hidden)').count(), 0);
-  await advanceDelivered(60);
+  await advanceDelivered(app.game.phaseEndsAtTick! - app.game.tick);
   await host.getByRole('button', { name: 'REMATCH' }).waitFor();
   await host.locator('.match-recap:not(.hidden)').waitFor();
   assert.equal(await host.locator('.comparison-row:not(.comparison-header)').count(), 5);
