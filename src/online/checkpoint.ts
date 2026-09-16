@@ -129,7 +129,7 @@ function gameInvariants(game: GameState): boolean {
   const portalIds = new Set<string>();
   for (const pair of game.portalPairs) { if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false; portalIds.add(pair.id); }
   const fieldBombIds = new Set<number>();
-  for (const field of game.gravityFields) { if (fieldBombIds.has(field.bombId) || field.bombId >= game.nextBombId || field.expiresAtTick <= game.tick) return false; fieldBombIds.add(field.bombId); }
+  for (const field of game.gravityFields) { if (fieldBombIds.has(field.bombId) || field.bombId >= game.nextBombId || !game.matchStats.has(field.ownerId) || field.expiresAtTick <= game.tick) return false; fieldBombIds.add(field.bombId); }
   return true;
 }
 

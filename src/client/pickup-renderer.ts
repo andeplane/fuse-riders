@@ -1,5 +1,6 @@
 import { assetUrl } from './asset-url.js';
 import type { GameSnapshot } from '../shared/protocol.js';
+import { GRAVITY_FIELD_TICKS } from '../shared/game.js';
 import type { ThemeDefinition } from './themes.js';
 
 const TICK_HZ = 20;
@@ -166,7 +167,7 @@ export function portalPalettes(ids: readonly string[]): Array<readonly [string, 
 
 export function drawGravityFields(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {
   for (const field of snapshot.gravityFields) {
-    const life = Math.max(0, Math.min(1, (field.expiresAtTick - tick) / 80));
+    const life = Math.max(0, Math.min(1, (field.expiresAtTick - tick) / GRAVITY_FIELD_TICKS));
     const swirl = now / 900;
     ctx.save();
     ctx.globalAlpha = 0.28 + life * 0.3;

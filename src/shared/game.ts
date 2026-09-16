@@ -395,14 +395,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.tick += 1;
   state.portalPairs = state.portalPairs.filter((pair) => state.tick < pair.expiresAtTick);
   state.gravityFields = state.gravityFields.filter((field) => state.tick < field.expiresAtTick);
-  // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out of bounds.
-  {
-    const bounds = portalBounds(state);
-    for (const field of state.gravityFields) {
-      field.x = Math.max(bounds.minX, Math.min(bounds.maxX, field.x));
-      field.y = Math.max(bounds.minY, Math.min(bounds.maxY, field.y));
-    }
-  }
   const events: GameEvent[] = [];
 
   for (const player of state.players.values()) {
@@ -427,6 +419,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.portalPairs = state.portalPairs
     .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
     .filter((pair): pair is PortalPair => pair !== undefined);
+  // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out
+  // of bounds. Clamped against the inset computed just above, like the portal fit, rather than last tick's.
+  for (const field of state.gravityFields) {
+    field.x = Math.max(trailBounds.minX, Math.min(trailBounds.maxX, field.x));
+    field.y = Math.max(trailBounds.minY, Math.min(trailBounds.maxY, field.y));
+  }
   for (const player of state.players.values()) {
     const clippedTrail: TrailSegment[] = [];
     for (const segment of player.trail) {
@@ -743,7 +741,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       landsAtTick: bomb.landsAtTick,
       flightPath: bomb.flightPath.map((point) => ({ ...point })),
       explodeAtTick: bomb.explodeAtTick,
-      blastRange: bomb.blastRange, ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
+      blastRange: bomb.blastRange, ...(bomb.shell ? { shell: { ...bomb.shell } } : {}), ...(bomb.gravity ? { gravity: true } : {}),
     })),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,

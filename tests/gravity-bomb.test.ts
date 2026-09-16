@@ -90,13 +90,20 @@ test('a rider steering away is slowed but never held: net travel stays above the
 });
 test('the pull falls off with distance: dead centre drags hardest, the rim not at all', () => {
   const near = playing(), far = playing(), rim = playing(), control = playing();
-  const place = (state: GameState, offset: number) => {
-    const rider = state.players.get('p0')!;
-    state.gravityFields.push({ bombId: 1, ownerId: 'p1', x: rider.x, y: rider.y + offset, radius: 200, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
+  const place = (state: GameState, x: number, y: number) => {
+    state.gravityFields.push({ bombId: 1, ownerId: 'p1', x, y, radius: 200, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
   };
-  place(near, 10); place(far, 150); place(rim, 200);
-  for (const state of [near, far, rim, control]) step(state, new Map());
-  const drift = (state: GameState) => state.players.get('p0')!.y - control.players.get('p0')!.y;
+  const start = control.players.get('p0')!;
+  place(near, start.x, start.y + 10); place(far, start.x, start.y + 150);
+  // The pull is evaluated at the advanced pose, which is exactly where the unpulled control rider lands, so placing
+  // the rim field 200 from there puts the rider at away === radius. Measured from the pre-step pose it sits at
+  // 200.14, just outside. This pins the boundary as specification; it does not distinguish `>=` from `>`, since the
+  // falloff term is already zero at the rim either way.
+  step(control, new Map());
+  const landed = control.players.get('p0')!;
+  place(rim, landed.x, landed.y + 200);
+  for (const state of [near, far, rim]) step(state, new Map());
+  const drift = (state: GameState) => state.players.get('p0')!.y - landed.y;
   assert.ok(drift(near) > drift(far), 'closer to the centre pulls harder');
   assert.ok(drift(far) > 0, 'inside the radius still pulls');
   assert.equal(drift(rim), 0, 'a rider exactly at the rim is untouched');
