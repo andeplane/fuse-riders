@@ -24,16 +24,16 @@ export interface LandingBounds {
  * the on-screen preview cannot disagree about where a bomb will land (#166).
  */
 export function chargeRamp(ticks: number, maxChargeTicks: number, bounce: boolean): number {
-  if (!bounce) return Math.min(maxChargeTicks, ticks);
+  const held = Number.isFinite(ticks) ? Math.max(0, Math.floor(ticks)) : 0;
+  if (!bounce) return Math.min(maxChargeTicks, held);
   const period = maxChargeTicks * 2;
-  const phase = ticks % period;
+  const phase = held % period;
   return phase <= maxChargeTicks ? phase : period - phase;
 }
 
 export function bombLaunchDistance(chargeTicks: number, maxChargeTicks = BOMB_MAX_CHARGE_TICKS, bounce = false): number {
-  const held = Number.isFinite(chargeTicks) ? Math.max(0, Math.floor(chargeTicks)) : 0;
   return BOMB_MIN_LAUNCH_DISTANCE +
-    (BOMB_MAX_LAUNCH_DISTANCE - BOMB_MIN_LAUNCH_DISTANCE) * chargeRamp(held, maxChargeTicks, bounce) / maxChargeTicks;
+    (BOMB_MAX_LAUNCH_DISTANCE - BOMB_MIN_LAUNCH_DISTANCE) * chargeRamp(chargeTicks, maxChargeTicks, bounce) / maxChargeTicks;
 }
 
 export function bombLandingPoint(
