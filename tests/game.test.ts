@@ -1153,59 +1153,6 @@ test('shell body hits once, shield absorbs it, and no blast radius is produced',
   }
 });
 
-test('Gun pickup fires one bullet at three times rider speed and cuts a traversable trail gap', () => {
-  const state = gameWithPlayers(3); enterPlaying(state);
-  const owner = state.players.get('p0')!; Object.assign(owner, { x: 500, y: 450, angle: 0, trail: [] });
-  Object.assign(state.players.get('p1')!, { x: 1000, y: 700, trail: [] });
-  Object.assign(state.players.get('p2')!, { x: 1200, y: 200, trail: [] });
-  state.pickups = [{ id: 999, type: 'gun', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
-  step(state, new Map()); assert.equal(owner.gunArmed, true);
-  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
-  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
-  assert.equal(state.bombs.size, 1);
-  const bullet = [...state.bombs.values()][0]!;
-  assert.equal(bullet.shell!.gun, true); assert.equal(bullet.shell!.vx, 450);
-  assert.equal(owner.gunArmed, false);
-  state.players.get('p1')!.trail = [{ x1: bullet.x + 22.5, x2: bullet.x + 22.5, y1: 300, y2: 600, createdTick: state.tick, expiresAtTick: state.tick + 100 }];
-  step(state, new Map());
-  assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 1);
-  const pieces = state.players.get('p1')!.trail.filter(t => t.y1 < 600 && t.y2 > 300);
-  assert.ok(pieces.some(t => t.y2 === 400)); assert.ok(pieces.some(t => t.y1 === 500));
-  assert.equal(owner.alive, true, 'a bullet that meets a trail right after launch spares its shooter');
-});
-test('a fanned Gun beside a trail or wall does not blow up its own shooter', () => {
-  for (const beside of ['trail', 'wall'] as const) {
-    const state = gameWithPlayers(3); enterPlaying(state);
-    const wallY = state.boundaryInset + RIDER_RADIUS + 6;
-    const owner = state.players.get('p0')!; Object.assign(owner, { x: 500, y: beside === 'wall' ? wallY : 450, angle: 0, trail: [], gunArmed: true, fiveShotArmed: true });
-    Object.assign(state.players.get('p1')!, { x: 1000, y: 700, trail: beside === 'trail'
-      ? [{ x1: 300, y1: 470, x2: 900, y2: 470, createdTick: state.tick, expiresAtTick: state.tick + 500 }] : [] });
-    Object.assign(state.players.get('p2')!, { x: 1200, y: 200, trail: [] });
-    step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
-    step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
-    assert.equal([...state.bombs.values()].filter(bomb => bomb.shell?.gun).length, 5);
-    let blasts = 0;
-    for (let tick = 0; tick < 4; tick++) blasts += step(state, new Map()).events.filter(event => event.type === 'explosion').length;
-    assert.ok(blasts > 0, `a side bullet met the ${beside}`);
-    assert.equal(owner.alive, true, `the shooter survives its own bullets meeting the ${beside}`);
-  }
-});
-test('gun head and wall impacts explode', () => {
-  for (const wall of [false, true]) {
-    const state = gameWithPlayers(3); enterPlaying(state);
-    for (const player of state.players.values()) player.trail = [];
-    Object.assign(state.players.get('p0')!, { x: 200, y: 200 });
-    Object.assign(state.players.get('p1')!, { x: 518, y: 450, angle: 0 });
-    Object.assign(state.players.get('p2')!, { x: 1200, y: 700 });
-    const x = wall ? state.width - state.boundaryInset - 5 : 500;
-    state.bombs.set(99, { id: 99, ownerId: 'p0', x, y: 450, launchX: x, launchY: 450, placedTick: state.tick,
-      launchedTick: state.tick - 1, landsAtTick: state.tick + 60, explodeAtTick: state.tick + 60,
-      blastRange: 0, flightPath: [], shell: { vx: 300, vy: 0, gun: true } });
-    step(state, new Map()); assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 1);
-    assert.equal(state.players.get('p1')!.alive, wall);
-  }
-});
-
 test('power changes only future shots, preserves fuse timing and resets next round', () => {
   const state = gameWithPlayers(3); enterPlaying(state);
   const owner = state.players.get('p0')!; Object.assign(owner, { x: 400, y: 450, angle: 0, trail: [] });
@@ -1259,50 +1206,19 @@ test('live shell bounces off a rider trail without damage or resetting its lifet
   assert.equal(state.blasts.length, 0);
 });
 
-test('gun explodes against the trail directly behind a rider and kills the rider', () => {
+test('a landed bomb blast clears nearby trails', () => {
   const state = gameWithPlayers(3); enterPlaying(state);
-  Object.assign(state.players.get('p0')!, { x: 200, y: 200, trail: [] });
-  Object.assign(state.players.get('p1')!, { x: 525, y: 450, angle: 0, trail: [{ x1: 480, y1: 450, x2: 525, y2: 450, createdTick: state.tick, expiresAtTick: state.tick + 100 }] });
-  Object.assign(state.players.get('p2')!, { x: 1200, y: 700, trail: [] });
-  state.bombs.set(99, { id: 99, ownerId: 'p0', x: 500, y: 450, launchX: 500, launchY: 450, placedTick: state.tick,
-    launchedTick: state.tick - 10, landsAtTick: state.tick + 60, explodeAtTick: state.tick + 60,
-    blastRange: 0, flightPath: [], shell: { vx: 300, vy: 0, gun: true } });
+  Object.assign(state.players.get('p0')!, { x: 200, y: 200, angle: 0, trail: [] });
+  Object.assign(state.players.get('p1')!, { x: 900, y: 450, angle: 0, trail: [] });
+  Object.assign(state.players.get('p2')!, { x: 1200, y: 800, angle: 0, trail: [{
+    x1: 905, y1: 470, x2: 905, y2: 480, createdTick: state.tick, expiresAtTick: state.tick + 100,
+  }] });
+  state.bombs.set(99, { id: 99, ownerId: 'p0', placedTick: state.tick, flightPath: [],
+    x: 900, y: 450, launchX: 900, launchY: 450,
+    launchedTick: state.tick - 10, landsAtTick: state.tick - 1, explodeAtTick: state.tick, blastRange: 32 });
   const result = step(state, new Map());
-  assert.equal(state.players.get('p1')!.alive, false);
-  assert.equal(state.blasts.length, 1);
-  assert.ok(result.events.some(event => event.type === 'explosion'));
-});
-
-test('a blast clears trails whether it came from a landed bomb or a gun projectile hitting a rider', () => {
-  // Regression for #26: gun-on-rider blasts are appended after the first explosion pass,
-  // so the trail-clearing filter has to run once the shell sweep has finished.
-  for (const source of ['bomb', 'gun'] as const) {
-    const state = gameWithPlayers(3);
-    enterPlaying(state);
-    Object.assign(state.players.get('p0')!, { x: 200, y: 200, angle: 0, trail: [] });
-    Object.assign(state.players.get('p1')!, { x: 900, y: 450, angle: 0, trail: [] });
-    Object.assign(state.players.get('p2')!, { x: 1200, y: 800, angle: 0, trail: [{
-      x1: 905, y1: 470, x2: 905, y2: 480, createdTick: state.tick, expiresAtTick: state.tick + 100,
-    }] });
-    const shared = { id: 99, ownerId: 'p0', placedTick: state.tick, flightPath: [] };
-    if (source === 'bomb') {
-      // A landed bomb sitting on the detonation point, due this tick.
-      state.bombs.set(99, { ...shared, x: 900, y: 450, launchX: 900, launchY: 450,
-        launchedTick: state.tick - 10, landsAtTick: state.tick - 1, explodeAtTick: state.tick, blastRange: 32 });
-    } else {
-      // A gun projectile already overlapping p1, so it detonates on the rider at (900, 450).
-      state.bombs.set(99, { ...shared, x: 890, y: 450, launchX: 890, launchY: 450,
-        launchedTick: state.tick - 10, landsAtTick: state.tick + 60, explodeAtTick: state.tick + 60,
-        blastRange: 0, shell: { vx: 300, vy: 0, gun: true } });
-    }
-
-    const result = step(state, new Map());
-    assert.ok(result.events.some((event) => event.type === 'explosion' && event.bombId === 99), `${source} explodes`);
-    assert.deepEqual(state.blasts.map((blast) => [blast.circle.x, blast.circle.y, blast.circle.radius]),
-      [[900, 450, 32]], `${source} blast geometry`);
-    assert.equal(state.players.get('p2')!.trail.some((segment) => segment.y1 === 470), false,
-      `${source} blast burns the trail`);
-  }
+  assert.ok(result.events.some(event => event.type === 'explosion' && event.bombId === 99));
+  assert.equal(state.players.get('p2')!.trail.some(segment => segment.y1 === 470), false);
 });
 
 test('a fixed-rounds match ends on the standings leader even when another rider wins the final round', () => {

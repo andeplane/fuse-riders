@@ -21,7 +21,7 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   five: ['FIVE', 'next ordinary shot adds 4 bombs (overrides Triple)'],
   target: ['TARGET', 'next bomb lands where you aim and blasts instantly, smaller radius'],
   shell: ['SHELL', 'next shot bounces off walls and trails until it hits a rider, you included'],
-  gun: ['GUN', 'next shot curves slightly toward rivals and blasts a hole in the first trail it hits'],
+  gun: ['GUN', 'tap to fire instantly ahead; stops at the first body, cuts a small hole, and kills near its head'],
   stopwatch: ['FUSE', `shorter bomb fuses for this round: ${[0, 1, 2].map(level => seconds(bombFuseTicks(level))).join(' → ')}`],
   orbitShield: ['SHIELD', 'blocks one crash'],
   portal: ['PORTAL', 'opens a pair of linked gates'],

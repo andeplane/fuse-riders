@@ -131,10 +131,13 @@ for (const weapon of ['bomb', 'target', 'gun'] as const) {
     if (weapon === 'target') {
       survivor.targetBombArmed = true;
       inputs = new Map([[survivor.id, { ...neutral, bombCommands: [{ action: 'press' }, { action: 'release', aim: { x: 350 / game.width, y: 200 / game.height } }] }]]);
+    } else if (weapon === 'gun') {
+      Object.assign(survivor, { x: 350, y: 160, angle: Math.PI / 2, gunArmed: true, trail: [] });
+      inputs = new Map([[survivor.id, { ...neutral, bombCommands: [{ action: 'press' }] }]]);
     } else {
-      game.bombs.set(1, { id: 1, ownerId: survivor.id, x: 350, y: weapon === 'gun' ? 180 : 200, launchX: 350, launchY: 200,
-        launchedTick: game.tick, placedTick: game.tick, landsAtTick: game.tick, explodeAtTick: game.tick + (weapon === 'gun' ? 60 : 1),
-        blastRange: 25, flightPath: [{ x: 350, y: 200, angle: 0 }], ...(weapon === 'gun' ? { shell: { vx: 0, vy: 300, gun: true } } : {}) });
+      game.bombs.set(1, { id: 1, ownerId: survivor.id, x: 350, y: 200, launchX: 350, launchY: 200,
+        launchedTick: game.tick, placedTick: game.tick, landsAtTick: game.tick, explodeAtTick: game.tick + 1,
+        blastRange: 25, flightPath: [{ x: 350, y: 200, angle: 0 }] });
       game.nextBombId = 2;
     }
     step(game, inputs);

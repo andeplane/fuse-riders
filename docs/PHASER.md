@@ -23,7 +23,7 @@ The [smooth-trail follow-up](online/SMOOTH-TRAILS-2026-09-14.md) enables antiali
 
 The [fractional presentation audit](online/FRACTIONAL-PRESENTATION.md) describes the held-bomb preview fix, its per-rider visual time, and remaining opportunities for smoother rendering.
 
-The scene batches sprites, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include smooth luminous trails, restrained rider outlines, animated charge/fuse/target markers, readable shell/cannon silhouettes, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
+The scene batches sprites, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include smooth luminous trails, restrained rider outlines, animated charge/fuse/target markers, readable shell silhouettes and thin instant-gun tracers, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
 
 Living riders have a thin one-world-pixel portrait outline. After firing, a two-world-pixel player-colored reload arc sits half a world pixel outside that outline, so it reads as an avatar border rather than a separate halo. It drains clockwise from the top over the shared weapon cooldown and disappears when that cooldown ends. Both Phaser backends sample the supplied fractional presentation tick (per rider first, then world, then snapshot), so no timer or effect history can drift through rollback, reconnects or a paused snapshot. The ring is hidden outside active play. Run `npx tsx scripts/reload-ring-browser.ts` (optionally with `BROWSER=webkit`) to check full, partial and completed cooldowns in both themes and all rendering backends.
 
@@ -102,3 +102,5 @@ BROWSER=webkit VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TA
 ```
 
 The default desktop workload remains unchanged. `QUALITY` defaults to low below 701 viewport pixels; explicit low/high values let measurements reproduce the selected budget. Backing size is observed and asserted, not rescaled into a different game world.
+
+Gun tracers use the authoritative launch point and resolved endpoint, with a two-unit line and a two-unit-radius bullet tip. They fade over three simulation ticks using supplied presentation time. They do not project forward, run collision checks or create explosion effects. `npx tsx scripts/gun-browser.ts` checks real LAN phone pointer-down fire and captures the TV result (`BROWSER=webkit` also supported).

@@ -140,7 +140,9 @@ test('AI target/gun/shell shots use normal input actions and target aim is bound
       const error=BOT_TIERS[botDifficulty(player.name)].aimError;
       assert.ok(Math.abs(aim.x*game.width-600)<=error&&Math.abs(aim.y*game.height-450)<=error,'aim misses by at most this tier\'s error');
     }
-    step(game,new Map([[player.id,press]]));step(game,new Map([[player.id,bot.input(game,player.id)]]));
+    step(game,new Map([[player.id,press]]));
+    if(powerup==='gunArmed'){assert.equal(player.gunArmed,false);assert.equal(game.shots[0]!.weapon,'gun');continue;}
+    step(game,new Map([[player.id,bot.input(game,player.id)]]));
     const release=bot.input(game,player.id);assert.equal(release.bombCommands?.[0]?.action,'release');
     step(game,new Map([[player.id,release]]));assert.equal(player[powerup],false);
   }
@@ -214,4 +216,13 @@ test('an upgraded bot ignores nearby GRIP drops and continues toward useful pick
   assert.deepEqual(bot.input(game, player.id), useful, 'uncollectible GRIP must not distract the bot');
   player.grip = false;
   assert.equal(bot.input(game, player.id).left, true, 'an eligible bot still pursues GRIP');
+});
+
+test('AI ignores harmless gun tracers when choosing a route', () => {
+  const game=fixture(), player=game.players.get('bot:1')!;
+  const without=new BotController().input(game,player.id);
+  game.bombs.set(1,{id:1,ownerId:'human',x:player.x+10,y:player.y,launchX:100,launchY:player.y,
+    placedTick:game.tick,launchedTick:game.tick,landsAtTick:game.tick+3,explodeAtTick:game.tick+3,
+    flightPath:[],blastRange:0,shell:{vx:1,vy:0,gun:true}});
+  assert.deepEqual(new BotController().input(game,player.id),without);
 });

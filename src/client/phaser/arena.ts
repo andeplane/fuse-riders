@@ -157,9 +157,6 @@ class ArenaScene extends Phaser.Scene {
   create(): void {
     const g = this.make.graphics({ x: 0, y: 0 });
     g.fillStyle(0xffffff).fillRect(0,0,4,4).generateTexture('spark',4,4); g.clear();
-    g.fillStyle(0x101d35).fillRoundedRect(2,5,42,30,12).lineStyle(3,0xd4fff8).strokeRoundedRect(2,5,42,30,12);
-    g.fillStyle(0x8ca0ae).fillRect(0,5,8,30).fillStyle(0xffffff).fillRect(24,12,10,10).fillStyle(0x081020).fillRect(30,13,4,8);
-    g.generateTexture('gun',48,40); g.clear();
     g.fillStyle(0x49e062).fillCircle(20,20,15).lineStyle(3,0xe0ffcc).strokeCircle(20,20,15).lineStyle(2,0x14762f).strokeCircle(20,20,8);
     g.generateTexture('shell',40,40); g.destroy();
     if (this.textures.exists('avatars')) {
@@ -332,8 +329,14 @@ class ArenaScene extends Phaser.Scene {
       }
     }
     for(const bomb of s.bombs) {
-      if(bomb.shell) { const gun=!!bomb.shell.gun; this.sprite(gun?'gun':'shell',bomb.x,bomb.y,gun?48:34,gun?Math.atan2(bomb.shell.vy,bomb.shell.vx):now/130);
-        const a=Math.atan2(bomb.shell.vy,bomb.shell.vx); for(let i=1;i<5;i++) g.fillStyle(gun?0xd8edff:0x66ff72,.18/i).fillCircle(bomb.x-Math.cos(a)*i*12,bomb.y-Math.sin(a)*i*12,gun?10:7); continue; }
+      if(bomb.shell?.gun) {
+        const alpha=clamp((bomb.explodeAtTick-(s.presentationTick??s.tick))/Math.max(1,bomb.explodeAtTick-bomb.launchedTick),0,1);
+        g.lineStyle(2,0xd8edff,.7*alpha).lineBetween(bomb.launchX,bomb.launchY,bomb.x,bomb.y);
+        g.fillStyle(0xffffff,alpha).fillCircle(bomb.x,bomb.y,2);
+        continue;
+      }
+      if(bomb.shell) { this.sprite('shell',bomb.x,bomb.y,34,now/130);
+        const a=Math.atan2(bomb.shell.vy,bomb.shell.vx); for(let i=1;i<5;i++) g.fillStyle(0x66ff72,.18/i).fillCircle(bomb.x-Math.cos(a)*i*12,bomb.y-Math.sin(a)*i*12,7); continue; }
       const ownerTint=color(s.players.find(player=>player.id===bomb.ownerId)?.color??'#ffffff');
       // The fine outer edge stays at the exact supplied damage radius.
       g.lineStyle(1.5,ownerTint,.32).strokeCircle(bomb.x,bomb.y,bomb.blastRange);

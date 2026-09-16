@@ -48,8 +48,8 @@ export interface RoundShot {
 
 /**
  * A bound for untrusted checkpoints, not a budget play approaches. A round ends at the 1800-tick draw, and a rider
- * cannot pull while its own lobbed bomb or bullet is still in the air, so ordinary bombs allow a pull every sixty
- * ticks or so; only spent pickups (Target, Shell) come faster, down to the 20-tick minimum reload. A pull past the
+ * cannot pull while its own lobbed bomb is still in the air, so ordinary bombs allow a pull every sixty
+ * ticks or so; only spent pickups (Target, Shell, Gun) come faster, down to the 20-tick minimum reload. A pull past the
  * cap goes unlogged rather than displacing one already logged.
  */
 export const MAX_ROUND_SHOTS = 512;

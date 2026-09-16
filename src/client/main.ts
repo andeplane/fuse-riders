@@ -635,7 +635,7 @@ function startController(): void {
     else if (player.waitingForNextRound) instruction.textContent = snapshot.phase === 'matchOver' ? 'You’re in — joining when the next match starts.' : 'You’re in — joining next round automatically.';
     else if (snapshot.phase === 'countdown') instruction.textContent = `Get ready — ${secondsRemaining(snapshot) ?? 0}`;
     else if (!player.alive) instruction.textContent = 'Wiped out! Watch the TV for the next round.';
-    else if (snapshot.phase === 'playing') instruction.textContent = player.gunArmed ? 'Release Fire to shoot through trails. Slight homing near rivals!' : player.shellArmed ? 'Release Fire to launch a bouncing shell. Watch the ricochets!' : player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to detonate!' : 'Hold to steer. Hold bomb to charge, release to launch!';
+    else if (snapshot.phase === 'playing') instruction.textContent = player.gunArmed ? 'Tap Fire to shoot straight ahead. Headshots kill; body hits cut a small hole!' : player.shellArmed ? 'Release Fire to launch a bouncing shell. Watch the ricochets!' : player.targetBombArmed ? 'Hold Fire and slide your thumb to aim on the TV. Release to detonate!' : 'Hold to steer. Hold bomb to charge, release to launch!';
     else if (snapshot.phase === 'matchOver') instruction.textContent = snapshot.matchWinnerId === playerId ? 'You rule the grid!' : 'Match complete.';
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
@@ -647,7 +647,7 @@ function startController(): void {
     bomb.style.setProperty('--charge', `${chargePercent}%`);
     bomb.classList.toggle('charging', charging);
     bomb.classList.toggle('target-armed', player.targetBombArmed);
-    bombLabel.textContent = player.gunArmed && (ready || charging) ? (charging ? 'RELEASE TO SHOOT' : 'GUN · HOLD + RELEASE') : player.shellArmed && (ready || charging) ? (charging ? 'RELEASE TO FIRE SHELL' : 'GREEN SHELL · HOLD + RELEASE') : player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO BLAST' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
+    bombLabel.textContent = player.gunArmed && (ready || charging) ? 'GUN · TAP TO FIRE' : player.shellArmed && (ready || charging) ? (charging ? 'RELEASE TO FIRE SHELL' : 'GREEN SHELL · HOLD + RELEASE') : player.targetBombArmed && charging ? 'SLIDE TO AIM · RELEASE TO BLAST' : player.targetBombArmed && ready ? 'HOLD + SLIDE TO AIM' : charging ? `CHARGING ${chargePercent}% · RELEASE` : ready ? 'HOLD TO CHARGE' : readyTicks > 0 ? `${Math.ceil(readyTicks / 20)}s RECHARGE` : 'BOMB LOCKED';
   }
 
   socket = new SocketClient(
