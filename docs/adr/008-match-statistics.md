@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-09-13
 
+> Scoring update (#226): the historical scoring/ranking below is superseded by [survival scoring](../online/PROTOCOL.md#survival-scoring). Matches rank by points, then round wins; session totals remain separate.
+
 ## Context
 
 Players want a memorable end-of-match recap with more personality than the winner's name. Stats must be fair and reproducible: every value shown as a fact should come from the authoritative simulation, while the persistent session leaderboard remains a separate scoring system.

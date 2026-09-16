@@ -63,7 +63,7 @@ test('management entries join, seat, start, change settings, add and remove bots
   const r = playing();
   assert.deepEqual([...r.state.game.players.keys()], ['creator', 'guest']); assert.equal(r.state.game.players.get('guest')!.avatarId, 'cat');
   r.tick(streams(['creator', [r.at('creator', SETTINGS, { ...settings, length: 1, match: 'rounds' })]]));
-  assert.equal(r.state.settings.length, 1); assert.equal(r.state.game.settings!.length, 3, 'format stays fixed during a match');
+  assert.equal(r.state.settings.length, 1); assert.equal(r.state.game.settings!.length, 5, 'format stays fixed during a match');
   r.tick(streams(['creator', [r.at('creator', BOT, 'add', 'bot:1', 'AI Hopper', 2)]]));
   assert.equal(r.state.game.players.get('bot:1')!.connected, true); assert.equal(r.state.bots.has('bot:1'), true); assert.equal(freeSlot(r.state.game), 3);
   r.tick(streams(['creator', [r.at('creator', BOT, 'remove', 'bot:1')]])); assert.equal(r.state.game.players.has('bot:1'), true, 'bots leave only between rounds');
@@ -119,7 +119,7 @@ test('round progression prunes disconnected riders, applies pending powerup weig
   r.tick(streams(['creator', [r.at('creator', PRESENCE, 'guest', false, 1)]]));
   for (let i = 0; i < ROUND_OVER_TICKS; i++) r.tick();
   assert.equal(r.state.game.phase, 'countdown'); assert.equal(r.state.game.round, 2); assert.equal(r.state.game.players.has('guest'), false);
-  assert.deepEqual(r.state.game.settings!.weights, { shell: 1 }); assert.equal(r.state.game.settings!.length, 3);
+  assert.deepEqual(r.state.game.settings!.weights, { shell: 1 }); assert.equal(r.state.game.settings!.length, 5);
   eliminatePlayer(r.state.game, 'third'); for (let i = 0; i < COUNTDOWN_TICKS; i++) r.tick(); eliminatePlayer(r.state.game, 'third'); r.tick();
   r.tick(streams(['creator', [r.at('creator', PRESENCE, 'third', false, 1)]]));
   for (let i = 0; i < ROUND_OVER_TICKS + 2; i++) r.tick();
@@ -132,7 +132,7 @@ test('bots are simulated on every replica and the same log always folds to the s
   const a = build(), b = build();
   assert.equal(hashRoomState(a), hashRoomState(b)); assert.equal(canonicalRoomState(a), canonicalRoomState(b));
   assert.ok([...a.game.matchStats.values()].some(stats => stats.distanceUnits > 0), 'bots moved');
-  assert.match(hashText('x'), /^[0-9a-f]{16}$/); assert.notEqual(hashText('a'), hashText('b')); assert.equal(RULES, 'fuse-p2p-17');
+  assert.match(hashText('x'), /^[0-9a-f]{16}$/); assert.notEqual(hashText('a'), hashText('b')); assert.equal(RULES, 'fuse-p2p-18');
   const reordered = createRoomState('room', settings); reordered.game.players = new Map([...a.game.players].reverse()); reordered.game.tick = a.game.tick;
   assert.notEqual(hashRoomState(reordered), hashRoomState(a));
   const shuffled = structuredClone(a); shuffled.game.players = new Map([...a.game.players].reverse()); assert.equal(hashRoomState(shuffled), hashRoomState(a), 'map order never matters');
@@ -146,7 +146,7 @@ test('succession: a rider may record the absence of anyone ahead of it, and mana
   assert.equal(permitted(r.state, 'creator', 'third', entry('third', SETTINGS, settings)), false, 'a rider behind the delegate manages nothing while the creator is here');
   assert.equal(permitted(r.state, 'creator', 'guest', entry('guest', PRESENCE, 'third', false, 3)), false, 'nobody marks absent a rider behind them');
   r.tick(streams(['third', [entry('third', PRESENCE, 'creator', false, 1)]])); assert.equal(r.state.game.players.get('creator')!.connected, false, 'the third rider may mark the creator absent');
-  r.tick(streams(['third', [entry('third', SETTINGS, { ...settings, length: 9 })]])); assert.equal(r.state.settings.length, 3, 'the guest is the delegate, so the third rider still manages nothing');
+  r.tick(streams(['third', [entry('third', SETTINGS, { ...settings, length: 9 })]])); assert.equal(r.state.settings.length, 5, 'the guest is the delegate, so the third rider still manages nothing');
   r.tick(streams(['third', [entry('third', PRESENCE, 'guest', false, 2)]])); assert.equal(r.state.game.players.get('guest')!.connected, false, 'and may mark the delegate absent too');
   assert.equal(actingCreator(r.state, 'creator'), 'third');
   r.tick(streams(['third', [entry('third', SETTINGS, { ...settings, length: 9 })]])); assert.equal(r.state.settings.length, 9, 'now it manages');

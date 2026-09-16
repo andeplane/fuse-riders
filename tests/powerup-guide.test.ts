@@ -16,7 +16,7 @@ test('power-up guide lists each room-configurable pickup exactly once', () => {
   assert.equal(new Set(types).size, types.length);
   const weights = Object.fromEntries(types.map(type => [type, 1]));
   // parseRoomSettings rejects unknown pickup types, so every guide entry is a real configurable pickup.
-  assert.deepEqual(parseRoomSettings({ version: 1, mode: 'devices', match: 'wins', length: 3, weights })?.weights, weights);
+  assert.deepEqual(parseRoomSettings({ version: 1, mode: 'devices', match: 'rounds', length: 3, weights })?.weights, weights);
   for (const candidate of POWERUP_GUIDE) assert.ok(candidate.name && candidate.description, candidate.type);
 });
 

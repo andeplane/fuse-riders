@@ -114,7 +114,7 @@
 .match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
 .match-recap-report .recap-highlights{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .match-recap-report .recap-comparison{overflow-x:auto;overflow-y:hidden;max-width:100%}
-.match-recap-report .comparison-row{min-width:820px;grid-template-columns:minmax(150px,1.55fr) repeat(6,minmax(52px,1fr)) minmax(230px,2.4fr) repeat(2,minmax(52px,1fr))}
+.match-recap-report .comparison-row{min-width:820px;grid-template-columns:minmax(150px,1.55fr) repeat(7,minmax(52px,1fr)) minmax(230px,2.4fr) repeat(2,minmax(52px,1fr))}
 .match-recap-report .recap-empty{margin:0;padding:24px 0;color:#8da3c4;text-align:center}
 @media(max-width:700px){.match-recap-report .recap-awards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.match-recap-report .recap-highlights{grid-template-columns:1fr}.match-recap-report .recap-totals{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(orientation:landscape) and (max-height:550px){

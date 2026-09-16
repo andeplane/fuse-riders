@@ -147,7 +147,7 @@ function startDisplay(): void {
   const leaderboardClose = element('button', '', '×'); leaderboardClose.type = 'button'; leaderboardClose.setAttribute('aria-label', 'Close leaderboard');
   leaderboardHeader.append(element('div', '', 'SESSION LEADERBOARD'), leaderboardClose);
   const leaderboardRows = element('div', 'leaderboard-rows');
-  leaderboardDrawer.append(leaderboardHeader, leaderboardRows, element('p', 'leaderboard-key', 'ROUND POINTS // 5 · 3 · 2 · 1 · 0  // TIES SHARE THE PLACES'));
+  leaderboardDrawer.append(leaderboardHeader, leaderboardRows, element('p', 'leaderboard-key', 'ROUND POINTS // +1 PER OPPONENT OUTLASTED · +1 FOR THE WIN'));
   const matchRecap = element('section', 'match-recap hidden');
   const recapHeading = element('header', 'recap-heading');
   const recapTitle = element('div');
@@ -227,18 +227,17 @@ function startDisplay(): void {
   }
 
   function renderScores(snapshot: ViewSnapshot): void {
-    const signature = snapshot.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.avatarId}:${player.alive}:${player.roundWins}`).join('|');
+    const signature = snapshot.players.map((player) => `${player.slot}:${player.name}:${player.color}:${player.avatarId}:${player.alive}:${player.matchScoreUnits}:${player.roundScoreUnits}`).join('|');
     if (signature === scoresSignature) return;
     scoresSignature = signature;
     scores.replaceChildren();
     for (const player of [...snapshot.players].sort((a, b) => a.slot - b.slot)) {
       const card = element('div', `score-card ${player.alive ? '' : 'out'}`);
       card.style.setProperty('--player-color', escapeColor(player.color));
-      const pips = element('span', 'score-pips');
-      for (let win = 0; win < 3; win += 1) pips.append(element('i', win < player.roundWins ? 'won' : ''));
+      const points = element('span', 'score-points', `${scoreText(player.matchScoreUnits)} PTS · +${scoreText(player.roundScoreUnits)}`);
       const details = element('span', 'score-details');
       const seatName = player.name.toUpperCase() === `P${player.slot + 1}` ? `P${player.slot + 1}` : `P${player.slot + 1} ${player.name}`;
-      details.append(element('span', 'score-name', seatName), pips);
+      details.append(element('span', 'score-name', seatName), points);
       card.append(createAvatarPortrait(player.avatarId), details);
       scores.append(card);
     }
@@ -319,8 +318,8 @@ function startDisplay(): void {
     renderLeaderboard(snapshot as ScoredSnapshot);
     renderMatchRecap(snapshot as ScoredSnapshot);
     timer.querySelector('strong')!.textContent = formatTimer(secondsRemaining(snapshot));
-    timer.querySelector('.eyebrow')!.textContent = snapshot.phase === 'playing' ? `ROUND ${snapshot.round}` : phaseLabel(snapshot);
-    roundBadge.textContent = `ROUND ${snapshot.round}`;
+    timer.querySelector('.eyebrow')!.textContent = snapshot.phase === 'playing' ? `ROUND ${snapshot.round}/${snapshot.matchLength}` : phaseLabel(snapshot);
+    roundBadge.textContent = `ROUND ${snapshot.round}/${snapshot.matchLength}`;
     const playerCount = snapshot.players.filter((player) => player.connected).length;
     const leaderboardAllowed = snapshot.phase === 'lobby' || snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver';
     leaderboardButton.classList.toggle('hidden', !leaderboardAllowed);
@@ -347,7 +346,7 @@ function startDisplay(): void {
     } else if (snapshot.phase === 'countdown') {
       const remain = secondsRemaining(snapshot) ?? 0;
       announcement.className = 'announcement countdown';
-      announcement.replaceChildren(element('span', 'announcement-small', `ROUND ${snapshot.round}`), element('strong', '', remain > 0 ? String(remain) : 'GO!'));
+      announcement.replaceChildren(element('span', 'announcement-small', `ROUND ${snapshot.round}/${snapshot.matchLength}`), element('strong', '', remain > 0 ? String(remain) : 'GO!'));
     } else if (snapshot.phase === 'playing') {
       announcement.className = 'announcement hidden';
       if (snapshot.roundStartedTick !== undefined && snapshot.tick - snapshot.roundStartedTick >= 1_200) {
@@ -355,14 +354,14 @@ function startDisplay(): void {
         announcement.textContent = 'OVERTIME // WALLS CLOSING';
       }
     } else if (finalRoundPause) {
-      const winner = snapshot.players.find(player => player.id === snapshot.matchWinnerId);
+      const winner = snapshot.matchStats.find(player => player.playerId === snapshot.matchWinnerId);
       announcement.className = 'announcement result';
-      announcement.replaceChildren(element('span', 'announcement-small', 'FINAL ROUND'), element('strong', '', winner ? `${winner.name} WINS!` : 'MATCH COMPLETE'));
+      announcement.replaceChildren(element('span', 'announcement-small', 'FINAL ROUND'), element('strong', '', winner ? `${winner.name} WINS!` : 'SHARED VICTORY'));
     } else if (snapshot.phase === 'roundOver') {
       const winner = snapshot.players.find((player) => player.id === snapshot.roundWinnerId);
       announcement.className = 'announcement result';
       announcement.replaceChildren(
-        element('span', 'announcement-small', `ROUND ${snapshot.round}`),
+        element('span', 'announcement-small', `ROUND ${snapshot.round}/${snapshot.matchLength}`),
         element('strong', '', winner ? `${winner.name} WINS` : 'DRAW'),
       );
       const placements = (snapshot as ScoredSnapshot).roundPlacements ?? [];
@@ -533,8 +532,8 @@ function startController(): void {
   const triplePower = element('span', 'power-chip triple-power', 'TRIPLE · --');
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
-  const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(countPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
+  const matchPoints = element('span', 'power-chip points-power', 'PTS · 0');
+  powerStrip.append(countPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, matchPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
@@ -627,11 +626,10 @@ function startController(): void {
     const portalGraceTicks = player.portalGraceUntilTick - snapshot.tick;
     const portalCooldownTicks = player.portalCooldownUntilTick - snapshot.tick;
     portalPower.textContent = portalGraceTicks > 0 ? `PORTAL · PHASE ${(portalGraceTicks / 20).toFixed(1)}s` : portalCooldownTicks > 0 ? `PORTAL · ${(portalCooldownTicks / 20).toFixed(1)}s` : 'PORTAL · --';
-    const leaderboardEntry = (scored.leaderboard ?? []).find((entry) => entry.id === playerId);
     const placement = (scored.roundPlacements ?? []).find((entry) => entry.playerId === playerId);
-    sessionPoints.textContent = placement && (snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver')
-      ? `#${placement.place} · +${scoreText(placement.scoreUnits)} · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)}PTS`
-      : `PTS · ${scoreText(leaderboardEntry?.totalScoreUnits ?? 0)}`;
+    matchPoints.textContent = placement && (snapshot.phase === 'roundOver' || snapshot.phase === 'matchOver')
+      ? `#${placement.place} · +${scoreText(placement.scoreUnits)} · ${scoreText(player.matchScoreUnits)}PTS`
+      : `PTS · ${scoreText(player.matchScoreUnits)}`;
     if (!player.connected) instruction.textContent = 'Reconnecting to your rider…';
     else if (snapshot.phase === 'lobby') instruction.textContent = 'You’re in. Look at the TV!';
     else if (player.waitingForNextRound) instruction.textContent = snapshot.phase === 'matchOver' ? 'You’re in — joining when the next match starts.' : 'You’re in — joining next round automatically.';

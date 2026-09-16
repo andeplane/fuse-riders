@@ -30,9 +30,7 @@ button { color: inherit; }
 .score-arrow { color: var(--player-color); text-shadow: 0 0 9px var(--player-color); }
 .score-details { min-width: 0; display: grid; gap: 5px; }
 .score-name { overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; font-family: "Press Start 2P", ui-monospace, monospace; font-size: .48rem; line-height: 1.2; color: var(--player-color); }
-.score-pips { display: flex; gap: 4px; }
-.score-pips i { width: 8px; height: 5px; border: 1px solid color-mix(in srgb, var(--player-color) 50%, #2a395d); background: #101a31; }
-.score-pips i.won { background: var(--player-color); box-shadow: 0 0 6px var(--player-color); }
+.score-points { font-size: .65rem; color: var(--player-color); white-space: nowrap; }
 .timer { min-width: 112px; text-align: center; padding-left: 20px; border-left: 2px solid #12598d; display: grid; }
 .timer strong { font-family: "Press Start 2P", ui-monospace, monospace; font-size: 1.25rem; color: #fff; text-shadow: 0 0 12px #3edfff; }
 .connection { font-size: .62rem; color: #7d89a4; writing-mode: vertical-rl; letter-spacing: .08em; }
@@ -113,7 +111,7 @@ button { color: inherit; }
 .highlight-card em { color: #d6e4ff; }
 .recap-comparison { position: relative; z-index: 1; min-height: 0; overflow: auto; border: 1px solid #20365f; background: rgba(2,8,25,.75); }
 .comparison-key { margin: 0; padding: 7px 12px; color: #8097bd; background: #091730; font-size: .62rem; letter-spacing: .04em; }
-.comparison-row { display: grid; grid-template-columns: minmax(150px, 1.55fr) repeat(9, minmax(52px, 1fr)); align-items: center; min-height: 56px; border-bottom: 1px solid #15284a; color: #b5c7e2; text-align: center; font-size: .7rem; }
+.comparison-row { display: grid; grid-template-columns: minmax(150px, 1.55fr) repeat(10, minmax(52px, 1fr)); align-items: center; min-height: 56px; border-bottom: 1px solid #15284a; color: #b5c7e2; text-align: center; font-size: .7rem; }
 .comparison-row > span, .comparison-row > strong { padding: 7px 4px; }
 .comparison-header { position: sticky; top: 0; z-index: 1; min-height: 34px; color: #718bb4; background: #07142e; font-size: .6rem; letter-spacing: .03em; }
 .comparison-rider { min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; color: #f2fbff; text-transform: uppercase; }

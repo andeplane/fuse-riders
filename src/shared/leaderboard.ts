@@ -1,6 +1,6 @@
 export const POINT_UNIT = 60;
 
-const POINTS_BY_PLACE = [5, 3, 2, 1, 0] as const;
+const MAX_PARTICIPANTS = 5;
 
 export interface SessionLeaderboardEntry {
   id: string;
@@ -25,17 +25,9 @@ export interface RoundPlacement {
   scoreUnits: number;
 }
 
-function scoreUnitsForPlaces(firstPlace: number, lastPlace: number): number {
-  let total = 0;
-  for (let place = firstPlace; place <= lastPlace; place += 1) {
-    total += (POINTS_BY_PLACE[place - 1] ?? 0) * POINT_UNIT;
-  }
-  return total / (lastPlace - firstPlace + 1);
-}
-
 /** Rank a round without changing the participant input. Later elimination wins. */
 export function rankRound(participants: readonly RoundParticipant[]): RoundPlacement[] {
-  if (participants.length < 2 || participants.length > POINTS_BY_PLACE.length) {
+  if (participants.length < 2 || participants.length > MAX_PARTICIPANTS) {
     throw new RangeError('A round has two to five participants');
   }
   const ids = new Set<string>();
@@ -65,8 +57,10 @@ export function rankRound(participants: readonly RoundParticipant[]): RoundPlace
       end += 1;
     }
     const firstPlace = start + 1;
-    const lastPlace = end;
-    const scoreUnits = scoreUnitsForPlaces(firstPlace, lastPlace);
+    // Only strictly earlier deaths count. A sole survivor earns the win bonus;
+    // same-tick deaths and multiple timeout survivors never outlast each other.
+    const bonus = startTick === Number.POSITIVE_INFINITY && end === 1 ? 1 : 0;
+    const scoreUnits = (ordered.length - end + bonus) * POINT_UNIT;
     for (let index = start; index < end; index += 1) {
       const { participant } = ordered[index]!;
       placements.push({ playerId: participant.id, name: participant.name, place: firstPlace, scoreUnits });
@@ -85,7 +79,7 @@ export function applyRoundScores(
   const seen = new Set<string>();
   for (const placement of placements) {
     if (!placement.playerId || seen.has(placement.playerId)) throw new Error('Round placements must have unique ids');
-    if (!Number.isInteger(placement.place) || placement.place < 1 || placement.place > POINTS_BY_PLACE.length) {
+    if (!Number.isInteger(placement.place) || placement.place < 1 || placement.place > MAX_PARTICIPANTS) {
       throw new RangeError('Round placement must be between one and five');
     }
     if (!Number.isSafeInteger(placement.scoreUnits) || placement.scoreUnits < 0) {

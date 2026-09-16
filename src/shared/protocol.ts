@@ -35,6 +35,7 @@ export interface TrailSegment {
 }
 export interface BlastCircle { x: number; y: number; radius: number }
 export interface GameSnapshot {
+  matchLength: number;
   bombChargeTicks: number;
   aimBounce: boolean;
   phase: 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
@@ -43,7 +44,7 @@ export interface GameSnapshot {
   width: number; height: number; boundaryInset: number;
   players: ReadonlyArray<{
     id: PlayerId; name: string; slot: number; color: string; connected: boolean; avatarId: AvatarId;
-    x: number; y: number; angle: number; alive: boolean; roundWins: number; waitingForNextRound?: boolean;
+    x: number; y: number; angle: number; alive: boolean; roundWins: number; matchScoreUnits: number; roundScoreUnits: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     extraBombs: number; fuseLevel: number; powerPickups: number; reloadDurationTicks: number; invulnerableUntilTick: number; boostUntilTick: number; grip: boolean; drunkUntilTick: number; inkUntilTick: number;
     gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; gravityArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
