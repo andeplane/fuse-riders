@@ -98,6 +98,10 @@ jobs:
           done
           cat artifacts/room-service.log
           exit 1
+      - name: Online voice chat (synthetic microphone)
+        run: scripts/ci-smoke.sh "Online voice chat" npx tsx scripts/voice-smoke.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
       - name: Desktop keyboard steering and firing
         run: scripts/ci-smoke.sh "Desktop keyboard steering and firing" npx tsx scripts/keyboard-smoke.ts
         env:

@@ -2,12 +2,12 @@
 # Local mirror of .github/workflows/ci.yml: same steps, same order, same env.
 # PORT=8801 scripts/ci-local.sh            (default port 8787)
 # ONLY=core,keyboard scripts/ci-local.sh   core = typecheck,coverage,build
-# Steps: typecheck coverage build lan avatar keyboard online preview phaser home landscape recap shared determinism mesh
+# Steps: typecheck coverage build lan avatar keyboard online voice preview phaser home landscape recap shared determinism mesh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${PORT:-8787}"
 URL="http://localhost:$PORT/"
-STEPS="typecheck,coverage,build,lan,avatar,keyboard,online,preview,phaser,home,landscape,recap,shared,determinism,mesh"
+STEPS="typecheck,coverage,build,lan,avatar,keyboard,online,voice,preview,phaser,home,landscape,recap,shared,determinism,mesh"
 ONLY="${ONLY:-}"; ONLY="${ONLY//core/typecheck,coverage,build}"
 for t in ${ONLY//,/ }; do [[ ",$STEPS," == *",$t,"* ]] || { echo "Unknown ONLY step '$t' (steps: $STEPS, core)"; exit 1; }; done
 ROOM_SERVICE_PID=""
@@ -56,11 +56,12 @@ step lan:chrome npm run test:browser
 step lan:webkit env BROWSER=webkit npm run test:browser
 step avatar npx tsx scripts/avatar-layout.ts
 
-for s in keyboard online home landscape recap shared mesh; do needs "$s" && { start_room_service; break; }; done
+for s in keyboard online voice home landscape recap shared mesh; do needs "$s" && { start_room_service; break; }; done
 
 step keyboard env HOME_URL="$URL" npx tsx scripts/keyboard-smoke.ts
 step online:chrome env ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
 step online:webkit env BROWSER=webkit ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
+step voice env ONLINE_URL="$URL" npx tsx scripts/voice-smoke.ts
 step preview:chrome npx tsx scripts/bomb-preview-smoke.ts
 step preview:webkit env BROWSER=webkit npx tsx scripts/bomb-preview-smoke.ts
 step phaser:chrome npx tsx scripts/phaser-browser.ts

@@ -168,3 +168,7 @@ Existing `shell.gun` bomb records now carry harmless 3-tick tracers: launch coor
 Current fold rules are `fuse-p2p-21`. Uncollected pickups last until round reset, with `expiresAtTick` set to `Number.MAX_SAFE_INTEGER` so existing finite snapshot/checkpoint fields and sprite opacity remain valid. Pickup expiry no longer runs. Every newly resolved bomb blast destroys pickups whose centers are strictly within 60% of its radius (more than 40% of the radius inward from the edge). The exact boundary and outer blast fringe survive. This includes chained, Target and Singularity bombs; lingering blast visuals, gravity fields, shells and Gun tracers do not destroy pickups. Collection still precedes explosions within a tick. The living-rider spawn cap remains unchanged, so a full board pauses spawning until slots open. Round preparation clears remaining pickups.
 
 No snapshot fields or transport envelopes change. Rules equality rejects older peers and snapshots because the same inputs now leave different pickups on the board. Refresh all peers together and start fresh rooms after rollback; there is no live-room migration.
+
+## Optional voice media
+
+Updated clients reserve an audio transceiver on each mesh link and exchange versioned, connection-scoped voice status outside the game log. This does not change deterministic rules or service signalling. See [voice negotiation, compatibility and lifecycle](VOICE-CHAT.md).

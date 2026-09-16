@@ -23,6 +23,7 @@ import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSA
 import { ReplayDirector, describeClip } from '../client/replay.js';
 import { createReplayOverlay } from '../client/replay-overlay.js';
 import { RoomRuntime, type Callbacks } from './room-runtime.js';
+import { VoiceChat } from './voice-chat.js';
 import { PeerTransport } from './peer-transport.js';
 import { NetStats } from './net-stats.js';
 import { Telemetry, telemetryEndpoint } from './telemetry.js';
@@ -276,7 +277,17 @@ export async function startOnline():Promise<void>{
   fullscreen.hidden=!document.fullscreenEnabled;fullscreen.onclick=()=>void (document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen())?.catch(()=>{});
   document.addEventListener('fullscreenchange',()=>{fullscreen.textContent=document.fullscreenElement?'EXIT FULLSCREEN':'FULLSCREEN';});
   prefs.append(musicButton,effectsButton,muteButton,radioButton,styleHeading,styleRow,fullscreen);
-  prefsButton.onclick=()=>{dialogTitle.textContent='SETTINGS';dialog.setAttribute('aria-label','Settings');dialogBody.replaceChildren(prefs);dialog.showModal();};
+  const voice=solo?undefined:new VoiceChat();
+  if(voice){
+    prefs.prepend(node('h3','GAME AUDIO','settings-group'));muteButton.title='Music and effects only; use DEAFEN in voice chat to silence voice.';
+    prefs.append(voice.controls);header.insertBefore(voice.button,prefsButton);
+    voice.button.onclick=()=>{dialogTitle.textContent='VOICE CHAT';dialog.setAttribute('aria-label','Voice chat');dialogBody.replaceChildren(voice.controls);if(!dialog.open)dialog.showModal();};
+    voice.setChanged(()=>{
+      for(const [playerId,row] of rosterEntries)row.entry.dataset.voice=voice.indicator(playerId);
+      for(const [playerId,row] of lobbyEntries)row.entry.dataset.voice=voice.indicator(playerId);
+    });
+  }
+  prefsButton.onclick=()=>{if(voice)prefs.append(voice.controls);dialogTitle.textContent='SETTINGS';dialog.setAttribute('aria-label','Settings');dialogBody.replaceChildren(prefs);dialog.showModal();};
   /** Podium, totals, highlight reel, awards and rider comparison built from the authoritative match statistics and moments. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>,moments:ReadonlyArray<Moment>)=>{
     const recap=buildMatchRecap(stats,moments);const root=node('section','','match-recap-report');
@@ -362,6 +373,9 @@ export async function startOnline():Promise<void>{
       addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
       hostControls.hidden=!isHost||replacedHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // BACK TO LOBBY means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
+      voice?.setRoster(id,state.players);
+      for(const [playerId,row] of rosterEntries)if(voice)row.entry.dataset.voice=voice.indicator(playerId);
+      for(const [playerId,row] of lobbyEntries)if(voice)row.entry.dataset.voice=voice.indicator(playerId);
       const clock=roundClock(state);roundChip.textContent=clock;roundChip.hidden=!clock||!sharedLobby.hidden;
       showAnnouncement(state,sharedLobby.hidden&&!joining);
       // Phone HUD: who you are, what the fire button would do, match points and the clock. The thirds themselves stay transparent.
@@ -370,7 +384,7 @@ export async function startOnline():Promise<void>{
     }
   };
   // Solo is the same runtime with no transport: one rider and four AI riders fold the log locally.
-  const runtime=new RoomRuntime(code,settings,callbacks,solo?{humanName:read('fuse-riders-player-name')??undefined}:{transport:events=>new PeerTransport(code,token,events),displayOnly});
+  const runtime=new RoomRuntime(code,settings,callbacks,solo?{humanName:read('fuse-riders-player-name')??undefined}:{transport:events=>new PeerTransport(code,token,events,voice),displayOnly});
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   announceAction.onclick=()=>start.click();
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});

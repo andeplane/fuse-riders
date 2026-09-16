@@ -1,3 +1,4 @@
+import type { VoiceChat } from './voice-chat.js';
 import { handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
@@ -57,7 +58,8 @@ export class PeerTransport implements RoomTransport {
   private retry?:ReturnType<typeof setTimeout>;
   private ice=new IceConfig();
   private relayOnly=new URLSearchParams(location.search).has('relay');
-  constructor(readonly code:string,readonly token:string,private callbacks:TransportCallbacks){}
+  private voiceSentAt = -Infinity;
+  constructor(readonly code:string,readonly token:string,private callbacks:TransportCallbacks,private voice?:VoiceChat){}
   /** The smaller id offers; the other answers. Symmetric for every pair, so no member needs the creator to link. */
   private initiator(id:string):boolean{return this.id<id;}
   connect():void {
@@ -76,7 +78,7 @@ export class PeerTransport implements RoomTransport {
           // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
           const roster=new Set<string>(message.peers.map((peer:{id:string})=>peer.id));
           for(const id of this.connections.keys())if(!roster.has(id))this.callbacks.peer(id,false);
-          for(const link of this.links.values())link.pc.close();this.links.clear();this.connections.clear();
+          this.voice?.reset();for(const link of this.links.values())link.pc.close();this.links.clear();this.connections.clear();
           this.id=message.id;this.hostId=message.hostId;this.connectionId=message.connectionId;
           for(const peer of message.peers)this.connections.set(peer.id,peer.connectionId);
           this.acceptGrant(message.grant);this.sampleTime();
@@ -111,7 +113,7 @@ export class PeerTransport implements RoomTransport {
     };
     ws.onerror=()=>ws.close();
   }
-  private drop(id:string):void{const link=this.links.get(id);if(!link)return;link.gate.drain();link.pc.close();this.links.delete(id);this.received.delete(id);this.callbacks.link(id,false);}
+  private drop(id:string):void{const link=this.links.get(id);if(!link)return;link.gate.drain();this.voice?.drop(id);link.pc.close();this.links.delete(id);this.received.delete(id);this.callbacks.link(id,false);}
   private relay(type:string,to:string,data:unknown):boolean {
     if(this.socket?.readyState!==WebSocket.OPEN||this.socket.bufferedAmount>256000)return false;
     try{this.socket.send(JSON.stringify({type,to,targetConnectionId:this.connections.get(to),data}));return true;}catch{return false;}
@@ -126,6 +128,7 @@ export class PeerTransport implements RoomTransport {
     const pc=new RTCPeerConnection({iceServers});
     const now=performance.now();
     const link:Link={pc,remote:new RemoteSignal(pc),health:new LinkHealth(now),gate:new LinkSendGate(),restart:restart??new LinkRestartPolicy(now,RESTART_ATTEMPTS),createdAt:now,local:{},remoteTypes:{},counts:{offersOut:0,offersIn:0,answersOut:0,answersIn:0,candidatesOut:0,relayFailed:0}};this.links.set(id,link);
+    this.voice?.attach(id,pc,this.initiator(id));
     pc.onicecandidate=event=>{
       if(!isCurrentLinkCallback(this.links.get(id),link)||!event.candidate)return;
       const type=candidateType(event.candidate.candidate);link.local[type]=(link.local[type]??0)+1;
@@ -158,7 +161,7 @@ export class PeerTransport implements RoomTransport {
     }
     link.game=channel;
     channel.onmessage=event=>{if(!current())return;if(typeof event.data!=='string'||event.data.length>200000){channel.close();return;}try{this.receive(id,JSON.parse(event.data),true);}catch{}};
-    channel.onopen=()=>{if(current()){this.callbacks.status('Direct peer link connected');this.callbacks.link(id,true);}};
+    channel.onopen=()=>{if(current()){this.callbacks.status('Direct peer link connected');this.callbacks.link(id,true);this.sendVoiceState(id);}};
     channel.onclosing=()=>{if(current())this.fail(id,link);};
     channel.onclose=()=>{if(current())this.fail(id,link);};
     channel.onerror=event=>{event.preventDefault();if(!current())return;this.fail(id,link);this.callbacks.status('Direct connection failed · retrying');};
@@ -166,7 +169,7 @@ export class PeerTransport implements RoomTransport {
   /** `force` replaces a drained link with a fresh RTCPeerConnection and gate; the restart budget carries over. */
   private async offer(id:string,force=false):Promise<void>{
     if(this.relayOnly)return;
-    const old=this.links.get(id);if(!force&&old?.game?.readyState==='open')return;if(old){old.pc.close();this.links.delete(id);}
+    const old=this.links.get(id);if(!force&&old?.game?.readyState==='open')return;if(old){this.voice?.drop(id);old.pc.close();this.links.delete(id);}
     const link=await this.link(id,force?old?.restart:undefined);if(!link||link.game)return;
     this.channel(id,link,link.pc.createDataChannel('game'));
     this.channel(id,link,link.pc.createDataChannel('input',{ordered:false,maxRetransmits:0}));
@@ -193,6 +196,7 @@ export class PeerTransport implements RoomTransport {
         await link.remote.describe(data.description);
         if(!isCurrentLinkCallback(this.links.get(id),link))return;
         if(data.description.type==='offer'){
+          this.voice?.answer(id);
           await link.pc.setLocalDescription(await link.pc.createAnswer());if(!isCurrentLinkCallback(this.links.get(id),link))return;
           if(this.relay('signal',id,{description:link.pc.localDescription}))link.counts.answersOut++;else link.counts.relayFailed++;
         }
@@ -207,6 +211,7 @@ export class PeerTransport implements RoomTransport {
     if(!envelope||!Number.isSafeInteger(envelope.id)||envelope.sender!==this.connections.get(id)||envelope.receiver!==this.connectionId)return;
     if(envelope.data&&typeof envelope.data==='object'){
       const probe=envelope.data as {type?:string;probeId?:number};
+      if(probe.type==='voice'){if(direct)this.voice?.receive(id,envelope.data);return;}
       // #143: the peer is closing its side. Stop sending on this link now, before WebKit's lagging readyState lets a probe hit the dead channel.
       if(probe.type==='linkBye'){if(direct)this.links.get(id)?.gate.drain();return;}
       if(probe.type==='linkProbe'||probe.type==='linkPong'){
@@ -245,14 +250,18 @@ export class PeerTransport implements RoomTransport {
     try{link.input.send(bytes as Uint8Array<ArrayBuffer>);this.sentBytes+=bytes.byteLength;return true;}catch{return false;}
   }
   linked(id:string):boolean{const link=this.links.get(id);return !!link&&!link.gate.draining&&link.game?.readyState==='open'&&link.health.direct(performance.now());}
-  private sendDirectProbe(id:string,data:{type:string;probeId?:number}):boolean {
+  private sendDirectProbe(id:string,data:{type:string;probeId?:number;version?:number;state?:string}):boolean {
     const link=this.links.get(id);
     if(!link?.gate.permits(link.game,PROBE_BUFFER_LIMIT))return false;
     try{link.game!.send(JSON.stringify({id:++this.seq,data,sender:this.connectionId,receiver:this.connections.get(id)}));return true;}catch{return false;}
   }
+  private sendVoiceState(id:string):void {
+    if(this.voice)this.sendDirectProbe(id,{type:'voice',version:1,state:this.voice.state});
+  }
   private checkLinks():void {
     if(this.stopped||document.hidden)return;
     const now=performance.now();
+    if(now-this.voiceSentAt>=1000){this.voiceSentAt=now;for(const id of this.links.keys())this.sendVoiceState(id);}
     for(const [id,link] of this.links){
       this.sendDirectProbe(id,{type:'linkProbe',probeId:link.health.probe(now)});
       if(link.health.direct(now)){link.restart.healthy(now);continue;}
@@ -273,7 +282,7 @@ export class PeerTransport implements RoomTransport {
    *  the very one that lands on a dead transport. */
   close(farewell=false):void{
     const byes=farewell&&!this.stopped?[...this.links.keys()].filter(id=>this.sendDirectProbe(id,{type:'linkBye'})):[];
-    this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();
+    this.voice?.close();this.stopped=true;this.deferred.length=0;this.authorityClock.invalidate();clearInterval(this.timeInterval);clearInterval(this.healthInterval);document.removeEventListener('visibilitychange',this.visibility);clearTimeout(this.retry);this.socket?.close();
     const connections=[...this.links.values()].map(link=>link.pc);this.links.clear();const closeAll=()=>{for(const pc of connections)pc.close();};
     if(byes.length)setTimeout(closeAll,LINK_BYE_GRACE_MS);else closeAll();
   }

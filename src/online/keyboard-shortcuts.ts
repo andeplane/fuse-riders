@@ -10,7 +10,7 @@ export function keyboardShortcuts({mac,canConfigure,solo}:ShortcutContext):Short
       ...(canConfigure?[[mac?'⌘P':'Ctrl+P','Configure power-ups (takes over the browser print dialog)'] as const]:[]),
       ['Esc','Close the open dialog'],
     ]},
-    {title:'Radio',entries:[['Ctrl+A','Open the radio'],['Ctrl+M','Mute everything'],['Ctrl+Alt+M','Mute music'],['Ctrl+Alt+E','Mute effects']]},
+    {title:'Radio',entries:[['Ctrl+A','Open the radio'],['Ctrl+M',solo?'Mute music and effects':'Mute music and effects (voice is separate)'],['Ctrl+Alt+M','Mute music'],['Ctrl+Alt+E','Mute effects']]},
     {title:'Diagnostics',entries:solo?[]:[
       ['—','Network stats and link diagnostics live in the ROOM dialog'],
       ['—','?stats=1 in the address bar opens the network panel on load'],

@@ -37,6 +37,7 @@
     "src/online/ice-config.ts",
     "src/online/ice-signal.ts",
     "src/online/remote-signal.ts",
+    "src/online/voice-session.ts",
     "src/online/link-restart.ts",
     "src/online/link-diagnostics.ts",
     "src/online/endpoints.ts",
