@@ -363,16 +363,16 @@ class ArenaScene extends Phaser.Scene {
     for(const p of s.players) {
       if(!p.alive) continue;
       const tint=color(p.color);
-      f.lineStyle(3,tint).strokeCircle(p.x,p.y,20);
+      f.lineStyle(1,tint).strokeCircle(p.x,p.y,20);
       this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,44,p.angle,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle; f.fillStyle(tint).fillTriangle(p.x+Math.cos(a)*31,p.y+Math.sin(a)*31,p.x+Math.cos(a+.27)*22,p.y+Math.sin(a+.27)*22,p.x+Math.cos(a-.27)*22,p.y+Math.sin(a-.27)*22);
       this.label(`P${p.slot+1}`,p.x,p.y-33,p.color);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;
-        f.lineStyle(5,0x080c22,.95).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
-        f.lineStyle(3,tint,.2).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
-        f.lineStyle(3,tint).beginPath().arc(p.x,p.y,RELOAD_RING_RADIUS,start,Math.PI*1.5,false).strokePath();
+        f.lineStyle(2,0x080c22,.95).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(2,tint,.2).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(2,tint).beginPath().arc(p.x,p.y,RELOAD_RING_RADIUS,start,Math.PI*1.5,false).strokePath();
       }
       if(p.shielded || p.shieldGraceUntilTick>s.tick) { f.lineStyle(2,0x8affff,.8).strokeCircle(p.x,p.y,29); const a=now/350; f.fillStyle(0xcaffff).fillRect(p.x+Math.cos(a)*29-4,p.y+Math.sin(a)*29-4,8,8); }
       if(p.portalGraceUntilTick>s.tick || p.invulnerableUntilTick>s.tick) f.lineStyle(3,0xffdbff,.6).strokeCircle(p.x,p.y,35+Math.sin(now/80)*2);
