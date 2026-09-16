@@ -71,10 +71,18 @@ test('head interpolation never extends a stale, destroyed, teleported or dead tr
   assert.deepEqual(trailTip(player, 9.5, 'playing'), original);
   assert.deepEqual(trailTip(player, 10.5, 'roundOver'), original);
   assert.deepEqual(trailTip({ ...player, alive: false }, 10.5, 'playing'), original);
-  assert.deepEqual(trailTip({ ...player, x: 60 }, 10.5, 'playing'), original, 'farther than a boosted, fully ramped, gravity-pulled stride');
-  // That longest stride is 7.5 × 1.25 boost × 1.5 ramp × 1.45 gravity = 20.39 units: the tip follows up to it and no further.
-  assert.deepEqual(trailTip({ ...player, x: 40.3 }, 10.5, 'playing').at(-1), { x: 40.3, y: 10 });
-  assert.deepEqual(trailTip({ ...player, x: 40.5 }, 10.5, 'playing'), original);
+  assert.deepEqual(trailTip({ ...player, x: 60 }, 10.5, 'playing'), original, 'farther than a fully ramped, gravity-pulled stride');
+  // A plain rider's longest stride is 7.5 × 1.5 ramp × 1.45 gravity = 16.31 units: the tip follows up to it and no further.
+  assert.deepEqual(trailTip({ ...player, x: 36.3 }, 10.5, 'playing').at(-1), { x: 36.3, y: 10 });
+  assert.deepEqual(trailTip({ ...player, x: 36.5 }, 10.5, 'playing'), original);
+  // The cap follows the rider's own speed pickups on the tick the segment was drawn: 20.39 boosted, 65.25 on two Nitros.
+  const boosted = { ...player, boostUntilTick: 20 };
+  assert.deepEqual(trailTip({ ...boosted, x: 40.3 }, 10.5, 'playing').at(-1), { x: 40.3, y: 10 });
+  assert.deepEqual(trailTip({ ...boosted, x: 40.5 }, 10.5, 'playing'), original);
+  const nitro = { ...player, nitroUntilTicks: [20, 20] };
+  assert.deepEqual(trailTip({ ...nitro, x: 85.2 }, 10.5, 'playing').at(-1), { x: 85.2, y: 10 });
+  assert.deepEqual(trailTip({ ...nitro, x: 85.5 }, 10.5, 'playing'), original);
+  assert.deepEqual(trailTip({ ...player, nitroUntilTicks: [10], x: 40.3 }, 10.5, 'playing'), original, 'a Nitro spent on the drawing tick does not stretch the cap');
   assert.deepEqual(trailTip({ ...player, portalCooldownUntilTick: 25 }, 10.5, 'playing'), original);
   assert.deepEqual(trailTip({ ...player, trail: [] }, 10.5, 'playing'), []);
   assert.equal(trailTip({ ...player, trail: player.trail.slice(0, -1) }, 10.5, 'playing').length, 2);

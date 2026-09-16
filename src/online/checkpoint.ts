@@ -2,7 +2,7 @@ import { MAX_TRAIL_SEGMENTS, TRAIL_DECAY_PAUSE_TICKS, trailSegmentsConnect } fro
 import { POINT_UNIT } from '../shared/leaderboard.js';
 import { MAX_EXTRA_BOMBS, MAX_VOLLEY_BOMBS } from '../shared/launch-modifiers.js';
 import { MAX_BOARD_PICKUPS, MAX_POWER_PICKUPS, POWER_TUNING } from '../shared/power-progression.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, MAX_SPEED_EFFECT_STACK, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
+import { ARENA_WIDTH, ARENA_HEIGHT, MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, PICKUP_TYPES, SLOT_COLORS, SNAIL_DURATION_TICKS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
@@ -110,6 +110,8 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
   return result;
 }
 
+const speedDeadlines = (deadlines: readonly number[], latest: number): boolean =>
+  deadlines.every((until, index) => until <= latest && (index === 0 || until >= deadlines[index - 1]!));
 function gameInvariants(game: GameState): boolean {
   const slots = new Set<number>();
   const pieceIds = new Set<number>();
@@ -119,6 +121,9 @@ function gameInvariants(game: GameState): boolean {
     if (p.alive && (!game.roundParticipants.has(id) || !game.matchStats.has(id))) return false;
     if (p.bombChargeStartedTick !== undefined && p.bombChargeStartedTick > game.tick) return false;
     if (p.drunkStartedTick > game.tick || p.trail.some(t => t.createdTick > game.tick)) return false;
+    // Speed deadlines are appended in tick order and never further out than one duration, so a list the rules could
+    // not have produced is refused rather than left to expire on a schedule no other replica shares.
+    if (!speedDeadlines(p.nitroUntilTicks, game.tick + NITRO_DURATION_TICKS) || !speedDeadlines(p.snailUntilTicks, game.tick + SNAIL_DURATION_TICKS)) return false;
     let active = false;
     for (let i = 0; i < p.trail.length; i++) {
       const segment = p.trail[i]!, previous = p.trail[i - 1];

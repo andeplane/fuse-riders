@@ -116,7 +116,7 @@ export const NITRO_DURATION_TICKS = 100;
 export const NITRO_SPEED = 2;
 export const SNAIL_DURATION_TICKS = 100;
 export const SNAIL_SPEED = 0.5;
-/** Deadlines a rider can hold per effect. Unreachable in play (the board caps pickups), so checkpoints can bound the lists. */
+/** Deadlines a rider can hold per effect: a bound for checkpoints. A 33rd collection inside one window is dropped, at a speed nobody survives anyway. */
 export const MAX_SPEED_EFFECT_STACK = 32;
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
@@ -1121,8 +1121,9 @@ function addSpeedEffect(deadlines: number[], untilTick: number): void {
 }
 /** Drops spent deadlines before movement, so state carries only the effects still in force. */
 function expireSpeedEffects(player: PlayerState, tick: number): void {
-  if (player.nitroUntilTicks.length && player.nitroUntilTicks[0]! <= tick) player.nitroUntilTicks = player.nitroUntilTicks.filter(until => until > tick);
-  if (player.snailUntilTicks.length && player.snailUntilTicks[0]! <= tick) player.snailUntilTicks = player.snailUntilTicks.filter(until => until > tick);
+  const spent = (until: number) => until <= tick;
+  if (player.nitroUntilTicks.some(spent)) player.nitroUntilTicks = player.nitroUntilTicks.filter(until => !spent(until));
+  if (player.snailUntilTicks.some(spent)) player.snailUntilTicks = player.snailUntilTicks.filter(until => !spent(until));
 }
 
 function portalBounds(state: GameState) {

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  BOOST_DURATION_TICKS, BOOST_SPEED, MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, NITRO_SPEED, SNAIL_DURATION_TICKS, SNAIL_SPEED,
-  SLOT_COLORS, addPlayer, createGame, eliminatePlayer, riderMotionStep, riderSpeedMultiplier, startMatch, startNextRound, step, toSnapshot, type GameState, type PickupType,
+  BOOST_DURATION_TICKS, BOOST_SPEED, MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, NITRO_SPEED, RIDER_SPEED, SNAIL_DURATION_TICKS, SNAIL_SPEED, TICK_HZ,
+  SLOT_COLORS, addPlayer, createGame, eliminatePlayer, riderMotionStep, riderSpeedMultiplier, startMatch, startNextRound, step, toSnapshot, type GameState, type InputIntent, type PickupType,
 } from '../src/shared/game.js';
+import { presentWorld } from '../src/online/prediction.js';
 import { decodeGameState, encodeGameState } from '../src/online/checkpoint.js';
 import { speedEffectLabel } from '../src/client/power-indicator.js';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
@@ -40,6 +41,7 @@ const ratio = (game: GameState, control: GameState, id: string) => {
   assert.ok(plain > 0, 'the control rider moved');
   return stride / plain;
 };
+const LEFT: InputIntent = { left: true, right: false, bomb: false };
 const close = (actual: number, expected: number, why: string) => assert.ok(Math.abs(actual - expected) < 1e-9, `${why}: ${actual} should be ${expected}`);
 
 test('Nitro doubles the collector for five seconds, on distance alone, then hands the speed back', () => {
@@ -51,8 +53,13 @@ test('Nitro doubles the collector for five seconds, on distance alone, then hand
   assert.deepEqual(rider.nitroUntilTicks, [game.tick + NITRO_DURATION_TICKS], 'one absolute deadline, five seconds out');
   assert.equal(NITRO_DURATION_TICKS, 100);
   close(ratio(game, control, 'p0'), NITRO_SPEED, 'the next tick is at double speed');
-  const { turn } = riderMotionStep(rider, game.tick, game.roundStartedTick), plainTurn = riderMotionStep(control.players.get('p0')!, control.tick, control.roundStartedTick).turn;
-  close(turn, plainTurn, 'steering is unchanged, so a fast rider turns wide');
+  // Steer both riders left for a tick: the Nitro rider swings through the same angle over twice the distance.
+  const angleBefore = rider.angle, plainAngleBefore = control.players.get('p0')!.angle;
+  step(game, new Map([['p0', LEFT]])); step(control, new Map([['p0', LEFT]]));
+  close(rider.angle - angleBefore, control.players.get('p0')!.angle - plainAngleBefore, 'steering is unchanged, so a fast rider turns wide');
+  assert.ok(rider.angle !== angleBefore, 'the riders actually turned');
+  Object.assign(rider, { angle: 0 }); Object.assign(control.players.get('p0')!, { angle: 0 }); // back on the row for the stride measurements below
+  assert.equal(riderMotionStep(rider, game.tick, game.roundStartedTick).turn, riderMotionStep(control.players.get('p0')!, control.tick, control.roundStartedTick).turn);
   while (game.tick < rider.nitroUntilTicks[0]! - 2) both(game, control);
   close(ratio(game, control, 'p0'), NITRO_SPEED, 'the last tick under the deadline is still doubled');
   const deadline = rider.nitroUntilTicks[0]!;
@@ -73,7 +80,7 @@ test('two Nitros stack to four times speed until the first expires, then two, th
   assert.deepEqual(rider.nitroUntilTicks, [first, game.tick + NITRO_DURATION_TICKS], 'the second is its own deadline, not a refresh of the first');
   close(ratio(game, control, 'p0'), NITRO_SPEED * NITRO_SPEED, 'two Nitros multiply to four times');
   while (game.tick < first) both(game, control);
-  assert.deepEqual(rider.nitroUntilTicks, [first + 21], 'only the later deadline remains once the first is spent');
+  assert.deepEqual(rider.nitroUntilTicks, [first + 21], 'only the later deadline remains once the first is spent: twenty ticks apart plus the collection step');
   close(ratio(game, control, 'p0'), NITRO_SPEED, 'back to double speed on the second alone');
   while (game.tick < rider.nitroUntilTicks[0]!) both(game, control);
   close(ratio(game, control, 'p0'), 1, 'and to ordinary speed once both are spent');
@@ -117,23 +124,25 @@ test('Snails stack on a rival, and a Snail cancels a Nitro one for one, with the
 test('speed deadlines stay sorted, are bounded, and are cleared by a new round', () => {
   const game = playing();
   const rider = game.players.get('p0')!;
-  // Collect out of order by hand-setting an earlier deadline, then collecting a later one: the list stays ascending, so
-  // the earliest to expire is first on every replica regardless of collection order.
+  // Collection appends deadlines in tick order, so an out-of-order list cannot arise through play: hand-set a later
+  // deadline first to pin that insertion sorts, so the earliest to expire is first on every replica regardless.
   const late = game.tick + 500; rider.nitroUntilTicks = [late];
   drop(game, 'p0', 'nitro'); step(game, new Map());
   assert.deepEqual(rider.nitroUntilTicks, [game.tick + NITRO_DURATION_TICKS, late]);
-  // A full stack of Nitros cancelled by a full stack of Snails, so the rider still moves at ordinary speed and survives.
-  rider.nitroUntilTicks = Array.from({ length: MAX_SPEED_EFFECT_STACK }, () => game.tick + 500);
-  rider.snailUntilTicks = [...rider.nitroUntilTicks];
-  assert.equal(riderSpeedMultiplier(rider, game.tick), 1);
-  drop(game, 'p0', 'nitro'); step(game, new Map());
-  assert.equal(rider.nitroUntilTicks.length, MAX_SPEED_EFFECT_STACK, 'a full stack drops the extra rather than growing without bound');
-  assert.equal(game.pickups.length, 0, 'the pickup was still consumed');
-  drop(game, 'p0', 'snail'); step(game, new Map());
-  assert.ok(game.players.get('p1')!.snailUntilTicks.length === 1 && rider.nitroUntilTicks.length === MAX_SPEED_EFFECT_STACK);
+  // The bound is reachable through play: a pile of Snails collected in one tick lands one deadline each on every rival.
+  for (let count = 0; count <= MAX_SPEED_EFFECT_STACK; count += 1) drop(game, 'p0', 'snail');
+  step(game, new Map());
+  assert.equal(game.pickups.length, 0, 'every Snail was consumed');
+  for (const other of ['p1', 'p2']) assert.equal(game.players.get(other)!.snailUntilTicks.length, MAX_SPEED_EFFECT_STACK, 'a full stack drops the extra rather than growing without bound');
+  assert.deepEqual(rider.snailUntilTicks, []);
   const shown = toSnapshot(game).players;
   assert.deepEqual(shown.find(player => player.id === 'p0')!.nitroUntilTicks, rider.nitroUntilTicks, 'the snapshot carries every deadline for the HUD and prediction');
   assert.deepEqual(shown.find(player => player.id === 'p1')!.snailUntilTicks, game.players.get('p1')!.snailUntilTicks);
+  // The same pile of Nitros on the collector: the two deadlines it holds count towards the cap.
+  for (let count = 0; count <= MAX_SPEED_EFFECT_STACK; count += 1) drop(game, 'p0', 'nitro');
+  step(game, new Map());
+  assert.equal(game.pickups.length, 0);
+  assert.equal(rider.nitroUntilTicks.length, MAX_SPEED_EFFECT_STACK);
   for (const id of ['p1', 'p2']) eliminatePlayer(game, id);
   while (game.phase === 'playing') step(game, new Map()); // the round ends inside step, not on elimination
   game.tick = game.phaseEndsAtTick!;
@@ -155,7 +164,22 @@ test('checkpoints carry the deadlines exactly and reject lists past the stack bo
   assert.equal(corrupt(player => { player.nitroUntilTicks = Array.from({ length: MAX_SPEED_EFFECT_STACK + 1 }, () => 5); }), undefined, 'more deadlines than the stack bound');
   assert.equal(corrupt(player => { player.snailUntilTicks = [1.5]; }), undefined, 'a fractional deadline');
   assert.equal(corrupt(player => { player.snailUntilTicks = 7; }), undefined, 'a deadline that is not a list');
+  assert.equal(corrupt(player => { player.nitroUntilTicks = [game.tick + 50, game.tick + 20]; }), undefined, 'a list the rules never produce: out of order');
+  assert.equal(corrupt(player => { player.nitroUntilTicks = [game.tick + NITRO_DURATION_TICKS + 1]; }), undefined, 'a deadline further out than one Nitro lasts');
+  assert.ok(corrupt(player => { player.nitroUntilTicks = [game.tick + NITRO_DURATION_TICKS]; }), 'a deadline exactly one Nitro out is what a collection this tick leaves');
   assert.ok(corrupt(player => { player.nitroUntilTicks = []; }), 'an empty list is the ordinary case');
+});
+
+test('local prediction runs the Nitro rider at its stacked speed from the snapshot alone', () => {
+  const game = playing();
+  drop(game, 'p0', 'nitro'); drop(game, 'p0', 'nitro'); step(game, new Map());
+  const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const shown = presentWorld(undefined, snapshot, snapshot.tick, { id: 'p0', controls: LEFT, lead: 1 });
+  step(game, new Map([['p0', LEFT]]));
+  const rider = game.players.get('p0')!, view = shown.players.find(player => player.id === 'p0')!;
+  assert.deepEqual([view.x, view.y, view.angle], [rider.x, rider.y, rider.angle], 'the predicted pose is the simulated one, four times the ordinary stride');
+  assert.ok(Math.hypot(view.x - snapshot.players[0]!.x, view.y - snapshot.players[0]!.y) > 3 * RIDER_SPEED / TICK_HZ, 'the stride is well past anything a plain or boosted rider manages');
+  assert.equal(view.trail.length, snapshot.players[0]!.trail.length + 1, 'the lead segment is still drawn at that stride');
 });
 
 test('the phone chip shows the stacked factor and the longest time left, and the guide explains stacking', () => {
