@@ -1,11 +1,13 @@
 import { performance } from 'node:perf_hooks';
-import { writeFile, mkdir } from 'node:fs/promises';
-import { BotController, botDisplayName } from '../src/shared/bot-controller.js';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { BotController } from '../src/shared/bot-controller.js';
 import { createGame, addPlayer, startMatch, step, SLOT_COLORS } from '../src/shared/game.js';
 const results=[];
 for(const trailsPerRider of [0,160,800]){
   const game=createGame('bot-benchmark');
-  for(let slot=0;slot<5;slot++)addPlayer(game,{id:slot?'bot:'+slot:'human',name:botDisplayName('Rider'+slot,'hard'),slot,color:SLOT_COLORS[slot]!});
+  for(let slot=0;slot<5;slot++)addPlayer(game,{id:slot?'bot:'+slot:'human',name:'Rider '+slot,slot,color:SLOT_COLORS[slot]!});
   startMatch(game);for(let tick=0;tick<60;tick++)step(game,new Map());
   for(const [slot,player]of [...game.players.values()].entries()){
     player.trail=Array.from({length:trailsPerRider},(_,i)=>({x1:40+(i%40)*38,y1:40+Math.floor(i/40)*38+slot,x2:54+(i%40)*38,y2:46+Math.floor(i/40)*38+slot,createdTick:0,expiresAtTick:2000}));
@@ -20,6 +22,6 @@ for(const trailsPerRider of [0,160,800]){
   results.push({trailsPerRider,totalTrails:trailsPerRider*5,bots:4,samples,p50Ms:at(.5),p95Ms:at(.95),p99Ms:at(.99),maxMs:Math.max(...samples)});
 }
 await mkdir('artifacts',{recursive:true});
-const report={date:new Date().toISOString(),environment:`${process.platform}/${process.arch} ${process.version}`,method:'Four deterministic AI control decisions per sample over a fixed five-rider arena, 50 warmups + 500 samples per trail workload; no simulation, rendering, network or physical phone timing included.',results};
+const report={revision:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),controllerSha256:createHash('sha256').update(await readFile(new URL('../src/shared/bot-controller.ts',import.meta.url))).digest('hex'),date:new Date().toISOString(),environment:`${process.platform}/${process.arch} ${process.version}`,method:'Four deterministic AI control decisions per sample over a fixed five-rider arena, 50 warmups + 500 samples per trail workload; no simulation, rendering, network or physical phone timing included.',results};
 await writeFile('artifacts/bot-benchmark.json',JSON.stringify(report,null,2)+'\n');
 console.log(JSON.stringify({...report,results:results.map(({samples,...summary})=>summary)},null,2));

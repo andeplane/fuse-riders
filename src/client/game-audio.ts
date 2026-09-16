@@ -23,9 +23,9 @@ export interface GameAudio {
   controls: HTMLElement;
   unlock: (confirm?: boolean) => void;
   /**
-   * Wires an existing button as the ♫ MUSIC ON / ♫ MUSIC OFF toggle. Its label is what a listener hears, not the
-   * setting: a page that has not been tapped yet, a paused radio and a muted channel all read OFF, and tapping OFF
-   * makes it sound (unmute, unpause, unlock) inside that gesture. Every page uses this same button and wording.
+   * Wires an existing button as the ♫ MUSIC ON / ♫ MUSIC OFF toggle. Its label is the setting, not the speaker: only
+   * a muted channel or a paused radio reads OFF, and a page the browser has not let play yet still reads ON, because the
+   * first gesture anywhere starts it. Tapping OFF unmutes, unpauses and unlocks. Every page uses this button and wording.
    */
   bindMusicToggle: (button: HTMLButtonElement) => void;
 }
@@ -343,24 +343,20 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   }
   director.subscribe(render); render(); // Mute changes reach it through the director as well.
 
-  const sounding = () => !settings.muted.music && director.audible();
+  // The setting, not what is coming out of the speaker: a browser that has not been tapped yet still reads ON, because
+  // music IS on and the first gesture anywhere starts it. Reporting silence as OFF made a plain page load look broken.
+  const musicOn = () => !settings.muted.music && !director.state.paused;
   const bindMusicToggle = (button: HTMLButtonElement) => {
     const render = () => {
       // The label carries the state, so no aria-pressed: "Turn music on, pressed" reads as a contradiction.
-      const text = sounding() ? '♫ MUSIC ON' : '♫ MUSIC OFF'; if (button.textContent !== text) button.textContent = text;
-      const muted = String(!sounding()); if (button.dataset.muted !== muted) button.dataset.muted = muted;
+      const text = musicOn() ? '♫ MUSIC ON' : '♫ MUSIC OFF'; if (button.textContent !== text) button.textContent = text;
+      const muted = String(!musicOn()); if (button.dataset.muted !== muted) button.dataset.muted = muted;
     };
     rendered.add(render); render();
-    // OFF while unmuted means the browser has not let the track play yet, so the tap plays it rather than muting.
-    // The decision is taken when the gesture starts: the page-wide unlock listeners run on pointerdown and touchend,
-    // before the click, and their play() already makes the track sound, so a click-time read would mute it again.
-    let wasSounding = false;
-    for (const type of ['pointerdown', 'keydown'] as const) button.addEventListener(type, () => { wasSounding = sounding(); });
     button.addEventListener('click', () => {
-      if (wasSounding) { wasSounding = false; setMuted('music', true); return; }
-      if (settings.muted.music) setMuted('music', false);
-      if (director.state.paused) director.togglePause();
-      unlock(); render();
+      if (musicOn()) setMuted('music', true);
+      else { setMuted('music', false); if (director.state.paused) director.togglePause(); unlock(); }
+      render();
     });
   };
   // Ctrl+A radio, Ctrl+M everything, Ctrl+Alt+M music, Ctrl+Alt+E effects. Capture phase, ahead of game keys.

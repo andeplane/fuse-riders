@@ -88,7 +88,7 @@ function proxyUpgrade(target: URL, req: http.IncomingMessage, socket: import('no
 }
 
 export function controllerSnapshot(state: GameSnapshot): GameSnapshot {
-  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], matchStats: [] };
+  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], matchStats: [], moments: [] };
 }
 
 export function lanAddress() {

@@ -278,3 +278,14 @@ test('gun launch plays a layered cannon cue', async () => {
   assert.ok(f.notes.some(({ note }) => note.wave === 'triangle' && note.endFrequency === 24 && note.duration === .4));
   assert.ok(f.notes.every(({ channel }) => channel === 'effects'));
 });
+
+test('replay stings play only after the unlock and never while effects are silenced', async () => {
+  const f = fixture();
+  f.director.replayCue('in'); assert.equal(f.notes.length, 0, 'locked');
+  await f.director.unlock();
+  f.director.replayCue('in'); const riser = f.notes.length; assert.ok(riser >= 2, 'a riser and its tail');
+  assert.ok(f.notes.every(entry => entry.channel === 'effects'));
+  f.director.replayCue('impact'); assert.ok(f.notes.length > riser); assert.ok(f.notes.slice(riser).some(entry => entry.note.frequency > entry.note.endFrequency!), 'the thump falls');
+  const before = f.notes.length; f.director.setEffectsSilenced(true); f.director.replayCue('out'); assert.equal(f.notes.length, before, 'a hidden tab is silent');
+  f.director.setEffectsSilenced(false); f.director.replayCue('out'); assert.ok(f.notes.length > before);
+});

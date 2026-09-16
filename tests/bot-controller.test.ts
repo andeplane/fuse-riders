@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BotController, botRandom, botDifficulty, botDisplayName, rollBotDifficulty, BOT_DIFFICULTIES, BOT_TIERS, type BotDifficulty } from '../src/shared/bot-controller.js';
-import { createGame, addPlayer, startMatch, step, SLOT_COLORS, type GameState } from '../src/shared/game.js';
+import { BotController, botRandom, botDifficulty, botDisplayName, rollBotDifficulty, BOT_DIFFICULTIES, BOT_TIERS } from '../src/shared/bot-controller.js';
+import { createGame, addPlayer, startMatch, step, SLOT_COLORS, OVERTIME_START_TICK, type GameState } from '../src/shared/game.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { applyTick, createRoomState, freeSlot, BOT_NAMES, type StreamEntries } from '../src/shared/apply-tick.js';
 import { ACTION, BOT, JOIN, STEER, MAX_NAME_LENGTH, type Entry } from '../src/shared/input-log.js';
@@ -21,7 +21,7 @@ function logged(){
 test('AI is deterministic, uses its injected random stream and never mutates the observed world',()=>{
   const game=fixture(),before=structuredClone(game);let calls=0;
   const bot=new BotController({random:()=>{calls++;return.5;}});
-  assert.deepEqual(bot.input(game,'bot:1'),bot.input(game,'bot:1'));assert.equal(calls,4,'two draws per decision: the tie-break order and whether attention lapsed');assert.deepEqual(game,before);
+  assert.deepEqual(bot.input(game,'bot:1'),bot.input(game,'bot:1'));assert.equal(calls,2);assert.deepEqual(game,before);
   assert.equal(botRandom(42,'bot:1',17),botRandom(42,'bot:1',17));assert.notEqual(botRandom(42,'bot:1',17),botRandom(42,'bot:2',17));
 });
 
@@ -42,6 +42,62 @@ test('AI turns away from imminent walls, trails and rider paths',()=>{
     if(hazard==='rider'){other.x=490;other.angle=Math.PI;}
     const input=bot.input(game,player.id);assert.ok(input.left||input.right,`${hazard} should provoke avoidance`);
   }
+});
+
+function steeringFixture(){
+  const game=fixture();
+  game.nextPickupSpawnTick=Number.MAX_SAFE_INTEGER;
+  for(const player of game.players.values()){
+    player.trail=[];
+    player.bombReadyAtTick=Number.MAX_SAFE_INTEGER;
+  }
+  // Keep the other rider alive so an early round ending cannot hide a bot crash.
+  Object.assign(game.players.get('human')!,{x:1200,y:650,angle:0,invulnerableUntilTick:game.tick+300});
+  return game;
+}
+
+function steerFor(game:GameState,ticks:number){
+  const bot=new BotController();
+  for(let tick=0;tick<ticks;tick++){
+    step(game,new Map([['bot:1',bot.input(game,'bot:1')]]));
+    assert.equal(game.players.get('bot:1')!.alive,true,`bot crashed after ${tick+1} ticks`);
+    assert.equal(game.phase,'playing','the full steering scenario must actually run');
+  }
+}
+
+test('AI escapes an approaching corner and keeps surviving its own fresh trails',()=>{
+  const game=steeringFixture();
+  Object.assign(game.players.get('bot:1')!,{x:1470,y:770,angle:Math.PI/4});
+  steerFor(game,240);
+});
+
+test('AI escapes a corner as overtime starts shrinking the walls',()=>{
+  const game=steeringFixture(),inset=game.boundaryInset;
+  game.roundStartedTick=game.tick-OVERTIME_START_TICK+10;
+  Object.assign(game.players.get('bot:1')!,{x:1470,y:770,angle:Math.PI/4});
+  steerFor(game,120);
+  assert.ok(game.boundaryInset>inset);
+});
+
+test('AI avoids the trail a crossing rider will leave, including active and expiring boosts',()=>{
+  for(const boostTicks of [0,4,240]){
+    const game=steeringFixture();
+    Object.assign(game.players.get('human')!,{x:500,y:boostTicks?400:410,angle:Math.PI/2});
+    if(boostTicks)for(const player of game.players.values())player.boostUntilTick=game.tick+boostTicks;
+    // An expiring boost case covers the crossing and speed transition; the
+    // sustained cases also exercise several seconds of subsequent steering.
+    steerFor(game,boostTicks===4?40:120);
+  }
+});
+
+test('steering replay from a restored world needs no hidden planner state',()=>{
+  const game=steeringFixture();
+  Object.assign(game.players.get('human')!,{x:500,y:410,angle:Math.PI/2});
+  steerFor(game,40);
+  const restored=structuredClone(game);
+  steerFor(game,80);
+  steerFor(restored,80);
+  assert.deepEqual(restored,game);
 });
 
 test('AI considers expired and recent own trails, pickups, blasts, shells and drunk heading without changing physics',()=>{
@@ -75,7 +131,7 @@ test('AI target/gun/shell shots use normal input actions and target aim is bound
     if(powerup==='targetBombArmed'){
       const aim=press.aim!;assert.ok(aim.x>=0&&aim.x<=1&&aim.y>=0&&aim.y<=1,'aim stays inside the arena');
       const error=BOT_TIERS[botDifficulty(player.name)].aimError;
-      assert.ok(Math.abs(aim.x*game.width-600)<=error&&Math.abs(aim.y*game.height-450)<=error,'aim misses by at most the AI error');
+      assert.ok(Math.abs(aim.x*game.width-600)<=error&&Math.abs(aim.y*game.height-450)<=error,'aim misses by at most this tier\'s error');
     }
     step(game,new Map([[player.id,press]]));step(game,new Map([[player.id,bot.input(game,player.id)]]));
     const release=bot.input(game,player.id);assert.equal(release.bombCommands?.[0]?.action,'release');
@@ -105,27 +161,6 @@ test('AI arriving during a match waits and appears in the next round; removal be
   tick(['host',[BOT,'add','bot:3','AI Hopper',2]]);assert.ok(state.game.players.has('bot:3'),'a removed bot identity is not reused');
 });
 
-test('An AI that values space refuses a dead end it could not turn around inside',()=>{
-  const decide=(difficulty:BotDifficulty,capped:boolean)=>{
-    const game=fixture(),rider=game.players.get('bot:1')!,other=game.players.get('human')!;
-    Object.assign(rider,{x:400,y:450,angle:0,trail:[],name:botDisplayName('Ada',difficulty)});
-    Object.assign(other,{x:400,y:80,alive:false,trail:[]});
-    game.pickups=[];game.bombs.clear();game.blasts=[];
-    const wall=(x1:number,y1:number,x2:number,y2:number)=>{
-      const steps=Math.ceil(Math.hypot(x2-x1,y2-y1)/8);
-      for(let i=0;i<steps;i++)other.trail.push({x1:x1+(x2-x1)*i/steps,y1:y1+(y2-y1)*i/steps,x2:x1+(x2-x1)*(i+1)/steps,y2:y1+(y2-y1)*(i+1)/steps,createdTick:0,expiresAtTick:game.tick+999});
-    };
-    // A 100px corridor: narrower than the ~107px a rider needs to turn around, so the capped one is fatal to enter.
-    wall(430,400,900,400);wall(430,500,900,500);if(capped)wall(900,400,900,500);
-    const input=new BotController().input(game,rider.id);return input.left||input.right;
-  };
-  for(const difficulty of ['medium','hard'] as const){
-    assert.equal(decide(difficulty,true),true,`${difficulty} must refuse a dead end while there is still room to turn`);
-    assert.equal(decide(difficulty,false),false,`${difficulty} must still enter a corridor that leads somewhere`);
-  }
-  assert.equal(decide('easy',true),false,'the easy rider weighs no space at all and drives into it');
-});
-
 test('Every AI is rolled a difficulty that shows in its name and steers its own controller',()=>{
   assert.deepEqual([0,.34,.67,.99].map(rollBotDifficulty),['easy','medium','hard','hard']);
   for(const base of BOT_NAMES)for(const difficulty of BOT_DIFFICULTIES){
@@ -133,8 +168,23 @@ test('Every AI is rolled a difficulty that shows in its name and steers its own 
     assert.equal(botDifficulty(name),difficulty,`${name} must read back its own tier`);
     assert.ok(name.length<=MAX_NAME_LENGTH,`${name} must fit the rider name the log accepts`);
   }
-  assert.equal(botDifficulty('Ada'),'medium','a name carrying no tier falls back to the middle');
+  assert.equal(botDifficulty('Ada'),'hard','a name carrying no tier is full strength, never a quiet downgrade');
   const [easy,medium,hard]=BOT_DIFFICULTIES.map(difficulty=>BOT_TIERS[difficulty]);
   assert.ok(easy!.aimError>medium!.aimError&&medium!.aimError>hard!.aimError,'a harder AI aims better');
-  assert.ok(hard!.lookaheadTicks>=medium!.lookaheadTicks&&medium!.lookaheadTicks>easy!.lookaheadTicks,'a harder AI looks further');
+  assert.equal(hard!.aimError,0,'the top tier is exactly the shipped controller, never a quiet downgrade of it');
+  assert.ok(easy!.blunderRate>medium!.blunderRate&&medium!.blunderRate>hard!.blunderRate,'a harder AI lapses less');
+  assert.ok(hard!.lookaheadTicks>medium!.lookaheadTicks&&medium!.lookaheadTicks>easy!.lookaheadTicks,'a harder AI plans further');
+});
+
+test('A weak rider lapses on a schedule the tick decides, so a rollback replays the same mistake',()=>{
+  const game=fixture(),player=game.players.get('bot:1')!;
+  // Rigged so the lapse always fires and always swerves right; the tier is the only thing that changes.
+  const rigged={random:(_seed:number,id:string)=>id.endsWith(':lapse')?0:id.endsWith(':swerve')?.9:.5};
+  player.name=botDisplayName('Ada','easy');
+  const lapsed=new BotController(rigged).input(game,player.id);
+  assert.deepEqual(lapsed,new BotController(rigged).input(game,player.id),'a fresh controller replays the same lapse from the same tick');
+  assert.equal(lapsed.right,true,'a lapse swerves instead of steering well');
+  player.name=botDisplayName('Ada','hard');
+  const sober=new BotController(rigged).input(game,player.id);
+  assert.notDeepEqual({left:sober.left,right:sober.right},{left:lapsed.left,right:lapsed.right},'the top tier never lapses');
 });

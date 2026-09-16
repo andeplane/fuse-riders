@@ -1,8 +1,8 @@
 // Headless AI league: plays whole matches with no rendering, network or clock, so tiers can be compared by evidence.
 // Usage: npx tsx scripts/ai-league.ts [matchesPerPairing]
-import { BotController, botDisplayName, BOT_DIFFICULTIES, type BotDifficulty } from '../src/shared/bot-controller.js';
+import { BotController, botDisplayName, botRandom, BOT_DIFFICULTIES, type BotDifficulty } from '../src/shared/bot-controller.js';
 import { createGame, addPlayer, startMatch, step, SLOT_COLORS, ROUND_DRAW_TICK } from '../src/shared/game.js';
-import { botRandom } from '../src/shared/bot-controller.js';
+
 /** Identical deterministic brains on symmetric spawns mirror each other into a simultaneous crash, which measures
  *  the arena's symmetry rather than the riders' skill. A seeded nudge off the spawn marks breaks it. */
 function jitterSpawns(game:ReturnType<typeof createGame>,seed:number){
