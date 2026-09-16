@@ -55,7 +55,7 @@ try {
   }, { names, labels, themeList });
   await page.screenshot({ path: `${output}/${browserName}-sprites.png`, fullPage: true });
   for (const backend of ['auto', 'canvas'] as const) {
-    for (const themeId of ['neon-pixel', 'clean-neon'] as const) {
+    for (const { id: themeId } of themeList) {
       await page.evaluate(async ({ backend, themeId, types }) => {
         const { createPhaserArena } = await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
         const { visualFixture } = await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
