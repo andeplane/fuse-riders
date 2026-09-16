@@ -191,6 +191,16 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Gold stopwatch for shorter bomb fuses."
+    },
+    "pickup-grip": {
+      "file": "pickup-grip.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Green U-turn arrow: 43% tighter turn radius for this round; collectible once per rider."
     }
   }
 }

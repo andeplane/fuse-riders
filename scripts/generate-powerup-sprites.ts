@@ -20,6 +20,12 @@ const artwork: Record<string, string> = {
     <circle cx="32" cy="32" r="8" fill="#0a0618" stroke="#e6d4ff" stroke-width="2"/>
     <path d="M13 20c5 3 8 6 10 10M51 44c-5-3-8-6-10-10" fill="none" stroke="#d7b6ff" stroke-width="2.5" stroke-linecap="round" opacity=".85"/>
   `,
+  'pickup-grip': `
+    <circle cx="32" cy="32" r="24" fill="url(#body)" stroke="#88ffad" stroke-width="2.5"/>
+    <path d="M46 49V27a14 14 0 0 0-28 0v15" fill="none" stroke="#a3ffb0" stroke-width="7"/>
+    <path d="m9 35 9 13 10-13" fill="none" stroke="#effff1" stroke-width="5"/>
+    <path d="M46 48v-9" stroke="#effff1" stroke-width="3"/>
+  `,
   'pickup-boost': `
     <circle cx="32" cy="32" r="21" fill="url(#body)" stroke="#5cf0ff" stroke-width="2.5"/>
     <path d="M35 11 19 35h11l-3 18 18-26H34z" fill="url(#cyan)" stroke="#e4fdff" stroke-width="2" stroke-linejoin="round"/>

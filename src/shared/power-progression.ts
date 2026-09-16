@@ -15,8 +15,8 @@ export const POWER_TUNING = {
   // Ordinary bombs block another launch until their 40-tick fuse ends.
   minReloadTicks: 45,
   halfStrengthPickups: 30,
-  baseTrailLifetimeTicks: 60,
-  trailTicksPerPickup: 5,
+  baseTrailLifetimeTicks: 80,
+  trailTicksPerPickup: 10,
   // Resource ceiling: at most one new segment per rider per tick.
   maxTrailLifetimeTicks: 1024,
 } as const;

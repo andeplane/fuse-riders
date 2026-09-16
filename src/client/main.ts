@@ -401,7 +401,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 22 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
     const riderLabel = self ? 'YOU' : player.name, labelColor = self ? '#ffffff' : color;
     ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'left';
-    const powerText = powerCountText(player.powerPickups, player.extraBombs), gap = 8;
+    const powerText = powerCountText(player.powerPickups, player.extraBombs, player.grip), gap = 8;
     const nameWidth = ctx.measureText(riderLabel).width;
     const labelX = Math.round(player.x - (nameWidth + gap + POWER_ICON_SIZE + POWER_ICON_GAP + ctx.measureText(powerText).width) / 2);
     const labelY = Math.round(player.y - (self ? 30 : 27));
@@ -969,7 +969,7 @@ function startController(): void {
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
-    countPower.textContent = powerLabel(player.powerPickups, player.extraBombs);
+    countPower.textContent = powerLabel(player.powerPickups, player.extraBombs, player.grip);
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;
