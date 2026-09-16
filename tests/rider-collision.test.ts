@@ -55,3 +55,31 @@ test('the verdict does not depend on which rider was added first', () => {
     assert.deepEqual(eliminated(step(collide, new Map())), ['p0', 'p1'], `order ${order} changed the head-on`);
   }
 });
+
+// The three below exist because each kills a mutation the cases above let through. Without them the body radius
+// could be halved, the search could ignore the back half of the tick, or contact could be invented from before it.
+test('riders whose bodies overlap for the whole tick die, which is what pins the body width itself', () => {
+  const state = pair();
+  // 10 apart with matched velocity: never closing, but 10 is inside 2 * RIDER_RADIUS, so they are always touching.
+  place(state, 'p0', 500, 350, 0);
+  place(state, 'p1', 510, 350, 0);
+  assert.deepEqual(eliminated(step(state, new Map())), ['p0', 'p1'], 'a pair inside two body radii must die');
+});
+
+test('contact reached only at the very end of the tick still kills', () => {
+  const state = pair();
+  // Closing 15 a tick from 23.5 apart: they are 8.5 apart exactly at t = 1, and never closer beforehand. A search
+  // that gave up half way through the tick would call this a miss.
+  place(state, 'p0', 500, 350, 0);
+  place(state, 'p1', 523.5, 350, Math.PI);
+  assert.deepEqual(eliminated(step(state, new Map())), ['p0', 'p1'], 'the whole tick is searched, not its first half');
+});
+
+test('riders riding apart survive, so contact cannot be borrowed from before the tick began', () => {
+  const state = pair();
+  // Back to back at 15 apart, each leaving: the gap only grows. Extending the search before t = 0 would find the
+  // overlap they had a moment earlier and kill them for it.
+  place(state, 'p0', 500, 350, Math.PI);
+  place(state, 'p1', 515, 350, 0);
+  assert.deepEqual(eliminated(step(state, new Map())), [], 'separating riders were never in contact during this tick');
+});
