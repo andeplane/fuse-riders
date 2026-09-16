@@ -18,6 +18,7 @@ try {
   await page.locator('.desktop-game').waitFor();
   // Lobby gives deterministic time for hold/cancel checks without AI round changes.
   await page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.online-notice')?.textContent === 'Join your friends, then start the race');
   for (const [code, button] of [['ArrowLeft', left], ['ArrowRight', right], ['KeyA', left], ['KeyD', right], ['Space', fire]] as const) {
     await page.keyboard.down(code);
     assert.match(await button.getAttribute('class') ?? '', /active/);
@@ -85,16 +86,20 @@ try {
   const layouts = [];
   for (const viewport of [{ width: 2048, height: 1178 }, { width: 1723, height: 997 }, { width: 1280, height: 900 }, { width: 2560, height: 1080 }]) {
     await page.setViewportSize(viewport);
-    const layout = await page.evaluate(() => {
+    // Blasts shake the canvas and replays zoom it. Their transformed bounds are not
+    // layout bounds; sample the complete geometry together once the effect settles.
+    const layout = await (await page.waitForFunction(() => {
       const canvas = document.querySelector<HTMLCanvasElement>('.online-arena')!;
+      if (getComputedStyle(canvas).transform !== 'none') return;
       const r = canvas.getBoundingClientRect(), bar = document.querySelector('.online-header')!.getBoundingClientRect();
       const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
       const roster = document.querySelector('.online-roster')!.getBoundingClientRect();
       const actions = document.querySelector('.online-host')!.getBoundingClientRect();
       return { viewport: { width: innerWidth, height: innerHeight }, arena: { width: r.width, height: r.height, y: r.y }, fitted: { width: canvas.width * scale, height: canvas.height * scale }, bar: { height: bar.height, bottom: bar.bottom }, rosterY: roster.y, actionsY: actions.y, overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
-    });
+    })).jsonValue();
+    assert.ok(layout);
     assert.equal(layout.overflow, false);
-    assert.ok(layout.arena.y >= layout.bar.bottom && layout.arena.y <= layout.bar.bottom + 5);
+    assert.ok(layout.arena.y >= layout.bar.bottom && layout.arena.y <= layout.bar.bottom + 5, `Arena/bar placement: ${JSON.stringify(layout)}`);
     assert.ok(layout.arena.height >= viewport.height - layout.bar.height - 13);
     if (viewport.width === 2048) {
       assert.ok(layout.fitted.width > viewport.width * .97, 'reference screen uses at least 97% of horizontal space');
