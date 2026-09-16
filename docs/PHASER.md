@@ -27,6 +27,8 @@ The scene batches sprites, retains trail graphics between updates, and uses one 
 
 `src/client/blast-animation.ts` samples the same explosion geometry for Phaser and the Canvas fallback: nine irregular orange/amber circles pop outward with staggered starts and a small size overshoot, then shrink and separate as the bright core collapses first. Six small square embers finish the effect. Seeded cosmetic offsets depend on bomb identity, so repeated frames and rollback do not jitter or consume simulation randomness. The faint full-radius footprint and the expanding ring stay within the supplied blast radius, as do every lobe and ember. The animation fits the existing eight-tick (400 ms) lifetime; it does not extend damage or retain expired explosions. Online uses its fractional snapshot tick; LAN supplies bounded fractional `presentationTick` metadata for cosmetics while keeping the authoritative tick intact. Blast sparks are sampled directly rather than emitted as Phaser particles; the bounded particle pool still handles rider deaths.
 
+Explosion-cut trails also leave client-only debris (`src/client/trail-debris.ts`). The renderer compares one retained trail frame with the next snapshot and emits only missing, unexpired segments intersecting a newly observed blast. Normal expiry, boundary trimming, partially retained segments and speculative future tips do not emit. Each piece keeps its rider color, with locally random outward velocity, spin and a 520–820 ms lifetime; analytic drag samples the caller's frame clock without a physics loop or network messages. Overlapping blasts launch a piece once. Debris is capped at 240 pieces on desktop and 80 on mobile, and history at 2,048 segments per rider; dense removals sample across riders. Scope/round changes, backward time, lobby and renderer resets discard the cosmetic history. A fresh renderer or a client that missed the entire blast has no previous cut to animate. Both renderers clip fragments to the arena and draw them beneath riders and ink.
+
 Desktop quality reserves 480 particles (mobile-width quality: 160), with matching live-particle limits. Phaser's total-object limit is one higher because its `atLimit` includes reserved dead particles. Sprite and label pools shrink to the current snapshot's needs plus 16 and 8 spare objects. These pools do not cap or omit valid authoritative projectiles. The snapshot validation boundary must still bound world complexity.
 
 A lost GPU context displays recovery status. Successful restoration resets transient effects and redraws current state. If restoration does not happen within two seconds, the adapter replaces the incompatible canvas and uses the original Canvas renderer. `?renderer=canvas` selects that renderer explicitly; `?renderer=phaser-canvas` exercises Phaser's Canvas backend. Destroy is idempotent and flushes Phaser's deferred destruction without leaving an independent animation loop. Assets resolve beneath `import.meta.env.BASE_URL`, including `/fuse-riders/` on GitHub Pages.
@@ -53,6 +55,8 @@ npm run typecheck
 npx tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
 npx tsx scripts/blast-browser.ts
 BROWSER=webkit npx tsx scripts/blast-browser.ts
+npx tsx scripts/trail-debris-browser.ts
+BROWSER=webkit npx tsx scripts/trail-debris-browser.ts
 npx tsx scripts/phaser-browser.ts
 BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts

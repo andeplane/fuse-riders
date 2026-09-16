@@ -10,6 +10,7 @@ import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
 import { blastFrame } from './blast-animation.js';
+import { drawTrailDebris, type DebrisStroke } from './trail-debris.js';
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
@@ -242,7 +243,7 @@ function drawSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: n
   ctx.restore();
 }
 
-export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites): void {
+export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris: readonly DebrisStroke[] = []): void {
   const { width, height } = snapshot;
   ctx.clearRect(0, 0, width, height);
   ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
@@ -372,6 +373,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.restore();
   }
 
+  drawTrailDebris(ctx, debris, snapshot);
   for (const player of snapshot.players) {
     const color = escapeColor(player.color);
     if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);

@@ -13,6 +13,7 @@ import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 import { blastFrame } from '../blast-animation.js';
+import { TrailDebris } from '../trail-debris.js';
 
 const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
@@ -128,7 +129,10 @@ class ArenaScene extends Phaser.Scene {
   trailHistoryBuilds = 0;
   private floorKey = ''; private backgroundKey = '';
   private transitions = new EffectTransitions();
-  constructor(private readonly particleLimit: number, private readonly loaded: () => void) { super('arena'); }
+  private debris: TrailDebris;
+  constructor(private readonly particleLimit: number, private readonly loaded: () => void) {
+    super('arena'); this.debris = new TrailDebris(Math.floor(particleLimit / 2));
+  }
   /** Phaser reset clears its sets, but does not detach pending XHR callbacks. */
   cancelPreload(): void {
     const loader=this.load;
@@ -179,7 +183,7 @@ class ArenaScene extends Phaser.Scene {
     this.world.add(this.inkImage);
     this.loaded();
   }
-  resetEffects(): void { this.transitions.reset(); this.sparks?.killAll(); this.trailHistory.reset(); }
+  resetEffects(): void { this.transitions.reset(); this.sparks?.killAll(); this.trailHistory.reset(); this.debris.reset(); }
   invalidate(): void { this.trailHistory.reset(); this.floorKey = ''; this.backgroundKey = ''; }
   objectCount(): number { return (this.children?.length ?? 0) + (this.world?.length ?? 0); }
   particleCount(): number { return this.sparks?.getAliveParticleCount() ?? 0; }
@@ -357,6 +361,12 @@ class ArenaScene extends Phaser.Scene {
       g.lineStyle(1.5,tints.warm,frame.ring.alpha).strokeCircle(x,y,frame.ring.radius);
       for(const circle of frame.circles) g.fillStyle(tints[circle.tone],circle.alpha).fillCircle(circle.x,circle.y,circle.radius);
       for(const spark of frame.sparks) g.fillStyle(tints.warm,spark.alpha).fillRect(spark.x-spark.size/2,spark.y-spark.size/2,spark.size,spark.size);
+    }
+    for(const piece of this.debris.update(s,now,matchId)) {
+      const tint=color(piece.color);
+      g.lineStyle(piece.width+5,tint,piece.alpha*.16).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+      g.lineStyle(piece.width,tint,piece.alpha).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+      g.lineStyle(1,0xffffff,piece.alpha*.65).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
     }
     for(const p of s.players) {
       const tint=color(p.color);
