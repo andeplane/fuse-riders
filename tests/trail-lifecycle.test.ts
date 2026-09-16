@@ -14,9 +14,10 @@ test('pause includes the exact boundary, then consumes equal distance at each en
   assert.deepEqual(trail[0]!.detached, { id: 1, decayStartTick: 30 });
   for (let tick = 11; tick <= 30; tick++) assert.deepEqual(advanceTrail(trail, tick), trail);
   let current = advanceTrail(trail, 31);
-  assert.equal(current[0]!.x1, 103.75); assert.equal(current[0]!.x2, 396.25);
-  for (let tick = 32; tick <= 70; tick++) current = advanceTrail(current, tick);
-  assert.deepEqual(current, []);
+  assert.equal(current[0]!.x1, 101.875); assert.equal(current[0]!.x2, 398.125);
+  for (let tick = 32; tick < 110; tick++) current = advanceTrail(current, tick);
+  assert.equal(length(current), 3.75, '300-unit piece lasts four seconds after the one-second pause');
+  assert.deepEqual(advanceTrail(current, 110), []);
 });
 
 test('erosion follows bends, removes multiple/zero segments, is segmentation-independent and pure', () => {
@@ -76,7 +77,7 @@ test('portal gaps preserve active lifetime but detach as separate runs without c
   const dead = detachTrail(input, 10, allocator());
   assert.notEqual(dead[0]!.detached?.id, dead[1]!.detached?.id);
   const shrunk = advanceTrail(dead, 31);
-  assert.equal(length(shrunk), 185); assert.equal(shrunk[1]!.x1, 803.75);
+  assert.equal(length(shrunk), 192.5); assert.equal(shrunk[1]!.x1, 801.875);
   const severed = cutTrail(input, 10, s => cutTrailHole(s, 850, 100, 10), allocator());
   assert.ok(severed[0]!.detached); assert.ok(severed[1]!.detached); assert.equal(severed[2]!.detached, undefined);
 });

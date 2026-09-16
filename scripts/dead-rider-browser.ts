@@ -86,12 +86,12 @@ try {
         const paused = paint([dead], 120);
         const pausedRatio = regionDifference(paused, empty, 250, 198, 300, 4) / livingTrail;
         if (Math.abs(pausedRatio - deadRatio) > .01) throw Error('Pause faded the whole trail');
-        const shrinking = { ...dead, trail: advanceTrail(dead.trail, 140, 120) };
-        const eroded = paint([shrinking], 140);
+        const shrinking = { ...dead, trail: advanceTrail(dead.trail, 160, 120) };
+        const eroded = paint([shrinking], 160);
         if (regionDifference(eroded, empty, 210, 190, 50, 20) !== 0) throw Error('Old endpoint did not shrink');
         if (regionDifference(eroded, empty, 540, 190, 50, 20) !== 0) throw Error('New endpoint did not shrink');
         if (regionDifference(eroded, empty, 300, 198, 200, 4) <= 0) throw Error('Surviving middle vanished');
-        const removed = paint([{ ...dead, trail: advanceTrail(shrinking.trail, 180, 140) }], 180);
+        const removed = paint([{ ...dead, trail: advanceTrail(shrinking.trail, 240, 160) }], 240);
         if (regionDifference(removed, empty, 200, 190, 400, 20) !== 0) throw Error('Eroded trail remains visible');
         const revived = paint([player]);
         if (regionDifference(revived, empty, 750, 395, 100, 110) === 0) throw Error('Live avatar did not return');

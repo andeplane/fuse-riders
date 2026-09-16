@@ -88,7 +88,7 @@ Fold rules `fuse-p2p-14` introduced the current active-tail tuning. Living rider
 
 ### Detached trail decay (#213)
 
-Current fold rules are `fuse-p2p-15`. Ordered trail segments carry optional
+Current fold rules are `fuse-p2p-16` (halved erosion speed from rule 15). Ordered trail segments carry optional
 `detached: { id, decayStartTick }`; absence means the living, age-limited active tail.
 The required game-state `nextTrailPieceId` issues positive, round-scoped piece ids across
 all riders. Segments in each detached piece are consecutive, touching, ordered history,
@@ -100,8 +100,8 @@ Blasts (including same-tick Target releases), gun holes and closing walls keep o
 head-linked surviving suffix active; older surviving runs detach. Death, including leave,
 detaches all active runs and retained fatal-contact geometry. Detachment records
 `decayStartTick = cutOrDeathTick + 20`. Geometry stays fixed through that tick; each
-subsequent playing tick consumes 3.75 world units from each end before weapons/collision.
-Child pieces inherit the original clock when recut. Death never refreshes old debris.
+subsequent playing tick consumes 1.875 world units from each end before weapons/collision.
+Each end now shrinks at 37.5 units/second: a 300-unit piece lasts five seconds total, including the pause, instead of three. Child pieces inherit the original clock when recut. Death never refreshes old debris.
 Decay ignores original expiry and owner speed/boost/Power; only active segments receive
 Power lifetime extensions. Non-playing phases freeze trail geometry, and round reset
 clears it and resets piece allocation. The current 80-tick base/Power regrowth remains.

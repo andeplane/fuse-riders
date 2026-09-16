@@ -115,7 +115,7 @@ test('riders can pass through space eroded before this tick collision check', ()
   const { game, dead, survivor } = fixture();
   dead.trail = [{ x1: 200, y1: 200, x2: 500, y2: 200, createdTick: 0, expiresAtTick: game.tick + 3 }];
   eliminatePlayer(game, dead.id);
-  advanceWithSurvivors(game, 30);
+  advanceWithSurvivors(game, 40);
   assert.equal(dead.trail[0]!.x1, 237.5);
   Object.assign(survivor, { x: 220, y: 193, angle: Math.PI / 2, invulnerableUntilTick: 0, trail: [] });
   step(game, new Map()); assert.equal(survivor.alive, true);

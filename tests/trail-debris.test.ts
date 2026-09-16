@@ -82,7 +82,7 @@ test('dense removal is capped, skipped snapshots still emit, and random samples 
 
 test('erosion emits no flying fragments even under a newly observed blast', () => {
   const effect = new TrailDebris(240, fixedRandom);
-  const decaying = { ...segment, x2: 545, expiresAtTick: 95, detached: { id: 1, decayStartTick: 98 } };
+  const decaying = { ...segment, x2: 543, expiresAtTick: 95, detached: { id: 1, decayStartTick: 98 } };
   effect.update(frame(99, [decaying]), 0, 'match');
   assert.deepEqual(effect.update(frame(100, [], [blast]), 50, 'match'), []);
   const paused = { ...segment, expiresAtTick: 95, detached: { id: 1, decayStartTick: 110 } };
