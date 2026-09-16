@@ -17,24 +17,24 @@ function playing() {
 }
 const fire = new Map<string, InputIntent>([['p0', { left: false, right: false, bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]]);
 
-test('trail capacity starts at six seconds and grows by 1.5 seconds per diamond up to the ceiling', () => {
-  assert.equal(powerTrailLifetimeTicks(0), 120);
-  assert.equal(powerTrailLifetimeTicks(4), 240);
-  assert.equal(powerTrailLifetimeTicks(8), 360);
-  for (let count = 1; count <= 30; count++) {
-    assert.equal(powerTrailLifetimeTicks(count) - powerTrailLifetimeTicks(count - 1), 30);
+test('trail capacity starts at eight seconds and grows by two seconds per diamond up to the ceiling', () => {
+  assert.equal(powerTrailLifetimeTicks(0), 160);
+  assert.equal(powerTrailLifetimeTicks(4), 320);
+  assert.equal(powerTrailLifetimeTicks(8), 480);
+  for (let count = 1; count <= 21; count++) {
+    assert.equal(powerTrailLifetimeTicks(count) - powerTrailLifetimeTicks(count - 1), 40);
   }
-  assert.equal(powerTrailLifetimeTicks(30), 1020);
-  assert.equal(powerTrailLifetimeTicks(31), MAX_CHECKPOINT_TRAILS);
-  assert.equal(powerTrailLifetimeTicks(32), MAX_CHECKPOINT_TRAILS);
+  assert.equal(powerTrailLifetimeTicks(21), 1000);
+  assert.equal(powerTrailLifetimeTicks(22), MAX_CHECKPOINT_TRAILS);
+  assert.equal(powerTrailLifetimeTicks(23), MAX_CHECKPOINT_TRAILS);
   assert.equal(powerTrailLifetimeTicks(MAX_POWER_PICKUPS), MAX_CHECKPOINT_TRAILS);
 });
 
 test('a saturated trail grows immediately with each collected diamond and expires at the extended deadline', () => {
   const game = playing(), player = game.players.get('p0')!;
   for (const rider of game.players.values()) rider.invulnerableUntilTick = game.tick + 300;
-  for (let i = 0; i < 120; i++) step(game, new Map());
-  assert.equal(player.trail.length, 120);
+  for (let i = 0; i < 160; i++) step(game, new Map());
+  assert.equal(player.trail.length, 160);
   const expired = player.trail[0]!, retained = player.trail[1]!;
   const originalDeadline = retained.expiresAtTick;
   for (let i = 0; i < 2; i++) {
@@ -42,15 +42,15 @@ test('a saturated trail grows immediately with each collected diamond and expire
     step(game, new Map());
   }
   assert.equal(player.powerPickups, 2);
-  assert.equal(player.trail.length, 121, 'only the segment expired before collection is lost');
+  assert.equal(player.trail.length, 161, 'only the segment expired before collection is lost');
   assert.ok(!player.trail.some(segment => segment.createdTick === expired.createdTick));
-  assert.equal(player.trail[0]!.expiresAtTick, originalDeadline + 60);
-  assert.equal(player.trail.at(-1)!.expiresAtTick, game.tick + 180);
+  assert.equal(player.trail[0]!.expiresAtTick, originalDeadline + 80);
+  assert.equal(player.trail.at(-1)!.expiresAtTick, game.tick + 240);
   const restored = decodeGameState(encodeGameState(game)); assert.ok(restored);
-  while (game.tick < originalDeadline + 59) {
+  while (game.tick < originalDeadline + 79) {
     assert.deepEqual(step(restored, new Map()), step(game, new Map()));
   }
-  assert.equal(player.trail.length, 180);
+  assert.equal(player.trail.length, 240);
   assert.equal(player.trail[0]!.createdTick, retained.createdTick);
   assert.deepEqual(step(restored, new Map()), step(game, new Map()));
   assert.ok(!player.trail.some(segment => segment.createdTick === retained.createdTick));
@@ -59,7 +59,7 @@ test('a saturated trail grows immediately with each collected diamond and expire
 
 test('an extended trail remains a collision obstacle past its old expiry', () => {
   const game = playing(), player = game.players.get('p0')!, other = game.players.get('p1')!;
-  player.trail = [{ x1: 900, y1: 500, x2: 1000, y2: 500, createdTick: game.tick - 118, expiresAtTick: game.tick + 2 }];
+  player.trail = [{ x1: 900, y1: 500, x2: 1000, y2: 500, createdTick: game.tick - 158, expiresAtTick: game.tick + 2 }];
   game.pickups = [{ id: game.nextPickupId++, type: 'power', x: player.x, y: player.y, expiresAtTick: game.tick + 100 }];
   step(game, new Map());
   Object.assign(other, { x: 950, y: 487, angle: Math.PI / 2, invulnerableUntilTick: 0, trail: [] });
@@ -72,7 +72,7 @@ test('trail growth resets with the round and does not extend an eliminated rider
   const game = playing(), player = game.players.get('p0')!;
   game.pickups = Array.from({ length: 3 }, () => ({ id: game.nextPickupId++, type: 'power' as const, x: player.x, y: player.y, expiresAtTick: game.tick + 100 }));
   step(game, new Map());
-  assert.equal(player.trail.at(-1)!.expiresAtTick, game.tick + 210);
+  assert.equal(player.trail.at(-1)!.expiresAtTick, game.tick + 280);
   eliminatePlayer(game, player.id);
   const deadTrail = structuredClone(player.trail);
   step(game, new Map());
@@ -82,12 +82,12 @@ test('trail growth resets with the round and does not extend an eliminated rider
   assert.equal(player.powerPickups, 0);
   assert.equal(player.trail.length, 0);
   for (let i = 0; i < COUNTDOWN_TICKS; i++) step(game, new Map());
-  assert.equal(player.trail.at(-1)!.expiresAtTick, game.tick + 120);
+  assert.equal(player.trail.at(-1)!.expiresAtTick, game.tick + 160);
 });
 
 test('maximum progression keeps a long-running trail within the checkpoint budget', () => {
   const game = playing(), player = game.players.get('p0')!;
-  for (const rider of game.players.values()) rider.invulnerableUntilTick = game.tick + 1200;
+  for (const rider of game.players.values()) rider.invulnerableUntilTick = game.tick + 1600;
   player.powerPickups = MAX_POWER_PICKUPS;
   for (let i = 0; i < MAX_CHECKPOINT_TRAILS + 5; i++) step(game, new Map());
   assert.equal(player.trail.length, MAX_CHECKPOINT_TRAILS);
