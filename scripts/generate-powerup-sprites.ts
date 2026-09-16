@@ -5,6 +5,12 @@ import { writeFile } from 'node:fs/promises';
  * No fonts, filters or external resources: the SVGs also rasterize in Phaser.
  */
 const artwork: Record<string, string> = {
+  'pickup-gravity': `
+    <circle cx="32" cy="32" r="21" fill="url(#body)" stroke="#b98cff" stroke-width="2.5"/>
+    <ellipse cx="32" cy="32" rx="19" ry="7" fill="none" stroke="url(#violet)" stroke-width="3.5" transform="rotate(-20 32 32)"/>
+    <circle cx="32" cy="32" r="8" fill="#0a0618" stroke="#e6d4ff" stroke-width="2"/>
+    <path d="M13 20c5 3 8 6 10 10M51 44c-5-3-8-6-10-10" fill="none" stroke="#d7b6ff" stroke-width="2.5" stroke-linecap="round" opacity=".85"/>
+  `,
   'pickup-boost': `
     <circle cx="32" cy="32" r="21" fill="url(#body)" stroke="#5cf0ff" stroke-width="2.5"/>
     <path d="M35 11 19 35h11l-3 18 18-26H34z" fill="url(#cyan)" stroke="#e4fdff" stroke-width="2" stroke-linejoin="round"/>
