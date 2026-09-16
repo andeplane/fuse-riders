@@ -71,7 +71,7 @@ export async function startOnline():Promise<void>{
     startAnalytics({role:'landing'});track('App Opened');
     const card=node('main','','landing');
     card.innerHTML=`<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
-      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button></div></header>
+      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button><button class="landing-mute" type="button">🔊 SOUND ON</button></div></header>
       <section class="landing-content"><p class="landing-eyebrow"><span></span> A NEON ARENA PARTY GAME</p>
       <h1>LEAVE A TRAIL.<br>MAKE A <em>MESS.</em></h1>
       <p class="landing-intro">Outrun your friends. Blow up their plans.<br>One arena. Five riders. Absolutely no brakes.</p>
@@ -104,7 +104,7 @@ export async function startOnline():Promise<void>{
     window.addEventListener('pagehide',()=>{ended=true;cleanup?.();},{once:true});
     window.addEventListener('pageshow',event=>{if(event.persisted)location.reload();});
     // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
-    const landingAudio=sharedAudio();landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
+    const landingAudio=sharedAudio();landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);landingAudio.bindMuteToggle(card.querySelector<HTMLButtonElement>('.landing-mute')!);
     card.querySelector('.landing-audio')!.before(landingAudio.controls);radioToggle=()=>landingAudio.controls.toggleAttribute('open');
     // PLAY SOLO is a real link for a new tab or a bookmark; a plain click takes the in-place route with the music.
     card.querySelector<HTMLAnchorElement>('.solo-cta')!.addEventListener('click',event=>{if(event.button||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();enter('?solo=1');});
@@ -267,12 +267,12 @@ export async function startOnline():Promise<void>{
   const audio=sharedAudio();radioToggle=()=>{if(!dialog.open)openRadio();else if(dialogBody.contains(audio.controls))dialog.close();/* Another open dialog (results, a settings draft) is left alone. */};
   // Device preferences: music, effects, radio, visual style and fullscreen are this device's own and change nothing shared, so
   // they sit behind one SETTINGS button instead of five in the header. Built once; the dialog body adopts the same nodes each open.
-  const prefs=node('div','','settings-list');const musicButton=node('button'),effectsButton=node('button'),radioButton=node('button','♫ RADIO'),fullscreen=node('button','FULLSCREEN');
-  audio.bindMusicToggle(musicButton);audio.bindEffectsToggle(effectsButton);radioButton.onclick=openRadio; // The same ♫ MUSIC ON / OFF toggle as the landing page.
+  const prefs=node('div','','settings-list');const musicButton=node('button'),effectsButton=node('button'),muteButton=node('button'),radioButton=node('button','♫ RADIO'),fullscreen=node('button','FULLSCREEN');
+  audio.bindMusicToggle(musicButton);audio.bindEffectsToggle(effectsButton);audio.bindMuteToggle(muteButton);radioButton.onclick=openRadio; // The same ♫ MUSIC ON / OFF toggle as the landing page.
   // iPhone Safari has no element fullscreen (#142): a button that can do nothing is not shown.
   fullscreen.hidden=!document.fullscreenEnabled;fullscreen.onclick=()=>void (document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen())?.catch(()=>{});
   document.addEventListener('fullscreenchange',()=>{fullscreen.textContent=document.fullscreenElement?'EXIT FULLSCREEN':'FULLSCREEN';});
-  prefs.append(musicButton,effectsButton,radioButton,styleHeading,styleRow,fullscreen);
+  prefs.append(musicButton,effectsButton,muteButton,radioButton,styleHeading,styleRow,fullscreen);
   prefsButton.onclick=()=>{dialogTitle.textContent='SETTINGS';dialog.setAttribute('aria-label','Settings');dialogBody.replaceChildren(prefs);dialog.showModal();};
   /** Podium, totals, highlight reel, awards and rider comparison built from the authoritative match statistics and moments. */
   const renderRecap=(stats:ReadonlyArray<MatchPlayerStats>,moments:ReadonlyArray<Moment>)=>{

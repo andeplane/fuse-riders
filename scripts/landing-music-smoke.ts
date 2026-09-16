@@ -89,6 +89,18 @@ try {
   assert.equal(back.src, off.src, 'toggling never swaps the track');
   assert.ok(back.time >= off.time, `toggling never rewinds the track: ${off.time} -> ${back.time}`);
 
+  // SOUND OFF mutes both channels (what Ctrl+M does), so MUSIC reads OFF too; SOUND ON brings both back and resumes the track.
+  const mute = () => page.locator('.landing-mute').textContent();
+  assert.equal(await mute(), '🔊 SOUND ON');
+  await page.locator('.landing-mute').click(); await settle();
+  assert.equal(await mute(), '🔊 SOUND OFF'); assert.equal(await label(), '♫ MUSIC OFF');
+  assert.deepEqual((await stored()).muted, { music: true, effects: true });
+  assert.equal((await track(page))!.paused, true, 'sound off stops streaming');
+  await page.locator('.landing-mute').click(); await settle();
+  assert.equal(await mute(), '🔊 SOUND ON'); assert.equal(await label(), '♫ MUSIC ON');
+  assert.deepEqual((await stored()).muted, { music: false, effects: false });
+  assert.equal((await track(page))!.paused, false, 'sound on resumes playing');
+
   // Settings have to survive the full page load between the landing page and a room.
   await page.locator('.landing-audio').click(); await settle();
   const muted: string[] = [];

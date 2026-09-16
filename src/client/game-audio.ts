@@ -30,6 +30,8 @@ export interface GameAudio {
   bindMusicToggle: (button: HTMLButtonElement) => void;
   /** The EFFECTS ON / EFFECTS OFF counterpart for the settings dialog: the effects channel's mute, and nothing else. */
   bindEffectsToggle: (button: HTMLButtonElement) => void;
+  /** The 🔊 SOUND ON / 🔇 SOUND OFF toggle: OFF mutes music and effects, the same as Ctrl+M; ON unmutes both, unpauses and unlocks. */
+  bindMuteToggle: (button: HTMLButtonElement) => void;
 }
 
 const CHANNELS = ['music', 'effects'] as const;
@@ -245,6 +247,8 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     settings.muted[channel] = value; director.setMuted(channel, value); store();
     for (const render of rendered) render();
   };
+  const allMuted = () => settings.muted.music && settings.muted.effects;
+  const setAllMuted = (value: boolean) => { setMuted('music', value); setMuted('effects', value); };
   const setVolume = (channel: AudioChannel, value: number) => {
     settings.volume[channel] = value; director.setVolume(channel, value); store();
   };
@@ -362,13 +366,17 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
     else { setMuted('music', false); if (director.state.paused) director.togglePause(); unlock(); }
   });
   const bindEffectsToggle = (button: HTMLButtonElement) => bindToggle(button, () => !settings.muted.effects, ['EFFECTS ON', 'EFFECTS OFF'], on => setMuted('effects', !on));
+  // Sound OFF is Ctrl+M: both channels muted. Any channel on reads ON, so a music-only listener is not told they are muted.
+  const bindMuteToggle = (button: HTMLButtonElement) => bindToggle(button, () => !allMuted(), ['🔊 SOUND ON', '🔇 SOUND OFF'], on => {
+    setAllMuted(!on); if (on) { if (director.state.paused) director.togglePause(); unlock(); }
+  });
   // Ctrl+A radio, Ctrl+M everything, Ctrl+Alt+M music, Ctrl+Alt+E effects. Capture phase, ahead of game keys.
   window.addEventListener('keydown', event => {
     const shortcut = radioShortcut(event);
     if (!shortcut || editable(event.target)) return;
     event.preventDefault(); if (event.repeat) return;
     if (shortcut === 'radio') (options.toggleRadio ?? (() => { controls.open = !controls.open; }))();
-    else if (shortcut === 'muteAll') { const muted = !(settings.muted.music && settings.muted.effects); setMuted('music', muted); setMuted('effects', muted); }
+    else if (shortcut === 'muteAll') setAllMuted(!allMuted());
     else { const channel = shortcut === 'muteMusic' ? 'music' : 'effects'; setMuted(channel, !settings.muted[channel]); }
   }, { capture: true });
   setInterval(renderTime, 500);
@@ -390,5 +398,5 @@ export function createGameAudio(deviceLabel = 'TV', options: GameAudioOptions = 
   window.addEventListener('pagehide', () => director.disconnect()); // Saves the position before stopping.
   if (options.background) director.playBackground();
   unlock(); // Autoplay usually refuses here; the gesture listeners above pick it up.
-  return { director, controls, unlock, bindMusicToggle, bindEffectsToggle };
+  return { director, controls, unlock, bindMusicToggle, bindEffectsToggle, bindMuteToggle };
 }
