@@ -4,10 +4,12 @@ import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 import type { MatchPlayerStats } from './match-stats.js';
 import type { FlightPoint } from './launch-modifiers.js';
 import type { PickupType } from './game.js'; // the type alone: this module never needs the tuple's value
+import type { Moment } from './moments.js';
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
 export type { FlightPoint } from './launch-modifiers.js';
+export type { Moment, MomentKind } from './moments.js';
 
 export type PlayerId = string;
 export type PlayerToken = string;
@@ -42,7 +44,7 @@ export interface GameSnapshot {
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
-    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean };
+    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
@@ -52,6 +54,8 @@ export interface GameSnapshot {
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;
+  /** Highlight moments of the match; like `matchStats`, present only once the match is over (ADR 043). */
+  moments: ReadonlyArray<Moment>;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -60,6 +64,7 @@ export type GameEvent =
   | { type: 'bombPlaced'; bombId: number; playerId: PlayerId; gun?: boolean }
   | { type: 'explosion'; bombId: number }
   | { type: 'playerEliminated'; playerId: PlayerId; cause: 'wall' | 'trail' | 'explosion' | 'rider' }
+  | { type: 'moment'; moment: Moment }
   | { type: 'roundEnded'; winnerId?: PlayerId }
   | { type: 'matchEnded'; winnerId?: PlayerId };
 export type ErrorCode = 'invalid_message' | 'full' | 'unauthorized' | 'stale' | 'invalid_phase' | 'not_enough_players';

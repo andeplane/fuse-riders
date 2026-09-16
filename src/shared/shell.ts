@@ -1,5 +1,6 @@
 import { hypot2 } from './deterministic-math.js';
-export interface ShellMotion { x: number; y: number; vx: number; vy: number }
+/** `bounces` is counted only when the caller carries it: the simulation does, a render projection does not. */
+export interface ShellMotion { x: number; y: number; vx: number; vy: number; bounces?: number }
 export interface ShellPoint { x: number; y: number; t: number }
 export interface ShellTrail { x1: number; y1: number; x2: number; y2: number }
 export const SHELL_SPEED = 450;
@@ -9,6 +10,7 @@ export function advanceShell(shell: ShellMotion, bounds: { left: number; right: 
   shell.x = Math.max(bounds.left, Math.min(bounds.right, shell.x));
   shell.y = Math.max(bounds.top, Math.min(bounds.bottom, shell.y));
   const path: ShellPoint[] = [{ x: shell.x, y: shell.y, t: 0 }];
+  const bounce = (): void => { if (shell.bounces !== undefined) shell.bounces += 1; };
   let t = 0;
   for (let iteration = 0; t < 1 && iteration < 8; iteration++) {
     const dx = shell.vx / 20; const dy = shell.vy / 20;
@@ -26,9 +28,10 @@ export function advanceShell(shell: ShellMotion, bounds: { left: number; right: 
       const dot = shell.vx * hit.nx + shell.vy * hit.ny;
       shell.vx -= 2 * dot * hit.nx; shell.vy -= 2 * dot * hit.ny;
       shell.x += hit.nx * 1e-6; shell.y += hit.ny * 1e-6;
+      bounce();
     }
-    if (tx <= dt + 1e-9) shell.vx *= -1;
-    if (ty <= dt + 1e-9) shell.vy *= -1;
+    if (tx <= dt + 1e-9) { shell.vx *= -1; bounce(); }
+    if (ty <= dt + 1e-9) { shell.vy *= -1; bounce(); }
   }
   return path;
 }
