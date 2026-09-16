@@ -29,6 +29,8 @@ Living riders have a thin one-world-pixel portrait outline. After firing, a two-
 
 `src/client/blast-animation.ts` samples the same explosion geometry for Phaser and the Canvas fallback: nine irregular orange/amber circles pop outward with staggered starts and a small size overshoot, then shrink and separate as the bright core collapses first. Six small square embers finish the effect. Seeded cosmetic offsets depend on bomb identity, so repeated frames and rollback do not jitter or consume simulation randomness. The faint full-radius footprint and the expanding ring stay within the supplied blast radius, as do every lobe and ember. The animation fits the existing eight-tick (400 ms) lifetime; it does not extend damage or retain expired explosions. Online uses its fractional snapshot tick; LAN supplies bounded fractional `presentationTick` metadata for cosmetics while keeping the authoritative tick intact. Blast sparks are sampled directly rather than emitted as Phaser particles; the bounded particle pool still handles rider deaths.
 
+Explosion-cut trails also leave client-only debris (`src/client/trail-debris.ts`). The renderer compares one retained trail frame with the next snapshot and emits only missing, unexpired segments intersecting a newly observed blast. Normal expiry, boundary trimming, partially retained segments and speculative future tips do not emit. Each piece keeps its rider color, with locally random outward velocity, spin and a 520–820 ms lifetime; analytic drag samples the caller's frame clock without a physics loop or network messages. Overlapping blasts launch a piece once. Debris is capped at 240 pieces on desktop and 80 on mobile, and history at 2,048 segments per rider; dense removals sample across riders. Scope/round changes, backward time, lobby and renderer resets discard the cosmetic history. A fresh renderer or a client that missed the entire blast has no previous cut to animate. Both renderers clip fragments to the arena and draw them beneath riders and ink.
+
 Dead riders disappear immediately, including their avatar, heading marker, label and status auras, leaving the crash particles unobscured. Their remaining trails stay at 80% opacity in Phaser until the snapshot removes them. The Canvas fallback uses the same death multiplier and only a mild additional fade near expiry. This is presentation only; trail collision and expiry remain simulation-owned. Run `npx tsx scripts/dead-rider-browser.ts` (also with `BROWSER=webkit`) to check both themes across WebGL, Phaser Canvas and the Canvas fallback, including trail removal, death particles and avatar reuse.
 
 Desktop quality reserves 480 particles (mobile-width quality: 160), with matching live-particle limits. Phaser's total-object limit is one higher because its `atLimit` includes reserved dead particles. Sprite and label pools shrink to the current snapshot's needs plus 16 and 8 spare objects. These pools do not cap or omit valid authoritative projectiles. The snapshot validation boundary must still bound world complexity.
@@ -57,6 +59,8 @@ npm run typecheck
 npx tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
 npx tsx scripts/blast-browser.ts
 BROWSER=webkit npx tsx scripts/blast-browser.ts
+npx tsx scripts/trail-debris-browser.ts
+BROWSER=webkit npx tsx scripts/trail-debris-browser.ts
 npx tsx scripts/phaser-browser.ts
 BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts

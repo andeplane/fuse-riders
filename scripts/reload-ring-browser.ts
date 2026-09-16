@@ -42,7 +42,7 @@ try {
         const deadline = performance.now() + 5000;
         await new Promise<void>((resolve, reject) => {
           const check = () => {
-            if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, 0, player.color)) resolve();
+            if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, player.color)) resolve();
             else if (performance.now() > deadline) reject(Error('Avatar atlas did not load'));
             else requestAnimationFrame(check);
           };

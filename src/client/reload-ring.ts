@@ -1,7 +1,7 @@
 import { BOMB_COOLDOWN_TICKS } from '../shared/game.js';
 import type { ViewPlayer, ViewSnapshot } from './snapshot-stream.js';
 
-export const RELOAD_RING_RADIUS = 22;
+export const RELOAD_RING_RADIUS = 17;
 
 /** Snapshot time keeps reload feedback in sync through pauses, reconnects and rollback. */
 export function reloadRemaining(player: ViewPlayer, snapshot: ViewSnapshot): number {

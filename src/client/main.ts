@@ -11,6 +11,7 @@ import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
 import { blastFrame } from './blast-animation.js';
 import { reloadRemaining, RELOAD_RING_RADIUS } from './reload-ring.js';
+import { drawTrailDebris, type DebrisStroke } from './trail-debris.js';
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
@@ -246,7 +247,7 @@ function drawSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: n
   ctx.restore();
 }
 
-export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites): void {
+export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris: readonly DebrisStroke[] = []): void {
   const { width, height } = snapshot;
   ctx.clearRect(0, 0, width, height);
   ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
@@ -376,6 +377,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.restore();
   }
 
+  drawTrailDebris(ctx, debris, snapshot);
   for (const player of snapshot.players) {
     if (!player.alive) continue;
     const color = escapeColor(player.color);
@@ -384,12 +386,15 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     drawOrbitShield(ctx, player, snapshot.tick, now);
     drawPortalGrace(ctx, player, snapshot.tick, now);
     ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 18;
-    if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, player.angle, color)) { /* Atlas head includes color and heading cues. */ }
-    else if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
-    else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    // The portrait stays upright at the trail head; only its direction marker turns.
+    if (!drawAvatarHead(ctx, player.avatarId, player.x, player.y, color) && sprites.rider) {
+      drawSprite(ctx, sprites.rider, player.x, player.y, 32, 0, color, theme.rendering.pixelated);
+    }
+    ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
     ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-    ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 29)); ctx.restore();
+    ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 27)); ctx.restore();
     const reload = reloadRemaining(player, snapshot);
     if (reload > 0) {
       ctx.save();

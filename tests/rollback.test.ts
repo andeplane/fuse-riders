@@ -49,6 +49,36 @@ test('a late entry rolls back N ticks, re-simulates from the nearest snapshot an
   assert.equal(old.receive('b', [[1, 100, STEER, 1]], 1, 300, 300).status, 'unrepairable');
 });
 
+test('late reordered steering replays a close pass without false double elimination', () => {
+  const fixture = world(); playing(fixture);
+  Object.assign(fixture.state.game.players.get('creator')!, { x: 500, y: 350, angle: 0, trail: [] });
+  Object.assign(guest(fixture), { x: 514, y: 362, angle: 0, trail: [] });
+  const start = fixture.tick, end = start + 3;
+  const entries: Entry[] = [[1, start + 1, STEER, 1], [2, start + 2, STEER, 0]];
+  const replica = () => {
+    // Seed through the public constructor so rollback snapshots include the close-pass fixture.
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end;
+    w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica();
+  reference.receive('b', entries, 2, end, end);
+  reference.advance(end);
+  const delayed = replica();
+  delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  const repaired = delayed.receive('b', [entries[0]!], 2, end, end);
+  assert.equal(repaired.status, 'accepted');
+  assert.ok(repaired.rollbackTicks > 0);
+  assert.ok([...delayed.state.game.players.values()].every(player => player.alive));
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  const duplicate = delayed.receive('b', entries, 2, end, end);
+  assert.deepEqual(duplicate.events, []);
+  assert.equal(duplicate.rollbackTicks, 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});
+
 test('all arrival orders of the same entries converge to one hash', () => {
   const entries: Entry[] = [[1, 70, STEER, 1], [2, 72, PRESS, 1], [3, 75, STEER, 2], [4, 80, RELEASE, 1], [5, 84, STEER, 0]];
   const hashes = new Set<string>();
