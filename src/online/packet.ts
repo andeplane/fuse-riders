@@ -2,7 +2,8 @@ import { encode, decode } from '@msgpack/msgpack';
 import { isEntry, memberId, uint32, type Entry } from '../shared/input-log.js';
 
 export const PACKET_VERSION = 1, NACK_VERSION = 2;
-export const MAX_PACKET_BYTES = 512, MAX_PACKET_ENTRIES = 6, MAX_MESSAGE_BYTES = 2_000_000;
+/** One datagram under the 1,280-byte IPv6 minimum MTU with DTLS/SCTP headers to spare; a SETTINGS entry is ~230 bytes. */
+export const MAX_PACKET_BYTES = 1100, MAX_PACKET_ENTRIES = 6, MAX_MESSAGE_BYTES = 2_000_000;
 /** The per-tick packet from one member to another; echo fields make every packet a clock and RTT sample. */
 export interface Packet {
   room: number; from: string; generation: number; through: number; lastSeq: number; entries: Entry[];
@@ -45,13 +46,21 @@ export function encodePacket(packet: Packet): Uint8Array {
   if (bytes.byteLength > MAX_PACKET_BYTES) throw new Error('Packet too large');
   return bytes;
 }
+/** Fit a packet by dropping its oldest entries first: the newest entry always travels, the rest recur by rotation. */
+export function encodePacketTrimmed(packet: Packet): Uint8Array {
+  let entries = packet.entries;
+  for (;;) {
+    try { return encodePacket({ ...packet, entries }); } catch (error) { if (entries.length <= 1) throw error; entries = entries.slice(1); }
+  }
+}
 export function encodeNack(nack: Nack): Uint8Array { return packMessage([NACK_VERSION, nack.room, nack.from, nack.firstMissingSeq]); }
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 /** Shape validation only; stream order, generation and room membership are the receiver's business. */
 export function decodePacket(bytes: Uint8Array): { packet: Packet } | { nack: Nack } | undefined {
   if (bytes.byteLength > MAX_PACKET_BYTES) return;
   let value: unknown;
-  try { value = decode(bytes, { maxStrLength: 128, maxBinLength: 0, maxArrayLength: 16, maxMapLength: 0, maxExtLength: 0 }); } catch { return; }
+  // Maps are allowed for the SETTINGS entry's room settings (and its pickup weights); isEntry validates them.
+  try { value = decode(bytes, { maxStrLength: 128, maxBinLength: 0, maxArrayLength: 16, maxMapLength: 32, maxExtLength: 0 }); } catch { return; }
   if (!Array.isArray(value)) return;
   if (value[0] === NACK_VERSION) return value.length === 4 && uint32(value[1]) && memberId(value[2]) && uint32(value[3]) && value[3] > 0 ? { nack: { room: value[1], from: value[2], firstMissingSeq: value[3] } } : undefined;
   if (value[0] !== PACKET_VERSION || value.length !== 12) return;

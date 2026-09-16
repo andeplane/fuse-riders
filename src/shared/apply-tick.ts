@@ -21,24 +21,37 @@ export function createRoomState(matchId: string, settings: RoomSettings): RoomSt
 export const reclaimable = (game: GameState): boolean => (RECLAIMABLE_PHASES as readonly string[]).includes(game.phase);
 export function freeSlot(game: GameState): number { return SLOT_COLORS.findIndex((_, slot) => ![...game.players.values()].some(player => player.slot === slot)); }
 
-/** The lowest connected human other than the creator: it may mark the creator absent, and manages the room while the creator is. */
-export function delegate(state: RoomState, creatorId: string): string | undefined {
-  return [...state.game.players.values()].filter(player => player.connected && !state.bots.has(player.id) && player.id !== creatorId).map(player => player.id).sort()[0];
+/** Who manages the room when those before them are absent: the creator, then the connected humans by id. */
+export function successionOrder(state: RoomState, creatorId: string): string[] {
+  return [creatorId, ...[...state.game.players.values()].filter(player => player.connected && !state.bots.has(player.id) && player.id !== creatorId).map(player => player.id).sort()];
 }
+/** The lowest connected human other than the creator: it manages the room while the creator is absent. */
+export function delegate(state: RoomState, creatorId: string): string | undefined { return successionOrder(state, creatorId)[1]; }
 /** Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected. */
 export function actingCreator(state: RoomState, creatorId: string): string | undefined {
   const creator = state.game.players.get(creatorId);
   return creator?.connected ? undefined : delegate(state, creatorId);
 }
-/** Whether a management entry from `manager` applies: the creator always; the delegate while the creator is absent, or to record that absence. */
+/**
+ * Whether a management entry from `manager` applies: the creator always; the delegate while the creator is absent; and any
+ * connected human may record the absence of someone ahead of it in the succession order, so a creator and a delegate that
+ * drop together are both marked absent by the next rider rather than leaving the room stalled.
+ */
 export function permitted(state: RoomState, creatorId: string, manager: string, entry: Entry): boolean {
   if (manager === creatorId) return true;
-  if (delegate(state, creatorId) !== manager) return false;
-  return actingCreator(state, creatorId) === manager || (entry[2] === PRESENCE && entry[3] === creatorId && entry[4] === false);
+  const order = successionOrder(state, creatorId), rank = order.indexOf(manager);
+  if (rank < 0) return false;
+  if (entry[2] === PRESENCE && entry[4] === false) { const target = order.indexOf(entry[3]); if (target >= 0 && target < rank) return true; }
+  return actingCreator(state, creatorId) === manager;
 }
 
 function pruneDisconnected(state: RoomState): void {
   for (const player of [...state.game.players.values()]) if (!player.connected) { removePlayer(state.game, player.id); state.folds.delete(player.id); state.bots.delete(player.id); }
+}
+/** Folds and bots for riders the game no longer seats (a lobby reset drops disconnected riders itself) would make every snapshot undecodable. */
+function pruneOrphans(state: RoomState): void {
+  for (const id of [...state.folds.keys()]) if (!state.game.players.has(id)) state.folds.delete(id);
+  for (const id of [...state.bots]) if (!state.game.players.has(id)) state.bots.delete(id);
 }
 function resetGestures(state: RoomState): void { for (const fold of state.folds.values()) { fold.activeGesture = 0; fold.aim = undefined; } }
 
@@ -72,7 +85,7 @@ function applyManagement(state: RoomState, entry: Entry, newMatchIdTick: number)
       case ACTION: {
         const [, , , action, matchId] = entry;
         if (action !== 'lobby' && reclaimable(game)) pruneDisconnected(state);
-        if (action === 'lobby') { const tick = game.tick; returnToLobby(game, matchId); game.tick = tick; }
+        if (action === 'lobby') { const tick = game.tick; returnToLobby(game, matchId); game.tick = tick; pruneOrphans(state); }
         else if (action === 'start') { game.settings = state.settings; startMatch(game); }
         else { game.settings = state.settings; resetMatch(game, matchId); }
         resetGestures(state); return;
@@ -96,8 +109,7 @@ function applyManagement(state: RoomState, entry: Entry, newMatchIdTick: number)
  */
 export function applyTick(state: RoomState, creatorId: string, streams: ReadonlyMap<string, StreamEntries>, bots: BotController): GameEvent[] {
   const game = state.game, tick = game.tick + 1;
-  const stand = delegate(state, creatorId);
-  for (const manager of [creatorId, ...(stand !== undefined ? [stand] : [])]) {
+  for (const manager of successionOrder(state, creatorId)) {
     const stream = streams.get(manager); if (!stream) continue;
     for (const entry of stream.entries) {
       if (entry[1] !== tick || !isManagementKind(entry[2])) continue;

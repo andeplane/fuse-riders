@@ -14,7 +14,7 @@ test('packets and nacks round-trip through MessagePack within the byte budget', 
   const nack = encodeNack({ room: 7, from: 'abcdef', firstMissingSeq: 4 }); assert.ok(nack.byteLength < 16);
   assert.deepEqual(decodePacket(nack), { nack: { room: 7, from: 'abcdef', firstMissingSeq: 4 } });
   assert.throws(() => encodePacket({ ...packet(), entries: Array.from({ length: MAX_PACKET_ENTRIES + 1 }, (_, i) => [i + 1, 100, STEER, 0] as Entry) }), /Too many/);
-  assert.throws(() => encodePacket({ ...packet(), from: 'x'.repeat(600) }), /too large/);
+  assert.throws(() => encodePacket({ ...packet(), from: 'x'.repeat(1200) }), /too large/);
   assert.equal(roomHash('a'), roomHash('a')); assert.notEqual(roomHash('a'), roomHash('b')); assert.ok(roomHash('anything') <= 0xffff_ffff);
   assert.equal(wrapMs(4294967295.4), 4294967295); assert.equal(wrapMs(4294967296), 0); assert.equal(wrapDelta(5, 4294967290), 11); assert.equal(wrapDelta(10, 40), -30);
 });
@@ -51,4 +51,17 @@ test('bounded unpack rejects deep nesting, oversized collections, binary, extens
   assert.deepEqual(unpackMessage(packMessage([2 ** 40, -(2 ** 40), 3.25, 200, 70000, -200, -70000, 4e9])), [2 ** 40, -(2 ** 40), 3.25, 200, 70000, -200, -70000, 4e9]);
   assert.deepEqual(unpackMessage(packMessage(Array.from({ length: 20 }, (_, i) => `s${i}`))), Array.from({ length: 20 }, (_, i) => `s${i}`));
   assert.deepEqual(unpackMessage(packMessage(Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`k${i}`, i])))), Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`k${i}`, i])));
+});
+
+import { encodePacketTrimmed } from '../src/online/packet.js';
+import { SETTINGS } from '../src/shared/input-log.js';
+import { defaultRoomSettings } from '../src/shared/room-settings.js';
+test('a settings entry travels in a packet, and an oversized packet is trimmed from its oldest entries', () => {
+  const settingsEntry = [9, 120, SETTINGS, defaultRoomSettings()] as Entry;
+  const bytes = encodePacket({ ...packet(), entries: [settingsEntry] });
+  assert.ok(bytes.byteLength < 400, `${bytes.byteLength} bytes`); assert.deepEqual((decodePacket(bytes) as { packet: Packet }).packet.entries, [settingsEntry]);
+  const many = Array.from({ length: MAX_PACKET_ENTRIES }, (_, i) => [i + 1, 100 + i, SETTINGS, defaultRoomSettings()] as Entry);
+  assert.throws(() => encodePacket({ ...packet(), entries: many }), /too large/);
+  const trimmed = (decodePacket(encodePacketTrimmed({ ...packet(), entries: many })) as { packet: Packet }).packet.entries;
+  assert.ok(trimmed.length >= 1 && trimmed.length < MAX_PACKET_ENTRIES, `${trimmed.length} entries fit`); assert.equal(trimmed.at(-1)![0], MAX_PACKET_ENTRIES, 'the newest entry always travels');
 });

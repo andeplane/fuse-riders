@@ -5,6 +5,7 @@ import { RoomRuntime, CREATOR_SILENCE_MS, DISCONNECT_MS, SNAPSHOT_RETRY_MS, SNAP
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { COUNTDOWN_TICKS } from '../src/shared/game.js';
 import { roomHash, packMessage } from '../src/online/packet.js';
+import { RULES } from '../src/shared/apply-tick.js';
 import { hashRoomState } from '../src/shared/apply-tick.js';
 
 const settings = defaultRoomSettings();
@@ -216,5 +217,87 @@ test('a press during a second of lost packets still charges from the original ti
   const bomb = net.frame(HOST)!.bombs.find(b => b.ownerId === GUESTS[0]); assert.ok(bomb, 'the release launched a bomb on the host');
   assert.ok(bomb.launchedTick - pressTick >= 20, `charged for ${bomb.launchedTick - pressTick} ticks`);
   assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  host.stop(); guest.stop();
+});
+
+test('while the creator is absent the delegate carries its duties: a further silent rider is marked absent and play continues', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200);
+  const riders = GUESTS.slice(0, 3).map((id, index) => { const runtime = join(id, `Rider ${index}`); net.step(150); return runtime; }); net.step(600);
+  assert.equal(host.command({ type: 'action', action: 'start' }), true); net.step(COUNTDOWN_TICKS * 50 + 300);
+  net.muted.add(HOST); net.step(CREATOR_SILENCE_MS + 1500);
+  // An absent rider loses its seat at the next round boundary, so absence shows as disconnected or gone.
+  const seated = (viewer: RoomRuntime, id: string) => world(viewer).state.game.players.get(id)?.connected ?? false;
+  assert.equal(seated(riders[0]!, HOST), false, 'the delegate marked the creator absent');
+  net.muted.add(GUESTS[2]!); const before = net.frame(GUESTS[0]!)!.tick; net.step(4000);
+  assert.equal(seated(riders[0]!, GUESTS[2]!), false, 'the delegate marked the silent rider absent');
+  assert.ok(net.frame(GUESTS[0]!)!.tick > before + 40, `play continued ${net.frame(GUESTS[0]!)!.tick - before} ticks past the stall window`);
+  assert.equal(hashes(net, [GUESTS[0]!, GUESTS[1]!]).size, 1);
+  host.stop(); for (const rider of riders) rider.stop();
+});
+
+test('a creator and its delegate dropping together are both marked absent by the next rider, and play continues', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200);
+  const riders = GUESTS.slice(0, 3).map((id, index) => { const runtime = join(id, `Rider ${index}`); net.step(150); return runtime; }); net.step(600);
+  assert.equal(host.command({ type: 'action', action: 'start' }), true); net.step(COUNTDOWN_TICKS * 50 + 300);
+  net.muted.add(HOST); net.muted.add(GUESTS[0]!); net.step(CREATOR_SILENCE_MS + 2500);
+  const c = world(riders[1]!).state.game.players;
+  assert.equal(c.get(HOST)?.connected ?? false, false); assert.equal(c.get(GUESTS[0]!)?.connected ?? false, false, 'the silent delegate is absent too');
+  const before = net.frame(GUESTS[1]!)!.tick; net.step(3000);
+  assert.ok(net.frame(GUESTS[1]!)!.tick > before + 40, 'play continues'); assert.equal(hashes(net, [GUESTS[1]!, GUESTS[2]!]).size, 1);
+  host.stop(); for (const rider of riders) rider.stop();
+});
+
+test('presses keep working after a rider was marked absent and returned', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  assert.equal(host.command({ type: 'action', action: 'start' }), true); net.step(COUNTDOWN_TICKS * 50 + 300);
+  guest.command({ type: 'input', seq: 1, left: false, right: false, bomb: true, bombAction: 'press' }); net.step(100);
+  guest.command({ type: 'input', seq: 2, left: false, right: false, bomb: false, bombAction: 'release' }); net.step(100);
+  net.muted.add(GUESTS[0]!); net.step(DISCONNECT_MS + 400);
+  assert.equal(net.frame(HOST)!.players.find(p => p.id === GUESTS[0])!.connected, false, 'the creator logged the silence');
+  net.muted.delete(GUESTS[0]!); net.step(600);
+  assert.equal(net.frame(HOST)!.players.find(p => p.id === GUESTS[0])!.connected, true, 'and the return');
+  assert.doesNotThrow(() => guest.command({ type: 'input', seq: 3, left: false, right: false, bomb: true, bombAction: 'press' }));
+  net.step(300); assert.equal((net.runtimes.get(HOST)! as unknown as { world: { streams: Map<string, { latestGesture(): number }> } }).world.streams.get(GUESTS[0]!)!.latestGesture(), 2, 'the new gesture id continues the sequence and every replica accepted it');
+  assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  host.stop(); guest.stop();
+});
+
+test('a burst of settings saves reaches every rider within a second, with no snapshot', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  const requests = () => net.reliableLog.filter(message => message.type === 'snapshotRequest').length, before = requests();
+  for (const length of [5, 6, 7]) { assert.equal(host.command({ type: 'settings', settings: { ...settings, length } }), true); net.step(100); }
+  net.step(700);
+  assert.equal(world(guest).state.settings.length, 7, 'the last save arrived through the packets');
+  assert.equal(requests(), before, 'no rider needed a snapshot');
+  host.stop(); guest.stop();
+});
+
+test('after a lobby reset drops an absent rider, a joiner still receives a valid world', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(300); const third = join(GUESTS[1]!, 'Third'); net.step(900);
+  assert.equal(host.command({ type: 'action', action: 'start' }), true); net.step(COUNTDOWN_TICKS * 50 + 300);
+  net.muted.add(GUESTS[1]!); net.step(DISCONNECT_MS + 400);
+  assert.equal(host.command({ type: 'action', action: 'lobby' }), true); net.step(300);
+  assert.deepEqual(net.frame(HOST)!.players.map(p => p.id).sort(), [HOST, GUESTS[0]!], 'the absent rider lost its seat');
+  const late = join(GUESTS[2]!, 'Late'); net.step(1500);
+  assert.deepEqual(net.frame(GUESTS[2]!)!.players.map(p => p.id).sort(), [HOST, GUESTS[0]!, GUESTS[2]!], 'the joiner installed the reset world and took a seat');
+  host.stop(); guest.stop(); third.stop(); late.stop();
+});
+
+test('an undecodable snapshot waits for the retry timer instead of asking again at once', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200);
+  net.transports.get(HOST)!.deaf = true; // The creator never answers, so the joiner's request stays pending.
+  const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  const requests = () => net.reliableLog.filter(message => message.type === 'snapshotRequest' && message.from === GUESTS[0]).length;
+  assert.equal(requests(), 1);
+  const bogus = { type: 'snapshot', tick: 0, rules: RULES, room: roomHash(`AB42:${HOST}`), chunk: 0, total: 1, data: btoa(String.fromCharCode(...packMessage('nope'))) };
+  net.transports.get(GUESTS[0]!)!.events.message(HOST, bogus);
+  net.step(SNAPSHOT_RETRY_MS - 200); assert.equal(requests(), 1, 'no new request inside the retry window');
+  net.step(400); assert.equal(requests(), 2, 'one retry after the window');
   host.stop(); guest.stop();
 });

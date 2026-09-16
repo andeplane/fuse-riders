@@ -103,7 +103,7 @@ Sent on the `input` channel from every member to every other member once per tic
 ]
 ```
 
-Limits: encoded ≤ 512 bytes, entries ≤ 6, decoded before any allocation beyond that. Aim is quantized to uint16 so a packet with six entries stays under 120 bytes of payload.
+Limits: encoded ≤ 1,100 bytes (one datagram under the IPv6 minimum MTU; raised from 512 so two SETTINGS entries fit), entries ≤ 6, oldest entries dropped first when a packet would exceed the cap, decoded before any allocation beyond that. Aim is quantized to uint16 so a packet with six entries stays under 120 bytes of payload.
 
 What each receiver derives from the stream, per sender:
 
@@ -217,7 +217,7 @@ Implemented in `src/shared/input-log.ts`, `apply-tick.ts`, `deterministic-math.t
 - **Every member simulates, including controller-only phones.** The world costs a few hundred microseconds per tick, so there is no thin status packet and no separate role table. Shared-mode phones simply do not render the arena. This removes one packet type and the "waiting for a display" simulation gate; the phone shows that notice while no full view is live.
 - **The time authority is the creator**, or the lowest live member while the creator is silent for five seconds. Snapshots are served by any linked peer (the returning creator needs one from a guest), rotating on retry.
 - **Packets carry the sender's member id instead of a roster index**, since the roster is not a log entry and indices would not agree during joins. Cost is about 25 bytes per packet.
-- **Management entries are accepted from any stream at the receiver and filtered in the reducer** (`permitted`): the creator always; the delegate (lowest connected human other than the creator) only while the creator is marked absent, plus the single `presence(creator,false)` entry that starts the delegation. This keeps delegation a pure function of the log.
+- **Management entries are accepted from any stream at the receiver and filtered in the reducer** (`permitted`): the creator always; the delegate (lowest connected human other than the creator) only while the creator is marked absent; and any connected human may log `presence(x,false)` for anyone ahead of it in the succession order (creator, then connected humans by id), so a creator and a delegate that drop together are both marked absent by the next rider. A silent creator opens the succession: the lowest rider still heard marks absent everyone ahead of it that has been silent for five seconds, and while it is the acting creator it carries every creator duty (presence, leave, joins, which joiners send to it). This keeps delegation a pure function of the log.
 - **`join` carries the member's generation** and there are no roster indices in `presence`; `hello` on the reliable channel announces `generation`, `full` and `RULES`.
 - **Snapshot requests and hellos are retried from the tick loop** rather than only on the link-open event, because the transport admits sends only after its own probes confirm the path.
 - **A snapshot re-install (divergence or falling more than 60 ticks behind) keeps the member's own stream numbering** and re-applies its own entries after the snapshot tick, so peers keep folding the same log.
@@ -256,3 +256,14 @@ Per-link traffic is a quarter of the 15 KB/s budget with no idle throttle yet. L
 - Kept from `main`: the gameplay changes in `src/shared/` (several live portal pairs, the room's bomb aim time, four-character room codes only, the `uuid` helper that works on a plain-HTTP LAN address); `checkpoint.ts` validates `portalPairs` as `main` does. The join card, phone lobby, radio, power-up guide and the rest of the UI; the in-memory room service (`src/service/dev.ts`) that replaced the Cloudflare Worker, so the guest↔guest signalling change lives in `gateway.ts` only; the CI split into `verify` and `e2e`; `smoke-timeout.ts` scaling in the online smoke.
 - Reworked: `net-stats.ts` now summarises the runtime's own `metrics()` (per-link RTT, rollbacks, gaps, snapshot requests, hash mismatches, the stall rule) for every device rather than a phone's view of its host; `telemetry.ts` and `scripts/telemetry-report.ts` post and summarise those metrics, status changes, inputs and events instead of the host-star event kinds. The online smoke is `main`'s flow (join card, stale host key, phone lobby, lobby reload confirming the seat, `SMOKE_RIDERS`) extended with this brief's stages (three rounds, guest and creator refresh mid-round, AI rider, shared TV with controller phones).
 - Rebased again on 2026-09-16 over the gravity bomb, speed boost, chain-reaction and aim-bounce settings, analytics, keyboard shortcuts and the theme switch. `checkpoint.ts` validates `gravityFields` and the new player fields as `main` does; `RULES` is `fuse-p2p-2` because the simulation changed; the transport says goodbye on its links when a page leaves on purpose (#143), as `main`'s did.
+
+### Review fixes (2026-09-16)
+
+An adversarial review of the pull request found six defects, all reproduced in the fake-room fixture and now covered by regression tests:
+
+- A SETTINGS entry (an object) could not be decoded from the unreliable channel, and packets over the cap were silently dropped, so every save made the creator silent until a snapshot: the packet decoder accepts maps, the cap is 1,100 bytes and a packet is trimmed from its oldest entries.
+- Gesture ids restarted after a rider was marked absent, so the next press threw: ids stay monotone across a reset.
+- A lobby reset kept folds for riders it no longer seated, which made every snapshot undecodable, and a failed decode re-requested at once: orphans are pruned with the reset, and a failed snapshot waits for the retry timer.
+- Delegation only covered the creator's own absence: the acting creator now carries every duty, and succession skips riders that dropped with the creator (rule above).
+- A snapshot was served at the speculative tick, so a requester's own entries still in flight were lost from the replay: a peer serves the newest retained state no later than its complete tick, unless it is itself stalled on a gap nobody can repair.
+- Snapshot requests are answered at most once per peer per half second.

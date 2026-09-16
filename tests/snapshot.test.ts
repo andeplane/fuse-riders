@@ -23,17 +23,18 @@ function playingWorld(): World {
 test('a snapshot carries the world, folds, bots and every stream past its base, in bounded chunks, and installs identically', () => {
   const w = playingWorld();
   const chunks = encodeSnapshot(w, ROOM);
-  assert.equal(chunks.length, 1); assert.equal(chunks[0]!.tick, 75); assert.equal(chunks[0]!.rules, RULES);
+  // The guest stream is complete through 62, so the snapshot is the retained state at 60, not the speculative 75.
+  assert.equal(chunks.length, 1); assert.equal(chunks[0]!.tick, 60); assert.equal(chunks[0]!.rules, RULES);
   const assembler = new SnapshotAssembler(ROOM), complete = assembler.accept(chunks[0]);
-  assert.ok(complete); assert.equal(complete.tick, 75);
+  assert.ok(complete); assert.equal(complete.tick, 60);
   const decoded = decodeSnapshot(complete.bytes, ROOM)!;
-  assert.ok(decoded); assert.equal(hashRoomState(decoded.state), hashRoomState(w.state)); assert.deepEqual(decoded.state.bots, new Set(['bot:1']));
-  assert.deepEqual(decoded.state.folds.get('guest'), { generation: 2, flags: 1, activeGesture: 1, latestGesture: 1 });
+  assert.ok(decoded); assert.equal(hashRoomState(decoded.state), w.hashAt(60)); assert.deepEqual(decoded.state.bots, new Set(['bot:1']));
+  assert.deepEqual(decoded.state.folds.get('guest'), { generation: 2, flags: 0, activeGesture: 1, latestGesture: 1 });
   const guest = decoded.streams.find(stream => stream.id === 'guest')!;
-  assert.deepEqual({ generation: guest.generation, seq: guest.seq, gesture: guest.gesture }, { generation: 2, seq: 2, gesture: 1 });
-  assert.deepEqual(guest.entries, [[4, 80, STEER, 2]], 'the buffered entry after the gap is replayed by the joiner');
+  assert.deepEqual({ generation: guest.generation, seq: guest.seq, gesture: guest.gesture }, { generation: 2, seq: 1, gesture: 1 });
+  assert.deepEqual(guest.entries, [[2, 70, STEER, 1], [4, 80, STEER, 2]], 'the entries after the served tick, gap included, are replayed by the joiner');
   const joiner = new World(decoded.state, 'creator', 'joiner');
-  for (const stream of decoded.streams) { const log = joiner.stream(stream.id, stream.generation, { seq: stream.seq, tick: 75, gesture: stream.gesture }); if (stream.entries.length) log.receive(stream.entries, stream.entries.at(-1)![0], 75, 200, 75); }
+  for (const stream of decoded.streams) { const log = joiner.stream(stream.id, stream.generation, { seq: stream.seq, tick: 60, gesture: stream.gesture }); if (stream.entries.length) log.receive(stream.entries, stream.entries.at(-1)![0], 75, 200, 60); }
   joiner.streams.get('guest')!.receive([[3, 76, STEER, 3] as Entry], 4, 90, 90, 75);
   w.streams.get('guest')!.receive([[3, 76, STEER, 3] as Entry], 4, 90, 90, 75);
   for (const world of [w, joiner]) { world.streams.get('creator')!.through = 90; world.streams.get('guest')!.through = 90; world.advance(90); }
@@ -42,8 +43,9 @@ test('a snapshot carries the world, folds, bots and every stream past its base, 
 
 test('large snapshots are chunked at 16 KB and reassembled only in order', () => {
   const w = playingWorld();
+  w.streams.get('guest')!.receive([[3, 76, STEER, 3] as Entry], 4, 80, 80, 75); w.streams.get('creator')!.through = 80; // Every stream complete: the current state is served.
   for (const player of w.state.game.players.values()) player.trail = Array.from({ length: 700 }, (_, i) => ({ x1: i, y1: 1, x2: i + 1, y2: 2, createdTick: 1, expiresAtTick: 9999 }));
-  const chunks = encodeSnapshot(w, ROOM); assert.ok(chunks.length > 3);
+  const chunks = encodeSnapshot(w, ROOM); assert.equal(chunks[0]!.tick, 75); assert.ok(chunks.length > 3);
   assert.ok(chunks.every(chunk => chunk.data.length <= SNAPSHOT_CHUNK_BYTES * 4 / 3 + 4));
   const assembler = new SnapshotAssembler(ROOM);
   for (const chunk of chunks.slice(0, -1)) assert.equal(assembler.accept(chunk), undefined);
@@ -86,4 +88,13 @@ test('replica game-state encoding preserves negative zero, maps and connection f
   assert.equal(corrupt(data => { data.roundWinnerId = 'ghost'; }), undefined); assert.equal(corrupt(data => { data['con' + 'structor'] = 1; }), undefined);
   assert.equal(decodeGameState('{'), undefined); assert.equal(decodeGameState(5), undefined); assert.equal(decodeGameState(' '.repeat(2_000_001)), undefined);
   assert.equal(decodeGameState(JSON.stringify({ $number: '-0' })), undefined);
+});
+
+test('a snapshot is served at the newest retained tick every rider has completed, never at the speculative tick', () => {
+  const w = playingWorld();
+  assert.ok(w.completeTick() < w.tick, 'the guest stream is incomplete, so the world is ahead of what is final');
+  const chunks = encodeSnapshot(w, ROOM); assert.ok(chunks[0]!.tick <= w.completeTick(), `served ${chunks[0]!.tick} ≤ complete ${w.completeTick()}`);
+  const assembler = new SnapshotAssembler(ROOM); let complete: { bytes: Uint8Array } | undefined; for (const chunk of chunks) complete = assembler.accept(chunk) ?? complete;
+  const decoded = decodeSnapshot(complete!.bytes, ROOM); assert.ok(decoded); assert.equal(decoded.state.game.tick, chunks[0]!.tick);
+  assert.ok(decoded.streams.find(stream => stream.id === 'creator')!.entries.every(entry => entry[1] > chunks[0]!.tick), 'entries after the served tick ride along for replay');
 });

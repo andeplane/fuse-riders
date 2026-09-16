@@ -22,6 +22,8 @@ export class FakeNetwork {
   readonly visibility = new Map<string, () => void>();
   private random: () => number;
   sentFast = 0; droppedFast = 0; bytesFast = 0;
+  /** Every reliable message by sender, receiver and type, so a test can count joins, hellos and snapshot requests. */
+  readonly reliableLog: { from: string; to: string; type: string; at: number }[] = [];
   constructor(readonly hostId: string, public options: NetworkOptions, seed = 1) {
     let a = seed >>> 0;
     this.random = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 0x1_0000_0000; };
@@ -39,6 +41,7 @@ export class FakeNetwork {
   }
   sendReliable(from: string, to: string, data: unknown): boolean {
     const target = this.transports.get(to); if (!target?.online || !this.transports.get(from)?.online || !this.transports.get(from)!.linkedWith(to)) return false;
+    this.reliableLog.push({ from, to, type: String((data as { type?: unknown })?.type), at: this.now });
     const key = `${from}>${to}`, at = Math.max(this.now + this.options.reliableMs, this.reliableLast.get(key) ?? 0);
     this.reliableLast.set(key, at); const payload = structuredClone(data);
     this.schedule(at, () => { if (target.online && !target.deaf && target.linkedWith(from)) target.events.message(from, payload); });

@@ -14,9 +14,9 @@ export interface DecodedSnapshot { state: RoomState; streams: SnapshotStream[] }
 const toBase64 = (bytes: Uint8Array): string => { let text = ''; for (let offset = 0; offset < bytes.length; offset += 8192) text += String.fromCharCode(...bytes.subarray(offset, offset + 8192)); return btoa(text); };
 const fromBase64 = (text: string): Uint8Array => Uint8Array.from(atob(text), char => char.charCodeAt(0));
 
-/** The whole world at the sender's current tick plus every stream's entries after that tick, in ≤16 KB chunks. */
+/** The whole world at the sender's servable tick (complete for every rider) plus every stream's entries after it, in ≤16 KB chunks. */
 export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
-  const state = world.state, tick = world.tick;
+  const { state, tick } = world.servable();
   const folds = [...state.folds].map(([id, fold]) => [id, fold.generation, fold.flags, fold.aim?.x ?? null, fold.aim?.y ?? null, fold.activeGesture, fold.latestGesture]);
   const streams = [...world.streams].map(([id, stream]) => { const base = stream.baseAt(tick); return [id, stream.generation, base.seq, base.gesture, stream.entriesAfter(base.seq, tick).slice(0, MAX_SNAPSHOT_ENTRIES)]; });
   const bytes = packMessage([RULES, room, tick, encodeGameState(state.game), state.settings, folds, [...state.bots], streams, hashRoomState(state)]);

@@ -1,5 +1,5 @@
 import { BotController } from '../shared/bot-controller.js';
-import { applyTick, delegate, hashRoomState, type RoomState, type StreamEntries } from '../shared/apply-tick.js';
+import { applyTick, hashRoomState, successionOrder, type RoomState, type StreamEntries } from '../shared/apply-tick.js';
 import { toSnapshot } from '../shared/game.js';
 import { LEAVE, PRESENCE } from '../shared/input-log.js';
 import type { GameEvent } from '../shared/protocol.js';
@@ -43,8 +43,8 @@ export class World {
   /** Entries in the applicable log that disconnect `id` after the current tick: the stall rule may not wait past them. */
   private pendingDisconnect(id: string): number | undefined {
     let earliest: number | undefined;
-    for (const manager of [this.creatorId, delegate(this.state, this.creatorId)]) {
-      const stream = manager === undefined ? undefined : this.streams.get(manager); if (!stream) continue;
+    for (const manager of successionOrder(this.state, this.creatorId)) {
+      const stream = this.streams.get(manager); if (!stream) continue;
       for (const entry of stream.entries.values()) {
         if (entry[0] > stream.contiguous || entry[1] <= this.tick) continue;
         if ((entry[2] === PRESENCE && entry[3] === id && entry[4] === false) || (entry[2] === LEAVE && entry[3] === id)) earliest = Math.min(earliest ?? Infinity, entry[1]);
@@ -124,6 +124,17 @@ export class World {
       const stream = this.streams.get(player.id); complete = Math.min(complete, stream ? stream.completeThrough() : -1);
     }
     return complete;
+  }
+  /**
+   * The state to serve a joiner: the newest retained snapshot no later than the complete tick, so nothing any rider has
+   * already logged up to it is still in flight; the current speculative state only when everything is complete.
+   */
+  servable(): { state: RoomState; tick: number } {
+    const complete = this.completeTick();
+    // A replica stalled on a gap nobody can repair serves the state past it: that is how the room moves on without the entry.
+    if (complete >= this.tick || this.tick >= this.stallBound().tick) return { state: this.state, tick: this.tick };
+    const at = Math.max(...[...this.snapshots.keys()].filter(tick => tick <= complete), -1);
+    return at < 0 ? { state: this.state, tick: this.tick } : { state: this.snapshots.get(at)!, tick: at };
   }
   /** Diagnostic hash of the retained state at `tick`, if one is kept there. */
   hashAt(tick: number): string | undefined { const state = this.snapshots.get(tick); return state ? hashRoomState(state) : undefined; }

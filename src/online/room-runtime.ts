@@ -3,10 +3,10 @@ import { TickClock } from './clock.js';
 import { World, type Frame } from './rollback.js';
 import { STALL_TICKS } from './rollback.js';
 import { PACKET_ENTRIES } from './stream.js';
-import { decodePacket, encodeNack, encodePacket, roomHash, wrapDelta, wrapMs, type Packet } from './packet.js';
+import { decodePacket, encodeNack, encodePacketTrimmed, roomHash, wrapDelta, wrapMs, type Packet } from './packet.js';
 import { SnapshotAssembler, decodeSnapshot, encodeSnapshot } from './snapshot.js';
 import { presentWorld } from './prediction.js';
-import { BOT_NAMES, RULES, createRoomState, freeSlot, reclaimable } from '../shared/apply-tick.js';
+import { BOT_NAMES, RULES, actingCreator, createRoomState, freeSlot, reclaimable, successionOrder } from '../shared/apply-tick.js';
 import { ACTION, AIM, AVATAR, BOT, CANCEL, JOIN, LEAVE, MAX_NAME_LENGTH, PRESENCE, PRESS, RELEASE, SETTINGS, STEER, quantizeAim } from '../shared/input-log.js';
 import { isAvatarId, type AvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
@@ -102,6 +102,10 @@ export class RoomRuntime {
   }
   get solo(): boolean { return !this.transport; }
   get creator(): boolean { return this.id !== '' && this.id === this.hostId; }
+  /** Whether this replica's management entries apply right now: the creator, or the delegate while the creator is logged absent. */
+  private get manager(): boolean { return this.creator || (this.world !== undefined && actingCreator(this.world.state, this.hostId) === this.id); }
+  /** Where a joiner sends its join: the creator, or whoever manages while the creator is absent. */
+  private managerId(): string { return (this.world && actingCreator(this.world.state, this.hostId)) ?? this.hostId; }
   get tick(): number { return this.world?.tick ?? 0; }
   start(): void {
     if (this.cancelTick) return;
@@ -134,7 +138,7 @@ export class RoomRuntime {
     if (online) { if (!this.members.has(id)) this.members.set(id, { generation: 0, snapshotServedAt: -Infinity, lastPacketAt: -Infinity, lastSentAt: 0, lastSentReceivedAt: 0, full: true, nackAt: -Infinity, helloed: false, gapSince: -Infinity, rejected: 0 }); return; }
     this.members.delete(id); this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
-    if (this.creator && this.world?.state.game.players.has(id)) this.append(LEAVE, id);
+    if (this.manager && this.world?.state.game.players.has(id)) this.append(LEAVE, id);
   }
   /** A link opening is only a hint: the transport admits sends once its own probes confirm the path, so the tick loop retries. */
   private link(id: string, open: boolean): void {
@@ -147,7 +151,7 @@ export class RoomRuntime {
     member.helloed = this.transport!.send(id, { type: 'hello', generation: this.generation, full: this.full, rules: RULES });
     if (!member.helloed) return;
     if (this.needsWorld() && !this.snapshotRequest) this.requestSnapshot(id);
-    if (this.pendingJoin && id === this.hostId) this.sendJoin();
+    if (this.pendingJoin && id === this.managerId()) this.sendJoin();
   }
   private message(id: string, raw: unknown): void {
     if (!raw || typeof raw !== 'object') return;
@@ -158,7 +162,7 @@ export class RoomRuntime {
         if (data.rules !== RULES) { this.status.notice('A rider is on a different game version — everyone should reload'); return; }
         if (typeof data.generation === 'number' && Number.isSafeInteger(data.generation) && data.generation >= 0) this.bump(id, member, data.generation);
         member.full = data.full === true; return;
-      case 'join': if (this.creator && typeof data.name === 'string') { const error = this.join(id, data.name, isAvatarId(data.avatarId) ? data.avatarId : undefined); if (error) this.transport!.send(id, { type: 'error', error }); } return;
+      case 'join': if (this.manager && typeof data.name === 'string') { const error = this.join(id, data.name, isAvatarId(data.avatarId) ? data.avatarId : undefined); if (error) this.transport!.send(id, { type: 'error', error }); } return;
       case 'snapshotRequest': {
         // One snapshot per peer per half second: a requester retries on its own timer, so a storm of requests cannot make this replica encode and queue megabytes.
         const now = this.deps.now(); if (now - member.snapshotServedAt < SNAPSHOT_SERVE_MS) return; member.snapshotServedAt = now;
@@ -236,7 +240,8 @@ export class RoomRuntime {
     if (!this.snapshotRequest || this.snapshotRequest.to !== id || !this.assembler) return;
     const complete = this.assembler.accept(raw); if (!complete) return;
     const decoded = decodeSnapshot(complete.bytes, this.room);
-    if (!decoded) { this.snapshotRequest.failures++; this.requestSnapshot(); return; }
+    // A snapshot that fails validation is retried on the timer, rotating peers; asking again at once would storm a peer that keeps serving the same bad state.
+    if (!decoded) { this.snapshotRequest.failures++; this.snapshotRequest.at = this.deps.now(); this.assembler = new SnapshotAssembler(this.room); return; }
     const tick = decoded.state.game.tick, previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state); else this.world = new World(decoded.state, this.hostId, this.id);
     for (const stream of decoded.streams) {
@@ -333,20 +338,30 @@ export class RoomRuntime {
     const self = game.players.get(this.id);
     if (self && !self.connected) this.ensurePresence(this.id, this.selfMember());
   }
-  /** While the creator is silent for five seconds the lowest connected rider marks it absent so play can continue. */
+  /**
+   * Succession: the lowest connected rider that is still heard marks absent everyone ahead of it in the succession order
+   * (the creator, then the lower-sorted riders) once they have been silent for five seconds, so play continues whoever
+   * dropped together. Every replica accepts those entries from any rider ranked behind the one it names.
+   */
   private actingCreatorDuties(now: number): void {
-    const game = this.world!.state.game, host = game.players.get(this.hostId), member = this.members.get(this.hostId);
-    if (!host?.connected || (member && now - member.lastPacketAt <= CREATOR_SILENCE_MS)) return;
-    const candidates = [...game.players.values()].filter(player => player.connected && !this.world!.state.bots.has(player.id) && player.id !== this.hostId && (player.id === this.id || (this.members.get(player.id) && now - this.members.get(player.id)!.lastPacketAt <= DISCONNECT_MS))).map(player => player.id).sort();
-    if (candidates[0] !== this.id) return;
-    this.logPresence(this.hostId, member ?? this.selfMember(), false);
+    const state = this.world!.state, order = successionOrder(state, this.hostId), mine = order.indexOf(this.id);
+    const silent = (id: string) => { const member = this.members.get(id); return !member || now - member.lastPacketAt > CREATOR_SILENCE_MS; };
+    // Only a silent creator opens the succession: while it is heard, it alone marks riders absent, on its one-second rule.
+    if (mine < 0 || !silent(this.hostId)) return;
+    const heard = (id: string) => id === this.id || (this.members.has(id) && now - this.members.get(id)!.lastPacketAt <= DISCONNECT_MS);
+    if (order.slice(1).find(heard) !== this.id) return;
+    for (const id of order.slice(0, mine)) {
+      if (!state.game.players.get(id)?.connected || !silent(id)) continue;
+      this.logPresence(id, this.members.get(id) ?? this.selfMember(), false);
+    }
   }
 
   // ---- own entries --------------------------------------------------------------------------------------------------
   private own() { return this.world!.streams.get(this.id)!; }
   private ownTick(): number { this.lastOwnTick = Math.max(Math.floor(this.clock.tick()) + 1, this.lastOwnTick); return this.lastOwnTick; }
   private append(...body: unknown[]): number { const tick = this.ownTick(); this.own().append(tick, body); this.lastPacketTick = -1; return tick; }
-  private resetHeld(): void { this.held = { flags: -1, aim: undefined, aimTick: -1, active: 0, latest: 0 }; }
+  /** Neutral controls, but gesture ids never restart: the own stream refuses a reused id and so would every peer. */
+  private resetHeld(): void { this.held = { flags: -1, aim: undefined, aimTick: -1, active: 0, latest: Math.max(this.held.latest, this.world?.streams.get(this.id)?.latestGesture() ?? 0) }; }
   private player() { return this.world?.state.game.players.get(this.id); }
   /** The steer the fold currently holds for a rider: what the benchmark reports as applied motion. */
   heldControls(id: string): { left: boolean; right: boolean } | undefined {
@@ -390,11 +405,12 @@ export class RoomRuntime {
     const join = this.pendingJoin; if (!join) return false;
     join.sentAt = this.deps.now();
     if (this.creator || this.solo) { if (!this.world) return true; const error = this.join(this.id, join.name, join.avatarId); if (error) { this.status.notice(error); this.pendingJoin = undefined; return false; } return true; }
-    return this.transport!.send(this.hostId, { type: 'join', name: join.name, avatarId: join.avatarId });
+    return this.transport!.send(this.managerId(), { type: 'join', name: join.name, avatarId: join.avatarId });
   }
   /** Edge-filtered: an unchanged frame produces no entry; each press is a new gesture in the log. */
   private input(command: Extract<RoomCommand, { type: 'input' }>): boolean {
     if (!this.player() || this.hiddenState) return false;
+    if (this.held.active === 0) this.held.latest = Math.max(this.held.latest, this.own().latestGesture());
     const flags = (command.left ? 1 : 0) | (command.right ? 2 : 0);
     if (flags !== this.held.flags) { this.append(STEER, flags); this.held.flags = flags; }
     const aim = command.aim ? quantizeAim(command.aim) : undefined;
@@ -463,7 +479,8 @@ export class RoomRuntime {
       }
     }
     if (this.transport) {
-      if (this.creator) this.creatorDuties(now); else this.actingCreatorDuties(now);
+      if (this.manager) this.creatorDuties(now);
+      if (!this.creator) this.actingCreatorDuties(now);
       this.lastLoopAt = now;
       const player = this.player();
       if (player && !player.connected && this.held.flags !== -1) this.resetHeld();
@@ -504,7 +521,7 @@ export class RoomRuntime {
     const hash = tick % HASH_INTERVAL === 0 && tick - HASH_LAG <= this.world!.completeTick() ? this.world!.hashAt(tick - HASH_LAG) : undefined;
     const packet: Packet = { room: this.room, from: this.id, generation: this.generation, through: Math.max(this.own().through, tick), lastSeq: this.own().lastSeq, entries, sentAt: wrapMs(now),
       echoSentAt: member.lastSentAt, echoHeld: member.lastSentAt ? Math.max(0, Math.round(now - member.lastSentReceivedAt)) >>> 0 : 0, clockTick: Math.max(0, this.clock.tick()), hash: hash === undefined ? null : [tick - HASH_LAG, hash] };
-    try { this.transport!.sendFast(id, encodePacket(packet)); } catch { /* An oversized packet is a bug in retention, never a crash. */ }
+    try { this.transport!.sendFast(id, encodePacketTrimmed(packet)); } catch { /* Even a single entry over the cap is a bug in the entry validator, never a crash. */ }
   }
   private publish(): void {
     const frame = this.world?.view()[0]; if (!frame || frame.tick === this.lastFrameTick) return;

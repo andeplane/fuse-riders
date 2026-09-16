@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ACTION, AIM, AVATAR, BOT, CANCEL, JOIN, LEAVE, PRESENCE, PRESS, RELEASE, SETTINGS, STEER, dequantizeAim, foldPlayerEntries, isEntry, isManagementKind, neutralControls, quantizeAim, type Entry } from '../src/shared/input-log.js';
 import { BotController } from '../src/shared/bot-controller.js';
-import { RULES, actingCreator, applyTick, canonicalRoomState, createRoomState, freeSlot, hashRoomState, hashText, type RoomState, type StreamEntries } from '../src/shared/apply-tick.js';
+import { RULES, actingCreator, applyTick, canonicalRoomState, createRoomState, freeSlot, hashRoomState, hashText, permitted, successionOrder, type RoomState, type StreamEntries } from '../src/shared/apply-tick.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
 import { COUNTDOWN_TICKS, ROUND_OVER_TICKS, eliminatePlayer } from '../src/shared/game.js';
 
@@ -136,4 +136,26 @@ test('bots are simulated on every replica and the same log always folds to the s
   const reordered = createRoomState('room', settings); reordered.game.players = new Map([...a.game.players].reverse()); reordered.game.tick = a.game.tick;
   assert.notEqual(hashRoomState(reordered), hashRoomState(a));
   const shuffled = structuredClone(a); shuffled.game.players = new Map([...a.game.players].reverse()); assert.equal(hashRoomState(shuffled), hashRoomState(a), 'map order never matters');
+});
+
+test('succession: a rider may record the absence of anyone ahead of it, and manages once everyone ahead is absent', () => {
+  const r = playing();
+  r.tick(streams(['creator', [r.at('creator', JOIN, 'third', 'Third', 2, 'fox', 3)]]));
+  assert.deepEqual(successionOrder(r.state, 'creator'), ['creator', 'guest', 'third']);
+  const entry = (id: string, ...body: unknown[]) => r.at(id, ...body);
+  assert.equal(permitted(r.state, 'creator', 'third', entry('third', SETTINGS, settings)), false, 'a rider behind the delegate manages nothing while the creator is here');
+  assert.equal(permitted(r.state, 'creator', 'guest', entry('guest', PRESENCE, 'third', false, 3)), false, 'nobody marks absent a rider behind them');
+  r.tick(streams(['third', [entry('third', PRESENCE, 'creator', false, 1)]])); assert.equal(r.state.game.players.get('creator')!.connected, false, 'the third rider may mark the creator absent');
+  r.tick(streams(['third', [entry('third', SETTINGS, { ...settings, length: 9 })]])); assert.equal(r.state.settings.length, 3, 'the guest is the delegate, so the third rider still manages nothing');
+  r.tick(streams(['third', [entry('third', PRESENCE, 'guest', false, 2)]])); assert.equal(r.state.game.players.get('guest')!.connected, false, 'and may mark the delegate absent too');
+  assert.equal(actingCreator(r.state, 'creator'), 'third');
+  r.tick(streams(['third', [entry('third', SETTINGS, { ...settings, length: 9 })]])); assert.equal(r.state.settings.length, 9, 'now it manages');
+  r.tick(streams(['guest', [entry('guest', PRESENCE, 'third', false, 3)]])); assert.equal(r.state.game.players.get('third')!.connected, true, 'an absent rider manages nothing');
+});
+
+test('a lobby reset keeps only the folds and bots of riders it still seats, so the state stays snapshot-clean', () => {
+  const r = playing();
+  r.tick(streams(['creator', [r.at('creator', PRESENCE, 'guest', false, 1)]]));
+  r.tick(streams(['creator', [r.at('creator', ACTION, 'lobby', 'match-2')]]));
+  assert.deepEqual([...r.state.game.players.keys()], ['creator']); assert.deepEqual([...r.state.folds.keys()], ['creator'], 'no fold outlives its seat');
 });
