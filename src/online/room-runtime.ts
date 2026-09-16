@@ -549,6 +549,8 @@ export class RoomRuntime {
     const player = this.player(), controls = { left: (this.held.flags & 1) === 1, right: (this.held.flags & 2) === 2 };
     return presentWorld(older, newer, presentation, player && this.held.flags >= 0 ? { id: this.id, controls, lead: Math.max(0, Math.min(1, clock - presentation)) } : undefined);
   }
+  /** Every connected rider's input is confirmed through this tick, so no rollback can change state up to it. */
+  confirmedTick(): number { return this.world ? this.world.completeTick() : -1; }
   metrics(): RuntimeMetrics {
     const streams = Object.fromEntries([...(this.world?.streams ?? [])].map(([id, stream]) => [id, { generation: stream.generation, contiguous: stream.contiguous, lastSeq: stream.lastSeq, through: stream.through, complete: stream.completeThrough(), gap: stream.gap, base: stream.baseTick, rejected: this.members.get(id)?.rejected ?? 0 }]));
     const now = this.deps.now();
