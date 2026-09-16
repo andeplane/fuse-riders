@@ -1257,3 +1257,16 @@ test('a fixed-rounds match tied at the final round ends without a match winner',
   assert.ok(result.events.some((event) => event.type === 'matchEnded' && event.winnerId === undefined));
   assert.ok([...state.leaderboard.values()].every((entry) => entry.matchWins === 0 && entry.roundWins === 1));
 });
+
+// The preview reads this flag off the snapshot, so if it stops tracking the room's setting every rider aims with a
+// clamped ramp while the simulation still bounces, and the marker lies about where the bomb lands. The ramp maths and
+// the settings parser are both well covered; this is the wire hop between them, which nothing else exercises (#182).
+test('the snapshot carries the room aim-bounce flag, in both directions and without settings', () => {
+  const state = createGame('aim-bounce-wire');
+  assert.equal(toSnapshot(state).aimBounce, false, 'a game with no settings yet must not claim the room bounces');
+  // defaultRoomSettings() already bounces, so the true case has to come from the settings object to mean anything.
+  state.settings = { ...defaultRoomSettings(), aimBounce: true };
+  assert.equal(toSnapshot(state).aimBounce, true, 'a room with bouncing on must reach the preview');
+  state.settings = { ...defaultRoomSettings(), aimBounce: false };
+  assert.equal(toSnapshot(state).aimBounce, false, 'a host who turned bouncing off must reach the preview');
+});
