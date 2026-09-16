@@ -90,6 +90,9 @@ export const PICKUP_SPAWN_MARGIN = 40;
 export const PICKUP_RIDER_BOMB_CLEARANCE = 80;
 export const PICKUP_TRAIL_CLEARANCE = 40;
 export const PICKUP_SEPARATION = 28;
+/** Three seconds a quarter faster (#166). */
+export const BOOST_DURATION_TICKS = 60;
+export const BOOST_SPEED = 1.25;
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
 
@@ -103,7 +106,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export type PickupType = 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
+export type PickupType = 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal' | 'boost';
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -135,6 +138,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   fuseLevel?: number;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
+  /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
+  boostUntilTick: number;
   drunkUntilTick: number; inkUntilTick: number;
   drunkStartedTick: number;
   drunkHeadingOffset: number;
@@ -280,6 +285,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     bombReadyAtTick: 0,
     blastLevel: 0,
     invulnerableUntilTick: 0,
+    boostUntilTick: 0,
     drunkUntilTick: 0, inkUntilTick: 0,
     targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false,
     drunkStartedTick: 0,
@@ -412,7 +418,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
-    const pose = advanceRiderPose(player, input, {distance:MOVE_PER_TICK,turn:TURN_PER_TICK,drunkHeadingOffset:offset});
+    const distance = player.boostUntilTick > state.tick ? MOVE_PER_TICK * BOOST_SPEED : MOVE_PER_TICK;
+    const pose = advanceRiderPose(player, input, {distance,turn:TURN_PER_TICK,drunkHeadingOffset:offset});
     player.drunkHeadingOffset = pose.drunkHeadingOffset;
     movements.set(player.id, {
       player,
@@ -685,6 +692,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
       fuseLevel: player.fuseLevel ?? 0, blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
+      boostUntilTick: player.boostUntilTick,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
@@ -755,6 +763,7 @@ function prepareRound(state: GameState): void {
     player.bombReadyAtTick = state.tick;
     player.fuseLevel = 0; player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
+    player.boostUntilTick = 0;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
     player.drunkHeadingOffset = 0;
@@ -854,6 +863,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+    } else if (pickup.type === 'boost') {
+      collector.boostUntilTick = Math.max(collector.boostUntilTick, state.tick + BOOST_DURATION_TICKS);
     } else if (pickup.type === 'ink') {
       for (const player of state.players.values()) {
         if (player.alive && player.id !== collector.id) player.inkUntilTick = Math.max(player.inkUntilTick, state.tick + INK_DURATION_TICKS);
