@@ -60,7 +60,8 @@ jobs:
       # scripts/ci-smoke.sh comments on the `flaky-test` issue when a smoke on main passes only on retry.
       issues: write
     env:
-      GH_TOKEN: ${{ github.token }}
+      # Only main pushes report flakes to the issue, so pull-request smoke code never sees an issue-writing token.
+      GH_TOKEN: ${{ github.event_name == 'push' && github.token || '' }}
       # A two-core runner drives several browser contexts at once, some on software GL, so the
       # deadlines these smokes were written against are not deadlines here: three different steps
       # timed out on three consecutive runs whose code was fine. Scaling them keeps every assertion

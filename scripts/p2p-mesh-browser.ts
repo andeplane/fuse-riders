@@ -91,7 +91,9 @@ try {
   for (const [index, page] of pages.entries()) if (page !== victim) await page.waitForFunction(([id, count]) => ((globalThis as unknown as { mesh: { received(): Record<string, number> } }).mesh.received()[id as string] ?? 0) > (count as number), [victimId, before[index]![victimId] ?? 0], { timeout: smokeTimeout(10_000) });
   console.log('Fast delivery from the blackholed peer resumed', Math.round(performance.now() - recoveryStart), 'ms after the three-second send blackhole ended.');
   phase = 'channel-closure';
-  // A drained link can rebuild before a poll for "not ready" ever runs, so wait for the drop event itself.
+  // A drained link can rebuild before a poll for "not ready" ever runs, so wait for the drop event itself. Every link
+  // is ready first, so no drop left over from the blackhole can stand in for this one.
+  await waitReady('before-closure');
   const drops = await mesh<number>(victim, 'mesh.linkDrops()');
   assert.equal(await mesh<boolean>(victim, 'mesh.closeInput()'), true);
   await victim.waitForFunction(count => (globalThis as unknown as { mesh: { linkDrops(): number } }).mesh.linkDrops() > count, drops, { timeout: smokeTimeout(10_000) });
