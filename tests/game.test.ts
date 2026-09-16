@@ -314,6 +314,24 @@ test('a crash at a rounded trail endpoint records the contact instead of the pre
   assert.equal(rider.trail.at(-1)!.x2, rider.x);
 });
 
+// The tangency case above pins how wide contact is. This one pins that it is measured at matching times, which
+// nothing else still catches: once #202 narrowed contact to the trail head, the older following-riders case cleared
+// the threshold on the old path-vs-path comparison too, so reverting to it no longer fails anything. These two ride
+// abreast 6.5 apart -- never touching -- but their paths lie along the same line, so a path-against-path test reads
+// them as zero apart and kills both. Written out rather than derived from RIDER_CONTACT_RADIUS: a distance that
+// follows the constant cannot notice the constant moving.
+test('riders abreast just outside contact survive, though their paths overlap in space', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const left = state.players.get('p0')!;
+  const right = state.players.get('p1')!;
+  left.x = 500; left.y = 350; left.angle = 0; left.trail = [];
+  right.x = 506.5; right.y = 350; right.angle = 0; right.trail = [];
+  const result = step(state, new Map());
+  assert.deepEqual(result.events.filter((event) => event.type === 'playerEliminated'), [], 'a 6.5 gap is outside the 6-unit contact width at every instant');
+  assert.ok(left.alive && right.alive);
+});
+
 test('head-on swept rider collision eliminates both and produces a draw', () => {
   const state = gameWithPlayers();
   enterPlaying(state);

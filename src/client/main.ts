@@ -248,7 +248,7 @@ function drawSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: n
   ctx.restore();
 }
 
-export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris: readonly DebrisStroke[] = []): void {
+export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris: readonly DebrisStroke[] = [], selfId?: string): void {
   const { width, height } = snapshot;
   ctx.clearRect(0, 0, width, height);
   ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
@@ -395,14 +395,19 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = color;
     ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
-    ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'left';
+    // The local rider reads YOU inside a breathing ring so a player finds themselves at a glance (five identical heads otherwise).
+    // Radii follow #202's smaller portrait and #198's reload ring (17): the ring hugs them and stays clear of the 29px shield.
+    const self = player.id === selfId;
+    if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 22 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+    const riderLabel = self ? 'YOU' : player.name, labelColor = self ? '#ffffff' : color;
+    ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'left';
     const powerText = String(player.powerPickups), gap = 8;
-    const nameWidth = ctx.measureText(player.name).width;
+    const nameWidth = ctx.measureText(riderLabel).width;
     const labelX = Math.round(player.x - (nameWidth + gap + POWER_ICON_SIZE + POWER_ICON_GAP + ctx.measureText(powerText).width) / 2);
-    const labelY = Math.round(player.y - 27);
+    const labelY = Math.round(player.y - (self ? 30 : 27));
     ctx.lineWidth = 3; ctx.strokeStyle = '#020715';
-    ctx.strokeText(player.name, labelX, labelY); ctx.fillStyle = color;
-    ctx.fillText(player.name, labelX, labelY);
+    ctx.strokeText(riderLabel, labelX, labelY); ctx.fillStyle = labelColor;
+    ctx.fillText(riderLabel, labelX, labelY);
     const radius = POWER_ICON_SIZE / 2, iconX = labelX + nameWidth + gap + radius, iconY = labelY - 5;
     ctx.fillStyle = POWER_COLOR; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(iconX, iconY - radius); ctx.lineTo(iconX + radius, iconY);

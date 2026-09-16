@@ -16,6 +16,8 @@ export const MUSIC_TRACKS = [
   { id: 'fast-frontier-run', title: 'Fast Frontier Run', path: '/music/fast-frontier-run.m4a' },
   { id: 'snaky-blue', title: 'Snaky Blue', path: '/music/snaky-blue.m4a' },
   { id: 'arcade-blues', title: 'Arcade Blues', path: '/music/arcade-blues.m4a' },
+  { id: 'snabby-jazz', title: 'Snabby Jazz', path: '/music/snabby-jazz.m4a' },
+  { id: 'snaky-jazz', title: 'Snaky Jazz', path: '/music/snaky-jazz.m4a' },
 ] as const;
 export type TrackId = typeof MUSIC_TRACKS[number]['id'];
 /** `all` plays every track in order; `playlist` plays the listener's own list (falling back to all while it is empty). */

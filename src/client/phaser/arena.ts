@@ -24,7 +24,7 @@ export interface ArenaOptions { renderer?: 'auto' | 'canvas'; quality?: 'high' |
 export interface ArenaMetrics { renderer: string; objects: number; particles: number; renderMs: number; automaticLoopRunning: boolean; trailHistoryBuilds: number }
 export interface PhaserArena {
   ready: Promise<void>;
-  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string): void;
+  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string, selfId?: string): void;
   resize(width: number, height: number): void;
   reset(): void;
   destroy(): void;
@@ -87,11 +87,11 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
   };
   return {
     ready,
-    render(snapshot, now, theme, matchId) {
+    render(snapshot, now, theme, matchId, selfId) {
       if (!booted || destroyed || lost || document.hidden) return;
       const start = performance.now();
       resize(snapshot.width, snapshot.height);
-      scene.paint(snapshot, now, theme, matchId);
+      scene.paint(snapshot, now, theme, matchId, selfId);
       game.step(now, lastNow ? Math.min(50, Math.max(0, now - lastNow)) : 16.667);
       lastNow = now; renderMs = performance.now() - start;
     },
@@ -265,7 +265,7 @@ class ArenaScene extends Phaser.Scene {
     if(label.style.fontSize!==`${size}px`)label.setFontSize(size);
     return label;
   }
-  paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string): void {
+  paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string, selfId?: string): void {
     this.imageIndex = 0; this.labelIndex = 0;
     const g = this.dynamic.clear(); const f = this.front.clear();
     const { width:w, height:h, boundaryInset:b } = s;
@@ -383,11 +383,13 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
       f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
-      const name=this.label(p.name,p.x,p.y-27,p.color);
-      const power=this.label(String(p.powerPickups),p.x,p.y-27,POWER_COLOR);
+      const self=p.id===selfId, labelY=p.y-(self?30:27);
+      if(self)f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,22+Math.sin(now/180)*2);
+      const name=this.label(self?'YOU':p.name,p.x,labelY,self?'#ffffff':p.color,self?12:10);
+      const power=this.label(String(p.powerPickups),p.x,labelY,POWER_COLOR);
       const gap=8, left=p.x-(name.width+gap+POWER_ICON_SIZE+POWER_ICON_GAP+power.width)/2;
       name.setX(left+name.width/2);
-      const iconX=left+name.width+gap+POWER_ICON_SIZE/2, iconY=p.y-27, radius=POWER_ICON_SIZE/2;
+      const iconX=left+name.width+gap+POWER_ICON_SIZE/2, iconY=labelY, radius=POWER_ICON_SIZE/2;
       f.fillStyle(color(POWER_COLOR)).lineStyle(2,0x020715).beginPath()
         .moveTo(iconX,iconY-radius).lineTo(iconX+radius,iconY).lineTo(iconX,iconY+radius).lineTo(iconX-radius,iconY)
         .closePath().fillPath().strokePath();

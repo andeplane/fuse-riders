@@ -290,6 +290,12 @@ details.audio-controls > .audio-panel.radio { width: min(380px, calc(100vw - 24p
 
 .host-tools{display:flex;gap:6px;align-items:center}
 
+/* AAA pass: on a laptop-sized host window the score cards wrap under the toolbar instead of drawing over the timer. */
+@media (max-width: 1240px) {
+  .topbar { grid-template-columns: auto repeat(7, auto); justify-content: space-between; }
+  .scores { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; flex-wrap: wrap; }
+}
+
 /* Instant replay dressing (ADR 044): fixed over the arena on every screen; the world itself stays in the canvas. */
 .replay-overlay { --player-color: #29dfff; position: fixed; inset: 0; z-index: 8; pointer-events: none; font-family: "Press Start 2P", ui-monospace, monospace; }
 .replay-bar { position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height .45s cubic-bezier(.2, .8, .2, 1); }

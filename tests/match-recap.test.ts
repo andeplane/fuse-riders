@@ -32,9 +32,9 @@ function rider(overrides: Partial<MatchPlayerStats> & { playerId: string; slot: 
 }
 
 test('distances render as whole arena units and durations reuse the shared formatter', () => {
-  assert.equal(distanceText(0), '0u');
-  assert.equal(distanceText(1234.6), '1235u');
-  assert.equal(distanceText(-3), '0u');
+  assert.equal(distanceText(0), '0');
+  assert.equal(distanceText(1234.6), '1235');
+  assert.equal(distanceText(-3), '0');
   // durationText is re-exported from src/shared/duration-text.ts; tests/duration-text.test.ts owns its cases.
   assert.equal(durationText, sharedDurationText);
 });
@@ -107,7 +107,7 @@ test('a single rider stands alone as champion, wins every non-zero award and fil
   assert.deepEqual(recap.podium.map((entry) => [entry.playerId, entry.placement, entry.champion, entry.placeLabel, entry.winsLabel]), [['a', 1, true, '♛  #1', '2 ROUND WINS']]);
   assert.deepEqual(recap.awards.map((award) => [award.id, award.winnerText, award.detail]), [
     ['demolition', 'A', '2 BOMBS BOOMED'],
-    ['trailblazer', 'A', '512u TRAVELLED'],
+    ['trailblazer', 'A', '512 TRAVELLED'],
     ['untouchable', 'A', '20s ALIVE'],
     ['lastStand', 'A', '13s BEST ROUND'],
   ]);
@@ -115,7 +115,7 @@ test('a single rider stands alone as champion, wins every non-zero award and fil
   const row = recap.comparison[0]!;
   assert.equal(row.riderLabel, '#1 A');
   assert.equal(row.riderNote, '0 BOUNCE · 0 EXIT');
-  assert.deepEqual(COMPARISON_COLUMNS.map((column) => row[column.key]), ['2', '20s', '13s', '512u', '2/3', '0', '0 · XP0 S0 🍺0 I0 T0 F0 A0 O0 P0/0', '0.0s', 'W0 T0 X0 R0']);
+  assert.deepEqual(COMPARISON_COLUMNS.map((column) => row[column.key]), ['2', '20s', '13s', '512', '2/3', '0', '—', '—', '—']);
 });
 
 test('podium centres champions, keeps side places in seat order and excludes placements beyond third', () => {
@@ -158,7 +158,7 @@ test('awards share ties by joining names in placement order and skip counters no
   const awards = matchAwards(stats);
   assert.deepEqual(awards.map((award) => [award.id, award.winnerText, award.value, award.detail]), [
     ['demolition', 'A + B', 4, '4 BOMBS BOOMED'],
-    ['trailblazer', 'A', 0.4, '0u TRAVELLED'],
+    ['trailblazer', 'A', 0.4, '0 TRAVELLED'],
     ['headhunter', 'A', 3, '3 RIDERS TAKEN OUT'],
     ['gateCrasher', 'B', 1, '1 PORTAL JUMP'],
   ]);
@@ -171,7 +171,7 @@ test('all-zero statistics yield no awards while the podium and table still rende
   assert.deepEqual(matchAwards(stats), []);
   assert.equal(podiumOrder(stats).length, 2);
   assert.equal(comparisonRows(stats).length, 2);
-  assert.deepEqual(matchTotals(stats).map((total) => total.value), ['0', '2', '0/0', '0', '0', '0u', '0', '0']);
+  assert.deepEqual(matchTotals(stats).map((total) => total.value), ['0', '2', '0/0', '0', '0', '0', '0', '0']);
 });
 
 test('singular award details read naturally', () => {
@@ -192,12 +192,13 @@ test('comparison rows order by placement then seat and format every recorded cou
   assert.equal(late.riderNote, '3 BOUNCE · 1 EXIT');
   assert.equal(late.survived, '1m 5s');
   assert.equal(late.best, '35s');
-  assert.equal(late.distance, '100u');
+  assert.equal(late.distance, '100');
   assert.equal(late.bombs, '4/5');
   assert.equal(late.eliminations, '2');
-  assert.equal(late.pickups, '9 · XP1 S2 🍺1 I1 T1 F1 A1 O1 P1/2');
+  assert.equal(late.pickups, '9 · power 1 · star 2 · beer 1 · ink 1 · triple 1 · five 1 · target 1 · shield 1 · portal 1 · 2 jumps');
+  assert.match(comparisonRows([{ ...stats[0]!, portalTransits: 1 }])[0]!.pickups, /· 1 jump$/);
   assert.equal(late.star, '2.3s');
-  assert.equal(late.deaths, 'W1 T2 X3 R4');
+  assert.equal(late.deaths, 'wall 1 · trail 2 · blast 3 · rider 4');
 });
 
 test('match totals sum the recorded counters across riders', () => {
@@ -211,7 +212,7 @@ test('match totals sum the recorded counters across riders', () => {
     { label: 'BOMBS', value: '4/6' },
     { label: 'KOs', value: '3' },
     { label: 'CRASHES', value: '3' },
-    { label: 'DISTANCE', value: '151u' },
+    { label: 'DISTANCE', value: '151' },
     { label: 'POWER-UPS', value: '5' },
     { label: 'PORTAL JUMPS', value: '3' },
   ]);
