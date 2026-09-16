@@ -315,9 +315,10 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
       }
       ctx.stroke(); ctx.restore(); continue;
     }
+    const ownerColor = escapeColor(snapshot.players.find(player => player.id === bomb.ownerId)?.color ?? '#ffffff');
     // Ground-space outline is the exact damage radius, even while the bomb flies.
     ctx.save();
-    ctx.strokeStyle = '#aab9cc';
+    ctx.strokeStyle = ownerColor;
     ctx.beginPath(); ctx.arc(bomb.x, bomb.y, bomb.blastRange, 0, Math.PI * 2);
     ctx.globalAlpha = .28; ctx.lineWidth = 1.5;
     ctx.stroke(); ctx.restore();
@@ -332,18 +333,18 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     const pulse = 1 + Math.sin(now / 90) * 0.08;
     const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / Math.max(1, bomb.explodeAtTick - bomb.launchedTick), 0, 1);
     if (airborne) {
-      ctx.save(); ctx.globalAlpha = .36 + flight * .35; ctx.strokeStyle = '#ff73c5'; ctx.lineWidth = 3;
+      ctx.save(); ctx.globalAlpha = .36 + flight * .35; ctx.strokeStyle = ownerColor; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(bomb.x, bomb.y, 14 + flight * 5, 6 + flight * 2, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-      ctx.save(); ctx.globalAlpha = .26; ctx.strokeStyle = '#ff73c5'; ctx.setLineDash([5, 7]); ctx.beginPath();
+      ctx.save(); ctx.globalAlpha = .26; ctx.strokeStyle = ownerColor; ctx.setLineDash([5, 7]); ctx.beginPath();
       path.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke(); ctx.restore();
     }
     ctx.save();
     ctx.translate(Math.round(drawX), Math.round(drawY));
     ctx.scale(pulse * (airborne ? 1.12 : 1), pulse * (airborne ? 1.12 : 1));
-    ctx.shadowColor = '#ff397e'; ctx.shadowBlur = 12;
+    ctx.shadowColor = ownerColor; ctx.shadowBlur = 12;
     if (sprites.bomb) drawSprite(ctx, sprites.bomb, 0, 0, 44, 0, undefined, false);
-    else { const ball = ctx.createRadialGradient(-5, -7, 1, 0, 0, 18); ball.addColorStop(0, '#7481a8'); ball.addColorStop(.3, '#242a4a'); ball.addColorStop(1, '#070815'); ctx.fillStyle = ball; ctx.strokeStyle = '#8f7bbd'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-    ctx.strokeStyle = airborne ? '#d67cff' : remaining < 0.3 ? '#fff06a' : '#ff2d7d';
+    else { const ball = ctx.createRadialGradient(-5, -7, 1, 0, 0, 18); ball.addColorStop(0, '#7481a8'); ball.addColorStop(.3, '#242a4a'); ball.addColorStop(1, '#070815'); ctx.fillStyle = ball; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = ownerColor;
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.arc(0, 0, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (airborne ? flight : remaining)); ctx.stroke();
     if (!sprites.bomb) { ctx.fillStyle = '#ffb52e'; ctx.fillRect(9, -20, 3, 9); }
