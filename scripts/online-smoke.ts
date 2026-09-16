@@ -24,8 +24,8 @@ try{
   const pageErrors:string[]=[];const watch=(page:Page,label:string)=>page.on('pageerror',error=>{if(benign(error))return;pageErrors.push(`${label}: ${error.message}`);console.error(`${label.toUpperCase()} ERROR`,error);});
   watch(host,'host');await recording(host);await host.goto(base);await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();
   await host.waitForURL(/room=/);
-  // Keep UI room creation coverage. Explicit CI fallback avoids six software-GL views competing for one runner; dedicated Phaser gates test the intended renderer.
-  await host.getByPlaceholder('Your name').waitFor();const target=new URL(host.url());if(process.env.ROOM_RENDERER==='canvas')target.searchParams.set('renderer','canvas');target.searchParams.set('benchmark','1');await host.goto(target.href);
+  // Keep UI room creation coverage. Phaser Canvas in CI avoids six software-GL views competing for one runner; dedicated Phaser gates test the intended renderer.
+  await host.getByPlaceholder('Your name').waitFor();const target=new URL(host.url());if(process.env.ROOM_RENDERER==='phaser-canvas')target.searchParams.set('renderer','phaser-canvas');target.searchParams.set('benchmark','1');await host.goto(target.href);
   const url=host.url().replace(/&benchmark=1/,'');
   await host.getByPlaceholder('Your name').fill('Host');await host.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();
   const b=await browser.newContext(phone);b.setDefaultTimeout(smokeTimeout(30000));const guest=await b.newPage();watch(guest,'guest');
@@ -43,6 +43,7 @@ try{
   console.log(`${riderCount} riders joined`);
   const startButton=host.getByRole('button',{name:'START RACE',exact:true});const startBounds=await startButton.boundingBox();assert.ok(startBounds);await host.mouse.move(startBounds.x+startBounds.width/2,startBounds.y+startBounds.height/2);await host.mouse.down();await new Promise(resolve=>setTimeout(resolve,180));await host.mouse.up();
   await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.includes('READY'));await guest.locator('.mobile-play').waitFor({state:'visible'});
+  if(process.env.ROOM_RENDERER==='phaser-canvas')await host.locator('.online-arena[data-renderer="phaser-canvas"]').waitFor();
   await host.screenshot({path:'artifacts/online-host.png'});await guest.screenshot({path:'artifacts/online-phone.png'});
   assert.equal(await guest.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);
   // #68 flattened every visual style to one thin rim in both renderers, so the two modes became

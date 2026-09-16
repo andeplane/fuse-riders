@@ -1,4 +1,3 @@
-import { assetUrl } from './asset-url.js';
 import { safeStorage, type SafeStorage } from './safe-storage.js';
 export type ThemeId = 'neon-pixel' | 'clean-neon';
 export type SpriteName = 'rider' | 'bomb' | 'flame';
@@ -18,10 +17,8 @@ export interface ThemeDefinition {
   };
   rendering: {
     gridSize: number;
-    /** The whole difference between the two styles: brick boundary wall, dotted trail cores and square caps,
-     *  plus canvas trail sparkle pixels and the rider SVG fallback. Bombs, blasts and pickups always render smooth (#88). */
+    /** The whole difference between the two styles: brick boundary wall, dotted trail cores and square caps. Bombs, blasts and pickups always render smooth (#88). */
     pixelated: boolean;
-    trailCap: CanvasLineCap;
     trailGlow: number;
     wallWidth: number;
   };
@@ -36,7 +33,7 @@ export const themes: Record<ThemeId, ThemeDefinition> = {
       floorCenter: '#071b39', floorEdge: '#020715', grid: 'rgba(30,132,205,.15)',
       rim: '#17dcff', wall: '#593dba', blast: '#ff7b16', blastCore: '#fff6b0', panel: 'rgba(5,14,37,.93)',
     },
-    rendering: { gridSize: 30, pixelated: true, trailCap: 'square', trailGlow: 2.2, wallWidth: 12 },
+    rendering: { gridSize: 30, pixelated: true, trailGlow: 2.2, wallWidth: 12 },
     sprites: { rider: '/themes/neon-pixel/rider.svg', bomb: '/themes/neon-pixel/bomb.svg', flame: '/themes/neon-pixel/flame.svg' },
   },
   'clean-neon': {
@@ -46,28 +43,12 @@ export const themes: Record<ThemeId, ThemeDefinition> = {
       floorCenter: '#0a2647', floorEdge: '#020914', grid: 'rgba(68,177,225,.11)',
       rim: '#00d9ff', wall: '#285c9b', blast: '#ff6522', blastCore: '#ffffff', panel: 'rgba(5,20,42,.94)',
     },
-    rendering: { gridSize: 50, pixelated: false, trailCap: 'round', trailGlow: 3.5, wallWidth: 7 },
+    rendering: { gridSize: 50, pixelated: false, trailGlow: 3.5, wallWidth: 7 },
     sprites: { rider: '/themes/clean-neon/rider.svg', bomb: '/themes/clean-neon/bomb.svg', flame: '/themes/clean-neon/flame.svg' },
   },
 };
 
 export const defaultTheme = themes['neon-pixel'];
-
-export type ThemeSprites = Partial<Record<SpriteName, HTMLImageElement>>;
-
-export async function loadThemeSprites(theme: ThemeDefinition): Promise<ThemeSprites> {
-  const entries = await Promise.all((Object.entries(theme.sprites) as Array<[SpriteName, string]>).map(async ([name, source]) => {
-    const image = new Image();
-    image.decoding = 'async';
-    await new Promise<void>((resolve, reject) => {
-      image.addEventListener('load', () => resolve(), { once: true });
-      image.addEventListener('error', () => reject(new Error(`Unable to load ${source}`)), { once: true });
-      image.src = assetUrl(source);
-    });
-    return [name, image] as const;
-  }).map((promise) => promise.catch(() => undefined)));
-  return Object.fromEntries(entries.filter((entry): entry is readonly [SpriteName, HTMLImageElement] => entry !== undefined));
-}
 
 export function applyThemeProperties(theme: ThemeDefinition): void {
   const style = document.documentElement.style;

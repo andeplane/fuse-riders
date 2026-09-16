@@ -18,7 +18,6 @@ try {
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
     const { visualFixture } = await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
-    const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
     const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
     const fixture = visualFixture(40);
     const snapshot = { ...fixture, boundaryInset: 20, bombs: [], blasts: [], pickups: [], portalPairs: [],
@@ -27,13 +26,13 @@ try {
         drunkUntilTick: 0, inkUntilTick: 0, bombChargeStartedTick: 40, targetBombArmed: false,
         tripleShotArmed: false, fiveShotArmed: false, shellArmed: false, gunArmed: false })) };
     const results = [];
-    for (const backend of ['auto', 'canvas', 'fallback'] as const) {
+    for (const backend of ['auto', 'canvas'] as const) {
       const canvas = document.createElement('canvas');
       canvas.width = 1600; canvas.height = 900;
       canvas.style.cssText = 'position:fixed;inset:0;width:1600px;height:900px';
       document.body.append(canvas);
-      const arena = backend === 'fallback' ? undefined : createPhaserArena(canvas, { renderer: backend });
-      if (arena) await arena.ready;
+      const arena = createPhaserArena(canvas, { renderer: backend });
+      await arena.ready;
       try {
         // The marker is a cyan square; read a strip across its top edge and return its centre column. Taking the
         // window as an argument is what lets the bouncing cases below look where their marker actually lands.
@@ -60,8 +59,7 @@ try {
             const shown = timing === 'local'
               ? { ...snapshot, bombChargeTicks, players: snapshot.players.map(player => ({ ...player, presentationTick: tick })) }
               : { ...snapshot, bombChargeTicks, tick };
-            if (arena) arena.render(shown, 1000 + frame * 1000 / 60, themes['neon-pixel'], timing);
-            else drawArena(canvas.getContext('2d')!, shown, 1000 + frame * 1000 / 60, themes['neon-pixel'], {});
+            arena.render(shown, 1000 + frame * 1000 / 60, themes['neon-pixel'], timing);
             const center = markerCenter(280);
             if (!Number.isFinite(center) || Math.abs(center - (300 + frame * 100 / bombChargeTicks)) > 1.5) {
               throw Error(`${backend}/${timing} marker at frame ${frame}: ${center}`);
@@ -84,8 +82,7 @@ try {
               const shown = timing === 'local'
                 ? { ...snapshot, bombChargeTicks: 8, aimBounce, players: snapshot.players.map(player => ({ ...player, presentationTick: tick })) }
                 : { ...snapshot, bombChargeTicks: 8, aimBounce, tick };
-              if (arena) arena.render(shown, 2000 + index * 1000 / 60, themes['neon-pixel'], timing);
-              else drawArena(canvas.getContext('2d')!, shown, 2000 + index * 1000 / 60, themes['neon-pixel'], {});
+              arena.render(shown, 2000 + index * 1000 / 60, themes['neon-pixel'], timing);
               const center = markerCenter(Math.round(expected[index]!) - 40);
               if (!Number.isFinite(center) || Math.abs(center - expected[index]!) > 1.5) {
                 throw Error(`${backend}/${timing} bounce=${aimBounce} at age ${ages[index]}: ${center}, wanted ${expected[index]}`);
@@ -95,7 +92,7 @@ try {
             results.push({ backend, timing, aimBounce, bombChargeTicks: 8, centers });
           }
         }
-      } finally { arena?.destroy(); canvas.remove(); }
+      } finally { arena.destroy(); canvas.remove(); }
     }
     return results;
   });

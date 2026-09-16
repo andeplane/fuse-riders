@@ -282,3 +282,12 @@ details.audio-controls > .audio-panel.radio { width: min(380px, calc(100vw - 24p
 .ai-remove{margin-left:auto;background:#08152b;color:#eefaff;border:1px solid #365477;min-width:36px;min-height:36px;cursor:pointer}.ai-remove:disabled{opacity:.4}
 
 .host-tools{display:flex;gap:6px;align-items:center}
+
+.graphics-status {
+  position: fixed; bottom: 12px; left: 12px; right: 12px; z-index: 1000;
+  width: fit-content; max-width: calc(100% - 24px); padding: 12px;
+  background: #08152b; color: #ffe680; border: 1px solid #ffe680;
+  font: 14px/1.5 monospace;
+}
+.graphics-status button { display: block; margin-top: 10px; padding: 10px 14px; }
+.graphics-status[hidden], .graphics-status button[hidden] { display: none; }

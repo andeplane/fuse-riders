@@ -25,45 +25,44 @@ try{
  await page.evaluate(()=>{document.querySelector('#app')!.remove();document.body.style.cssText='margin:0;background:#020715';});
  const measure=async()=>{
   const results=[];
-  for(const mode of ['canvas','phaser'] as const){
+  for(const mode of ['phaser-canvas','phaser-webgl'] as const){
    console.log(`Measuring ${mode}`);
    const result=await page.evaluate(async({config,mode})=>{
     const {createPhaserArena}=await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
     const {visualFixture}=await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
-    const {drawArena}=await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
-    const {defaultTheme,loadThemeSprites}=await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
-    const sprites=await loadThemeSprites(defaultTheme);
+    const {defaultTheme}=await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
     const wrapper=document.createElement('div');const fitWidth=Math.min(config.width,config.height*16/9);wrapper.style.cssText=`width:${fitWidth}px;height:${fitWidth*9/16}px`;document.body.append(wrapper);
     const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=900;canvas.style.cssText='width:100%;height:100%;object-fit:contain';wrapper.append(canvas);
-    const engine=mode==='phaser'?createPhaserArena(canvas,{quality:config.quality as 'low'|'high',resolution:config.resolution as 'display'|'world'}):undefined;
+    const engine=createPhaserArena(canvas,{renderer:mode==='phaser-canvas'?'canvas':'auto',quality:config.quality as 'low'|'high',resolution:config.resolution as 'display'|'world'});
     // Test-only cleanup keeps the final frame alive until Node takes its screenshot.
-    Reflect.set(window,'__disposeRendererBenchmark',()=>{engine?.destroy();wrapper.remove();});
-    if(engine)await engine.ready;
-    const ctx=engine?null:canvas.getContext('2d')!;const frames:number[]=[],cpu:number[]=[],objects:number[]=[],particles:number[]=[];
+    Reflect.set(window,'__disposeRendererBenchmark',()=>{engine.destroy();wrapper.remove();});
+    await engine.ready;
+    if(mode==='phaser-webgl'&&engine.metrics().renderer!=='webgl')throw Error('WebGL benchmark requested but unavailable');
+    const frames:number[]=[],cpu:number[]=[],objects:number[]=[],particles:number[]=[];
     let start=performance.now(),previous=start;
     await new Promise<void>((resolve,reject)=>{function frame(now:number){try{
-     const elapsed=now-start;const snapshot=visualFixture(Math.floor(elapsed/50));const before=performance.now();if(engine)engine.render(snapshot,now,defaultTheme,'benchmark');else drawArena(ctx!,snapshot,now,defaultTheme,sprites);const cost=performance.now()-before;
-     if(elapsed>1000){frames.push(now-previous);cpu.push(cost);if(engine){objects.push(engine.metrics().objects);particles.push(engine.metrics().particles);}}previous=now;
+     const elapsed=now-start;const snapshot=visualFixture(Math.floor(elapsed/50));const before=performance.now();engine.render(snapshot,now,defaultTheme,'benchmark');const cost=performance.now()-before;
+     if(elapsed>1000){frames.push(now-previous);cpu.push(cost);objects.push(engine.metrics().objects);particles.push(engine.metrics().particles);}previous=now;
      if(elapsed<config.duration)requestAnimationFrame(frame);else resolve();
     }catch(error){reject(error);}}requestAnimationFrame(frame);});
     const percentile=(v:number[],p:number)=>[...v].sort((a,b)=>a-b)[Math.min(v.length-1,Math.floor(v.length*p))]??0;
     if(!frames.length)throw Error('No timing samples');const fitScale=Math.min(config.width/1600,config.height/900)*config.dpr;
-    const expectedScale=engine&&config.resolution==='display'?Math.min(fitScale,2.4):1;
+    const expectedScale=config.resolution==='display'?Math.min(fitScale,2.4):1;
     if(canvas.width!==Math.round(1600*expectedScale)||canvas.height!==Math.round(900*expectedScale))throw Error('Backing dimensions differ from requested workload');
     // This all-living fixture samples blast geometry; only deaths now emit pooled particles.
-    if(engine){if(engine.metrics().automaticLoopRunning)throw Error('Phaser automatic loop still running');if(Math.max(...particles)>(config.quality==='low'?160:480))throw Error('Particle bound regression');}
-    return {mode,backing:{width:canvas.width,height:canvas.height},css:{width:canvas.getBoundingClientRect().width,height:canvas.getBoundingClientRect().height},backend:engine?.metrics().renderer??'2d',samples:frames.length,frame:{p50:percentile(frames,.5),p95:percentile(frames,.95),p99:percentile(frames,.99),max:Math.max(...frames)},cpu:{p50:percentile(cpu,.5),p95:percentile(cpu,.95),p99:percentile(cpu,.99)},maxObjects:Math.max(0,...objects),maxParticles:Math.max(0,...particles),trailHistoryBuilds:engine?.metrics().trailHistoryBuilds,raw:{frames,cpu}};
+    if(engine.metrics().automaticLoopRunning)throw Error('Phaser automatic loop still running');if(Math.max(...particles)>(config.quality==='low'?160:480))throw Error('Particle bound regression');
+    return {mode,backing:{width:canvas.width,height:canvas.height},css:{width:canvas.getBoundingClientRect().width,height:canvas.getBoundingClientRect().height},backend:engine.metrics().renderer,samples:frames.length,frame:{p50:percentile(frames,.5),p95:percentile(frames,.95),p99:percentile(frames,.99),max:Math.max(...frames)},cpu:{p50:percentile(cpu,.5),p95:percentile(cpu,.95),p99:percentile(cpu,.99)},maxObjects:Math.max(0,...objects),maxParticles:Math.max(0,...particles),trailHistoryBuilds:engine.metrics().trailHistoryBuilds,raw:{frames,cpu}};
    },{config,mode});
    results.push(result);
    // WebKit can stall if a screenshot is awaited inside an exposed callback from page.evaluate.
-   if(mode==='phaser')await page.screenshot({path:`artifacts/phaser-arena${tag?`-${tag}`:''}-${process.env.BROWSER??'chrome'}.png`,timeout:10000});
+   if(mode==='phaser-webgl')await page.screenshot({path:`artifacts/phaser-arena${tag?`-${tag}`:''}-${process.env.BROWSER??'chrome'}.png`,timeout:10000});
    await page.evaluate(()=>{const dispose=Reflect.get(window,'__disposeRendererBenchmark') as ()=>void;dispose();Reflect.deleteProperty(window,'__disposeRendererBenchmark');});
   }
   return {...await page.evaluate(()=>({userAgent:navigator.userAgent,devicePixelRatio})),config,results};
  };
  const result=await Promise.race([measure(),new Promise<never>((_,reject)=>{deadline=setTimeout(()=>reject(Error('Renderer benchmark exceeded its wall-clock budget')),config.duration*2+30000);})]);
  clearTimeout(deadline);
- await writeFile(`artifacts/phaser-benchmark-${tag?`${tag}-`:''}${process.env.BROWSER??'chrome'}.json`,JSON.stringify({date:new Date().toISOString(),revision,sourceHashes,method:'Synthetic 5 riders, 800 segments, 24 projectiles, 5 bursts; sequential Canvas/Phaser, 1s warmup, no landing animation. Configured viewport/DPR and fitted CSS board; Phaser backing follows configured resolution mode; legacy Canvas remains 1600x900. Read actual backing sizes before comparing costs. Desktop browser emulation only, not physical-phone evidence.',...result,errors},null,2));
+ await writeFile(`artifacts/phaser-benchmark-${tag?`${tag}-`:''}${process.env.BROWSER??'chrome'}.json`,JSON.stringify({date:new Date().toISOString(),revision,sourceHashes,method:'Synthetic 5 riders, 800 segments, 24 projectiles, 5 bursts; sequential Phaser Canvas/WebGL, 1s warmup, no landing animation. Configured viewport/DPR and fitted CSS board; Both Phaser backends follow the configured resolution mode. Read actual backing sizes before comparing costs. Desktop browser emulation only, not physical-phone evidence.',...result,errors},null,2));
  console.log(JSON.stringify({...result,results:result.results.map(({raw,...r})=>r),errors},null,2));
  if(errors.length)throw Error(errors.join('\n'));
 }finally{clearTimeout(deadline);await browser.close();await server.close();}

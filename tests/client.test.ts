@@ -4,7 +4,7 @@ import { ControllerInputState, type ControllerInputMessage } from '../src/client
 import { renderedSnapshot, type SnapshotFrame } from '../src/client/render-snapshot.js';
 import { SnapshotStream } from '../src/client/snapshot-stream.js';
 import { bombPreviewDistance } from '../src/client/bomb-preview.js';
-import { PORTAL_PALETTES, portalPalettes } from '../src/client/pickup-renderer.js';
+import { PORTAL_PALETTES, portalPalettes } from '../src/client/portal-palettes.js';
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
