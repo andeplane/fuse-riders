@@ -29,6 +29,11 @@ await page.route('**/*mixpanel.com/**', async (route) => {
 });
 await page.addInitScript(([key, settings]) => localStorage.setItem(key as string, JSON.stringify(settings)), [SETTINGS_KEY, oneRound]);
 await page.goto(`${base}?solo=1&analytics=1`);
+// Tap fire through the countdown and the first seconds of play, so the rider pulls the trigger at least once before
+// it rides into a wall: a tap during the countdown is dropped, and one mid-reload is simply refused.
+for (let tap = 0; tap < 16; tap += 1) {
+  await page.keyboard.down('Space'); await page.waitForTimeout(150); await page.keyboard.up('Space'); await page.waitForTimeout(350);
+}
 await page.getByRole('dialog').waitFor({ timeout: 180000 });
 await page.getByRole('dialog').getByRole('button', { name: /^(CLOSE|BACK TO LOBBY)$/ }).first().click();
 await page.getByRole('button', { name: 'RESULTS', exact: true }).click();
@@ -52,6 +57,16 @@ for (const key of ['playerCount', 'botCount', 'humanCount', 'rounds', 'played', 
   assert.ok(ended[key] !== undefined, `Match Ended is missing ${key}`);
 }
 assert.equal(ended.played, true, 'the solo rider held a seat');
+// Weapons are one event per kill and per miss, never a per-match summary.
+assert.equal(Object.keys(ended).some((key) => /^(shots|kills)[A-Z]/.test(key)), false, 'Match Ended carries no weapon tallies');
+const outcomes = [...named('Kill'), ...named('Miss')];
+assert.ok(outcomes.length >= 1, 'the rider fired, so its round reported at least one Kill or Miss');
+for (const outcome of outcomes) {
+  for (const key of ['weapon', 'round', 'secondsIntoRound', 'bombs', 'power', 'extraBombs', 'fuseLevel', 'grip', 'riders', 'bots', 'role']) assert.ok(outcome.properties[key] !== undefined, `${outcome.event} lost ${key} — is a property named 'length'?`);
+}
+for (const kill of named('Kill')) {
+  for (const key of ['victimBot', 'shotKills', 'firstKillOfShot', 'secondsToKill']) assert.ok(kill.properties[key] !== undefined, `Kill is missing ${key}`);
+}
 only('Seat Taken');
 only('Recap Reopened');
 
@@ -63,6 +78,6 @@ for (const forbidden of ['$current_url', '$referrer', '$initial_referrer']) {
 assert.ok(!payload.includes('solo=1'), 'no event may carry the page query string');
 
 const identity = { revision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), date: new Date().toISOString(), base, browser: browserName };
-const summary = { ...identity, events: reported.map((event) => event.event), started, ended };
+const summary = { ...identity, events: reported.map((event) => event.event), started, ended, outcomes: outcomes.map((outcome) => ({ event: outcome.event, ...outcome.properties })) };
 await writeFile(`artifacts/analytics-${browserName}.json`, `${JSON.stringify(summary, null, 2)}\n`);
 console.log(JSON.stringify(summary, null, 2));

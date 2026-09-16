@@ -42,6 +42,7 @@ import {
   snapshotMatchStats,
   type MatchStatsState,
 } from './match-stats.js';
+import { decideRound, recordShot, recordShotKill, type DecidedRound, type RoundShot, type Weapon } from './shot-log.js';
 import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from './drunk.js';
 import {
   BOMB_FLIGHT_TICKS,
@@ -183,6 +184,12 @@ export interface BombState {
   explodeAtTick: number;
   /** `bounces` counts a shell's wall and trail reflections since launch; a gun bullet never bounces and never carries it. */
   blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
+  /**
+   * The trigger pull that put this bomb in the air — its entry in `GameState.shots` — so a kill can name the shot.
+   * Statistics only: nothing in the simulation reads it, and it never reaches a public snapshot. Optional as defence
+   * in depth at the checkpoint boundary: a bomb that arrives without one kills without being logged against a shot.
+   */
+  shot?: number;
 }
 
 export interface GravityField {
@@ -200,6 +207,13 @@ export interface BlastState {
   circle: BlastCircle;
   expiresAtTick: number;
 }
+
+/**
+ * A blast opened this tick, carrying the shot of the bomb that made it. The stored `state.blasts` entry is a plain
+ * `BlastState`: the shot is only needed while this tick's kills are being attributed, and a bomb is deleted the
+ * moment it explodes, so the shot has to travel with the blast rather than be looked up afterwards.
+ */
+type NewBlast = BlastState & { shot?: number };
 
 export interface PickupState {
   id: number;
@@ -238,6 +252,10 @@ export interface GameState {
   matchStats: MatchStatsState;
   /** Highlight moments of the match, bounded per kind and cleared with `matchStats` (ADR 043). */
   moments: Moment[];
+  /** Every trigger pull of the current round and whom it killed, for per-kill and per-miss analytics. Cleared each round. */
+  shots: RoundShot[];
+  /** The most recently decided round's log, kept until the next round is decided — through a rematch and the lobby too. */
+  decidedRound?: DecidedRound;
   roundWinnerId?: PlayerId;
   matchWinnerId?: PlayerId;
 }
@@ -292,6 +310,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     roundScored: false,
     matchStats: new Map(),
     moments: [],
+    shots: [],
   };
 }
 
@@ -388,6 +407,8 @@ export function returnToLobby(state: GameState, newMatchId: string): void {
   Object.assign(state, fresh, {
     phaseEndsAtTick: undefined, roundStartedTick: undefined, portalPairs: [], gravityFields: [],
     roundWinnerId: undefined, matchWinnerId: undefined,
+    // Kept like the leaderboard: a host can leave the recap for the lobby before every device has reported it.
+    decidedRound: state.decidedRound,
   });
 }
 
@@ -532,6 +553,17 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   const causes = new Map<PlayerId, EliminationCause>();
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
+  /**
+   * Which shot reached each rider that an explosion marked, for the shot log. The lowest bomb id wins rather than
+   * whichever source happens to be visited first, so every replica logs the same shot however its maps are ordered —
+   * the log is part of the state peers compare.
+   */
+  const shotSources = new Map<PlayerId, { bombId: number; shot: number }>();
+  const markShot = (victimId: PlayerId, bombId: number, shot?: number): void => {
+    if (shot === undefined) return;
+    const known = shotSources.get(victimId);
+    if (!known || bombId < known.bombId) shotSources.set(victimId, { bombId, shot });
+  };
   const trailContactTimes = new Map<PlayerId, number>();
   const riderContactTimes = new Map<PlayerId, number>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
@@ -543,6 +575,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         if (movement.player.id === bomb.ownerId || isHazardImmune(movement.player, state.tick)) continue;
         if (square(movement.x - bomb.x) + square(movement.y - bomb.y) <= square(RIDER_RADIUS + SHELL_RADIUS)) {
           markCause(causes, causeOwners, movement.player.id, 'explosion', bomb.ownerId);
+          markShot(movement.player.id, bomb.id, bomb.shot);
           if (!landingHits.has(movement.player.id)) landingHits.set(movement.player.id, bomb.ownerId);
         }
       }
@@ -570,6 +603,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     }
     if (hit) {
       markCause(causes, causeOwners, hit.player.id, 'explosion', bomb.ownerId);
+      markShot(hit.player.id, bomb.id, bomb.shot);
       if (!bomb.shell?.gun && !shellHits.has(hit.player.id)) shellHits.set(hit.player.id, { ownerId: bomb.ownerId, bounces: bomb.shell?.bounces ?? 0, age: state.tick - bomb.launchedTick });
       if (bomb.shell?.gun) {
         detonateGun(bomb, state.tick, hit.oldX + (hit.x - hit.oldX) * hitTime, hit.oldY + (hit.y - hit.oldY) * hitTime);
@@ -591,6 +625,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     for (const blast of newBlasts) {
       if (!isHazardImmune(movement.player, state.tick) && segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, blast.circle, RIDER_RADIUS)) {
         markCause(causes, causeOwners, movement.player.id, 'explosion', blast.ownerId);
+        markShot(movement.player.id, blast.bombId, blast.shot);
       }
     }
 
@@ -663,6 +698,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
     causes.delete(movement.player.id);
     causeOwners.delete(movement.player.id);
+    // Together with the cause, or an absorbed hit would still be holding a shot for any later mark to credit.
+    shotSources.delete(movement.player.id);
   }
 
   const transits = new Map<PlayerId, PortalTransit>();
@@ -713,7 +750,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       movement.player.alive = false;
       movement.player.bombChargeStartedTick = undefined; movement.player.bombTarget = undefined;
       recordElimination(state, movement.player.id);
-      recordDeath(state.matchStats, movement.player.id, cause, soleCreditedOwner(causeOwners, movement.player.id, cause));
+      const credited = soleCreditedOwner(causeOwners, movement.player.id, cause);
+      recordDeath(state.matchStats, movement.player.id, cause, credited);
+      if (cause === 'explosion') logShotKill(state, movement.player.id, credited, shotSources.get(movement.player.id)?.shot);
       events.push({ type: 'playerEliminated', playerId: movement.player.id, cause });
       const trailHit = cause === 'trail' ? trailHits.get(movement.player.id) : undefined;
       const landingHit = landingHits.get(movement.player.id), shellHit = shellHits.get(movement.player.id);
@@ -765,7 +804,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       player.alive = false; player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
       recordElimination(state, player.id);
       const owners = new Set(hits.map(blast => blast.ownerId));
-      recordDeath(state.matchStats, player.id, 'explosion', owners.size === 1 ? hits[0]!.ownerId : undefined);
+      const credited = owners.size === 1 ? hits[0]!.ownerId : undefined;
+      recordDeath(state.matchStats, player.id, 'explosion', credited);
+      logShotKill(state, player.id, credited, hits.reduce((first, blast) => blast.bombId < first.bombId ? blast : first).shot);
       events.push({ type: 'playerEliminated', playerId: player.id, cause: 'explosion' });
       observations.deaths.push({ victimId: player.id, cause: 'explosion', owners: [...owners], x: player.x, y: player.y });
     }
@@ -851,6 +892,10 @@ export function toSnapshot(state: GameState): GameSnapshot {
     roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
     matchStats: state.phase === 'matchOver' ? snapshotMatchStats(state.matchStats) : [],
     moments: state.phase === 'matchOver' ? state.moments.map((moment) => ({ ...moment, targetIds: [...moment.targetIds] })) : [],
+    // Only a decided round is published: the round in play can still change.
+    ...(state.decidedRound ? { decidedRound: {
+      ...state.decidedRound, shots: state.decidedRound.shots.map((shot) => ({ ...shot, kills: shot.kills.map((kill) => ({ ...kill })) })),
+    } } : {}),
     ...(state.roundWinnerId === undefined ? {} : { roundWinnerId: state.roundWinnerId }),
     ...(state.matchWinnerId === undefined ? {} : { matchWinnerId: state.matchWinnerId }),
   };
@@ -873,6 +918,8 @@ function prepareRound(state: GameState): void {
   state.roundWinnerId = undefined;
   state.matchWinnerId = undefined;
   state.nextBombId = 1;
+  // Shot ids are bomb ids, which restart here, so the log restarts with them.
+  state.shots = [];
   state.nextPickupId = 1;
   state.nextPickupSpawnTick = 0;
   state.roundParticipants = new Map(participants.map((player) => [player.id, {
@@ -1126,17 +1173,19 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
     if (player.shellArmed || player.gunArmed) {
       const gun = player.gunArmed === true;
+      const weapon: Weapon = gun ? 'gun' : 'shell';
       const deadline = gun ? state.tick + GUN_LIFETIME_TICKS : Number.MAX_SAFE_INTEGER;
       const speed = gun ? GUN_SPEED : SHELL_SPEED;
       const id = state.nextBombId++;
       state.bombs.set(id, { id, ownerId: player.id, launchX: player.x, launchY: player.y,
         x: player.x, y: player.y, launchedTick: state.tick, placedTick: state.tick,
         landsAtTick: deadline, explodeAtTick: deadline,
-        blastRange: 0, flightPath: [], shell: { vx: cos(player.angle) * speed, vy: sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
+        blastRange: 0, flightPath: [], shot: id, shell: { vx: cos(player.angle) * speed, vy: sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
       if (gun) player.gunArmed = false; else player.shellArmed = false;
       player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
       player.bombReadyAtTick = state.tick + player.reloadDurationTicks;
       recordBombPlaced(state.matchStats, player.id);
+      logShot(state, player, id, weapon, 1);
       events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
     }
@@ -1147,6 +1196,9 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       minY: state.boundaryInset + RIDER_RADIUS,
       maxY: state.height - state.boundaryInset - RIDER_RADIUS,
     };
+    // Read before the release below disarms them, so the launch can still say which weapon it spent. Extra Bomb is
+    // not one of them: it is a round-long upgrade that widens every shot, like Power, not a weapon a pull consumes.
+    const volley: Weapon | undefined = player.fiveShotArmed ? 'five' : player.tripleShotArmed ? 'triple' : undefined;
     const paths = target ? [[{ ...target, angle: player.angle }]] : bombsPerShot(player) > 1
       ? createVolleyFlightPaths(player, player.angle, distance, bounds, bombsPerShot(player))
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
@@ -1154,6 +1206,17 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
     else { player.tripleShotArmed = false; player.fiveShotArmed = false; }
     const gravityLaunch = player.gravityArmed && !target;
     if (gravityLaunch) player.gravityArmed = false;
+    /**
+     * One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
+     * is why they outrank everything, and why a rider holding Target as well keeps it armed for the next pull.
+     * Among the launches that do reach here: Target first, because it is the only one the others cannot combine
+     * with; then Gravity, so a gravity volley is reported as `gravity`. That under-counts `triple` and `five` by
+     * the rare pull that spent both, and the alternative loses Gravity, the harder of the two to judge.
+     */
+    const weapon: Weapon = target ? 'target' : gravityLaunch ? 'gravity' : volley ?? 'bomb';
+    // Every bomb of the pull names the same shot: the id its first bomb is about to take.
+    const shot = state.nextBombId;
+    logShot(state, player, shot, weapon, paths.length);
     for (const flightPath of paths) {
       const landing = flightPath[flightPath.length - 1]!;
       const bomb: BombState = {
@@ -1170,6 +1233,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         explodeAtTick: target ? state.tick : state.tick + bombFuseTicks(player.fuseLevel),
         blastRange: powerBlastRadius(player.powerPickups) * (target ? .7 : 1),
         flightPath,
+        shot,
       };
       state.bombs.set(bomb.id, bomb);
       recordBombPlaced(state.matchStats, player.id);
@@ -1238,7 +1302,7 @@ function applyGravity(state: GameState, x: number, y: number, distance: number):
   return { x: x + dx, y: y + dy };
 }
 
-function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {
+function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
   // #166: with chaining off a bomb only ever answers to its own fuse, neither to a blast already on the field nor to one opened this tick.
   const chain = state.settings?.chainReaction ?? true;
   const queue = [...state.bombs.values()]
@@ -1248,7 +1312,7 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     .map((bomb) => bomb.id);
   const queued = new Set(queue);
   const exploded = new Set<number>();
-  const result: BlastState[] = [];
+  const result: NewBlast[] = [];
 
   for (let cursor = 0; cursor < queue.length; cursor += 1) {
     const id = queue[cursor]!;
@@ -1257,7 +1321,11 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     if (!bomb) continue;
     exploded.add(id);
     const circle = { x: bomb.x, y: bomb.y, radius: bomb.blastRange };
-    result.push({ bombId: id, ownerId: bomb.ownerId, circle, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS });
+    // Stored and returned separately: `state.blasts` is checkpointed and validated field by field, so the
+    // statistics-only shot stays in the returned copy this tick's kill attribution reads.
+    const blast: BlastState = { bombId: id, ownerId: bomb.ownerId, circle, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS };
+    state.blasts.push(blast);
+    result.push({ ...blast, ...(bomb.shot === undefined ? {} : { shot: bomb.shot }) });
     if (bomb.gravity) state.gravityFields.push({ bombId: id, ownerId: bomb.ownerId, x: bomb.x, y: bomb.y, radius: circle.radius, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
     recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: 'explosion', bombId: id });
@@ -1272,7 +1340,6 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     }
   }
   for (const id of exploded) state.bombs.delete(id);
-  state.blasts.push(...result);
   return result;
 }
 
@@ -1307,6 +1374,9 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   events.push(winnerId === undefined ? { type: 'roundEnded' } : { type: 'roundEnded', winnerId });
   // A round with a highlight pauses longer so every screen can replay it before the next countdown or the recap (ADR 044).
   const pause = roundHasMoment(state) ? REPLAY_PAUSE_TICKS : 0;
+  // Nothing in this round can kill any more; bombs still in the air are cleared by the next round's start.
+  const inFlight = new Set([...state.bombs.values()].flatMap((bomb) => bomb.shot === undefined ? [] : [bomb.shot]));
+  state.decidedRound = decideRound(state.matchId, state.round, state.tick, state.shots, inFlight);
   if (matchWinnerId !== undefined || fixedEnd) {
     state.phase = 'matchOver';
     state.phaseEndsAtTick = state.tick + 60 + pause;
@@ -1315,6 +1385,25 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   }
   state.phase = 'roundOver';
   state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS + pause;
+}
+
+const roundElapsed = (state: GameState): number => state.tick - (state.roundStartedTick ?? state.tick);
+
+function logShot(state: GameState, shooter: PlayerState, shot: number, weapon: Weapon, bombs: number): void {
+  recordShot(state.shots, {
+    shot, shooterId: shooter.id, weapon, elapsed: roundElapsed(state), bombs,
+    power: shooter.powerPickups, extraBombs: shooter.extraBombs, fuseLevel: shooter.fuseLevel, grip: shooter.grip, kills: [],
+  });
+}
+
+/**
+ * Log a kill against a shot on exactly the deaths `recordDeath` credits as eliminations: one owner behind the
+ * explosion, and not the victim itself, so blowing yourself up stays a death with no kill anywhere. The credited
+ * owner is necessarily the shot's shooter — every explosion mark on the victim came from that one owner's bombs.
+ */
+function logShotKill(state: GameState, victimId: PlayerId, creditedId: PlayerId | undefined, shot: number | undefined): void {
+  if (creditedId === undefined || creditedId === victimId || shot === undefined) return;
+  recordShotKill(state.shots, shot, { victimId, elapsed: roundElapsed(state) });
 }
 
 function recordElimination(state: GameState, playerId: PlayerId): void {

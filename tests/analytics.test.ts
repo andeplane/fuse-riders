@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { analyticsEnabled, analyticsOverride, matchEndedProps, matchStartKey } from '../src/online/analytics.js';
+import { analyticsEnabled, analyticsOverride, matchEndedProps, matchStartKey, decidedRoundReport, roundShotEvents } from '../src/online/analytics.js';
+import type { DecidedRound, RoundShot } from '../src/shared/shot-log.js';
 import { BOT_ID_PREFIX } from '../src/shared/bot-controller.js';
 import type { MatchPlayerStats } from '../src/shared/match-stats.js';
 
@@ -99,4 +100,55 @@ test('a match start is the first round of a match id, not a countdown', () => {
   for (const phase of ['lobby', 'playing', 'roundOver', 'matchOver']) {
     assert.equal(matchStartKey('m1', phase, 1), undefined, `${phase} does not begin a match`);
   }
+});
+
+test('a decided round is reported once, only after every rider has confirmed it, and only by its own rider', () => {
+  const pull = (shot: number, shooterId: string, kills: RoundShot['kills'] = []): RoundShot =>
+    ({ shot, shooterId, weapon: 'bomb', elapsed: 20, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills });
+  const decided: DecidedRound = { matchId: 'm1', round: 2, tick: 500, shots: [pull(1, 'me', [{ victimId: 'you', elapsed: 60 }]), pull(4, 'you')] };
+  const room = { riders: 2, bots: 0 };
+
+  // This device renders its own prediction: until the decision tick is confirmed, a late packet could still undo it.
+  assert.equal(decidedRoundReport(decided, 'me', 499, '', room), undefined, 'not while the decision is speculative');
+  const report = decidedRoundReport(decided, 'me', 500, '', room)!;
+  assert.deepEqual(report.events.map(entry => entry.event), ['Kill']);
+  // The snapshot keeps arriving twenty times a second, and the log stays in state through the whole next round.
+  assert.equal(decidedRoundReport(decided, 'me', 900, report.key, room), undefined, 'never twice for the same round');
+  assert.equal(decidedRoundReport(undefined, 'me', 900, report.key, room), undefined, 'nothing decided yet');
+
+  // Each device reports only its own rider's pulls, so the two devices together send each outcome once.
+  const theirs = decidedRoundReport(decided, 'you', 500, report.key, room)!;
+  assert.notEqual(theirs.key, report.key, 'a second tab seated as another rider in this browser still reports its own');
+  assert.deepEqual(theirs.events.map(entry => entry.event), ['Miss']);
+
+  // A device that does not know its seat yet consumes nothing, so it can still report once it does.
+  assert.equal(decidedRoundReport(decided, '', 900, '', room), undefined);
+  // The next round, or a rematch reusing round numbers, is a new key.
+  assert.ok(decidedRoundReport({ ...decided, round: 3, tick: 800 }, 'me', 900, report.key, room));
+  assert.ok(decidedRoundReport({ ...decided, matchId: 'm2' }, 'me', 900, report.key, room));
+});
+
+test('each kill is its own event and a double kill marks exactly one of them as the first', () => {
+  const shots: RoundShot[] = [
+    { shot: 1, shooterId: 'me', weapon: 'five', elapsed: 40, bombs: 7, power: 12, extraBombs: 2, fuseLevel: 1, grip: true, kills: [{ victimId: `${BOT_ID_PREFIX}1`, elapsed: 120 }, { victimId: 'friend', elapsed: 120 }] },
+    { shot: 7, shooterId: 'me', weapon: 'gun', elapsed: 300, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills: [] },
+    { shot: 9, shooterId: 'friend', weapon: 'shell', elapsed: 310, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills: [{ victimId: 'me', elapsed: 330 }] },
+  ];
+  const room = { round: 4, riders: 5, bots: 2 };
+  // Everything a histogram might break down by rides on each event: the pull's upgrades and the room it was in.
+  const five = { weapon: 'five', round: 4, secondsIntoRound: 2, bombs: 7, power: 12, extraBombs: 2, fuseLevel: 1, grip: true, riders: 5, bots: 2 };
+  assert.deepEqual(roundShotEvents(shots, 'me', room), [
+    { event: 'Kill', properties: { ...five, victimBot: true, shotKills: 2, firstKillOfShot: true, secondsToKill: 4 } },
+    { event: 'Kill', properties: { ...five, victimBot: false, shotKills: 2, firstKillOfShot: false, secondsToKill: 4 } },
+    { event: 'Miss', properties: { weapon: 'gun', round: 4, secondsIntoRound: 15, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, riders: 5, bots: 2 } },
+  ]);
+  // Hit rate from events alone: pulls that killed, over every pull.
+  const events = roundShotEvents(shots, 'me', room);
+  const hits = events.filter(entry => entry.event === 'Kill' && entry.properties.firstKillOfShot).length;
+  assert.equal(hits / (hits + events.filter(entry => entry.event === 'Miss').length), 0.5);
+  // Only the shooter sends: across every device in the room, each kill and each miss is reported exactly once.
+  const everyone = ['me', 'friend', `${BOT_ID_PREFIX}1`, ''].flatMap(id => roundShotEvents(shots, id, room));
+  assert.equal(everyone.filter(entry => entry.event === 'Kill').length, 3);
+  assert.equal(everyone.filter(entry => entry.event === 'Miss').length, 1);
+  for (const entry of everyone) assert.equal(Object.hasOwn(entry.properties, 'length'), false, 'a length property silently drops the bag');
 });

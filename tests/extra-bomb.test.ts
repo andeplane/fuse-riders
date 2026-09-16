@@ -115,7 +115,7 @@ test('checkpoint recovery replays upgraded launches and explosions exactly', () 
   }
 });
 
-test('checkpoint rejects corrupt or missing counts, and default drop rate remains small', () => {
+test('checkpoint rejects corrupt or missing counts, and default drop rate is about four percent', () => {
   const game = playing(), rider = game.players.get('p0')!;
   for (const invalid of [-1, .5, MAX_EXTRA_BOMBS + 1, NaN]) {
     rider.extraBombs = invalid; assert.equal(decodeGameState(encodeGameState(game)), undefined);
@@ -126,6 +126,6 @@ test('checkpoint rejects corrupt or missing counts, and default drop rate remain
   assert.ok(decodeGameState(valid));
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const share = PICKUP_WEIGHTS.find(row => row.type === 'extraBomb')!.weight / total;
-  assert.ok(share > .005 && share < .015);
+  assert.ok(share > .03 && share < .05);
   assert.equal(powerLabel(3, 2), '◆ 3 · B×3');
 });

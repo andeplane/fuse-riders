@@ -160,7 +160,8 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Product analytics
 
-The deployed site reports nine `FlowRiders.`-prefixed product events to Mixpanel. LAN play and local dev are off
+The deployed site reports eleven `FlowRiders.`-prefixed product events to Mixpanel, including one `Kill` per kill
+and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed. LAN play and local dev are off
 by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
