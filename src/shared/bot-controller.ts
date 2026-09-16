@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -46,7 +46,7 @@ export class BotController {
       for(let future=1;future<=BOT_LOOKAHEAD_TICKS;future++){
         const tick=game.tick+future;
         const offset=drunkHeadingOffset(game.seed,id,tick,player.drunkStartedTick,player.drunkUntilTick);
-        const pose=advanceRiderPose({x,y,angle,drunkHeadingOffset:previousOffset},{left:direction<0,right:direction>0},{distance:RIDER_SPEED/20,turn:RIDER_TURN_RATE/20,drunkHeadingOffset:offset});
+        const pose=advanceRiderPose({x,y,angle,drunkHeadingOffset:previousOffset},{left:direction<0,right:direction>0},{distance:(player.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/20,turn:RIDER_TURN_RATE/20,drunkHeadingOffset:offset});
         x=pose.x;y=pose.y;angle=pose.angle;previousOffset=pose.drunkHeadingOffset;
         const clearance=Math.min(x-game.boundaryInset,game.width-game.boundaryInset-x,y-game.boundaryInset,game.height-game.boundaryInset-y)-RIDER_RADIUS;
         if(clearance<2)break;
