@@ -70,6 +70,8 @@ export const INITIAL_BOUNDARY_INSET = 20;
 export const SLOT_COLORS = ['#22d3ee', '#ff4fa3', '#a3e635', '#fb923c', '#a78bfa'] as const;
 
 export const RIDER_SPEED = 150;
+/** Ticks after launch during which a Gun or Shell ignores its shooter's trail and body, and a bullet's blast spares them. */
+const PROJECTILE_OWNER_GRACE_TICKS = 6;
 export const RIDER_TURN_RATE = 2.8;
 /** GRIP reduces the turn radius by about 43% at unchanged speed, lasting until the next round. */
 export const GRIP_TURN_MULTIPLIER = 1.75;
@@ -505,6 +507,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   const shellPaths = new Map<number, ShellPoint[]>();
+  // A fanned Gun's side bullets can meet a trail or wall right beside the shooter; their blast spares the shooter
+  // for the same grace the bullet itself gets, so riding alongside a trail and firing is not an own goal.
+  const graceBlasts = new Set<number>();
+  const detonate = (bomb: BombState, x: number, y: number): void => {
+    if (state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS) graceBlasts.add(bomb.id);
+    detonateGun(bomb, state.tick, x, y);
+  };
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
     if (bomb.shell.gun && state.tick >= bomb.explodeAtTick) { state.bombs.delete(bomb.id); continue; }
@@ -515,13 +524,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       const to = { x: bomb.x + velocity.vx / TICK_HZ, y: bomb.y + velocity.vy / TICK_HZ, t: 1 };
       const wall = to.x < state.boundaryInset + GUN_RADIUS || to.x > state.width - state.boundaryInset - GUN_RADIUS ||
         to.y < state.boundaryInset + GUN_RADIUS || to.y > state.height - state.boundaryInset - GUN_RADIUS;
-      if (wall) { detonateGun(bomb, state.tick, to.x, to.y); continue; }
+      if (wall) { detonate(bomb, to.x, to.y); continue; }
       const trailHit = [...state.players.values()].some(player => player.trail.some(trail =>
-        !(player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6) &&
+        !(player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS) &&
         segmentDistanceSquared(from.x, from.y, to.x, to.y, trail.x1, trail.y1, trail.x2, trail.y2) <= square(GUN_RADIUS + TRAIL_WIDTH / 2)));
       if (trailHit) {
         for (const player of state.players.values()) player.trail = cutTrail(player.trail, state.tick, trail => cutTrailHole(trail, to.x, to.y, GUN_HOLE_RADIUS), () => state.nextTrailPieceId++);
-        detonateGun(bomb, state.tick, to.x, to.y); continue;
+        detonate(bomb, to.x, to.y); continue;
       }
       shellPaths.set(bomb.id, [from, to]); bomb.x = to.x; bomb.y = to.y;
       bomb.shell = { ...velocity, gun: true }; continue;
@@ -530,7 +539,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     shellPaths.set(bomb.id, advanceShell(motion, { left: state.boundaryInset + SHELL_RADIUS,
       right: state.width - state.boundaryInset - SHELL_RADIUS, top: state.boundaryInset + SHELL_RADIUS,
       bottom: state.height - state.boundaryInset - SHELL_RADIUS },
-      [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6 ? [] : player.trail), TRAIL_WIDTH));
+      [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS ? [] : player.trail), TRAIL_WIDTH));
     bomb.x = motion.x; bomb.y = motion.y; bomb.shell = { vx: motion.vx, vy: motion.vy, ...(motion.bounces ? { bounces: motion.bounces } : {}) };
   }
   // Trails burn away once the sweep below has appended any gun-on-rider blasts (#26).
@@ -587,7 +596,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     for (let i = 1; i < path.length; i++) {
       const start = path[i - 1]!; const end = path[i]!;
       for (const movement of movements.values()) {
-        if ((movement.player.id === bomb.ownerId && (state.tick - bomb.launchedTick < 6)) || isHazardImmune(movement.player, state.tick)) continue;
+        if ((movement.player.id === bomb.ownerId && (state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS)) || isHazardImmune(movement.player, state.tick)) continue;
         const mx = movement.x - movement.oldX; const my = movement.y - movement.oldY;
         const px = start.x - movement.oldX - mx * start.t; const py = start.y - movement.oldY - my * start.t;
         const vx = end.x - start.x - mx * (end.t - start.t); const vy = end.y - start.y - my * (end.t - start.t);
@@ -607,7 +616,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       markShot(hit.player.id, bomb.id, bomb.shot);
       if (!bomb.shell?.gun && !shellHits.has(hit.player.id)) shellHits.set(hit.player.id, { ownerId: bomb.ownerId, bounces: bomb.shell?.bounces ?? 0, age: state.tick - bomb.launchedTick });
       if (bomb.shell?.gun) {
-        detonateGun(bomb, state.tick, hit.oldX + (hit.x - hit.oldX) * hitTime, hit.oldY + (hit.y - hit.oldY) * hitTime);
+        detonate(bomb, hit.oldX + (hit.x - hit.oldX) * hitTime, hit.oldY + (hit.y - hit.oldY) * hitTime);
         newBlasts.push(...resolveExplosions(state, events));
       } else state.bombs.delete(bomb.id);
     }
@@ -624,6 +633,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
+      if (blast.ownerId === movement.player.id && graceBlasts.has(blast.bombId)) continue;
       if (!isHazardImmune(movement.player, state.tick) && segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, blast.circle, RIDER_RADIUS)) {
         markCause(causes, causeOwners, movement.player.id, 'explosion', blast.ownerId);
         markShot(movement.player.id, blast.bombId, blast.shot);
