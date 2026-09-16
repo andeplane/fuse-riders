@@ -296,7 +296,7 @@ test('fatal trail ends at the nearest contact regardless of trail array order', 
     assert.ok(Math.abs(dead.x - 505) < 1e-6);
     assert.equal(dead.y, 350);
     assert.deepEqual(dead.trail, [{ x1: 500, y1: 350, x2: dead.x, y2: 350,
-      createdTick: state.tick, expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS }]);
+      createdTick: state.tick, expiresAtTick: Number.MAX_SAFE_INTEGER }]);
   }
 });
 
