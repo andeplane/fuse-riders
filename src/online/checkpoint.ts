@@ -8,7 +8,7 @@ import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 
 /** Bump compatibility whenever persisted simulation semantics or required fields change. No implicit migration. */
-export const CHECKPOINT_VERSION = 5;
+export const CHECKPOINT_VERSION = 6;
 export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-2';
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
@@ -169,6 +169,7 @@ const { placedTick: _placed, ...wireBombFields } = bombFields;
 const { currentRoundSurvivalTicks: _currentSurvival, ...wireStatsFields } = statsFields;
 const snapshotShape = shape({
   bombChargeTicks: isBombChargeTicks,
+  aimBounce: boolean,
   phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v),
   phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
   width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),

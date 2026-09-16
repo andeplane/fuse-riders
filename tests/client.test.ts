@@ -8,7 +8,7 @@ import { PORTAL_PALETTES, portalPalettes } from '../src/client/pickup-renderer.j
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
-  return { phase: 'lobby', bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], leaderboard: [], roundPlacements: [], matchStats: [] };
+  return { phase: 'lobby', aimBounce: false, bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], leaderboard: [], roundPlacements: [], matchStats: [] };
 }
 
 function playingFrame(tick: number, receivedAt: number, x: number, alive = true): SnapshotFrame {

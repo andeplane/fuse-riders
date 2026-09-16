@@ -264,7 +264,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
   for (const player of snapshot.players) {
     if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed || player.gunArmed) continue;
     const chargeTicks = (player.presentationTick ?? snapshot.tick) - player.bombChargeStartedTick;
-    const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks);
+    const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks, snapshot.aimBounce);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
     const angles = player.tripleShotArmed || player.fiveShotArmed ? volleyAngles(player.angle, player.fiveShotArmed ? 5 : 3) : [player.angle];

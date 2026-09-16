@@ -17,10 +17,23 @@ export interface LandingBounds {
   bottom: number;
 }
 
-export function bombLaunchDistance(chargeTicks: number, maxChargeTicks = BOMB_MAX_CHARGE_TICKS): number {
-  const ticks = Number.isFinite(chargeTicks) ? Math.max(0, Math.min(maxChargeTicks, Math.floor(chargeTicks))) : 0;
+/**
+ * Where a charge of `ticks` sits on the ramp, in [0, maxChargeTicks].
+ * Without bounce the ramp stops at the top. With it, holding on walks the range back down to the minimum and up again,
+ * so the same hold keeps offering every distance instead of parking at maximum. One definition, so the simulation and
+ * the on-screen preview cannot disagree about where a bomb will land (#166).
+ */
+export function chargeRamp(ticks: number, maxChargeTicks: number, bounce: boolean): number {
+  if (!bounce) return Math.min(maxChargeTicks, ticks);
+  const period = maxChargeTicks * 2;
+  const phase = ticks % period;
+  return phase <= maxChargeTicks ? phase : period - phase;
+}
+
+export function bombLaunchDistance(chargeTicks: number, maxChargeTicks = BOMB_MAX_CHARGE_TICKS, bounce = false): number {
+  const held = Number.isFinite(chargeTicks) ? Math.max(0, Math.floor(chargeTicks)) : 0;
   return BOMB_MIN_LAUNCH_DISTANCE +
-    (BOMB_MAX_LAUNCH_DISTANCE - BOMB_MIN_LAUNCH_DISTANCE) * ticks / maxChargeTicks;
+    (BOMB_MAX_LAUNCH_DISTANCE - BOMB_MIN_LAUNCH_DISTANCE) * chargeRamp(held, maxChargeTicks, bounce) / maxChargeTicks;
 }
 
 export function bombLandingPoint(

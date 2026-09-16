@@ -27,6 +27,7 @@ export interface TrailSegment { x1: number; y1: number; x2: number; y2: number; 
 export interface BlastCircle { x: number; y: number; radius: number }
 export interface GameSnapshot {
   bombChargeTicks: number;
+  aimBounce: boolean;
   phase: 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
   phaseEndsAtTick?: number;
   roundStartedTick?: number;
