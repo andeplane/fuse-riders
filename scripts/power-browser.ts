@@ -44,9 +44,9 @@ try {
         gl.readPixels(0, 0, 1600, 900, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
         return pixels;
       };
-      const paint = () => {
-        if (arena) arena.render(snapshot, 1000, themes['neon-pixel'], 'power-browser');
-        else drawArena(canvas.getContext('2d')!, snapshot, 1000, themes['neon-pixel'], {});
+      const paint = (selfId?: string) => {
+        if (arena) arena.render(snapshot, 1000, themes['neon-pixel'], 'power-browser', selfId);
+        else drawArena(canvas.getContext('2d')!, snapshot, 1000, themes['neon-pixel'], {}, [], selfId);
         return read();
       };
       const offset = (x: number, y: number) => ((mode === 'webgl' ? 899 - y : y) * 1600 + x) * 4;
@@ -74,8 +74,16 @@ try {
       if (labelChanges === 0) throw Error('First pickup did not update the visible count');
       if (avatarChanges !== 0) throw Error('Pickup changed the avatar/reload area: progress ring must be absent');
       players[0]!.powerPickups = 0; paint();
+      const local = paint(players[0]!.id);
+      let localGold = 0, localWhite = 0;
+      for (let y = 410; y < 430; y++) for (let x = 270; x < 530; x++) {
+        const o = offset(x, y);
+        if (local[o]! > 240 && local[o + 1]! > 200 && local[o + 2]! < 110) localGold++;
+        if ([0, 1, 2].every(channel => local[o + channel]! > 240)) localWhite++;
+      }
+      if (localGold < 5 || localWhite < 5) throw Error('Local YOU label must retain its gold Power count');
       Reflect.set(window, 'disposePowerCheck', () => { arena?.destroy(); canvas.remove(); });
-      return { samples, labelChanges, avatarChanges };
+      return { samples, labelChanges, avatarChanges, localGold, localWhite };
     }, mode);
     await page.screenshot({ path: `artifacts/power-count-${mode}.png` });
     await page.evaluate(() => { (Reflect.get(window, 'disposePowerCheck') as () => void)(); });
