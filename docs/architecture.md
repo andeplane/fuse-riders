@@ -111,10 +111,12 @@ Entry tests the rider's swept movement against the wall capsule, including round
 2. Compute overtime inset; fit portal walls and clip existing trails to the field. Attempt a scheduled pickup spawn.
 3. Compute all living riders' swept movements from input and deterministic Beer noise. Resolve collection, then reflect/clamp riders already immune on wall contact.
 4. Resolve landed due bombs, and the deterministic chain reactions among them when the room setting allows, once per bomb. A gravity bomb leaves a field that drags riders toward its centre for four seconds. Remove trail segments intersecting the new disks.
-5. Determine explosion, boundary, trail and rider collision causes against the post-blast trail set. Ignore recent self-trail segments during their ten-tick grace. Portal contact grace is defensive for both riders. Stable reporting precedence is explosion, wall, trail, rider.
+5. Determine explosion, boundary, trail and rider collision causes against the post-blast trail set. Rider-to-rider contact sweeps their relative position over the tick, testing bodies at matching times rather than comparing independent paths. Ignore recent self-trail segments during their ten-tick grace. Portal contact grace is defensive for both riders. Stable reporting precedence is explosion, wall, trail, rider. Hazards still resolve as one tick; new trails are appended afterward, without sub-tick death or fresh-trail ordering.
 6. Consume shields for otherwise fatal riders, clear that tick's causes, grant grace and reflect any wall hit. Find portal transits only for survivors, reserving accepted exits in stable order.
-7. Record actual travelled distance/survival and commit deaths, survivor positions, portal status and clipped new trail segments. Fatal movement adds no trail.
+7. Record actual travelled distance/survival and commit deaths, survivor positions, portal status and clipped new trail segments. Trail and rider contact use a three-unit head radius, matching the trail half-width; other hazards retain their existing radius. Trail/rider deaths commit their first contact position and the final partial trail, so the visible trail ends at impact rather than the previous tick. Other death causes still add no trail.
 8. Apply ordered bomb actions for living riders using committed positions/headings. Resolve round participation, placement points, round/match wins and phase exactly once, then produce the snapshot.
+
+The narrow contact geometry and final partial trails use P2P rules `fuse-p2p-4`. Refresh every participating browser when testing it; peers using earlier rules cannot join the same world.
 
 ## Verification boundaries
 

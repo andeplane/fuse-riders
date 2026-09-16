@@ -67,6 +67,8 @@ export const RIDER_SPEED = 150;
 export const RIDER_TURN_RATE = 2.8;
 export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
+/** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
+export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
 export const TRAIL_LIFETIME_TICKS = 160;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
@@ -501,6 +503,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   const causes = new Map<PlayerId, EliminationCause>();
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
+  const trailContactTimes = new Map<PlayerId, number>();
+  const riderContactTimes = new Map<PlayerId, number>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
     if (bomb.launchedTick >= state.tick || (!bomb.shell && bomb.landsAtTick < state.tick)) continue;
@@ -576,9 +580,16 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         if (segmentDistanceSquared(
           movement.oldX, movement.oldY, movement.x, movement.y,
           trail.x1, trail.y1, trail.x2, trail.y2,
-        ) <= square(RIDER_RADIUS + TRAIL_WIDTH / 2) + EPSILON) {
+        ) <= square(RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2) + EPSILON) {
           markCause(causes, causeOwners, movement.player.id, 'trail', owner.id);
-          break;
+          const previous = trailContactTimes.get(movement.player.id) ?? 1;
+          const time = firstContactTime((time) => segmentDistanceSquared(
+            movement.oldX, movement.oldY,
+            movement.oldX + (movement.x - movement.oldX) * time,
+            movement.oldY + (movement.y - movement.oldY) * time,
+            trail.x1, trail.y1, trail.x2, trail.y2,
+          ) <= square(RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2) + EPSILON, previous);
+          trailContactTimes.set(movement.player.id, time);
         }
       }
     }
@@ -589,11 +600,23 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     for (let second = first + 1; second < movementList.length; second += 1) {
       const a = movementList[first]!;
       const b = movementList[second]!;
-      if (segmentDistanceSquared(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y) <= square(2 * RIDER_RADIUS) + EPSILON) {
+      // Sweep the relative position: both endpoints use the same instant in the tick.
+      // Comparing the two paths directly also compares positions reached at different
+      // times, killing riders that safely follow or pass behind one another (#186).
+      if (pointSegmentDistanceSquared(0, 0,
+        a.oldX - b.oldX, a.oldY - b.oldY, a.x - b.x, a.y - b.y,
+      ) <= square(2 * RIDER_CONTACT_RADIUS) + EPSILON) {
         // Portal grace is defensive: neither rider is harmed by this contact.
         if (a.player.portalGraceUntilTick > state.tick || b.player.portalGraceUntilTick > state.tick) continue;
         const aInvulnerable = isHazardImmune(a.player, state.tick);
         const bInvulnerable = isHazardImmune(b.player, state.tick);
+        const time = firstContactTime((time) => pointSegmentDistanceSquared(0, 0,
+          a.oldX - b.oldX, a.oldY - b.oldY,
+          a.oldX - b.oldX + ((a.x - a.oldX) - (b.x - b.oldX)) * time,
+          a.oldY - b.oldY + ((a.y - a.oldY) - (b.y - b.oldY)) * time,
+        ) <= square(2 * RIDER_CONTACT_RADIUS) + EPSILON);
+        if (!aInvulnerable) riderContactTimes.set(a.player.id, Math.min(riderContactTimes.get(a.player.id) ?? 1, time));
+        if (!bInvulnerable) riderContactTimes.set(b.player.id, Math.min(riderContactTimes.get(b.player.id) ?? 1, time));
         if (!aInvulnerable) markCause(causes, causeOwners, a.player.id, 'rider', b.player.id);
         if (!bInvulnerable) markCause(causes, causeOwners, b.player.id, 'rider', a.player.id);
       }
@@ -624,6 +647,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   for (const movement of movementList) {
+    const cause = causes.get(movement.player.id);
+    const contactTime = cause === 'trail' ? trailContactTimes.get(movement.player.id)
+      : cause === 'rider' ? riderContactTimes.get(movement.player.id) : undefined;
+    if (contactTime !== undefined) {
+      movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
+      movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
+    }
     const travelledTo = transits.get(movement.player.id)?.entryPoint ?? movement;
     recordSurvivalTick(
       state.matchStats,
@@ -637,6 +667,16 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const movement of movementList) {
     const cause = causes.get(movement.player.id);
     if (cause) {
+      if (cause === 'trail' || cause === 'rider') {
+        movement.player.x = movement.x;
+        movement.player.y = movement.y;
+        movement.player.angle = movement.angle;
+        const trail = clipTrailSegment({
+          x1: movement.oldX, y1: movement.oldY, x2: movement.x, y2: movement.y,
+          createdTick: state.tick, expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
+        }, trailBounds);
+        if (trail && (trail.x1 !== trail.x2 || trail.y1 !== trail.y2)) movement.player.trail.push(trail);
+      }
       movement.player.alive = false;
       movement.player.bombChargeStartedTick = undefined; movement.player.bombTarget = undefined;
       recordElimination(state, movement.player.id);
@@ -1293,6 +1333,23 @@ function normalizeAngle(angle: number): number {
 
 function square(value: number): number {
   return value * value;
+}
+
+/** Earliest contact of a swept prefix. Fixed iterations keep replay deterministic;
+ * 32 subdivisions locate contact to much less than a pixel without advancing physics.
+ * `through` may already be an earlier hit against another segment.
+ */
+function firstContactTime(touchesPrefix: (time: number) => boolean, through = 1): number {
+  if (!touchesPrefix(through)) return through;
+  if (touchesPrefix(0)) return 0;
+  let before = 0;
+  let contact = through;
+  for (let iteration = 0; iteration < 32; iteration++) {
+    const middle = (before + contact) / 2;
+    if (touchesPrefix(middle)) contact = middle;
+    else before = middle;
+  }
+  return contact;
 }
 
 function segmentDistanceSquared(
