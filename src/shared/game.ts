@@ -76,6 +76,8 @@ export const TRAIL_LIFETIME_TICKS = 160;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
 export const BOMB_FUSE_TICKS = 40;
+/** Shorter Fuse stacks twice per round; capture the duration when a bomb launches. */
+export function bombFuseTicks(level = 0): number { return BOMB_FUSE_TICKS - Math.min(2, Math.max(0, level)) * 10; }
 export const BOMB_COOLDOWN_TICKS = POWER_TUNING.baseReloadTicks;
 export const BOMB_BLAST_RANGE = POWER_TUNING.baseBlastRadius;
 export const BLAST_VISIBLE_TICKS = 8;
@@ -107,7 +109,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = ['power', 'extraBomb', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
+export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
 export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
@@ -141,6 +143,7 @@ export interface PlayerState extends Required<PlayerIdentity> {
   bombTarget?: AimPoint;
   /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
   extraBombs: number;
+  fuseLevel: number;
   powerPickups: number;
   /** Captured at launch so collecting a level never distorts an active reload ring. */
   reloadDurationTicks: number;
@@ -305,7 +308,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     alive: false,
     roundWins: 0,
     bombReadyAtTick: 0,
-    extraBombs: 0, powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
+    extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
     invulnerableUntilTick: 0,
     boostUntilTick: 0,
     drunkUntilTick: 0, inkUntilTick: 0,
@@ -805,7 +808,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
-      extraBombs: player.extraBombs, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
+      extraBombs: player.extraBombs, fuseLevel: player.fuseLevel, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
       invulnerableUntilTick: player.invulnerableUntilTick,
       boostUntilTick: player.boostUntilTick,
       drunkUntilTick: player.drunkUntilTick,
@@ -879,7 +882,7 @@ function prepareRound(state: GameState): void {
     player.trail = [];
     player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     player.bombReadyAtTick = state.tick;
-    player.extraBombs = 0; player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
+    player.extraBombs = 0; player.fuseLevel = 0; player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
     player.invulnerableUntilTick = 0;
     player.boostUntilTick = 0;
     player.drunkUntilTick = 0;
@@ -969,7 +972,9 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     consumed.add(pickup.id);
     events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
     recordPickup(state.matchStats, collector.id, pickup.type);
-    if (pickup.type === 'power') {
+    if (pickup.type === 'stopwatch') {
+      collector.fuseLevel = Math.min(2, collector.fuseLevel + 1);
+    } else if (pickup.type === 'power') {
       collector.powerPickups = Math.min(MAX_POWER_PICKUPS, collector.powerPickups + 1);
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
@@ -1148,7 +1153,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
         ...(gravityLaunch && flightPath === paths[0] ? { gravity: true } : {}),
-        explodeAtTick: target ? state.tick : state.tick + BOMB_FUSE_TICKS,
+        explodeAtTick: target ? state.tick : state.tick + bombFuseTicks(player.fuseLevel),
         blastRange: powerBlastRadius(player.powerPickups) * (target ? .7 : 1),
         flightPath,
       };

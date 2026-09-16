@@ -5,6 +5,14 @@ import { writeFile } from 'node:fs/promises';
  * No fonts, filters or external resources: the SVGs also rasterize in Phaser.
  */
 const artwork: Record<string, string> = {
+  'pickup-stopwatch': `
+    <rect x="26" y="4" width="12" height="6" rx="2.5" fill="url(#gold)"/>
+    <path d="M32 10v5m14 2 4-4" stroke="#ffe9aa" stroke-width="4"/>
+    <circle cx="32" cy="36" r="21" fill="url(#gold)" stroke="#fff0b4" stroke-width="1.5"/>
+    <circle cx="32" cy="36" r="16.5" fill="url(#body)" stroke="#b6782a" stroke-width="1.5"/>
+    <path d="M32 23v3m13 10h-3M32 49v-3M19 36h3" stroke="#ffe49e" stroke-width="2"/>
+    <path d="M32 28v9l8 4" fill="none" stroke="#fff4cf" stroke-width="3"/>
+    <circle cx="32" cy="36" r="2.5" fill="#fff"/>`,
   'pickup-power': `<path d="M32 6 52 32 32 58 12 32Z" fill="#ffbd35" stroke="#fff0a0" stroke-width="3"/><path d="m32 15 12 17-12 17-12-17Z" fill="#ffe86b"/><path d="M32 15v34L20 32Z" fill="#fff6ba"/>`,
   'pickup-gravity': `
     <circle cx="32" cy="32" r="21" fill="url(#body)" stroke="#b98cff" stroke-width="2.5"/>

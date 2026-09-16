@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
-import { INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ } from '../src/shared/game.js';
+import { bombFuseTicks, INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ } from '../src/shared/game.js';
 import { DRUNK_DURATION_TICKS } from '../src/shared/drunk.js';
 import { defaultRoomSettings, parseRoomSettings } from '../src/shared/room-settings.js';
 
@@ -37,3 +37,9 @@ test('power-up guide durations follow the simulation constants', () => {
 });
 
 test('power guide explains immediate pickup benefits', () => { assert.match(entry('power').description, /each pickup improves blast size and reload/); });
+
+test('shorter-fuse guide describes both round upgrades using simulation durations', () => {
+  assert.equal(entry('stopwatch').spawnsByDefault, true);
+  assert.ok(entry('stopwatch').description.includes([0, 1, 2].map(level => `${bombFuseTicks(level) / TICK_HZ}s`).join(' → ')));
+  assert.match(entry('stopwatch').description, /for this round/);
+});

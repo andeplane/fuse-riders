@@ -51,7 +51,10 @@ function fallbackBeer(ctx: CanvasRenderingContext2D, x: number, y: number, size:
 }
 
 function fallbackPowerup(ctx: CanvasRenderingContext2D, type: PickupType, x: number, y: number, size: number): void {
-  if (type === 'gun') {
+  if (type === 'stopwatch') {
+    ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y + 2, size * .35, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.lineTo(x, y - size * .2); ctx.stroke(); ctx.fillStyle = '#ffe28a'; ctx.fillRect(x - 4, y - size * .48, 8, 4);
+  } else if (type === 'gun') {
     ctx.fillStyle = '#b9fff8'; ctx.fillRect(x - size * .4, y - size * .2, size * .8, size * .3); ctx.fillRect(x - size * .3, y, size * .2, size * .3);
   } else if (type === 'shell') {
     ctx.fillStyle = '#48dc55'; ctx.strokeStyle = '#dcffd1'; ctx.lineWidth = 3;
@@ -118,7 +121,7 @@ export function drawPickups(
     else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
     if (pickup.type === 'power') continue;
-    const labels: Record<PickupType, string> = { extraBomb: '+1 BOMB', gun: 'GUN', shell: 'SHELL', power: 'POWER', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' , boost: 'BOOST', gravity: 'SINGULARITY'};
+    const labels: Record<PickupType, string> = { stopwatch: 'FUSE', extraBomb: '+1 BOMB', gun: 'GUN', shell: 'SHELL', power: 'POWER', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' , boost: 'BOOST', gravity: 'SINGULARITY'};
     const text = labels[pickup.type];
     const color = pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);

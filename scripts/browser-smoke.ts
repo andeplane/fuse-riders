@@ -233,6 +233,10 @@ try {
   app.game.pickups.push({ id: 9_040, type: 'extraBomb', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('◆ 1 · B×2', { exact: true }).waitFor();
   assert.equal(poweredRider.extraBombs, 1);
+  app.game.pickups.push({ id: 9_041, type: 'stopwatch', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  await advanceDelivered(2);
+  assert.equal(poweredRider.fuseLevel, 1);
+  assert.equal(app.game.pickups.some(pickup => pickup.id === 9_041), false, 'shorter-fuse pickup consumed authoritatively');
   app.game.pickups.push({ id: 9_004, type: 'triple', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('TRIPLE · ARMED', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_004), false, 'triple pickup consumed authoritatively');
