@@ -37,6 +37,18 @@ try {
       const ctx = arena ? null : canvas.getContext('2d')!;
       const fixture = visualFixture(100);
       const player = { ...fixture.players[0]!, color: '#22d3ee', x: 800, y: 450, angle: 0, shielded: false, trail: [], bombReadyAtTick: 100 + BOMB_COOLDOWN_TICKS };
+      if (ctx) {
+        const { drawAvatarHead } = await import(String('/src/client/avatar-heads.ts')) as typeof import('../src/client/avatar-heads.js');
+        const deadline = performance.now() + 5000;
+        await new Promise<void>((resolve, reject) => {
+          const check = () => {
+            if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, 0, player.color)) resolve();
+            else if (performance.now() > deadline) reject(Error('Avatar atlas did not load'));
+            else requestAnimationFrame(check);
+          };
+          check();
+        });
+      }
       const base: Snapshot = { ...fixture, players: [player], bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [] };
       const read = (): Uint8Array => {
         const gl = mode === 'webgl' ? canvas.getContext('webgl') : null;
@@ -70,7 +82,8 @@ try {
           return count;
         };
         const fullPixels = countArc(full), halfPixels = countArc(half);
-        if (fullPixels < 180 || halfPixels < fullPixels * .35 || halfPixels > fullPixels * .65) throw Error(`Arc does not drain: ${fullPixels}/${halfPixels}`);
+        // At least half the nominal two-pixel arc area must brighten over the existing portrait glow.
+        if (fullPixels < Math.PI * RELOAD_RING_RADIUS * 2 || halfPixels < fullPixels * .35 || halfPixels > fullPixels * .65) throw Error(`Arc does not drain: ${fullPixels}/${halfPixels}`);
         equal(half, paint(halfway, 5000), 'wall time changed paused cooldown');
         equal(half, paint({ ...base, presentationTick: halfway.tick }), 'world presentation time ignored');
         equal(half, paint({ ...base, presentationTick: 100, players: [{ ...player, presentationTick: halfway.tick }] }), 'rider presentation time ignored');
