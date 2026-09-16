@@ -3,7 +3,7 @@ import test from 'node:test';
 import { clipTrailSegment } from '../src/shared/trail-clipping.ts';
 import {
   addPlayer, createGame, startMatch, step, COUNTDOWN_TICKS,
-  INITIAL_BOUNDARY_INSET, OVERTIME_START_TICK, RIDER_RADIUS,
+  INITIAL_BOUNDARY_INSET, OVERTIME_START_TICK, RIDER_RADIUS, TRAIL_LIFETIME_TICKS,
 } from '../src/shared/game.ts';
 import type { TrailSegment } from '../src/shared/protocol.ts';
 
@@ -84,7 +84,7 @@ test('star, shield and portal grace bounce trails cannot start outside the newly
     assert.equal(trail.x1, state.boundaryInset, defense);
     assert.equal(trail.x2, player.x, defense);
     assert.equal(trail.createdTick, state.tick);
-    assert.equal(trail.expiresAtTick, state.tick + 160);
+    assert.equal(trail.expiresAtTick, state.tick + TRAIL_LIFETIME_TICKS);
   }
 });
 

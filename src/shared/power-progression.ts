@@ -1,6 +1,7 @@
 /** First-pass balance for #201. Tick values use the simulation's 20 Hz clock.
  * Tune abundance independently of progression: interval/per-rider cap control how
- * much is on the board; halfStrengthPickups controls how quickly a rider grows.
+ * much is on the board; halfStrengthPickups controls weapon improvement, while
+ * trailTicksPerPickup controls linear trail growth.
  */
 export const POWER_TUNING = {
   defaultDropWeight: 8000,
@@ -14,6 +15,10 @@ export const POWER_TUNING = {
   // Ordinary bombs block another launch until their 40-tick fuse ends.
   minReloadTicks: 45,
   halfStrengthPickups: 30,
+  baseTrailLifetimeTicks: 80,
+  trailTicksPerPickup: 10,
+  // Resource ceiling: at most one new segment per rider per tick.
+  maxTrailLifetimeTicks: 1024,
 } as const;
 
 /** Defensive serialization bound, far beyond what can be collected in a round. */
@@ -28,6 +33,10 @@ export function powerBlastRadius(pickups: number): number {
 }
 export function powerReloadTicks(pickups: number): number {
   return Math.round(POWER_TUNING.baseReloadTicks - (POWER_TUNING.baseReloadTicks - POWER_TUNING.minReloadTicks) * strength(pickups));
+}
+/** Linear trail growth, capped only by the shared trail/checkpoint resource budget. */
+export function powerTrailLifetimeTicks(pickups: number): number {
+  return Math.min(POWER_TUNING.maxTrailLifetimeTicks, POWER_TUNING.baseTrailLifetimeTicks + pickups * POWER_TUNING.trailTicksPerPickup);
 }
 /** No elapsed-time ramp. Human and AI riders count equally; waiting/dead seats do not. */
 export function pickupPacing(livingRiders: number): { interval: number; cap: number } {
