@@ -11,9 +11,9 @@ export const POWER_TUNING = {
   maxActivePickups: 20,
   baseBlastRadius: 90,
   maxBlastRadius: 180,
-  baseReloadTicks: 80,
-  // Ordinary bombs block another launch until their 40-tick fuse ends.
-  minReloadTicks: 45,
+  // Ready again when the default 40-tick fuse ends; live volleys still block firing.
+  baseReloadTicks: 40,
+  minReloadTicks: 20,
   halfStrengthPickups: 30,
   baseTrailLifetimeTicks: 80,
   trailTicksPerPickup: 10,
