@@ -1266,7 +1266,7 @@ test('the snapshot carries the room aim-bounce flag, in both directions and with
   assert.equal(toSnapshot(state).aimBounce, false, 'a game with no settings yet must not claim the room bounces');
   // defaultRoomSettings() already bounces, so the true case has to come from the settings object to mean anything.
   state.settings = { ...defaultRoomSettings(), aimBounce: true };
-  assert.equal(toSnapshot(state).aimBounce, true);
+  assert.equal(toSnapshot(state).aimBounce, true, 'a room with bouncing on must reach the preview');
   state.settings = { ...defaultRoomSettings(), aimBounce: false };
   assert.equal(toSnapshot(state).aimBounce, false, 'a host who turned bouncing off must reach the preview');
 });
