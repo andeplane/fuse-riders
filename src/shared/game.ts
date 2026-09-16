@@ -1,4 +1,6 @@
 import { hypot2, sin, cos } from './deterministic-math.js';
+import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerReloadTicks } from './power-progression.js';
+export { pickupPacing } from './power-progression.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { roomPickup, type RoomSettings } from './room-settings.js';
 import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
@@ -48,7 +50,7 @@ import {
   bombLaunchDistance,
 } from './bomb-launch.js';
 import {
-  createVolleyFlightPaths,
+  MAX_EXTRA_BOMBS, bombsPerShot, createVolleyFlightPaths,
   type LaunchBounds,
 } from './launch-modifiers.js';
 import { detectMoments, roundHasMoment, DODGE_LOOKBACK_TICKS, REPLAY_PAUSE_TICKS, type Moment, type TickObservations } from './moments.js';
@@ -66,29 +68,30 @@ export const SLOT_COLORS = ['#22d3ee', '#ff4fa3', '#a3e635', '#fb923c', '#a78bfa
 
 export const RIDER_SPEED = 150;
 export const RIDER_TURN_RATE = 2.8;
+/** GRIP reduces the turn radius by about 43% at unchanged speed, lasting until the next round. */
+export const GRIP_TURN_MULTIPLIER = 1.75;
+export function riderTurnRate(player: { grip: boolean }): number {
+  return RIDER_TURN_RATE * (player.grip ? GRIP_TURN_MULTIPLIER : 1);
+}
 export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
+/** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
+export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
 export const TRAIL_LIFETIME_TICKS = 160;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
 export const BOMB_FUSE_TICKS = 40;
+/** Shorter Fuse stacks twice per round; capture the duration when a bomb launches. */
 export function bombFuseTicks(level = 0): number { return BOMB_FUSE_TICKS - Math.min(2, Math.max(0, level)) * 10; }
-export const BOMB_COOLDOWN_TICKS = 80;
-export const BOMB_BLAST_RANGE = 90;
+export const BOMB_COOLDOWN_TICKS = POWER_TUNING.baseReloadTicks;
+export const BOMB_BLAST_RANGE = POWER_TUNING.baseBlastRadius;
 export const BLAST_VISIBLE_TICKS = 8;
-export const BLAST_LEVEL_RANGE = 25;
-/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with blast level like the blast itself (#166). */
+/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with collected Power like the blast itself (#166). */
 export const GRAVITY_FIELD_TICKS = 80;
 /** Peak pull at the centre, as a share of a tick's travel. Well under 1, so a rider is dragged and slowed, never captured. */
 export const GRAVITY_PULL_PER_TICK = 0.45;
 
-export const PICKUP_SPAWN_INTERVAL_TICKS = 80;
 export const PICKUP_LIFETIME_TICKS = 300;
-export const MAX_ACTIVE_PICKUPS = 3;
-export function pickupPacing(elapsedTicks: number): { interval: number; cap: number } {
-  const stage = Math.min(3, Math.max(0, Math.floor(elapsedTicks / 400)));
-  return { interval: [80, 53, 40, 27][stage]!, cap: MAX_ACTIVE_PICKUPS + stage };
-}
 export const PICKUP_SPAWN_ATTEMPTS = 24;
 export const PICKUP_RADIUS = 14;
 export const PICKUP_SPAWN_MARGIN = 40;
@@ -111,7 +114,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = ['stopwatch', 'gun', 'shell', 'target', 'blast', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
+export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity', 'grip'] as const;
 export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
@@ -143,11 +146,17 @@ export interface PlayerState extends Required<PlayerIdentity> {
   /** The next ordinary launch leaves a gravity field behind its blast (#166). */
   gravityArmed: boolean;
   bombTarget?: AimPoint;
-  fuseLevel?: number;
-  blastLevel: 0 | 1 | 2;
+  /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
+  extraBombs: number;
+  fuseLevel: number;
+  powerPickups: number;
+  /** Captured at launch so collecting a level never distorts an active reload ring. */
+  reloadDurationTicks: number;
   invulnerableUntilTick: number;
   /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
   boostUntilTick: number;
+  /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
+  grip: boolean;
   drunkUntilTick: number; inkUntilTick: number;
   drunkStartedTick: number;
   drunkHeadingOffset: number;
@@ -249,7 +258,6 @@ interface Movement {
 
 const EPSILON = 1e-9;
 const MOVE_PER_TICK = RIDER_SPEED / TICK_HZ;
-const TURN_PER_TICK = RIDER_TURN_RATE / TICK_HZ;
 const CAUSE_PRIORITY: Record<EliminationCause, number> = {
   rider: 0,
   trail: 1,
@@ -306,9 +314,9 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     alive: false,
     roundWins: 0,
     bombReadyAtTick: 0,
-    blastLevel: 0,
+    extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
     invulnerableUntilTick: 0,
-    boostUntilTick: 0,
+    boostUntilTick: 0, grip: false,
     drunkUntilTick: 0, inkUntilTick: 0,
     targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false, gravityArmed: false,
     drunkStartedTick: 0,
@@ -409,11 +417,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.blasts = state.blasts.filter((blast) => blast.expiresAtTick > state.tick);
   state.pickups = state.pickups.filter((pickup) => pickup.expiresAtTick > state.tick);
 
+  const pickupSchedule = pickupPacing([...state.players.values()].filter(player => player.alive).length);
   if (state.phase === 'countdown' && state.phaseEndsAtTick !== undefined && state.tick >= state.phaseEndsAtTick) {
     state.phase = 'playing';
     state.phaseEndsAtTick = undefined;
     state.roundStartedTick = state.tick;
-    state.nextPickupSpawnTick = state.tick + PICKUP_SPAWN_INTERVAL_TICKS;
+    state.nextPickupSpawnTick = state.tick + pickupSchedule.interval;
   }
 
   if (state.phase !== 'playing') return { snapshot: toSnapshot(state), events };
@@ -441,8 +450,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   if (state.tick >= state.nextPickupSpawnTick) {
-    state.nextPickupSpawnTick = state.tick + pickupPacing(elapsed).interval;
-    maybeSpawnPickup(state);
+    state.nextPickupSpawnTick = state.tick + pickupSchedule.interval;
+    maybeSpawnPickup(state, pickupSchedule.cap);
   }
 
   const movements = new Map<PlayerId, Movement>();
@@ -450,7 +459,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
     const distance = player.boostUntilTick > state.tick ? MOVE_PER_TICK * BOOST_SPEED : MOVE_PER_TICK;
-    const pose = advanceRiderPose(player, input, {distance,turn:TURN_PER_TICK,drunkHeadingOffset:offset});
+    const pose = advanceRiderPose(player, input, {distance,turn:riderTurnRate(player)/TICK_HZ,drunkHeadingOffset:offset});
     // Fields pull where the rider lands, inside the same tick, so the swept collision below still tests the path actually taken.
     const pulled = applyGravity(state, pose.x, pose.y, distance);
     player.drunkHeadingOffset = pose.drunkHeadingOffset;
@@ -523,6 +532,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   const causes = new Map<PlayerId, EliminationCause>();
   const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
+  const trailContactTimes = new Map<PlayerId, number>();
+  const riderContactTimes = new Map<PlayerId, number>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
     if (bomb.launchedTick >= state.tick || (!bomb.shell && bomb.landsAtTick < state.tick)) continue;
@@ -601,10 +612,17 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         if (segmentDistanceSquared(
           movement.oldX, movement.oldY, movement.x, movement.y,
           trail.x1, trail.y1, trail.x2, trail.y2,
-        ) <= square(RIDER_RADIUS + TRAIL_WIDTH / 2) + EPSILON) {
+        ) <= square(RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2) + EPSILON) {
           markCause(causes, causeOwners, movement.player.id, 'trail', owner.id);
+          const previous = trailContactTimes.get(movement.player.id) ?? 1;
+          const time = firstContactTime((time) => segmentDistanceSquared(
+            movement.oldX, movement.oldY,
+            movement.oldX + (movement.x - movement.oldX) * time,
+            movement.oldY + (movement.y - movement.oldY) * time,
+            trail.x1, trail.y1, trail.x2, trail.y2,
+          ) <= square(RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2) + EPSILON, previous);
+          trailContactTimes.set(movement.player.id, time);
           if (!trailHits.has(movement.player.id)) trailHits.set(movement.player.id, { ownerId: owner.id, age: state.tick - trail.createdTick });
-          break;
         }
       }
     }
@@ -615,11 +633,23 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     for (let second = first + 1; second < movementList.length; second += 1) {
       const a = movementList[first]!;
       const b = movementList[second]!;
-      if (segmentDistanceSquared(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y) <= square(2 * RIDER_RADIUS) + EPSILON) {
+      // Sweep the relative position: both endpoints use the same instant in the tick.
+      // Comparing the two paths directly also compares positions reached at different
+      // times, killing riders that safely follow or pass behind one another (#186).
+      if (pointSegmentDistanceSquared(0, 0,
+        a.oldX - b.oldX, a.oldY - b.oldY, a.x - b.x, a.y - b.y,
+      ) <= square(2 * RIDER_CONTACT_RADIUS) + EPSILON) {
         // Portal grace is defensive: neither rider is harmed by this contact.
         if (a.player.portalGraceUntilTick > state.tick || b.player.portalGraceUntilTick > state.tick) continue;
         const aInvulnerable = isHazardImmune(a.player, state.tick);
         const bInvulnerable = isHazardImmune(b.player, state.tick);
+        const time = firstContactTime((time) => pointSegmentDistanceSquared(0, 0,
+          a.oldX - b.oldX, a.oldY - b.oldY,
+          a.oldX - b.oldX + ((a.x - a.oldX) - (b.x - b.oldX)) * time,
+          a.oldY - b.oldY + ((a.y - a.oldY) - (b.y - b.oldY)) * time,
+        ) <= square(2 * RIDER_CONTACT_RADIUS) + EPSILON);
+        if (!aInvulnerable) riderContactTimes.set(a.player.id, Math.min(riderContactTimes.get(a.player.id) ?? 1, time));
+        if (!bInvulnerable) riderContactTimes.set(b.player.id, Math.min(riderContactTimes.get(b.player.id) ?? 1, time));
         if (!aInvulnerable) markCause(causes, causeOwners, a.player.id, 'rider', b.player.id);
         if (!bInvulnerable) markCause(causes, causeOwners, b.player.id, 'rider', a.player.id);
       }
@@ -650,6 +680,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   for (const movement of movementList) {
+    const cause = causes.get(movement.player.id);
+    const contactTime = cause === 'trail' ? trailContactTimes.get(movement.player.id)
+      : cause === 'rider' ? riderContactTimes.get(movement.player.id) : undefined;
+    if (contactTime !== undefined) {
+      movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
+      movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
+    }
     const travelledTo = transits.get(movement.player.id)?.entryPoint ?? movement;
     recordSurvivalTick(
       state.matchStats,
@@ -663,6 +700,16 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const movement of movementList) {
     const cause = causes.get(movement.player.id);
     if (cause) {
+      if (cause === 'trail' || cause === 'rider') {
+        movement.player.x = movement.x;
+        movement.player.y = movement.y;
+        movement.player.angle = movement.angle;
+        const trail = clipTrailSegment({
+          x1: movement.oldX, y1: movement.oldY, x2: movement.x, y2: movement.y,
+          createdTick: state.tick, expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
+        }, trailBounds);
+        if (trail && (trail.x1 !== trail.x2 || trail.y1 !== trail.y2)) movement.player.trail.push(trail);
+      }
       movement.player.alive = false;
       movement.player.bombChargeStartedTick = undefined; movement.player.bombTarget = undefined;
       recordElimination(state, movement.player.id);
@@ -767,9 +814,9 @@ export function toSnapshot(state: GameState): GameSnapshot {
       roundWins: player.roundWins,
       bombReadyAtTick: player.bombReadyAtTick,
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
-      fuseLevel: player.fuseLevel ?? 0, blastLevel: player.blastLevel,
+      extraBombs: player.extraBombs, fuseLevel: player.fuseLevel, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
       invulnerableUntilTick: player.invulnerableUntilTick,
-      boostUntilTick: player.boostUntilTick,
+      boostUntilTick: player.boostUntilTick, grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, gravityArmed: player.gravityArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
@@ -841,9 +888,9 @@ function prepareRound(state: GameState): void {
     player.trail = [];
     player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     player.bombReadyAtTick = state.tick;
-    player.fuseLevel = 0; player.blastLevel = 0;
+    player.extraBombs = 0; player.fuseLevel = 0; player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
     player.invulnerableUntilTick = 0;
-    player.boostUntilTick = 0;
+    player.boostUntilTick = 0; player.grip = false;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
     player.drunkHeadingOffset = 0;
@@ -865,8 +912,8 @@ function prepareRound(state: GameState): void {
   });
 }
 
-function maybeSpawnPickup(state: GameState): void {
-  if (state.pickups.length >= pickupPacing(state.tick - (state.roundStartedTick ?? state.tick)).cap) return;
+function maybeSpawnPickup(state: GameState, cap: number): void {
+  if (state.pickups.length >= cap) return;
   const typeRoll = nextRandom(state);
   const type = state.settings ? roomPickup(typeRoll, state.settings.weights) : pickupTypeForRoll(typeRoll);
   if (!type) return;
@@ -910,6 +957,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
   const consumed = new Set<number>();
   for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
     const collectors = [...movements.values()]
+      .filter(({ player }) => pickup.type !== 'grip' || !player.grip)
       .map((movement) => ({
         movement,
         distance: pointSegmentDistanceSquared(pickup.x, pickup.y, movement.oldX, movement.oldY, movement.x, movement.y),
@@ -932,7 +980,9 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     events.push({ type: 'pickupCollected', playerId: collector.id, pickupId: pickup.id });
     recordPickup(state.matchStats, collector.id, pickup.type);
     if (pickup.type === 'stopwatch') {
-      collector.fuseLevel = Math.min(2, (collector.fuseLevel ?? 0) + 1);
+      collector.fuseLevel = Math.min(2, collector.fuseLevel + 1);
+    } else if (pickup.type === 'power') {
+      collector.powerPickups = Math.min(MAX_POWER_PICKUPS, collector.powerPickups + 1);
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
     } else if (pickup.type === 'gravity') {
@@ -941,10 +991,10 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.shellArmed = true;
     } else if (pickup.type === 'target') {
       collector.targetBombArmed = true;
-    } else if (pickup.type === 'blast') {
-      collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+    } else if (pickup.type === 'grip') {
+      collector.grip = true;
     } else if (pickup.type === 'boost') {
       collector.boostUntilTick = Math.max(collector.boostUntilTick, state.tick + BOOST_DURATION_TICKS);
     } else if (pickup.type === 'ink') {
@@ -960,6 +1010,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       }
     } else if (pickup.type === 'five') {
       collector.fiveShotArmed = true;
+    } else if (pickup.type === 'extraBomb') {
+      collector.extraBombs = Math.min(MAX_EXTRA_BOMBS, collector.extraBombs + 1);
     } else if (pickup.type === 'triple') {
       collector.tripleShotArmed = true;
     } else if (pickup.type === 'orbitShield') {
@@ -1077,7 +1129,8 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         landsAtTick: deadline, explodeAtTick: deadline,
         blastRange: 0, flightPath: [], shell: { vx: cos(player.angle) * speed, vy: sin(player.angle) * speed, ...(gun ? { gun: true } : {}) } });
       if (gun) player.gunArmed = false; else player.shellArmed = false;
-      player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+      player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
+      player.bombReadyAtTick = state.tick + player.reloadDurationTicks;
       recordBombPlaced(state.matchStats, player.id);
       events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
@@ -1089,8 +1142,8 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       minY: state.boundaryInset + RIDER_RADIUS,
       maxY: state.height - state.boundaryInset - RIDER_RADIUS,
     };
-    const paths = target ? [[{ ...target, angle: player.angle }]] : player.tripleShotArmed || player.fiveShotArmed
-      ? createVolleyFlightPaths(player, player.angle, distance, bounds, player.fiveShotArmed ? 5 : 3)
+    const paths = target ? [[{ ...target, angle: player.angle }]] : bombsPerShot(player) > 1
+      ? createVolleyFlightPaths(player, player.angle, distance, bounds, bombsPerShot(player))
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
     if (target) player.targetBombArmed = false;
     else { player.tripleShotArmed = false; player.fiveShotArmed = false; }
@@ -1110,14 +1163,15 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
         ...(gravityLaunch && flightPath === paths[0] ? { gravity: true } : {}),
         explodeAtTick: target ? state.tick : state.tick + bombFuseTicks(player.fuseLevel),
-        blastRange: (BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE) * (target ? .7 : 1),
+        blastRange: powerBlastRadius(player.powerPickups) * (target ? .7 : 1),
         flightPath,
       };
       state.bombs.set(bomb.id, bomb);
       recordBombPlaced(state.matchStats, player.id);
       events.push({ type: 'bombPlaced', bombId: bomb.id, playerId: player.id });
     }
-    player.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+    player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
+    player.bombReadyAtTick = state.tick + player.reloadDurationTicks;
   }
 }
 
@@ -1259,6 +1313,10 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
 }
 
 function recordElimination(state: GameState, playerId: PlayerId): void {
+  // Freeze the remaining trail, including the fatal contact segment. Keep a finite
+  // deadline for snapshots, bots and renderers; blasts/walls still cut it and the
+  // next round clears it. Dead riders never append new segments.
+  for (const segment of requirePlayer(state, playerId).trail) segment.expiresAtTick = Number.MAX_SAFE_INTEGER;
   const participant = state.roundParticipants.get(playerId);
   if (participant && participant.eliminatedAtTick === undefined) participant.eliminatedAtTick = state.tick;
 }
@@ -1345,6 +1403,23 @@ function normalizeAngle(angle: number): number {
 
 function square(value: number): number {
   return value * value;
+}
+
+/** Earliest contact of a swept prefix. Fixed iterations keep replay deterministic;
+ * 32 subdivisions locate contact to much less than a pixel without advancing physics.
+ * `through` may already be an earlier hit against another segment.
+ */
+function firstContactTime(touchesPrefix: (time: number) => boolean, through = 1): number {
+  if (!touchesPrefix(through)) return through;
+  if (touchesPrefix(0)) return 0;
+  let before = 0;
+  let contact = through;
+  for (let iteration = 0; iteration < 32; iteration++) {
+    const middle = (before + contact) / 2;
+    if (touchesPrefix(middle)) contact = middle;
+    else before = middle;
+  }
+  return contact;
 }
 
 export function segmentDistanceSquared(

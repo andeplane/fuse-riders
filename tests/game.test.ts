@@ -1,3 +1,4 @@
+import { pickupPacing, powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { POINT_UNIT } from '../src/shared/leaderboard.ts';
@@ -14,15 +15,12 @@ import {
   BOMB_COOLDOWN_TICKS,
   BOMB_FUSE_TICKS,
   BOMB_BLAST_RANGE,
-  BLAST_LEVEL_RANGE,
   BLAST_VISIBLE_TICKS,
   COUNTDOWN_TICKS,
   INITIAL_BOUNDARY_INSET,
-  MAX_ACTIVE_PICKUPS,
   OVERTIME_INSET_PER_TICK,
   OVERTIME_START_TICK,
   PICKUP_LIFETIME_TICKS,
-  PICKUP_SPAWN_INTERVAL_TICKS,
   ROUND_DRAW_TICK,
   SELF_TRAIL_GRACE_TICKS,
   SLOT_COLORS,
@@ -160,7 +158,7 @@ test('a due blast removes an intersecting segment before trail collision', () =>
   assert.ok(result.events.some((event) => event.type === 'explosion' && event.bombId === 99));
 });
 
-test('swept movement collides with an old trail even when the endpoint has crossed it', () => {
+test('swept movement stops at first contact with an old trail', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
   const rider = state.players.get('p0')!;
@@ -171,9 +169,9 @@ test('swept movement collides with an old trail even when the endpoint has cross
   owner.x = 900;
   owner.y = 600;
   owner.trail = [{
-    x1: 503,
+    x1: 510,
     y1: 300,
-    x2: 503,
+    x2: 510,
     y2: 400,
     createdTick: state.tick - SELF_TRAIL_GRACE_TICKS,
     expiresAtTick: state.tick + 100,
@@ -181,7 +179,9 @@ test('swept movement collides with an old trail even when the endpoint has cross
   const result = step(state, new Map());
   assert.equal(rider.alive, false);
   assert.equal(state.matchStats.get('p0')!.survivalTicks, 2, 'the countdown transition tick and fatal tick both simulate movement');
-  assert.equal(state.matchStats.get('p0')!.distanceUnits, 15);
+  assert.ok(Math.abs(rider.x - 504) < 1e-6);
+  assert.ok(Math.abs(state.matchStats.get('p0')!.distanceUnits - 11.5) < 1e-6);
+  assert.equal(rider.trail.at(-1)!.x2, rider.x, 'the fatal trail reaches the impact pose');
   assert.equal(state.matchStats.get('p0')!.deathsByCause.trail, 1);
   assert.equal(state.matchStats.get('p1')!.eliminations, 1);
   assert.equal(state.roundParticipants.get('p0')!.eliminatedAtTick, state.tick);
@@ -209,6 +209,129 @@ test('recent self trail is ignored but becomes lethal at the exact grace boundar
   assert.equal(oldPlayer.alive, false);
 });
 
+test('following riders survive when their swept paths are close but their bodies stay apart in time', () => {
+  for (const reversed of [false, true]) {
+    for (const boosted of [false, true]) {
+      const state = gameWithPlayers();
+      enterPlaying(state);
+      const behind = reversed ? 'p1' : 'p0';
+      const ahead = reversed ? 'p0' : 'p1';
+      for (const [id, x] of [[behind, 500], [ahead, 520]] as const) {
+        Object.assign(state.players.get(id)!, {
+          x, y: 350, angle: 0, trail: [], boostUntilTick: boosted ? state.tick + 10 : 0,
+        });
+      }
+      const result = step(state, new Map());
+      assert.ok([...state.players.values()].every(player => player.alive));
+      assert.equal(state.players.get(ahead)!.x - state.players.get(behind)!.x, 20);
+      assert.equal(result.events.some(event => event.type === 'playerEliminated'), false);
+      assert.equal(state.phase, 'playing');
+    }
+  }
+});
+
+test('a rider crossing behind another hits only the existing trail, without killing its owner', () => {
+  for (const reversed of [false, true]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    const owner = state.players.get(reversed ? 'p1' : 'p0')!;
+    const crossing = state.players.get(reversed ? 'p0' : 'p1')!;
+    Object.assign(owner, { x: 500, y: 350, angle: 0, trail: [{
+      x1: 480, y1: 350, x2: 500, y2: 350, createdTick: state.tick, expiresAtTick: state.tick + 100,
+    }] });
+    Object.assign(crossing, { x: 490, y: 338, angle: Math.PI / 2, trail: [] });
+    const result = step(state, new Map());
+    assert.equal(owner.alive, true);
+    assert.equal(crossing.alive, false);
+    assert.equal(state.roundWinnerId, owner.id);
+    assert.deepEqual(result.events.filter(event => event.type === 'playerEliminated'), [
+      { type: 'playerEliminated', playerId: crossing.id, cause: 'trail' },
+    ]);
+    assert.equal(state.matchStats.get(owner.id)!.eliminations, 1);
+  }
+});
+
+test('rider body contact includes tangency but excludes a near miss', () => {
+  for (const separation of [6, 6.001]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    Object.assign(state.players.get('p0')!, { x: 500, y: 350, angle: 0, trail: [] });
+    Object.assign(state.players.get('p1')!, { x: 507.5, y: 350 + separation, angle: Math.PI, trail: [] });
+    step(state, new Map());
+    assert.ok([...state.players.values()].every(player => player.alive === (separation > 6)));
+  }
+});
+
+test('trail-width heads can skim a trail, while exact edge contact still kills', () => {
+  for (const gap of [6, 6.001, 9]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    const rider = state.players.get('p0')!;
+    const other = state.players.get('p1')!;
+    Object.assign(rider, { x: 500, y: 350 + gap, angle: 0, trail: [] });
+    Object.assign(other, { x: 900, y: 600, trail: [{
+      x1: 450, y1: 350, x2: 600, y2: 350, createdTick: state.tick, expiresAtTick: state.tick + 100,
+    }] });
+    step(state, new Map());
+    assert.equal(rider.alive, gap > 6);
+    if (gap === 6) {
+      assert.equal(rider.x, 500, 'contact at tick start does not advance the corpse');
+      assert.equal(rider.trail.length, 0, 'zero travel does not leave a zero-length segment');
+    }
+  }
+});
+
+test('fatal trail ends at the nearest contact regardless of trail array order', () => {
+  for (const positions of [[511, 513], [513, 511]]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    const rider = state.players.get('p0')!;
+    Object.assign(rider, { x: 500, y: 350, angle: 0, trail: [] });
+    Object.assign(state.players.get('p1')!, { x: 900, y: 600, trail: positions.map(x => ({
+      x1: x, y1: 300, x2: x, y2: 400, createdTick: state.tick, expiresAtTick: state.tick + 100,
+    })) });
+    const { snapshot } = step(state, new Map());
+    const dead = snapshot.players.find(player => player.id === rider.id)!;
+    assert.equal(dead.alive, false);
+    assert.ok(Math.abs(dead.x - 505) < 1e-6);
+    assert.equal(dead.y, 350);
+    assert.deepEqual(dead.trail, [{ x1: 500, y1: 350, x2: dead.x, y2: 350,
+      createdTick: state.tick, expiresAtTick: Number.MAX_SAFE_INTEGER }]);
+  }
+});
+
+test('a crash at a rounded trail endpoint records the contact instead of the previous tick', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const rider = state.players.get('p0')!;
+  Object.assign(rider, { x: 500, y: 350, angle: 0, trail: [] });
+  Object.assign(state.players.get('p1')!, { x: 900, y: 600, trail: [{
+    x1: 510, y1: 353, x2: 510, y2: 400, createdTick: state.tick, expiresAtTick: state.tick + 100,
+  }] });
+  step(state, new Map());
+  assert.equal(rider.alive, false);
+  assert.ok(Math.abs(Math.hypot(rider.x - 510, rider.y - 353) - 6) < 1e-6);
+  assert.equal(rider.trail.at(-1)!.x2, rider.x);
+});
+
+// The tangency case above pins how wide contact is. This one pins that it is measured at matching times, which
+// nothing else still catches: once #202 narrowed contact to the trail head, the older following-riders case cleared
+// the threshold on the old path-vs-path comparison too, so reverting to it no longer fails anything. These two ride
+// abreast 6.5 apart -- never touching -- but their paths lie along the same line, so a path-against-path test reads
+// them as zero apart and kills both. Written out rather than derived from RIDER_CONTACT_RADIUS: a distance that
+// follows the constant cannot notice the constant moving.
+test('riders abreast just outside contact survive, though their paths overlap in space', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const left = state.players.get('p0')!;
+  const right = state.players.get('p1')!;
+  left.x = 500; left.y = 350; left.angle = 0; left.trail = [];
+  right.x = 506.5; right.y = 350; right.angle = 0; right.trail = [];
+  const result = step(state, new Map());
+  assert.deepEqual(result.events.filter((event) => event.type === 'playerEliminated'), [], 'a 6.5 gap is outside the 6-unit contact width at every instant');
+  assert.ok(left.alive && right.alive);
+});
+
 test('head-on swept rider collision eliminates both and produces a draw', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
@@ -219,6 +342,10 @@ test('head-on swept rider collision eliminates both and produces a draw', () => 
   const result = step(state, new Map());
   assert.equal(left.alive, false);
   assert.equal(right.alive, false);
+  assert.ok(Math.abs(left.x - 507) < 1e-6);
+  assert.ok(Math.abs(right.x - 513) < 1e-6);
+  assert.equal(left.trail.at(-1)!.x2, left.x);
+  assert.equal(right.trail.at(-1)!.x2, right.x);
   assert.equal(state.roundParticipants.get('p0')!.eliminatedAtTick, state.tick);
   assert.equal(state.roundParticipants.get('p1')!.eliminatedAtTick, state.tick);
   assert.equal(state.phase, 'roundOver');
@@ -547,7 +674,7 @@ test('the larger arena and seeded pickup schedule replay deterministically', () 
     step(first, new Map());
     step(second, new Map());
   }
-  assert.equal(first.nextPickupSpawnTick, first.tick + PICKUP_SPAWN_INTERVAL_TICKS);
+  assert.equal(first.nextPickupSpawnTick, first.tick + pickupPacing(2).interval);
   first.nextPickupSpawnTick = first.tick + 1;
   second.nextPickupSpawnTick = second.tick + 1;
   step(first, new Map());
@@ -557,21 +684,21 @@ test('the larger arena and seeded pickup schedule replay deterministically', () 
   assert.equal(first.randomState, second.randomState);
 });
 
-test('blast pickups cap at level two and affect bombs placed on the collection tick', () => {
-  const state = gameWithPlayers();
-  enterPlaying(state);
+test('first Power pickup applies both weapon upgrades on the collection tick', () => {
+  const state = gameWithPlayers(); enterPlaying(state);
   const player = state.players.get('p0')!;
-  player.x = 500; player.y = 450; player.angle = 0;
-  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
-  state.pickups = [
-    { id: 1, type: 'blast', x: 503, y: 450, expiresAtTick: state.tick + 100 },
-    { id: 2, type: 'blast', x: 506, y: 450, expiresAtTick: state.tick + 100 },
-    { id: 3, type: 'blast', x: 507, y: 450, expiresAtTick: state.tick + 100 },
-  ];
+  Object.assign(player, { x: 500, y: 450, angle: 0, powerPickups: 0 });
+  Object.assign(state.players.get('p1')!, { x: 1200, y: 700 });
+  state.pickups = [{ id: 1, type: 'power', x: 503, y: 450, expiresAtTick: state.tick + 100 }];
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
-  assert.equal(player.blastLevel, 2);
+  assert.equal(player.powerPickups, 1);
   assert.equal(state.pickups.length, 0);
-  assert.equal([...state.bombs.values()][0]!.blastRange, BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE);
+  const bomb = [...state.bombs.values()][0]!;
+  assert.equal(bomb.blastRange, powerBlastRadius(player.powerPickups));
+  assert.ok(bomb.blastRange > BOMB_BLAST_RANGE);
+  assert.equal(player.bombReadyAtTick, state.tick + powerReloadTicks(player.powerPickups));
+  assert.ok(player.reloadDurationTicks < BOMB_COOLDOWN_TICKS);
+  assert.equal(bomb.explodeAtTick - bomb.launchedTick, BOMB_FUSE_TICKS);
 });
 
 test('a star collected on the swept path rescues and reflects a wall hit, then expires sharply', () => {
@@ -624,16 +751,16 @@ test('star head contact kills only a normal rider while two stars pass through',
 test('pickup expiry, active cap, and impossible safe interior stay bounded', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  state.pickups = Array.from({ length: MAX_ACTIVE_PICKUPS }, (_, index) => ({
+  state.pickups = Array.from({ length: pickupPacing(2).cap }, (_, index) => ({
     id: index + 1,
-    type: 'blast' as const,
+    type: 'power' as const,
     x: 700 + index * 40,
     y: 450,
     expiresAtTick: state.tick + (index === 0 ? 1 : PICKUP_LIFETIME_TICKS),
   }));
   state.nextPickupSpawnTick = state.tick + 1;
   step(state, new Map());
-  assert.equal(state.pickups.length, 3, 'one expiry allows at most one scheduled replacement');
+  assert.equal(state.pickups.length, pickupPacing(2).cap, 'a scheduled replacement respects the living-rider cap');
 
   state.pickups = [];
   state.width = 100;
@@ -1058,38 +1185,38 @@ test('gun head and wall impacts explode', () => {
   }
 });
 
-test('stopwatch caps at two levels, changes only future own bombs and resets next round', () => {
+test('power changes only future shots, preserves fuse timing and resets next round', () => {
   const state = gameWithPlayers(3); enterPlaying(state);
   const owner = state.players.get('p0')!; Object.assign(owner, { x: 400, y: 450, angle: 0, trail: [] });
   const other = state.players.get('p1')!; Object.assign(other, { x: 1000, y: 700, angle: 0, trail: [] });
-  const deadline = state.tick + 40;
+  const deadline = state.tick + BOMB_FUSE_TICKS;
+  owner.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+  const reloadDeadline = owner.bombReadyAtTick;
   state.bombs.set(99, { id: 99, ownerId: owner.id, x: 700, y: 200, launchX: 700, launchY: 200,
     launchedTick: state.tick, placedTick: state.tick, landsAtTick: state.tick, explodeAtTick: deadline,
-    blastRange: 90, flightPath: fixedFlightPath(700, 200) });
-  for (let level = 1; level <= 3; level++) {
-    state.pickups = [{ id: 100 + level, type: 'stopwatch', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
-    step(state, new Map()); assert.equal(owner.fuseLevel, Math.min(level, 2));
-    assert.equal(state.bombs.get(99)!.explodeAtTick, deadline, 'existing fuse unchanged');
+    blastRange: BOMB_BLAST_RANGE, flightPath: fixedFlightPath(700, 200) });
+  for (let count = 1; count <= 6; count++) {
+    state.pickups = [{ id: 100 + count, type: 'power', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
+    step(state, new Map()); assert.equal(owner.powerPickups, count);
+    assert.equal(state.bombs.get(99)!.explodeAtTick, deadline);
+    assert.equal(state.bombs.get(99)!.blastRange, BOMB_BLAST_RANGE);
+    assert.equal(owner.bombReadyAtTick, reloadDeadline, 'collecting does not rewrite a running reload');
+    assert.equal(owner.reloadDurationTicks, BOMB_COOLDOWN_TICKS);
+    assert.ok(powerBlastRadius(count) > powerBlastRadius(count - 1));
+    assert.ok(powerReloadTicks(count) < BOMB_COOLDOWN_TICKS);
   }
-  state.bombs.clear(); owner.tripleShotArmed = true;
+  state.bombs.clear(); owner.bombReadyAtTick = state.tick; owner.tripleShotArmed = true;
   step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }], ['p1', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }], ['p1', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   const bombs = [...state.bombs.values()];
   assert.equal(bombs.filter(bomb => bomb.ownerId === owner.id).length, 3);
-  assert.ok(bombs.filter(bomb => bomb.ownerId === owner.id).every(bomb => bomb.explodeAtTick - bomb.launchedTick === 20));
-  assert.equal(bombs.find(bomb => bomb.ownerId === other.id)!.explodeAtTick - state.tick, 40);
-  assert.equal(toSnapshot(state).players.find(player => player.id === owner.id)!.fuseLevel, 2);
+  assert.ok(bombs.every(bomb => bomb.explodeAtTick - bomb.launchedTick === BOMB_FUSE_TICKS));
+  assert.ok(bombs.filter(bomb => bomb.ownerId === owner.id).every(bomb => bomb.blastRange === powerBlastRadius(owner.powerPickups)));
+  assert.equal(bombs.find(bomb => bomb.ownerId === other.id)!.blastRange, BOMB_BLAST_RANGE);
+  assert.equal(toSnapshot(state).players.find(player => player.id === owner.id)!.powerPickups, 6);
   eliminatePlayer(state, 'p1'); eliminatePlayer(state, 'p2'); step(state, new Map());
-  state.tick = state.phaseEndsAtTick!; startNextRound(state); assert.equal(owner.fuseLevel, 0);
-});
-
-test('first stopwatch level produces a one-and-a-half second fuse', () => {
-  const state = gameWithPlayers(3); enterPlaying(state);
-  const owner = state.players.get('p0')!; owner.fuseLevel = 1;
-  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
-  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
-  const bomb = [...state.bombs.values()][0]!;
-  assert.equal(bomb.explodeAtTick - bomb.launchedTick, 30);
+  state.tick = state.phaseEndsAtTick!; startNextRound(state);
+  assert.equal(owner.powerPickups, 0); assert.equal(owner.reloadDurationTicks, BOMB_COOLDOWN_TICKS);
 });
 
 test('live shell bounces off a rider trail without damage or resetting its lifetime', () => {

@@ -22,8 +22,15 @@ try{
   // and a spurious same-origin access-control failure from Phaser's asset loader that Chromium never raises.
   const benign=(error:Error)=>/Error sending (binary data|string) through RTCDataChannel|due to access control checks/.test(error.message);
   const pageErrors:string[]=[];const watch=(page:Page,label:string)=>page.on('pageerror',error=>{if(benign(error))return;pageErrors.push(`${label}: ${error.message}`);console.error(`${label.toUpperCase()} ERROR`,error);});
-  watch(host,'host');await recording(host);await host.goto(base);await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();
+  watch(host,'host');await recording(host);await host.goto(base);
+  // CREATE ROOM swaps the landing view for the room in place: a page load would cost the soundtrack, because no
+  // browser autoplays before the new page has been tapped. The marker and the same media element are the evidence.
+  const music=()=>host.evaluate(()=>{const element=document.querySelector('audio');return {kept:'kept' in window,src:element?.getAttribute('src')??null,time:element?.currentTime??-1};});
+  await host.evaluate(()=>{Reflect.set(window,'kept',true);});const beforeEnter=await music();assert.ok(beforeEnter.src,'the landing page owns a music element');
+  await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();
   await host.waitForURL(/room=/);
+  {const afterEnter=await music();assert.ok(afterEnter.kept,'CREATE ROOM keeps the document, so the radio keeps playing');
+   assert.equal(afterEnter.src,beforeEnter.src,'the room plays the same track the landing page did');assert.ok(afterEnter.time>=beforeEnter.time,`the track never rewinds: ${beforeEnter.time} -> ${afterEnter.time}`);}
   // Keep UI room creation coverage. Phaser Canvas in CI avoids six software-GL views competing for one runner; dedicated Phaser gates test the intended renderer.
   await host.getByPlaceholder('Your name').waitFor();const target=new URL(host.url());if(process.env.ROOM_RENDERER==='phaser-canvas')target.searchParams.set('renderer','phaser-canvas');target.searchParams.set('benchmark','1');await host.goto(target.href);
   const url=host.url().replace(/&benchmark=1/,'');

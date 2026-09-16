@@ -19,16 +19,16 @@ export async function checkPresentationLifecycle(): Promise<void> {
     let canvas = document.createElement('canvas'); document.body.append(canvas);
     const loads: ReturnType<typeof deferred<Awaited<ReturnType<PresentationDependencies['loadArena']>>>>[] = [];
     const timers = new Set<{ delay: number; callback: () => void }>();
-    const arenas: { ready: ReturnType<typeof deferred<void>>; status: ArenaOptions['onStatus']; draws: number; destroys: number; failPaint: boolean; rejectOnDestroy: boolean; scope?: string }[] = [];
+    const arenas: { ready: ReturnType<typeof deferred<void>>; status: ArenaOptions['onStatus']; draws: number; destroys: number; failPaint: boolean; rejectOnDestroy: boolean; scope?: string; selfId?: string }[] = [];
     let throwOnCreate = false;
     const module: Awaited<ReturnType<PresentationDependencies['loadArena']>> = {
       createPhaserArena: (_canvas, options) => {
         if (throwOnCreate) throw Error('Graphics initialization failed');
-        const record = { ready: deferred<void>(), status: options?.onStatus, draws: 0, destroys: 0, failPaint: false, rejectOnDestroy: true, scope: undefined as string | undefined };
+        const record = { ready: deferred<void>(), status: options?.onStatus, draws: 0, destroys: 0, failPaint: false, rejectOnDestroy: true, scope: undefined as string | undefined, selfId: undefined as string | undefined };
         arenas.push(record);
         const arena: PhaserArena = {
           ready: record.ready.promise,
-          render: (_snapshot, _now, _theme, scope) => { if (record.failPaint) throw Error('Paint failed'); record.draws++; record.scope = scope; },
+          render: (_snapshot, _now, _theme, scope, selfId) => { if (record.failPaint) throw Error('Paint failed'); record.draws++; record.scope = scope; record.selfId = selfId; },
           resize: () => {}, reset: () => {}, destroy: () => { record.destroys++; if (record.rejectOnDestroy) record.ready.reject(Error('Disposed')); },
           metrics: () => ({ renderer: 'canvas', objects: 0, particles: 0, renderMs: 0, automaticLoopRunning: false, trailHistoryBuilds: 0 }),
         };
@@ -42,7 +42,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
     return {
       presentation, loads, arenas, timers, module,
       canvas: () => canvas,
-      render: (scope = 'current-match') => presentation.render(fixture, 1000, defaultTheme, scope),
+      render: (scope = 'current-match', selfId?: string) => presentation.render(fixture, 1000, defaultTheme, scope, selfId),
       throwOnCreate: () => { throwOnCreate = true; },
       expire: (delay: number) => { const timer = [...timers].find(timer => timer.delay === delay); check(timer, `No ${delay} deadline`); timers.delete(timer); timer.callback(); },
       retry: () => {
@@ -95,8 +95,9 @@ export async function checkPresentationLifecycle(): Promise<void> {
     check(h.canvas().dataset.renderer === undefined, 'Stale readiness published a renderer');
     check([...h.timers].some(timer => timer.delay === 10000), 'Stale readiness cancelled retry startup deadline');
     check(h.arenas[1]!.draws === 0, 'Stale readiness painted the unready replacement');
-    h.render('new-match'); h.arenas[1]!.ready.resolve(); await flush();
-    check(h.arenas[1]!.scope === 'new-match', 'Retry used stale scope/snapshot'); h.destroy();
+    h.render('new-match', 'local-rider'); h.arenas[1]!.ready.resolve(); await flush();
+    check(h.arenas[1]!.scope === 'new-match', 'Retry used stale scope/snapshot');
+    check(h.arenas[1]!.selfId === 'local-rider', 'Retry lost the local rider identity'); h.destroy();
   }
   {
     const h = harness(); h.render(); h.loads[0]!.resolve(h.module); await flush();

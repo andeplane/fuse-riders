@@ -1,3 +1,5 @@
+import { MAX_EXTRA_BOMBS } from '../shared/launch-modifiers.js';
+import { MAX_BOARD_PICKUPS, MAX_POWER_PICKUPS, POWER_TUNING } from '../shared/power-progression.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
@@ -28,7 +30,7 @@ const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
-  bombTarget: optional(shape({ x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT) })), gravityArmed: boolean, fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, boostUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
+  bombTarget: optional(shape({ x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT) })), gravityArmed: boolean, extraBombs: count(MAX_EXTRA_BOMBS), fuseLevel: count(2), powerPickups: count(MAX_POWER_PICKUPS), reloadDurationTicks: v => integer(v) && range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v), invulnerableUntilTick: integer, boostUntilTick: integer, grip: boolean, drunkUntilTick: integer, inkUntilTick: integer,
   drunkStartedTick: integer, drunkHeadingOffset: range(-Math.PI, Math.PI), tripleShotArmed: boolean, fiveShotArmed: boolean,
   shielded: boolean, shieldGraceUntilTick: integer, portalCooldownUntilTick: integer, portalGraceUntilTick: integer, trail: array(trail, MAX_CHECKPOINT_TRAILS),
 } satisfies Record<keyof PlayerState, Guard>;
@@ -47,7 +49,7 @@ const statsFields = {
   playerId: text, name, slot: count(4), color: text, roundsPlayed: integer, roundWins: integer, roundsDrawn: integer,
   survivalTicks: integer, longestSurvivalTicks: integer, distanceUnits: range(0, Number.MAX_SAFE_INTEGER), bombsPlaced: integer, bombsExploded: integer, eliminations: integer,
   deathsByCause: shape({ wall: integer, trail: integer, explosion: integer, rider: integer }), pickupsCollected: integer,
-  blastPickups: integer, starPickups: integer, beerPickups: integer, inkPickups: integer, triplePickups: integer, fivePickups: integer, targetPickups: integer,
+  powerPickups: integer, starPickups: integer, beerPickups: integer, inkPickups: integer, triplePickups: integer, fivePickups: integer, targetPickups: integer,
   shieldPickups: integer, portalPickups: integer, portalTransits: integer, invulnerableTicks: integer, wallBounces: integer, earlyExits: integer, currentRoundSurvivalTicks: integer,
 } satisfies Record<keyof MatchPlayerStatsState, Guard>;
 const stats = shape(statsFields);
@@ -62,7 +64,7 @@ const gameShape = shape({
   settings, matchId: text, round: v => integer(v) && (v as number) > 0, tick: integer,
   phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v), phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
   width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),
-  players: map(text, player, 5), bombs: map(integer, bomb, 256), blasts: array(blast, 256), pickups: array(pickup, 6),
+  players: map(text, player, 5), bombs: map(integer, bomb, 256), blasts: array(blast, 256), pickups: array(pickup, MAX_BOARD_PICKUPS),
   portalPairs: array(portalPair, MAX_PORTAL_PAIRS),
   gravityFields: array(gravityField, 256),
   nextBombId: integer, nextPickupId: integer, nextPickupSpawnTick: integer, seed: count(0xffffffff), randomState: count(0xffffffff),

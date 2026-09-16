@@ -1,4 +1,4 @@
-import { RIDER_SPEED, RIDER_TURN_RATE, TICK_HZ } from '../shared/game.js';
+import { RIDER_SPEED, riderTurnRate, TICK_HZ } from '../shared/game.js';
 import { advanceRiderPose, type MotionControls } from '../shared/rider-motion.js';
 import { atan2, cos, hypot2, sin } from '../shared/deterministic-math.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
@@ -30,7 +30,7 @@ export function presentWorld(older: ViewSnapshot | undefined, newer: ViewSnapsho
   const rider = local && newer.phase === 'playing' ? shown.players.find(p => p.id === local.id) : undefined;
   if (!rider || !rider.alive || local!.lead <= 0) return shown;
   const lead = Math.min(1, local!.lead);
-  const pose = advanceRiderPose({ x: rider.x, y: rider.y, angle: rider.angle, drunkHeadingOffset: 0 }, local!.controls, { distance: RIDER_SPEED / TICK_HZ * lead, turn: RIDER_TURN_RATE / TICK_HZ * lead, drunkHeadingOffset: 0 });
+  const pose = advanceRiderPose({ x: rider.x, y: rider.y, angle: rider.angle, drunkHeadingOffset: 0 }, local!.controls, { distance: RIDER_SPEED / TICK_HZ * lead, turn: riderTurnRate(rider) / TICK_HZ * lead, drunkHeadingOffset: 0 });
   const distance = hypot2(pose.x - rider.x, pose.y - rider.y);
   const trail = distance > 0 && distance <= 40 ? [...rider.trail, { x1: rider.x, y1: rider.y, x2: pose.x, y2: pose.y, createdTick: newer.tick, expiresAtTick: newer.tick + 4 }] : rider.trail;
   return { ...shown, players: shown.players.map(p => p.id === rider.id ? { ...p, x: pose.x, y: pose.y, angle: pose.angle, trail, presentationTick: presentationTick + lead } : p) };

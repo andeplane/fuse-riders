@@ -1,3 +1,4 @@
+import { powerCountText, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from '../power-indicator.js';
 import { assetUrl } from '../asset-url.js';
 import { GRAVITY_FIELD_TICKS, PICKUP_TYPES } from '../../shared/game.js';
 import Phaser from 'phaser';
@@ -5,7 +6,7 @@ import type { ViewSnapshot } from '../snapshot-stream.js';
 import { themes, type ThemeDefinition } from '../themes.js';
 import { AVATARS, AVATAR_ATLAS_URL } from '../../shared/avatars.js';
 import { bombPreviewDistance } from '../bomb-preview.js';
-import { volleyAngles } from '../../shared/launch-modifiers.js';
+import { bombsPerShot, volleyAngles } from '../../shared/launch-modifiers.js';
 import { drawInkClouds } from '../ink-renderer.js';
 import { portalPalettes } from '../portal-palettes.js';
 import { EffectTransitions, bombPose } from './effects.js';
@@ -14,6 +15,7 @@ import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 import { blastFrame } from '../blast-animation.js';
 import { reloadRemaining, RELOAD_RING_RADIUS } from '../reload-ring.js';
+import { TrailDebris } from '../trail-debris.js';
 
 const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
@@ -22,7 +24,7 @@ export interface ArenaOptions { renderer?: 'auto' | 'canvas'; quality?: 'high' |
 export interface ArenaMetrics { renderer: string; objects: number; particles: number; renderMs: number; automaticLoopRunning: boolean; trailHistoryBuilds: number }
 export interface PhaserArena {
   ready: Promise<void>;
-  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string): void;
+  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string, selfId?: string): void;
   resize(width: number, height: number): void;
   reset(): void;
   destroy(): void;
@@ -85,11 +87,11 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
   };
   return {
     ready,
-    render(snapshot, now, theme, matchId) {
+    render(snapshot, now, theme, matchId, selfId) {
       if (!booted || destroyed || lost || document.hidden) return;
       const start = performance.now();
       resize(snapshot.width, snapshot.height);
-      scene.paint(snapshot, now, theme, matchId);
+      scene.paint(snapshot, now, theme, matchId, selfId);
       game.step(now, lastNow ? Math.min(50, Math.max(0, now - lastNow)) : 16.667);
       lastNow = now; renderMs = performance.now() - start;
     },
@@ -129,7 +131,10 @@ class ArenaScene extends Phaser.Scene {
   trailHistoryBuilds = 0;
   private floorKey = ''; private backgroundKey = '';
   private transitions = new EffectTransitions();
-  constructor(private readonly particleLimit: number, private readonly loaded: () => void) { super('arena'); }
+  private debris: TrailDebris;
+  constructor(private readonly particleLimit: number, private readonly loaded: () => void) {
+    super('arena'); this.debris = new TrailDebris(Math.floor(particleLimit / 2));
+  }
   /** Phaser reset clears its sets, but does not detach pending XHR callbacks. */
   cancelPreload(): void {
     const loader=this.load;
@@ -180,7 +185,7 @@ class ArenaScene extends Phaser.Scene {
     this.world.add(this.inkImage);
     this.loaded();
   }
-  resetEffects(): void { this.transitions.reset(); this.sparks?.killAll(); this.trailHistory.reset(); }
+  resetEffects(): void { this.transitions.reset(); this.sparks?.killAll(); this.trailHistory.reset(); this.debris.reset(); }
   invalidate(): void { this.trailHistory.reset(); this.floorKey = ''; this.backgroundKey = ''; }
   objectCount(): number { return (this.children?.length ?? 0) + (this.world?.length ?? 0); }
   particleCount(): number { return this.sparks?.getAliveParticleCount() ?? 0; }
@@ -249,7 +254,7 @@ class ArenaScene extends Phaser.Scene {
     const key = this.textures.exists(texture) ? texture : this.textures.exists(fallback) ? fallback : 'spark';
     return image.setDepth(3).setBlendMode(Phaser.BlendModes.NORMAL).setVisible(true).setTexture(key, frame).setPosition(x,y).setDisplaySize(size,size).setRotation(rotation).setAlpha(1).clearTint();
   }
-  private label(text: string, x: number, y: number, tint: string, size = 11, depth = 5): void {
+  private label(text: string, x: number, y: number, tint: string, size = 11, depth = 5): Phaser.GameObjects.Text {
     let label = this.labels[this.labelIndex++];
     if (!label) { label = this.add.text(0,0,'',{ fontFamily: 'monospace', fontSize: size, fontStyle: 'bold', stroke: '#020715', strokeThickness: 3 }).setOrigin(.5).setDepth(7); this.labels.push(label); this.world.add(label); }
     if (label.text !== text) label.setText(text);
@@ -258,8 +263,9 @@ class ArenaScene extends Phaser.Scene {
     label.setDepth(depth).setVisible(true).setPosition(x,y);
     if(label.style.color!==tint)label.setColor(tint);
     if(label.style.fontSize!==`${size}px`)label.setFontSize(size);
+    return label;
   }
-  paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string): void {
+  paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string, selfId?: string): void {
     this.imageIndex = 0; this.labelIndex = 0;
     const g = this.dynamic.clear(); const f = this.front.clear();
     const { width:w, height:h, boundaryInset:b } = s;
@@ -307,9 +313,10 @@ class ArenaScene extends Phaser.Scene {
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(12,p.x,p.y); }
     for(const p of s.pickups) {
       const pulse=1+Math.sin(now/210+p.id)*.06;
-      g.lineStyle(2,0x65fff2,.5).strokeCircle(p.x,p.y,24*pulse).lineStyle(7,0x65fff2,.05).strokeCircle(p.x,p.y,26*pulse);
-      this.sprite(`${theme.id}:${p.type}`,p.x,p.y,34*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
-      this.label(p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
+      const power=p.type==='power';
+      if(!power) g.lineStyle(2,0x65fff2,.5).strokeCircle(p.x,p.y,24*pulse).lineStyle(7,0x65fff2,.05).strokeCircle(p.x,p.y,26*pulse);
+      this.sprite(`${theme.id}:${p.type}`,p.x,p.y,(power?24:34)*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
+      if(!power) this.label(p.type==='stopwatch'?'FUSE':p.type==='extraBomb'?'+1 BOMB':p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
     }
     const livePortals=s.portalPairs.filter(pair=>pair.expiresAtTick>s.tick);
     const portalTints=portalPalettes(livePortals.map(pair=>pair.id));
@@ -327,23 +334,24 @@ class ArenaScene extends Phaser.Scene {
     for(const bomb of s.bombs) {
       if(bomb.shell) { const gun=!!bomb.shell.gun; this.sprite(gun?'gun':'shell',bomb.x,bomb.y,gun?48:34,gun?Math.atan2(bomb.shell.vy,bomb.shell.vx):now/130);
         const a=Math.atan2(bomb.shell.vy,bomb.shell.vx); for(let i=1;i<5;i++) g.fillStyle(gun?0xd8edff:0x66ff72,.18/i).fillCircle(bomb.x-Math.cos(a)*i*12,bomb.y-Math.sin(a)*i*12,gun?10:7); continue; }
+      const ownerTint=color(s.players.find(player=>player.id===bomb.ownerId)?.color??'#ffffff');
       // The fine outer edge stays at the exact supplied damage radius.
-      g.lineStyle(1.5,0xc9d8ed,.32).strokeCircle(bomb.x,bomb.y,bomb.blastRange);
-      g.lineStyle(4,0xff73aa,.04).strokeCircle(bomb.x,bomb.y,Math.max(0,bomb.blastRange-3));
-      g.fillStyle(0xff557f,.025).fillCircle(bomb.x,bomb.y,bomb.blastRange);
+      g.lineStyle(1.5,ownerTint,.32).strokeCircle(bomb.x,bomb.y,bomb.blastRange);
+      g.lineStyle(4,ownerTint,.04).strokeCircle(bomb.x,bomb.y,Math.max(0,bomb.blastRange-3));
+      g.fillStyle(ownerTint,.025).fillCircle(bomb.x,bomb.y,bomb.blastRange);
       const pose=bombPose(bomb,s.tick); const airborne=s.tick<bomb.landsAtTick;
       this.sprite(`${theme.id}:bomb`,pose.x,pose.y,44*(1+Math.sin(now/90)*.04));
       const remaining=clamp((bomb.explodeAtTick-s.tick)/Math.max(1,bomb.explodeAtTick-bomb.landsAtTick),0,1);
-      const ringTint=airborne?0xd67cff:remaining<.3?0xfff06a:0xff5ca6;
+      const ringTint=ownerTint;
       const progress=airborne?pose.flight:remaining, end=-Math.PI/2+Math.PI*2*progress;
-      g.lineStyle(2,0xa9b9da,.15).strokeCircle(pose.x,pose.y,26);
+      g.lineStyle(2,ownerTint,.15).strokeCircle(pose.x,pose.y,26);
       if(progress>0) {
         g.lineStyle(7,ringTint,.1).beginPath().arc(pose.x,pose.y,26,-Math.PI/2,end,false).strokePath();
         g.lineStyle(2.5,ringTint).beginPath().arc(pose.x,pose.y,26,-Math.PI/2,end,false).strokePath();
         g.fillStyle(ringTint).fillCircle(pose.x,pose.y-26,1.25);
         g.fillStyle(0xfff2d5).fillCircle(pose.x+Math.cos(end)*26,pose.y+Math.sin(end)*26,2);
       }
-      if(airborne) g.lineStyle(2,0xff73c5,.6).strokeEllipse(bomb.x,bomb.y,34,15);
+      if(airborne) g.lineStyle(2,ownerTint,.6).strokeEllipse(bomb.x,bomb.y,34,15);
     }
     for(const field of s.gravityFields) {
       const life=clamp((field.expiresAtTick-s.tick)/GRAVITY_FIELD_TICKS,0,1), swirl=now/900;
@@ -360,13 +368,32 @@ class ArenaScene extends Phaser.Scene {
       for(const circle of frame.circles) g.fillStyle(tints[circle.tone],circle.alpha).fillCircle(circle.x,circle.y,circle.radius);
       for(const spark of frame.sparks) g.fillStyle(tints.warm,spark.alpha).fillRect(spark.x-spark.size/2,spark.y-spark.size/2,spark.size,spark.size);
     }
+    for(const piece of this.debris.update(s,now,matchId)) {
+      const tint=color(piece.color);
+      g.lineStyle(piece.width+5,tint,piece.alpha*.16).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+      g.lineStyle(piece.width,tint,piece.alpha).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+      g.lineStyle(1,0xffffff,piece.alpha*.65).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+    }
     for(const p of s.players) {
       if(!p.alive) continue;
       const tint=color(p.color);
-      f.lineStyle(1,tint).strokeCircle(p.x,p.y,20);
-      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,44,p.angle,this.textures.exists('avatars')?p.avatarId:undefined);
-      const a=p.angle; f.fillStyle(tint).fillTriangle(p.x+Math.cos(a)*31,p.y+Math.sin(a)*31,p.x+Math.cos(a+.27)*22,p.y+Math.sin(a+.27)*22,p.x+Math.cos(a-.27)*22,p.y+Math.sin(a-.27)*22);
-      this.label(`P${p.slot+1}`,p.x,p.y-33,p.color);
+      // The portrait stays upright at the trail head; only its direction marker turns.
+      g.fillStyle(0x080c22).fillCircle(p.x,p.y,15);
+      f.lineStyle(1,tint).strokeCircle(p.x,p.y,15);
+      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
+      const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
+      f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
+      const self=p.id===selfId, labelY=p.y-(self?30:27);
+      if(self)f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,22+Math.sin(now/180)*2);
+      const name=this.label(self?'YOU':p.name,p.x,labelY,self?'#ffffff':p.color,self?12:10);
+      const power=this.label(powerCountText(p.powerPickups, p.extraBombs, p.grip),p.x,labelY,POWER_COLOR);
+      const gap=8, left=p.x-(name.width+gap+POWER_ICON_SIZE+POWER_ICON_GAP+power.width)/2;
+      name.setX(left+name.width/2);
+      const iconX=left+name.width+gap+POWER_ICON_SIZE/2, iconY=labelY, radius=POWER_ICON_SIZE/2;
+      f.fillStyle(color(POWER_COLOR)).lineStyle(2,0x020715).beginPath()
+        .moveTo(iconX,iconY-radius).lineTo(iconX+radius,iconY).lineTo(iconX,iconY+radius).lineTo(iconX-radius,iconY)
+        .closePath().fillPath().strokePath();
+      power.setX(iconX+radius+POWER_ICON_GAP+power.width/2);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;
@@ -379,7 +406,7 @@ class ArenaScene extends Phaser.Scene {
       if(p.drunkUntilTick>s.tick) { f.lineStyle(2,0xd799ff,.9).strokeEllipse(p.x,p.y-12,70,35); for(let i=0;i<4;i++){ const a=now/240+i*Math.PI/2; const sx=p.x+Math.cos(a)*36,sy=p.y-12+Math.sin(a)*20; f.fillStyle(i%2?0xffe790:0xffaa32).fillRect(sx-2,sy-8,4,16).fillRect(sx-8,sy-2,16,4); } this.label('DIZZY',p.x,p.y+37,'#fff078',9); }
       if(p.bombChargeStartedTick!==undefined && !p.targetBombArmed && !p.shellArmed && !p.gunArmed) {
         const distance=bombPreviewDistance((p.presentationTick??s.tick)-p.bombChargeStartedTick,s.bombChargeTicks,s.aimBounce);
-        for(const a of p.tripleShotArmed||p.fiveShotArmed?volleyAngles(p.angle,p.fiveShotArmed?5:3):[p.angle]) { const x=clamp(p.x+Math.cos(a)*distance,b+20,w-b-20),y=clamp(p.y+Math.sin(a)*distance,b+20,h-b-20); f.lineStyle(2,tint,.5).lineBetween(p.x,p.y,x,y).lineStyle(2,tint,.9).strokeRect(x-9,y-9,18,18); }
+        for(const a of volleyAngles(p.angle,bombsPerShot(p))) { const x=clamp(p.x+Math.cos(a)*distance,b+20,w-b-20),y=clamp(p.y+Math.sin(a)*distance,b+20,h-b-20); f.lineStyle(2,tint,.5).lineBetween(p.x,p.y,x,y).lineStyle(2,tint,.9).strokeRect(x-9,y-9,18,18); }
       }
       if(p.targetBombArmed && !p.shellArmed && !p.gunArmed && p.bombChargeStartedTick!==undefined && p.bombTarget) {
         const {x,y}=p.bombTarget; f.lineStyle(2,tint,.5).lineBetween(p.x,p.y,x,y).lineStyle(3,tint).strokeCircle(x,y,23).lineBetween(x-32,y,x-11,y).lineBetween(x+11,y,x+32,y).lineBetween(x,y-32,x,y-11).lineBetween(x,y+11,x,y+32);

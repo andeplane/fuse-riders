@@ -49,6 +49,36 @@ test('a late entry rolls back N ticks, re-simulates from the nearest snapshot an
   assert.equal(old.receive('b', [[1, 100, STEER, 1]], 1, 300, 300).status, 'unrepairable');
 });
 
+test('late reordered steering replays a close pass without false double elimination', () => {
+  const fixture = world(); playing(fixture);
+  Object.assign(fixture.state.game.players.get('creator')!, { x: 500, y: 350, angle: 0, trail: [] });
+  Object.assign(guest(fixture), { x: 514, y: 362, angle: 0, trail: [] });
+  const start = fixture.tick, end = start + 3;
+  const entries: Entry[] = [[1, start + 1, STEER, 1], [2, start + 2, STEER, 0]];
+  const replica = () => {
+    // Seed through the public constructor so rollback snapshots include the close-pass fixture.
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end;
+    w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica();
+  reference.receive('b', entries, 2, end, end);
+  reference.advance(end);
+  const delayed = replica();
+  delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  const repaired = delayed.receive('b', [entries[0]!], 2, end, end);
+  assert.equal(repaired.status, 'accepted');
+  assert.ok(repaired.rollbackTicks > 0);
+  assert.ok([...delayed.state.game.players.values()].every(player => player.alive));
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  const duplicate = delayed.receive('b', entries, 2, end, end);
+  assert.deepEqual(duplicate.events, []);
+  assert.equal(duplicate.rollbackTicks, 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});
+
 test('all arrival orders of the same entries converge to one hash', () => {
   const entries: Entry[] = [[1, 70, STEER, 1], [2, 72, PRESS, 1], [3, 75, STEER, 2], [4, 80, RELEASE, 1], [5, 84, STEER, 0]];
   const hashes = new Set<string>();
@@ -148,4 +178,81 @@ test('a rider\'s replaced stream keeps its history: a rollback across the replac
     return w;
   };
   assert.equal(hashRoomState(build(false).state), hashRoomState(build(true).state), 'replaying with the old generation\'s entries gives the same world as never having rolled back');
+});
+
+test('Extra Bomb collection and volley converge after dropped, reordered and duplicated fire entries', () => {
+  const fixture = world(); playing(fixture);
+  const rider = guest(fixture), start = fixture.tick, end = start + 12;
+  fixture.state.game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  fixture.state.game.pickups = [{ id: fixture.state.game.nextPickupId++, type: 'extraBomb', x: rider.x, y: rider.y, expiresAtTick: end + 10 }];
+  const entries: Entry[] = [[1, start + 2, PRESS, 1], [2, start + 5, RELEASE, 1]];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end;
+    w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica(); reference.receive('b', entries, 2, end, end); reference.advance(end);
+  const delayed = replica(); delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  const repaired = delayed.receive('b', [entries[0]!], 2, end, end);
+  assert.ok(repaired.rollbackTicks > 0);
+  assert.equal(guest(delayed).extraBombs, 1);
+  assert.equal(delayed.state.game.bombs.size, 2);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.deepEqual(delayed.receive('b', entries, 2, end, end).events, []);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});
+test('Shorter Fuse collection and volley converge after dropped, reordered and duplicated fire entries', () => {
+  const fixture = world(); playing(fixture);
+  const rider = guest(fixture), start = fixture.tick, end = start + 12;
+  fixture.state.game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  fixture.state.game.pickups = [{ id: fixture.state.game.nextPickupId++, type: 'stopwatch', x: rider.x, y: rider.y, expiresAtTick: end + 10 }];
+  rider.extraBombs = 1;
+  const entries: Entry[] = [[1, start + 2, PRESS, 1], [2, start + 5, RELEASE, 1]];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end;
+    w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica(); reference.receive('b', entries, 2, end, end); reference.advance(end);
+  const delayed = replica(); delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  const repaired = delayed.receive('b', [entries[0]!], 2, end, end);
+  assert.ok(repaired.rollbackTicks > 0);
+  assert.equal(guest(delayed).fuseLevel, 1);
+  assert.ok([...delayed.state.game.bombs.values()].every(bomb => bomb.explodeAtTick - bomb.launchedTick === 30));
+  assert.equal(delayed.state.game.bombs.size, 2);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.deepEqual(delayed.receive('b', entries, 2, end, end).events, []);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});
+
+
+test('late reordered inputs converge through GRIP collection and do not consume a repeat drop', () => {
+  const fixture = world(); playing(fixture);
+  Object.assign(fixture.state.game.players.get('creator')!, { x: 1100, y: 700, angle: 0, trail: [] });
+  Object.assign(guest(fixture), { x: 500, y: 350, angle: 0, trail: [] });
+  fixture.state.game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  fixture.state.game.pickups = [0, 1].map(() => ({ id: fixture.state.game.nextPickupId++, type: 'grip', x: 505, y: 350, expiresAtTick: fixture.tick + 100 }));
+  const start = fixture.tick, end = start + 12;
+  const entries: Entry[] = [[1, start + 1, STEER, 1], [2, start + 8, STEER, 0]];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    w.stream('creator', 1).through = end; w.stream('b', 1).through = start;
+    return w;
+  };
+  const reference = replica(); reference.receive('b', entries, 2, end, end); reference.advance(end);
+  const delayed = replica(); delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  const repair = delayed.receive('b', [entries[0]!], 2, end, end);
+  assert.ok(repair.rollbackTicks > 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.equal(guest(delayed).grip, true);
+  assert.equal(delayed.state.game.pickups.length, 1);
+  assert.equal(delayed.state.game.matchStats.get('b')!.pickupsCollected, 1);
+  const duplicate = delayed.receive('b', entries, 2, end, end);
+  assert.deepEqual(duplicate.events, []); assert.equal(duplicate.rollbackTicks, 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
 });

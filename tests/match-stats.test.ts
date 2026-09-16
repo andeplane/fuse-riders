@@ -23,7 +23,7 @@ test('records authoritative actions and returns detached snapshots', () => {
   recordSurvivalTick(stats, 'a', 7.5, true, true);
   recordBombPlaced(stats, 'a');
   recordBombExploded(stats, 'a');
-  recordPickup(stats, 'a', 'blast');
+  recordPickup(stats, 'a', 'power');
   recordPickup(stats, 'a', 'star');
   recordPickup(stats, 'a', 'beer');
   recordPickup(stats, 'a', 'triple');
@@ -41,7 +41,7 @@ test('records authoritative actions and returns detached snapshots', () => {
     roundsDrawn: 0, matchPlacement: 1, survivalTicks: 1, longestSurvivalTicks: 1,
     distanceUnits: 7.5, bombsPlaced: 1, bombsExploded: 1, eliminations: 1,
     deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 7,
-    blastPickups: 1, starPickups: 1, beerPickups: 1, inkPickups: 0, triplePickups: 1, fivePickups: 1, targetPickups: 0,
+    powerPickups: 1, starPickups: 1, beerPickups: 1, inkPickups: 0, triplePickups: 1, fivePickups: 1, targetPickups: 0,
     shieldPickups: 1, portalPickups: 1, portalTransits: 1, invulnerableTicks: 1, wallBounces: 1, earlyExits: 0,
   });
   assert.equal(snapshot[1]!.deathsByCause.explosion, 1);

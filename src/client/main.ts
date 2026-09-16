@@ -1,4 +1,5 @@
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
+import { powerLabel } from './power-indicator.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { createAvatarPicker, createAvatarPortrait } from './avatar-heads.js';
@@ -524,8 +525,7 @@ function startController(): void {
   identity.append(identityMarker, identityCopy, stateBadge);
   const instruction = element('p', 'controller-instruction', 'Waiting for the host to start…');
   const powerStrip = element('div', 'power-strip');
-  const fusePower = element('span', 'power-chip', '⏱ FUSE · 2s');
-  const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
+  const countPower = element('span', 'power-chip power-count', powerLabel(0));
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
   const inkPower = element('span', 'power-chip', 'INK · --');
   const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
@@ -533,7 +533,7 @@ function startController(): void {
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(fusePower, blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
+  powerStrip.append(countPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
@@ -614,8 +614,7 @@ function startController(): void {
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
-    fusePower.textContent = `⏱ FUSE · ${2 - Math.min(2, player.fuseLevel ?? 0) * .5}s`;
-    blastPower.textContent = player.blastLevel > 0 ? `BLAST · +${player.blastLevel}` : 'BLAST · BASE';
+    countPower.textContent = powerLabel(player.powerPickups, player.extraBombs, player.grip);
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;

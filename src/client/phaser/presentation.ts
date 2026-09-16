@@ -21,7 +21,7 @@ export function mountArenaPresentation(
   replaced: (canvas: HTMLCanvasElement) => void,
   dependencies: PresentationDependencies = browserDependencies,
 ): {
-  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, scope: string): void;
+  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, scope: string, selfId?: string): void;
   destroy(): void;
 } {
   let canvas = initialCanvas;
@@ -31,7 +31,7 @@ export function mountArenaPresentation(
   let metricsAt = 0;
   let cancelStartup: (() => void) | undefined;
   let cancelRestore: (() => void) | undefined;
-  let latest: { snapshot: ViewSnapshot; now: number; theme: ThemeDefinition; scope: string } | undefined;
+  let latest: { snapshot: ViewSnapshot; now: number; theme: ThemeDefinition; scope: string; selfId?: string } | undefined;
   const status = document.createElement('div');
   status.className = 'graphics-status';
   status.hidden = true;
@@ -67,7 +67,7 @@ export function mountArenaPresentation(
   const paint = () => {
     if (!engine || !latest || state !== 'running') return;
     try {
-      engine.render(latest.snapshot, latest.now, latest.theme, latest.scope);
+      engine.render(latest.snapshot, latest.now, latest.theme, latest.scope, latest.selfId);
       if (latest.now - metricsAt > 500) {
         canvas.dataset.rendererMetrics = JSON.stringify(engine.metrics());
         metricsAt = latest.now;
@@ -125,9 +125,9 @@ export function mountArenaPresentation(
     initialize();
   };
   return {
-    render(snapshot, now, theme, scope) {
+    render(snapshot, now, theme, scope, selfId) {
       if (state === 'disposed') return;
-      latest = { snapshot, now, theme, scope };
+      latest = { snapshot, now, theme, scope, selfId };
       initialize();
       paint();
     },

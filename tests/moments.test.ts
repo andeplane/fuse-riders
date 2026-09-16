@@ -150,7 +150,9 @@ test('a rider that travelled far but got nowhere before dying on a trail was box
     return state;
   };
   const boxed = setup(480);
-  assert.deepEqual(only(boxed, 'boxedIn'), { kind: 'boxedIn', round: 1, tick: boxed.tick, elapsed: boxed.tick - boxed.roundStartedTick!, playerId: 'p1', targetIds: ['p0'], value: 28 });
+  // Already touching the trail at tick start: measure the highlight from the fatal contact pose.
+  assert.equal(boxed.players.get('p0')!.x, 500);
+  assert.deepEqual(only(boxed, 'boxedIn'), { kind: 'boxedIn', round: 1, tick: boxed.tick, elapsed: boxed.tick - boxed.roundStartedTick!, playerId: 'p1', targetIds: ['p0'], value: 20 });
   assert.deepEqual(kinds(boxed), ['boxedIn'], 'a 30-tick-old trail is no cut-off');
   assert.deepEqual(setup(300).moments, [], 'a rider that came from far away was not boxed in');
   assert.deepEqual(setup(480, true).moments, [], 'beer weaving is not being boxed in');

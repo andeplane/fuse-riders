@@ -12,31 +12,23 @@ test('weighted table gives Five one third Triple probability with deterministic 
   }
   for (const row of PICKUP_WEIGHTS) assert.equal(counts.get(row.type), row.weight);
   assert.equal(counts.get('triple'), counts.get('five')! * 3);
-  assert.equal(pickupTypeForRoll(0), 'gun');
+  assert.equal(pickupTypeForRoll(0), 'power');
   assert.equal(pickupTypeForRoll(1 - Number.EPSILON), 'portal');
   for (const invalid of [-1, 1, NaN, Infinity]) assert.throws(() => pickupTypeForRoll(invalid));
 });
 
-test('Star is removed while remaining relative weights are preserved', () => {
+test('Power is abundant while special drops remain optional', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
-  const weight = (type: string) => PICKUP_WEIGHTS.find(row => row.type === type)!.weight;
-  // 26204 is the table total when target was halved. Later pickups dilute every share, so the claim is checked against
-  // that table: list what has been added since rather than growing a chain of subtractions.
-  const ADDED_SINCE_BASELINE = ['boost', 'gravity'] as const;
-  const BASELINE_TOTAL = 26204;
-  assert.equal(total - ADDED_SINCE_BASELINE.reduce((sum, type) => sum + weight(type), 0), BASELINE_TOTAL);
-  assert.ok(Math.abs((weight('target') / BASELINE_TOTAL) / (3536 / 28090) - .5) < .001);
+  const power = PICKUP_WEIGHTS.find(row => row.type === 'power')!.weight;
+  assert.ok(power / total > .75 && power / total < .85);
   assert.equal(PICKUP_WEIGHTS.some(row => row.type === 'star'), false);
-  assert.equal(weight('triple') / weight('five'), 3);
-  assert.equal(weight('blast') / weight('beer'), 4);
-  assert.ok(Math.abs(weight('triple') / weight('beer') - 270 / 78) < 1e-12);
 });
 
-test('powerup pacing ramps every twenty seconds and stays bounded in overtime', () => {
-  assert.deepEqual(pickupPacing(0), { interval: 80, cap: 3 });
-  assert.deepEqual(pickupPacing(399), { interval: 80, cap: 3 });
-  assert.deepEqual(pickupPacing(400), { interval: 53, cap: 4 });
-  assert.deepEqual(pickupPacing(800), { interval: 40, cap: 5 });
-  assert.deepEqual(pickupPacing(1200), { interval: 27, cap: 6 });
-  assert.deepEqual(pickupPacing(9999), { interval: 27, cap: 6 });
+test('pickup pacing scales with living riders and stays bounded', () => {
+  assert.deepEqual(pickupPacing(0), { interval: 40, cap: 0 });
+  assert.deepEqual(pickupPacing(1), { interval: 40, cap: 4 });
+  assert.deepEqual(pickupPacing(2), { interval: 20, cap: 8 });
+  assert.deepEqual(pickupPacing(3), { interval: 13, cap: 12 });
+  assert.deepEqual(pickupPacing(4), { interval: 10, cap: 16 });
+  assert.deepEqual(pickupPacing(5), { interval: 8, cap: 20 });
 });

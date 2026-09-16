@@ -17,6 +17,6 @@ export function visualFixture(tick: number): ViewSnapshot {
     }),
     bombs:Array.from({length:24},(_,i)=>({id:i,ownerId:`p${i%5}`,x:100+(i*163+phase*50)%1400,y:80+(i*127)%740,launchX:100,launchY:100,launchedTick:tick-15,landsAtTick:tick-5,explodeAtTick:tick+20,blastRange:90,flightPath:[],...(i%3===0?{shell:{vx:200,vy:50,gun:i%2===0}}:{})})),
     blasts:Array.from({length:5},(_,i)=>({bombId:1000+Math.floor(tick/12)*5+i,circle:{x:220+i*270,y:450,radius:70+i*12},expiresAtTick:tick+8-(tick%12)})).filter(b=>b.expiresAtTick>tick),
-    pickups:['blast','triple','five','beer','target','shell'].map((type,i)=>({id:i,type:type as ViewSnapshot['pickups'][number]['type'],x:180+i*240,y:780,expiresAtTick:tick+100})),
+    pickups:['power','triple','five','beer','target','shell'].map((type,i)=>({id:i,type:type as ViewSnapshot['pickups'][number]['type'],x:180+i*240,y:780,expiresAtTick:tick+100})),
   };
 }
