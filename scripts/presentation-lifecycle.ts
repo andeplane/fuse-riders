@@ -92,6 +92,9 @@ export async function checkPresentationLifecycle(): Promise<void> {
     h.retry(); h.loads[1]!.resolve(h.module); await flush();
     old.status?.('restored'); old.ready.resolve(); await flush();
     check(h.canvas().dataset.rendererStatus === 'starting', 'Late old status changed retry');
+    check(h.canvas().dataset.renderer === undefined, 'Stale readiness published a renderer');
+    check([...h.timers].some(timer => timer.delay === 10000), 'Stale readiness cancelled retry startup deadline');
+    check(h.arenas[1]!.draws === 0, 'Stale readiness painted the unready replacement');
     h.render('new-match'); h.arenas[1]!.ready.resolve(); await flush();
     check(h.arenas[1]!.scope === 'new-match', 'Retry used stale scope/snapshot'); h.destroy();
   }
