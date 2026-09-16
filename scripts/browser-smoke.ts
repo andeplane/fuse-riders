@@ -1,4 +1,5 @@
 import { chromium, webkit, type Page } from 'playwright';
+import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createGameServer } from '../src/server/index.js';
@@ -82,10 +83,11 @@ try {
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
   // Switching the style must re-src every legend icon, not just the ones that existed when the
   // theme plumbing was written. Ends on the default so later steps shoot the usual artwork.
+  const defaultPickups = POWERUP_GUIDE.filter(entry => entry.spawnsByDefault).length;
   for (const themeId of ['clean-neon', 'neon-pixel']) {
     await host.getByRole('combobox').selectOption(themeId);
     const legendSources = await host.locator('.pickup-legend img').evaluateAll(images => images.map(image => image.getAttribute('src') ?? ''));
-    assert.equal(legendSources.length, 11, `legend icons found: ${legendSources.length}`);
+    assert.equal(legendSources.length, defaultPickups, `legend icons found: ${legendSources.length}`);
     for (const source of legendSources) assert.ok(source.includes(`/themes/${themeId}/`), `legend icon ${source} ignores theme ${themeId}`);
   }
 
