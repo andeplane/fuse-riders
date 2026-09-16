@@ -3,6 +3,7 @@ import type { PortalPair } from './portal.js';
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 import type { MatchPlayerStats } from './match-stats.js';
 import type { FlightPoint } from './launch-modifiers.js';
+import type { PickupType } from './game.js';
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
@@ -46,7 +47,7 @@ export interface GameSnapshot {
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPairs: ReadonlyArray<PortalPair>;
-  pickups: ReadonlyArray<{ id: number; type: 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal' | 'boost'; x: number; y: number; expiresAtTick: number }>;
+  pickups: ReadonlyArray<{ id: number; type: PickupType; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;

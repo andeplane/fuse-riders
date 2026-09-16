@@ -1,4 +1,5 @@
 import { assetUrl } from '../asset-url.js';
+import { PICKUP_TYPES } from '../../shared/game.js';
 import Phaser from 'phaser';
 import type { ViewSnapshot } from '../snapshot-stream.js';
 import { themes, type ThemeDefinition } from '../themes.js';
@@ -12,7 +13,7 @@ import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 
-const pickups = ['stopwatch','gun','shell','target','blast','star','beer','ink','triple','five','orbitShield','portal','boost'] as const;
+const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
 const clamp = Phaser.Math.Clamp;
 export interface ArenaOptions { renderer?: 'auto' | 'canvas'; quality?: 'high' | 'low'; resolution?: 'display' | 'world'; onStatus?: (status: 'ready' | 'context-lost' | 'restored') => void }
