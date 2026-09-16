@@ -58,7 +58,7 @@ const report: Record<string, unknown> = { revision: execFileSync('git', ['rev-pa
 const waitReady = async (label: string, timeout = smokeTimeout(40_000)) => { const started = performance.now(); for (const page of pages) await page.waitForFunction(() => (globalThis as unknown as { mesh: { ready(): boolean } }).mesh.ready(), undefined, { timeout }); (report.phases as Record<string, unknown>)[label] = Math.round(performance.now() - started); };
 try {
   for (let index = 0; index < 6; index++) {
-    const context = await browsers[index % 2]!.newContext(); const page = await context.newPage(); pages.push(page);
+    const context = await browsers[index % 2]!.newContext(); const page = await context.newPage(); page.setDefaultTimeout(smokeTimeout(30_000)); pages.push(page);
     page.on('pageerror', error => { errors.push(`peer ${index} ${index % 2 ? 'webkit' : 'chromium'} ${phase}: ${error.stack || error.message}`); });
     // A real HTTP response keeps the browser's local-network address-space classification intact.
     await page.goto(new URL('/mesh-fixture.html', url).href); await page.addScriptTag({ content: bundle.outputFiles[0]!.text });
