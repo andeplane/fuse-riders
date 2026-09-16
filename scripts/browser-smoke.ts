@@ -293,6 +293,13 @@ try {
   app.game.pickups.push({ id: 9_011, type: 'power', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('◆ 2 · B×2', { exact: true }).waitFor();
   assert.equal(poweredRider.powerPickups, 2);
+  app.game.pickups.push({ id: 9_012, type: 'grip', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('◆ 2 · B×2 · GRIP', { exact: true }).waitFor();
+  assert.equal(poweredRider.grip, true);
+  assert.equal(app.game.pickups.some(pickup => pickup.id === 9_012), false);
+  app.game.pickups.push({ id: 9_013, type: 'grip', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2);
+  assert.equal(app.game.pickups.some(pickup => pickup.id === 9_013), true, 'repeat GRIP stays available for another rider');
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');

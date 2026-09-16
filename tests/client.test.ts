@@ -16,7 +16,7 @@ function playingFrame(tick: number, receivedAt: number, x: number, alive = true)
     matchId: 'match', round: 1, receivedAt,
     snapshot: {
       ...snapshot(), phase: 'playing', tick, round: 1, roundStartedTick: 0,
-      players: [{ id: 'p1', name: 'One', avatarId: 'robot', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: 80, invulnerableUntilTick: 0, boostUntilTick: 0, drunkUntilTick: 0, inkUntilTick: 0, tripleShotArmed: false, fiveShotArmed: false, targetBombArmed: false, gravityArmed: false,  shielded: false, shieldGraceUntilTick: 0, portalCooldownUntilTick: 0, portalGraceUntilTick: 0 }],
+      players: [{ id: 'p1', name: 'One', avatarId: 'robot', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: 80, invulnerableUntilTick: 0, boostUntilTick: 0, grip: false, drunkUntilTick: 0, inkUntilTick: 0, tripleShotArmed: false, fiveShotArmed: false, targetBombArmed: false, gravityArmed: false,  shielded: false, shieldGraceUntilTick: 0, portalCooldownUntilTick: 0, portalGraceUntilTick: 0 }],
     },
   };
 }

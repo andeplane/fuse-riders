@@ -68,6 +68,11 @@ export const SLOT_COLORS = ['#22d3ee', '#ff4fa3', '#a3e635', '#fb923c', '#a78bfa
 
 export const RIDER_SPEED = 150;
 export const RIDER_TURN_RATE = 2.8;
+/** GRIP halves the turn radius at unchanged speed, lasting until the next round. */
+export const GRIP_TURN_MULTIPLIER = 2;
+export function riderTurnRate(player: { grip: boolean }): number {
+  return RIDER_TURN_RATE * (player.grip ? GRIP_TURN_MULTIPLIER : 1);
+}
 export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
 /** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
@@ -109,7 +114,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
+export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity', 'grip'] as const;
 export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
@@ -150,6 +155,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   invulnerableUntilTick: number;
   /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
   boostUntilTick: number;
+  /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
+  grip: boolean;
   drunkUntilTick: number; inkUntilTick: number;
   drunkStartedTick: number;
   drunkHeadingOffset: number;
@@ -251,7 +258,6 @@ interface Movement {
 
 const EPSILON = 1e-9;
 const MOVE_PER_TICK = RIDER_SPEED / TICK_HZ;
-const TURN_PER_TICK = RIDER_TURN_RATE / TICK_HZ;
 const CAUSE_PRIORITY: Record<EliminationCause, number> = {
   rider: 0,
   trail: 1,
@@ -310,7 +316,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     bombReadyAtTick: 0,
     extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
     invulnerableUntilTick: 0,
-    boostUntilTick: 0,
+    boostUntilTick: 0, grip: false,
     drunkUntilTick: 0, inkUntilTick: 0,
     targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false, gravityArmed: false,
     drunkStartedTick: 0,
@@ -453,7 +459,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
     const distance = player.boostUntilTick > state.tick ? MOVE_PER_TICK * BOOST_SPEED : MOVE_PER_TICK;
-    const pose = advanceRiderPose(player, input, {distance,turn:TURN_PER_TICK,drunkHeadingOffset:offset});
+    const pose = advanceRiderPose(player, input, {distance,turn:riderTurnRate(player)/TICK_HZ,drunkHeadingOffset:offset});
     // Fields pull where the rider lands, inside the same tick, so the swept collision below still tests the path actually taken.
     const pulled = applyGravity(state, pose.x, pose.y, distance);
     player.drunkHeadingOffset = pose.drunkHeadingOffset;
@@ -810,7 +816,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
       extraBombs: player.extraBombs, fuseLevel: player.fuseLevel, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
       invulnerableUntilTick: player.invulnerableUntilTick,
-      boostUntilTick: player.boostUntilTick,
+      boostUntilTick: player.boostUntilTick, grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, gravityArmed: player.gravityArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
@@ -884,7 +890,7 @@ function prepareRound(state: GameState): void {
     player.bombReadyAtTick = state.tick;
     player.extraBombs = 0; player.fuseLevel = 0; player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
     player.invulnerableUntilTick = 0;
-    player.boostUntilTick = 0;
+    player.boostUntilTick = 0; player.grip = false;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
     player.drunkHeadingOffset = 0;
@@ -951,6 +957,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
   const consumed = new Set<number>();
   for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
     const collectors = [...movements.values()]
+      .filter(({ player }) => pickup.type !== 'grip' || !player.grip)
       .map((movement) => ({
         movement,
         distance: pointSegmentDistanceSquared(pickup.x, pickup.y, movement.oldX, movement.oldY, movement.x, movement.y),
@@ -986,6 +993,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.targetBombArmed = true;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+    } else if (pickup.type === 'grip') {
+      collector.grip = true;
     } else if (pickup.type === 'boost') {
       collector.boostUntilTick = Math.max(collector.boostUntilTick, state.tick + BOOST_DURATION_TICKS);
     } else if (pickup.type === 'ink') {
