@@ -17,18 +17,17 @@ try {
   await page.addInitScript('window.__name = value => value');
   await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
   await page.getByText('Invalid room code', { exact: true }).waitFor();
-  for (const mode of ['webgl', 'canvas'] as const) {
+  for (const mode of ['webgl', 'phaser-canvas'] as const) {
     const result = await page.evaluate(async mode => {
       const { createPhaserArena } = await import(String('/src/client/phaser/arena.ts')) as typeof import('../src/client/phaser/arena.js');
       const { visualFixture } = await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
-      const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
       const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
       document.body.replaceChildren(); document.body.style.cssText = 'margin:0;background:#020715';
       const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 900;
       document.body.append(canvas);
-      const arena = mode === 'canvas' ? undefined : createPhaserArena(canvas, { resolution: 'world' });
-      if (arena) await arena.ready;
-      if (arena && arena.metrics().renderer !== 'webgl') throw Error('WebGL did not start');
+      const arena = createPhaserArena(canvas, { renderer: mode === 'webgl' ? 'auto' : 'canvas', resolution: 'world' });
+      await arena.ready;
+      if (mode === 'webgl' && arena.metrics().renderer !== 'webgl') throw Error('WebGL did not start');
       await document.fonts.ready;
       const fixture = visualFixture(100);
       const players = fixture.players.slice(0, 3).map((p, i) => ({ ...p, name: ['ADA', 'BO', 'CY'][i]!,
@@ -45,8 +44,7 @@ try {
         return pixels;
       };
       const paint = (selfId?: string) => {
-        if (arena) arena.render(snapshot, 1000, themes['neon-pixel'], 'power-browser', selfId);
-        else drawArena(canvas.getContext('2d')!, snapshot, 1000, themes['neon-pixel'], {}, [], selfId);
+        arena.render(snapshot, 1000, themes['neon-pixel'], 'power-browser', selfId);
         return read();
       };
       const offset = (x: number, y: number) => ((mode === 'webgl' ? 899 - y : y) * 1600 + x) * 4;
@@ -82,7 +80,7 @@ try {
         if ([0, 1, 2].every(channel => local[o + channel]! > 240)) localWhite++;
       }
       if (localGold < 5 || localWhite < 5) throw Error('Local YOU label must retain its gold Power count');
-      Reflect.set(window, 'disposePowerCheck', () => { arena?.destroy(); canvas.remove(); });
+      Reflect.set(window, 'disposePowerCheck', () => { arena.destroy(); canvas.remove(); });
       return { samples, labelChanges, avatarChanges, localGold, localWhite };
     }, mode);
     await page.screenshot({ path: `artifacts/power-count-${mode}.png` });

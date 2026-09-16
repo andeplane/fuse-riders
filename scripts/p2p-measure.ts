@@ -53,7 +53,7 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
     const host = await (await browser.newContext({ viewport: { width: 1000, height: 700 } })).newPage(); pages.push(host);
     await instrument(host, impaired);
     await host.goto(base); await host.getByRole('button', { name: 'CREATE ROOM', exact: true }).click(); await host.waitForURL(/room=/);
-    await host.getByPlaceholder('Your name').waitFor(); const target = new URL(host.url()); target.searchParams.set('benchmark', '1'); target.searchParams.set('renderer', 'canvas'); await host.goto(target.href);
+    await host.getByPlaceholder('Your name').waitFor(); const target = new URL(host.url()); target.searchParams.set('benchmark', '1'); target.searchParams.set('renderer', 'phaser-canvas'); await host.goto(target.href);
     await host.getByPlaceholder('Your name').fill('Host'); await host.getByRole('button', { name: 'JOIN AS PLAYER', exact: true }).click();
     const invite = host.url();
     for (let index = 1; index < 5; index++) {

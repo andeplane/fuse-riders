@@ -94,6 +94,12 @@ test('Target, Shell and Cannon fire one special and preserve the permanent upgra
     assert.equal(rider.extraBombs, 2); assert.equal(rider.tripleShotArmed, true);
     // Shells deliberately remain in flight and do not block the next ordinary shot.
     while (game.tick < rider.bombReadyAtTick) step(game, new Map());
+    if (special === 'gun') {
+      const cannon = [...game.bombs.values()][0]!;
+      assert.equal(step(game, fire).events.filter(event => event.type === 'bombPlaced').length, 0, 'a live Cannon still blocks firing after reload');
+      assert.equal(rider.tripleShotArmed, true);
+      while (game.tick < cannon.explodeAtTick) step(game, new Map());
+    }
     const followup = step(game, fire);
     assert.equal(followup.events.filter(event => event.type === 'bombPlaced').length, 5);
   }

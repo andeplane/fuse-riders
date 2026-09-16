@@ -1,29 +1,20 @@
-import { powerCountText, powerLabel, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from './power-indicator.js';
+import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
+import { powerLabel } from './power-indicator.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
-import { drawBombTargets } from './target-renderer.js';
-import { createAvatarPicker, createAvatarPortrait, drawAvatarHead } from './avatar-heads.js';
-import { drawInkClouds } from './ink-renderer.js';
+import { createAvatarPicker, createAvatarPortrait } from './avatar-heads.js';
 import { ControllerPointerBindings } from './controller-pointers.js';
 import { createGameAudio } from './game-audio.js';
-import { bombsPerShot, volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
-import { bombPreviewDistance } from './bomb-preview.js';
-import { blastFrame } from './blast-animation.js';
-import { reloadRemaining, RELOAD_RING_RADIUS } from './reload-ring.js';
-import { drawTrailDebris, type DebrisStroke } from './trail-debris.js';
-import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
-import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
+import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
-import { drawDrunkAura, drawGravityFields, drawOrbitShield, drawPickups, drawPortalGrace, drawPortals, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
+import { applyThemeProperties, selectedTheme, storeTheme, themes, type ThemeId } from './themes.js';
 import { ReplayDirector, describeClip } from './replay.js';
 import { createReplayOverlay } from './replay-overlay.js';
-import { arenaWall, type WallBrick } from './arena-wall.js';
-import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
 import { POWERUP_GUIDE } from './powerup-guide.js';
 import { createPowerupGuide } from './powerup-guide-view.js';
 import { safeStorage } from './safe-storage.js';
@@ -95,340 +86,6 @@ function formatTimer(seconds: number | undefined): string {
   if (seconds === undefined) return '--:--';
   const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
   return `${mins}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
-}
-
-interface TrailBatch { path: Path2D; alpha: number; pixels: number[]; fragments: number[] }
-const trailBatchCache = new WeakMap<ReadonlyArray<TrailSegment>, TrailBatch[]>();
-
-function prepareTrailBatches(trail: ReadonlyArray<TrailSegment>, tick: number): TrailBatch[] {
-  const cached = trailBatchCache.get(trail);
-  if (cached) return cached;
-  const batches = Array.from({ length: 4 }, (_, index): TrailBatch => ({
-    // Hittable segments must remain readable even just before expiry.
-    path: new Path2D(), alpha: [.8, .85, .9, 1][index], pixels: [], fragments: [],
-  }));
-  for (const segment of trail) {
-    const life = clamp((segment.expiresAtTick - tick) / 40, .15, 1);
-    const batch = batches[Math.min(3, Math.floor(life * 4))];
-    const x1 = Math.round(segment.x1); const y1 = Math.round(segment.y1);
-    const x2 = Math.round(segment.x2); const y2 = Math.round(segment.y2);
-    batch.path.moveTo(x1, y1); batch.path.lineTo(x2, y2);
-    const dx = segment.x2 - segment.x1; const dy = segment.y2 - segment.y1; const length = Math.hypot(dx, dy);
-    const count = Math.max(1, Math.ceil(length / 4));
-    for (let index = 0; index <= count; index += 1) {
-      const t = index / count; const x = Math.round(segment.x1 + dx * t); const y = Math.round(segment.y1 + dy * t);
-      batch.pixels.push(x, y);
-      if ((index + Math.round(segment.x1 + segment.y1)) % 11 === 0) {
-        const nx = length ? -dy / length : 0; const ny = length ? dx / length : 0;
-        batch.fragments.push(Math.round(x + nx * 5), Math.round(y + ny * 5));
-      }
-    }
-  }
-  trailBatchCache.set(trail, batches);
-  return batches;
-}
-
-function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<TrailSegment>, tick: number, alive: boolean, color: string, theme: ThemeDefinition): void {
-  const batches = prepareTrailBatches(trail, tick);
-  const aliveAlpha = alive ? 1 : .8;
-  ctx.save(); ctx.lineCap = theme.rendering.trailCap; ctx.lineJoin = theme.rendering.trailCap === 'round' ? 'round' : 'bevel';
-  for (const batch of batches) {
-    if (!batch.pixels.length) continue;
-    ctx.globalAlpha = batch.alpha * aliveAlpha * .5; ctx.strokeStyle = color; ctx.lineWidth = 10;
-    ctx.shadowColor = color; ctx.shadowBlur = 18; ctx.stroke(batch.path);
-    ctx.shadowBlur = 0; ctx.globalAlpha = batch.alpha * aliveAlpha; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.stroke(batch.path);
-    if (theme.rendering.pixelated) {
-      ctx.fillStyle = '#efffff';
-      for (let index = 0; index < batch.pixels.length; index += 2) ctx.fillRect(batch.pixels[index] - 1, batch.pixels[index + 1] - 1, 2, 2);
-      ctx.globalAlpha = batch.alpha * aliveAlpha * .42; ctx.fillStyle = color;
-      for (let index = 0; index < batch.fragments.length; index += 2) ctx.fillRect(batch.fragments[index] - 1, batch.fragments[index + 1] - 1, 3, 3);
-    } else {
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke(batch.path);
-    }
-  }
-  ctx.restore();
-}
-
-function drawPixelBrick(ctx: CanvasRenderingContext2D, brick: WallBrick, color: string): void {
-  const { x, y, width, height, chip } = brick;
-  ctx.fillStyle = '#211862'; ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = color; ctx.globalAlpha = .92; ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
-  ctx.fillStyle = 'rgba(182,150,255,.65)'; ctx.fillRect(x + 3, y + 3, width - 6, 2);
-  ctx.fillStyle = 'rgba(25,17,78,.65)'; ctx.fillRect(x + 3, y + height - 5, width - 6, 3);
-  ctx.globalAlpha = .45; ctx.fillStyle = '#241664';
-  ctx.fillRect(chip.x, chip.y, chip.width, chip.height);
-  ctx.globalAlpha = 1;
-}
-
-/** Paints whatever `arenaWall()` chose; the Phaser arena paints the same choice, so the two cannot disagree. */
-function drawBoundary(ctx: CanvasRenderingContext2D, width: number, height: number, inset: number, theme: ThemeDefinition): void {
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,2,12,.67)';
-  ctx.fillRect(0, 0, width, inset); ctx.fillRect(0, height - inset, width, inset);
-  ctx.fillRect(0, inset, inset, height - inset * 2); ctx.fillRect(width - inset, inset, inset, height - inset * 2);
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
-  ctx.strokeRect(inset, inset, width - inset * 2, height - inset * 2);
-  ctx.shadowBlur = 7;
-  const wall = arenaWall(width, height, inset, theme);
-  if (wall.kind === 'smooth') {
-    ctx.strokeStyle = theme.palette.wall; ctx.lineWidth = wall.strokeWidth;
-    ctx.strokeRect(wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height);
-    ctx.restore(); return;
-  }
-  // The bricks are opaque fills and carry their own highlight and shade, so they need no shadow pass:
-  // overtime moves `inset` every tick, which misses the background cache and redraws all of them.
-  ctx.shadowBlur = 0;
-  for (const brick of wall.bricks) drawPixelBrick(ctx, brick, theme.palette.wall);
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
-  for (const [ax, ay, bx, by, cx, cy] of wall.brackets) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.stroke(); }
-  ctx.shadowColor = '#ff850d'; ctx.shadowBlur = 12;
-  for (const stud of wall.studs) {
-    ctx.fillStyle = theme.palette.blast; ctx.fillRect(stud.x, stud.y, wall.studSize, wall.studSize);
-    ctx.fillStyle = theme.palette.blastCore; ctx.fillRect(stud.x + 2, stud.y + 2, 3, 3);
-  }
-  ctx.restore();
-}
-
-let backgroundCache: { key: string; canvas: HTMLCanvasElement } | undefined;
-
-function arenaBackground(width: number, height: number, inset: number, theme: ThemeDefinition): HTMLCanvasElement {
-  const key = `${theme.id}:${width}:${height}:${inset}`;
-  if (backgroundCache?.key === key) return backgroundCache.canvas;
-  const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return canvas;
-  const floor = ctx.createRadialGradient(width / 2, height / 2, 30, width / 2, height / 2, width * .7);
-  floor.addColorStop(0, theme.palette.floorCenter); floor.addColorStop(1, theme.palette.floorEdge);
-  ctx.fillStyle = floor; ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = theme.palette.grid; ctx.lineWidth = 1;
-  for (let x = 0; x <= width; x += theme.rendering.gridSize) { ctx.beginPath(); ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, height); ctx.stroke(); }
-  for (let y = 0; y <= height; y += theme.rendering.gridSize) { ctx.beginPath(); ctx.moveTo(0, y + .5); ctx.lineTo(width, y + .5); ctx.stroke(); }
-  drawBoundary(ctx, width, height, inset, theme);
-  backgroundCache = { key, canvas };
-  return canvas;
-}
-
-const tintedSpriteCache = new Map<string, HTMLCanvasElement>();
-
-function spriteSource(image: HTMLImageElement, size: number, tint?: string): CanvasImageSource {
-  if (!tint) return image;
-  const key = `${image.currentSrc || image.src}:${size}:${tint}`;
-  const cached = tintedSpriteCache.get(key);
-  if (cached) return cached;
-  const buffer = document.createElement('canvas');
-  buffer.width = size; buffer.height = size;
-  const bufferContext = buffer.getContext('2d');
-  if (!bufferContext) return image;
-  bufferContext.drawImage(image, 0, 0, size, size);
-  const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(tint);
-  if (match) {
-    const target = match.slice(1).map((part) => Number.parseInt(part, 16));
-    const pixels = bufferContext.getImageData(0, 0, size, size);
-    for (let index = 0; index < pixels.data.length; index += 4) {
-      if (pixels.data[index + 3] === 0) continue;
-      const high = Math.max(pixels.data[index], pixels.data[index + 1], pixels.data[index + 2]);
-      const low = Math.min(pixels.data[index], pixels.data[index + 1], pixels.data[index + 2]);
-      // Preserve near-white highlights and dark cockpit/body pixels; recolor
-      // the saturated outline pixels which are authored as cyan in the SVG.
-      if (high > 210 && low > 180 || high < 105) continue;
-      pixels.data[index] = target[0]; pixels.data[index + 1] = target[1]; pixels.data[index + 2] = target[2];
-    }
-    bufferContext.putImageData(pixels, 0, 0);
-  }
-  tintedSpriteCache.set(key, buffer);
-  return buffer;
-}
-
-function drawSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, size: number, rotation = 0, tint?: string, pixelated = true): void {
-  ctx.save();
-  ctx.translate(Math.round(x), Math.round(y));
-  ctx.rotate(rotation);
-  ctx.imageSmoothingEnabled = !pixelated;
-  ctx.drawImage(spriteSource(image, size, tint), -size / 2, -size / 2, size, size);
-  ctx.restore();
-}
-
-export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris: readonly DebrisStroke[] = [], selfId?: string): void {
-  const { width, height } = snapshot;
-  ctx.clearRect(0, 0, width, height);
-  ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(snapshot.boundaryInset, snapshot.boundaryInset,
-    width - 2 * snapshot.boundaryInset, height - 2 * snapshot.boundaryInset);
-  ctx.clip();
-  for (const player of snapshot.players) {
-    const color = escapeColor(player.color);
-    drawPlayerTrail(ctx, player.trail, snapshot.tick, player.alive, color, theme);
-  }
-  ctx.restore();
-  ctx.globalAlpha = 1;
-
-  if ((snapshot.pickups ?? []).length) drawPickups(ctx, snapshot, snapshot.tick, now, theme);
-  drawGravityFields(ctx, snapshot, snapshot.tick, now);
-  drawPortals(ctx, snapshot, snapshot.tick, now);
-
-  for (const player of snapshot.players) {
-    if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed || player.gunArmed) continue;
-    const chargeTicks = (player.presentationTick ?? snapshot.tick) - player.bombChargeStartedTick;
-    const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks, snapshot.aimBounce);
-    ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
-    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
-    const angles = volleyAngles(player.angle, bombsPerShot(player));
-    for (const angle of angles) {
-      const targetX = clamp(player.x + Math.cos(angle) * distance, snapshot.boundaryInset + 20, width - snapshot.boundaryInset - 20);
-      const targetY = clamp(player.y + Math.sin(angle) * distance, snapshot.boundaryInset + 20, height - snapshot.boundaryInset - 20);
-      ctx.beginPath(); ctx.moveTo(player.x, player.y); ctx.lineTo(targetX, targetY); ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = .8; ctx.strokeRect(targetX - 10, targetY - 10, 20, 20); ctx.setLineDash([8, 8]);
-    }
-    ctx.restore();
-  }
-
-  for (const bomb of snapshot.bombs) {
-    if (bomb.shell?.gun) {
-      ctx.save(); ctx.translate(bomb.x, bomb.y); ctx.rotate(Math.atan2(bomb.shell.vy, bomb.shell.vx));
-      // Chunky arcade cannon shot, with a readable silhouette at TV distance.
-      for (let puff = 3; puff >= 1; puff--) {
-        ctx.globalAlpha = .32 - puff * .06; ctx.fillStyle = '#c4dce9';
-        ctx.beginPath(); ctx.arc(-22 - puff * 12, Math.sin(now / 110 + puff) * 3, 4 + puff * 2, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.globalAlpha = 1; ctx.fillStyle = '#121b2d'; ctx.strokeStyle = '#c5fff2'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(-18, -14); ctx.lineTo(2, -14);
-      ctx.bezierCurveTo(24, -14, 24, 14, 2, 14); ctx.lineTo(-18, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#66798b'; ctx.fillRect(-20, -13, 6, 26);
-      ctx.fillStyle = '#90a5b7'; ctx.fillRect(-10, -10, 16, 3);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(2, -5, 8, 9);
-      ctx.fillStyle = '#172233'; ctx.fillRect(7, -3, 3, 6);
-      ctx.strokeStyle = '#07101e'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -7); ctx.lineTo(11, -4); ctx.stroke();
-      ctx.restore(); continue;
-    }
-    if (bomb.shell) {
-      ctx.save(); ctx.translate(bomb.x, bomb.y); ctx.rotate(now / 100);
-      ctx.fillStyle = '#48dc55'; ctx.strokeStyle = '#dcffd1'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle = '#14622f'; ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let edge = 0; edge <= 6; edge++) {
-        const angle = edge * Math.PI / 3;
-        if (edge === 0) ctx.moveTo(Math.cos(angle) * 7, Math.sin(angle) * 7);
-        else ctx.lineTo(Math.cos(angle) * 7, Math.sin(angle) * 7);
-      }
-      ctx.stroke(); ctx.restore(); continue;
-    }
-    const ownerColor = escapeColor(snapshot.players.find(player => player.id === bomb.ownerId)?.color ?? '#ffffff');
-    // Ground-space outline is the exact damage radius, even while the bomb flies.
-    ctx.save();
-    ctx.strokeStyle = ownerColor;
-    ctx.beginPath(); ctx.arc(bomb.x, bomb.y, bomb.blastRange, 0, Math.PI * 2);
-    ctx.globalAlpha = .28; ctx.lineWidth = 1.5;
-    ctx.stroke(); ctx.restore();
-    const airborne = snapshot.tick < bomb.landsAtTick;
-    const flightDuration = Math.max(1, bomb.landsAtTick - bomb.launchedTick);
-    const flight = clamp((snapshot.tick - bomb.launchedTick) / flightDuration, 0, 1);
-    const path = bomb.flightPath.length > 1 ? bomb.flightPath : [{ x: bomb.launchX, y: bomb.launchY, angle: 0 }, { x: bomb.x, y: bomb.y, angle: 0 }];
-    const pathPosition = flight * (path.length - 1); const pathIndex = Math.min(path.length - 2, Math.floor(pathPosition));
-    const pathMix = pathPosition - pathIndex; const pathStart = path[pathIndex]!; const pathEnd = path[pathIndex + 1]!;
-    const drawX = pathStart.x + (pathEnd.x - pathStart.x) * pathMix;
-    const drawY = pathStart.y + (pathEnd.y - pathStart.y) * pathMix;
-    const pulse = 1 + Math.sin(now / 90) * 0.08;
-    const remaining = clamp((bomb.explodeAtTick - snapshot.tick) / Math.max(1, bomb.explodeAtTick - bomb.launchedTick), 0, 1);
-    if (airborne) {
-      ctx.save(); ctx.globalAlpha = .36 + flight * .35; ctx.strokeStyle = ownerColor; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.ellipse(bomb.x, bomb.y, 14 + flight * 5, 6 + flight * 2, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-      ctx.save(); ctx.globalAlpha = .26; ctx.strokeStyle = ownerColor; ctx.setLineDash([5, 7]); ctx.beginPath();
-      path.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke(); ctx.restore();
-    }
-    ctx.save();
-    ctx.translate(Math.round(drawX), Math.round(drawY));
-    ctx.scale(pulse * (airborne ? 1.12 : 1), pulse * (airborne ? 1.12 : 1));
-    ctx.shadowColor = ownerColor; ctx.shadowBlur = 12;
-    if (sprites.bomb) drawSprite(ctx, sprites.bomb, 0, 0, 44, 0, undefined, false);
-    else { const ball = ctx.createRadialGradient(-5, -7, 1, 0, 0, 18); ball.addColorStop(0, '#7481a8'); ball.addColorStop(.3, '#242a4a'); ball.addColorStop(1, '#070815'); ctx.fillStyle = ball; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill(); }
-    ctx.strokeStyle = ownerColor;
-    ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(0, 0, 26, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (airborne ? flight : remaining)); ctx.stroke();
-    if (!sprites.bomb) { ctx.fillStyle = '#ffb52e'; ctx.fillRect(9, -20, 3, 9); }
-    const spark = Math.round(now / 80 + bomb.id) % 3;
-    ctx.shadowColor = '#ff9a18'; ctx.shadowBlur = 10; ctx.fillStyle = '#fff3a1';
-    ctx.beginPath(); ctx.arc(11 + spark * 2, -25 - spark * 2, 1.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ff5c17'; ctx.beginPath(); ctx.arc(17 - spark, -20 - spark * 4, 1, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
-
-  for (const blast of snapshot.blasts) {
-    const frame = blastFrame(blast, snapshot.presentationTick ?? snapshot.tick);
-    const { x, y, radius } = blast.circle;
-    const colors = { outer: theme.palette.blast, warm: '#ffb52e', core: theme.palette.blastCore };
-    ctx.save();
-    ctx.beginPath(); ctx.rect(snapshot.boundaryInset, snapshot.boundaryInset, snapshot.width - 2 * snapshot.boundaryInset, snapshot.height - 2 * snapshot.boundaryInset); ctx.clip();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = frame.footprintAlpha; ctx.fillStyle = colors.outer;
-    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = frame.ring.alpha; ctx.strokeStyle = colors.warm; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(x, y, frame.ring.radius, 0, Math.PI * 2); ctx.stroke();
-    for (const circle of frame.circles) {
-      ctx.globalAlpha = circle.alpha; ctx.fillStyle = colors[circle.tone];
-      ctx.beginPath(); ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.fillStyle = colors.warm;
-    for (const spark of frame.sparks) {
-      ctx.globalAlpha = spark.alpha;
-      ctx.fillRect(spark.x - spark.size / 2, spark.y - spark.size / 2, spark.size, spark.size);
-    }
-    ctx.restore();
-  }
-
-  drawTrailDebris(ctx, debris, snapshot);
-  for (const player of snapshot.players) {
-    if (!player.alive) continue;
-    const color = escapeColor(player.color);
-    if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);
-    if (player.drunkUntilTick > snapshot.tick) drawDrunkAura(ctx, player, snapshot.tick, now);
-    drawOrbitShield(ctx, player, snapshot.tick, now);
-    drawPortalGrace(ctx, player, snapshot.tick, now);
-    ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 18;
-    // The portrait stays upright at the trail head; only its direction marker turns.
-    if (!drawAvatarHead(ctx, player.avatarId, player.x, player.y, color) && sprites.rider) {
-      drawSprite(ctx, sprites.rider, player.x, player.y, 32, 0, color, theme.rendering.pixelated);
-    }
-    ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = color;
-    ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
-    ctx.restore();
-    // The local rider reads YOU inside a breathing ring so a player finds themselves at a glance (five identical heads otherwise).
-    // Radii follow #202's smaller portrait and #198's reload ring (17): the ring hugs them and stays clear of the 29px shield.
-    const self = player.id === selfId;
-    if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 22 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
-    const riderLabel = self ? 'YOU' : player.name, labelColor = self ? '#ffffff' : color;
-    ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'left';
-    const powerText = powerCountText(player.powerPickups, player.extraBombs, player.grip), gap = 8;
-    const nameWidth = ctx.measureText(riderLabel).width;
-    const labelX = Math.round(player.x - (nameWidth + gap + POWER_ICON_SIZE + POWER_ICON_GAP + ctx.measureText(powerText).width) / 2);
-    const labelY = Math.round(player.y - (self ? 30 : 27));
-    ctx.lineWidth = 3; ctx.strokeStyle = '#020715';
-    ctx.strokeText(riderLabel, labelX, labelY); ctx.fillStyle = labelColor;
-    ctx.fillText(riderLabel, labelX, labelY);
-    const radius = POWER_ICON_SIZE / 2, iconX = labelX + nameWidth + gap + radius, iconY = labelY - 5;
-    ctx.fillStyle = POWER_COLOR; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(iconX, iconY - radius); ctx.lineTo(iconX + radius, iconY);
-    ctx.lineTo(iconX, iconY + radius); ctx.lineTo(iconX - radius, iconY); ctx.closePath(); ctx.fill(); ctx.stroke();
-    const countX = iconX + radius + POWER_ICON_GAP;
-    ctx.lineWidth = 3; ctx.strokeText(powerText, countX, labelY);
-    ctx.fillText(powerText, countX, labelY);
-    ctx.restore();
-    const reload = reloadRemaining(player, snapshot);
-    if (reload > 0) {
-      ctx.save();
-      ctx.strokeStyle = '#080c22'; ctx.lineWidth = 2; ctx.globalAlpha = .95;
-      ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .2; ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, -Math.PI / 2 + (1 - reload) * Math.PI * 2, Math.PI * 1.5); ctx.stroke();
-      ctx.restore();
-    }
-  }
-  drawInkClouds(ctx, snapshot, snapshot.tick);
-  drawBombTargets(ctx, snapshot);
 }
 
 function startDisplay(): void {
@@ -536,18 +193,15 @@ function startDisplay(): void {
   let showPerformance = new URLSearchParams(location.search).get('perf') === '1';
   performanceDisplay.classList.toggle('hidden', !showPerformance);
   let activeTheme = selectedTheme();
-  let activeSprites: ThemeSprites = {};
   themeSelect.value = activeTheme.id;
   applyThemeProperties(activeTheme);
   applyLegendTheme(activeTheme.id);
-  void loadThemeSprites(activeTheme).then((sprites) => { activeSprites = sprites; });
 
   themeSelect.addEventListener('change', () => {
     const next = themes[themeSelect.value as ThemeId];
     if (!next) return;
-    activeTheme = next; activeSprites = {}; storeTheme(next.id); applyThemeProperties(next);
+    activeTheme = next; storeTheme(next.id); applyThemeProperties(next);
     applyLegendTheme(next.id);
-    void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
 
   function renderRoster(snapshot?: ViewSnapshot): void {
@@ -808,7 +462,7 @@ function startDisplay(): void {
   renderRoster();
   socket.connect();
 
-  const presentation = mountArenaPresentation(canvas, drawArena, replacement => { canvas = replacement; });
+  const presentation = mountArenaPresentation(canvas, replacement => { canvas = replacement; });
   window.addEventListener('pagehide', event => { if (!event.persisted) presentation.destroy(); });
   let previousFrameAt = performance.now();
   let averageFrameMs = 16.7;
@@ -827,10 +481,10 @@ function startDisplay(): void {
       stage.classList.toggle('replaying', update.stage !== 'hold' && update.stage !== 'done');
       for (const cue of update.cues) audio.director.replayCue(cue);
       const shown = update.snapshot ?? snapshot;
-      if (shown) presentation.render(shown, now, activeTheme, activeSprites, update.snapshot ? `${latest?.matchId ?? 'lan'}:replay:${update.clip.key}` : latest?.matchId ?? 'lan');
+      if (shown) presentation.render(shown, now, activeTheme, update.snapshot ? `${latest?.matchId ?? 'lan'}:replay:${update.clip.key}` : latest?.matchId ?? 'lan');
       if (shown) replayOverlay.update(update, canvas, { width: shown.width, height: shown.height });
       if (update.stage === 'done') { replayKey = ''; if (latest) updateUi(latest.snapshot); }
-    } else if (snapshot) presentation.render(snapshot, now, activeTheme, activeSprites, latest?.matchId ?? 'lan');
+    } else if (snapshot) presentation.render(snapshot, now, activeTheme, latest?.matchId ?? 'lan');
     averageRenderMs = averageRenderMs * .9 + (performance.now() - renderStartedAt) * .1;
     if (showPerformance && now - lastMetricsAt > 500) {
       const age = latest ? Math.max(0, now - latest.receivedAt) : 0;
@@ -841,15 +495,6 @@ function startDisplay(): void {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-}
-
-function drawIdleArena(ctx: CanvasRenderingContext2D, width: number, height: number, now: number, theme: ThemeDefinition): void {
-  ctx.fillStyle = theme.palette.floorEdge; ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = theme.palette.grid; ctx.lineWidth = 1;
-  const grid = theme.rendering.gridSize; const offset = (now / 100) % grid;
-  for (let x = -grid + offset; x <= width; x += grid) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-  for (let y = -grid + offset; y <= height; y += grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 18; ctx.strokeRect(3, 3, width - 6, height - 6); ctx.shadowBlur = 0;
 }
 
 function startController(): void {

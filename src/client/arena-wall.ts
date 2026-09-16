@@ -1,11 +1,6 @@
 import type { ThemeDefinition } from './themes.js';
 
-/**
- * Boundary and trail decoration geometry, in world units. `arenaWall()` owns the per-theme choice so
- * the Phaser arena and the legacy Canvas renderer cannot disagree about it: #68 flattened the wall to
- * one thin rim in both, separately, which erased the whole difference between the two visual styles.
- * Both renderers now only paint what this returns.
- */
+/** Boundary and trail decoration geometry in world units, shared by Phaser's WebGL and Canvas backends. */
 export interface WallBrick {
   x: number; y: number; width: number; height: number;
   /** One deterministic chip inside the brick, so a run does not read as a smooth extruded bar. */

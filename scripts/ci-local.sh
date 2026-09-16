@@ -59,8 +59,8 @@ step avatar npx tsx scripts/avatar-layout.ts
 for s in keyboard online home landscape recap shared mesh; do needs "$s" && { start_room_service; break; }; done
 
 step keyboard env HOME_URL="$URL" npx tsx scripts/keyboard-smoke.ts
-step online:chrome env ROOM_RENDERER=canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
-step online:webkit env BROWSER=webkit ROOM_RENDERER=canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
+step online:chrome env ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
+step online:webkit env BROWSER=webkit ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
 step preview:chrome npx tsx scripts/bomb-preview-smoke.ts
 step preview:webkit env BROWSER=webkit npx tsx scripts/bomb-preview-smoke.ts
 step phaser:chrome npx tsx scripts/phaser-browser.ts

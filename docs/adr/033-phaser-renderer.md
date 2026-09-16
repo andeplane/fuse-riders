@@ -31,3 +31,10 @@ Typecheck and deterministic tests must pass. Verify both themes, avatars, all cu
 ## Design review
 
 Independent root review approved the presentation-only design with explicit scope, one frame loop, context-loss reset, themed fallbacks and benchmark-gated activation. The netcode reviewer independently requested authority epoch/match/round scoping and preservation of supplied render time. The API accepts a caller-provided scope string (epoch plus match ID); round is appended internally. Phaser 3.90.0 is pinned intentionally for the reviewed APIs rather than adopting the newly available 4.x during this migration.
+
+
+## 2026-09-16: Retire the separate Canvas renderer
+
+Keep one Phaser scene, with WebGL by default and Phaser's built-in Canvas backend when WebGL is unavailable. Remove the hand-written renderer, duplicate sprite loaders and `?renderer=canvas` selection. This supersedes the operational fallback and comparison decision above; recorded benchmark evidence remains historical.
+
+Context restoration remains automatic for two seconds. Failed restoration or a ten-second load/startup deadline exposes an in-place graphics retry, which replaces the canvas and reconstructs presentation from the latest snapshot without rejoining the room. Attempts are generation-scoped so stale asynchronous completions cannot overwrite a retry. No physics, inputs or network behavior changes. The tradeoff is an interrupted view after unrecoverable graphics failure rather than continued rendering through a separately maintained scene.

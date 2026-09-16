@@ -290,6 +290,15 @@ details.audio-controls > .audio-panel.radio { width: min(380px, calc(100vw - 24p
 
 .host-tools{display:flex;gap:6px;align-items:center}
 
+.graphics-status {
+  position: fixed; bottom: 12px; left: 12px; right: 12px; z-index: 1000;
+  width: fit-content; max-width: calc(100% - 24px); padding: 12px;
+  background: #08152b; color: #ffe680; border: 1px solid #ffe680;
+  font: 14px/1.5 monospace;
+}
+.graphics-status button { display: block; margin-top: 10px; padding: 10px 14px; }
+.graphics-status[hidden], .graphics-status button[hidden] { display: none; }
+
 /* AAA pass: on a laptop-sized host window the score cards wrap under the toolbar instead of drawing over the timer. */
 @media (max-width: 1240px) {
   .topbar { grid-template-columns: auto repeat(7, auto); justify-content: space-between; }
