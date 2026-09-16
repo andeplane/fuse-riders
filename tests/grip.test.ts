@@ -22,7 +22,7 @@ function drop(game: GameState, playerId = 'p0') {
 }
 const steering = (right: boolean): InputIntent => ({ left: !right, right, bomb: false });
 
-test('GRIP doubles left/right steering from the next tick without changing travel speed; neutral and cancelled steering stay straight', () => {
+test('GRIP increases left/right steering by 75% from the next tick without changing travel speed; neutral and cancelled steering stay straight', () => {
   for (const right of [false, true]) {
     const game = playing(), p = game.players.get('p0')!;
     const input = new Map([['p0', steering(right)]]);
@@ -32,7 +32,7 @@ test('GRIP doubles left/right steering from the next tick without changing trave
     assert.ok(Math.abs(p.angle - turn) < 1e-12, 'collection tick uses ordinary steering');
     const before = { ...p };
     step(game, input);
-    assert.ok(Math.abs(Math.abs(p.angle - before.angle) - 2 * RIDER_TURN_RATE / TICK_HZ) < 1e-12);
+    assert.ok(Math.abs(Math.abs(p.angle - before.angle) - 1.75 * RIDER_TURN_RATE / TICK_HZ) < 1e-12);
     assert.ok(Math.abs(Math.hypot(p.x - before.x, p.y - before.y) - RIDER_SPEED / TICK_HZ) < 1e-12);
     for (const controls of [{ left: false, right: false, bomb: false }, { left: true, right: true, bomb: false }]) {
       const angle = p.angle; step(game, new Map([['p0', controls]])); assert.equal(p.angle, angle);
@@ -83,15 +83,15 @@ test('GRIP takes the inside of a live rival’s 180-degree turn with real trail/
     Object.assign(outer, { x: 500, y: 400, angle: 0, trail: [] });
     Object.assign(inner, { x: 500, y: 400 + sign * 20, angle: 0, trail: [] });
     const innerStart = inner.y, outerStart = outer.y;
-    // Eleven upgraded ticks and twenty-two normal ticks each turn through 176.5 degrees.
+    // Thirteen upgraded ticks turn through 182.5 degrees; twenty-two normal ticks turn through 176.5.
     for (let tick = 0; tick < 22; tick++) {
       const input = new Map([['p1', steering(right)]]);
-      if (tick < 11) input.set('p0', steering(right));
+      if (tick < 13) input.set('p0', steering(right));
       step(game, input);
       assert.ok(inner.alive && outer.alive, `both riders survive tick ${tick + 1}`);
-      if (tick === 10) {
+      if (tick === 12) {
         const diameter = Math.abs(inner.y - innerStart);
-        assert.ok(diameter > 50 && diameter < 56, `tight U-turn spans ${diameter}`);
+        assert.ok(diameter > 58 && diameter < 64, `tight U-turn spans ${diameter}`);
       }
     }
     const outerDiameter = Math.abs(outer.y - outerStart);

@@ -68,8 +68,8 @@ export const SLOT_COLORS = ['#22d3ee', '#ff4fa3', '#a3e635', '#fb923c', '#a78bfa
 
 export const RIDER_SPEED = 150;
 export const RIDER_TURN_RATE = 2.8;
-/** GRIP halves the turn radius at unchanged speed, lasting until the next round. */
-export const GRIP_TURN_MULTIPLIER = 2;
+/** GRIP reduces the turn radius by about 43% at unchanged speed, lasting until the next round. */
+export const GRIP_TURN_MULTIPLIER = 1.75;
 export function riderTurnRate(player: { grip: boolean }): number {
   return RIDER_TURN_RATE * (player.grip ? GRIP_TURN_MULTIPLIER : 1);
 }

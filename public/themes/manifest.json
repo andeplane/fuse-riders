@@ -200,7 +200,7 @@
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Green U-turn arrow: half the turn radius for this round; collectible once per rider."
+      "description": "Green U-turn arrow: 43% tighter turn radius for this round; collectible once per rider."
     }
   }
 }
