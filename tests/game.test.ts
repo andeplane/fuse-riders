@@ -98,6 +98,7 @@ test('replaying the same accepted inputs produces the same snapshots and events'
     assert.deepEqual(step(first, current), step(second, current));
   }
   assert.deepEqual(toSnapshot(first), toSnapshot(second));
+  assert.deepEqual(first.moments, second.moments);
 });
 
 test('trail segments remain active through T+159 and expire exactly at T+160', () => {
@@ -159,7 +160,7 @@ test('a due blast removes an intersecting segment before trail collision', () =>
   assert.ok(result.events.some((event) => event.type === 'explosion' && event.bombId === 99));
 });
 
-test('swept movement collides with an old trail even when the endpoint has crossed it', () => {
+test('swept movement stops at first contact with an old trail', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
   const rider = state.players.get('p0')!;
@@ -170,9 +171,9 @@ test('swept movement collides with an old trail even when the endpoint has cross
   owner.x = 900;
   owner.y = 600;
   owner.trail = [{
-    x1: 503,
+    x1: 510,
     y1: 300,
-    x2: 503,
+    x2: 510,
     y2: 400,
     createdTick: state.tick - SELF_TRAIL_GRACE_TICKS,
     expiresAtTick: state.tick + 100,
@@ -180,7 +181,9 @@ test('swept movement collides with an old trail even when the endpoint has cross
   const result = step(state, new Map());
   assert.equal(rider.alive, false);
   assert.equal(state.matchStats.get('p0')!.survivalTicks, 2, 'the countdown transition tick and fatal tick both simulate movement');
-  assert.equal(state.matchStats.get('p0')!.distanceUnits, 15);
+  assert.ok(Math.abs(rider.x - 504) < 1e-6);
+  assert.ok(Math.abs(state.matchStats.get('p0')!.distanceUnits - 11.5) < 1e-6);
+  assert.equal(rider.trail.at(-1)!.x2, rider.x, 'the fatal trail reaches the impact pose');
   assert.equal(state.matchStats.get('p0')!.deathsByCause.trail, 1);
   assert.equal(state.matchStats.get('p1')!.eliminations, 1);
   assert.equal(state.roundParticipants.get('p0')!.eliminatedAtTick, state.tick);
@@ -208,6 +211,111 @@ test('recent self trail is ignored but becomes lethal at the exact grace boundar
   assert.equal(oldPlayer.alive, false);
 });
 
+test('following riders survive when their swept paths are close but their bodies stay apart in time', () => {
+  for (const reversed of [false, true]) {
+    for (const boosted of [false, true]) {
+      const state = gameWithPlayers();
+      enterPlaying(state);
+      const behind = reversed ? 'p1' : 'p0';
+      const ahead = reversed ? 'p0' : 'p1';
+      for (const [id, x] of [[behind, 500], [ahead, 520]] as const) {
+        Object.assign(state.players.get(id)!, {
+          x, y: 350, angle: 0, trail: [], boostUntilTick: boosted ? state.tick + 10 : 0,
+        });
+      }
+      const result = step(state, new Map());
+      assert.ok([...state.players.values()].every(player => player.alive));
+      assert.equal(state.players.get(ahead)!.x - state.players.get(behind)!.x, 20);
+      assert.equal(result.events.some(event => event.type === 'playerEliminated'), false);
+      assert.equal(state.phase, 'playing');
+    }
+  }
+});
+
+test('a rider crossing behind another hits only the existing trail, without killing its owner', () => {
+  for (const reversed of [false, true]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    const owner = state.players.get(reversed ? 'p1' : 'p0')!;
+    const crossing = state.players.get(reversed ? 'p0' : 'p1')!;
+    Object.assign(owner, { x: 500, y: 350, angle: 0, trail: [{
+      x1: 480, y1: 350, x2: 500, y2: 350, createdTick: state.tick, expiresAtTick: state.tick + 100,
+    }] });
+    Object.assign(crossing, { x: 490, y: 338, angle: Math.PI / 2, trail: [] });
+    const result = step(state, new Map());
+    assert.equal(owner.alive, true);
+    assert.equal(crossing.alive, false);
+    assert.equal(state.roundWinnerId, owner.id);
+    assert.deepEqual(result.events.filter(event => event.type === 'playerEliminated'), [
+      { type: 'playerEliminated', playerId: crossing.id, cause: 'trail' },
+    ]);
+    assert.equal(state.matchStats.get(owner.id)!.eliminations, 1);
+  }
+});
+
+test('rider body contact includes tangency but excludes a near miss', () => {
+  for (const separation of [6, 6.001]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    Object.assign(state.players.get('p0')!, { x: 500, y: 350, angle: 0, trail: [] });
+    Object.assign(state.players.get('p1')!, { x: 507.5, y: 350 + separation, angle: Math.PI, trail: [] });
+    step(state, new Map());
+    assert.ok([...state.players.values()].every(player => player.alive === (separation > 6)));
+  }
+});
+
+test('trail-width heads can skim a trail, while exact edge contact still kills', () => {
+  for (const gap of [6, 6.001, 9]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    const rider = state.players.get('p0')!;
+    const other = state.players.get('p1')!;
+    Object.assign(rider, { x: 500, y: 350 + gap, angle: 0, trail: [] });
+    Object.assign(other, { x: 900, y: 600, trail: [{
+      x1: 450, y1: 350, x2: 600, y2: 350, createdTick: state.tick, expiresAtTick: state.tick + 100,
+    }] });
+    step(state, new Map());
+    assert.equal(rider.alive, gap > 6);
+    if (gap === 6) {
+      assert.equal(rider.x, 500, 'contact at tick start does not advance the corpse');
+      assert.equal(rider.trail.length, 0, 'zero travel does not leave a zero-length segment');
+    }
+  }
+});
+
+test('fatal trail ends at the nearest contact regardless of trail array order', () => {
+  for (const positions of [[511, 513], [513, 511]]) {
+    const state = gameWithPlayers();
+    enterPlaying(state);
+    const rider = state.players.get('p0')!;
+    Object.assign(rider, { x: 500, y: 350, angle: 0, trail: [] });
+    Object.assign(state.players.get('p1')!, { x: 900, y: 600, trail: positions.map(x => ({
+      x1: x, y1: 300, x2: x, y2: 400, createdTick: state.tick, expiresAtTick: state.tick + 100,
+    })) });
+    const { snapshot } = step(state, new Map());
+    const dead = snapshot.players.find(player => player.id === rider.id)!;
+    assert.equal(dead.alive, false);
+    assert.ok(Math.abs(dead.x - 505) < 1e-6);
+    assert.equal(dead.y, 350);
+    assert.deepEqual(dead.trail, [{ x1: 500, y1: 350, x2: dead.x, y2: 350,
+      createdTick: state.tick, expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS }]);
+  }
+});
+
+test('a crash at a rounded trail endpoint records the contact instead of the previous tick', () => {
+  const state = gameWithPlayers();
+  enterPlaying(state);
+  const rider = state.players.get('p0')!;
+  Object.assign(rider, { x: 500, y: 350, angle: 0, trail: [] });
+  Object.assign(state.players.get('p1')!, { x: 900, y: 600, trail: [{
+    x1: 510, y1: 353, x2: 510, y2: 400, createdTick: state.tick, expiresAtTick: state.tick + 100,
+  }] });
+  step(state, new Map());
+  assert.equal(rider.alive, false);
+  assert.ok(Math.abs(Math.hypot(rider.x - 510, rider.y - 353) - 6) < 1e-6);
+  assert.equal(rider.trail.at(-1)!.x2, rider.x);
+});
+
 test('head-on swept rider collision eliminates both and produces a draw', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
@@ -218,13 +326,18 @@ test('head-on swept rider collision eliminates both and produces a draw', () => 
   const result = step(state, new Map());
   assert.equal(left.alive, false);
   assert.equal(right.alive, false);
+  assert.ok(Math.abs(left.x - 507) < 1e-6);
+  assert.ok(Math.abs(right.x - 513) < 1e-6);
+  assert.equal(left.trail.at(-1)!.x2, left.x);
+  assert.equal(right.trail.at(-1)!.x2, right.x);
   assert.equal(state.roundParticipants.get('p0')!.eliminatedAtTick, state.tick);
   assert.equal(state.roundParticipants.get('p1')!.eliminatedAtTick, state.tick);
   assert.equal(state.phase, 'roundOver');
   assert.equal(state.roundWinnerId, undefined);
   assert.deepEqual(result.events.filter((event) => event.type === 'playerEliminated').map((event) => event.playerId).sort(), ['p0', 'p1']);
   assert.ok(result.events.some((event) => event.type === 'roundEnded' && event.winnerId === undefined));
-  assert.deepEqual(result.events.map((event) => event.type), ['playerEliminated', 'playerEliminated', 'roundEnded']);
+  // Everybody dying to each other is a highlight moment: it is announced before the round ends (ADR 043/044).
+  assert.deepEqual(result.events.map((event) => event.type), ['playerEliminated', 'playerEliminated', 'moment', 'roundEnded']);
   assert.ok(state.roundPlacements.every((placement) => placement.place === 1 && placement.scoreUnits === 4 * POINT_UNIT));
   assert.equal(state.matchStats.get('p0')!.eliminations, 1);
   assert.equal(state.matchStats.get('p1')!.eliminations, 1);

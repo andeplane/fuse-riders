@@ -14,6 +14,7 @@ import { arenaWall, trailStuds } from '../arena-wall.js';
 import { observeArenaDisplay } from './viewport.js';
 import { blastFrame } from '../blast-animation.js';
 import { reloadRemaining, RELOAD_RING_RADIUS } from '../reload-ring.js';
+import { TrailDebris } from '../trail-debris.js';
 
 const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
@@ -129,7 +130,10 @@ class ArenaScene extends Phaser.Scene {
   trailHistoryBuilds = 0;
   private floorKey = ''; private backgroundKey = '';
   private transitions = new EffectTransitions();
-  constructor(private readonly particleLimit: number, private readonly loaded: () => void) { super('arena'); }
+  private debris: TrailDebris;
+  constructor(private readonly particleLimit: number, private readonly loaded: () => void) {
+    super('arena'); this.debris = new TrailDebris(Math.floor(particleLimit / 2));
+  }
   /** Phaser reset clears its sets, but does not detach pending XHR callbacks. */
   cancelPreload(): void {
     const loader=this.load;
@@ -180,7 +184,7 @@ class ArenaScene extends Phaser.Scene {
     this.world.add(this.inkImage);
     this.loaded();
   }
-  resetEffects(): void { this.transitions.reset(); this.sparks?.killAll(); this.trailHistory.reset(); }
+  resetEffects(): void { this.transitions.reset(); this.sparks?.killAll(); this.trailHistory.reset(); this.debris.reset(); }
   invalidate(): void { this.trailHistory.reset(); this.floorKey = ''; this.backgroundKey = ''; }
   objectCount(): number { return (this.children?.length ?? 0) + (this.world?.length ?? 0); }
   particleCount(): number { return this.sparks?.getAliveParticleCount() ?? 0; }
@@ -360,21 +364,31 @@ class ArenaScene extends Phaser.Scene {
       for(const circle of frame.circles) g.fillStyle(tints[circle.tone],circle.alpha).fillCircle(circle.x,circle.y,circle.radius);
       for(const spark of frame.sparks) g.fillStyle(tints.warm,spark.alpha).fillRect(spark.x-spark.size/2,spark.y-spark.size/2,spark.size,spark.size);
     }
+    for(const piece of this.debris.update(s,now,matchId)) {
+      const tint=color(piece.color);
+      g.lineStyle(piece.width+5,tint,piece.alpha*.16).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+      g.lineStyle(piece.width,tint,piece.alpha).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+      g.lineStyle(1,0xffffff,piece.alpha*.65).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
+    }
     for(const p of s.players) {
       if(!p.alive) continue;
       const tint=color(p.color);
-      f.lineStyle(3,tint).strokeCircle(p.x,p.y,20);
-      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,44,p.angle,this.textures.exists('avatars')?p.avatarId:undefined);
-      const a=p.angle; f.fillStyle(tint).fillTriangle(p.x+Math.cos(a)*31,p.y+Math.sin(a)*31,p.x+Math.cos(a+.27)*22,p.y+Math.sin(a+.27)*22,p.x+Math.cos(a-.27)*22,p.y+Math.sin(a-.27)*22);
+      // The portrait stays upright at the trail head; only its direction marker turns.
+      g.fillStyle(0x080c22).fillCircle(p.x,p.y,15);
+      f.lineStyle(1,tint).strokeCircle(p.x,p.y,15);
+      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
+      const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
+      f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
       // The local rider reads YOU with a breathing ring so a player finds themselves at a glance (five identical heads otherwise).
-      if(p.id===selfId){f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,30+Math.sin(now/180)*2);this.label('YOU',p.x,p.y-36,'#ffffff',12);}
-      else this.label(`P${p.slot+1}`,p.x,p.y-33,p.color);
+      // Radii follow #202's smaller portrait and #198's reload ring (17): the ring hugs them and stays clear of the 29px shield.
+      if(p.id===selfId){f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,22+Math.sin(now/180)*2);this.label('YOU',p.x,p.y-30,'#ffffff',12);}
+      else this.label(`P${p.slot+1}`,p.x,p.y-27,p.color);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;
-        f.lineStyle(5,0x080c22,.95).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
-        f.lineStyle(3,tint,.2).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
-        f.lineStyle(3,tint).beginPath().arc(p.x,p.y,RELOAD_RING_RADIUS,start,Math.PI*1.5,false).strokePath();
+        f.lineStyle(2,0x080c22,.95).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(2,tint,.2).strokeCircle(p.x,p.y,RELOAD_RING_RADIUS);
+        f.lineStyle(2,tint).beginPath().arc(p.x,p.y,RELOAD_RING_RADIUS,start,Math.PI*1.5,false).strokePath();
       }
       if(p.shielded || p.shieldGraceUntilTick>s.tick) { f.lineStyle(2,0x8affff,.8).strokeCircle(p.x,p.y,29); const a=now/350; f.fillStyle(0xcaffff).fillRect(p.x+Math.cos(a)*29-4,p.y+Math.sin(a)*29-4,8,8); }
       if(p.portalGraceUntilTick>s.tick || p.invulnerableUntilTick>s.tick) f.lineStyle(3,0xffdbff,.6).strokeCircle(p.x,p.y,35+Math.sin(now/80)*2);
