@@ -1,8 +1,8 @@
 import { assetUrl } from './asset-url.js';
 import type { GameSnapshot } from '../shared/protocol.js';
+import { GRAVITY_FIELD_TICKS, TICK_HZ } from '../shared/game.js';
 import type { ThemeDefinition } from './themes.js';
 
-const TICK_HZ = 20;
 const PICKUP_FADE_TICKS = 2 * TICK_HZ;
 const imageCache = new Map<string, HTMLImageElement | null>();
 
@@ -118,7 +118,7 @@ export function drawPickups(
     else if (pickup.type === 'star') fallbackStar(ctx, pickup.x, pickup.y, size);
     else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
-    const labels: Record<PickupType, string> = { stopwatch: 'FUSE', gun: 'GUN', shell: 'SHELL', blast: 'BLAST+', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' };
+    const labels: Record<PickupType, string> = { stopwatch: 'FUSE', gun: 'GUN', shell: 'SHELL', blast: 'BLAST+', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' , boost: 'BOOST', gravity: 'SINGULARITY'};
     const text = labels[pickup.type];
     const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);
@@ -162,6 +162,30 @@ export function portalPalettes(ids: readonly string[]): Array<readonly [string, 
     taken.add(slot);
     return PORTAL_PALETTES[slot]!;
   });
+}
+
+export function drawGravityFields(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {
+  for (const field of snapshot.gravityFields) {
+    const life = Math.max(0, Math.min(1, (field.expiresAtTick - tick) / GRAVITY_FIELD_TICKS));
+    const swirl = now / 900;
+    ctx.save();
+    ctx.globalAlpha = 0.28 + life * 0.3;
+    const glow = ctx.createRadialGradient(field.x, field.y, field.radius * 0.1, field.x, field.y, field.radius);
+    glow.addColorStop(0, '#0a0618');
+    glow.addColorStop(0.55, 'rgba(120, 78, 214, .55)');
+    glow.addColorStop(1, 'rgba(120, 78, 214, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(field.x, field.y, field.radius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c9a6ff'; ctx.lineWidth = 2; ctx.globalAlpha = 0.5 + life * 0.3;
+    // Infalling arcs: the direction of the pull, turning so a still image still reads as motion.
+    for (let arm = 0; arm < 3; arm += 1) {
+      const start = swirl + (arm * Math.PI * 2) / 3;
+      ctx.beginPath(); ctx.arc(field.x, field.y, field.radius * (0.35 + 0.2 * arm), start, start + 1.1); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.fillStyle = '#0a0618';
+    ctx.beginPath(); ctx.arc(field.x, field.y, field.radius * 0.16, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
 }
 
 export function drawPortals(ctx: CanvasRenderingContext2D, snapshot: GameSnapshot, tick: number, now: number): void {

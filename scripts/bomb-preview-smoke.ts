@@ -35,6 +35,24 @@ try {
       const arena = backend === 'fallback' ? undefined : createPhaserArena(canvas, { renderer: backend });
       if (arena) await arena.ready;
       try {
+        // The marker is a cyan square; read a strip across its top edge and return its centre column. Taking the
+        // window as an argument is what lets the bouncing cases below look where their marker actually lands.
+        const markerCenter = (left: number) => {
+          const y = 286, width = 80, height = 9;
+          const pixels = new Uint8Array(width * height * 4);
+          if (backend === 'auto') {
+            const gl = canvas.getContext('webgl')!;
+            gl.readPixels(left, canvas.height - y - height, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+          } else pixels.set(canvas.getContext('2d')!.getImageData(left, y, width, height).data);
+          let minimum = Infinity, maximum = -Infinity;
+          for (let i = 0; i < pixels.length; i += 4) {
+            if (pixels[i]! < 100 && pixels[i + 1]! > 140 && pixels[i + 2]! > 140) {
+              const column = left + (i / 4) % width;
+              minimum = Math.min(minimum, column); maximum = Math.max(maximum, column);
+            }
+          }
+          return (minimum + maximum) / 2;
+        };
         for (const bombChargeTicks of [8, 24]) for (const timing of ['local', 'world'] as const) {
           const centers = [];
           for (let frame = 0; frame < 4; frame++) {
@@ -44,27 +62,38 @@ try {
               : { ...snapshot, bombChargeTicks, tick };
             if (arena) arena.render(shown, 1000 + frame * 1000 / 60, themes['neon-pixel'], timing);
             else drawArena(canvas.getContext('2d')!, shown, 1000 + frame * 1000 / 60, themes['neon-pixel'], {});
-            // Only the top edge of the cyan landing square occupies this strip.
-            const x = 280, y = 286, width = 80, height = 9;
-            const pixels = new Uint8Array(width * height * 4);
-            if (backend === 'auto') {
-              const gl = canvas.getContext('webgl')!;
-              gl.readPixels(x, canvas.height - y - height, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-            } else pixels.set(canvas.getContext('2d')!.getImageData(x, y, width, height).data);
-            let minimum = Infinity, maximum = -Infinity;
-            for (let i = 0; i < pixels.length; i += 4) {
-              if (pixels[i]! < 100 && pixels[i + 1]! > 140 && pixels[i + 2]! > 140) {
-                const column = x + (i / 4) % width;
-                minimum = Math.min(minimum, column); maximum = Math.max(maximum, column);
-              }
-            }
-            const center = (minimum + maximum) / 2;
+            const center = markerCenter(280);
             if (!Number.isFinite(center) || Math.abs(center - (300 + frame * 100 / bombChargeTicks)) > 1.5) {
               throw Error(`${backend}/${timing} marker at frame ${frame}: ${center}`);
             }
             centers.push(center);
           }
           results.push({ backend, timing, bombChargeTicks, centers });
+        }
+        // A new room bounces by default (#175), and the fold is the only place the two ramps disagree: below the
+        // peak they are identical, which is every frame the cases above render. At a window of 8 the rider sits at
+        // x=200, so ages 7.5 → 9 walk the bouncing marker out to full reach and back, 581.25 → 600 → 581.25 →
+        // 562.5, while the clamped ramp climbs the same way to 600 and then stays there. They agree at 7.5 and 8
+        // and part company after the peak, so the control is what proves the flag moved the marker.
+        for (const timing of ['local', 'world'] as const) {
+          for (const aimBounce of [true, false] as const) {
+            const expected = aimBounce ? [581.25, 600, 581.25, 562.5] : [581.25, 600, 600, 600];
+            const ages = [7.5, 8, 8.5, 9], centers = [];
+            for (let index = 0; index < ages.length; index++) {
+              const tick = 40 + ages[index]!;
+              const shown = timing === 'local'
+                ? { ...snapshot, bombChargeTicks: 8, aimBounce, players: snapshot.players.map(player => ({ ...player, presentationTick: tick })) }
+                : { ...snapshot, bombChargeTicks: 8, aimBounce, tick };
+              if (arena) arena.render(shown, 2000 + index * 1000 / 60, themes['neon-pixel'], timing);
+              else drawArena(canvas.getContext('2d')!, shown, 2000 + index * 1000 / 60, themes['neon-pixel'], {});
+              const center = markerCenter(Math.round(expected[index]!) - 40);
+              if (!Number.isFinite(center) || Math.abs(center - expected[index]!) > 1.5) {
+                throw Error(`${backend}/${timing} bounce=${aimBounce} at age ${ages[index]}: ${center}, wanted ${expected[index]}`);
+              }
+              centers.push(center);
+            }
+            results.push({ backend, timing, aimBounce, bombChargeTicks: 8, centers });
+          }
         }
       } finally { arena?.destroy(); canvas.remove(); }
     }

@@ -25,6 +25,7 @@
     "@stdlib/math-base-special-atan2": "0.3.1",
     "@stdlib/math-base-special-cos": "0.3.1",
     "@stdlib/math-base-special-sin": "0.3.1",
+    "mixpanel-browser": "^2.83.0",
     "phaser": "3.90.0",
     "qrcode": "^1.5.4",
     "ws": "^8.18.3"

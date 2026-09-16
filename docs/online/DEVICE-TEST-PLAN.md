@@ -74,6 +74,8 @@ every trial rather than only the latest.
 
 ## #15 — Dropped touch inputs
 
+> `scripts/input-drop-probe.ts` was removed with the host-star runtime. In the peer-to-peer runtime an input is a log entry the phone itself folds on the next tick; run `scripts/p2p-measure.ts` for scripted input-to-state latencies and read a physical phone's `artifacts/telemetry/<ROOM>.ndjson` (posted while `npm run dev` serves the room) with `scripts/telemetry-report.ts`.
+
 Fixed in #38 for the synthetic case: `scripts/input-drop-probe.ts` measured
 98.1% of playing-phase inputs rejected locally before the fix and 0.98% after
 (60 s, 100–300 ms late snapshots, a frozen tab). That harness explicitly
@@ -88,19 +90,20 @@ phone as guest instead, laptop as host.
 **Steps**:
 1. Host a fresh room from the phone at the public URL (or join as guest for
    the repeat run). Note the room code.
-2. From the laptop, run the real-phone probe mode against the deployed URL:
-   `BENCH_ALLOW_REMOTE=1 ONLINE_URL=https://andeplane.github.io/fuse-riders/ PROBE_ROOM=<code> npx tsx scripts/input-drop-probe.ts`
-   (see [NETWORK-HARNESS.md § Input drop probe](NETWORK-HARNESS.md#input-drop-probe)
-   for flags). Start the race from the phone once the probe's guest context
-   has joined.
-3. While the probe runs (default 60 s), physically operate the phone: hold
+2. Serve the room from the laptop with `npm run dev` (the dev server records
+   every device's telemetry) and join from the phone over the LAN address, or
+   open the deployed URL with `?telemetry=1` on the phone. Start the race
+   once the laptop's guest has joined.
+3. For about 60 s, physically operate the phone: hold
    left/right steer continuously across direction changes, fire repeatedly
    including while steering, and charge-and-release a bomb a few times. Count
    your own button presses and, independently, count visible responses
    (steering change, shot fired, bomb notice) — do this for at least 50
    discrete presses total.
-4. Save `artifacts/input-drop-probe.json` from the laptop run into the
-   evidence folder.
+4. Save `artifacts/telemetry/<ROOM>.ndjson` and the output of
+   `npx tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson`
+   into the evidence folder: inputs, rollbacks, gaps and status changes per
+   device.
 
 **Capture**: revision, both device models/OS/browser versions, the saved
 probe JSON (laptop-guest-side local-rejection percentage and fire-edge
@@ -120,9 +123,10 @@ fail and needs a new issue with the press count, timing and screenshots.
 
 #134 replaced the lobby half of #13: on a phone the **lobby** is a plain
 screen (room code with join link and QR, riders, and for the host START
-RACE / ADD AI / ROOM SETTINGS / TV VIEW, with the join form inline before
-taking a seat) in either orientation, with no rotate gate and one ROOM
-button. From **countdown** through **matchOver** `mobilePlayPolicy` is
+RACE / ADD AI / ROOM SETTINGS — no TV VIEW, a phone is never the TV — with
+the join form inline before taking a seat) in either orientation, with no
+rotate gate and one ROOM button. It is the desktop lobby stacked (headline,
+QR card, riders, actions) rather than a card of its own. From **countdown** through **matchOver** `mobilePlayPolicy` is
 active: the full-screen thirds are the only controller and roster/host
 actions live inside the ☰ MENU overlay, auto-opened for a phone host in
 matchOver. `scripts/mobile-phase-smoke.ts` asserts the lobby screen in
@@ -140,8 +144,8 @@ quality.
    (any tap, not only ♫ RADIO), continuing the same track.
 2. In the **lobby** screenshot the phone: one ROOM button, the room code
    with COPY LINK and a QR, "0 riders ready", and — without scrolling inside any
-   strip — START RACE, ROOM SETTINGS, TV VIEW and ADD AI reachable by
-   normal page scrolling. No "Rotate your phone" gate.
+   strip — START RACE, ROOM SETTINGS and ADD AI reachable by normal page
+   scrolling, and no TV VIEW button. No "Rotate your phone" gate.
 3. Rotate to landscape and back: the same lobby screen both times, nothing
    hidden. JOIN AS PLAYER, then add an AI opponent and set a short match
    length so a match can complete quickly.
@@ -153,9 +157,9 @@ quality.
    countdown screenshot (same thirds, same pill).
 6. Let the match reach **matchOver**; screenshot. Confirm exactly one
    control surface, the ☰ MENU overlay auto-opened for the phone host with
-   REMATCH, MAIN MENU, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
+   REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
-7. MAIN MENU returns to the lobby screen of step 2.
+7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → END ROOM — behind ☰ MENU while the phone is the controller, in the header on the lobby screen.
 
 **Capture**: revision, device/OS/browser, one screenshot per phase (lobby
 portrait + landscape, countdown, playing, matchOver), and a short note of

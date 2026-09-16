@@ -4,7 +4,16 @@ For proposed optimization work and independently assignable experiments, see the
 
 Fuse Riders uses **Phaser 3.90.0 for arena presentation**. The shared TypeScript simulation remains the authority; Phaser physics, input and audio systems do not own game rules. DOM menus, pointer controls and the existing audio director remain outside the scene.
 
-The cleaner presentation restoration ([issue #63](https://github.com/andeplane/fuse-riders/issues/63)) takes its visual reference from the pre-Phaser client at `1776ef5`: radial arena shading, a world-anchored grid, slimmer trails, simple three-layer blast silhouettes and restrained rider outlines. Phaser still renders the supplied snapshots. The background texture is cached independently of the shrinking boundary; the existing theme palettes, avatars and gameplay geometry are retained. The later border cleanup removes the decorative block wall, corner ornaments and outer canvas frame in both Phaser and Canvas; a thin boundary line and outside shading still mark the playable area. Online screens also reuse the earlier squared panels, cyan primary action and player-colored score cards above the desktop board.
+The cleaner presentation restoration ([issue #63](https://github.com/andeplane/fuse-riders/issues/63)) takes its visual reference from the pre-Phaser client at `1776ef5`: radial arena shading, a world-anchored grid, slimmer trails, simple three-layer blast silhouettes and restrained rider outlines. Phaser still renders the supplied snapshots. The background texture is cached independently of the shrinking boundary; the existing theme palettes, avatars and gameplay geometry are retained. The later border cleanup removed the decorative block wall, corner ornaments and outer canvas frame in both Phaser and Canvas, leaving one thin boundary line for every theme; see **Themed arena boundary** below. Online screens also reuse the earlier squared panels, cyan primary action and player-colored score cards above the desktop board.
+
+
+## Themed arena boundary
+
+The border cleanup left one thin rim for every theme, which erased the only remaining difference between the two visual styles: `neon-pixel` rendered `clean-neon`'s geometry, and the Phaser arena read neither `wallWidth` nor `pixelated` at all. `src/client/arena-wall.ts` now owns the choice — `arenaWall(width, height, inset, theme)` returns either a `pixel` wall (brick runs, corner brackets, warning studs) or a `smooth` wall (one `wallWidth` stroke outside the rim) — and both the Phaser scene and the legacy Canvas renderer only paint what it returns, so they cannot diverge again.
+
+`rendering.pixelated` is the discriminator, and it now drives the boundary, the trail core (2×2 studs at `TRAIL_STUD_SPACING` world units instead of a hairline) and square rather than round trail end caps. `rendering.trailGlow` sets the outer glow width, which nothing read before. The rim itself is not theme-specific: both styles draw it at 4px with a glow (a wide translucent stroke under a tight one, since Phaser `Graphics` has no `shadowBlur`), and outside shading still marks the playable area in both. Brick depth is clamped to the boundary inset, so a boundary thinner than a brick run cannot draw off-canvas.
+
+Online rooms expose the choice through a `STYLE` control in the room header that cycles the `themes` registry and swaps live — both texture sets are preloaded and palettes are read per frame — and it is hidden on a shared-TV rider's phone, which never draws an arena. `selectedTheme()` resolves `?theme=` first, then the stored choice, then the default; a valid `?theme=` is stored, because entering a room rewrites the query string (`?solo=1`, `?room=CODE`) and would otherwise drop it.
 
 The benchmark tables and showcase images below describe their recorded historical revisions, before this styling restoration; they are not performance certification for the new presentation.
 
@@ -14,7 +23,13 @@ The [smooth-trail follow-up](online/SMOOTH-TRAILS-2026-09-14.md) enables antiali
 
 The [fractional presentation audit](online/FRACTIONAL-PRESENTATION.md) describes the held-bomb preview fix, its per-rider visual time, and remaining opportunities for smoother rendering.
 
-The scene batches sprites, draws simple layered blasts, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include smooth luminous trails, restrained rider outlines, animated charge/fuse/target markers, readable shell/cannon silhouettes, layered radial fire, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
+The scene batches sprites, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include smooth luminous trails, restrained rider outlines, animated charge/fuse/target markers, readable shell/cannon silhouettes, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
+
+Living riders show a player-colored reload ring just outside their portrait after firing. It drains clockwise from the top over the shared weapon cooldown and disappears when that cooldown ends. Both renderers sample the supplied fractional presentation tick (per rider first, then world, then snapshot), so no timer or effect history can drift through rollback, reconnects or a paused snapshot. The ring is hidden outside active play. Run `npx tsx scripts/reload-ring-browser.ts` (optionally with `BROWSER=webkit`) to check full, partial and completed cooldowns in both themes and all rendering backends.
+
+`src/client/blast-animation.ts` samples the same explosion geometry for Phaser and the Canvas fallback: nine irregular orange/amber circles pop outward with staggered starts and a small size overshoot, then shrink and separate as the bright core collapses first. Six small square embers finish the effect. Seeded cosmetic offsets depend on bomb identity, so repeated frames and rollback do not jitter or consume simulation randomness. The faint full-radius footprint and the expanding ring stay within the supplied blast radius, as do every lobe and ember. The animation fits the existing eight-tick (400 ms) lifetime; it does not extend damage or retain expired explosions. Online uses its fractional snapshot tick; LAN supplies bounded fractional `presentationTick` metadata for cosmetics while keeping the authoritative tick intact. Blast sparks are sampled directly rather than emitted as Phaser particles; the bounded particle pool still handles rider deaths.
+
+Dead riders disappear immediately, including their avatar, heading marker, label and status auras, leaving the crash particles unobscured. Their remaining trails stay at 80% opacity in Phaser until the snapshot removes them. The Canvas fallback uses the same death multiplier and only a mild additional fade near expiry. This is presentation only; trail collision and expiry remain simulation-owned. Run `npx tsx scripts/dead-rider-browser.ts` (also with `BROWSER=webkit`) to check both themes across WebGL, Phaser Canvas and the Canvas fallback, including trail removal, death particles and avatar reuse.
 
 Desktop quality reserves 480 particles (mobile-width quality: 160), with matching live-particle limits. Phaser's total-object limit is one higher because its `atLimit` includes reserved dead particles. Sprite and label pools shrink to the current snapshot's needs plus 16 and 8 spare objects. These pools do not cap or omit valid authoritative projectiles. The snapshot validation boundary must still bound world complexity.
 
@@ -40,6 +55,8 @@ The dedicated browser check passed in Chrome and WebKit: WebGL plus forced Phase
 ```sh
 npm run typecheck
 npx tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
+npx tsx scripts/blast-browser.ts
+BROWSER=webkit npx tsx scripts/blast-browser.ts
 npx tsx scripts/phaser-browser.ts
 BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
@@ -49,10 +66,10 @@ BUILD_DIRECTORY=artifacts/phaser-dist npm run test:browser
 BUILD_DIRECTORY=artifacts/phaser-dist BROWSER=webkit npm run test:browser
 npx vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
 npx tsx scripts/phaser-pages-smoke.ts
-npx tsx scripts/phaser-showcase.ts
+npx tsx scripts/gameplay-showcase.ts
 ```
 
-The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot with a deterministic showcase state injected by `scripts/phaser-showcase.ts`, not an image-generated mockup or evidence of a natural online match. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
+The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot: `scripts/gameplay-showcase.ts` adds 5 AI riders, starts a real race, and advances ticks across the match, screenshotting whenever the bots' own play produces a busier frame (more bombs, a live portal, a fired gun shot, an explosion) — no injected fixture, no image-generated mockup. `scripts/phaser-showcase.ts` still exists for a deterministic, reproducible showcase state used in earlier reviews. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
 
 Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authority and release acceptance remain governed by the online ADRs and roadmap; this rendering work does not close those gates.
 

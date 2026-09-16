@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, type BombState, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, type BombState, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -10,22 +10,26 @@ export const BOT_MAX_NEARBY_TRAILS=512;
 /** Escape-room grid: one cell is the narrowest gap a rider fits through. */
 export const BOT_ESCAPE_CELL=2*RIDER_RADIUS+TRAIL_WIDTH;
 export const BOT_ESCAPE_ROOM_CELLS=480;
+/** Ticks a lapse of attention lasts. Keyed off the tick number, so it is replayed, never remembered. */
+export const BOT_BLUNDER_WINDOW=4;
 
 export type BotDifficulty='easy'|'medium'|'hard';
 export const BOT_DIFFICULTIES=['easy','medium','hard'] as const;
 /**
  * lookaheadTicks is how far the rider flies each candidate turn, escapeWeight how much it values having room left at
- * the end of it, and reactionTicks holds a decision for a few ticks so a weak rider answers late, as a distracted
- * human does. A deeper multi-turn search was measured against these and came out inside the noise, so it is not here.
+ * the end of it, aimError how badly it throws a target bomb, and blunderRate how often it stops steering well for a
+ * moment, the way a distracted human does. Every knob must be a pure function of folded state:
+ * the controller runs inside the fold on every device, and a rollback replays it without restoring anything it kept
+ * for itself, so a remembered decision would replay differently than it was first played and diverge the room.
+ * A deeper multi-turn search was measured against these and came out inside the noise, so it is not here.
  */
-export interface BotTier { lookaheadTicks:number; escapeWeight:number; aimError:number; reactionTicks:number }
+export interface BotTier { lookaheadTicks:number; escapeWeight:number; aimError:number; blunderRate:number }
 export const BOT_TIERS:Record<BotDifficulty,BotTier>={
-  easy:{lookaheadTicks:6,escapeWeight:0,aimError:260,reactionTicks:4},
-  medium:{lookaheadTicks:8,escapeWeight:300,aimError:110,reactionTicks:3},
-  hard:{lookaheadTicks:10,escapeWeight:300,aimError:30,reactionTicks:1},
+  easy:{lookaheadTicks:6,escapeWeight:0,aimError:260,blunderRate:.35},
+  medium:{lookaheadTicks:8,escapeWeight:300,aimError:110,blunderRate:.1},
+  hard:{lookaheadTicks:8,escapeWeight:300,aimError:30,blunderRate:0},
 };
 const DIFFICULTY_LABELS:Record<BotDifficulty,string>={easy:'Easy',medium:'Medium',hard:'Hard'};
-export const BOT_NAMES=['Ada','Turing','Hopper','Nova','Byte'] as const;
 /** The action log carries nothing per bot but its name, so the tier rides in the name: one writer, one reader, never out of step. */
 export function botDisplayName(base:string,difficulty:BotDifficulty):string{return `AI ${base} · ${DIFFICULTY_LABELS[difficulty]}`;}
 export function botDifficulty(name:string):BotDifficulty{return BOT_DIFFICULTIES.find(difficulty=>name.endsWith(`· ${DIFFICULTY_LABELS[difficulty]}`))??'medium';}
@@ -61,7 +65,6 @@ interface PlanContext {
 export class BotController {
   constructor(private dependencies:BotDependencies={random:botRandom}){}
   private cols=0;private rows=0;private blocked=new Uint8Array(0);private visited=new Int32Array(0);private queue=new Int32Array(0);private stamp=0;
-  private held=new Map<string,{at:number;left:boolean;right:boolean}>();
 
   /** Rasterise walls and the trails that outlive the lookahead, so the endpoint of a candidate turn can be asked how much room it still has. */
   private mapArena(game:Readonly<GameState>,id:string,horizon:number):void{
@@ -122,7 +125,7 @@ export class BotController {
     for(let step=1;step<=context.tier.lookaheadTicks;step++){
       const tick=game.tick+step;
       const drunk=drunkHeadingOffset(game.seed,context.id,tick,context.drunkStartedTick,context.drunkUntilTick);
-      const pose=advanceRiderPose({x,y,angle,drunkHeadingOffset:offset},{left:direction<0,right:direction>0},{distance:RIDER_SPEED/20,turn:RIDER_TURN_RATE/20,drunkHeadingOffset:drunk});
+      const pose=advanceRiderPose({x,y,angle,drunkHeadingOffset:offset},{left:direction<0,right:direction>0},{distance:(rider.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/20,turn:RIDER_TURN_RATE/20,drunkHeadingOffset:drunk});
       x=pose.x;y=pose.y;angle=pose.angle;offset=pose.drunkHeadingOffset;
       const clearance=Math.min(x-game.boundaryInset,game.width-game.boundaryInset-x,y-game.boundaryInset,game.height-game.boundaryInset-y)-RIDER_RADIUS;
       if(clearance<2||this.struck(game,context,x,y,tick,tick-game.tick)){alive=false;break;}
@@ -144,11 +147,7 @@ export class BotController {
     const enemies=[...game.players.values()].filter(candidate=>candidate.id!==id&&candidate.alive);
     const nearest=enemies.reduce<PlayerState|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const pickup=game.pickups.reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
-    const held=this.held.get(id);
-    // Elapsed, never a deadline: returning to the lobby rewinds the clock and a stale deadline would freeze the rider mid-turn.
-    const waited=held?game.tick-held.at:Infinity;
-    const steering=waited>=0&&waited<tier.reactionTicks&&held?{left:held.left,right:held.right}:this.steer(game,id,player,tier,enemies,nearest,pickup??nearest);
-    const intent:InputIntent={...steering,bomb:false};
+    const intent:InputIntent={...this.steer(game,id,player,tier,enemies,nearest,pickup??nearest),bomb:false};
     if(!nearest||game.tick<player.bombReadyAtTick)return intent;
     const distance=hypot2(nearest.x-player.x,nearest.y-player.y);
     const bearing=atan2(nearest.y-player.y,nearest.x-player.x);
@@ -170,7 +169,7 @@ export class BotController {
 
   private steer(game:Readonly<GameState>,id:string,player:PlayerState,tier:BotTier,enemies:readonly PlayerState[],nearest?:PlayerState,target?:{x:number;y:number}):{left:boolean;right:boolean}{
     const horizon=tier.lookaheadTicks;
-    const reach=horizon*RIDER_SPEED/20+RIDER_RADIUS+TRAIL_WIDTH;
+    const reach=horizon*RIDER_SPEED*BOOST_SPEED/20+RIDER_RADIUS+TRAIL_WIDTH;
     const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
       .filter(candidate=>candidate.distance<reach*reach).sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
     this.mapArena(game,id,horizon);
@@ -183,8 +182,14 @@ export class BotController {
       const value=pose.score+this.openness(context,pose)+this.pull(context,pose)+(direction===0&&pose.alive?1:0);
       if(value>best){best=value;chosen=direction;}
     }
-    const steering={left:chosen<0,right:chosen>0};
-    this.held.set(id,{at:game.tick,...steering});
-    return steering;
+    // A lapse holds for a whole window so it costs something, and both draws come from the tick, not from memory.
+    if(tier.blunderRate){
+      const window=Math.floor(game.tick/BOT_BLUNDER_WINDOW);
+      if(this.dependencies.random(game.seed,id+':lapse',window)<tier.blunderRate){
+        const swerve=this.dependencies.random(game.seed,id+':swerve',window);
+        chosen=swerve<1/3?0:swerve<2/3?-1:1;
+      }
+    }
+    return {left:chosen<0,right:chosen>0};
   }
 }

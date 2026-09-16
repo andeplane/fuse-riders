@@ -95,6 +95,11 @@ jobs:
         run: npx tsx scripts/keyboard-smoke.ts
         env:
           HOME_URL: http://localhost:8787/
+      # Compact desktop bar, ultrawide fit, resize recovery and the ? help — uncovered until #166 found it broken.
+      - name: Desktop control bar and keyboard help
+        run: npx tsx scripts/desktop-controls-smoke.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
       # Keep five-peer functional assertions on Canvas; six software-GL views
       # overloaded the runner. Single-view Phaser remains a separate required gate.
       - name: Online WebRTC room smoke (Canvas)
@@ -107,6 +112,14 @@ jobs:
           SMOKE_RIDERS: 3
           BROWSER: webkit
           ROOM_RENDERER: canvas
+      # The unit tests pin the charge ramp; this is the only thing that renders it, and a new room bounces by
+      # default, so without it CI never draws the ramp most rooms actually use (#176).
+      - name: Chrome bomb charge preview
+        run: npx tsx scripts/bomb-preview-smoke.ts
+      - name: WebKit bomb charge preview
+        run: npx tsx scripts/bomb-preview-smoke.ts
+        env:
+          BROWSER: webkit
       - name: Chrome Phaser lifecycle and fallback
         run: npx tsx scripts/phaser-browser.ts
       - name: WebKit Phaser lifecycle and fallback
@@ -138,8 +151,12 @@ jobs:
         run: npx tsx scripts/shared-room-smoke.ts
         env:
           ONLINE_URL: http://localhost:8787/
-      - name: Stream packet traffic benchmark
-        run: npx tsx scripts/benchmark-actions.ts
+      - name: Cross-engine determinism replay
+        run: npx tsx scripts/determinism-replay.ts
+      - name: Six-peer WebRTC mesh transport
+        run: npx tsx scripts/p2p-mesh-browser.ts
+        env:
+          ONLINE_URL: http://localhost:8787/
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@v4

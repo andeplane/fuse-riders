@@ -76,6 +76,10 @@ export const BOMB_COOLDOWN_TICKS = 80;
 export const BOMB_BLAST_RANGE = 90;
 export const BLAST_VISIBLE_TICKS = 8;
 export const BLAST_LEVEL_RANGE = 25;
+/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with blast level like the blast itself (#166). */
+export const GRAVITY_FIELD_TICKS = 80;
+/** Peak pull at the centre, as a share of a tick's travel. Well under 1, so a rider is dragged and slowed, never captured. */
+export const GRAVITY_PULL_PER_TICK = 0.45;
 
 export const PICKUP_SPAWN_INTERVAL_TICKS = 80;
 export const PICKUP_LIFETIME_TICKS = 300;
@@ -90,6 +94,9 @@ export const PICKUP_SPAWN_MARGIN = 40;
 export const PICKUP_RIDER_BOMB_CLEARANCE = 80;
 export const PICKUP_TRAIL_CLEARANCE = 40;
 export const PICKUP_SEPARATION = 28;
+/** Three seconds a quarter faster (#166). */
+export const BOOST_DURATION_TICKS = 60;
+export const BOOST_SPEED = 1.25;
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
 
@@ -103,7 +110,8 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export type PickupType = 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal';
+export const PICKUP_TYPES = ['stopwatch', 'gun', 'shell', 'target', 'blast', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity'] as const;
+export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
   id: PlayerId;
@@ -131,10 +139,14 @@ export interface PlayerState extends Required<PlayerIdentity> {
   bombReadyAtTick: number;
   bombChargeStartedTick?: number;
   gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean;
+  /** The next ordinary launch leaves a gravity field behind its blast (#166). */
+  gravityArmed: boolean;
   bombTarget?: AimPoint;
   fuseLevel?: number;
   blastLevel: 0 | 1 | 2;
   invulnerableUntilTick: number;
+  /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
+  boostUntilTick: number;
   drunkUntilTick: number; inkUntilTick: number;
   drunkStartedTick: number;
   drunkHeadingOffset: number;
@@ -159,7 +171,16 @@ export interface BombState {
   flightPath: FlightPoint[];
   placedTick: number;
   explodeAtTick: number;
-  blastRange: number; shell?: { vx: number; vy: number; gun?: boolean };
+  blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean };
+}
+
+export interface GravityField {
+  bombId: number;
+  ownerId: PlayerId;
+  x: number;
+  y: number;
+  radius: number;
+  expiresAtTick: number;
 }
 
 export interface BlastState {
@@ -193,6 +214,7 @@ export interface GameState {
   blasts: BlastState[];
   pickups: PickupState[];
   portalPairs: PortalPair[];
+  gravityFields: GravityField[];
   nextBombId: number;
   nextPickupId: number;
   nextPickupSpawnTick: number;
@@ -246,6 +268,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     blasts: [],
     pickups: [],
     portalPairs: [],
+    gravityFields: [],
     nextBombId: 1,
     nextPickupId: 1,
     nextPickupSpawnTick: 0,
@@ -280,8 +303,9 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     bombReadyAtTick: 0,
     blastLevel: 0,
     invulnerableUntilTick: 0,
+    boostUntilTick: 0,
     drunkUntilTick: 0, inkUntilTick: 0,
-    targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false,
+    targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false, gravityArmed: false,
     drunkStartedTick: 0,
     drunkHeadingOffset: 0,
 
@@ -349,7 +373,7 @@ export function returnToLobby(state: GameState, newMatchId: string): void {
     if (player.connected) addPlayer(fresh, { id: player.id, name: player.name, avatarId: player.avatarId, slot: player.slot, color: player.color, connected: true });
   }
   Object.assign(state, fresh, {
-    phaseEndsAtTick: undefined, roundStartedTick: undefined, portalPairs: [],
+    phaseEndsAtTick: undefined, roundStartedTick: undefined, portalPairs: [], gravityFields: [],
     roundWinnerId: undefined, matchWinnerId: undefined,
   });
 }
@@ -370,6 +394,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
 export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent>): TickResult {
   state.tick += 1;
   state.portalPairs = state.portalPairs.filter((pair) => state.tick < pair.expiresAtTick);
+  state.gravityFields = state.gravityFields.filter((field) => state.tick < field.expiresAtTick);
   const events: GameEvent[] = [];
 
   for (const player of state.players.values()) {
@@ -394,6 +419,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.portalPairs = state.portalPairs
     .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
     .filter((pair): pair is PortalPair => pair !== undefined);
+  // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out
+  // of bounds. Clamped against the inset computed just above, like the portal fit, rather than last tick's.
+  for (const field of state.gravityFields) {
+    field.x = Math.max(trailBounds.minX, Math.min(trailBounds.maxX, field.x));
+    field.y = Math.max(trailBounds.minY, Math.min(trailBounds.maxY, field.y));
+  }
   for (const player of state.players.values()) {
     const clippedTrail: TrailSegment[] = [];
     for (const segment of player.trail) {
@@ -412,14 +443,17 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
-    const pose = advanceRiderPose(player, input, {distance:MOVE_PER_TICK,turn:TURN_PER_TICK,drunkHeadingOffset:offset});
+    const distance = player.boostUntilTick > state.tick ? MOVE_PER_TICK * BOOST_SPEED : MOVE_PER_TICK;
+    const pose = advanceRiderPose(player, input, {distance,turn:TURN_PER_TICK,drunkHeadingOffset:offset});
+    // Fields pull where the rider lands, inside the same tick, so the swept collision below still tests the path actually taken.
+    const pulled = applyGravity(state, pose.x, pose.y, distance);
     player.drunkHeadingOffset = pose.drunkHeadingOffset;
     movements.set(player.id, {
       player,
       oldX: player.x,
       oldY: player.y,
-      x: pose.x,
-      y: pose.y,
+      x: pulled.x,
+      y: pulled.y,
       angle: pose.angle,
     });
   }
@@ -662,6 +696,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 export function toSnapshot(state: GameState): GameSnapshot {
   return {
     bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
+    aimBounce: state.settings?.aimBounce ?? false,
     phase: state.phase,
     ...(state.phaseEndsAtTick === undefined ? {} : { phaseEndsAtTick: state.phaseEndsAtTick }),
     ...(state.roundStartedTick === undefined ? {} : { roundStartedTick: state.roundStartedTick }),
@@ -685,9 +720,10 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
       fuseLevel: player.fuseLevel ?? 0, blastLevel: player.blastLevel,
       invulnerableUntilTick: player.invulnerableUntilTick,
+      boostUntilTick: player.boostUntilTick,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
-      gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
+      gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, gravityArmed: player.gravityArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
       portalCooldownUntilTick: player.portalCooldownUntilTick,
@@ -705,7 +741,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       landsAtTick: bomb.landsAtTick,
       flightPath: bomb.flightPath.map((point) => ({ ...point })),
       explodeAtTick: bomb.explodeAtTick,
-      blastRange: bomb.blastRange, ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
+      blastRange: bomb.blastRange, ...(bomb.shell ? { shell: { ...bomb.shell } } : {}), ...(bomb.gravity ? { gravity: true } : {}),
     })),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,
@@ -713,6 +749,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       expiresAtTick: blast.expiresAtTick,
     })),
     portalPairs: state.portalPairs.map((pair) => ({ ...pair, gates: [{ ...pair.gates[0] }, { ...pair.gates[1] }] as const })),
+    gravityFields: state.gravityFields.map((field) => ({ ...field })),
     pickups: state.pickups.map((pickup) => ({ ...pickup })),
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
@@ -735,6 +772,7 @@ function prepareRound(state: GameState): void {
   state.blasts = [];
   state.pickups = [];
   state.portalPairs = [];
+  state.gravityFields = [];
   state.roundWinnerId = undefined;
   state.matchWinnerId = undefined;
   state.nextBombId = 1;
@@ -755,11 +793,12 @@ function prepareRound(state: GameState): void {
     player.bombReadyAtTick = state.tick;
     player.fuseLevel = 0; player.blastLevel = 0;
     player.invulnerableUntilTick = 0;
+    player.boostUntilTick = 0;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
     player.drunkHeadingOffset = 0;
     player.inkUntilTick = 0;
-    player.gunArmed = false; player.shellArmed = false; player.targetBombArmed = false;
+    player.gunArmed = false; player.shellArmed = false; player.targetBombArmed = false; player.gravityArmed = false;
     player.tripleShotArmed = false; player.fiveShotArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
@@ -846,6 +885,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.fuseLevel = Math.min(2, (collector.fuseLevel ?? 0) + 1);
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
+    } else if (pickup.type === 'gravity') {
+      collector.gravityArmed = true;
     } else if (pickup.type === 'shell') {
       collector.shellArmed = true;
     } else if (pickup.type === 'target') {
@@ -854,6 +895,8 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.blastLevel = Math.min(2, collector.blastLevel + 1) as 0 | 1 | 2;
     } else if (pickup.type === 'star') {
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+    } else if (pickup.type === 'boost') {
+      collector.boostUntilTick = Math.max(collector.boostUntilTick, state.tick + BOOST_DURATION_TICKS);
     } else if (pickup.type === 'ink') {
       for (const player of state.players.values()) {
         if (player.alive && player.id !== collector.id) player.inkUntilTick = Math.max(player.inkUntilTick, state.tick + INK_DURATION_TICKS);
@@ -989,7 +1032,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       events.push({ type: 'bombPlaced', bombId: id, playerId: player.id, ...(gun ? { gun: true } : {}) });
       continue;
     }
-    const distance = bombLaunchDistance(state.tick - chargeStartedTick, state.settings?.bombChargeTicks);
+    const distance = bombLaunchDistance(state.tick - chargeStartedTick, state.settings?.bombChargeTicks, state.settings?.aimBounce ?? false);
     const bounds: LaunchBounds = {
       minX: state.boundaryInset + RIDER_RADIUS,
       maxX: state.width - state.boundaryInset - RIDER_RADIUS,
@@ -1001,6 +1044,8 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
     if (target) player.targetBombArmed = false;
     else { player.tripleShotArmed = false; player.fiveShotArmed = false; }
+    const gravityLaunch = player.gravityArmed && !target;
+    if (gravityLaunch) player.gravityArmed = false;
     for (const flightPath of paths) {
       const landing = flightPath[flightPath.length - 1]!;
       const bomb: BombState = {
@@ -1013,6 +1058,7 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         placedTick: state.tick,
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
+        ...(gravityLaunch && flightPath === paths[0] ? { gravity: true } : {}),
         explodeAtTick: target ? state.tick : state.tick + bombFuseTicks(player.fuseLevel),
         blastRange: (BOMB_BLAST_RANGE + player.blastLevel * BLAST_LEVEL_RANGE) * (target ? .7 : 1),
         flightPath,
@@ -1064,10 +1110,31 @@ function detonateGun(bomb: BombState, tick: number, x: number, y: number): void 
   bomb.landsAtTick = tick; bomb.explodeAtTick = tick; bomb.blastRange = 32;
 }
 
+/**
+ * Drag toward every live field's centre, strongest at the middle and nothing at the rim. The sum is capped below one
+ * tick of travel, so crossing a field costs ground and control without ever holding a rider in place (#166).
+ */
+function applyGravity(state: GameState, x: number, y: number, distance: number): { x: number; y: number } {
+  let dx = 0, dy = 0;
+  for (const field of state.gravityFields) {
+    const toX = field.x - x, toY = field.y - y;
+    const away = hypot2(toX, toY);
+    if (away === 0 || away >= field.radius) continue;
+    const share = (1 - away / field.radius) * GRAVITY_PULL_PER_TICK * distance;
+    dx += toX / away * share;
+    dy += toY / away * share;
+  }
+  const drag = hypot2(dx, dy), limit = distance * GRAVITY_PULL_PER_TICK;
+  if (drag > limit) { dx = dx / drag * limit; dy = dy / drag * limit; }
+  return { x: x + dx, y: y + dy };
+}
+
 function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] {
+  // #166: with chaining off a bomb only ever answers to its own fuse, neither to a blast already on the field nor to one opened this tick.
+  const chain = state.settings?.chainReaction ?? true;
   const queue = [...state.bombs.values()]
     .filter((bomb) => !bomb.shell && bomb.landsAtTick <= state.tick && (bomb.explodeAtTick <= state.tick ||
-      state.blasts.some(blast => segmentIntersectsDisk(bomb.x, bomb.y, bomb.x, bomb.y, blast.circle))))
+      (chain && state.blasts.some(blast => segmentIntersectsDisk(bomb.x, bomb.y, bomb.x, bomb.y, blast.circle)))))
     .sort((a, b) => a.id - b.id)
     .map((bomb) => bomb.id);
   const queued = new Set(queue);
@@ -1082,10 +1149,11 @@ function resolveExplosions(state: GameState, events: GameEvent[]): BlastState[] 
     exploded.add(id);
     const circle = { x: bomb.x, y: bomb.y, radius: bomb.blastRange };
     result.push({ bombId: id, ownerId: bomb.ownerId, circle, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS });
+    if (bomb.gravity) state.gravityFields.push({ bombId: id, ownerId: bomb.ownerId, x: bomb.x, y: bomb.y, radius: circle.radius, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
     recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: 'explosion', bombId: id });
 
-    for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
+    if (chain) for (const candidate of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
       if (exploded.has(candidate.id) || queued.has(candidate.id)) continue;
       if (candidate.shell || candidate.landsAtTick > state.tick) continue;
       if (segmentIntersectsDisk(candidate.x, candidate.y, candidate.x, candidate.y, circle)) {

@@ -1,6 +1,9 @@
 import { chromium, webkit, type Page } from 'playwright';
+import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { createGameServer } from '../src/server/index.js';
 import { eliminatePlayer } from '../src/shared/game.js';
 import { smokeTimeout } from './smoke-timeout.js';
@@ -12,6 +15,12 @@ const app = await createGameServer({
   manualTicks: true,
   buildDirectory: process.env.BUILD_DIRECTORY,
 });
+// This smoke serves the built bundle, so an unbuilt edit silently tests the previous one. Say so rather than lying quietly.
+const newest = (directory: string): number => readdirSync(directory, { withFileTypes: true, recursive: true })
+  .filter(item => item.isFile()).map(item => statSync(join(item.parentPath ?? directory, item.name)).mtimeMs)
+  .reduce((latest, at) => Math.max(latest, at), 0);
+if (newest('src') > newest('dist')) console.warn('WARNING: dist is older than src — run `npx vite build` or this smoke tests the previous bundle.');
+
 const browser = process.env.BROWSER === 'webkit'
   ? await webkit.launch({ headless: true })
   : await chromium.launch({ channel: 'chrome', headless: true });
@@ -72,20 +81,25 @@ try {
   await host.waitForFunction(PLAYING);
   await host.getByLabel('Effects volume', { exact: true }).fill('20');
   await host.locator('.audio-controls summary').click();
-  await host.getByText('bigger explosions', { exact: false }).waitFor();
-  assert.equal(await host.getByText('invulnerable', { exact: false }).count(), 0, 'LAN legend omits star, which only room settings can enable');
-  await host.getByText('rivals wobble for 4s', { exact: false }).waitFor();
-  await host.getByText('next bomb launch fires 3', { exact: false }).waitFor();
-  assert.equal(await host.getByText('next launch seeks', { exact: false }).count(), 0, 'retired power-up is absent from legend');
-  await host.getByText('blocks one crash', { exact: false }).waitFor();
-  await host.getByText('opens a pair of linked gates', { exact: false }).waitFor();
+  // The TV legend is icon + name only — it is read from across a room, and uniform one-line rows keep its height a
+  // function of the pickup count rather than of how someone's description happens to wrap. Descriptions still render
+  // on the landing page, where home-mobile-smoke pins one. Comparing the whole rendered list against its source also
+  // proves star stays out (room settings alone enable it) and that no retired name creeps back in.
+  await host.locator('.pickup-legend li').first().waitFor();
+  const legendNames = await host.locator('.pickup-legend li b').allTextContents();
+  assert.deepEqual(legendNames, POWERUP_GUIDE.filter(entry => entry.spawnsByDefault).map(entry => entry.name),
+    'TV legend lists every default-spawning pickup, in order, and nothing else');
+  // Anchored on real copy so the comparison above cannot pass vacuously on an empty or corrupted guide.
+  assert.ok(legendNames.includes('BLAST+') && !legendNames.includes('STAR'), `legend copy looks wrong: ${legendNames.join(', ')}`);
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
   // Switching the style must re-src every legend icon, not just the ones that existed when the
   // theme plumbing was written. Ends on the default so later steps shoot the usual artwork.
+  // The count is what stops the theme loop below passing vacuously on an empty or truncated list; what each icon says is pinned above.
+  const defaultPickups = POWERUP_GUIDE.filter(entry => entry.spawnsByDefault).length;
   for (const themeId of ['clean-neon', 'neon-pixel']) {
     await host.getByRole('combobox').selectOption(themeId);
     const legendSources = await host.locator('.pickup-legend img').evaluateAll(images => images.map(image => image.getAttribute('src') ?? ''));
-    assert.equal(legendSources.length, 11, `legend icons found: ${legendSources.length}`);
+    assert.equal(legendSources.length, defaultPickups, `legend icons found: ${legendSources.length}, expected ${defaultPickups}`);
     for (const source of legendSources) assert.ok(source.includes(`/themes/${themeId}/`), `legend icon ${source} ignores theme ${themeId}`);
   }
 

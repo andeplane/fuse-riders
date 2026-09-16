@@ -1,6 +1,6 @@
 # Design brief: deterministic action-log replication
 
-Date: 2026-09-14. Status: proposed direction; not an accepted ADR or implemented protocol. Tracking: [issue #67](https://github.com/andeplane/fuse-riders/issues/67).
+Date: 2026-09-14. Status: superseded by [P2P-INPUT-LOG-BRIEF.md](P2P-INPUT-LOG-BRIEF.md), which was implemented. Originally: proposed direction; not an accepted ADR or implemented protocol. Tracking: [issue #67](https://github.com/andeplane/fuse-riders/issues/67).
 
 ## Idea
 

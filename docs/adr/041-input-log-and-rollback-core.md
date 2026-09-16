@@ -1,6 +1,6 @@
 # ADR 041: Shared input log, deterministic math and the rollback core
 
-Date: 2026-09-15. Status: implemented, pure and unwired; first PR of the rollback stack described in `docs/online/ROLLBACK-PLAN.md`. Nothing in the running game imports these modules yet; the cutover is the next PR.
+Date: 2026-09-15. Status: **superseded** by the peer-to-peer cutover in [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md). The ideas stand (input as a log entry, deterministic math, snapshots and rollback, one MessagePack packet per tick) but the modules named here were replaced: `src/shared/action-log.ts` by `input-log.ts` and `apply-tick.ts`, `src/online/wire.ts` by `packet.ts`, and the host-authored bot streams by bots every replica simulates. The text below is the original decision.
 
 ## Decision
 

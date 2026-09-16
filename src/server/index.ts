@@ -1,4 +1,5 @@
-import { BotController, botDisplayName, rollBotDifficulty, BOT_ID_PREFIX, BOT_NAMES, botRandom, type BotDependencies } from '../shared/bot-controller.js';
+import { BotController, botDisplayName, rollBotDifficulty, BOT_ID_PREFIX, botRandom, type BotDependencies } from '../shared/bot-controller.js';
+import { BOT_NAMES } from '../shared/apply-tick.js';
 import http from 'node:http';
 import { BombInputBuffer } from '../shared/bomb-input.js';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
@@ -87,7 +88,7 @@ function proxyUpgrade(target: URL, req: http.IncomingMessage, socket: import('no
 }
 
 export function controllerSnapshot(state: GameSnapshot): GameSnapshot {
-  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], portalPairs: [], matchStats: [] };
+  return { ...state, players: state.players.map(player => ({ ...player, trail: [] })), bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], matchStats: [] };
 }
 
 export function lanAddress() {

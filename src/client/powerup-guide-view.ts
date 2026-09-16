@@ -10,6 +10,9 @@ export interface PowerupGuideOptions {
   label?: string;
   /** Shown beside pickups that only spawn when enabled in room settings. */
   offByDefaultNote?: string;
+  /** Icon and name only. A TV legend is read at a glance from across a room, and uniform rows keep its height a
+   *  function of the pickup count rather than of how long someone's description happens to wrap. */
+  namesOnly?: boolean;
 }
 
 export interface PowerupGuideView {
@@ -24,9 +27,10 @@ export function createPowerupGuide(entries: readonly PowerupGuideEntry[], option
   if (options.label) element.setAttribute('aria-label', options.label);
   const icons = entries.map(entry => {
     const item = document.createElement('li'), image = document.createElement('img'), name = document.createElement('b');
-    image.alt = ''; image.width = 24; image.height = 24; image.decoding = 'async';
+    image.alt = ''; image.decoding = 'async'; // sized by CSS: the two placements read at different distances
     name.textContent = entry.name;
-    item.append(image, name, document.createTextNode(` ${entry.description}`));
+    item.append(image, name);
+    if (!options.namesOnly) item.append(document.createTextNode(` ${entry.description}`));
     if (!entry.spawnsByDefault && options.offByDefaultNote) item.append(' ', Object.assign(document.createElement('small'), { textContent: options.offByDefaultNote }));
     element.append(item);
     return { image, type: entry.type };

@@ -32,7 +32,7 @@ This smooths extension after a confirmed press; it does not introduce speculativ
 
 `tests/bomb-preview.test.ts` checks per-frame extension at 30/60/120 Hz, agreement with authoritative distances at whole ticks, unchanged authoritative rounding, and charge bounds. `tests/client.test.ts` and `tests/prediction.test.ts` cover time selection, prediction caps, clock loss, lifecycle resets, release/cancellation and snapshot immutability.
 
-`scripts/bomb-preview-smoke.ts` supplies four consecutive 60 Hz frames to isolated Phaser WebGL, Phaser Canvas and original Canvas renderers, then reads actual pixels from the marker. It checks both a fractional world tick and a per-rider tick with the world held fixed. This is a rendering regression, not network or physical-phone qualification.
+`scripts/bomb-preview-smoke.ts` supplies four consecutive 60 Hz frames to isolated Phaser WebGL, Phaser Canvas and original Canvas renderers, then reads actual pixels from the marker. It checks both a fractional world tick and a per-rider tick with the world held fixed. It also renders the bouncing ramp across its fold — ages 7.5 to 9 at a window of 8, where the marker walks out to full reach and back while a clamped ramp would sit still — because a new room bounces by default (#175), and paired against a clamped control so the flag is what moves the marker. CI runs it in both engines in the browser matrix. This is a rendering regression, not network or physical-phone qualification.
 
 ```sh
 node --import tsx scripts/bomb-preview-smoke.ts

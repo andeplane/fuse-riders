@@ -1,9 +1,8 @@
 import { uuid } from '../shared/uuid.js';
 import { showRoomSettings } from './room-settings-menu.js';
+import { keyboardShortcuts } from './keyboard-shortcuts.js';
 import { validRoomCode } from '../shared/room-code.js';
 import { startAttract } from './attract.js';
-import { LocalRuntime } from './local-runtime.js';
-import type { Callbacks } from './runtime.js';
 import { installRoomLifecycle } from './room-lifecycle.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
@@ -13,14 +12,17 @@ import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
 import { drawArena } from '../client/main.js';
 import { createAvatarPicker, createAvatarPortrait } from '../client/avatar-heads.js';
-import { defaultTheme, loadThemeSprites } from '../client/themes.js';
+import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from '../client/themes.js';
 import { createGameAudio } from '../client/game-audio.js';
-import { defaultRoomSettings, loadRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
+import { defaultRoomSettings, loadRoomSettings, parseRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
-import { RoomRuntime } from './runtime.js';
+import { RoomRuntime, type Callbacks } from './room-runtime.js';
+import { PeerTransport } from './peer-transport.js';
+import { NetStats } from './net-stats.js';
+import { Telemetry, telemetryEndpoint } from './telemetry.js';
 import type { AvatarId } from '../shared/avatars.js';
 import QRCode from 'qrcode';
 import './online.css';
@@ -30,6 +32,7 @@ import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
 import { createJoinCard, createJoinForm } from './join-form.js';
 import { safeStorage } from '../client/safe-storage.js';
+import { matchEndedProps, matchStartKey, startAnalytics, track, trackBeforeLeaving } from './analytics.js';
 import { POWERUP_GUIDE } from '../client/powerup-guide.js';
 import { createPowerupGuide } from '../client/powerup-guide-view.js';
 const storage=safeStorage(()=>localStorage);
@@ -42,7 +45,7 @@ const copyText=async(text:string)=>{
   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.cssText='position:fixed;top:-1000px;opacity:0';document.body.append(field);field.select();
   try{return document.execCommand('copy');}catch{return false;}finally{field.remove();}
 };
-const labels:Record<string,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star'};
+const labels:Record<PickupType,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star',boost:'Speed boost',gravity:'Singularity'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
 const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
@@ -51,6 +54,7 @@ export async function startOnline():Promise<void>{
   const url=new URL(location.href);const solo=url.searchParams.get('solo')==='1';const code=solo?'SOLO':url.searchParams.get('room')?.toUpperCase();
   if(!code){
     app.classList.add('landing-app');
+    startAnalytics({role:'landing'});track('App Opened');
     const card=node('main','','landing');
     card.innerHTML=`<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
       <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button></div></header>
@@ -64,12 +68,12 @@ export async function startOnline():Promise<void>{
       <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
     const form=card.querySelector<HTMLElement>('.landing-multiplayer')!;
     const guide=node('section','','landing-guide'),guideTitle=node('h2','POWER-UPS','landing-section-label');guideTitle.id='landing-guide-title';guide.setAttribute('aria-labelledby',guideTitle.id);
-    guide.append(guideTitle,createPowerupGuide(POWERUP_GUIDE,{className:'landing-powerups',themeId:defaultTheme.id,offByDefaultNote:'(off by default, enable in room settings)'}).element);card.querySelector('.landing-content')!.append(guide);
+    guide.append(guideTitle,createPowerupGuide(POWERUP_GUIDE,{className:'landing-powerups',themeId:selectedTheme().id,offByDefaultNote:'(off by default, enable in room settings)'}).element);card.querySelector('.landing-content')!.append(guide);
     const mode=node('fieldset','','landing-mode');mode.setAttribute('aria-label','Where will you play?');mode.append(node('legend','Where will you play?'));let selectedMode=loadRoomSettings(localStorage).mode;
     for(const [value,label] of [['devices','Each device'],['shared','Shared TV']] as const){const option=node('label'),radio=node('input');radio.type='radio';radio.name='landing-mode';radio.value=value;radio.checked=selectedMode===value;radio.onchange=()=>{selectedMode=value;};option.append(radio,node('span',label));mode.append(option);}
     const create=node('button','CREATE ROOM'),join=node('button','JOIN ROOM'),input=node('input');input.placeholder='Room code';input.maxLength=10;input.autocapitalize='characters';
     const error=node('p');
-    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
+    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));await trackBeforeLeaving('Room Created',{mode:selectedMode});location.href=appUrl(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
     join.onclick=()=>{const value=input.value.trim().toUpperCase();if(validRoomCode(value))location.href=appUrl(`?room=${value}`);else error.textContent='Enter a room code, for example AB42';};
     mode.setAttribute('aria-label','Where will you play?');input.setAttribute('aria-label','Room code');error.setAttribute('role','alert');
     const createRow=node('div','','landing-create');createRow.append(mode,create);
@@ -81,6 +85,19 @@ export async function startOnline():Promise<void>{
     // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
     const landingAudio=createGameAudio('Site',{background:true});landingAudio.bindMusicToggle(card.querySelector<HTMLButtonElement>('.landing-audio')!);
     card.querySelector('.landing-audio')!.before(landingAudio.controls);
+    // Settings before a game exists (#168): the same room settings CREATE ROOM and PLAY SOLO read from storage. The screen layout
+    // stays disabled here because the radio buttons below choose it for the room being created.
+    const landingSettings=node('button','⚙ SETTINGS','landing-settings');landingSettings.type='button';
+    const landingDialog=node('dialog','','game-dialog');landingDialog.setAttribute('aria-label','Settings');
+    const landingBar=node('header','','dialog-bar'),landingClose=node('button','✕  CLOSE');landingClose.type='button';landingClose.setAttribute('aria-label','CLOSE');landingClose.onclick=()=>landingDialog.close();
+    const landingActions=node('span','','dialog-actions');landingActions.append(landingClose);landingBar.append(node('strong','SETTINGS'),landingActions);
+    const landingBody=node('div','','dialog-body');landingDialog.append(landingBar,landingBody);
+    landingDialog.addEventListener('click',event=>{if(event.target===landingDialog){const r=landingDialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)landingDialog.close();}});
+    // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
+    // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
+    landingSettings.onclick=()=>{showRoomSettings(landingBody,loadRoomSettings(localStorage),true,labels,draft=>{if(!parseRoomSettings(draft))return false; // no room authority behind this save: a draft the loader would reject later must never reach storage, or every setting resets on the next load
+      save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
+    card.querySelector('.landing-top-end')!.append(landingSettings);card.append(landingDialog);
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
   if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
@@ -92,29 +109,43 @@ export async function startOnline():Promise<void>{
   function peerToken(){const key=`fuse-peer-${code}`;const token=read(key)||secret();save(key,token);return token;}
   const forgetHostToken=()=>storage.removeItem(`fuse-room-${code}`);
   let id='',isHost=false,joined=false,settings=loadRoomSettings(localStorage),snapshot:ViewSnapshot|undefined;
+  startAnalytics({role,mode:settings.mode,solo});track('App Opened');
+  // Funnel bookkeeping, per page load: a seat is reported once, and a match only where this device saw it begin.
+  let seatTracked=false,matchStartedAt=0,matchNumber=0,startedMatch='';
   const frameTimes:number[]=[];const inputTimes:number[]=[];let previousFrame=performance.now(),inputAt=0;
   let lastRecap='',rejoinPending=false;
-  const responseBenchmark=url.searchParams.get('responseBenchmark')==='1';
-  const benchmark=url.searchParams.get('benchmark')==='1'||responseBenchmark;let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
+  const benchmark=url.searchParams.get('benchmark')==='1';let benchmarkInput:{seq:number;at:number}|undefined,lastBenchmarkRender=0,lastControls='';
   const sample=(detail:object)=>{if(benchmark)window.dispatchEvent(new CustomEvent('fuse-benchmark',{detail}));};
+  // Development diagnostics: every device posts its runtime metrics and status changes to the dev server once a second.
+  const telemetry=new Telemetry(solo?undefined:telemetryEndpoint());
+  // A saved draft is the room's settings once its log entry folds, a tick or two later; until the folded settings move (or a second passes) the draft stays current.
+  let pendingSettings:{draft:RoomSettings;before:string;at:number}|undefined;
   // A terminal room close (4004) freezes this client: no further snapshots are applied and no input may leave, whatever a stale pointer or key does next.
   let roomEnded=false;
-  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ RADIO'),musicButton=node('button','♫ MUSIC OFF'),results=node('button','RESULTS'),menu=node('button',solo?'EXIT':'ROOM');
-  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,musicButton,results,menu);
+  const header=node('header','','online-header');const title=node('strong','','room-brand'),status=node('span','Connecting…','online-status'),audioButton=node('button','♫ RADIO'),musicButton=node('button','♫ MUSIC OFF'),results=node('button','RESULTS'),menu=node('button',solo?'EXIT':'ROOM'),styleButton=node('button','');
+  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,audioButton,musicButton,styleButton,results,menu);
   const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
   const bootNote=node('p','Warming up the arena…','room-boot-note');
   const booting=node('div','','room-boot');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'));
   // A joiner never mounts the host's boot card or QR lobby: until it holds a seat its whole page is the join card, with the same connect hint under the form.
   const joinPanel=role==='joiner'?createJoinCard(code,joinForm.element,bootNote):joinForm.element;if(role!=='joiner')booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
-  const bootAt=performance.now();const bootTick=()=>{bootNote.textContent=connectHint(status.textContent??'',performance.now()-bootAt);};
+  const bootAt=performance.now();let connectFailed=false;
+  // 20s is where connectHint gives up on progress and says "different network": the one drop-off the funnel cannot otherwise see.
+  const bootTick=()=>{const waited=performance.now()-bootAt;bootNote.textContent=connectHint(status.textContent??'',waited);if(waited>=20000&&!connectFailed){connectFailed=true;track('Connect Failed',{status:status.textContent,secondsWaiting:Math.round(waited/1000)});}};
   const bootPoll=setInterval(bootTick,1000);
   const bootDone=()=>{if(!bootNote.isConnected)return;clearInterval(bootPoll);booting.remove();bootNote.remove();app.classList.remove('booting');};
   const overCard=node('div','','room-boot room-over-card'),overNote=node('p','Room ended — return to menu to start again','room-boot-note'),overHome=node('a','BACK TO MENU','room-over-home');
   overCard.setAttribute('role','status');overHome.href=appUrl();overCard.append(node('p','ROOM CLOSED','room-boot-title'),node('strong',code,'shared-room-code'),overNote,overHome);
   app.classList.toggle('booting',role!=='joiner');app.classList.toggle('joining',role==='joiner');
   app.replaceChildren(header,role==='joiner'?joinPanel:booting);
-  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});const sprites=await loadThemeSprites(defaultTheme);
+  let canvas=node('canvas','','online-arena');let renderScope=code;const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});let theme:ThemeDefinition=selectedTheme();let sprites:ThemeSprites=await loadThemeSprites(theme);
+  // Both styles' textures are preloaded by the Phaser arena and every palette is read per frame, so switching needs no reload.
+  applyThemeProperties(theme);
+  const styleIds=Object.keys(themes) as ThemeId[];
+  const paintStyleButton=()=>{styleButton.textContent=theme.label.toUpperCase();styleButton.title='Switch the arena visual style';styleButton.setAttribute('aria-label',`Visual style: ${theme.label}. Switch.`);};
+  paintStyleButton();
+  styleButton.onclick=async()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();const loaded=await loadThemeSprites(next);if(theme.id===next.id)sprites=loaded;};
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
@@ -133,17 +164,35 @@ export async function startOnline():Promise<void>{
   if(!solo)void QRCode.toDataURL(joinLink).then(data=>{lobbyQr.src=data;}).catch(()=>{lobbyQr.hidden=true;});
   const controls=node('div','','online-controls');const leftButton=node('button','◀'),fireButton=node('button','HOLD TO FIRE'),rightButton=node('button','▶');controls.append(leftButton,fireButton,rightButton);controls.addEventListener('selectstart',event=>event.preventDefault());controls.addEventListener('contextmenu',event=>event.preventDefault());
   for(const [button,key,label] of [[leftButton,'ArrowLeft A','Steer left'],[fireButton,'Space','Hold to charge, release to fire'],[rightButton,'ArrowRight D','Steer right']] as const){button.setAttribute('aria-keyshortcuts',key);button.title=`${label} (${key})`;}
-  const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','MAIN MENU'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','TV VIEW'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
+  const roster=node('div','','online-roster');const hostControls=node('div','','online-host');const start=node('button','START RACE'),reset=node('button','BACK TO LOBBY'),settingsButton=node('button','ROOM SETTINGS'),share=node('button','TV VIEW'),addAI=node('button','ADD AI');hostControls.append(start,reset,settingsButton,share,addAI);
   const rosterEntries=new Map<string,{entry:HTMLElement;label:HTMLElement;head:HTMLElement;avatar:AvatarId;remove:HTMLButtonElement}>();
   const help=node('button','?','desktop-help');help.setAttribute('aria-label','Keyboard controls');help.title='Keyboard controls';
   const avatarButton=node('button','AVATAR'),fullscreen=node('button','⛶');fullscreen.setAttribute('aria-label','Fullscreen');avatarButton.hidden=true;
   // iPhone Safari has no element fullscreen (#142): a button that can do nothing is not shown.
   fullscreen.hidden=!document.fullscreenEnabled;fullscreen.onclick=()=>void (document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen())?.catch(()=>{});header.append(avatarButton,help,fullscreen);
   const dialog=node('dialog','','game-dialog');dialog.setAttribute('aria-label','Game menu');const close=node('button','✕  CLOSE');close.type='button';close.setAttribute('aria-label','CLOSE');close.onclick=()=>dialog.close();const rematch=node('button','REMATCH');rematch.type='button';rematch.hidden=true;rematch.title='Play the same match again';const dialogActions=node('span','','dialog-actions');dialogActions.append(rematch,close);const dialogBar=node('header','','dialog-bar'),dialogTitle=node('strong','GAME MENU');dialogBar.append(dialogTitle,dialogActions);const dialogBody=node('div','','dialog-body');dialog.append(dialogBar,dialogBody);dialog.addEventListener('close',()=>{rematch.hidden=true;close.textContent='✕  CLOSE';close.setAttribute('aria-label','CLOSE');dialog.classList.remove('recap-dialog');dialogTitle.textContent='GAME MENU';dialog.setAttribute('aria-label','Game menu');});dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
+  // Desktop hides the on-screen controls entirely, so a first-timer has only the ? button. One fading reminder on the first countdown of the session.
+  const keyHint=node('div','','key-hint');keyHint.hidden=true;keyHint.setAttribute('aria-hidden','true');
+  keyHint.append(node('span','◀ ▶  —  STEER'),node('span','SPACE  —  HOLD TO CHARGE, RELEASE TO FIRE'));
+  keyHint.addEventListener('animationend',()=>{keyHint.hidden=true;});
+  let keyHintShown=false;
   const scoreboard=node('div','','online-scoreboard');scoreboard.append(notice,roster);
   const footer=node('footer','','online-footer');footer.append(controls,hostControls);
-  app.replaceChildren(header,...(role==='joiner'?[]:[booting]),canvas,sharedLobby,scoreboard,joinPanel,footer,dialog);
-  help.onclick=()=>{dialogBody.replaceChildren(node('h2','Keyboard controls'),node('p','← / A — steer left'),node('p','→ / D — steer right'),node('p','SPACE — hold to charge, release to fire'));dialog.showModal();};
+  // A joiner's card is already on screen and may hold focus with a half-typed name (#132): build the room around it. Detaching a focused
+  // input blurs it, and keystrokes that follow land nowhere, so an early typist lost their name and JOIN sent nothing.
+  // header and joinPanel are app's only children here (line 116, and nothing else attaches before this point).
+  if(role==='joiner'){header.after(canvas,sharedLobby,scoreboard);joinPanel.after(footer,keyHint,dialog);}
+  else app.replaceChildren(header,booting,canvas,sharedLobby,scoreboard,joinPanel,footer,keyHint,dialog);
+  const mac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent);
+  help.onclick=()=>{
+    dialogTitle.textContent='SHORTCUTS';dialog.setAttribute('aria-label','Keyboard shortcuts'); // the close handler resets both
+    dialogBody.replaceChildren(node('h2','Keyboard shortcuts'));
+    for(const group of keyboardShortcuts({mac,canConfigure:isHost||solo,solo})){
+      const list=node('dl','','shortcut-list');for(const [keys,action] of group.entries){list.append(node('dt',keys),node('dd',action));}
+      dialogBody.append(node('h3',group.title,'shortcut-group'),list);
+    }
+    dialog.showModal();
+  };
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
   const desktopQuery=matchMedia('(min-width: 1000px) and (hover: hover) and (pointer: fine)');
   const updateDesktopLayout=()=>{
@@ -174,45 +223,53 @@ export async function startOnline():Promise<void>{
     for(const entry of recap.comparison){const row=node('div','','comparison-row');row.style.setProperty('--player-color',entry.color);const rider=node('span','','comparison-rider'),riderCopy=node('span');riderCopy.append(node('b',entry.riderLabel),node('small',entry.riderNote));rider.append(node('i'),riderCopy);row.append(rider);for(const column of COMPARISON_COLUMNS)row.append(node(column.key==='wins'?'strong':'span',entry[column.key],column.key==='pickups'?'pickup-counts':column.key==='deaths'?'death-counts':''));comparison.append(row);}
     root.append(podium,totals);if(recap.awards.length)root.append(awards);root.append(comparison);return root;
   };
-  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;if(!sharedLobby.hidden){close.textContent='BACK TO LOBBY';close.setAttribute('aria-label','BACK TO LOBBY');}dialog.showModal();dialogBody.scrollTop=0;};
-  results.onclick=openRecap;
+  const openRecap=()=>{if(!snapshot)return;dialogBody.replaceChildren(renderRecap(snapshot.matchStats));dialogTitle.textContent='MATCH RESULTS';dialog.setAttribute('aria-label','Match results');dialog.classList.add('recap-dialog');rematch.hidden=!isHost;dialog.showModal();dialogBody.scrollTop=0;};
+  results.onclick=()=>{track('Recap Reopened');openRecap();};
   const callbacks:Callbacks={
     // A host key the server rejects is a stale guest identity from an older build or a reused code: keep the identity under the peer key and re-enter as a joiner.
-    ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;},
-    status:text=>{status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
+    ready:(peerId,host)=>{if(role==='host'&&!host){save(`fuse-peer-${code}`,token);forgetHostToken();location.reload();return;}id=peerId;isHost=host;joinForm.ready();hostControls.hidden=!host;telemetry.identify({room:code,id:peerId,role:host?'creator':displayOnly?'display':'guest',ua:navigator.userAgent.slice(0,80)});},
+    status:text=>{if(status.textContent!==text)telemetry.log('status',{text});status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
     // An ended room is no longer joined play (#44): the thirds controller gives way to the ordinary header so the status
     // reads without opening ☰ MENU. `controller-only` is only ever recomputed from a state update, and none arrives after the end.
     ended:()=>{bootDone();roomEnded=true;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
-    event:(event,matchId,round,tick)=>audio.director.message({type:'event',matchId,round,tick,event}),
-    state:(state,rules,matchId)=>{
+    event:(event,matchId,round,tick)=>{audio.director.message({type:'event',matchId,round,tick,event});sample({kind:'event',at:performance.now(),event,matchId,round,tick});telemetry.log('event',{type:event.type,matchId,round,tick});},
+    state:(state,rules)=>{
       if(roomEnded)return;
       bootDone();
       if(snapshot&&snapshot.phase!==state.phase)clearControls();
-      snapshot=state;renderScope=`${runtime.transport.grant?.incarnation}:${runtime.transport.grant?.epoch}:${matchId}:${state.round}`;settings=rules;
-      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.held(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard});
+      const startKey=matchStartKey(state.matchId,state.phase,state.round);
+      if(startKey&&startedMatch!==startKey){startedMatch=startKey;matchStartedAt=Date.now();matchNumber+=1;track('Match Started',{matchNumber,playerCount:state.players.length,botCount:state.players.filter(p=>p.id.startsWith(BOT_ID_PREFIX)).length,mode:rules.mode,match:rules.match,matchLength:rules.length,powerupTypes:Object.values(rules.weights??{}).filter(weight=>weight>0).length,host:isHost});}
+      const matchId=state.matchId;snapshot=state;renderScope=`${matchId}:${state.round}`;
+      if(pendingSettings&&(JSON.stringify(rules)!==pendingSettings.before||performance.now()-pendingSettings.at>1000))pendingSettings=undefined;settings=pendingSettings?.draft??rules;
+      sample({kind:'snapshot',at:performance.now(),authorityScope:renderScope,matchId,round:state.round,tick:state.tick,phase:state.phase,playerId:id,heldMotion:runtime.heldControls(id),players:state.players.map(p=>({id:p.id,alive:p.alive,x:p.x,y:p.y,angle:p.angle,bombReadyAtTick:p.bombReadyAtTick,bombChargeStartedTick:p.bombChargeStartedTick})),leaderboard:state.leaderboard,metrics:runtime.metrics()});
       audio.director.message({type:'snapshot',matchId,round:state.round,tick:state.tick,state});
       const player=state.players.find(player=>player.id===id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
       const recapReady=state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0);results.hidden=!recapReady;
-      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost,recapReady});joinPanel.hidden=joined||displayOnly;avatarButton.hidden=!joined;/* Before a seat the join form carries the avatar. */controls.hidden=!joined||displayOnly;
-      // A rider the host still lists as offline (page reload mid-round, host checkpoint restore) reconnects by itself; anyone absent goes through the join card.
+      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);if(player&&!seatTracked){seatTracked=true;track('Seat Taken',{avatarId:player.avatarId,playerCount:state.players.length});}const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost,recapReady});joinPanel.hidden=joined||displayOnly;avatarButton.hidden=!joined;/* Before a seat the join form carries the avatar. */controls.hidden=!joined||displayOnly;
+      // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       if(player&&!player.connected&&!displayOnly){if(!rejoinPending){rejoinPending=true;runtime.command({type:'join',name:player.name,avatarId:player.avatarId});}}else rejoinPending=false;
       // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
-      // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / MAIN MENU.
+      // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / BACK TO LOBBY.
       // Solo and a joined shared-screen rider have no lobby card (their pre-start screen is the arena or the controller), so their button stays CLOSE.
       const phoneLobby=mobileLayout.lobby();
       sharedLobby.hidden=!(state.phase==='lobby'||recapReady)||joining||(!phoneLobby&&(solo||(settings.mode==='shared'&&joined&&!displayOnly)||mobileLayout.active()));app.classList.toggle('room-waiting',!sharedLobby.hidden);
-      lobbyCount.textContent=`${state.players.filter(p=>p.connected).length} riders ready`;lobbyEmpty.hidden=state.players.length>0;
+      const ready=state.players.filter(p=>p.connected).length;lobbyCount.textContent=`${ready} ${ready===1?'rider':'riders'} ready`;lobbyEmpty.hidden=state.players.length>0;
       for(const [playerId,row] of lobbyEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();lobbyEntries.delete(playerId);}
       for(const p of state.players){let row=lobbyEntries.get(p.id);if(!row){const entry=node('div','','room-rider'),head=createAvatarPortrait(p.avatarId),name=node('strong'),status=node('small'),info=node('div');info.append(name,status);entry.append(head,info);row={entry,head,name,status,avatar:p.avatarId};lobbyEntries.set(p.id,row);lobbyRiders.append(entry);}if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}row.entry.style.setProperty('--rider-color',p.color);if(row.name.textContent!==p.name)row.name.textContent=p.name;row.status.textContent=p.connected?'READY':'OFFLINE';}
       roster.hidden=!sharedLobby.hidden;
       const controllerOnly=settings.mode==='shared'&&!displayOnly&&joined&&!phoneLobby;app.classList.toggle('controller-only',controllerOnly);
-      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;updateDesktopLayout();
+      canvas.hidden=!sharedLobby.hidden||controllerOnly||joining;styleButton.hidden=controllerOnly;/* A shared-TV rider's phone never draws an arena. */updateDesktopLayout();
+      if(state.phase==='countdown'&&joined&&!keyHintShown&&app.classList.contains('desktop-game')){keyHintShown=true;keyHint.hidden=false;}
       // Opened after the layout above so the close button can say where it lands.
-      if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();}
+      if(recapReady&&lastRecap!==String(state.phaseEndsAtTick)){lastRecap=String(state.phaseEndsAtTick);openRecap();
+        // Only this match's own start time is a duration: a device that saw match 1 begin and missed match 2's
+        // start would otherwise report match 1's clock as match 2's length, which is worse than reporting none.
+        const sawStart=startedMatch===matchStartKey(matchId,'countdown',1);
+        track('Match Ended',{...matchEndedProps(state.matchStats,id),...(sawStart&&matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});}
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
-      notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`:state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
+      notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?(state.roundWinnerId===id?'You win this round':`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`):state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
       for(const [playerId,row] of rosterEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();rosterEntries.delete(playerId);}
       for(const p of state.players){
         let row=rosterEntries.get(p.id);
@@ -224,11 +281,11 @@ export async function startOnline():Promise<void>{
       }
       addAI.disabled=state.players.length>=5;
       const startLabel=state.phase==='matchOver'?'REMATCH':'START RACE';if(start.textContent!==startLabel)start.textContent=startLabel;start.disabled=state.players.filter(p=>p.connected).length<2||!['lobby','matchOver'].includes(state.phase);
-      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby; // MAIN MENU means nothing in the lobby; the phone screen has no room for a dead button.
+      hostControls.hidden=!isHost;reset.disabled=state.phase==='lobby';reset.hidden=phoneLobby;share.hidden=solo||phoneLobby; // BACK TO LOBBY means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
     }
   };
-  const runtime=solo?new LocalRuntime(settings,callbacks):new RoomRuntime(code,token,settings,callbacks);
-  if(solo)share.hidden=true;
+  // Solo is the same runtime with no transport: one rider and four AI riders fold the log locally.
+  const runtime=new RoomRuntime(code,settings,callbacks,solo?{humanName:read('fuse-riders-player-name')??undefined}:{transport:events=>new PeerTransport(code,token,events),displayOnly});
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
@@ -239,11 +296,20 @@ export async function startOnline():Promise<void>{
   avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Choose your avatar'));const picker=createAvatarPicker(storage,chosen=>{joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});dialogBody.append(picker.element);dialog.showModal();};
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title='Open this room on a shared screen';share.onclick=()=>{window.open(appUrl(`?room=${code}&display=1`),'_blank','noopener');};
-  settingsButton.onclick=()=>{
-    showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;save(SETTINGS_KEY,JSON.stringify(draft));return true;},()=>dialog.close());
-    dialog.showModal();
+  const openSettings=(start:'main'|'powerups'='main')=>{
+    showRoomSettings(dialogBody,settings,solo,labels,draft=>{if(!runtime.command({type:'settings',settings:draft}))return false;pendingSettings={draft,before:JSON.stringify(settings),at:performance.now()};settings=draft;save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>dialog.close(),start);
+    if(!dialog.open)dialog.showModal();
   };
-  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;const controlsKey=`${message.left}:${message.right}:${message.bomb}`;if(controlsKey!==lastControls){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const sent=runtime.command({type:'input',left:message.left,right:message.right,bomb:message.bomb,...(message.bombAction?{bombAction:message.bombAction}:{}),...(message.aim?{aim:message.aim}:{})});if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent});return sent;}});
+  settingsButton.onclick=()=>openSettings();
+  // Ctrl+P (⌘P on a Mac) goes to the power-ups page instead of the browser's print dialog (#168). The key is only taken when it will act:
+  // a joiner, a display or an ended room keeps the browser's print dialog, and an open dialog keeps its own chrome.
+  window.addEventListener('keydown',event=>{
+    if(event.code!=='KeyP'||event.repeat||event.altKey||event.shiftKey||(mac?!event.metaKey||event.ctrlKey:!event.ctrlKey||event.metaKey))return;
+    if(document.activeElement?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'))return;
+    if(dialog.open||roomEnded||!(isHost||solo))return;
+    event.preventDefault();openSettings('powerups');
+  });
+  const inputState=new ControllerInputState({send:message=>{if(roomEnded)return false;const controlsKey=`${message.left}:${message.right}:${message.bomb}`,changed=controlsKey!==lastControls;if(changed){inputAt=performance.now();benchmarkInput={seq:message.seq,at:inputAt};lastControls=controlsKey;}const sent=runtime.command(message);if(benchmark)sample({kind:'input',at:performance.now(),seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent,tick:runtime.tick});if(changed||message.bombAction)telemetry.log('input',{seq:message.seq,left:message.left,right:message.right,bomb:message.bomb,bombAction:message.bombAction,sent,tick:runtime.tick});return sent;}});
   const bindings=new ControllerPointerBindings(inputState,[[leftButton,'left'],[fireButton,'bomb'],[rightButton,'right']],window,()=>{},(x,y)=>{
     const target=document.elementFromPoint(x,y);return [leftButton,fireButton,rightButton].find(button=>target===button||Boolean(target&&button.contains(target)));
   });
@@ -251,7 +317,7 @@ export async function startOnline():Promise<void>{
   window.addEventListener('keydown',event=>keyboard.down(event));
   window.addEventListener('keyup',event=>keyboard.up(event));
   const clearControls=()=>{keyboard.clear();bindings.clear(true,true);};
-  const mobileLayout=installMobilePlayLayout(app,clearControls);
+  const mobileLayout=installMobilePlayLayout(app,clearControls);mobileLayout.update({joined:false,phase:'lobby',displayOnly}); // A phone booting a room is already on the lobby screen (#134): the header takes its lobby shape before the first snapshot.
   window.addEventListener('blur',clearControls);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)clearControls();});
   dialog.addEventListener('focusin',clearControls);
@@ -260,12 +326,15 @@ export async function startOnline():Promise<void>{
   window.addEventListener('pagehide',clearControls);
   setInterval(()=>{if(joined&&!roomEnded)inputState.resend();audio.director.update();},50);
   runtime.start();
-  if(runtime instanceof RoomRuntime)setInterval(()=>{if(statsPanel.hidden)return;let path='none';try{const m=JSON.parse(app.dataset.metrics??'{}');path=m.direct?'direct':m.relayed?'relay':'none';}catch{}statsPanel.textContent=isHost?`host · ${snapshot?.players.filter(p=>p.connected).length??0} riders connected · stats are per phone: open them on a phone`:formatNetStats(runtime.netStats.summary(),path);},500);
-  setInterval(()=>{void runtime.transport.stats().then(connection=>{
+  // Every device simulates and links to every other, so every device has its own link quality to show.
+  const netStats=new NetStats(()=>performance.now());
+  if(!solo)setInterval(()=>{netStats.record(runtime.metrics());if(statsPanel.hidden)return;let path='none';try{const m=JSON.parse(app.dataset.metrics??'{}');path=m.direct?'direct':m.relayed?'relay':'none';}catch{}statsPanel.textContent=formatNetStats(netStats.summary(),path);},500);
+  setInterval(()=>{void (runtime.transport?.stats()??Promise.resolve({direct:0,relayed:0,buffered:0})).then(connection=>{
     const percentile=(values:number[],p:number)=>[...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*p))]??0;
-    app.dataset.metrics=JSON.stringify({...connection,sentBytes:runtime.transport.sentBytes,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),tick:snapshot?.tick??0});
-    return runtime instanceof RoomRuntime?runtime.transport.diagnostics():undefined;
+    const metrics=runtime.metrics();telemetry.log('metrics',{...metrics});
+    app.dataset.metrics=JSON.stringify({...connection,frameP95:percentile(frameTimes,.95),inputP95:percentile(inputTimes,.95),...metrics});
+    return runtime.transport instanceof PeerTransport?runtime.transport.diagnostics():undefined;
   }).then(report=>{if(report)app.dataset.linkDiagnostics=formatLinkDiagnostics(report.links,report.ice,report.socket);});},1000);
-  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.render();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,defaultTheme,sprites,renderScope);if(responseBenchmark&&canvas.dataset.renderer?.startsWith('phaser-')&&canvas.dataset.rendererStatus!=='context-lost')sample({kind:'response-render',epochAt:performance.timeOrigin+performance.now(),scope:renderScope,phase:predicted.phase,tick:predicted.tick,powerupsDisabled:Object.values(settings.weights).every(weight=>weight===0),players:predicted.players.map(p=>({id:p.id,angle:p.angle,alive:p.alive,drunkUntilTick:p.drunkUntilTick,invulnerableUntilTick:p.invulnerableUntilTick,portalCooldownUntilTick:p.portalCooldownUntilTick,shielded:p.shielded}))});if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
+  function frame(){const now=performance.now();frameTimes.push(now-previousFrame);previousFrame=now;if(frameTimes.length>300)frameTimes.shift();if(inputAt){inputTimes.push(now-inputAt);inputAt=0;if(inputTimes.length>100)inputTimes.shift();}const predicted=runtime.view();if(predicted&&(!canvas.hidden||(!sharedLobby.hidden&&!canvas.dataset.renderer))){presentation.render(predicted,now,theme,sprites,renderScope);if(benchmark&&(benchmarkInput||now-lastBenchmarkRender>=100)){const p=predicted.players.find(p=>p.id===id);sample({kind:'prediction',renderAt:now,tick:predicted.tick,inputSeq:benchmarkInput?.seq,inputAt:benchmarkInput?.at,pose:p?{x:p.x,y:p.y,angle:p.angle}:undefined});benchmarkInput=undefined;lastBenchmarkRender=now;}}requestAnimationFrame(frame);}requestAnimationFrame(frame);
   installRoomLifecycle(window,{stop:()=>runtime.stop(),destroy:()=>presentation.destroy(),reload:()=>location.reload()});
 }

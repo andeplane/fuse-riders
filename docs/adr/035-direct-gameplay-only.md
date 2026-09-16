@@ -1,5 +1,7 @@
 # ADR 035: Direct WebRTC gameplay, signalling-only backend
 
+> **Superseded (2026-09-15).** The host-star snapshot protocol this decision describes was replaced by the peer-to-peer input log; see [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md).
+
 Date: 2026-09-14. Status: accepted scope decision explicitly requested by the user.
 
 The user requested less backend complexity: no Pub/Sub gameplay traffic, with a visible connection failure acceptable if WebRTC cannot work. Pub/Sub between Cloud Run instances remains allowed for coordination/signalling. This supersedes gameplay WSS/Pub/Sub fallback in ADRs 028–034 and their corresponding release gates; it does not waive state consistency, local responsiveness, or direct-path recovery tests.
