@@ -8,7 +8,7 @@ import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 import { MAX_MOMENTS, MAX_MOMENTS_PER_KIND, MOMENT_KINDS, type Moment, type MomentKind } from '../shared/moments.js';
 
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
-export const MAX_CHECKPOINT_TRAILS = 1024;
+export const MAX_CHECKPOINT_TRAILS = POWER_TUNING.maxTrailLifetimeTicks;
 const MAX_HISTORY = 128;
 type Guard = (value: unknown) => boolean;
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Map);

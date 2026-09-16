@@ -1,6 +1,7 @@
 import { bombFuseTicks, BOOST_DURATION_TICKS, GRAVITY_FIELD_TICKS, INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ, type PickupType } from '../shared/game.js';
 import { DRUNK_DURATION_TICKS } from '../shared/drunk.js';
 import { PICKUP_WEIGHTS } from '../shared/pickup-weights.js';
+import { POWER_TUNING } from '../shared/power-progression.js';
 
 export interface PowerupGuideEntry {
   type: PickupType;
@@ -14,7 +15,7 @@ const seconds = (ticks: number): string => `${ticks / TICK_HZ}s`;
 
 // Keyed by PickupType so a new pickup fails to typecheck until it has a guide entry; key order is display order.
 const copy: Record<PickupType, readonly [name: string, description: string]> = {
-  power: ['POWER', 'each pickup improves blast size and reload for this round, with diminishing returns'],
+  power: ['POWER', `each pickup improves blast size and reload with diminishing returns, and adds ${seconds(POWER_TUNING.trailTicksPerPickup)} of trail for this round`],
   extraBomb: ['EXTRA BOMB', '+1 bomb per ordinary shot for this round, up to 9; stacks with Triple/Five'],
   triple: ['TRIPLE', 'next ordinary shot adds 2 bombs'],
   five: ['FIVE', 'next ordinary shot adds 4 bombs (overrides Triple)'],

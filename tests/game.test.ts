@@ -99,7 +99,7 @@ test('replaying the same accepted inputs produces the same snapshots and events'
   assert.deepEqual(first.moments, second.moments);
 });
 
-test('trail segments remain active through T+159 and expire exactly at T+160', () => {
+test('trail segments remain active until their expiry tick', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
   const owner = state.players.get('p0')!;

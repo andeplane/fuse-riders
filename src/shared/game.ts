@@ -1,5 +1,5 @@
 import { hypot2, sin, cos } from './deterministic-math.js';
-import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerReloadTicks } from './power-progression.js';
+import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerReloadTicks, powerTrailLifetimeTicks } from './power-progression.js';
 export { pickupPacing } from './power-progression.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { roomPickup, type RoomSettings } from './room-settings.js';
@@ -72,7 +72,7 @@ export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
 /** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
 export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
-export const TRAIL_LIFETIME_TICKS = 160;
+export const TRAIL_LIFETIME_TICKS = POWER_TUNING.baseTrailLifetimeTicks;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
 export const BOMB_FUSE_TICKS = 40;
@@ -700,7 +700,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         movement.player.angle = movement.angle;
         const trail = clipTrailSegment({
           x1: movement.oldX, y1: movement.oldY, x2: movement.x, y2: movement.y,
-          createdTick: state.tick, expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
+          createdTick: state.tick, expiresAtTick: state.tick + powerTrailLifetimeTicks(movement.player.powerPickups),
         }, trailBounds);
         if (trail && (trail.x1 !== trail.x2 || trail.y1 !== trail.y2)) movement.player.trail.push(trail);
       }
@@ -732,7 +732,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       x2: transit?.entryPoint.x ?? movement.x,
       y2: transit?.entryPoint.y ?? movement.y,
       createdTick: state.tick,
-      expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
+      expiresAtTick: state.tick + powerTrailLifetimeTicks(movement.player.powerPickups),
     }, trailBounds);
     if (trail) movement.player.trail.push(trail);
   }
@@ -975,7 +975,12 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     if (pickup.type === 'stopwatch') {
       collector.fuseLevel = Math.min(2, collector.fuseLevel + 1);
     } else if (pickup.type === 'power') {
+      const previousLifetime = powerTrailLifetimeTicks(collector.powerPickups);
       collector.powerPickups = Math.min(MAX_POWER_PICKUPS, collector.powerPickups + 1);
+      const extension = powerTrailLifetimeTicks(collector.powerPickups) - previousLifetime;
+      // Retain the existing tail while the rider grows into the extra capacity.
+      // Expired or destroyed trail is never recreated.
+      for (const segment of collector.trail) segment.expiresAtTick += extension;
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
     } else if (pickup.type === 'gravity') {
