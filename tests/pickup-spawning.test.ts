@@ -49,7 +49,7 @@ test('waiting riders do not affect spawning; overdue schedules issue one pickup 
 
 test('elimination lowers the rate and cap without removing existing drops; spawning resumes below the cap', () => {
   const { game, inputs } = playing(5);
-  game.pickups = Array.from({ length: pickupPacing(5).cap }, (_, i) => ({ id: game.nextPickupId++, type: 'power', x: 100 + i * 65, y: 100, expiresAtTick: game.tick + 200 }));
+  game.pickups = Array.from({ length: pickupPacing(5).cap }, (_, i) => ({ id: game.nextPickupId++, type: 'power', x: 100 + i * 65, y: 100, expiresAtTick: Number.MAX_SAFE_INTEGER }));
   const ids = game.pickups.map(p => p.id);
   for (const id of [...game.players.keys()].slice(2)) eliminatePlayer(game, id);
   game.nextPickupSpawnTick = game.tick + 1;
@@ -58,7 +58,8 @@ test('elimination lowers the rate and cap without removing existing drops; spawn
   assert.deepEqual(game.pickups.map(p => p.id), ids, 'existing drops survive the cap reduction');
   assert.equal(game.nextPickupId, nextId);
   assert.equal(game.nextPickupSpawnTick, game.tick + pickupPacing(2).interval);
-  for (const pickup of game.pickups.slice(0, 13)) pickup.expiresAtTick = game.nextPickupSpawnTick;
+  const collector = game.players.get('human')!;
+  for (const pickup of game.pickups.slice(0, 13)) { pickup.x = collector.x; pickup.y = collector.y; }
   for (let i = 0; i < pickupPacing(2).interval; i++) step(game, inputs);
   assert.equal(game.pickups.length, pickupPacing(2).cap);
   assert.equal(game.nextPickupId, nextId + 1, 'seven remaining drops allow exactly one new drop');

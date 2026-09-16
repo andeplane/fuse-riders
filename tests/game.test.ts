@@ -21,7 +21,6 @@ import {
   INITIAL_BOUNDARY_INSET,
   OVERTIME_INSET_PER_TICK,
   OVERTIME_START_TICK,
-  PICKUP_LIFETIME_TICKS,
   ROUND_DRAW_TICK,
   SELF_TRAIL_GRACE_TICKS,
   SLOT_COLORS,
@@ -750,7 +749,7 @@ test('star head contact kills only a normal rider while two stars pass through',
   assert.equal(second.alive, true);
 });
 
-test('pickup expiry, active cap, and impossible safe interior stay bounded', () => {
+test('persistent pickups respect the active cap and impossible safe interior stays bounded', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
   state.pickups = Array.from({ length: pickupPacing(2).cap }, (_, index) => ({
@@ -758,11 +757,12 @@ test('pickup expiry, active cap, and impossible safe interior stay bounded', () 
     type: 'power' as const,
     x: 700 + index * 40,
     y: 450,
-    expiresAtTick: state.tick + (index === 0 ? 1 : PICKUP_LIFETIME_TICKS),
+    expiresAtTick: Number.MAX_SAFE_INTEGER,
   }));
   state.nextPickupSpawnTick = state.tick + 1;
   step(state, new Map());
-  assert.equal(state.pickups.length, pickupPacing(2).cap, 'a scheduled replacement respects the living-rider cap');
+  assert.equal(state.pickups.length, pickupPacing(2).cap, 'a full board prevents further spawns');
+  assert.deepEqual(state.pickups.map(pickup => pickup.id), Array.from({ length: pickupPacing(2).cap }, (_, i) => i + 1));
 
   state.pickups = [];
   state.width = 100;
