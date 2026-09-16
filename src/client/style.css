@@ -320,4 +320,4 @@ canvas.replay-zoomed { transition: none; }
 .watch-again { justify-self: start; margin-top: 2px; padding: 4px 9px; color: #051228; font: .55rem "Press Start 2P", ui-monospace, monospace; letter-spacing: .06em; background: var(--player-color); border: 0; cursor: pointer; }
 .watch-again:hover { filter: brightness(1.15); }
 
-.power-level, .power-progress { color: #ffdf55; }
+.power-count { color: #ffdf55; }

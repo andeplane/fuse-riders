@@ -1,4 +1,3 @@
-import { POWER_TUNING } from '../src/shared/power-progression.js';
 import { chromium,webkit,type Page,type Locator,type Browser } from 'playwright';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js'; // count the guide against its source, not a literal that rots with the next pickup
 import assert from 'node:assert/strict';
@@ -43,7 +42,7 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    await page.screenshot({path:`artifacts/home-${tag}.png`});
    await page.getByRole('link',{name:/PLAY SOLO/}).click();await page.locator('.online-roster').getByText('You',{exact:false}).waitFor({state:'attached'});assert.equal(await page.locator('.online-roster>span').count(),5);assert.equal(await page.getByRole('button',{name:/Remove AI/,includeHidden:true}).count(),4);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);
    const powerHud=page.locator('.online-power-status');await powerHud.waitFor({state:'visible'});
-   assert.match(await powerHud.innerText(),new RegExp(`^POWER · LV \\d+ · \\d+ / ${POWER_TUNING.pickupsPerLevel}$`));
+   assert.match(await powerHud.innerText(), /^◆ \d+$/);
    await inside(page,powerHud);await page.screenshot({path:`artifacts/power-${tag}.png`});
    // Avoid spontaneous end-of-match recaps while reviewing modal layouts.
    if(await page.locator('.mobile-tools-toggle').isVisible())await page.locator('.mobile-tools-toggle').click();

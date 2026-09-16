@@ -1,4 +1,4 @@
-import { POWER_TUNING, powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
+import { powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { addPlayer, createGame, startMatch, step, COUNTDOWN_TICKS, BOMB_FUSE_TICKS, BOMB_COOLDOWN_TICKS, BOMB_BLAST_RANGE, RIDER_RADIUS, toSnapshot, eliminatePlayer, startNextRound, type InputIntent } from '../src/shared/game.ts';
@@ -16,7 +16,7 @@ test('target collection arms one normal-strength bomb and preserves volley upgra
   const { game, player, input } = fixture();
   game.pickups.push({ id: 99, type: 'target', x: player.x, y: player.y, expiresAtTick: game.tick + 30 }); input({});
   assert.equal(player.targetBombArmed, true); assert.equal(game.matchStats.get('p0')!.targetPickups, 1);
-  player.fiveShotArmed = true; player.tripleShotArmed = true; player.powerPickups = POWER_TUNING.pickupsPerLevel * 2;
+  player.fiveShotArmed = true; player.tripleShotArmed = true; player.powerPickups = 2;
   input({ bomb: true, bombCommands: [{ action: 'press', aim: { x: .25, y: .5 } }] });
   assert.deepEqual(player.bombTarget, { x: 400, y: 450 });
   const snapshot = toSnapshot(game); snapshot.players[0]!.bombTarget!.x = 10; assert.equal(player.bombTarget!.x, 400);

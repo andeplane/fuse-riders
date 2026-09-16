@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { POWER_TUNING as tuning, MAX_POWER_PICKUPS, MAX_BOARD_PICKUPS, powerLevel, powerProgress, powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
+import { POWER_TUNING as tuning, MAX_POWER_PICKUPS, MAX_BOARD_PICKUPS, powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
 import { BOMB_FUSE_TICKS, COUNTDOWN_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, toSnapshot, type InputIntent } from '../src/shared/game.js';
 import { decodeGameState, encodeGameState } from '../src/online/checkpoint.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
@@ -17,23 +17,26 @@ function playing() {
 }
 const fire = new Map<string, InputIntent>([['p0', { left: false, right: false, bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]]);
 
-test('progress is stepped, diminishing and bounded even at extreme pickup counts', () => {
-  const n = tuning.pickupsPerLevel;
-  assert.equal(powerLevel(n - 1), 0); assert.equal(powerProgress(n - 1), n - 1);
-  assert.equal(powerLevel(n), 1); assert.equal(powerProgress(n), 0);
-  assert.equal(powerBlastRadius(n - 1), tuning.baseBlastRadius);
-  assert.equal(powerReloadTicks(n - 1), tuning.baseReloadTicks);
-  assert.equal(powerBlastRadius(6 * n), 135);
-  assert.equal(powerReloadTicks(6 * n), 63);
-  const gains = [0, 1, 2, 3].map(level => powerBlastRadius((level + 1) * n) - powerBlastRadius(level * n));
-  assert.ok(gains.every((gain, i) => gain > 0 && (i === 0 || gain < gains[i - 1]!)));
+test('every pickup improves blast strength with diminishing returns and bounded reload', () => {
+  assert.equal(powerBlastRadius(0), tuning.baseBlastRadius);
+  assert.equal(powerReloadTicks(0), tuning.baseReloadTicks);
+  assert.equal(powerBlastRadius(tuning.halfStrengthPickups), 135);
+  assert.equal(powerReloadTicks(tuning.halfStrengthPickups), 63);
+  let previousGain = Infinity;
+  for (let count = 1; count <= 100; count++) {
+    const gain = powerBlastRadius(count) - powerBlastRadius(count - 1);
+    assert.ok(gain > 0 && gain < previousGain, `pickup ${count} adds a smaller positive blast gain`);
+    assert.ok(powerReloadTicks(count) <= powerReloadTicks(count - 1));
+    previousGain = gain;
+  }
+  assert.ok(powerReloadTicks(1) < tuning.baseReloadTicks, 'the very first pickup improves reload');
   assert.ok(powerBlastRadius(MAX_POWER_PICKUPS) < tuning.maxBlastRadius);
   assert.ok(powerReloadTicks(MAX_POWER_PICKUPS) >= tuning.minReloadTicks);
   assert.ok(tuning.minReloadTicks > BOMB_FUSE_TICKS);
 });
 
-test('partial progress does not improve a shot; reload finishes at the upgraded deadline', () => {
-  for (const count of [tuning.pickupsPerLevel - 1, tuning.pickupsPerLevel, 6 * tuning.pickupsPerLevel]) {
+test('each pickup improves a shot; reload finishes at the upgraded deadline', () => {
+  for (const count of [1, 2, 3, 4, 5, tuning.halfStrengthPickups]) {
     const game = playing(), player = game.players.get('p0')!;
     player.powerPickups = count;
     step(game, fire);
@@ -54,13 +57,13 @@ test('partial progress does not improve a shot; reload finishes at the upgraded 
 
 test('power and a running reload restore and replay exactly; the ring uses the launch duration', () => {
   const game = playing(), player = game.players.get('p0')!;
-  player.powerPickups = tuning.pickupsPerLevel - 1;
+  player.powerPickups = 4;
   step(game, fire);
   game.pickups = [{ id: game.nextPickupId++, type: 'power', x: player.x, y: player.y, expiresAtTick: game.tick + 100 }];
   step(game, new Map());
-  assert.equal(powerLevel(player.powerPickups), 1);
+  assert.equal(player.powerPickups, 5);
   const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
-  assert.equal(reloadRemaining(snapshot.players[0]!, snapshot), (tuning.baseReloadTicks - 1) / tuning.baseReloadTicks);
+  assert.equal(reloadRemaining(snapshot.players[0]!, snapshot), (powerReloadTicks(4) - 1) / powerReloadTicks(4));
   const restored = decodeGameState(encodeGameState(game)); assert.ok(restored);
   for (let i = 0; i < 20; i++) { step(game, new Map()); step(restored, new Map()); }
   assert.equal(encodeGameState(restored), encodeGameState(game));
@@ -101,14 +104,12 @@ test('a newly joined lobby rider can be restored before any round initializes it
   assert.equal(encodeGameState(restored), encodeGameState(game));
 });
 
-test('several collected pickups can cross multiple thresholds without losing partial progress', () => {
+test('several pickups collected together all improve a shot on the same tick', () => {
   const game = playing(), player = game.players.get('p0')!;
-  const count = tuning.pickupsPerLevel * 2 + 1;
+  const count = 11;
   game.pickups = Array.from({ length: count }, () => ({ id: game.nextPickupId++, type: 'power', x: player.x, y: player.y, expiresAtTick: game.tick + 100 }));
   step(game, fire);
   assert.equal(player.powerPickups, count);
-  assert.equal(powerLevel(player.powerPickups), 2);
-  assert.equal(powerProgress(player.powerPickups), 1);
   assert.equal([...game.bombs.values()][0]!.blastRange, powerBlastRadius(count));
   assert.equal(player.reloadDurationTicks, powerReloadTicks(count));
   assert.equal(game.matchStats.get(player.id)!.powerPickups, count);

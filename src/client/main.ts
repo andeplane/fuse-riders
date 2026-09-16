@@ -1,5 +1,4 @@
-import { displayPowerLevel, powerRingProgress, POWER_RING_RADIUS, POWER_RING_COLOR } from './power-indicator.js';
-import { powerProgress, POWER_TUNING } from '../shared/power-progression.js';
+import { powerLabel, POWER_COLOR } from './power-indicator.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { drawBombTargets } from './target-renderer.js';
@@ -396,17 +395,16 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = color;
     ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
-    ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-    ctx.fillText(`P${player.slot + 1} · LV ${displayPowerLevel(player.powerPickups)}`, Math.round(player.x), Math.round(player.y - 27)); ctx.restore();
-    const progress = powerRingProgress(player.powerPickups);
-    ctx.save();
-    ctx.strokeStyle = '#080c22'; ctx.lineWidth = 3; ctx.globalAlpha = .9;
-    ctx.beginPath(); ctx.arc(player.x, player.y, POWER_RING_RADIUS, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = POWER_RING_COLOR; ctx.lineWidth = 2; ctx.globalAlpha = .18; ctx.stroke();
-    if (progress > 0) {
-      ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(player.x, player.y, POWER_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
-    }
+    ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'left';
+    const powerText = powerLabel(player.powerPickups), gap = 8;
+    const nameWidth = ctx.measureText(player.name).width;
+    const labelX = Math.round(player.x - (nameWidth + gap + ctx.measureText(powerText).width) / 2);
+    const labelY = Math.round(player.y - 27);
+    ctx.lineWidth = 3; ctx.strokeStyle = '#020715';
+    ctx.strokeText(player.name, labelX, labelY); ctx.fillStyle = color;
+    ctx.fillText(player.name, labelX, labelY);
+    ctx.strokeText(powerText, labelX + nameWidth + gap, labelY); ctx.fillStyle = POWER_COLOR;
+    ctx.fillText(powerText, labelX + nameWidth + gap, labelY);
     ctx.restore();
     const reload = reloadRemaining(player, snapshot);
     if (reload > 0) {
@@ -872,8 +870,7 @@ function startController(): void {
   identity.append(identityMarker, identityCopy, stateBadge);
   const instruction = element('p', 'controller-instruction', 'Waiting for the host to start…');
   const powerStrip = element('div', 'power-strip');
-  const levelPower = element('span', 'power-chip power-level', 'POWER · LV 1');
-  const progressPower = element('span', 'power-chip power-progress', `0 / ${POWER_TUNING.pickupsPerLevel} TO NEXT LEVEL`);
+  const countPower = element('span', 'power-chip power-count', powerLabel(0));
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
   const inkPower = element('span', 'power-chip', 'INK · --');
   const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
@@ -881,7 +878,7 @@ function startController(): void {
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(levelPower, progressPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
+  powerStrip.append(countPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
@@ -962,8 +959,7 @@ function startController(): void {
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
-    levelPower.textContent = `POWER · LV ${displayPowerLevel(player.powerPickups)}`;
-    progressPower.textContent = `${powerProgress(player.powerPickups)} / ${POWER_TUNING.pickupsPerLevel} TO NEXT LEVEL`;
+    countPower.textContent = powerLabel(player.powerPickups);
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;

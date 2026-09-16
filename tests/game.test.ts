@@ -1,4 +1,4 @@
-import { POWER_TUNING, pickupPacing, powerLevel, powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
+import { pickupPacing, powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { POINT_UNIT } from '../src/shared/leaderboard.ts';
@@ -666,14 +666,14 @@ test('the larger arena and seeded pickup schedule replay deterministically', () 
   assert.equal(first.randomState, second.randomState);
 });
 
-test('power threshold applies both weapon upgrades on the collection tick', () => {
+test('first Power pickup applies both weapon upgrades on the collection tick', () => {
   const state = gameWithPlayers(); enterPlaying(state);
   const player = state.players.get('p0')!;
-  Object.assign(player, { x: 500, y: 450, angle: 0, powerPickups: POWER_TUNING.pickupsPerLevel - 1 });
+  Object.assign(player, { x: 500, y: 450, angle: 0, powerPickups: 0 });
   Object.assign(state.players.get('p1')!, { x: 1200, y: 700 });
   state.pickups = [{ id: 1, type: 'power', x: 503, y: 450, expiresAtTick: state.tick + 100 }];
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
-  assert.equal(powerLevel(player.powerPickups), 1);
+  assert.equal(player.powerPickups, 1);
   assert.equal(state.pickups.length, 0);
   const bomb = [...state.bombs.values()][0]!;
   assert.equal(bomb.blastRange, powerBlastRadius(player.powerPickups));
@@ -1177,17 +1177,15 @@ test('power changes only future shots, preserves fuse timing and resets next rou
   state.bombs.set(99, { id: 99, ownerId: owner.id, x: 700, y: 200, launchX: 700, launchY: 200,
     launchedTick: state.tick, placedTick: state.tick, landsAtTick: state.tick, explodeAtTick: deadline,
     blastRange: BOMB_BLAST_RANGE, flightPath: fixedFlightPath(700, 200) });
-  for (let count = 1; count <= POWER_TUNING.pickupsPerLevel + 1; count++) {
+  for (let count = 1; count <= 6; count++) {
     state.pickups = [{ id: 100 + count, type: 'power', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
     step(state, new Map()); assert.equal(owner.powerPickups, count);
     assert.equal(state.bombs.get(99)!.explodeAtTick, deadline);
     assert.equal(state.bombs.get(99)!.blastRange, BOMB_BLAST_RANGE);
     assert.equal(owner.bombReadyAtTick, reloadDeadline, 'collecting does not rewrite a running reload');
     assert.equal(owner.reloadDurationTicks, BOMB_COOLDOWN_TICKS);
-    if (count < POWER_TUNING.pickupsPerLevel) {
-      assert.equal(powerBlastRadius(count), BOMB_BLAST_RANGE);
-      assert.equal(powerReloadTicks(count), BOMB_COOLDOWN_TICKS);
-    }
+    assert.ok(powerBlastRadius(count) > powerBlastRadius(count - 1));
+    assert.ok(powerReloadTicks(count) < BOMB_COOLDOWN_TICKS);
   }
   state.bombs.clear(); owner.bombReadyAtTick = state.tick; owner.tripleShotArmed = true;
   step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }], ['p1', { bomb: true, bombCommands: [{ action: 'press' }] }]));
@@ -1197,7 +1195,7 @@ test('power changes only future shots, preserves fuse timing and resets next rou
   assert.ok(bombs.every(bomb => bomb.explodeAtTick - bomb.launchedTick === BOMB_FUSE_TICKS));
   assert.ok(bombs.filter(bomb => bomb.ownerId === owner.id).every(bomb => bomb.blastRange === powerBlastRadius(owner.powerPickups)));
   assert.equal(bombs.find(bomb => bomb.ownerId === other.id)!.blastRange, BOMB_BLAST_RANGE);
-  assert.equal(toSnapshot(state).players.find(player => player.id === owner.id)!.powerPickups, POWER_TUNING.pickupsPerLevel + 1);
+  assert.equal(toSnapshot(state).players.find(player => player.id === owner.id)!.powerPickups, 6);
   eliminatePlayer(state, 'p1'); eliminatePlayer(state, 'p2'); step(state, new Map());
   state.tick = state.phaseEndsAtTick!; startNextRound(state);
   assert.equal(owner.powerPickups, 0); assert.equal(owner.reloadDurationTicks, BOMB_COOLDOWN_TICKS);

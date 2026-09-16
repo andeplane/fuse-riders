@@ -1,4 +1,4 @@
-import { POWER_TUNING, powerBlastRadius } from '../src/shared/power-progression.js';
+import { powerBlastRadius } from '../src/shared/power-progression.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, toSnapshot, type GameState } from '../src/shared/game.js';
@@ -53,12 +53,12 @@ test('a field expires exactly, and the arena is clear of fields once it does', (
   step(state, new Map());
   assert.deepEqual(state.gravityFields, [], 'gone on the tick it expires');
 });
-test('power level widens the field the same way it widens the blast', () => {
+test('collected Power widens the field the same way it widens the blast', () => {
   for (const level of [0, 1, 2] as const) {
     const state = playing();
-    dueBomb(state, 900, 200, true, powerBlastRadius(level * POWER_TUNING.pickupsPerLevel));
+    dueBomb(state, 900, 200, true, powerBlastRadius(level));
     step(state, new Map());
-    assert.equal(state.gravityFields[0]!.radius, powerBlastRadius(level * POWER_TUNING.pickupsPerLevel), `level ${level}`);
+    assert.equal(state.gravityFields[0]!.radius, powerBlastRadius(level), `level ${level}`);
   }
 });
 test('a rider outside the radius is untouched, so the pull is local', () => {

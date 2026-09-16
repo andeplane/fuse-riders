@@ -79,7 +79,7 @@ export const BOMB_FUSE_TICKS = 40;
 export const BOMB_COOLDOWN_TICKS = POWER_TUNING.baseReloadTicks;
 export const BOMB_BLAST_RANGE = POWER_TUNING.baseBlastRadius;
 export const BLAST_VISIBLE_TICKS = 8;
-/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with power level like the blast itself (#166). */
+/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with collected Power like the blast itself (#166). */
 export const GRAVITY_FIELD_TICKS = 80;
 /** Peak pull at the centre, as a share of a tick's travel. Well under 1, so a rider is dragged and slowed, never captured. */
 export const GRAVITY_PULL_PER_TICK = 0.45;

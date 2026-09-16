@@ -1,4 +1,3 @@
-import { POWER_TUNING } from "../src/shared/power-progression.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
@@ -37,4 +36,4 @@ test('power-up guide durations follow the simulation constants', () => {
   assert.match(entry('star').description, new RegExp(`${seconds(STAR_DURATION_TICKS)}$`));
 });
 
-test('power guide explains the configured level threshold', () => { assert.ok(entry('power').description.includes(`collect ${POWER_TUNING.pickupsPerLevel} to level up`)); });
+test('power guide explains immediate pickup benefits', () => { assert.match(entry('power').description, /each pickup improves blast size and reload/); });

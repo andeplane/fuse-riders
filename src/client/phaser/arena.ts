@@ -1,4 +1,4 @@
-import { displayPowerLevel, powerRingProgress, POWER_RING_RADIUS, POWER_RING_COLOR } from '../power-indicator.js';
+import { powerLabel, POWER_COLOR } from '../power-indicator.js';
 import { assetUrl } from '../asset-url.js';
 import { GRAVITY_FIELD_TICKS, PICKUP_TYPES } from '../../shared/game.js';
 import Phaser from 'phaser';
@@ -254,7 +254,7 @@ class ArenaScene extends Phaser.Scene {
     const key = this.textures.exists(texture) ? texture : this.textures.exists(fallback) ? fallback : 'spark';
     return image.setDepth(3).setBlendMode(Phaser.BlendModes.NORMAL).setVisible(true).setTexture(key, frame).setPosition(x,y).setDisplaySize(size,size).setRotation(rotation).setAlpha(1).clearTint();
   }
-  private label(text: string, x: number, y: number, tint: string, size = 11, depth = 5): void {
+  private label(text: string, x: number, y: number, tint: string, size = 11, depth = 5): Phaser.GameObjects.Text {
     let label = this.labels[this.labelIndex++];
     if (!label) { label = this.add.text(0,0,'',{ fontFamily: 'monospace', fontSize: size, fontStyle: 'bold', stroke: '#020715', strokeThickness: 3 }).setOrigin(.5).setDepth(7); this.labels.push(label); this.world.add(label); }
     if (label.text !== text) label.setText(text);
@@ -263,6 +263,7 @@ class ArenaScene extends Phaser.Scene {
     label.setDepth(depth).setVisible(true).setPosition(x,y);
     if(label.style.color!==tint)label.setColor(tint);
     if(label.style.fontSize!==`${size}px`)label.setFontSize(size);
+    return label;
   }
   paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string): void {
     this.imageIndex = 0; this.labelIndex = 0;
@@ -382,11 +383,11 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
       f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
-      this.label(`P${p.slot+1} · LV ${displayPowerLevel(p.powerPickups)}`,p.x,p.y-27,p.color);
-      const progress=powerRingProgress(p.powerPickups), powerTint=color(POWER_RING_COLOR);
-      f.lineStyle(3,0x080c22,.9).strokeCircle(p.x,p.y,POWER_RING_RADIUS);
-      f.lineStyle(2,powerTint,.18).strokeCircle(p.x,p.y,POWER_RING_RADIUS);
-      if(progress>0) f.lineStyle(2,powerTint).beginPath().arc(p.x,p.y,POWER_RING_RADIUS,-Math.PI/2,-Math.PI/2+progress*Math.PI*2,false).strokePath();
+      const name=this.label(p.name,p.x,p.y-27,p.color);
+      const power=this.label(powerLabel(p.powerPickups),p.x,p.y-27,POWER_COLOR);
+      const gap=8, left=p.x-(name.width+gap+power.width)/2;
+      name.setX(left+name.width/2);
+      power.setX(left+name.width+gap+power.width/2);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;
