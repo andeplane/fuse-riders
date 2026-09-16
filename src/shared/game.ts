@@ -1347,7 +1347,7 @@ function square(value: number): number {
   return value * value;
 }
 
-function segmentDistanceSquared(
+export function segmentDistanceSquared(
   ax: number, ay: number, bx: number, by: number,
   cx: number, cy: number, dx: number, dy: number,
 ): number {
