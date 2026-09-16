@@ -1,6 +1,6 @@
 import { PICKUP_WEIGHTS } from './pickup-weights.js';
 import { BOMB_MAX_CHARGE_TICKS, isBombChargeTicks } from './bomb-launch.js';
-import type { PickupType } from './game.js';
+import { PICKUP_TYPES, type PickupType } from './game.js';
 export interface RoomSettings {
   version: 1;
   mode: 'shared' | 'devices';
@@ -30,7 +30,7 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   const aimBounce = value.aimBounce === undefined ? true : value.aimBounce;
   if (typeof aimBounce !== 'boolean') return;
   if (value.version !== 1 || !['shared','devices'].includes(value.mode) || !['wins','rounds'].includes(value.match) || !Number.isInteger(value.length) || value.length < 1 || value.length > 20 || !value.weights || typeof value.weights !== 'object') return;
-  const allowed = new Set([...PICKUP_WEIGHTS.map(row => row.type), 'star']);
+  const allowed = new Set<string>(PICKUP_TYPES);
   const weights: RoomSettings['weights'] = {};
   for (const [type, weight] of Object.entries(value.weights)) {
     if (!allowed.has(type as PickupType) || typeof weight !== 'number' || !Number.isFinite(weight) || weight < 0 || weight > 10000) return;

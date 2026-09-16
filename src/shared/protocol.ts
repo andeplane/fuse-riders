@@ -3,7 +3,7 @@ import type { PortalPair } from './portal.js';
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 import type { MatchPlayerStats } from './match-stats.js';
 import type { FlightPoint } from './launch-modifiers.js';
-import type { PickupType } from './game.js';
+import type { PickupType } from './game.js'; // the type alone: this module never needs the tuple's value
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
