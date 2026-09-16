@@ -25,9 +25,11 @@ try{
  },{chunk,state:visualFixture(20),theme:defaultTheme});
  assert.deepEqual(failures,[]);
  // The landing page loads assets of its own — an attract arena, the legend icons, the theme sprites — before this smoke builds
- // its arena, so how many *responses* arrive depends on composition and timing. What must hold is which paths were fetched, and
- // that every one of them resolved below the subpath. Asserting the set is also the arity guard for the every() below.
+ // its arena, so how many *responses* arrive depends on composition and timing. What must hold is which paths were fetched.
+ // The set subsumes the prefix check it replaced: every path is built from /fuse-riders, so a doubled prefix or a stray host
+ // shows up as a named difference instead of a boolean. Flame comes from the selected theme, which is the default in a fresh
+ // context with no ?theme= — if that ever changes, the diff names flame.svg rather than failing quietly.
  const expected=new Set([...Object.values(themes).flatMap(theme=>[theme.sprites.rider,theme.sprites.bomb,...POWERUP_GUIDE.map(entry=>`/themes/${theme.id}/pickup-${entry.type}.svg`)]),defaultTheme.sprites.flame,AVATAR_ATLAS_URL].map(path=>`/fuse-riders${path}`));
- assert.deepEqual(new Set(assets),expected);assert.ok(assets.every(path=>path.startsWith('/fuse-riders/')&&!path.includes('/fuse-riders/fuse-riders/')));
- console.log(`Pages subpath smoke passed: ${assets.length} theme/avatar assets loaded successfully below /fuse-riders/.`);
+ assert.deepEqual(new Set(assets),expected);
+ console.log(`Pages subpath smoke passed: ${new Set(assets).size} theme/avatar assets across ${assets.length} responses, all below /fuse-riders/.`);
 }finally{await browser.close();await new Promise<void>((resolve,reject)=>server.httpServer.close(error=>error?reject(error):resolve()));}
