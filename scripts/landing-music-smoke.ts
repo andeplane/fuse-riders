@@ -93,7 +93,7 @@ try {
   const mute = () => page.locator('.landing-mute').textContent();
   assert.equal(await mute(), '🔊 SOUND ON');
   await page.locator('.landing-mute').click(); await settle();
-  assert.equal(await mute(), '🔊 SOUND OFF'); assert.equal(await label(), '♫ MUSIC OFF');
+  assert.equal(await mute(), '🔇 SOUND OFF'); assert.equal(await label(), '♫ MUSIC OFF');
   assert.deepEqual((await stored()).muted, { music: true, effects: true });
   assert.equal((await track(page))!.paused, true, 'sound off stops streaming');
   await page.locator('.landing-mute').click(); await settle();
