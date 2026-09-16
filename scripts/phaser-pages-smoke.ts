@@ -1,4 +1,5 @@
 import { preview } from 'vite';
+import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 import { chromium } from 'playwright';
 import { readdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -21,6 +22,6 @@ try{
    arena.render(state,performance.now(),theme,'pages-test');
    arena.destroy();canvas.remove();
  },{chunk,state:visualFixture(20),theme:defaultTheme});
- assert.deepEqual(failures,[]);assert.equal(assets.length,29);assert.ok(assets.every(path=>path.startsWith('/fuse-riders/')&&!path.includes('/fuse-riders/fuse-riders/')));
+ assert.deepEqual(failures,[]);const expected=2*(2+POWERUP_GUIDE.length)+1;assert.equal(assets.length,expected,`theme/avatar assets loaded: ${assets.length}, expected ${expected}`);assert.ok(assets.every(path=>path.startsWith('/fuse-riders/')&&!path.includes('/fuse-riders/fuse-riders/')));
  console.log(`Pages subpath smoke passed: ${assets.length} theme/avatar assets loaded successfully below /fuse-riders/.`);
 }finally{await browser.close();await new Promise<void>((resolve,reject)=>server.httpServer.close(error=>error?reject(error):resolve()));}

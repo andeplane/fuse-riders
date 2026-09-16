@@ -83,11 +83,12 @@ try {
   assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
   // Switching the style must re-src every legend icon, not just the ones that existed when the
   // theme plumbing was written. Ends on the default so later steps shoot the usual artwork.
+  // The count is what stops the theme loop below passing vacuously on an empty or truncated list; what each icon says is pinned above.
   const defaultPickups = POWERUP_GUIDE.filter(entry => entry.spawnsByDefault).length;
   for (const themeId of ['clean-neon', 'neon-pixel']) {
     await host.getByRole('combobox').selectOption(themeId);
     const legendSources = await host.locator('.pickup-legend img').evaluateAll(images => images.map(image => image.getAttribute('src') ?? ''));
-    assert.equal(legendSources.length, defaultPickups, `legend icons found: ${legendSources.length}`);
+    assert.equal(legendSources.length, defaultPickups, `legend icons found: ${legendSources.length}, expected ${defaultPickups}`);
     for (const source of legendSources) assert.ok(source.includes(`/themes/${themeId}/`), `legend icon ${source} ignores theme ${themeId}`);
   }
 
