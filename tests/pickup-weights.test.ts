@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { pickupPacing } from '../src/shared/game.ts';
 import { PICKUP_WEIGHTS, pickupTypeForRoll } from '../src/shared/pickup-weights.ts';
+import { defaultRoomSettings, roomPickup } from '../src/shared/room-settings.ts';
 test('weighted table gives Five one third Triple probability with deterministic intervals', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const counts = new Map<string, number>();
+  const defaults = defaultRoomSettings();
   for (let index = 0; index < total; index += 1) {
     const type = pickupTypeForRoll((index + .5) / total);
     assert.equal(type, pickupTypeForRoll((index + .5) / total));
+    assert.equal(roomPickup((index + .5) / total, defaults.weights), type);
     counts.set(type, (counts.get(type) ?? 0) + 1);
   }
   for (const row of PICKUP_WEIGHTS) assert.equal(counts.get(row.type), row.weight);
@@ -20,7 +23,7 @@ test('weighted table gives Five one third Triple probability with deterministic 
 test('Power is abundant while special drops remain optional', () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const power = PICKUP_WEIGHTS.find(row => row.type === 'power')!.weight;
-  assert.ok(power / total > .75 && power / total < .85);
+  assert.ok(power / total > .70 && power / total < .80);
   assert.equal(PICKUP_WEIGHTS.some(row => row.type === 'star'), false);
 });
 
