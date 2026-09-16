@@ -1,4 +1,4 @@
-import { powerLabel, POWER_COLOR } from './power-indicator.js';
+import { powerLabel, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from './power-indicator.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { drawBombTargets } from './target-renderer.js';
@@ -396,15 +396,20 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
     ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'left';
-    const powerText = powerLabel(player.powerPickups), gap = 8;
+    const powerText = String(player.powerPickups), gap = 8;
     const nameWidth = ctx.measureText(player.name).width;
-    const labelX = Math.round(player.x - (nameWidth + gap + ctx.measureText(powerText).width) / 2);
+    const labelX = Math.round(player.x - (nameWidth + gap + POWER_ICON_SIZE + POWER_ICON_GAP + ctx.measureText(powerText).width) / 2);
     const labelY = Math.round(player.y - 27);
     ctx.lineWidth = 3; ctx.strokeStyle = '#020715';
     ctx.strokeText(player.name, labelX, labelY); ctx.fillStyle = color;
     ctx.fillText(player.name, labelX, labelY);
-    ctx.strokeText(powerText, labelX + nameWidth + gap, labelY); ctx.fillStyle = POWER_COLOR;
-    ctx.fillText(powerText, labelX + nameWidth + gap, labelY);
+    const radius = POWER_ICON_SIZE / 2, iconX = labelX + nameWidth + gap + radius, iconY = labelY - 5;
+    ctx.fillStyle = POWER_COLOR; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(iconX, iconY - radius); ctx.lineTo(iconX + radius, iconY);
+    ctx.lineTo(iconX, iconY + radius); ctx.lineTo(iconX - radius, iconY); ctx.closePath(); ctx.fill(); ctx.stroke();
+    const countX = iconX + radius + POWER_ICON_GAP;
+    ctx.lineWidth = 3; ctx.strokeText(powerText, countX, labelY);
+    ctx.fillText(powerText, countX, labelY);
     ctx.restore();
     const reload = reloadRemaining(player, snapshot);
     if (reload > 0) {

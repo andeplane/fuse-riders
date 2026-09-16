@@ -1,4 +1,4 @@
-import { powerLabel, POWER_COLOR } from '../power-indicator.js';
+import { POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from '../power-indicator.js';
 import { assetUrl } from '../asset-url.js';
 import { GRAVITY_FIELD_TICKS, PICKUP_TYPES } from '../../shared/game.js';
 import Phaser from 'phaser';
@@ -384,10 +384,14 @@ class ArenaScene extends Phaser.Scene {
       const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
       f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
       const name=this.label(p.name,p.x,p.y-27,p.color);
-      const power=this.label(powerLabel(p.powerPickups),p.x,p.y-27,POWER_COLOR);
-      const gap=8, left=p.x-(name.width+gap+power.width)/2;
+      const power=this.label(String(p.powerPickups),p.x,p.y-27,POWER_COLOR);
+      const gap=8, left=p.x-(name.width+gap+POWER_ICON_SIZE+POWER_ICON_GAP+power.width)/2;
       name.setX(left+name.width/2);
-      power.setX(left+name.width+gap+power.width/2);
+      const iconX=left+name.width+gap+POWER_ICON_SIZE/2, iconY=p.y-27, radius=POWER_ICON_SIZE/2;
+      f.fillStyle(color(POWER_COLOR)).lineStyle(2,0x020715).beginPath()
+        .moveTo(iconX,iconY-radius).lineTo(iconX+radius,iconY).lineTo(iconX,iconY+radius).lineTo(iconX-radius,iconY)
+        .closePath().fillPath().strokePath();
+      power.setX(iconX+radius+POWER_ICON_GAP+power.width/2);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;
