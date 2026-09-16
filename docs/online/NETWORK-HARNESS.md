@@ -1,5 +1,7 @@
 # Browser application-transport impairment harness
 
+> **Status (2026-09-15): historical.** `scripts/online-network-benchmark.ts` and `scripts/input-drop-probe.ts` were removed with the host-star runtime. The current network gates are `scripts/determinism-replay.ts`, `scripts/p2p-mesh-browser.ts` and `scripts/p2p-measure.ts`; see [P2P-INPUT-LOG-BRIEF.md](P2P-INPUT-LOG-BRIEF.md) §15 and the README.
+
 `scripts/online-network-benchmark.ts` replaces the obsolete two-player/forced-relay experiment. It is an application-boundary stress tool for ADR 035's direct-only scope. It does not certify ADR 032 release gates.
 
 Run against an isolated local online fixture:

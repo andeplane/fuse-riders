@@ -1,15 +1,9 @@
-import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
-import { isBombChargeTicks } from '../shared/bomb-launch.js';
-import type { GameSnapshot, MatchPlayerStats } from '../shared/protocol.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 
-/** Bump compatibility whenever persisted simulation semantics or required fields change. No implicit migration. */
-export const CHECKPOINT_VERSION = 7;
-export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-2';
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
 const MAX_HISTORY = 128;
@@ -33,7 +27,7 @@ const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
-  bombTarget: optional(shape({x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT)})), gravityArmed: boolean, fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, boostUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
+  bombTarget: optional(shape({ x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT) })), gravityArmed: boolean, fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, boostUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
   drunkStartedTick: integer, drunkHeadingOffset: range(-Math.PI, Math.PI), tripleShotArmed: boolean, fiveShotArmed: boolean,
   shielded: boolean, shieldGraceUntilTick: integer, portalCooldownUntilTick: integer, portalGraceUntilTick: integer, trail: array(trail, MAX_CHECKPOINT_TRAILS),
 } satisfies Record<keyof PlayerState, Guard>;
@@ -56,7 +50,7 @@ const statsFields = {
   shieldPickups: integer, portalPickups: integer, portalTransits: integer, invulnerableTicks: integer, wallBounces: integer, earlyExits: integer, currentRoundSurvivalTicks: integer,
 } satisfies Record<keyof MatchPlayerStatsState, Guard>;
 const stats = shape(statsFields);
-const settings: Guard = v => parseRoomSettings(v) !== undefined;
+const settings: Guard = v => v === undefined || parseRoomSettings(v) !== undefined;
 const gravityField: Guard = shape({ bombId: integer, ownerId: text, x: position, y: position, radius: range(0, 1000), expiresAtTick: integer });
 const gameShape = shape({
   settings, matchId: text, round: v => integer(v) && (v as number) > 0, tick: integer,
@@ -80,7 +74,7 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
     return value.map(item => decodeTree(item, depth + 1, budget));
   }
   if (!record(value)) return value;
-  if (Object.keys(value).length===1&&value.$number==='-0')return -0;
+  if (Object.keys(value).length === 1 && value.$number === '-0') return -0;
   if (Object.hasOwn(value, '$map')) {
     if (Object.keys(value).length !== 1 || !Array.isArray(value.$map) || value.$map.length > 256) throw new Error('Invalid map');
     const result = new Map<unknown, unknown>();
@@ -133,66 +127,16 @@ function gameInvariants(game: GameState): boolean {
   return true;
 }
 
-export interface RestoredCheckpoint { game: GameState; settings: RoomSettings; sequences: Map<string, number>; botIds: Set<string> }
-/** Replica restore preserves active inputs/connection state; host recovery sanitization is separate. */
+/** Replica state: connection flags and active gestures are preserved exactly, including negative zero. */
 export function encodeGameState(game: GameState): string {
-  return JSON.stringify(game, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : Object.is(value,-0) ? { $number: '-0' } : value);
+  return JSON.stringify(game, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : Object.is(value, -0) ? { $number: '-0' } : value);
 }
-export function isGameState(value:unknown):value is GameState { return gameShape(value) && gameInvariants(value as GameState); }
-export function decodeGameState(raw: string): GameState | undefined {
-  if (raw.length > MAX_CHECKPOINT_BYTES || new TextEncoder().encode(raw).byteLength > MAX_CHECKPOINT_BYTES) return;
+export function decodeGameState(raw: unknown): GameState | undefined {
+  if (typeof raw !== 'string' || raw.length > MAX_CHECKPOINT_BYTES) return;
   try {
     const value: unknown = decodeTree(JSON.parse(raw));
     if (!gameShape(value)) return;
     const game = value as GameState;
     return gameInvariants(game) ? game : undefined;
   } catch { return; }
-}
-export function encodeCheckpoint(host: string, game: GameState, roomSettings: RoomSettings, sequences: Iterable<readonly [string, number]>, botIds: Iterable<string> = []): string {
-  return JSON.stringify({ version: CHECKPOINT_VERSION, compatibility: CHECKPOINT_COMPATIBILITY, host, settings: roomSettings, game, sequences: [...sequences], botIds: [...botIds] }, (_key, value: unknown) => value instanceof Map ? { $map: [...value] } : Object.is(value,-0) ? { $number: '-0' } : value);
-}
-export function decodeCheckpoint(raw: string, host: string): RestoredCheckpoint | undefined {
-  if (raw.length > MAX_CHECKPOINT_BYTES || new TextEncoder().encode(raw).byteLength > MAX_CHECKPOINT_BYTES) return;
-  try {
-    const data: unknown = decodeTree(JSON.parse(raw));
-    if (!shape({ version: v => v === CHECKPOINT_VERSION, compatibility: v => v === CHECKPOINT_COMPATIBILITY, host: v => v === host, settings, game: gameShape, sequences: array(v => Array.isArray(v) && v.length === 2 && text(v[0]) && Number.isSafeInteger(v[1]) && v[1] >= -1, 5), botIds: array(text, 5) })(data) || !record(data)) return;
-    // Every property and nested container is checked by the exhaustive schemas above.
-    const game = data.game as GameState;
-    if (!gameInvariants(game)) return;
-    const sequences = new Map<string, number>();
-    for (const [id, seq] of data.sequences as [string, number][]) { if (!game.players.has(id) || sequences.has(id)) return; sequences.set(id, seq); }
-    const botIds=new Set<string>();
-    for(const id of data.botIds as string[]){if(!id.startsWith(BOT_ID_PREFIX)||id===host||!game.players.has(id)||botIds.has(id))return;botIds.add(id);}
-    for (const player of game.players.values()) { player.connected = botIds.has(player.id); player.bombChargeStartedTick = undefined; player.bombTarget = undefined; }
-    return { game, settings: parseRoomSettings(data.settings)!, sequences, botIds };
-  } catch { return; }
-}
-
-/** The wire snapshot shares physics validation with checkpoints, without server-only fields. */
-const { drunkStartedTick: _drunkStart, drunkHeadingOffset: _drunkOffset, ...wirePlayerFields } = playerFields;
-const { placedTick: _placed, ...wireBombFields } = bombFields;
-const { currentRoundSurvivalTicks: _currentSurvival, ...wireStatsFields } = statsFields;
-const snapshotShape = shape({
-  bombChargeTicks: isBombChargeTicks,
-  aimBounce: boolean,
-  phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v),
-  phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
-  width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),
-  players: array(shape({...wirePlayerFields, waitingForNextRound: optional(boolean)}), 5),
-  bombs: array(shape(wireBombFields), 256),
-  blasts: array(shape({bombId:integer,circle:shape({x:position,y:position,radius:range(0,1000)}),expiresAtTick:integer}),256),
-  pickups: array(pickup,6),
-  portalPairs: array(portalPair,MAX_PORTAL_PAIRS),
-  gravityFields: array(gravityField,256),
-  leaderboard: array(shape({id:text,name,totalScoreUnits:integer,roundsPlayed:integer,roundWins:integer,matchWins:integer}),MAX_HISTORY),
-  roundPlacements: array(shape({playerId:text,name,place:range(1,5),scoreUnits:integer}),5),
-  matchStats: array(shape({...wireStatsFields,matchPlacement:integer} satisfies Record<keyof MatchPlayerStats,Guard>),MAX_HISTORY),
-  roundWinnerId:optional(text),matchWinnerId:optional(text),
-} satisfies Record<keyof GameSnapshot, Guard>);
-export function isGameSnapshot(value: unknown): value is GameSnapshot {
-  if (!snapshotShape(value)) return false;
-  const snapshot = value as GameSnapshot;
-  return new Set(snapshot.players.map(p=>p.id)).size===snapshot.players.length
-    && new Set(snapshot.players.map(p=>p.slot)).size===snapshot.players.length
-    && new Set(snapshot.bombs.map(b=>b.id)).size===snapshot.bombs.length;
 }

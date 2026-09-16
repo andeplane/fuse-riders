@@ -211,13 +211,9 @@ npx tsx scripts/phaser-browser.ts
 BROWSER=webkit npx tsx scripts/phaser-browser.ts
 npx tsx scripts/benchmark-bots.ts
 
-# Actual response: fixed eligibility rules; currently Chromium-based.
-ONLINE_URL=http://localhost:8787/ BENCH_SECONDS=180 npx tsx scripts/benchmark-response.ts
-
-# Application transport impairment: currently Chromium-based.
-ONLINE_URL=http://localhost:8787/ BENCH_PROFILE=direct BENCH_SECONDS=60 npx tsx scripts/online-network-benchmark.ts
-ONLINE_URL=http://localhost:8787/ BENCH_PROFILE=regional BENCH_SECONDS=60 npx tsx scripts/online-network-benchmark.ts
-ONLINE_URL=http://localhost:8787/ BENCH_PROFILE=poor-asymmetric BENCH_SECONDS=60 npx tsx scripts/online-network-benchmark.ts
+# Peer-to-peer runtime (2026-09-16): wire bytes, rollbacks and input-to-state latencies, locally and under injected impairment.
+ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-measure.ts
+# (benchmark-response.ts and online-network-benchmark.ts were removed with the host-star runtime.)
 ```
 
 Response output is `artifacts/response-benchmark.json`; network output is `artifacts/online-network-benchmark.json`; bot output is `artifacts/bot-benchmark.json`. Renderer output includes the tag/browser in its name. The network runner's `BENCH_RENDER_SINGLE=1` is diagnostic isolation, not full-view acceptance. Neither response nor network runner gains WebKit support merely by setting `BROWSER=webkit`; implement and validate support separately if needed. Read [network harness scope](../online/NETWORK-HARNESS.md) before interpreting results.

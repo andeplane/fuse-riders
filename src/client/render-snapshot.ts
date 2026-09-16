@@ -33,6 +33,8 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
   const oldById = new Map(older.snapshot.players.map((player) => [player.id, player]));
   return {
     ...newer.snapshot,
+    // Cosmetic world effects use the same bounded fractional time as rider presentation.
+    presentationTick: newer.snapshot.tick + projectionDuration / VISUAL_PROJECTION_LIMIT_MS,
     bombs: newer.snapshot.bombs.map(bomb => {
       if (!bomb.shell) return bomb;
       const dt = projectionDuration / 1000;
