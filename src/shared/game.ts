@@ -96,7 +96,8 @@ export const GRAVITY_FIELD_TICKS = 80;
 /** Peak pull at the centre, as a share of a tick's travel. Well under 1, so a rider is dragged and slowed, never captured. */
 export const GRAVITY_PULL_PER_TICK = 0.45;
 
-export const PICKUP_LIFETIME_TICKS = 300;
+/** Pickups are destroyed strictly inside the inner 60% of a new bomb blast. */
+export const PICKUP_DESTRUCTION_RADIUS_RATIO = 0.6;
 export const PICKUP_SPAWN_ATTEMPTS = 24;
 export const PICKUP_RADIUS = 14;
 export const PICKUP_SPAWN_MARGIN = 40;
@@ -239,6 +240,7 @@ export interface PickupState {
   type: PickupType;
   x: number;
   y: number;
+  /** Round-long: MAX_SAFE_INTEGER keeps snapshots finite and pickup sprites fully visible. */
   expiresAtTick: number;
 }
 
@@ -453,7 +455,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const events: GameEvent[] = [];
 
   state.blasts = state.blasts.filter((blast) => blast.expiresAtTick > state.tick);
-  state.pickups = state.pickups.filter((pickup) => pickup.expiresAtTick > state.tick);
 
   const pickupSchedule = pickupPacing([...state.players.values()].filter(player => player.alive).length);
   if (state.phase === 'countdown' && state.phaseEndsAtTick !== undefined && state.tick >= state.phaseEndsAtTick) {
@@ -985,7 +986,7 @@ function maybeSpawnPickup(state: GameState, cap: number): void {
       type,
       x,
       y,
-      expiresAtTick: state.tick + PICKUP_LIFETIME_TICKS,
+      expiresAtTick: Number.MAX_SAFE_INTEGER,
     });
     return;
   }
@@ -1374,6 +1375,8 @@ function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
     if (!bomb) continue;
     exploded.add(id);
     const circle = { x: bomb.x, y: bomb.y, radius: bomb.blastRange };
+    state.pickups = state.pickups.filter(pickup =>
+      square(pickup.x - circle.x) + square(pickup.y - circle.y) >= square(circle.radius * PICKUP_DESTRUCTION_RADIUS_RATIO));
     // Stored and returned separately: `state.blasts` is checkpointed and validated field by field, so the
     // statistics-only shot stays in the returned copy this tick's kill attribution reads.
     const blast: BlastState = { bombId: id, ownerId: bomb.ownerId, circle, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS };
