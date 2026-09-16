@@ -23,7 +23,7 @@ export interface ArenaOptions { renderer?: 'auto' | 'canvas'; quality?: 'high' |
 export interface ArenaMetrics { renderer: string; objects: number; particles: number; renderMs: number; automaticLoopRunning: boolean; trailHistoryBuilds: number }
 export interface PhaserArena {
   ready: Promise<void>;
-  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string): void;
+  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string, selfId?: string): void;
   resize(width: number, height: number): void;
   reset(): void;
   destroy(): void;
@@ -86,11 +86,11 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
   };
   return {
     ready,
-    render(snapshot, now, theme, matchId) {
+    render(snapshot, now, theme, matchId, selfId) {
       if (!booted || destroyed || lost || document.hidden) return;
       const start = performance.now();
       resize(snapshot.width, snapshot.height);
-      scene.paint(snapshot, now, theme, matchId);
+      scene.paint(snapshot, now, theme, matchId, selfId);
       game.step(now, lastNow ? Math.min(50, Math.max(0, now - lastNow)) : 16.667);
       lastNow = now; renderMs = performance.now() - start;
     },
@@ -263,7 +263,7 @@ class ArenaScene extends Phaser.Scene {
     if(label.style.color!==tint)label.setColor(tint);
     if(label.style.fontSize!==`${size}px`)label.setFontSize(size);
   }
-  paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string): void {
+  paint(s: ViewSnapshot, now: number, theme: ThemeDefinition, matchId: string, selfId?: string): void {
     this.imageIndex = 0; this.labelIndex = 0;
     const g = this.dynamic.clear(); const f = this.front.clear();
     const { width:w, height:h, boundaryInset:b } = s;
@@ -380,7 +380,10 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
       f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
-      this.label(`P${p.slot+1}`,p.x,p.y-27,p.color);
+      // The local rider reads YOU with a breathing ring so a player finds themselves at a glance (five identical heads otherwise).
+      // Radii follow #202's smaller portrait and #198's reload ring (17): the ring hugs them and stays clear of the 29px shield.
+      if(p.id===selfId){f.lineStyle(2,tint,.55+Math.sin(now/180)*.25).strokeCircle(p.x,p.y,22+Math.sin(now/180)*2);this.label('YOU',p.x,p.y-30,'#ffffff',12);}
+      else this.label(`P${p.slot+1}`,p.x,p.y-27,p.color);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;

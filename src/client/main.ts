@@ -247,7 +247,7 @@ function drawSprite(ctx: CanvasRenderingContext2D, image: HTMLImageElement, x: n
   ctx.restore();
 }
 
-export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris: readonly DebrisStroke[] = []): void {
+export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris: readonly DebrisStroke[] = [], selfId?: string): void {
   const { width, height } = snapshot;
   ctx.clearRect(0, 0, width, height);
   ctx.drawImage(arenaBackground(width, height, snapshot.boundaryInset, theme), 0, 0);
@@ -394,8 +394,12 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = color;
     ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
-    ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-    ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 27)); ctx.restore();
+    // The local rider reads YOU inside a breathing ring so a player finds themselves at a glance (five identical heads otherwise).
+    // Radii follow #202's smaller portrait and #198's reload ring (17): the ring hugs them and stays clear of the 29px shield.
+    const self = player.id === selfId;
+    if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 22 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+    ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'center'; ctx.fillStyle = self ? '#ffffff' : color; ctx.shadowColor = color; ctx.shadowBlur = 8;
+    ctx.fillText(self ? 'YOU' : `P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - (self ? 30 : 27))); ctx.restore();
     const reload = reloadRemaining(player, snapshot);
     if (reload > 0) {
       ctx.save();

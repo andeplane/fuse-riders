@@ -4,10 +4,10 @@ import type { PhaserArena } from './arena.js';
 import { observeArenaDisplay } from './viewport.js';
 import { TrailDebris, type DebrisStroke } from '../trail-debris.js';
 
-type LegacyDraw = (ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris?: readonly DebrisStroke[]) => void;
+type LegacyDraw = (ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, debris?: readonly DebrisStroke[], selfId?: string) => void;
 /** Lazy renderer boundary. A failed WebGL canvas is replaced before requesting a 2D context. */
 export function mountArenaPresentation(initialCanvas: HTMLCanvasElement, legacyDraw: LegacyDraw, replaced: (canvas: HTMLCanvasElement) => void): {
-  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, scope: string): void;
+  render(snapshot: ViewSnapshot, now: number, theme: ThemeDefinition, sprites: ThemeSprites, scope: string, selfId?: string): void;
   destroy(): void;
 } {
   let canvas=initialCanvas; let engine:PhaserArena|undefined; let context:CanvasRenderingContext2D|null=null; let disposed=false;let initialized=false;let metricsAt=0;let restoreTimer:ReturnType<typeof setTimeout>|undefined;
@@ -34,14 +34,14 @@ export function mountArenaPresentation(initialCanvas: HTMLCanvasElement, legacyD
   }).catch(()=>{if(!disposed)fallback();});
   };
   return {
-    render(snapshot,now,theme,sprites,scope){
+    render(snapshot,now,theme,sprites,scope,selfId){
       if(disposed)return;initialize();
-      if(engine){engine.render(snapshot,now,theme,scope);if(now-metricsAt>500){canvas.dataset.rendererMetrics=JSON.stringify(engine.metrics());metricsAt=now;}}
+      if(engine){engine.render(snapshot,now,theme,scope,selfId);if(now-metricsAt>500){canvas.dataset.rendererMetrics=JSON.stringify(engine.metrics());metricsAt=now;}}
       else if(context){
         const backing=display!.backing(snapshot.width,snapshot.height);
         if(canvas.width!==backing.width||canvas.height!==backing.height){canvas.width=backing.width;canvas.height=backing.height;}
         context.setTransform(backing.width/snapshot.width,0,0,backing.height/snapshot.height,0,0);
-        legacyDraw(context,snapshot,now,theme,sprites,debris.update(snapshot,now,scope));
+        legacyDraw(context,snapshot,now,theme,sprites,debris.update(snapshot,now,scope),selfId);
       }
     },
     destroy(){disposed=true;clearTimeout(restoreTimer);status.remove();display?.destroy();engine?.destroy();engine=undefined;debris.reset();},
