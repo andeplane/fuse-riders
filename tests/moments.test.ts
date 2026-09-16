@@ -104,8 +104,8 @@ test('a shell that bounced before hitting is a trick shot; a fresh, stray or gun
   const gun = scene();
   place(gun, 'p1', 465, 450);
   place(gun, 'p0', 900, 800);
-  shell(gun, 'p0', 500, 450, -300, { gun: true, bounces: 1 });
-  step(gun, new Map());
+  Object.assign(gun.players.get('p0')!, { x: 600, y: 450, angle: Math.PI, gunArmed: true });
+  step(gun, new Map([['p0', { left: false, right: false, bomb: true, bombCommands: [{ action: 'press' }] }]]));
   assert.equal(gun.players.get('p1')!.alive, false, 'the bullet hits');
   assert.deepEqual(gun.moments, [], 'a gun bullet never banks');
 });

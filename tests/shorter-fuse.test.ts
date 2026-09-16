@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BOMB_FUSE_TICKS, COUNTDOWN_TICKS, SLOT_COLORS, addPlayer, bombFuseTicks, createGame, startMatch, startNextRound, step, toSnapshot, type InputIntent, type PickupType } from '../src/shared/game.js';
 import { powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
-import { GUN_LIFETIME_TICKS } from '../src/shared/gun.js';
+import { GUN_TRACER_TICKS } from '../src/shared/gun.js';
 import { decodeGameState, encodeGameState } from '../src/online/checkpoint.js';
 import { defaultRoomSettings, parseRoomSettings, roomPickup } from '../src/shared/room-settings.js';
 
@@ -74,7 +74,7 @@ test('held and cancelled input preserves Fuse; shortened volleys retain Power an
   }
 });
 
-test('Target still explodes instantly and Shell/Cannon retain their lifetimes', () => {
+test('Target still explodes instantly and Shell/Gun retain their projectile/tracer lifetimes', () => {
   for (const special of ['target', 'shell', 'gun'] as const) {
     const game = playing(), rider = game.players.get('p0')!;
     collect(game, 'stopwatch', 'stopwatch', special); step(game, fire);
@@ -83,7 +83,7 @@ test('Target still explodes instantly and Shell/Cannon retain their lifetimes', 
       assert.equal(game.bombs.size, 0); assert.equal(game.blasts.length, 1);
     } else {
       const bomb = [...game.bombs.values()][0]!;
-      assert.equal(bomb.explodeAtTick, special === 'shell' ? Number.MAX_SAFE_INTEGER : game.tick + GUN_LIFETIME_TICKS);
+      assert.equal(bomb.explodeAtTick, special === 'shell' ? Number.MAX_SAFE_INTEGER : game.tick + GUN_TRACER_TICKS);
     }
   }
 });

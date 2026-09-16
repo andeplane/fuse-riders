@@ -18,7 +18,6 @@ import {
   type PlayerState,
 } from '../src/shared/game.js';
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
-import { GUN_LIFETIME_TICKS, GUN_SPEED } from '../src/shared/gun.js';
 import type { Weapon } from '../src/shared/shot-log.js';
 import { defaultRoomSettings, type RoomSettings } from '../src/shared/room-settings.js';
 import { roundShotEvents } from '../src/online/analytics.js';
@@ -131,7 +130,7 @@ test('a Target bomb released onto a rider is one shot and one kill for Target, e
   assert.equal(game.matchStats.get('p1')!.deathsByCause.explosion, 1);
 });
 
-test('a cannon shot that runs a rider down is one shot and one kill for the gun, end to end', () => {
+test('an instant headshot is one shot and one kill for the gun, end to end', () => {
   const { game, player, victim, input } = fixture();
   player.gunArmed = true;
   // Head on, so the rider is between the bullet and its own trail: the bullet reaches the rider first.
@@ -139,10 +138,7 @@ test('a cannon shot that runs a rider down is one shot and one kill for the gun,
   input({ bomb: true, bombCommands: [{ action: 'press' }] });
   input({ bombCommands: [{ action: 'release' }] });
   assert.deepEqual(shots(game, 'p0'), { gun: 1 });
-  // Measured at tick 12. The budget stays under the tick-20 head-on collision so that a balance change which
-  // slows the bullet fails here, on the bullet, rather than passing on a rider collision that killed instead.
-  for (let tick = 0; tick < 16 && victim.alive; tick += 1) input({});
-  assert.equal(victim.alive, false, 'the bullet found it');
+  assert.equal(victim.alive, false, 'the press killed immediately');
   assert.equal(player.alive, true, 'and the riders never met');
   assert.deepEqual(kills(game, 'p0'), { gun: 1 });
   assert.equal(game.matchStats.get('p1')!.deathsByCause.explosion, 1);
@@ -161,27 +157,6 @@ test('a shell that sweeps into a rider is one shot and one kill for the shell, e
   assert.equal(victim.alive, false, 'the shell swept into it');
   assert.equal(player.alive, true, 'and the riders never met');
   assert.deepEqual(kills(game, 'p0'), { shell: 1 });
-});
-
-test('a cannon stopped by a trail still credits the gun for the splash that kills', () => {
-  // The ordinary cannon kill is splash, not a direct hit: the bullet is stopped by a trail or a wall and
-  // `detonateGun` turns it into a blast, which must keep naming the shot. Injected rather than fired, so the
-  // 32-unit splash radius and the rider's own drift are exact rather than a lucky alignment.
-  const { game, victim } = fixture();
-  Object.assign(victim, { x: 900, y: 450, angle: 0, trail: [
-    // The victim's own trail, so it is under the grace that keeps a rider off its freshest segment.
-    { x1: 880, y1: 300, x2: 880, y2: 600, createdTick: game.tick, expiresAtTick: game.tick + 400 },
-  ] });
-  game.bombs.set(1, { id: 1, ownerId: 'p0', launchX: 860, launchY: 450, x: 860, y: 450,
-    placedTick: game.tick, launchedTick: game.tick, landsAtTick: Number.MAX_SAFE_INTEGER,
-    explodeAtTick: game.tick + GUN_LIFETIME_TICKS, blastRange: 0, flightPath: [], shot: 1,
-    shell: { vx: GUN_SPEED, vy: 0, gun: true } });
-  game.shots.push({ shot: 1, shooterId: 'p0', weapon: 'gun', elapsed: 0, bombs: 1, power: 0, extraBombs: 0, fuseLevel: 0, grip: false, kills: [] });
-  game.nextBombId = 2;
-  step(game, new Map());
-  assert.equal(game.bombs.size, 0, 'the trail stopped the bullet');
-  assert.equal(victim.alive, false, 'and the splash caught the rider 25 units past it');
-  assert.deepEqual(kills(game, 'p0'), { gun: 1 }, 'a bullet that became a blast is still the gun');
 });
 
 test('a blast and a direct landing both credit the weapon that fired the bomb', () => {
@@ -318,7 +293,7 @@ test('a bomb naming no shot kills without a kill being logged against a guess', 
 test('a decided round becomes one Kill per kill and one Miss per miss, from the shooter alone', () => {
   const { game, player, victim, input } = fixture(3, { ...defaultRoomSettings(), match: 'rounds', length: 1 });
   const third = game.players.get('p2')!;
-  // A lobbed bomb that goes off harmlessly, then a Target on p1, then a gun p2 fires that is still flying at the end.
+  // A harmless bomb, then a Target kill, then a resolved gun miss with a visible tracer.
   Object.assign(player, { x: 100, y: 450, angle: 0 });
   input({ bomb: true, bombCommands: [{ action: 'press' }] });
   input({ bombCommands: [{ action: 'release' }] });
@@ -353,8 +328,8 @@ test('a decided round becomes one Kill per kill and one Miss per miss, from the 
     bombs: 1, power: 3, extraBombs: 1, fuseLevel: 2, grip: true, riders: 3, bots: 0,
     victimBot: false, shotKills: 1, firstKillOfShot: true, secondsToKill: 0,
   });
-  assert.deepEqual(roundShotEvents(published, 'p2', room), [],
-    'p2 fired too, but its bullet was still in the air when the match was decided: interrupted, not a miss');
+  assert.deepEqual(roundShotEvents(published, 'p2', room).map(entry => entry.event), ['Miss'],
+    'a visible gun tracer already resolved, so it counts as a miss');
   assert.deepEqual(roundShotEvents(published, 'p1', room), [], 'the victim reports nothing about the kill');
   assert.deepEqual(roundShotEvents(published, '', room), [], 'nor does a shared-TV display with no rider');
 });

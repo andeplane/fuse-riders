@@ -38,7 +38,7 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
     bombs: newer.snapshot.bombs.map(bomb => {
       if (!bomb.shell) return bomb;
       const dt = projectionDuration / 1000;
-      if (bomb.shell.gun) return { ...bomb, x: bomb.x + bomb.shell.vx * dt, y: bomb.y + bomb.shell.vy * dt };
+      if (bomb.shell.gun) return bomb;
       const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx * dt * 20, vy: bomb.shell.vy * dt * 20 };
       advanceShell(motion, { left: newer.snapshot.boundaryInset + SHELL_RADIUS,
         right: newer.snapshot.width - newer.snapshot.boundaryInset - SHELL_RADIUS,

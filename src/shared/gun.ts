@@ -1,23 +1,9 @@
-import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
 import type { TrailSegment } from './protocol.js';
-export const GUN_SPEED = 450;
-export const GUN_RADIUS = 14;
-export const GUN_HOLE_RADIUS = 50;
-export const GUN_HOMING_RADIUS = 220;
-export const GUN_TURN_PER_TICK = .03;
-export const GUN_LIFETIME_TICKS = 60;
-export function gunVelocity(x: number, y: number, vx: number, vy: number, targets: readonly { x: number; y: number }[]): { vx: number; vy: number } {
-  const heading = atan2(vy, vx);
-  let closest = GUN_HOMING_RADIUS; let correction = 0;
-  for (const target of targets) {
-    const distance = hypot2(target.x - x, target.y - y);
-    const angle = atan2(target.y - y, target.x - x) - heading;
-    const delta = atan2(sin(angle), cos(angle));
-    if (distance < closest && Math.abs(delta) < Math.PI / 2) { closest = distance; correction = delta; }
-  }
-  const angle = heading + Math.max(-GUN_TURN_PER_TICK, Math.min(GUN_TURN_PER_TICK, correction));
-  return { vx: cos(angle) * GUN_SPEED, vy: sin(angle) * GUN_SPEED };
-}
+/** Hitscan geometry; tracer lifetime is presentation only. */
+export const GUN_RADIUS = 2;
+export const GUN_HOLE_RADIUS = 14;
+export const GUN_HEADSHOT_RADIUS = 18;
+export const GUN_TRACER_TICKS = 3;
 /** Keep the portions outside the impact disk, retaining expiry and ownership metadata. */
 export function cutTrailHole(trail: TrailSegment, x: number, y: number, radius: number): TrailSegment[] {
   const dx = trail.x2 - trail.x1; const dy = trail.y2 - trail.y1;

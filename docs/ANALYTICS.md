@@ -79,7 +79,7 @@ The point is histograms, so both events carry every dimension an outcome might b
 | `round`, `secondsIntoRound` | both | when the trigger was pulled, to a tenth of a second |
 | `riders`, `bots` | both | the room when the round was reported |
 | `victimBot` | `Kill` | whether the rider killed was an AI |
-| `secondsToKill` | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target |
+| `secondsToKill` | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target and Gun |
 | `shotKills`, `firstKillOfShot` | `Kill` | how many riders the pull killed, and one `true` per pull |
 
 | Reading | Mixpanel |
@@ -108,7 +108,9 @@ the whole next round, a device that catches up past the round-over pause in one 
 resynchronised snapshot) still reports it. What is lost: a round whose shooter's device leaves before it is
 confirmed, and a round a device skips entirely by catching up across two decisions at once.
 
-A pull whose bomb, shell or bullet is still in the air when the round ends — and has killed nobody — is **not** a
+Gun shots resolve on press: a visible tracer is already a hit or miss.
+
+A pull whose bomb or shell is still in the air when the round ends — and has killed nobody — is **not** a
 `Miss`: the round's end interrupted it. Without that rule, weapons that stay in flight longest (Shell, lobbed
 bombs) would be charged misses they never had the chance to turn into kills.
 
@@ -166,7 +168,7 @@ reported as `matchLength` for exactly this reason.
 The Mixpanel project is the repository owner's, and this change enables no paid service. Event volume is bounded
 by design — one event per match rather than per pickup or per tick — so a busy arena cannot run the project's
 plan up; check the plan's own ceiling before reading that as a guarantee. `Kill` and `Miss` are the largest
-source: one per pull. A rider cannot pull again while its own lobbed bomb or bullet is still in the air, so an
+source: one per pull. A rider cannot pull again while its own lobbed bomb is still in the air, so an
 ordinary bomb allows roughly one pull every three to four seconds; only spent pickups come faster. Only human
 riders' own devices send them, and nothing is sent for bots.
 

@@ -198,3 +198,12 @@ test('simultaneous portal pairs never share a palette, and keep their colour whe
   assert.equal(new Set(portalPalettes(['fixture-gates', 'fixture-gates-2'])).size, 2);
   assert.ok(PORTAL_PALETTES.length >= 3);
 });
+
+test('instant gun tracer remains at the resolved endpoint during visual projection', () => {
+  const before = playingFrame(10, 100, 100), current = playingFrame(11, 150, 107.5);
+  const tracer = { id: 1, ownerId: 'p1', launchX: 100, launchY: 400, x: 900, y: 400,
+    launchedTick: 11, landsAtTick: 14, explodeAtTick: 14, blastRange: 0, flightPath: [], shell: { vx: 1, vy: 0, gun: true } };
+  current.snapshot.bombs = [tracer];
+  assert.deepEqual(renderedSnapshot([before, current], 175)!.bombs, [tracer]);
+  assert.deepEqual(renderedSnapshot([before, current], 9999)!.bombs, [tracer]);
+});

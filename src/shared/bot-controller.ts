@@ -73,7 +73,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
   });
   const directions=random<.5?[-1,1]:[1,-1];
   const plans:SteeringPlan[]=[{direction:0,turnTicks:0},...directions.flatMap(direction=>TURN_DURATIONS.filter(turnTicks=>turnTicks<=lookahead).map(turnTicks=>({direction,turnTicks})))];
-  const bombs=[...game.bombs.values()];
+  const bombs=[...game.bombs.values()].filter(bomb=>!bomb.shell?.gun);
   let chosen=0,bestSurvived=-1,bestScore=-Infinity;
   for(const plan of plans){
     let pose={x:player.x,y:player.y,angle:player.angle,drunkHeadingOffset:player.drunkHeadingOffset},score=0,survived=0;

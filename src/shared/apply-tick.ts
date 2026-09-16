@@ -5,7 +5,7 @@ import { ACTION, AVATAR, BOT, JOIN, LEAVE, PRESENCE, SETTINGS, foldPlayerEntries
 import type { GameEvent } from './protocol.js';
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = 'fuse-p2p-19'; // 19: riders speed up through each round.
+export const RULES = 'fuse-p2p-20'; // 20: instant press-fired gun, small body holes and headshots.
 export const RECLAIMABLE_PHASES = ['lobby', 'roundOver', 'matchOver'] as const;
 export const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'] as const;
 

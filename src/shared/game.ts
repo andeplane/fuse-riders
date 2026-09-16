@@ -3,7 +3,7 @@ import { POWER_TUNING, MAX_POWER_PICKUPS, pickupPacing, powerBlastRadius, powerR
 export { pickupPacing } from './power-progression.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { roomPickup, type RoomSettings } from './room-settings.js';
-import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
+import { cutTrailHole, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_HEADSHOT_RADIUS, GUN_TRACER_TICKS } from './gun.js';
 import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
 import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
 import { advanceTrail, boundTrail, cutTrail, detachTrail } from './trail-lifecycle.js';
@@ -70,7 +70,7 @@ export const INITIAL_BOUNDARY_INSET = 20;
 export const SLOT_COLORS = ['#22d3ee', '#ff4fa3', '#a3e635', '#fb923c', '#a78bfa'] as const;
 
 export const RIDER_SPEED = 150;
-/** Ticks after launch during which a Gun or Shell ignores its shooter's trail and body, and a bullet's blast spares them. */
+/** Ticks after launch during which a Shell ignores its shooter's trail and body. */
 const PROJECTILE_OWNER_GRACE_TICKS = 6;
 export const RIDER_TURN_RATE = 2.8;
 /** GRIP reduces the turn radius by about 43% at unchanged speed, lasting until the next round. */
@@ -521,33 +521,12 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   const shellPaths = new Map<number, ShellPoint[]>();
-  // A fanned Gun's side bullets can meet a trail or wall right beside the shooter; their blast spares the shooter
-  // for the same grace the bullet itself gets, so riding alongside a trail and firing is not an own goal.
-  const graceBlasts = new Set<number>();
-  const detonate = (bomb: BombState, x: number, y: number): void => {
-    if (state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS) graceBlasts.add(bomb.id);
-    detonateGun(bomb, state.tick, x, y);
-  };
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
-    if (bomb.shell.gun && state.tick >= bomb.explodeAtTick) { state.bombs.delete(bomb.id); continue; }
+    // Gun damage was resolved on press; these are stationary, harmless tracers.
     if (bomb.shell.gun) {
-      const velocity = gunVelocity(bomb.x, bomb.y, bomb.shell.vx, bomb.shell.vy,
-        [...state.players.values()].filter(player => player.alive && player.id !== bomb.ownerId));
-      const from = { x: bomb.x, y: bomb.y, t: 0 };
-      const to = { x: bomb.x + velocity.vx / TICK_HZ, y: bomb.y + velocity.vy / TICK_HZ, t: 1 };
-      const wall = to.x < state.boundaryInset + GUN_RADIUS || to.x > state.width - state.boundaryInset - GUN_RADIUS ||
-        to.y < state.boundaryInset + GUN_RADIUS || to.y > state.height - state.boundaryInset - GUN_RADIUS;
-      if (wall) { detonate(bomb, to.x, to.y); continue; }
-      const trailHit = [...state.players.values()].some(player => player.trail.some(trail =>
-        !(player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS) &&
-        segmentDistanceSquared(from.x, from.y, to.x, to.y, trail.x1, trail.y1, trail.x2, trail.y2) <= square(GUN_RADIUS + TRAIL_WIDTH / 2)));
-      if (trailHit) {
-        for (const player of state.players.values()) player.trail = cutTrail(player.trail, state.tick, trail => cutTrailHole(trail, to.x, to.y, GUN_HOLE_RADIUS), () => state.nextTrailPieceId++);
-        detonate(bomb, to.x, to.y); continue;
-      }
-      shellPaths.set(bomb.id, [from, to]); bomb.x = to.x; bomb.y = to.y;
-      bomb.shell = { ...velocity, gun: true }; continue;
+      if (state.tick >= bomb.explodeAtTick) state.bombs.delete(bomb.id);
+      continue;
     }
     const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx, vy: bomb.shell.vy, bounces: bomb.shell.bounces ?? 0 };
     shellPaths.set(bomb.id, advanceShell(motion, { left: state.boundaryInset + SHELL_RADIUS,
@@ -556,7 +535,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       [...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS ? [] : player.trail), TRAIL_WIDTH));
     bomb.x = motion.x; bomb.y = motion.y; bomb.shell = { vx: motion.vx, vy: motion.vy, ...(motion.bounces ? { bounces: motion.bounces } : {}) };
   }
-  // Trails burn away once the sweep below has appended any gun-on-rider blasts (#26).
   const newBlasts = resolveExplosions(state, events);
 
   // Highlight observations (ADR 043): what the sweep learns about each death, and where every rider was before a blast.
@@ -592,7 +570,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   const riderContactTimes = new Map<PlayerId, number>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
-    if (bomb.launchedTick >= state.tick || (!bomb.shell && bomb.landsAtTick < state.tick)) continue;
+    if (bomb.shell?.gun || bomb.launchedTick >= state.tick || (!bomb.shell && bomb.landsAtTick < state.tick)) continue;
     if (!bomb.shell) {
       if (bomb.landsAtTick !== state.tick) continue;
       for (const movement of movements.values()) {
@@ -614,7 +592,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         const mx = movement.x - movement.oldX; const my = movement.y - movement.oldY;
         const px = start.x - movement.oldX - mx * start.t; const py = start.y - movement.oldY - my * start.t;
         const vx = end.x - start.x - mx * (end.t - start.t); const vy = end.y - start.y - my * (end.t - start.t);
-        const radius = RIDER_RADIUS + (bomb.shell.gun ? GUN_RADIUS : SHELL_RADIUS);
+        const radius = RIDER_RADIUS + SHELL_RADIUS;
         const c = px * px + py * py - radius * radius;
         const a = vx * vx + vy * vy; const b = 2 * (px * vx + py * vy);
         const discriminant = b * b - 4 * a * c;
@@ -628,11 +606,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     if (hit) {
       markCause(causes, causeOwners, hit.player.id, 'explosion', bomb.ownerId);
       markShot(hit.player.id, bomb.id, bomb.shot);
-      if (!bomb.shell?.gun && !shellHits.has(hit.player.id)) shellHits.set(hit.player.id, { ownerId: bomb.ownerId, bounces: bomb.shell?.bounces ?? 0, age: state.tick - bomb.launchedTick });
-      if (bomb.shell?.gun) {
-        detonate(bomb, hit.oldX + (hit.x - hit.oldX) * hitTime, hit.oldY + (hit.y - hit.oldY) * hitTime);
-        newBlasts.push(...resolveExplosions(state, events));
-      } else state.bombs.delete(bomb.id);
+      if (!shellHits.has(hit.player.id)) shellHits.set(hit.player.id, { ownerId: bomb.ownerId, bounces: bomb.shell?.bounces ?? 0, age: state.tick - bomb.launchedTick });
+      state.bombs.delete(bomb.id);
     }
   }
 
@@ -647,7 +622,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
 
   for (const movement of movements.values()) {
     for (const blast of newBlasts) {
-      if (blast.ownerId === movement.player.id && graceBlasts.has(blast.bombId)) continue;
       if (!isHazardImmune(movement.player, state.tick) && segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, blast.circle, RIDER_RADIUS)) {
         markCause(causes, causeOwners, movement.player.id, 'explosion', blast.ownerId);
         markShot(movement.player.id, blast.bombId, blast.shot);
@@ -815,15 +789,18 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     }
   }
 
-  // Resolve released Target Bombs in this same tick, after every rider has launched.
+  // Resolve every gun against the same committed board before applying cuts or deaths.
+  const gunHits = resolveGunShots(state);
+
+  // Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched.
   const instantBlasts = resolveExplosions(state, events);
-  if (instantBlasts.length) {
+  if (instantBlasts.length || gunHits.size) {
     captureOrigins();
-    for (const player of state.players.values()) {
+    for (const player of sortedPlayers(state)) {
       player.trail = cutTrail(player.trail, state.tick, segment => instantBlasts.some(blast =>
         segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)) ? [] : [segment], () => state.nextTrailPieceId++);
       if (!player.alive || isHazardImmune(player, state.tick)) continue;
-      const hits = instantBlasts.filter(blast => segmentIntersectsDisk(player.x, player.y, player.x, player.y, blast.circle, RIDER_RADIUS));
+      const hits = [...instantBlasts.filter(blast => segmentIntersectsDisk(player.x, player.y, player.x, player.y, blast.circle, RIDER_RADIUS)), ...(gunHits.get(player.id) ?? [])];
       if (!hits.length) continue;
       if (player.shielded) { player.shielded = false; player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS; continue; }
       player.alive = false; player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
@@ -1022,6 +999,7 @@ function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
     }
   }
   for (const bomb of state.bombs.values()) {
+    if (bomb.shell?.gun) continue;
     if (square(bomb.x - x) + square(bomb.y - y) < square(PICKUP_RIDER_BOMB_CLEARANCE)) return false;
   }
   return state.pickups.every((pickup) =>
@@ -1139,8 +1117,9 @@ function isSafePortalPosition(
     if (movement && !deaths.has(player.id) && pointSegmentDistanceSquared(point.x, point.y,
       movement.oldX, movement.oldY, transit?.entryPoint.x ?? movement.x, transit?.entryPoint.y ?? movement.y) <= square(radius + TRAIL_WIDTH / 2)) return false;
   }
-  // Reserve both current flight location and landing site of every bomb.
+  // Reserve both current flight location and landing site of live projectiles.
   for (const bomb of state.bombs.values()) {
+    if (bomb.shell?.gun) continue;
     const flight = bomb.flightPath[Math.max(0, Math.min(bomb.flightPath.length - 1, state.tick - bomb.launchedTick))];
     if (hypot2(point.x - bomb.x, point.y - bomb.y) <= radius + 14 ||
       (flight && hypot2(point.x - flight.x, point.y - flight.y) <= radius + 14)) return false;
@@ -1186,25 +1165,26 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       continue;
     }
     if (action === 'press') {
-      const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id && (!bomb.shell || bomb.shell.gun));
+      const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id && !bomb.shell);
       if (player.bombChargeStartedTick === undefined && !ownsBomb && player.bombReadyAtTick <= state.tick) {
         player.bombChargeStartedTick = state.tick;
         if (player.targetBombArmed && !player.shellArmed && !player.gunArmed) player.bombTarget = targetPoint(state, player, command.aim);
       }
-      continue;
+      // Guns consume the press immediately. Release/cancel cannot fire a second shot.
+      if (!player.gunArmed) continue;
     }
 
     const target = player.targetBombArmed ? targetPoint(state, player, command.aim, player.bombTarget) : undefined;
     const chargeStartedTick = player.bombChargeStartedTick;
     player.bombChargeStartedTick = undefined; player.bombTarget = undefined;
     if (chargeStartedTick === undefined) continue;
-    const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id && (!bomb.shell || bomb.shell.gun));
+    const ownsBomb = [...state.bombs.values()].some((bomb) => bomb.ownerId === player.id && !bomb.shell);
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
     if (player.shellArmed || player.gunArmed) {
       const gun = player.gunArmed === true;
       const weapon: Weapon = gun ? 'gun' : 'shell';
-      const deadline = gun ? state.tick + GUN_LIFETIME_TICKS : Number.MAX_SAFE_INTEGER;
-      const speed = gun ? GUN_SPEED : SHELL_SPEED;
+      const deadline = gun ? state.tick + GUN_TRACER_TICKS : Number.MAX_SAFE_INTEGER;
+      const speed = gun ? 1 : SHELL_SPEED;
       // Triple, Five and Extra Bomb fan the projectile out exactly as they fan a lob; the pull spends Triple and Five.
       const angles = volleyAngles(player.angle, bombsPerShot(player));
       const shot = state.nextBombId;
@@ -1313,10 +1293,47 @@ function nextRandom(state: GameState): number {
   return ((value ^ (value >>> 14)) >>> 0) / 0x1_0000_0000;
 }
 
-function detonateGun(bomb: BombState, tick: number, x: number, y: number): void {
-  delete bomb.shell;
-  bomb.x = x; bomb.y = y;
-  bomb.landsAtTick = tick; bomb.explodeAtTick = tick; bomb.blastRange = 32;
+/** Raycast against heads, trails and walls. All shots see the same board, including simultaneous volleys. */
+function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; ownerId: PlayerId; shot?: number }[]> {
+  const hits = new Map<PlayerId, { bombId: number; ownerId: PlayerId; shot?: number }[]>();
+  const impacts: { x: number; y: number }[] = [];
+  for (const bomb of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
+    if (!bomb.shell?.gun || bomb.launchedTick !== state.tick) continue;
+    const { vx, vy } = bomb.shell;
+    const x = bomb.launchX, y = bomb.launchY;
+    const inset = state.boundaryInset + GUN_RADIUS;
+    const wallX = vx > 0 ? (state.width - inset - x) / vx : vx < 0 ? (inset - x) / vx : Infinity;
+    const wallY = vy > 0 ? (state.height - inset - y) / vy : vy < 0 ? (inset - y) / vy : Infinity;
+    const distance = Math.max(0, Math.min(wallX, wallY));
+    const dx = vx * distance, dy = vy * distance;
+    let contact = 1;
+    let hit: PlayerState | undefined;
+    // Slot order is stable even when a checkpoint was decoded with another Map insertion order.
+    for (const player of sortedPlayers(state)) {
+      if (player.id === bomb.ownerId) continue;
+      const consider = (x1: number, y1: number, x2: number, y2: number, radius: number): void => {
+        const touches = (t: number): boolean => segmentDistanceSquared(x, y, x + dx * t, y + dy * t, x1, y1, x2, y2) <= square(radius);
+        if (!touches(contact)) return;
+        const time = firstContactTime(touches);
+        if (time < contact || !hit) { contact = time; hit = player; }
+      };
+      if (player.alive) consider(player.x, player.y, player.x, player.y, RIDER_RADIUS + GUN_RADIUS);
+      for (const trail of player.trail) consider(trail.x1, trail.y1, trail.x2, trail.y2, TRAIL_WIDTH / 2 + GUN_RADIUS);
+    }
+    bomb.x = x + dx * contact; bomb.y = y + dy * contact;
+    if (!hit) continue;
+    impacts.push({ x: bomb.x, y: bomb.y });
+    // A body hit is only lethal near that body's own living head, never through splash.
+    if (hit.alive && square(hit.x - bomb.x) + square(hit.y - bomb.y) <= square(GUN_HEADSHOT_RADIUS)) {
+      const previous = hits.get(hit.id) ?? [];
+      previous.push({ bombId: bomb.id, ownerId: bomb.ownerId, shot: bomb.shot });
+      hits.set(hit.id, previous);
+    }
+  }
+  for (const impact of impacts) for (const player of sortedPlayers(state)) {
+    player.trail = cutTrail(player.trail, state.tick, trail => cutTrailHole(trail, impact.x, impact.y, GUN_HOLE_RADIUS), () => state.nextTrailPieceId++);
+  }
+  return hits;
 }
 
 /**
@@ -1407,7 +1424,7 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   // A round with a highlight pauses longer so every screen can replay it before the next countdown or the recap (ADR 044).
   const pause = roundHasMoment(state) ? REPLAY_PAUSE_TICKS : 0;
   // Nothing in this round can kill any more; bombs still in the air are cleared by the next round's start.
-  const inFlight = new Set([...state.bombs.values()].flatMap((bomb) => bomb.shot === undefined ? [] : [bomb.shot]));
+  const inFlight = new Set([...state.bombs.values()].flatMap((bomb) => bomb.shot === undefined || bomb.shell?.gun ? [] : [bomb.shot]));
   state.decidedRound = decideRound(state.matchId, state.round, state.tick, state.shots, inFlight);
   if (matchWinnerId !== undefined || fixedEnd) {
     state.phase = 'matchOver';
