@@ -622,8 +622,9 @@ function startController(): void {
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;
     inkPower.textContent = inkTicks > 0 ? `INK · ${(inkTicks / 20).toFixed(1)}s` : 'INK · --';
-    nitroPower.textContent = speedEffectLabel('NITRO', NITRO_SPEED, player.nitroUntilTicks, snapshot.tick);
-    slowedPower.textContent = speedEffectLabel('SLOWED', SNAIL_SPEED, player.snailUntilTicks, snapshot.tick);
+    // A TV on an older bundle sends riders without these lists; the other chips degrade to `--` on a missing field, and so must these.
+    nitroPower.textContent = speedEffectLabel('NITRO', NITRO_SPEED, player.nitroUntilTicks ?? [], snapshot.tick);
+    slowedPower.textContent = speedEffectLabel('SLOWED', SNAIL_SPEED, player.snailUntilTicks ?? [], snapshot.tick);
     const drunkTicks = player.drunkUntilTick - snapshot.tick;
     wobblePower.textContent = drunkTicks > 0 ? `WOBBLE · ${(drunkTicks / 20).toFixed(1)}s` : 'WOBBLE · --';
     triplePower.textContent = player.fiveShotArmed ? 'FIVE · ARMED' : player.tripleShotArmed ? 'TRIPLE · ARMED' : 'TRIPLE · --';

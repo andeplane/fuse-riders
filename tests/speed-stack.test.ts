@@ -182,11 +182,13 @@ test('local prediction runs the Nitro rider at its stacked speed from the snapsh
   assert.equal(view.trail.length, snapshot.players[0]!.trail.length + 1, 'the lead segment is still drawn at that stride');
 });
 
-test('the phone chip shows the stacked factor and the longest time left, and the guide explains stacking', () => {
+test('the phone chip shows the stacked factor and the time until it next drops, and the guide explains stacking', () => {
   assert.equal(speedEffectLabel('NITRO', NITRO_SPEED, [], 100), 'NITRO · --');
   assert.equal(speedEffectLabel('NITRO', NITRO_SPEED, [100, 40], 100), 'NITRO · --', 'a deadline on this tick has expired');
-  assert.equal(speedEffectLabel('NITRO', NITRO_SPEED, [164, 130], 100), 'NITRO · ×4 · 3.2s');
+  assert.equal(speedEffectLabel('NITRO', NITRO_SPEED, [130, 164], 100), 'NITRO · ×4 · 1.5s', 'four times until the earlier deadline, not the later one');
+  assert.equal(speedEffectLabel('NITRO', NITRO_SPEED, [130, 164], 130), 'NITRO · ×2 · 1.7s', 'then double until the later one');
   assert.equal(speedEffectLabel('SLOWED', SNAIL_SPEED, [150], 100), 'SLOWED · ×0.5 · 2.5s');
+  assert.equal(speedEffectLabel('NITRO', NITRO_SPEED, [] as number[], 5), 'NITRO · --', 'a rider from an older bundle carries no list and reads as none in force');
   const guide = (type: string) => POWERUP_GUIDE.find(entry => entry.type === type)!;
   assert.equal(guide('nitro').name, 'NITRO'); assert.match(guide('nitro').description, /2× speed for 5s.*stacks.*4×/);
   assert.equal(guide('snail').name, 'SNAIL'); assert.match(guide('snail').description, /rivals crawl at 0\.5× speed for 5s.*cancels a Nitro/);
