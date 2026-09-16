@@ -9,6 +9,8 @@ import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
+import { blastFrame } from './blast-animation.js';
+import { reloadRemaining, RELOAD_RING_RADIUS } from './reload-ring.js';
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
@@ -98,7 +100,8 @@ function prepareTrailBatches(trail: ReadonlyArray<TrailSegment>, tick: number): 
   const cached = trailBatchCache.get(trail);
   if (cached) return cached;
   const batches = Array.from({ length: 4 }, (_, index): TrailBatch => ({
-    path: new Path2D(), alpha: [.24, .48, .74, 1][index], pixels: [], fragments: [],
+    // Hittable segments must remain readable even just before expiry.
+    path: new Path2D(), alpha: [.8, .85, .9, 1][index], pixels: [], fragments: [],
   }));
   for (const segment of trail) {
     const life = clamp((segment.expiresAtTick - tick) / 40, .15, 1);
@@ -123,7 +126,7 @@ function prepareTrailBatches(trail: ReadonlyArray<TrailSegment>, tick: number): 
 
 function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<TrailSegment>, tick: number, alive: boolean, color: string, theme: ThemeDefinition): void {
   const batches = prepareTrailBatches(trail, tick);
-  const aliveAlpha = alive ? 1 : .55;
+  const aliveAlpha = alive ? 1 : .8;
   ctx.save(); ctx.lineCap = theme.rendering.trailCap; ctx.lineJoin = theme.rendering.trailCap === 'round' ? 'round' : 'bevel';
   for (const batch of batches) {
     if (!batch.pixels.length) continue;
@@ -349,36 +352,54 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
   }
 
   for (const blast of snapshot.blasts) {
-    const alpha = clamp((blast.expiresAtTick - snapshot.tick) / 8, 0.15, 1);
+    const frame = blastFrame(blast, snapshot.presentationTick ?? snapshot.tick);
     const { x, y, radius } = blast.circle;
+    const colors = { outer: theme.palette.blast, warm: '#ffb52e', core: theme.palette.blastCore };
     ctx.save();
     ctx.beginPath(); ctx.rect(snapshot.boundaryInset, snapshot.boundaryInset, snapshot.width - 2 * snapshot.boundaryInset, snapshot.height - 2 * snapshot.boundaryInset); ctx.clip();
-    ctx.globalAlpha = alpha;
-    // Smooth discs use the supplied radius without theme-dependent grid snapping.
-    for (const [scale, color] of [[1, theme.palette.blast], [.84, '#ffb21e'], [.56, theme.palette.blastCore]] as const) {
-      ctx.fillStyle = color; ctx.beginPath();
-      ctx.arc(x, y, radius * scale, 0, Math.PI * 2);
-      ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = frame.footprintAlpha; ctx.fillStyle = colors.outer;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = frame.ring.alpha; ctx.strokeStyle = colors.warm; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, frame.ring.radius, 0, Math.PI * 2); ctx.stroke();
+    for (const circle of frame.circles) {
+      ctx.globalAlpha = circle.alpha; ctx.fillStyle = colors[circle.tone];
+      ctx.beginPath(); ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = colors.warm;
+    for (const spark of frame.sparks) {
+      ctx.globalAlpha = spark.alpha;
+      ctx.fillRect(spark.x - spark.size / 2, spark.y - spark.size / 2, spark.size, spark.size);
     }
     ctx.restore();
   }
 
   for (const player of snapshot.players) {
+    if (!player.alive) continue;
     const color = escapeColor(player.color);
     if (player.invulnerableUntilTick > snapshot.tick) drawStarAura(ctx, player, snapshot.tick, now, theme);
     if (player.drunkUntilTick > snapshot.tick) drawDrunkAura(ctx, player, snapshot.tick, now);
     drawOrbitShield(ctx, player, snapshot.tick, now);
     drawPortalGrace(ctx, player, snapshot.tick, now);
-    ctx.save(); ctx.globalAlpha = player.alive ? 1 : 0.22; ctx.shadowColor = color; ctx.shadowBlur = 18;
+    ctx.save(); ctx.shadowColor = color; ctx.shadowBlur = 18;
     if (drawAvatarHead(ctx, player.avatarId, player.x, player.y, player.angle, color)) { /* Atlas head includes color and heading cues. */ }
     else if (sprites.rider) drawSprite(ctx, sprites.rider, player.x, player.y, 44, player.angle, color, theme.rendering.pixelated);
     else { ctx.translate(player.x, player.y); ctx.rotate(player.angle); ctx.fillStyle = '#f7ffff'; ctx.strokeStyle = color; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-5, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill(); ctx.stroke(); }
     ctx.restore();
-    if (player.alive) {
-      const self = player.id === selfId;
-      if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 30 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
-      ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'center'; ctx.fillStyle = self ? '#ffffff' : color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-      ctx.fillText(self ? 'YOU' : `P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - (self ? 32 : 29))); ctx.restore();
+    // The local rider reads YOU inside a breathing ring so a player finds themselves at a glance (five identical heads otherwise).
+    const self = player.id === selfId;
+    if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 30 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+    ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'center'; ctx.fillStyle = self ? '#ffffff' : color; ctx.shadowColor = color; ctx.shadowBlur = 8;
+    ctx.fillText(self ? 'YOU' : `P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - (self ? 32 : 29))); ctx.restore();
+    const reload = reloadRemaining(player, snapshot);
+    if (reload > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#080c22'; ctx.lineWidth = 5; ctx.globalAlpha = .95;
+      ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.globalAlpha = .2; ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(player.x, player.y, RELOAD_RING_RADIUS, -Math.PI / 2 + (1 - reload) * Math.PI * 2, Math.PI * 1.5); ctx.stroke();
+      ctx.restore();
     }
   }
   drawInkClouds(ctx, snapshot, snapshot.tick);

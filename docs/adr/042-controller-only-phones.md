@@ -1,6 +1,6 @@
 # ADR 042: Controller-only phones in shared-TV mode
 
-Date: 2026-09-15. Status: implemented for user testing. Extends [ADR041](041-input-log-and-rollback-core.md).
+Date: 2026-09-15. Status: **superseded** by the peer-to-peer cutover in [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md): there is no host to send a status, so a controller phone in shared-TV mode simulates the world like every other member and only hides the arena. The text below is the original decision. Extends [ADR041](041-input-log-and-rollback-core.md).
 
 ## Problem
 

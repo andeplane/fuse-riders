@@ -1,5 +1,7 @@
 # ADR 029: Simulation time, prediction and rendering
 
+> **Superseded (2026-09-15).** The host-star snapshot protocol this decision describes was replaced by the peer-to-peer input log; see [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md).
+
 Date: 2026-09-14. Status: accepted for bounded implementation; numerical, fairness and release acceptance remain pending.
 
 Independent design review: root and netcode_review reviewed the v2 protocol and typed prediction contract on 2026-09-14. Implementation must atomically pair snapshot T with ledger T, retain held-input freshness after acknowledgement, and use conservative send-sampled clock bounds [host tick, host tick + RTT / tick duration]. No midpoint estimate certifies input lead. Implementation review and measured acceptance remain release gates.

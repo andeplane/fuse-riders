@@ -82,6 +82,8 @@ try{
    if(arena.metrics().trailHistoryBuilds!==stableHistoryBuilds+1)throw Error('Trail expiry did not refresh geometry');
    arena.reset();
    for(let tick=0;tick<30;tick++)arena.render(visualFixture(tick),now+tick*16,themes['neon-pixel'],'epoch1:match');
+   // Blast sparks are now sampled geometry; only rider deaths use the bounded particle emitter.
+   const death=visualFixture(30);arena.render({...death,players:death.players.map(p=>({...p,alive:false}))},now+480,themes['neon-pixel'],'epoch1:match');
    const active=arena.metrics();if(active.automaticLoopRunning)throw Error('Two render loops');if(active.particles<=0||active.particles>480)throw Error('Particles not bounded/emitting');
    arena.reset();if(arena.metrics().particles!==0)throw Error('Reset retained effects');
    arena.render({...visualFixture(36),boundaryInset:100},now+500,themes['clean-neon'],'epoch2:match');

@@ -16,7 +16,8 @@ try{
  await page.locator('canvas[data-renderer="phaser-webgl"]').waitFor();
  app.game.blasts=fixture.blasts.map(b=>({...b,expiresAtTick:app.game.tick+8,ownerId:'p0'}));
  app.advance(1);
- await page.waitForFunction(()=>Number(JSON.parse(document.querySelector<HTMLCanvasElement>('canvas.arena')?.dataset.rendererMetrics??'{}').particles)>0);
+ // Blasts are sampled geometry rather than pooled particles. Wait for the LAN snapshot frame.
+ await page.waitForFunction(()=>document.querySelector<HTMLCanvasElement>('canvas.arena')?.dataset.rendererMetrics!==undefined);
  app.game.blasts=app.game.blasts.map(b=>({...b,bombId:b.bombId+1000}));app.advance(1);
  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
  await page.screenshot({path:'docs/gameplay-phaser.png'});
