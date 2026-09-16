@@ -24,6 +24,7 @@ try {
       const { visualFixture } = await import(String('/src/client/phaser/benchmark-fixture.ts')) as typeof import('../src/client/phaser/benchmark-fixture.js');
       const { drawArena } = await import(String('/src/client/main.ts')) as typeof import('../src/client/main.js');
       const { themes } = await import(String('/src/client/themes.ts')) as typeof import('../src/client/themes.js');
+      const { createGame, addPlayer, startMatch, eliminatePlayer } = await import(String('/src/shared/game.ts')) as typeof import('../src/shared/game.js');
       document.body.replaceChildren(); document.body.style.cssText = 'margin:0;background:#020715';
       const canvas = document.createElement('canvas'); canvas.width = 1600; canvas.height = 900;
       document.body.append(canvas);
@@ -65,7 +66,13 @@ try {
         const livingTrail = regionDifference(alive, empty, 250, 198, 300, 4);
         if (livingTrail <= 0) throw Error('Live trail missing');
         if (regionDifference(alive, empty, 750, 395, 100, 110) === 0) throw Error('Live avatar missing');
-        const dead = { ...player, alive: false };
+        const game = createGame('persistent-trail');
+        addPlayer(game, { id: player.id, name: player.name, slot: 0, color: player.color });
+        addPlayer(game, { id: 'other', name: 'Other', slot: 1, color: '#ff4fa3' });
+        startMatch(game);
+        game.players.get(player.id)!.trail = structuredClone(player.trail);
+        eliminatePlayer(game, player.id);
+        const dead = { ...player, alive: false, trail: game.players.get(player.id)!.trail };
         paint([dead]);
         if (arena && arena.metrics().particles === 0) throw Error('Death burst missing');
         // Remove the transient sparks so we can inspect the pooled avatar and its overlays underneath.
@@ -74,15 +81,15 @@ try {
         if (regionDifference(crashed, empty, 750, 395, 100, 110) !== 0) throw Error('Dead rider obscures crash');
         const deadRatio = regionDifference(crashed, empty, 250, 198, 300, 4) / livingTrail;
         if (deadRatio < .7) throw Error(`Dead trail too faint: ${deadRatio}`);
-        // Clone the trail to exercise the Canvas age batches with one hittable tick remaining.
-        const nearExpiry = paint([{ ...dead, trail: structuredClone(dead.trail) }], 199);
-        const expiryRatio = regionDifference(nearExpiry, empty, 250, 198, 300, 4) / livingTrail;
-        if (expiryRatio < .6) throw Error(`Hittable trail too faint near expiry: ${expiryRatio}`);
-        const removed = paint([{ ...dead, trail: [] }], 200);
+        // Rebuild the Canvas batches well past the original expiry: dead trails do not age away.
+        const persistent = paint([{ ...dead, trail: structuredClone(dead.trail) }], 500);
+        const persistentRatio = regionDifference(persistent, empty, 250, 198, 300, 4) / livingTrail;
+        if (Math.abs(persistentRatio - deadRatio) > .01) throw Error(`Dead trail fades over time: ${persistentRatio}`);
+        const removed = paint([{ ...dead, trail: [] }], 501);
         if (regionDifference(removed, empty, 250, 198, 300, 4) !== 0) throw Error('Removed trail remains visible');
         const revived = paint([player]);
         if (regionDifference(revived, empty, 750, 395, 100, 110) === 0) throw Error('Live avatar did not return');
-        results.push({ theme, deadRatio, expiryRatio });
+        results.push({ theme, deadRatio, persistentRatio });
         paint([dead]); arena?.reset(); paint([dead]);
       }
       Reflect.set(window, 'disposeDeadRiderCheck', () => { arena?.destroy(); canvas.remove(); });

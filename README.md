@@ -49,6 +49,8 @@ Every device in a room simulates the game from one shared input log, so no brows
 
 ## How to play
 
+When a rider dies, its remaining trail stays in the arena as an obstacle until the next round, without shrinking from the tail. Explosions, bullets and closing walls can still cut it.
+
 On desktop, use **← / →** to steer and hold/release **Space** to charge and fire in online rooms or solo mode. Opening a menu or leaving the tab cancels held controls. On phones the lobby is a plain screen in either orientation: the room code with the join link and QR, the riders, and for the host START RACE, ADD AI, ROOM SETTINGS and TV VIEW. Once the race starts, rotate to landscape: from countdown through the match report the phone is the controller — the left, middle and right thirds of the screen steer left, charge/fire, and steer right, and the phase notice floats at the top. Introductory hints fade over the arena; shared-TV phones retain visible colored controls. **☰ MENU** opens the roster, game actions (START RACE / REMATCH / BACK TO LOBBY) and settings. Fullscreen is requested where the browser supports it. Hold **Fire** to charge a forward launch, then release. Target Bomb changes Fire into a thumb trackpad with a public aiming marker. Tap **HEAD** to change avatar, including during a round. Phone colors match riders. Joiners can enter during play when a seat is available and wait for the next round.
 
 On a computer, hold **← / →** or **A / D** to steer and hold/release **Space** for the Fire action in solo, online rooms or the LAN controller. Opening a dialog or switching away cancels held controls. Use the on-screen Fire pad to slide the Target Bomb aim. Desktop arena views use compact controls to give the board more space; touch devices keep large pads.

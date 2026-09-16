@@ -1295,6 +1295,10 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
 }
 
 function recordElimination(state: GameState, playerId: PlayerId): void {
+  // Freeze the remaining trail, including the fatal contact segment. Keep a finite
+  // deadline for snapshots, bots and renderers; blasts/walls still cut it and the
+  // next round clears it. Dead riders never append new segments.
+  for (const segment of requirePlayer(state, playerId).trail) segment.expiresAtTick = Number.MAX_SAFE_INTEGER;
   const participant = state.roundParticipants.get(playerId);
   if (participant && participant.eliminatedAtTick === undefined) participant.eliminatedAtTick = state.tick;
 }
