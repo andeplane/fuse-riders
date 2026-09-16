@@ -198,7 +198,8 @@ class ArenaScene extends Phaser.Scene {
     const passes = [[4 * glow, .25, tint], [5, 1, tint], [1, .95, 0xffffff]] as const;
     for (const [index, [width, alpha, shade]] of passes.entries()) {
       const core = index === passes.length - 1;
-      graphics.lineStyle(width, shade, alpha * (alive ? 1 : .3)).fillStyle(shade, alpha * (alive ? 1 : .3));
+      // Remaining trail geometry is still solid even after its rider crashes.
+      graphics.lineStyle(width, shade, alpha * (alive ? 1 : .8)).fillStyle(shade, alpha * (alive ? 1 : .8));
       for (const path of paths) {
         if (path.length < 2) continue;
         if (core && pixel) {
@@ -370,14 +371,14 @@ class ArenaScene extends Phaser.Scene {
       g.lineStyle(1,0xffffff,piece.alpha*.65).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
     }
     for(const p of s.players) {
+      if(!p.alive) continue;
       const tint=color(p.color);
       // The portrait stays upright at the trail head; only its direction marker turns.
-      g.fillStyle(0x080c22,p.alive?1:.22).fillCircle(p.x,p.y,15);
-      f.lineStyle(1,tint,p.alive?1:.25).strokeCircle(p.x,p.y,15);
-      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined).setAlpha(p.alive?1:.22);
+      g.fillStyle(0x080c22).fillCircle(p.x,p.y,15);
+      f.lineStyle(1,tint).strokeCircle(p.x,p.y,15);
+      this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
-      f.fillStyle(tint,p.alive?1:.2).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
-      if(!p.alive) continue;
+      f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
       this.label(`P${p.slot+1}`,p.x,p.y-27,p.color);
       const reload=reloadRemaining(p,s);
       if(reload>0) {
