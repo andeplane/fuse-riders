@@ -25,8 +25,9 @@ test('power-up guide default-spawn flags match what a new room spawns', () => {
   assert.deepEqual(POWERUP_GUIDE.filter(candidate => candidate.spawnsByDefault).map(candidate => candidate.type).sort(), spawning);
   assert.equal(entry('star').spawnsByDefault, false);
   // The TV lobby legend lays these out two per row beside the QR card; past this the host's START RACE leaves the
-  // 960px viewport. Adding a pickup means checking that layout, not just bumping the number (#166).
-  assert.ok(POWERUP_GUIDE.filter(candidate => candidate.spawnsByDefault).length <= 16, 'the TV lobby legend fits sixteen default-spawning pickups');
+  // viewport. Adding a pickup means checking that layout, not just bumping the number (#166): seventeen were checked
+  // at 1280×960 and 1024×768 for Nitro and Snail.
+  assert.ok(POWERUP_GUIDE.filter(candidate => candidate.spawnsByDefault).length <= 17, 'the TV lobby legend fits seventeen default-spawning pickups');
 });
 
 test('power-up guide durations follow the simulation constants', () => {

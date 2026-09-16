@@ -107,6 +107,17 @@ export const PICKUP_SEPARATION = 28;
 /** Three seconds a quarter faster (#166). */
 export const BOOST_DURATION_TICKS = 60;
 export const BOOST_SPEED = 1.25;
+/**
+ * Nitro doubles the collector's speed and Snail halves every rival's, each for five seconds. Unlike the boost, every
+ * pickup is its own deadline: two Nitros run at 4x until the first expires, and a Snail on a Nitro rider cancels to 1x.
+ * Only distance changes, as with the boost, so a fast rider turns wide and a slowed one turns tight.
+ */
+export const NITRO_DURATION_TICKS = 100;
+export const NITRO_SPEED = 2;
+export const SNAIL_DURATION_TICKS = 100;
+export const SNAIL_SPEED = 0.5;
+/** Deadlines a rider can hold per effect. Unreachable in play (the board caps pickups), so checkpoints can bound the lists. */
+export const MAX_SPEED_EFFECT_STACK = 32;
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
 
@@ -124,18 +135,27 @@ export const SPEED_RAMP_MAX = 1.5;
 export function roundSpeedMultiplier(elapsedTicks: number): number {
   return 1 + (SPEED_RAMP_MAX - 1) * Math.max(0, Math.min(SPEED_RAMP_TICKS, elapsedTicks)) / SPEED_RAMP_TICKS;
 }
-/** How far a rider moves and may turn on `tick`: the round's ramp on both, then any boost on distance alone. */
-export function riderMotionStep(player: { boostUntilTick: number; grip: boolean }, tick: number, roundStartedTick: number | undefined): { distance: number; turn: number } {
+export interface SpeedEffects { boostUntilTick: number; nitroUntilTicks: ReadonlyArray<number>; snailUntilTicks: ReadonlyArray<number> }
+/** Every speed pickup in force on `tick`, multiplied together: boost, then one factor per unexpired Nitro or Snail deadline. */
+export function riderSpeedMultiplier(player: SpeedEffects, tick: number): number {
+  let multiplier = player.boostUntilTick > tick ? BOOST_SPEED : 1;
+  // Powers of two are exact, so the order of these products never matters to replicas.
+  for (const until of player.nitroUntilTicks) if (until > tick) multiplier *= NITRO_SPEED;
+  for (const until of player.snailUntilTicks) if (until > tick) multiplier *= SNAIL_SPEED;
+  return multiplier;
+}
+/** How far a rider moves and may turn on `tick`: the round's ramp on both, then the speed pickups on distance alone. */
+export function riderMotionStep(player: SpeedEffects & { grip: boolean }, tick: number, roundStartedTick: number | undefined): { distance: number; turn: number } {
   const ramp = roundSpeedMultiplier(tick - (roundStartedTick ?? tick));
   const distance = RIDER_SPEED / TICK_HZ * ramp;
-  return { distance: player.boostUntilTick > tick ? distance * BOOST_SPEED : distance, turn: riderTurnRate(player) / TICK_HZ * ramp };
+  return { distance: distance * riderSpeedMultiplier(player, tick), turn: riderTurnRate(player) / TICK_HZ * ramp };
 }
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity', 'grip'] as const;
+export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity', 'grip', 'nitro', 'snail'] as const;
 export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
@@ -176,6 +196,10 @@ export interface PlayerState extends Required<PlayerIdentity> {
   invulnerableUntilTick: number;
   /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
   boostUntilTick: number;
+  /** One absolute deadline per Nitro collected, unexpired ones only: each doubles speed, so they stack (#239). */
+  nitroUntilTicks: number[];
+  /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#239). */
+  snailUntilTicks: number[];
   /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
   grip: boolean;
   drunkUntilTick: number; inkUntilTick: number;
@@ -357,7 +381,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     bombReadyAtTick: 0,
     extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
     invulnerableUntilTick: 0,
-    boostUntilTick: 0, grip: false,
+    boostUntilTick: 0, nitroUntilTicks: [], snailUntilTicks: [], grip: false,
     drunkUntilTick: 0, inkUntilTick: 0,
     targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false, gravityArmed: false,
     drunkStartedTick: 0,
@@ -494,6 +518,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   const movements = new Map<PlayerId, Movement>();
+  for (const player of state.players.values()) expireSpeedEffects(player, state.tick);
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
@@ -863,7 +888,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
       extraBombs: player.extraBombs, fuseLevel: player.fuseLevel, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
       invulnerableUntilTick: player.invulnerableUntilTick,
-      boostUntilTick: player.boostUntilTick, grip: player.grip,
+      boostUntilTick: player.boostUntilTick, nitroUntilTicks: [...player.nitroUntilTicks], snailUntilTicks: [...player.snailUntilTicks], grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, gravityArmed: player.gravityArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
@@ -944,7 +969,7 @@ function prepareRound(state: GameState): void {
     player.bombReadyAtTick = state.tick;
     player.extraBombs = 0; player.fuseLevel = 0; player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
     player.invulnerableUntilTick = 0;
-    player.boostUntilTick = 0; player.grip = false;
+    player.boostUntilTick = 0; player.nitroUntilTicks = []; player.snailUntilTicks = []; player.grip = false;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
     player.drunkHeadingOffset = 0;
@@ -1057,6 +1082,12 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.grip = true;
     } else if (pickup.type === 'boost') {
       collector.boostUntilTick = Math.max(collector.boostUntilTick, state.tick + BOOST_DURATION_TICKS);
+    } else if (pickup.type === 'nitro') {
+      addSpeedEffect(collector.nitroUntilTicks, state.tick + NITRO_DURATION_TICKS);
+    } else if (pickup.type === 'snail') {
+      for (const player of state.players.values()) {
+        if (player.alive && player.id !== collector.id) addSpeedEffect(player.snailUntilTicks, state.tick + SNAIL_DURATION_TICKS);
+      }
     } else if (pickup.type === 'ink') {
       for (const player of state.players.values()) {
         if (player.alive && player.id !== collector.id) player.inkUntilTick = Math.max(player.inkUntilTick, state.tick + INK_DURATION_TICKS);
@@ -1079,6 +1110,19 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     }
   }
   if (consumed.size > 0) state.pickups = state.pickups.filter((pickup) => !consumed.has(pickup.id));
+}
+
+/** Deadlines stay sorted, so the earliest to expire is always first and replicas hold identical lists. */
+function addSpeedEffect(deadlines: number[], untilTick: number): void {
+  if (deadlines.length >= MAX_SPEED_EFFECT_STACK) return;
+  let index = deadlines.length;
+  while (index > 0 && deadlines[index - 1]! > untilTick) index -= 1;
+  deadlines.splice(index, 0, untilTick);
+}
+/** Drops spent deadlines before movement, so state carries only the effects still in force. */
+function expireSpeedEffects(player: PlayerState, tick: number): void {
+  if (player.nitroUntilTicks.length && player.nitroUntilTicks[0]! <= tick) player.nitroUntilTicks = player.nitroUntilTicks.filter(until => until > tick);
+  if (player.snailUntilTicks.length && player.snailUntilTicks[0]! <= tick) player.snailUntilTicks = player.snailUntilTicks.filter(until => until > tick);
 }
 
 function portalBounds(state: GameState) {

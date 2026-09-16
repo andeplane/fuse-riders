@@ -31,6 +31,19 @@ const artwork: Record<string, string> = {
     <path d="M35 11 19 35h11l-3 18 18-26H34z" fill="url(#cyan)" stroke="#e4fdff" stroke-width="2" stroke-linejoin="round"/>
     <path d="M8 25h9M6 33h11M9 41h8" fill="none" stroke="#8ff8ff" stroke-width="3" stroke-linecap="round" opacity=".75"/>
   `,
+  'pickup-nitro': `
+    <circle cx="32" cy="32" r="22" fill="url(#body)" stroke="#ffb14a" stroke-width="2.5"/>
+    <path d="m14 18 15 14-15 14Z" fill="url(#orange)" stroke="#fff0c4" stroke-width="2" stroke-linejoin="round"/>
+    <path d="m31 18 15 14-15 14Z" fill="url(#orange)" stroke="#fff0c4" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M48 24h8M50 32h8M48 40h8" fill="none" stroke="#ffd98a" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+  `,
+  'pickup-snail': `
+    <path d="M9 47c0-6 5-9 11-9h27c5 0 9 3 9 7v2H15c-4 0-6-1-6-1Z" fill="url(#green)" stroke="#e2ffd0" stroke-width="2"/>
+    <path d="M44 38c-1-8-5-15-6-19m8 21c2-7 6-14 8-17" fill="none" stroke="#c9ffa8" stroke-width="3"/>
+    <circle cx="37" cy="17" r="3" fill="#f2ffe8"/><circle cx="55" cy="21" r="3" fill="#f2ffe8"/>
+    <circle cx="26" cy="30" r="15" fill="url(#gold)" stroke="#fff0b4" stroke-width="2"/>
+    <path d="M26 30c0-4 4-6 7-3 3 4-1 9-6 8-6-1-9-7-6-13 4-7 14-7 18 0" fill="none" stroke="#a45a12" stroke-width="3"/>
+  `,
   bomb: `
     <path d="M36 20c0-9 6-13 12-10" fill="none" stroke="#ffb64e" stroke-width="4"/>
     <path d="m47 5 1 5 5 1M52 5l-2 2" fill="none" stroke="#fff4bf" stroke-width="2"/>

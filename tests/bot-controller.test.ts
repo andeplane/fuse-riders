@@ -97,6 +97,24 @@ test('AI avoids the trail a crossing rider will leave, including active and expi
   }
 });
 
+test('AI survives its own stacked Nitro and a crossing rider on Nitro, and keeps its horizon as a Snail wears off',()=>{
+  // On Nitro the turning circle doubles, so the crossing rider starts further out than in the boost case; the bot's
+  // lookahead must reach the trails it can now hit within it.
+  const fast=steeringFixture();
+  fast.players.get('bot:1')!.nitroUntilTicks=[fast.tick+240];
+  Object.assign(fast.players.get('human')!,{x:700,y:400,angle:Math.PI/2,nitroUntilTicks:[fast.tick+240]});
+  steerFor(fast,120);
+  // Two Nitros are four times speed and a 216-unit turning circle: the bot lasts five seconds in the open arena.
+  const stacked=steeringFixture();
+  stacked.players.get('bot:1')!.nitroUntilTicks=[stacked.tick+240,stacked.tick+240];
+  steerFor(stacked,100);
+  // A Snail expiring mid-lookahead doubles the stride part way through the plan; the bot must plan for the faster half.
+  const slowed=steeringFixture();
+  slowed.players.get('bot:1')!.snailUntilTicks=[slowed.tick+6];
+  Object.assign(slowed.players.get('human')!,{x:500,y:400,angle:Math.PI/2});
+  steerFor(slowed,120);
+});
+
 test('steering replay from a restored world needs no hidden planner state',()=>{
   const game=steeringFixture();
   Object.assign(game.players.get('human')!,{x:500,y:410,angle:Math.PI/2});

@@ -1,5 +1,6 @@
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
-import { powerLabel } from './power-indicator.js';
+import { NITRO_SPEED, SNAIL_SPEED } from '../shared/game.js';
+import { powerLabel, speedEffectLabel } from './power-indicator.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { createAvatarPicker, createAvatarPortrait } from './avatar-heads.js';
@@ -528,12 +529,14 @@ function startController(): void {
   const countPower = element('span', 'power-chip power-count', powerLabel(0));
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
   const inkPower = element('span', 'power-chip', 'INK · --');
+  const nitroPower = element('span', 'power-chip', 'NITRO · --');
+  const slowedPower = element('span', 'power-chip', 'SLOWED · --');
   const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
   const triplePower = element('span', 'power-chip triple-power', 'TRIPLE · --');
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const matchPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(countPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, matchPoints);
+  powerStrip.append(countPower, starPower, nitroPower, slowedPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, matchPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
@@ -619,6 +622,8 @@ function startController(): void {
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;
     inkPower.textContent = inkTicks > 0 ? `INK · ${(inkTicks / 20).toFixed(1)}s` : 'INK · --';
+    nitroPower.textContent = speedEffectLabel('NITRO', NITRO_SPEED, player.nitroUntilTicks, snapshot.tick);
+    slowedPower.textContent = speedEffectLabel('SLOWED', SNAIL_SPEED, player.snailUntilTicks, snapshot.tick);
     const drunkTicks = player.drunkUntilTick - snapshot.tick;
     wobblePower.textContent = drunkTicks > 0 ? `WOBBLE · ${(drunkTicks / 20).toFixed(1)}s` : 'WOBBLE · --';
     triplePower.textContent = player.fiveShotArmed ? 'FIVE · ARMED' : player.tripleShotArmed ? 'TRIPLE · ARMED' : 'TRIPLE · --';

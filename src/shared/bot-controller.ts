@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, SPEED_RAMP_MAX, riderMotionStep, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, RIDER_SPEED, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -55,7 +55,11 @@ const TRAIL_CLEARANCE=RIDER_RADIUS+TRAIL_WIDTH/2+SAFETY_MARGIN;
 
 /** Replan every tick, but evaluate short turns followed by straight escape paths. */
 function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:PlayerState[],target:{x:number;y:number}|undefined,random:number,lookahead:number):number {
-  const reach=lookahead*RIDER_SPEED*BOOST_SPEED*SPEED_RAMP_MAX/TICK_HZ+TRAIL_CLEARANCE;
+  // The fastest anyone here could go inside the lookahead: a Snail wearing off, or a rival's stacked Nitros, must not
+  // put a trail past the horizon that is about to be reachable.
+  let fastest=1;
+  for(const rider of [player,...enemies])for(let future=1;future<=lookahead;future++)fastest=Math.max(fastest,riderSpeedMultiplier(rider,game.tick+future));
+  const reach=lookahead*RIDER_SPEED*fastest*SPEED_RAMP_MAX/TICK_HZ+TRAIL_CLEARANCE;
   const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===player.id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
     .filter(candidate=>(candidate.trail.detached || candidate.trail.expiresAtTick>game.tick)&&candidate.distance<reach*reach)
     .sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
