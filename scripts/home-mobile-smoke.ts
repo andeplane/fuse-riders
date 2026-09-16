@@ -29,7 +29,7 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    await page.goto(base);await ready(page);await page.waitForFunction(()=>Number(document.querySelector('canvas')?.getAttribute('data-attract-tick'))>2);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'landing horizontal overflow');
    // The landing clips overflow, so a crowded top bar hides controls instead of scrolling: each must be fully on screen.
-   for(const control of ['.landing-brand','.landing-top .audio-controls summary','.landing-audio'])await inside(page,page.locator(control));
+   for(const control of ['.landing-brand','.landing-top .audio-controls summary','.landing-audio','.landing-mute'])await inside(page,page.locator(control));
    const guide=page.getByRole('region',{name:'POWER-UPS'});assert.equal(await guide.getByRole('listitem').count(),POWERUP_GUIDE.length,'power-up guide lists every pickup');
    await guide.getByText('blocks one crash',{exact:false}).waitFor(); // the landing guide is the only place descriptions render; the TV legend is names alone
    await guide.getByText('STAR',{exact:true}).scrollIntoViewIfNeeded();await page.waitForFunction(()=>[...document.querySelectorAll<HTMLImageElement>('.landing-powerups img')].every(image=>image.complete&&image.naturalWidth>0),undefined,{timeout:smokeTimeout(10000)});
