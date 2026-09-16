@@ -589,7 +589,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     for (let second = first + 1; second < movementList.length; second += 1) {
       const a = movementList[first]!;
       const b = movementList[second]!;
-      if (segmentDistanceSquared(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y) <= square(2 * RIDER_RADIUS) + EPSILON) {
+      if (ridersTouchDuringTick(a.oldX, a.oldY, a.x, a.y, b.oldX, b.oldY, b.x, b.y, 2 * RIDER_RADIUS)) {
         // Portal grace is defensive: neither rider is harmed by this contact.
         if (a.player.portalGraceUntilTick > state.tick || b.player.portalGraceUntilTick > state.tick) continue;
         const aInvulnerable = isHazardImmune(a.player, state.tick);
@@ -1293,6 +1293,28 @@ function normalizeAngle(angle: number): number {
 
 function square(value: number): number {
   return value * value;
+}
+
+/**
+ * Do two riders, each moving from its old pose to its new one over this tick, ever come within `radius` of each
+ * other *at the same instant*? segmentDistanceSquared compares whole paths, so it measures the gap between points
+ * the riders occupy at different moments: two riders holding a steady 20-unit gap register 12.5 and both die (#186).
+ * The gap under matched time is a parabola in t, so its smallest value over the tick is at the vertex, or at an end
+ * when the vertex falls outside. No square root is taken, and swapping the riders negates both p and v, leaving every
+ * coefficient unchanged -- so the verdict cannot depend on player order.
+ */
+function ridersTouchDuringTick(
+  ax0: number, ay0: number, ax1: number, ay1: number,
+  bx0: number, by0: number, bx1: number, by1: number,
+  radius: number,
+): boolean {
+  const px = ax0 - bx0, py = ay0 - by0;
+  const vx = (ax1 - ax0) - (bx1 - bx0), vy = (ay1 - ay0) - (by1 - by0);
+  const constant = px * px + py * py - radius * radius;
+  const quadratic = vx * vx + vy * vy;
+  const linear = 2 * (px * vx + py * vy);
+  const t = quadratic > 0 ? Math.max(0, Math.min(1, -linear / (2 * quadratic))) : 0;
+  return quadratic * t * t + linear * t + constant <= EPSILON;
 }
 
 function segmentDistanceSquared(
