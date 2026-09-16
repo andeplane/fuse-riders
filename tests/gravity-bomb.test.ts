@@ -4,7 +4,6 @@ import { BLAST_LEVEL_RANGE, BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TIC
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
 import { INITIAL_BOUNDARY_INSET, RIDER_SPEED, TICK_HZ, GRAVITY_PULL_PER_TICK } from '../src/shared/game.js';
 import { controllerSnapshot } from '../src/server/index.js';
-import { stripSnapshot } from '../src/online/controller-status.js';
 
 const flightPath = (x: number, y: number) => Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));
 function playing(seed = 5): GameState {
@@ -142,11 +141,11 @@ test('a field caught by the closing wall is pulled back inside, so it cannot dra
   assert.ok(state.boundaryInset > INITIAL_BOUNDARY_INSET, 'the wall actually closed, or the clamp is unexercised');
   assert.ok(field.x >= state.boundaryInset, `the field stayed at ${field.x}, outside the wall at ${state.boundaryInset}`);
 });
-test('a phone is never sent the field geometry it cannot draw, on either transport', () => {
+// Online phones simulate the world themselves, so only the LAN controller snapshot strips the field geometry it cannot draw.
+test('a LAN phone is never sent the field geometry it cannot draw', () => {
   const state = playing();
   state.gravityFields.push({ bombId: 0, ownerId: 'p1', x: 400, y: 400, radius: 90, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
   const full = toSnapshot(state);
   assert.equal(full.gravityFields.length, 1, 'the fixture carries a field, so the strips below are not vacuous');
   assert.deepEqual(controllerSnapshot(full).gravityFields, [], 'the LAN server strips it');
-  assert.deepEqual(stripSnapshot(full).gravityFields, [], 'and so does the online room');
 });
