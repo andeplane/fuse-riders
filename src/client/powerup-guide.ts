@@ -1,4 +1,4 @@
-import { BOOST_DURATION_TICKS, bombFuseTicks, INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ, type PickupType } from '../shared/game.js';
+import { BOOST_DURATION_TICKS, GRAVITY_FIELD_TICKS, bombFuseTicks, INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ, type PickupType } from '../shared/game.js';
 import { DRUNK_DURATION_TICKS } from '../shared/drunk.js';
 import { PICKUP_WEIGHTS } from '../shared/pickup-weights.js';
 
@@ -27,6 +27,7 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   ink: ['INK', `clouds rivals' view for ${seconds(INK_DURATION_TICKS)}`],
   star: ['STAR', `invulnerable for ${seconds(STAR_DURATION_TICKS)}`],
   boost: ['BOOST', `a quarter faster for ${seconds(BOOST_DURATION_TICKS)}`],
+  gravity: ['SINGULARITY', `next bomb leaves a pull that drags riders in for ${seconds(GRAVITY_FIELD_TICKS)}`],
 };
 
 const defaultSpawns = new Set(PICKUP_WEIGHTS.map(row => row.type));

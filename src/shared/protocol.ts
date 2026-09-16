@@ -38,15 +38,16 @@ export interface GameSnapshot {
     x: number; y: number; angle: number; alive: boolean; roundWins: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
     fuseLevel?: number; blastLevel: number; invulnerableUntilTick: number; boostUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
-    gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
+    gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; gravityArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
-    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; shell?: { vx: number; vy: number; gun?: boolean };
+    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean };
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPairs: ReadonlyArray<PortalPair>;
+  gravityFields: ReadonlyArray<{ bombId: number; ownerId: PlayerId; x: number; y: number; radius: number; expiresAtTick: number }>;
   pickups: ReadonlyArray<{ id: number; type: PickupType; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;

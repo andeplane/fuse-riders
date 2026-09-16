@@ -12,7 +12,7 @@ import { bombPreviewDistance } from './bomb-preview.js';
 import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
-import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortals, drawStarAura } from './pickup-renderer.js';
+import { drawDrunkAura, drawGravityFields, drawOrbitShield, drawPickups, drawPortalGrace, drawPortals, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
@@ -259,6 +259,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
   ctx.globalAlpha = 1;
 
   if ((snapshot.pickups ?? []).length) drawPickups(ctx, snapshot, snapshot.tick, now, theme);
+  drawGravityFields(ctx, snapshot, snapshot.tick, now);
   drawPortals(ctx, snapshot, snapshot.tick, now);
 
   for (const player of snapshot.players) {
@@ -419,7 +420,7 @@ function startDisplay(): void {
   // createPowerupGuide() routes every icon through legendSrc() so it works under a base path, and its
   // setTheme() is the single place that re-themes them, called here and from the theme <select>.
   // LAN games have no room settings, so only pickups that spawn by default are listed.
-  const pickupLegend = createPowerupGuide(POWERUP_GUIDE.filter(entry => entry.spawnsByDefault), { className: 'pickup-legend', label: 'Power-ups' });
+  const pickupLegend = createPowerupGuide(POWERUP_GUIDE.filter(entry => entry.spawnsByDefault), { className: 'pickup-legend', label: 'Power-ups', namesOnly: true });
   const applyLegendTheme = (id: ThemeId): void => pickupLegend.setTheme(id);
   lobbyCopy.append(pickupLegend.element);
   const joinPanel = element('div', 'join-panel');
@@ -808,6 +809,7 @@ function startController(): void {
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
   powerStrip.append(fusePower, blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
+  const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -879,6 +881,7 @@ function startController(): void {
       y: clamp((player.y + Math.sin(player.angle) * 100) / snapshot.height, 0, 1),
     } : undefined);
     targetPower.textContent = player.targetBombArmed ? 'TARGET · ARMED' : 'TARGET · --';
+    gravityPower.textContent = player.gravityArmed ? 'SINGULARITY · ARMED' : 'SINGULARITY · --';
     const scored = snapshot as ScoredSnapshot;
     liveAvatarPicker.sync(player.avatarId);
     root.style.setProperty('--player-color', escapeColor(player.color));

@@ -8,7 +8,7 @@ import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js
 import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 
 /** Bump compatibility whenever persisted simulation semantics or required fields change. No implicit migration. */
-export const CHECKPOINT_VERSION = 6;
+export const CHECKPOINT_VERSION = 7;
 export const CHECKPOINT_COMPATIBILITY = 'fuse-simulation-2';
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = 1024;
@@ -33,7 +33,7 @@ const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
-  bombTarget: optional(shape({x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT)})), fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, boostUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
+  bombTarget: optional(shape({x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT)})), gravityArmed: boolean, fuseLevel: optional(count(2)), blastLevel: count(2), invulnerableUntilTick: integer, boostUntilTick: integer, drunkUntilTick: integer, inkUntilTick: integer,
   drunkStartedTick: integer, drunkHeadingOffset: range(-Math.PI, Math.PI), tripleShotArmed: boolean, fiveShotArmed: boolean,
   shielded: boolean, shieldGraceUntilTick: integer, portalCooldownUntilTick: integer, portalGraceUntilTick: integer, trail: array(trail, MAX_CHECKPOINT_TRAILS),
 } satisfies Record<keyof PlayerState, Guard>;
@@ -42,6 +42,7 @@ const bombFields = {
   id: integer, ownerId: text, launchX: position, launchY: position, x: position, y: position,
   launchedTick: integer, landsAtTick: integer, placedTick: integer, explodeAtTick: integer, blastRange: range(0, 1000),
   flightPath: array(shape({ x: position, y: position, angle: number }), 32),
+  gravity: optional(boolean),
   shell: optional(shape({ vx: range(-1000, 1000), vy: range(-1000, 1000), gun: optional(boolean) })),
 } satisfies Record<keyof BombState, Guard>;
 const bomb = shape(bombFields);
@@ -56,12 +57,14 @@ const statsFields = {
 } satisfies Record<keyof MatchPlayerStatsState, Guard>;
 const stats = shape(statsFields);
 const settings: Guard = v => parseRoomSettings(v) !== undefined;
+const gravityField: Guard = shape({ bombId: integer, ownerId: text, x: position, y: position, radius: range(0, 1000), expiresAtTick: integer });
 const gameShape = shape({
   settings, matchId: text, round: v => integer(v) && (v as number) > 0, tick: integer,
   phase: v => typeof v === 'string' && ['lobby','countdown','playing','roundOver','matchOver'].includes(v), phaseEndsAtTick: optional(integer), roundStartedTick: optional(integer),
   width: v => v === ARENA_WIDTH, height: v => v === ARENA_HEIGHT, boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),
   players: map(text, player, 5), bombs: map(integer, bomb, 256), blasts: array(blast, 256), pickups: array(pickup, 6),
   portalPairs: array(portalPair, MAX_PORTAL_PAIRS),
+  gravityFields: array(gravityField, 256),
   nextBombId: integer, nextPickupId: integer, nextPickupSpawnTick: integer, seed: count(0xffffffff), randomState: count(0xffffffff),
   leaderboard: map(text, shape({ id: text, name, totalScoreUnits: integer, roundsPlayed: integer, roundWins: integer, matchWins: integer }), MAX_HISTORY),
   roundParticipants: map(text, shape({ id: text, name, eliminatedAtTick: optional(integer) }), 5),
@@ -125,6 +128,8 @@ function gameInvariants(game: GameState): boolean {
   // Transit exit safety exempts the pair in use by id, so duplicate ids would exempt a foreign wall.
   const portalIds = new Set<string>();
   for (const pair of game.portalPairs) { if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false; portalIds.add(pair.id); }
+  const fieldBombIds = new Set<number>();
+  for (const field of game.gravityFields) { if (fieldBombIds.has(field.bombId) || field.bombId >= game.nextBombId || !game.matchStats.has(field.ownerId) || field.expiresAtTick <= game.tick) return false; fieldBombIds.add(field.bombId); }
   return true;
 }
 
@@ -178,6 +183,7 @@ const snapshotShape = shape({
   blasts: array(shape({bombId:integer,circle:shape({x:position,y:position,radius:range(0,1000)}),expiresAtTick:integer}),256),
   pickups: array(pickup,6),
   portalPairs: array(portalPair,MAX_PORTAL_PAIRS),
+  gravityFields: array(gravityField,256),
   leaderboard: array(shape({id:text,name,totalScoreUnits:integer,roundsPlayed:integer,roundWins:integer,matchWins:integer}),MAX_HISTORY),
   roundPlacements: array(shape({playerId:text,name,place:range(1,5),scoreUnits:integer}),5),
   matchStats: array(shape({...wireStatsFields,matchPlacement:integer} satisfies Record<keyof MatchPlayerStats,Guard>),MAX_HISTORY),
