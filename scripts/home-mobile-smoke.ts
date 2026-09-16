@@ -1,3 +1,4 @@
+import { POWER_TUNING } from '../src/shared/power-progression.js';
 import { chromium,webkit,type Page,type Locator,type Browser } from 'playwright';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js'; // count the guide against its source, not a literal that rots with the next pickup
 import assert from 'node:assert/strict';
@@ -41,23 +42,26 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
    await page.emulateMedia({reducedMotion:'reduce'});await page.getByRole('button',{name:/PLAY BACKGROUND/}).waitFor();await frames(page);const reduced=await page.locator('canvas').getAttribute('data-attract-tick');await frames(page);assert.equal(await page.locator('canvas').getAttribute('data-attract-tick'),reduced);
    await page.screenshot({path:`artifacts/home-${tag}.png`});
    await page.getByRole('link',{name:/PLAY SOLO/}).click();await page.locator('.online-roster').getByText('You',{exact:false}).waitFor({state:'attached'});assert.equal(await page.locator('.online-roster>span').count(),5);assert.equal(await page.getByRole('button',{name:/Remove AI/,includeHidden:true}).count(),4);await page.locator('.online-controls').waitFor({state:'visible'});await ready(page);
+   const powerHud=page.locator('.online-power-status');await powerHud.waitFor({state:'visible'});
+   assert.match(await powerHud.innerText(),new RegExp(`^POWER · LV \\d+ · \\d+ / ${POWER_TUNING.pickupsPerLevel}$`));
+   await inside(page,powerHud);await page.screenshot({path:`artifacts/power-${tag}.png`});
    // Avoid spontaneous end-of-match recaps while reviewing modal layouts.
    if(await page.locator('.mobile-tools-toggle').isVisible())await page.locator('.mobile-tools-toggle').click();
-   await page.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();
+   await page.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();await powerHud.waitFor({state:'hidden'});
    for(const name of ['ROOM SETTINGS','♫ RADIO','AVATAR','EXIT']){
     await page.getByRole('button',{name,exact:true}).click();const dialog=page.getByRole('dialog');await dialog.waitFor({state:'visible'});await inside(page,dialog);assert.ok(await page.locator('.dialog-body').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'dialog body horizontal overflow');
     if(name==='ROOM SETTINGS'){
       assert.equal(await dialog.locator('select').count(),0,'room settings use styled choices');
-      assert.equal(await dialog.getByText('Blast radius',{exact:true}).count(),0,'powerups belong in submenu');
+      assert.equal(await dialog.getByText('Power',{exact:true}).count(),0,'powerups belong in submenu');
       await page.getByLabel('Match length').fill('7');
       const aim=page.getByLabel('Bomb aim time (seconds)');assert.equal(await aim.inputValue(),'0.4');await inside(page,aim);await aim.fill('1.2');
       await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();
-      const blast=dialog.locator('label').filter({hasText:'Blast radius'}).locator('input');await blast.fill('42');
+      const power=dialog.locator('label').filter({hasText:'Power'}).locator('input');await power.fill('42');
       await inside(page,page.getByRole('button',{name:'CLOSE',exact:true}));
       await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
       assert.equal(await page.getByLabel('Match length').inputValue(),'7','draft survives submenu navigation');
       assert.equal(await aim.inputValue(),'1.2','aim time survives submenu navigation');
-      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');
+      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await power.inputValue(),'42');
       await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
       await page.getByLabel('Match length').fill('0');await page.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();assert.equal(await dialog.isVisible(),true);await dialog.getByRole('alert').getByText('Choose a match length from 1 to 20.').waitFor();
       await page.getByLabel('Match length').fill('7');
@@ -69,7 +73,7 @@ for(const [browserName,type] of [['chrome',chromium],['webkit',webkit]] as const
       assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('fuse-riders-room-settings-v1')!).bombChargeTicks),24);
       await page.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();assert.equal(await page.getByLabel('Match length').inputValue(),'7');
       assert.equal(await aim.inputValue(),'1.2','saved aim time reopens');
-      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await blast.inputValue(),'42');await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
+      await page.getByRole('button',{name:'CONFIGURE POWERUPS',exact:true}).click();assert.equal(await power.inputValue(),'42');await page.getByRole('button',{name:'← BACK TO ROOM SETTINGS',exact:true}).click();
     }
     if(name==='AVATAR'){for(const option of await dialog.locator('.avatar-option').all()){await inside(page,option);assert.ok(await option.evaluate(e=>{const text=e.lastElementChild!,a=e.getBoundingClientRect(),b=text.getBoundingClientRect();return b.left>=a.left-1&&b.right<=a.right+1&&text.scrollWidth<=text.clientWidth+1;}),'avatar name clipped');}}
     if(name==='♫ RADIO'){await page.locator('.audio-panel').waitFor({state:'visible'});for(const slider of await page.locator('.audio-panel input[type=range]').all())await inside(page,slider);}

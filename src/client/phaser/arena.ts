@@ -1,3 +1,4 @@
+import { displayPowerLevel, powerRingProgress, POWER_RING_RADIUS, POWER_RING_COLOR } from '../power-indicator.js';
 import { assetUrl } from '../asset-url.js';
 import { GRAVITY_FIELD_TICKS, PICKUP_TYPES } from '../../shared/game.js';
 import Phaser from 'phaser';
@@ -311,9 +312,10 @@ class ArenaScene extends Phaser.Scene {
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(12,p.x,p.y); }
     for(const p of s.pickups) {
       const pulse=1+Math.sin(now/210+p.id)*.06;
-      g.lineStyle(2,0x65fff2,.5).strokeCircle(p.x,p.y,24*pulse).lineStyle(7,0x65fff2,.05).strokeCircle(p.x,p.y,26*pulse);
-      this.sprite(`${theme.id}:${p.type}`,p.x,p.y,34*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
-      this.label(p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
+      const power=p.type==='power';
+      if(!power) g.lineStyle(2,0x65fff2,.5).strokeCircle(p.x,p.y,24*pulse).lineStyle(7,0x65fff2,.05).strokeCircle(p.x,p.y,26*pulse);
+      this.sprite(`${theme.id}:${p.type}`,p.x,p.y,(power?24:34)*pulse).setAlpha(clamp((p.expiresAtTick-s.tick)/40,.15,1));
+      if(!power) this.label(p.type==='orbitShield'?'SHIELD':p.type.toUpperCase(),p.x,p.y+30,'#d3fff2',9);
     }
     const livePortals=s.portalPairs.filter(pair=>pair.expiresAtTick>s.tick);
     const portalTints=portalPalettes(livePortals.map(pair=>pair.id));
@@ -380,7 +382,11 @@ class ArenaScene extends Phaser.Scene {
       this.sprite(this.textures.exists('avatars')?'avatars':`${theme.id}:rider`,p.x,p.y,32,0,this.textures.exists('avatars')?p.avatarId:undefined);
       const a=p.angle, dx=Math.cos(a), dy=Math.sin(a);
       f.fillStyle(tint).fillTriangle(p.x+dx*23,p.y+dy*23,p.x+dx*16+dy*5,p.y+dy*16-dx*5,p.x+dx*16-dy*5,p.y+dy*16+dx*5);
-      this.label(`P${p.slot+1}`,p.x,p.y-27,p.color);
+      this.label(`P${p.slot+1} · LV ${displayPowerLevel(p.powerPickups)}`,p.x,p.y-27,p.color);
+      const progress=powerRingProgress(p.powerPickups), powerTint=color(POWER_RING_COLOR);
+      f.lineStyle(3,0x080c22,.9).strokeCircle(p.x,p.y,POWER_RING_RADIUS);
+      f.lineStyle(2,powerTint,.18).strokeCircle(p.x,p.y,POWER_RING_RADIUS);
+      if(progress>0) f.lineStyle(2,powerTint).beginPath().arc(p.x,p.y,POWER_RING_RADIUS,-Math.PI/2,-Math.PI/2+progress*Math.PI*2,false).strokePath();
       const reload=reloadRemaining(p,s);
       if(reload>0) {
         const start=-Math.PI/2+(1-reload)*Math.PI*2;

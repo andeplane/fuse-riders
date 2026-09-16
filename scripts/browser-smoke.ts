@@ -1,3 +1,4 @@
+import { POWER_TUNING, powerBlastRadius } from '../src/shared/power-progression.js';
 import { chromium, webkit, type Page } from 'playwright';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 import assert from 'node:assert/strict';
@@ -90,8 +91,8 @@ try {
   assert.deepEqual(legendNames, POWERUP_GUIDE.filter(entry => entry.spawnsByDefault).map(entry => entry.name),
     'TV legend lists every default-spawning pickup, in order, and nothing else');
   // Anchored on real copy so the comparison above cannot pass vacuously on an empty or corrupted guide.
-  assert.ok(legendNames.includes('BLAST+') && !legendNames.includes('STAR'), `legend copy looks wrong: ${legendNames.join(', ')}`);
-  assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-blast.svg'));
+  assert.ok(legendNames.includes('POWER') && !legendNames.includes('STAR'), `legend copy looks wrong: ${legendNames.join(', ')}`);
+  assert.ok((await host.locator('.pickup-legend img').first().getAttribute('src'))?.includes('/themes/neon-pixel/pickup-power.svg'));
   // Switching the style must re-src every legend icon, not just the ones that existed when the
   // theme plumbing was written. Ends on the default so later steps shoot the usual artwork.
   // The count is what stops the theme loop below passing vacuously on an empty or truncated list; what each icon says is pinned above.
@@ -131,7 +132,7 @@ try {
     await waitFor(() => [...app.game.players.values()].some(player => player.name === ['Ada', 'Bo', 'Cy', 'Dee', 'Eli'][i] && player.avatarId === ['dragon', 'cat', 'fox', 'alien', 'astronaut'][i]), 'chosen avatar reaches server');
     await phone.locator('.controls:not(.hidden)').waitFor(); app.advance(2);
   }
-  await phones[0].getByText('BLAST · BASE', { exact: true }).waitFor();
+  await phones[0].getByText('POWER · LV 1', { exact: true }).waitFor();
   await phones[0].getByText('STAR · --', { exact: true }).waitFor();
   await phones[0].getByText('PTS · 0', { exact: true }).waitFor();
   await waitFor(() => app.game.players.size === 5, 'five controller seats');
@@ -213,9 +214,10 @@ try {
     await phones[1].mouse.up();
   }
   const poweredRider = [...app.game.players.values()].find((player) => player.slot === 0)!;
-  app.game.pickups.push({ id: 9_001, type: 'blast', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('BLAST · +1', { exact: true }).waitFor();
-  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_001), false, 'blast pickup consumed authoritatively');
+  poweredRider.powerPickups = POWER_TUNING.pickupsPerLevel - 1;
+  app.game.pickups.push({ id: 9_001, type: 'power', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText('POWER · LV 2', { exact: true }).waitFor();
+  assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_001), false, 'power pickup consumed authoritatively');
   app.game.pickups.push({ id: 9_002, type: 'star', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText(/STAR · [0-9.]+s/).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_002), false, 'star pickup consumed authoritatively');
@@ -249,7 +251,7 @@ try {
   await phones[0].mouse.up(); await new Promise(r => setTimeout(r, 50)); app.advance(1);
   const targetBlast = app.game.blasts.at(-1)!;
   assert.equal(app.game.bombs.size, 0); assert.equal(targetBlast.circle.x, finalTarget.x); assert.equal(targetBlast.circle.y, finalTarget.y);
-  assert.equal(targetBlast.circle.radius, 115 * .7);
+  assert.equal(targetBlast.circle.radius, powerBlastRadius(poweredRider.powerPickups) * .7);
   assert.equal(poweredRider.targetBombArmed, false); assert.equal(poweredRider.fiveShotArmed, true);
   app.game.bombs.clear(); poweredRider.bombReadyAtTick = app.game.tick; app.advance(2);
   await phones[0].screenshot({ path: 'artifacts/phone-armed-portrait.png' });
@@ -281,9 +283,9 @@ try {
   assert.equal(app.game.bombs.size, 1); assert.equal([...app.game.bombs.values()][0]!.shell?.gun, true);
   app.advance(4); // Let the projectile separate from the rider for visual inspection.
   await host.screenshot({ path: 'artifacts/gun-projectile.png' }); app.game.bombs.clear();
-  app.game.pickups.push({ id: 9_011, type: 'stopwatch', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('⏱ FUSE · 1.5s', { exact: true }).waitFor();
-  assert.equal(poweredRider.fuseLevel, 1);
+  app.game.pickups.push({ id: 9_011, type: 'power', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
+  app.advance(2); await phones[0].getByText(`1 / ${POWER_TUNING.pickupsPerLevel} TO NEXT LEVEL`, { exact: true }).waitFor();
+  assert.equal(poweredRider.powerPickups, POWER_TUNING.pickupsPerLevel + 1);
   app.game.pickups.push({ id: 9_006, type: 'orbitShield', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('SHIELD · READY', { exact: true }).waitFor();
   assert.equal(app.game.pickups.some((pickup) => pickup.id === 9_006), false, 'shield pickup consumed authoritatively');

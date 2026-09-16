@@ -1,7 +1,8 @@
+import { POWER_TUNING } from "../src/shared/power-progression.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
-import { bombFuseTicks, INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ } from '../src/shared/game.js';
+import { INK_DURATION_TICKS, STAR_DURATION_TICKS, TICK_HZ } from '../src/shared/game.js';
 import { DRUNK_DURATION_TICKS } from '../src/shared/drunk.js';
 import { defaultRoomSettings, parseRoomSettings } from '../src/shared/room-settings.js';
 
@@ -34,6 +35,6 @@ test('power-up guide durations follow the simulation constants', () => {
   assert.match(entry('beer').description, new RegExp(`${seconds(DRUNK_DURATION_TICKS)}$`));
   assert.match(entry('ink').description, new RegExp(`${seconds(INK_DURATION_TICKS)}$`));
   assert.match(entry('star').description, new RegExp(`${seconds(STAR_DURATION_TICKS)}$`));
-  assert.equal(entry('stopwatch').description, `your bombs: ${seconds(bombFuseTicks(0))} → ${seconds(bombFuseTicks(1))} → ${seconds(bombFuseTicks(2))}`);
-  assert.equal(entry('stopwatch').description, 'your bombs: 2s → 1.5s → 1s');
 });
+
+test('power guide explains the configured level threshold', () => { assert.ok(entry('power').description.includes(`collect ${POWER_TUNING.pickupsPerLevel} to level up`)); });

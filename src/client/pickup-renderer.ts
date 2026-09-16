@@ -20,13 +20,10 @@ function pickupImage(theme: ThemeDefinition, type: PickupType): HTMLImageElement
   return image;
 }
 
-function fallbackCross(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
-  const arm = size * 0.3;
-  ctx.fillStyle = '#ff7b16';
-  ctx.fillRect(x - arm, y - size / 2, arm * 2, size);
-  ctx.fillRect(x - size / 2, y - arm, size, arm * 2);
-  ctx.fillStyle = '#fff6b0';
-  ctx.fillRect(x - arm * 0.42, y - arm * 0.42, arm * 0.84, arm * 0.84);
+function fallbackPower(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  ctx.fillStyle = '#ffdf55'; ctx.strokeStyle = '#fff6b0'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, y - size / 2); ctx.lineTo(x + size / 3, y);
+  ctx.lineTo(x, y + size / 2); ctx.lineTo(x - size / 3, y); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
 function fallbackStar(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
@@ -54,10 +51,7 @@ function fallbackBeer(ctx: CanvasRenderingContext2D, x: number, y: number, size:
 }
 
 function fallbackPowerup(ctx: CanvasRenderingContext2D, type: PickupType, x: number, y: number, size: number): void {
-  if (type === 'stopwatch') {
-    ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y + 2, size * .35, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.lineTo(x, y - size * .2); ctx.stroke(); ctx.fillStyle = '#ffe28a'; ctx.fillRect(x - 4, y - size * .48, 8, 4);
-  } else if (type === 'gun') {
+  if (type === 'gun') {
     ctx.fillStyle = '#b9fff8'; ctx.fillRect(x - size * .4, y - size * .2, size * .8, size * .3); ctx.fillRect(x - size * .3, y, size * .2, size * .3);
   } else if (type === 'shell') {
     ctx.fillStyle = '#48dc55'; ctx.strokeStyle = '#dcffd1'; ctx.lineWidth = 3;
@@ -105,22 +99,23 @@ export function drawPickups(
     if (remaining <= 0) continue;
     const alpha = remaining < PICKUP_FADE_TICKS ? Math.max(0.15, remaining / PICKUP_FADE_TICKS) : 1;
     const pulse = 1 + Math.sin(now / 180 + pickup.id) * 0.06;
-    const size = 34 * pulse;
+    const size = (pickup.type === 'power' ? 24 : 34) * pulse;
     const image = pickupImage(theme, pickup.type);
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = pickup.type === 'blast' ? '#ff7b16' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'orbitShield' ? '#5cf4ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
-    ctx.shadowBlur = 5;
+    ctx.shadowColor = pickup.type === 'power' ? '#ffdf55' : pickup.type === 'beer' ? '#b85cff' : pickup.type === 'orbitShield' ? '#5cf4ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff55bd' : pickup.type === 'portal' ? '#b76cff' : '#ffe45c';
+    ctx.shadowBlur = pickup.type === 'power' ? 2 : 5;
     if (image?.complete && image.naturalWidth > 0) ctx.drawImage(image, pickup.x - size / 2, pickup.y - size / 2, size, size);
-    else if (pickup.type === 'blast') fallbackCross(ctx, pickup.x, pickup.y, size);
+    else if (pickup.type === 'power') fallbackPower(ctx, pickup.x, pickup.y, size);
     else if (pickup.type === 'beer') fallbackBeer(ctx, pickup.x, pickup.y, size);
     else if (pickup.type === 'star') fallbackStar(ctx, pickup.x, pickup.y, size);
     else fallbackPowerup(ctx, pickup.type, pickup.x, pickup.y, size);
     ctx.restore();
-    const labels: Record<PickupType, string> = { stopwatch: 'FUSE', gun: 'GUN', shell: 'SHELL', blast: 'BLAST+', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' , boost: 'BOOST', gravity: 'SINGULARITY'};
+    if (pickup.type === 'power') continue;
+    const labels: Record<PickupType, string> = { gun: 'GUN', shell: 'SHELL', power: 'POWER', star: 'STAR', beer: 'BEER', ink: 'INK', triple: 'TRIPLE', five: 'FIVE', target: 'TARGET', orbitShield: 'SHIELD', portal: 'PORTAL' , boost: 'BOOST', gravity: 'SINGULARITY'};
     const text = labels[pickup.type];
-    const color = pickup.type === 'blast' ? '#ffbd3e' : pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
+    const color = pickup.type === 'beer' ? '#d89cff' : pickup.type === 'orbitShield' ? '#8ff8ff' : (pickup.type === 'triple' || pickup.type === 'five') ? '#ff8ed2' : pickup.type === 'portal' ? '#d79aff' : '#fff04a';
     label(ctx, text, pickup.x, pickup.y + size * 0.62, color);
   }
 }

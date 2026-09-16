@@ -28,7 +28,7 @@ export function orderedStats(stats: ReadonlyArray<MatchPlayerStats>): MatchPlaye
 export function recapSignature(stats: ReadonlyArray<MatchPlayerStats>, moments: ReadonlyArray<Moment> = []): string {
   const figures = orderedStats(stats).map((entry) => [entry.playerId, entry.matchPlacement, entry.roundsPlayed, entry.roundWins, entry.roundsDrawn, entry.survivalTicks,
     entry.longestSurvivalTicks, entry.distanceUnits, entry.bombsPlaced, entry.bombsExploded, entry.eliminations, entry.pickupsCollected,
-    entry.invulnerableTicks, entry.wallBounces, entry.earlyExits, entry.blastPickups, entry.starPickups, entry.beerPickups, entry.inkPickups,
+    entry.invulnerableTicks, entry.wallBounces, entry.earlyExits, entry.powerPickups, entry.starPickups, entry.beerPickups, entry.inkPickups,
     entry.triplePickups, entry.fivePickups, entry.targetPickups, entry.shieldPickups, entry.portalPickups, entry.portalTransits,
     entry.deathsByCause.wall, entry.deathsByCause.trail, entry.deathsByCause.explosion, entry.deathsByCause.rider].join(':')).join('|');
   return moments.length ? `${figures}#${moments.map((moment) => `${moment.kind}:${moment.round}:${moment.tick}:${moment.playerId}:${moment.value}`).join(',')}` : figures;
@@ -263,7 +263,7 @@ export function comparisonRows(stats: ReadonlyArray<MatchPlayerStats>): Comparis
       distance: distanceText(entry.distanceUnits),
       bombs: `${entry.bombsExploded}/${entry.bombsPlaced}`,
       eliminations: String(entry.eliminations),
-      pickups: `${entry.pickupsCollected} · B${entry.blastPickups} S${entry.starPickups} 🍺${entry.beerPickups} I${entry.inkPickups} T${entry.triplePickups} F${entry.fivePickups} A${entry.targetPickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`,
+      pickups: `${entry.pickupsCollected} · XP${entry.powerPickups} S${entry.starPickups} 🍺${entry.beerPickups} I${entry.inkPickups} T${entry.triplePickups} F${entry.fivePickups} A${entry.targetPickups} O${entry.shieldPickups} P${entry.portalPickups}/${entry.portalTransits}`,
       star: durationText(entry.invulnerableTicks),
       deaths: `W${deaths.wall} T${deaths.trail} X${deaths.explosion} R${deaths.rider}`,
     };

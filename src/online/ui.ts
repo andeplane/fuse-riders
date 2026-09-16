@@ -1,3 +1,5 @@
+import { displayPowerLevel } from '../client/power-indicator.js';
+import { powerProgress, POWER_TUNING } from '../shared/power-progression.js';
 import { uuid } from '../shared/uuid.js';
 import { showRoomSettings } from './room-settings-menu.js';
 import { keyboardShortcuts } from './keyboard-shortcuts.js';
@@ -48,7 +50,7 @@ const copyText=async(text:string)=>{
   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.cssText='position:fixed;top:-1000px;opacity:0';document.body.append(field);field.select();
   try{return document.execCommand('copy');}catch{return false;}finally{field.remove();}
 };
-const labels:Record<PickupType,string>={blast:'Blast radius',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',stopwatch:'Stopwatch',orbitShield:'Shield',portal:'Portal',star:'Star',boost:'Speed boost',gravity:'Singularity'};
+const labels:Record<PickupType,string>={power:'Power',triple:'Triple shot',five:'Five shot',gun:'Cannon',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',boost:'Speed boost',gravity:'Singularity'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
 const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
@@ -165,6 +167,7 @@ export async function startOnline():Promise<void>{
   styleButton.onclick=async()=>{const next=themes[styleIds[(styleIds.indexOf(theme.id)+1)%styleIds.length]!];theme=next;storeTheme(next.id);applyThemeProperties(next);paintStyleButton();const loaded=await loadThemeSprites(next);if(theme.id===next.id)sprites=loaded;};
   // Instant replay (ADR 044): presentation only. A controller-only phone has no arena and records nothing.
   const replay=new ReplayDirector(),replayOverlay=createReplayOverlay();document.body.append(replayOverlay.element);let replayKey='',reopenRecap=false;
+  const powerStatus=node('div','','online-power-status');powerStatus.hidden=true;
   const notice=node('div','','online-notice');
   const sharedLobby=node('section','','shared-lobby room-lobby');sharedLobby.hidden=true;
   const lobbyCopy=node('div','','room-lobby-copy');const lobbyHeading=node('h1');lobbyHeading.innerHTML='SCAN.<br>STEER.<br>SURVIVE.';
@@ -202,6 +205,7 @@ export async function startOnline():Promise<void>{
   // header and joinPanel are app's only children here (line 116, and nothing else attaches before this point).
   if(role==='joiner'){header.after(canvas,sharedLobby,scoreboard);joinPanel.after(footer,keyHint,dialog);}
   else app.replaceChildren(header,booting,canvas,sharedLobby,scoreboard,joinPanel,footer,keyHint,dialog);
+  app.append(powerStatus);
   const mac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent);
   help.onclick=()=>{
     dialogTitle.textContent='SHORTCUTS';dialog.setAttribute('aria-label','Keyboard shortcuts'); // the close handler resets both
@@ -253,7 +257,7 @@ export async function startOnline():Promise<void>{
     status:text=>{if(status.textContent!==text)telemetry.log('status',{text});status.textContent=text;status.title=text;if(bootNote.isConnected)bootTick();if(roomEnded){notice.textContent=text;overNote.textContent=text;}},
     // An ended room is no longer joined play (#44): the thirds controller gives way to the ordinary header so the status
     // reads without opening ☰ MENU. `controller-only` is only ever recomputed from a state update, and none arrives after the end.
-    ended:()=>{bootDone();roomEnded=true;replay.cancel();replayOverlay.stop(canvas);app.classList.remove('replaying');replayKey='';reopenRecap=false;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
+    ended:()=>{powerStatus.hidden=true;bootDone();roomEnded=true;replay.cancel();replayOverlay.stop(canvas);app.classList.remove('replaying');replayKey='';reopenRecap=false;if(role==='host')forgetHostToken();clearControls();controls.hidden=true;joinPanel.hidden=true;hostControls.hidden=true;app.classList.add('room-over');app.classList.remove('controller-only');if(canvas.isConnected)canvas.after(overCard);else app.append(overCard);mobileLayout.update({joined,phase:snapshot?.phase??'lobby',displayOnly,host:isHost,ended:true});},
     event:(event,matchId,round,tick)=>{audio.director.message({type:'event',matchId,round,tick,event});sample({kind:'event',at:performance.now(),event,matchId,round,tick});telemetry.log('event',{type:event.type,matchId,round,tick});if(event.type==='moment')replay.moment(event.moment,matchId,round);},
     state:(state,rules)=>{
       if(roomEnded)return;
@@ -290,6 +294,8 @@ export async function startOnline():Promise<void>{
         const sawStart=startedMatch===matchStartKey(matchId,'countdown',1);
         track('Match Ended',{...matchEndedProps(state.matchStats,id),...(sawStart&&matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});}
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
+      powerStatus.hidden=!player||displayOnly||!['playing','countdown'].includes(state.phase);
+      powerStatus.textContent=player?`POWER · LV ${displayPowerLevel(player.powerPickups)} · ${powerProgress(player.powerPickups)} / ${POWER_TUNING.pickupsPerLevel}`:'';
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.targetBombArmed?'SLIDE TO AIM':player.gunArmed?'FIRE CANNON':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?(state.roundWinnerId===id?'You win this round':`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`):state.phase==='matchOver'?`${state.players.find(p=>p.id===state.matchWinnerId)?.name??'Tie'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
       for(const [playerId,row] of rosterEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();rosterEntries.delete(playerId);}

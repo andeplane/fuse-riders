@@ -24,7 +24,7 @@ function rider(overrides: Partial<MatchPlayerStats> & { playerId: string; slot: 
   return {
     name: overrides.playerId.toUpperCase(), color: `#00000${overrides.slot}`, roundsPlayed: 0, roundWins: 0, roundsDrawn: 0,
     survivalTicks: 0, longestSurvivalTicks: 0, distanceUnits: 0, bombsPlaced: 0, bombsExploded: 0, eliminations: 0,
-    deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 0, blastPickups: 0, starPickups: 0,
+    deathsByCause: { wall: 0, trail: 0, explosion: 0, rider: 0 }, pickupsCollected: 0, powerPickups: 0, starPickups: 0,
     beerPickups: 0, inkPickups: 0, triplePickups: 0, fivePickups: 0, targetPickups: 0, shieldPickups: 0, portalPickups: 0,
     portalTransits: 0, invulnerableTicks: 0, wallBounces: 0, earlyExits: 0,
     ...overrides,
@@ -115,7 +115,7 @@ test('a single rider stands alone as champion, wins every non-zero award and fil
   const row = recap.comparison[0]!;
   assert.equal(row.riderLabel, '#1 A');
   assert.equal(row.riderNote, '0 BOUNCE · 0 EXIT');
-  assert.deepEqual(COMPARISON_COLUMNS.map((column) => row[column.key]), ['2', '20s', '13s', '512u', '2/3', '0', '0 · B0 S0 🍺0 I0 T0 F0 A0 O0 P0/0', '0.0s', 'W0 T0 X0 R0']);
+  assert.deepEqual(COMPARISON_COLUMNS.map((column) => row[column.key]), ['2', '20s', '13s', '512u', '2/3', '0', '0 · XP0 S0 🍺0 I0 T0 F0 A0 O0 P0/0', '0.0s', 'W0 T0 X0 R0']);
 });
 
 test('podium centres champions, keeps side places in seat order and excludes placements beyond third', () => {
@@ -182,7 +182,7 @@ test('singular award details read naturally', () => {
 
 test('comparison rows order by placement then seat and format every recorded counter', () => {
   const stats = [
-    rider({ playerId: 'late', slot: 3, matchPlacement: 2, roundWins: 1, survivalTicks: 1300, longestSurvivalTicks: 700, distanceUnits: 99.5, bombsPlaced: 5, bombsExploded: 4, eliminations: 2, pickupsCollected: 9, blastPickups: 1, starPickups: 2, beerPickups: 1, inkPickups: 1, triplePickups: 1, fivePickups: 1, targetPickups: 1, shieldPickups: 1, portalPickups: 1, portalTransits: 2, invulnerableTicks: 45, wallBounces: 3, earlyExits: 1, deathsByCause: { wall: 1, trail: 2, explosion: 3, rider: 4 } }),
+    rider({ playerId: 'late', slot: 3, matchPlacement: 2, roundWins: 1, survivalTicks: 1300, longestSurvivalTicks: 700, distanceUnits: 99.5, bombsPlaced: 5, bombsExploded: 4, eliminations: 2, pickupsCollected: 9, powerPickups: 1, starPickups: 2, beerPickups: 1, inkPickups: 1, triplePickups: 1, fivePickups: 1, targetPickups: 1, shieldPickups: 1, portalPickups: 1, portalTransits: 2, invulnerableTicks: 45, wallBounces: 3, earlyExits: 1, deathsByCause: { wall: 1, trail: 2, explosion: 3, rider: 4 } }),
     rider({ playerId: 'early', slot: 1, matchPlacement: 2, roundWins: 1 }),
     rider({ playerId: 'champ', slot: 4, matchPlacement: 1, roundWins: 2 }),
   ];
@@ -195,7 +195,7 @@ test('comparison rows order by placement then seat and format every recorded cou
   assert.equal(late.distance, '100u');
   assert.equal(late.bombs, '4/5');
   assert.equal(late.eliminations, '2');
-  assert.equal(late.pickups, '9 · B1 S2 🍺1 I1 T1 F1 A1 O1 P1/2');
+  assert.equal(late.pickups, '9 · XP1 S2 🍺1 I1 T1 F1 A1 O1 P1/2');
   assert.equal(late.star, '2.3s');
   assert.equal(late.deaths, 'W1 T2 X3 R4');
 });

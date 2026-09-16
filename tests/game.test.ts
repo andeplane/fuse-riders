@@ -1,3 +1,4 @@
+import { POWER_TUNING, pickupPacing, powerLevel, powerBlastRadius, powerReloadTicks } from '../src/shared/power-progression.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { POINT_UNIT } from '../src/shared/leaderboard.ts';
@@ -14,15 +15,12 @@ import {
   BOMB_COOLDOWN_TICKS,
   BOMB_FUSE_TICKS,
   BOMB_BLAST_RANGE,
-  BLAST_LEVEL_RANGE,
   BLAST_VISIBLE_TICKS,
   COUNTDOWN_TICKS,
   INITIAL_BOUNDARY_INSET,
-  MAX_ACTIVE_PICKUPS,
   OVERTIME_INSET_PER_TICK,
   OVERTIME_START_TICK,
   PICKUP_LIFETIME_TICKS,
-  PICKUP_SPAWN_INTERVAL_TICKS,
   ROUND_DRAW_TICK,
   SELF_TRAIL_GRACE_TICKS,
   SLOT_COLORS,
@@ -658,7 +656,7 @@ test('the larger arena and seeded pickup schedule replay deterministically', () 
     step(first, new Map());
     step(second, new Map());
   }
-  assert.equal(first.nextPickupSpawnTick, first.tick + PICKUP_SPAWN_INTERVAL_TICKS);
+  assert.equal(first.nextPickupSpawnTick, first.tick + pickupPacing(2).interval);
   first.nextPickupSpawnTick = first.tick + 1;
   second.nextPickupSpawnTick = second.tick + 1;
   step(first, new Map());
@@ -668,21 +666,21 @@ test('the larger arena and seeded pickup schedule replay deterministically', () 
   assert.equal(first.randomState, second.randomState);
 });
 
-test('blast pickups cap at level two and affect bombs placed on the collection tick', () => {
-  const state = gameWithPlayers();
-  enterPlaying(state);
+test('power threshold applies both weapon upgrades on the collection tick', () => {
+  const state = gameWithPlayers(); enterPlaying(state);
   const player = state.players.get('p0')!;
-  player.x = 500; player.y = 450; player.angle = 0;
-  state.players.get('p1')!.x = 1200; state.players.get('p1')!.y = 700;
-  state.pickups = [
-    { id: 1, type: 'blast', x: 503, y: 450, expiresAtTick: state.tick + 100 },
-    { id: 2, type: 'blast', x: 506, y: 450, expiresAtTick: state.tick + 100 },
-    { id: 3, type: 'blast', x: 507, y: 450, expiresAtTick: state.tick + 100 },
-  ];
+  Object.assign(player, { x: 500, y: 450, angle: 0, powerPickups: POWER_TUNING.pickupsPerLevel - 1 });
+  Object.assign(state.players.get('p1')!, { x: 1200, y: 700 });
+  state.pickups = [{ id: 1, type: 'power', x: 503, y: 450, expiresAtTick: state.tick + 100 }];
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'press' }, { action: 'release' }] }]));
-  assert.equal(player.blastLevel, 2);
+  assert.equal(powerLevel(player.powerPickups), 1);
   assert.equal(state.pickups.length, 0);
-  assert.equal([...state.bombs.values()][0]!.blastRange, BOMB_BLAST_RANGE + 2 * BLAST_LEVEL_RANGE);
+  const bomb = [...state.bombs.values()][0]!;
+  assert.equal(bomb.blastRange, powerBlastRadius(player.powerPickups));
+  assert.ok(bomb.blastRange > BOMB_BLAST_RANGE);
+  assert.equal(player.bombReadyAtTick, state.tick + powerReloadTicks(player.powerPickups));
+  assert.ok(player.reloadDurationTicks < BOMB_COOLDOWN_TICKS);
+  assert.equal(bomb.explodeAtTick - bomb.launchedTick, BOMB_FUSE_TICKS);
 });
 
 test('a star collected on the swept path rescues and reflects a wall hit, then expires sharply', () => {
@@ -735,16 +733,16 @@ test('star head contact kills only a normal rider while two stars pass through',
 test('pickup expiry, active cap, and impossible safe interior stay bounded', () => {
   const state = gameWithPlayers();
   enterPlaying(state);
-  state.pickups = Array.from({ length: MAX_ACTIVE_PICKUPS }, (_, index) => ({
+  state.pickups = Array.from({ length: pickupPacing(2).cap }, (_, index) => ({
     id: index + 1,
-    type: 'blast' as const,
+    type: 'power' as const,
     x: 700 + index * 40,
     y: 450,
     expiresAtTick: state.tick + (index === 0 ? 1 : PICKUP_LIFETIME_TICKS),
   }));
   state.nextPickupSpawnTick = state.tick + 1;
   step(state, new Map());
-  assert.equal(state.pickups.length, 3, 'one expiry allows at most one scheduled replacement');
+  assert.equal(state.pickups.length, pickupPacing(2).cap, 'a scheduled replacement respects the living-rider cap');
 
   state.pickups = [];
   state.width = 100;
@@ -1169,38 +1167,40 @@ test('gun head and wall impacts explode', () => {
   }
 });
 
-test('stopwatch caps at two levels, changes only future own bombs and resets next round', () => {
+test('power changes only future shots, preserves fuse timing and resets next round', () => {
   const state = gameWithPlayers(3); enterPlaying(state);
   const owner = state.players.get('p0')!; Object.assign(owner, { x: 400, y: 450, angle: 0, trail: [] });
   const other = state.players.get('p1')!; Object.assign(other, { x: 1000, y: 700, angle: 0, trail: [] });
-  const deadline = state.tick + 40;
+  const deadline = state.tick + BOMB_FUSE_TICKS;
+  owner.bombReadyAtTick = state.tick + BOMB_COOLDOWN_TICKS;
+  const reloadDeadline = owner.bombReadyAtTick;
   state.bombs.set(99, { id: 99, ownerId: owner.id, x: 700, y: 200, launchX: 700, launchY: 200,
     launchedTick: state.tick, placedTick: state.tick, landsAtTick: state.tick, explodeAtTick: deadline,
-    blastRange: 90, flightPath: fixedFlightPath(700, 200) });
-  for (let level = 1; level <= 3; level++) {
-    state.pickups = [{ id: 100 + level, type: 'stopwatch', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
-    step(state, new Map()); assert.equal(owner.fuseLevel, Math.min(level, 2));
-    assert.equal(state.bombs.get(99)!.explodeAtTick, deadline, 'existing fuse unchanged');
+    blastRange: BOMB_BLAST_RANGE, flightPath: fixedFlightPath(700, 200) });
+  for (let count = 1; count <= POWER_TUNING.pickupsPerLevel + 1; count++) {
+    state.pickups = [{ id: 100 + count, type: 'power', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
+    step(state, new Map()); assert.equal(owner.powerPickups, count);
+    assert.equal(state.bombs.get(99)!.explodeAtTick, deadline);
+    assert.equal(state.bombs.get(99)!.blastRange, BOMB_BLAST_RANGE);
+    assert.equal(owner.bombReadyAtTick, reloadDeadline, 'collecting does not rewrite a running reload');
+    assert.equal(owner.reloadDurationTicks, BOMB_COOLDOWN_TICKS);
+    if (count < POWER_TUNING.pickupsPerLevel) {
+      assert.equal(powerBlastRadius(count), BOMB_BLAST_RANGE);
+      assert.equal(powerReloadTicks(count), BOMB_COOLDOWN_TICKS);
+    }
   }
-  state.bombs.clear(); owner.tripleShotArmed = true;
+  state.bombs.clear(); owner.bombReadyAtTick = state.tick; owner.tripleShotArmed = true;
   step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }], ['p1', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }], ['p1', { bomb: false, bombCommands: [{ action: 'release' }] }]));
   const bombs = [...state.bombs.values()];
   assert.equal(bombs.filter(bomb => bomb.ownerId === owner.id).length, 3);
-  assert.ok(bombs.filter(bomb => bomb.ownerId === owner.id).every(bomb => bomb.explodeAtTick - bomb.launchedTick === 20));
-  assert.equal(bombs.find(bomb => bomb.ownerId === other.id)!.explodeAtTick - state.tick, 40);
-  assert.equal(toSnapshot(state).players.find(player => player.id === owner.id)!.fuseLevel, 2);
+  assert.ok(bombs.every(bomb => bomb.explodeAtTick - bomb.launchedTick === BOMB_FUSE_TICKS));
+  assert.ok(bombs.filter(bomb => bomb.ownerId === owner.id).every(bomb => bomb.blastRange === powerBlastRadius(owner.powerPickups)));
+  assert.equal(bombs.find(bomb => bomb.ownerId === other.id)!.blastRange, BOMB_BLAST_RANGE);
+  assert.equal(toSnapshot(state).players.find(player => player.id === owner.id)!.powerPickups, POWER_TUNING.pickupsPerLevel + 1);
   eliminatePlayer(state, 'p1'); eliminatePlayer(state, 'p2'); step(state, new Map());
-  state.tick = state.phaseEndsAtTick!; startNextRound(state); assert.equal(owner.fuseLevel, 0);
-});
-
-test('first stopwatch level produces a one-and-a-half second fuse', () => {
-  const state = gameWithPlayers(3); enterPlaying(state);
-  const owner = state.players.get('p0')!; owner.fuseLevel = 1;
-  step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
-  step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
-  const bomb = [...state.bombs.values()][0]!;
-  assert.equal(bomb.explodeAtTick - bomb.launchedTick, 30);
+  state.tick = state.phaseEndsAtTick!; startNextRound(state);
+  assert.equal(owner.powerPickups, 0); assert.equal(owner.reloadDurationTicks, BOMB_COOLDOWN_TICKS);
 });
 
 test('live shell bounces off a rider trail without damage or resetting its lifetime', () => {

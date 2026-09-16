@@ -1,6 +1,7 @@
+import { POWER_TUNING, powerBlastRadius } from '../src/shared/power-progression.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BLAST_LEVEL_RANGE, BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, toSnapshot, type GameState } from '../src/shared/game.js';
+import { BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, toSnapshot, type GameState } from '../src/shared/game.js';
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
 import { INITIAL_BOUNDARY_INSET, RIDER_SPEED, TICK_HZ, GRAVITY_PULL_PER_TICK } from '../src/shared/game.js';
 import { controllerSnapshot } from '../src/server/index.js';
@@ -16,7 +17,7 @@ function playing(seed = 5): GameState {
   return state;
 }
 /** A bomb already due this tick, so the field opens on the next step. */
-const dueBomb = (state: GameState, x: number, y: number, gravity: boolean, blastRange = BOMB_BLAST_RANGE) =>
+const dueBomb = (state: GameState, x: number, y: number, gravity: boolean, blastRange: number = BOMB_BLAST_RANGE) =>
   state.bombs.set(1, { id: 1, ownerId: 'p1', launchX: x, launchY: y, x, y, placedTick: 0, launchedTick: 0, landsAtTick: 0,
     explodeAtTick: state.tick, blastRange, flightPath: flightPath(x, y), ...(gravity ? { gravity: true } : {}) });
 
@@ -52,12 +53,12 @@ test('a field expires exactly, and the arena is clear of fields once it does', (
   step(state, new Map());
   assert.deepEqual(state.gravityFields, [], 'gone on the tick it expires');
 });
-test('blast level widens the field the same way it widens the blast', () => {
+test('power level widens the field the same way it widens the blast', () => {
   for (const level of [0, 1, 2] as const) {
     const state = playing();
-    dueBomb(state, 900, 200, true, BOMB_BLAST_RANGE + level * BLAST_LEVEL_RANGE);
+    dueBomb(state, 900, 200, true, powerBlastRadius(level * POWER_TUNING.pickupsPerLevel));
     step(state, new Map());
-    assert.equal(state.gravityFields[0]!.radius, BOMB_BLAST_RANGE + level * BLAST_LEVEL_RANGE, `level ${level}`);
+    assert.equal(state.gravityFields[0]!.radius, powerBlastRadius(level * POWER_TUNING.pickupsPerLevel), `level ${level}`);
   }
 });
 test('a rider outside the radius is untouched, so the pull is local', () => {

@@ -190,3 +190,7 @@
 .key-hint{position:fixed;left:50%;bottom:7%;transform:translateX(-50%);display:flex;flex-wrap:wrap;justify-content:center;gap:6px 20px;padding:10px 18px;background:#030d1fe8;border:1px solid var(--player-color);color:#eefaff;font-size:12px;letter-spacing:.06em;text-align:center;pointer-events:none;z-index:25;animation:key-hint-fade 3.5s ease-out forwards}
 @keyframes key-hint-fade{0%{opacity:0}10%{opacity:1}55%{opacity:1}100%{opacity:0}}
 .match-recap-report .watch-again{min-height:30px;justify-self:start;padding:4px 9px;font:11px 'Press Start 2P',ui-monospace,monospace;color:#051228;background:var(--player-color);border:0}
+
+/* Compact personal progression; arena labels carry opponents' levels. */
+.online-power-status { position: fixed; z-index: 8; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 8px 12px; border: 1px solid #ffdf55; background: #071022e8; color: #ffdf55; font: 10px/1.4 'Press Start 2P', monospace; white-space: nowrap; pointer-events: none; }
+.online-power-status[hidden] { display: none; }

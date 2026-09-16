@@ -1,3 +1,5 @@
+import { displayPowerLevel, powerRingProgress, POWER_RING_RADIUS, POWER_RING_COLOR } from './power-indicator.js';
+import { powerProgress, POWER_TUNING } from '../shared/power-progression.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { drawBombTargets } from './target-renderer.js';
@@ -395,7 +397,17 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     ctx.beginPath(); ctx.moveTo(23, 0); ctx.lineTo(16, -5); ctx.lineTo(16, 5); ctx.closePath(); ctx.fill();
     ctx.restore();
     ctx.save(); ctx.font = '10px "Press Start 2P"'; ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 8;
-    ctx.fillText(`P${player.slot + 1}`, Math.round(player.x), Math.round(player.y - 27)); ctx.restore();
+    ctx.fillText(`P${player.slot + 1} · LV ${displayPowerLevel(player.powerPickups)}`, Math.round(player.x), Math.round(player.y - 27)); ctx.restore();
+    const progress = powerRingProgress(player.powerPickups);
+    ctx.save();
+    ctx.strokeStyle = '#080c22'; ctx.lineWidth = 3; ctx.globalAlpha = .9;
+    ctx.beginPath(); ctx.arc(player.x, player.y, POWER_RING_RADIUS, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = POWER_RING_COLOR; ctx.lineWidth = 2; ctx.globalAlpha = .18; ctx.stroke();
+    if (progress > 0) {
+      ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.arc(player.x, player.y, POWER_RING_RADIUS, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
     const reload = reloadRemaining(player, snapshot);
     if (reload > 0) {
       ctx.save();
@@ -860,8 +872,8 @@ function startController(): void {
   identity.append(identityMarker, identityCopy, stateBadge);
   const instruction = element('p', 'controller-instruction', 'Waiting for the host to start…');
   const powerStrip = element('div', 'power-strip');
-  const fusePower = element('span', 'power-chip', '⏱ FUSE · 2s');
-  const blastPower = element('span', 'power-chip blast-power', 'BLAST · BASE');
+  const levelPower = element('span', 'power-chip power-level', 'POWER · LV 1');
+  const progressPower = element('span', 'power-chip power-progress', `0 / ${POWER_TUNING.pickupsPerLevel} TO NEXT LEVEL`);
   const starPower = element('span', 'power-chip star-power', 'STAR · --');
   const inkPower = element('span', 'power-chip', 'INK · --');
   const wobblePower = element('span', 'power-chip wobble-power', 'WOBBLE · --');
@@ -869,7 +881,7 @@ function startController(): void {
   const shieldPower = element('span', 'power-chip shield-power', 'SHIELD · --');
   const portalPower = element('span', 'power-chip portal-power', 'PORTAL · --');
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
-  powerStrip.append(fusePower, blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
+  powerStrip.append(levelPower, progressPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
   const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
@@ -950,8 +962,8 @@ function startController(): void {
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
-    fusePower.textContent = `⏱ FUSE · ${2 - Math.min(2, player.fuseLevel ?? 0) * .5}s`;
-    blastPower.textContent = player.blastLevel > 0 ? `BLAST · +${player.blastLevel}` : 'BLAST · BASE';
+    levelPower.textContent = `POWER · LV ${displayPowerLevel(player.powerPickups)}`;
+    progressPower.textContent = `${powerProgress(player.powerPickups)} / ${POWER_TUNING.pickupsPerLevel} TO NEXT LEVEL`;
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;
