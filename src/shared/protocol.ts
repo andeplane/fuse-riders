@@ -3,6 +3,7 @@ import type { PortalPair } from './portal.js';
 import type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 import type { MatchPlayerStats } from './match-stats.js';
 import type { FlightPoint } from './launch-modifiers.js';
+import type { PickupType } from './game.js'; // the type alone: this module never needs the tuple's value
 
 export type { RoundPlacement, SessionLeaderboardEntry } from './leaderboard.js';
 export type { MatchDeathCause, MatchDeathCounts, MatchPlayerStats } from './match-stats.js';
@@ -27,6 +28,7 @@ export interface TrailSegment { x1: number; y1: number; x2: number; y2: number; 
 export interface BlastCircle { x: number; y: number; radius: number }
 export interface GameSnapshot {
   bombChargeTicks: number;
+  aimBounce: boolean;
   phase: 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
   phaseEndsAtTick?: number;
   roundStartedTick?: number;
@@ -35,17 +37,18 @@ export interface GameSnapshot {
     id: PlayerId; name: string; slot: number; color: string; connected: boolean; avatarId: AvatarId;
     x: number; y: number; angle: number; alive: boolean; roundWins: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
-    fuseLevel?: number; blastLevel: number; invulnerableUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
-    gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
+    fuseLevel?: number; blastLevel: number; invulnerableUntilTick: number; boostUntilTick: number; drunkUntilTick: number; inkUntilTick: number;
+    gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; gravityArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
-    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; shell?: { vx: number; vy: number; gun?: boolean };
+    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean };
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPairs: ReadonlyArray<PortalPair>;
-  pickups: ReadonlyArray<{ id: number; type: 'stopwatch' | 'gun' | 'shell' | 'target' | 'blast' | 'star' | 'beer' | 'ink' | 'triple' | 'five' | 'orbitShield' | 'portal'; x: number; y: number; expiresAtTick: number }>;
+  gravityFields: ReadonlyArray<{ bombId: number; ownerId: PlayerId; x: number; y: number; radius: number; expiresAtTick: number }>;
+  pickups: ReadonlyArray<{ id: number; type: PickupType; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;

@@ -1,0 +1,150 @@
+/**
+ * Product analytics: which riders reach a match, and what happened when they did.
+ *
+ * Nine events, all prefixed `FlowRiders.`. Nothing fires per tick, per pickup or per explosion — a match's
+ * detail rides along on `FlowRiders.Match Ended`, read from the same authoritative `matchStats` the recap
+ * renders, so a busy arena still costs one event. This is separate from `telemetry.ts`, which posts raw
+ * runtime diagnostics to the dev server; this posts product events to Mixpanel from real play.
+ *
+ * Off on LAN and local dev (a port in the address) so test rooms never reach the production project, on with
+ * `?analytics=1` to verify a build, off outright with `?analytics=0`. The Mixpanel bundle is imported only
+ * once analytics is on, so a LAN game never downloads it.
+ */
+import { TICK_HZ } from '../shared/game.js';
+import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
+import type { MatchPlayerStats } from '../shared/match-stats.js';
+
+type Mixpanel = (typeof import('mixpanel-browser'))['default'];
+
+/** A Mixpanel project token is a write-only public identifier — every browser bundle reporting to a project ships one. It is not a credential and grants no read access. */
+const TOKEN = 'b5022dd7fe5b3cd0396d84284ae647e6';
+const PREFIX = 'FlowRiders.';
+/**
+ * Also the ordering guarantee: every `track` attaches its own reaction to this one promise, and same-promise
+ * reactions run in the order they were attached, so calls made before Mixpanel loads still arrive in order.
+ * They are not chained — attaching to the result of the previous `track` would serialise on each send instead.
+ */
+let client: Promise<Mixpanel> | undefined;
+
+const OVERRIDE_KEY = 'fuse-analytics';
+
+/**
+ * The override sticks for the browser rather than riding the URL. `appUrl` replaces the query string on every
+ * navigation out of the landing page — deliberately, so an invite can never inherit a capability — so a flag
+ * read only from `location.search` would last exactly one page: `?analytics=0` would come back on at CREATE
+ * ROOM, and `?analytics=1` could never reach the room half of the funnel it exists to verify.
+ *
+ * Only an exact `1` or `0` is honoured or stored. Treating any present value as "on" would make `?analytics=off`
+ * and `?analytics=false` report a dev session into the production project, the opposite of what someone typing
+ * them wants.
+ */
+export function analyticsOverride(search: string, storage: Pick<Storage, 'getItem' | 'setItem'>): string | null {
+  const found = new URLSearchParams(search).get('analytics');
+  try {
+    if (found === '1' || found === '0') { storage.setItem(OVERRIDE_KEY, found); return found; }
+    return storage.getItem(OVERRIDE_KEY);
+  } catch { return found; }
+}
+
+export function analyticsEnabled(override: string | null, port: string): boolean {
+  if (override === '1') return true;
+  if (override === '0') return false;
+  return port === '';
+}
+
+/**
+ * Safe to call more than once: the landing page, a room and the boot-failure path all call it, and only the
+ * first loads Mixpanel. Every call registers its super properties, so a later caller merges over an earlier
+ * one's — which is what the boot-failure path wants when it reports against a room that had already started.
+ */
+export function startAnalytics(superProperties: Record<string, unknown>): void {
+  if (!analyticsEnabled(analyticsOverride(location.search, localStorage), location.port)) return;
+  // localStorage over cookies: the game stores everything else there too, and a batch that outlives a navigation
+  // is what lets CREATE ROOM report before the page it triggers replaces this one.
+  client ??= import('mixpanel-browser').then(module => {
+    module.default.init(TOKEN, {
+      persistence: 'localStorage', track_pageview: false, autocapture: false,
+      // A room page is `?room=AB42`, and that code is the whole join credential — there is no second token, so
+      // anyone holding the URL can walk into the game. Mixpanel attaches `$current_url` and `$referrer` to every
+      // event by default, which would ship a live invite to a third party on every seat, match and setting change.
+      // The `*_domain` properties survive: they answer where players come from and carry no room code.
+      property_blacklist: ['$current_url', '$referrer', '$initial_referrer'],
+    });
+    return module.default;
+  });
+  void client.then(mixpanel => mixpanel.register(superProperties)).catch(() => { /* analytics never breaks the game */ });
+}
+
+/**
+ * Never name a property `length`. Mixpanel's bundled Underscore-style `each` treats any object whose `length`
+ * is a number as an array, so a single `length` key makes it iterate indices instead of keys and the whole
+ * property bag — super properties included — is dropped silently, with a 200 back from the API. Room settings
+ * call theirs `length`; they are reported as `matchLength`.
+ */
+export function track(event: string, properties?: Record<string, unknown>): void {
+  void client?.then(mixpanel => mixpanel.track(PREFIX + event, properties)).catch(() => { /* analytics never breaks the game */ });
+}
+
+/**
+ * For an event whose own page is about to be replaced. `track` only enqueues once the Mixpanel chunk has
+ * resolved, so an event followed immediately by a navigation is simply lost when the chunk is still in flight —
+ * and CREATE ROOM is exactly that: the landing-to-room conversion, lost most often on the slow connections whose
+ * conversion we most want to read. Sends past the batcher and resolves when it is away, or when `timeoutMs` is
+ * up, so a stalled report delays a room by a blink rather than holding it.
+ */
+export function trackBeforeLeaving(event: string, properties: Record<string, unknown>, timeoutMs = 700): Promise<void> {
+  if (!client) return Promise.resolve();
+  return Promise.race([
+    client.then(mixpanel => new Promise<void>(resolve => { mixpanel.track(PREFIX + event, properties, { send_immediately: true }, () => resolve()); })),
+    new Promise<void>(resolve => { setTimeout(resolve, timeoutMs); }),
+  ]).catch(() => { /* analytics never breaks the game */ });
+}
+
+const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
+
+/**
+ * Identifies the snapshot that begins a match, or `undefined` for every other snapshot. Callers report a match
+ * start whenever this returns a key they have not already reported.
+ *
+ * Keyed on the first round of a match id rather than on a phase transition: every round opens with its own
+ * countdown, so `lobby -> countdown` would count rounds, and solo never passes through the lobby at all —
+ * `LocalRuntime.start` seats four bots and starts the match before the first snapshot reaches the UI, so its
+ * first observed phase is already `countdown`. A rematch takes a fresh match id and returns to round 1, so it
+ * keys apart from the match before it; a device that joins at round 3 reports no start, which is the truth.
+ */
+export function matchStartKey(matchId: string, phase: string, round: number): string | undefined {
+  return phase === 'countdown' && round === 1 ? `${matchId}:${round}` : undefined;
+}
+
+/**
+ * One event per finished match, from the authoritative end-of-match stats. `playerId` is this device's rider:
+ * a shared-TV display or a spectator has none, and reports only the shape of the match it watched.
+ */
+export function matchEndedProps(stats: readonly MatchPlayerStats[], playerId: string): Record<string, unknown> {
+  const botCount = stats.filter(entry => entry.playerId.startsWith(BOT_ID_PREFIX)).length;
+  const mine = stats.find(entry => entry.playerId === playerId);
+  return {
+    playerCount: stats.length,
+    botCount,
+    humanCount: stats.length - botCount,
+    rounds: stats.reduce((most, entry) => Math.max(most, entry.roundsPlayed), 0),
+    played: Boolean(mine),
+    ...(mine ? {
+      placement: mine.matchPlacement,
+      won: mine.matchPlacement === 1,
+      roundWins: mine.roundWins,
+      eliminations: mine.eliminations,
+      pickups: mine.pickupsCollected,
+      bombsPlaced: mine.bombsPlaced,
+      bombsExploded: mine.bombsExploded,
+      distance: Math.round(mine.distanceUnits),
+      survivalSeconds: seconds(mine.survivalTicks),
+      // Optional chaining rather than trust: this is built inside the host's publish loop, where a throw stops
+      // the room publishing for everyone, so the invariant belongs here and not only in the code upstream.
+      deathsWall: mine.deathsByCause?.wall,
+      deathsTrail: mine.deathsByCause?.trail,
+      deathsExplosion: mine.deathsByCause?.explosion,
+      deathsRider: mine.deathsByCause?.rider,
+    } : {}),
+  };
+}

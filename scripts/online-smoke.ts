@@ -29,9 +29,25 @@ try{
   await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.includes('READY'));await guest.locator('.mobile-play').waitFor({state:'visible'});
   await host.screenshot({path:'artifacts/online-host.png'});await guest.screenshot({path:'artifacts/online-phone.png'});
   assert.equal(await guest.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);
+  // #68 flattened every visual style to one thin rim in both renderers, so the two modes became
+  // indistinguishable and the room had no way to switch. Both must stay reachable and distinct.
+  {
+   const style=host.getByRole('button',{name:/^Visual style: /});
+   const applied=()=>host.evaluate(()=>document.documentElement.dataset.theme);
+   const before=await style.getAttribute('aria-label');const themeBefore=await applied();
+   assert.ok(themeBefore,'the room applies a visual style');
+   await style.click();
+   await host.waitForFunction(id=>document.documentElement.dataset.theme!==id,themeBefore);
+   const after=await style.getAttribute('aria-label');
+   assert.notEqual(after,before,'STYLE relabels itself with the style now showing');
+   await style.click();
+   await host.waitForFunction(id=>document.documentElement.dataset.theme===id,themeBefore);
+   assert.equal(await style.getAttribute('aria-label'),before,'STYLE cycles back through the registry');
+   console.log(`Visual style switched and cycled back (${before} -> ${after})`);
+  }
   await host.getByRole('button',{name:'ROOM SETTINGS',exact:true}).click();
   await host.getByLabel('Match length').fill('2');await host.getByRole('button',{name:'SAVE SETTINGS',exact:true}).click();
-  await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();
+  await host.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();
   // Back in the lobby a joined phone shows the lobby screen with the riders and the wait explained, not the controller (#134).
   await guest.waitForFunction(()=>document.querySelector('.online-notice')?.textContent?.startsWith('Waiting for the host'));await guest.locator('.phone-lobby').waitFor();assert.equal(await guest.locator('.mobile-play').count(),0,'a joined phone in the lobby is a lobby screen');
   await guest.locator('.room-riders').getByText('Guest',{exact:false}).waitFor();
@@ -46,7 +62,7 @@ try{
   await guest.locator('.online-arena').waitFor({state:'hidden'});
   const displayContext=await browser.newContext();displayContext.setDefaultTimeout(smokeTimeout(30000));const display=await displayContext.newPage();await display.goto(url+'&display=1');await display.locator(':is(.online-roster,.room-riders):visible').getByText('Host',{exact:false}).waitFor();
   assert.equal(await display.getByRole('button',{name:'ROOM SETTINGS',exact:true}).isVisible(),false);await display.locator('.shared-lobby').waitFor({state:'visible'});await display.waitForFunction(()=>{const image=document.querySelector<HTMLImageElement>('.shared-lobby img');return image?.complete&&image.naturalWidth>0;});
-  await host.getByRole('button',{name:'START RACE',exact:true}).click();await display.locator('.shared-lobby').waitFor({state:'hidden'});await display.locator('.online-arena').waitFor({state:'visible'});await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();await display.locator('.shared-lobby').waitFor({state:'visible'});
+  await host.getByRole('button',{name:'START RACE',exact:true}).click();await display.locator('.shared-lobby').waitFor({state:'hidden'});await display.locator('.online-arena').waitFor({state:'visible'});await host.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();await display.locator('.shared-lobby').waitFor({state:'visible'});
   console.log('Online smoke passed: room creation, guest join, host permissions, start, settings, reset, full phone view.');
 }catch(error){
   for(const [index,context] of browser.contexts().entries())for(const page of context.pages()){

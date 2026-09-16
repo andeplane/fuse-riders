@@ -8,7 +8,7 @@ import { PORTAL_PALETTES, portalPalettes } from '../src/client/pickup-renderer.j
 import type { GameSnapshot } from '../src/shared/protocol.js';
 
 function snapshot(): GameSnapshot {
-  return { phase: 'lobby', bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], leaderboard: [], roundPlacements: [], matchStats: [] };
+  return { phase: 'lobby', aimBounce: false, bombChargeTicks: 8, width: 1600, height: 900, boundaryInset: 20, players: [], bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], leaderboard: [], roundPlacements: [], matchStats: [] };
 }
 
 function playingFrame(tick: number, receivedAt: number, x: number, alive = true): SnapshotFrame {
@@ -16,7 +16,7 @@ function playingFrame(tick: number, receivedAt: number, x: number, alive = true)
     matchId: 'match', round: 1, receivedAt,
     snapshot: {
       ...snapshot(), phase: 'playing', tick, round: 1, roundStartedTick: 0,
-      players: [{ id: 'p1', name: 'One', avatarId: 'robot', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], blastLevel: 0, invulnerableUntilTick: 0, drunkUntilTick: 0, inkUntilTick: 0, tripleShotArmed: false, fiveShotArmed: false, targetBombArmed: false,  shielded: false, shieldGraceUntilTick: 0, portalCooldownUntilTick: 0, portalGraceUntilTick: 0 }],
+      players: [{ id: 'p1', name: 'One', avatarId: 'robot', slot: 0, color: '#00d9ff', connected: true, x, y: 100, angle: 0, alive, roundWins: 0, bombReadyAtTick: 0, trail: [], blastLevel: 0, invulnerableUntilTick: 0, boostUntilTick: 0, drunkUntilTick: 0, inkUntilTick: 0, tripleShotArmed: false, fiveShotArmed: false, targetBombArmed: false, gravityArmed: false,  shielded: false, shieldGraceUntilTick: 0, portalCooldownUntilTick: 0, portalGraceUntilTick: 0 }],
     },
   };
 }

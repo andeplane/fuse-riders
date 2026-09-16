@@ -3,7 +3,7 @@ import { HostSession } from './host-session.js';
 import { defaultRoomSettings } from '../shared/room-settings.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { drawArena } from '../client/main.js';
-import { defaultTheme, loadThemeSprites } from '../client/themes.js';
+import { loadThemeSprites, selectedTheme } from '../client/themes.js';
 
 /** A separate, silent local game. It never opens a room or a connection. */
 export async function startAttract(initialCanvas: HTMLCanvasElement, toggle: HTMLButtonElement): Promise<()=>void> {
@@ -11,7 +11,7 @@ export async function startAttract(initialCanvas: HTMLCanvasElement, toggle: HTM
   for (let i=0;i<5;i++) host.command('attract',{type:'bot',action:'add'});
   host.command('attract',{type:'action',action:'start'});
   for(let i=0;i<90;i++) host.advance();
-  const sprites=await loadThemeSprites(defaultTheme);
+  const theme=selectedTheme();const sprites=await loadThemeSprites(theme);
   let canvas=initialCanvas;
   const presentation=mountArenaPresentation(canvas,drawArena,replacement=>{canvas=replacement;});
   const motion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -25,7 +25,7 @@ export async function startAttract(initialCanvas: HTMLCanvasElement, toggle: HTM
     const elapsed=Math.min(100,now-previous);previous=now;
     if(!document.hidden){
       if(!paused){accumulator+=elapsed;while(accumulator>=50){host.advance();accumulator-=50;}if(host.game.phase==='matchOver')host.command('attract',{type:'action',action:'rematch'});}
-      if((!paused||dirty||canvas.dataset.renderer!==lastRenderer)&&now-lastDraw>=1000/30){const state=host.snapshot();presentation.render({...state,tick:host.game.tick,round:host.game.round},now,defaultTheme,sprites,host.game.matchId);canvas.dataset.attractTick=String(host.game.tick);lastDraw=now;dirty=false;lastRenderer=canvas.dataset.renderer;}
+      if((!paused||dirty||canvas.dataset.renderer!==lastRenderer)&&now-lastDraw>=1000/30){const state=host.snapshot();presentation.render({...state,tick:host.game.tick,round:host.game.round},now,theme,sprites,host.game.matchId);canvas.dataset.attractTick=String(host.game.tick);lastDraw=now;dirty=false;lastRenderer=canvas.dataset.renderer;}
     }else accumulator=0;
     raf=requestAnimationFrame(frame);
   };

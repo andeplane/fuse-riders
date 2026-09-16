@@ -76,7 +76,7 @@ function trio(){
 }
 const viewPhase=(r:Room)=>(r.runtime as unknown as {sim?:{state:{game:{phase:string}}}}).sim?.state.game.phase;
 
-// #132: MAIN MENU is one trailing entry in the host's stream, repeated only for the retention window. A view that loses every
+// #132: BACK TO LOBBY is one trailing entry in the host's stream, repeated only for the retention window. A view that loses every
 // copy never sees a later seq to expose the gap, so it used to keep playing a match the host had left.
 test('a view that misses the host\'s last entry for a whole retention window still reaches the lobby',()=>{
   const {host,display,run,deliverToDisplay,repairs}=trio();

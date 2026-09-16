@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, RIDER_TURN_RATE, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -35,7 +35,7 @@ export class BotController {
     const nearest=enemies.reduce<PlayerState|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const pickup=game.pickups.reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const target=pickup??nearest;
-    const reach=BOT_LOOKAHEAD_TICKS*RIDER_SPEED/20+RIDER_RADIUS+TRAIL_WIDTH;
+    const reach=BOT_LOOKAHEAD_TICKS*RIDER_SPEED*BOOST_SPEED/20+RIDER_RADIUS+TRAIL_WIDTH;
     const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
       .filter(candidate=>candidate.distance<reach*reach).sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
     const random=Math.max(0,Math.min(1,this.dependencies.random(game.seed,id,game.tick)));
@@ -46,7 +46,7 @@ export class BotController {
       for(let future=1;future<=BOT_LOOKAHEAD_TICKS;future++){
         const tick=game.tick+future;
         const offset=drunkHeadingOffset(game.seed,id,tick,player.drunkStartedTick,player.drunkUntilTick);
-        const pose=advanceRiderPose({x,y,angle,drunkHeadingOffset:previousOffset},{left:direction<0,right:direction>0},{distance:RIDER_SPEED/20,turn:RIDER_TURN_RATE/20,drunkHeadingOffset:offset});
+        const pose=advanceRiderPose({x,y,angle,drunkHeadingOffset:previousOffset},{left:direction<0,right:direction>0},{distance:(player.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/20,turn:RIDER_TURN_RATE/20,drunkHeadingOffset:offset});
         x=pose.x;y=pose.y;angle=pose.angle;previousOffset=pose.drunkHeadingOffset;
         const clearance=Math.min(x-game.boundaryInset,game.width-game.boundaryInset-x,y-game.boundaryInset,game.height-game.boundaryInset-y)-RIDER_RADIUS;
         if(clearance<2)break;

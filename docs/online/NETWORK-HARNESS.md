@@ -40,7 +40,7 @@ For a 30-minute local six-RTC-peer workload with one visible renderer:
 ONLINE_URL=http://localhost:8794/ BENCH_SECONDS=1800 BENCH_PROFILE=direct BENCH_RENDER_SINGLE=1 npx tsx scripts/online-network-benchmark.ts
 ```
 
-The harness detects the host's visible MATCH COMPLETE notice, releases controls, dismisses recap dialogs with Escape, and clicks MAIN MENU followed by START RACE. It reports `matchRestarts`. This uses public UI commands, not simulation mutation. Eliminated riders remain connected and resume next round; do not label this as uninterrupted five-alive gameplay. Recent raw diagnostic events are bounded, while frame samples (120,000 per view), byte windows (3,600), counters and periodic UI samples cover the configured 30 minutes. Packet traces retain the first 12,000 packets and report omitted counts. The unchanged final-world freshness and accepted-tick regression assertions remain required; a completed duration alone does not imply acceptance.
+The harness detects the host's visible MATCH COMPLETE notice, releases controls, dismisses recap dialogs with Escape, and clicks BACK TO LOBBY followed by START RACE. It reports `matchRestarts`. This uses public UI commands, not simulation mutation. Eliminated riders remain connected and resume next round; do not label this as uninterrupted five-alive gameplay. Recent raw diagnostic events are bounded, while frame samples (120,000 per view), byte windows (3,600), counters and periodic UI samples cover the configured 30 minutes. Packet traces retain the first 12,000 packets and report omitted counts. The unchanged final-world freshness and accepted-tick regression assertions remain required; a completed duration alone does not imply acceptance.
 
 ## ICE gathering probe
 

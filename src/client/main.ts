@@ -9,14 +9,15 @@ import { volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
-import { BOMB_MAX_CHARGE_TICKS } from '../shared/bomb-launch.js';
+import { BOMB_MAX_CHARGE_TICKS, chargeRamp } from '../shared/bomb-launch.js';
 import type { ClientMessage, GameEvent, GameSnapshot, MatchPlayerStats, TrailSegment } from '../shared/protocol.js';
 import { ControllerInputState } from './controller-state.js';
-import { drawDrunkAura, drawOrbitShield, drawPickups, drawPortalGrace, drawPortals, drawStarAura } from './pickup-renderer.js';
+import { drawDrunkAura, drawGravityFields, drawOrbitShield, drawPickups, drawPortalGrace, drawPortals, drawStarAura } from './pickup-renderer.js';
 import { renderedSnapshot, type SnapshotFrame } from './render-snapshot.js';
 import { SnapshotStream, type ViewSnapshot } from './snapshot-stream.js';
 import { COMPARISON_COLUMNS, COMPARISON_KEY, RECAP_EMPTY_MESSAGE, RECAP_KICKER, RECAP_TITLE, buildMatchRecap } from '../shared/match-recap.js';
-import { applyThemeProperties, defaultTheme, loadThemeSprites, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
+import { arenaWall, type WallBrick } from './arena-wall.js';
+import { applyThemeProperties, loadThemeSprites, selectedTheme, storeTheme, themes, type ThemeDefinition, type ThemeId, type ThemeSprites } from './themes.js';
 import { POWERUP_GUIDE } from './powerup-guide.js';
 import { createPowerupGuide } from './powerup-guide-view.js';
 import { safeStorage } from './safe-storage.js';
@@ -31,7 +32,6 @@ const HELD_RESEND_MS = 100;
 const PLAYER_TOKEN_KEY = 'fuse-riders-player-token';
 const PLAYER_NAME_KEY = 'fuse-riders-player-name';
 const HOST_TOKEN_KEY = 'fuse-riders-host-token';
-const THEME_KEY = 'fuse-riders-display-theme';
 
 // Evaluating `localStorage`/`sessionStorage` itself can throw (Safari "Block all cookies", some
 // embedded webviews); these wrappers defer that access into a try/catch on every call instead of
@@ -142,13 +142,43 @@ function drawPlayerTrail(ctx: CanvasRenderingContext2D, trail: ReadonlyArray<Tra
   ctx.restore();
 }
 
+function drawPixelBrick(ctx: CanvasRenderingContext2D, brick: WallBrick, color: string): void {
+  const { x, y, width, height, chip } = brick;
+  ctx.fillStyle = '#211862'; ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = color; ctx.globalAlpha = .92; ctx.fillRect(x + 2, y + 2, width - 4, height - 4);
+  ctx.fillStyle = 'rgba(182,150,255,.65)'; ctx.fillRect(x + 3, y + 3, width - 6, 2);
+  ctx.fillStyle = 'rgba(25,17,78,.65)'; ctx.fillRect(x + 3, y + height - 5, width - 6, 3);
+  ctx.globalAlpha = .45; ctx.fillStyle = '#241664';
+  ctx.fillRect(chip.x, chip.y, chip.width, chip.height);
+  ctx.globalAlpha = 1;
+}
+
+/** Paints whatever `arenaWall()` chose; the Phaser arena paints the same choice, so the two cannot disagree. */
 function drawBoundary(ctx: CanvasRenderingContext2D, width: number, height: number, inset: number, theme: ThemeDefinition): void {
   ctx.save();
   ctx.fillStyle = 'rgba(0,2,12,.67)';
   ctx.fillRect(0, 0, width, inset); ctx.fillRect(0, height - inset, width, inset);
   ctx.fillRect(0, inset, inset, height - inset * 2); ctx.fillRect(width - inset, inset, inset, height - inset * 2);
-  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 2; ctx.globalAlpha = .45;
+  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
   ctx.strokeRect(inset, inset, width - inset * 2, height - inset * 2);
+  ctx.shadowBlur = 7;
+  const wall = arenaWall(width, height, inset, theme);
+  if (wall.kind === 'smooth') {
+    ctx.strokeStyle = theme.palette.wall; ctx.lineWidth = wall.strokeWidth;
+    ctx.strokeRect(wall.rect.x, wall.rect.y, wall.rect.width, wall.rect.height);
+    ctx.restore(); return;
+  }
+  // The bricks are opaque fills and carry their own highlight and shade, so they need no shadow pass:
+  // overtime moves `inset` every tick, which misses the background cache and redraws all of them.
+  ctx.shadowBlur = 0;
+  for (const brick of wall.bricks) drawPixelBrick(ctx, brick, theme.palette.wall);
+  ctx.strokeStyle = theme.palette.rim; ctx.lineWidth = 4; ctx.shadowColor = theme.palette.rim; ctx.shadowBlur = 17;
+  for (const [ax, ay, bx, by, cx, cy] of wall.brackets) { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.stroke(); }
+  ctx.shadowColor = '#ff850d'; ctx.shadowBlur = 12;
+  for (const stud of wall.studs) {
+    ctx.fillStyle = theme.palette.blast; ctx.fillRect(stud.x, stud.y, wall.studSize, wall.studSize);
+    ctx.fillStyle = theme.palette.blastCore; ctx.fillRect(stud.x + 2, stud.y + 2, 3, 3);
+  }
   ctx.restore();
 }
 
@@ -229,12 +259,13 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
   ctx.globalAlpha = 1;
 
   if ((snapshot.pickups ?? []).length) drawPickups(ctx, snapshot, snapshot.tick, now, theme);
+  drawGravityFields(ctx, snapshot, snapshot.tick, now);
   drawPortals(ctx, snapshot, snapshot.tick, now);
 
   for (const player of snapshot.players) {
     if (player.bombChargeStartedTick === undefined || !player.alive || player.targetBombArmed || player.shellArmed || player.gunArmed) continue;
     const chargeTicks = (player.presentationTick ?? snapshot.tick) - player.bombChargeStartedTick;
-    const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks);
+    const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks, snapshot.aimBounce);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
     const angles = player.tripleShotArmed || player.fiveShotArmed ? volleyAngles(player.angle, player.fiveShotArmed ? 5 : 3) : [player.angle];
@@ -391,7 +422,7 @@ function startDisplay(): void {
   // createPowerupGuide() routes every icon through legendSrc() so it works under a base path, and its
   // setTheme() is the single place that re-themes them, called here and from the theme <select>.
   // LAN games have no room settings, so only pickups that spawn by default are listed.
-  const pickupLegend = createPowerupGuide(POWERUP_GUIDE.filter(entry => entry.spawnsByDefault), { className: 'pickup-legend', label: 'Power-ups' });
+  const pickupLegend = createPowerupGuide(POWERUP_GUIDE.filter(entry => entry.spawnsByDefault), { className: 'pickup-legend', label: 'Power-ups', namesOnly: true });
   const applyLegendTheme = (id: ThemeId): void => pickupLegend.setTheme(id);
   lobbyCopy.append(pickupLegend.element);
   const joinPanel = element('div', 'join-panel');
@@ -452,10 +483,7 @@ function startDisplay(): void {
   let recapSignature = '';
   let showPerformance = new URLSearchParams(location.search).get('perf') === '1';
   performanceDisplay.classList.toggle('hidden', !showPerformance);
-  const savedTheme = localStorageSafe.getItem(THEME_KEY);
-  // Object.hasOwn (not `savedTheme in themes`) so a stored value like "constructor" cannot resolve
-  // to a prototype member instead of a real theme.
-  let activeTheme = savedTheme && Object.hasOwn(themes, savedTheme) ? themes[savedTheme as ThemeId] : defaultTheme;
+  let activeTheme = selectedTheme();
   let activeSprites: ThemeSprites = {};
   themeSelect.value = activeTheme.id;
   applyThemeProperties(activeTheme);
@@ -465,7 +493,7 @@ function startDisplay(): void {
   themeSelect.addEventListener('change', () => {
     const next = themes[themeSelect.value as ThemeId];
     if (!next) return;
-    activeTheme = next; activeSprites = {}; localStorageSafe.setItem(THEME_KEY, next.id); applyThemeProperties(next);
+    activeTheme = next; activeSprites = {}; storeTheme(next.id); applyThemeProperties(next);
     applyLegendTheme(next.id);
     void loadThemeSprites(next).then((sprites) => { if (activeTheme.id === next.id) activeSprites = sprites; });
   });
@@ -783,6 +811,7 @@ function startController(): void {
   const sessionPoints = element('span', 'power-chip points-power', 'PTS · 0');
   powerStrip.append(fusePower, blastPower, starPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, sessionPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
+  const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -854,6 +883,7 @@ function startController(): void {
       y: clamp((player.y + Math.sin(player.angle) * 100) / snapshot.height, 0, 1),
     } : undefined);
     targetPower.textContent = player.targetBombArmed ? 'TARGET · ARMED' : 'TARGET · --';
+    gravityPower.textContent = player.gravityArmed ? 'SINGULARITY · ARMED' : 'SINGULARITY · --';
     const scored = snapshot as ScoredSnapshot;
     liveAvatarPicker.sync(player.avatarId);
     root.style.setProperty('--player-color', escapeColor(player.color));
@@ -888,7 +918,8 @@ function startController(): void {
     else instruction.textContent = snapshot.roundWinnerId === playerId ? 'Round winner!' : 'Round complete.';
     const readyTicks = player.bombReadyAtTick - snapshot.tick;
     const charging = player.bombChargeStartedTick !== undefined;
-    const chargePercent = charging ? Math.min(100, Math.round((snapshot.tick - player.bombChargeStartedTick!) / (snapshot.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS) * 100)) : 0;
+    const chargeWindow = snapshot.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS;
+    const chargePercent = charging ? Math.round(chargeRamp(snapshot.tick - player.bombChargeStartedTick!, chargeWindow, snapshot.aimBounce ?? false) / chargeWindow * 100) : 0;
     const ready = readyTicks <= 0 && snapshot.phase === 'playing' && player.alive;
     bomb.disabled = !ready && !charging;
     bomb.style.setProperty('--charge', `${chargePercent}%`);
@@ -989,6 +1020,14 @@ else {
     const message = error instanceof Error ? error.message : String(error);
     // Only a page that never got as far as its header is replaced; a later error must not cover a running game.
     if (app.querySelector('.boot-failure') || app.querySelector('.online-header')) return;
+    // A blank page reports nothing by itself. Imported lazily so the LAN controller and display bundles stay free of
+    // Mixpanel, and best-effort: a failure that also stopped this module from loading is one we simply do not hear about.
+    // Registers nothing: a boot failure raised after a room already registered its own `role` would otherwise
+    // relabel every later event on the page as `boot`. The role travels on the event instead.
+    void import('../online/analytics.js').then((analytics) => {
+      analytics.startAnalytics({});
+      analytics.track('Boot Failed', { message, role: 'boot' });
+    }).catch(() => { /* analytics never breaks the game */ });
     const card = document.createElement('section'); card.className = 'boot-failure'; card.setAttribute('role', 'alert');
     card.style.cssText = 'position:fixed;inset:0;display:grid;place-content:center;gap:16px;padding:24px;text-align:center;background:#03060f;color:#e8ecff;font:14px/1.6 monospace;z-index:1000';
     const title = document.createElement('h1'); title.textContent = 'Fuse Riders could not load'; title.style.cssText = 'font-size:16px;margin:0';

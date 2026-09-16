@@ -1,10 +1,13 @@
 import { chromium, webkit } from 'playwright';
 import assert from 'node:assert/strict';
+import { smokeTimeout } from './smoke-timeout.js';
+import { keyboardShortcuts } from '../src/online/keyboard-shortcuts.js';
 
 // Isolated offline solo game: never joins or disturbs an occupied online room.
 const browser = await (process.env.BROWSER === 'webkit' ? webkit : chromium).launch({ headless: true, ...(process.env.BROWSER === 'webkit' ? {} : { channel: 'chrome' }) });
 try {
   const page = await browser.newPage({ viewport: { width: 1723, height: 997 } });
+  page.setDefaultTimeout(smokeTimeout(30000));
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   const base = process.env.ONLINE_URL ?? 'http://127.0.0.1:5179/';
@@ -14,7 +17,7 @@ try {
   const fire = page.locator('[aria-keyshortcuts="Space"]');
   await page.locator('.desktop-game').waitFor();
   // Lobby gives deterministic time for hold/cancel checks without AI round changes.
-  await page.getByRole('button', { name: 'MAIN MENU', exact: true }).click();
+  await page.getByRole('button', { name: 'BACK TO LOBBY', exact: true }).click();
   for (const [code, button] of [['ArrowLeft', left], ['ArrowRight', right], ['KeyA', left], ['KeyD', right], ['Space', fire]] as const) {
     await page.keyboard.down(code);
     assert.match(await button.getAttribute('class') ?? '', /active/);
@@ -40,7 +43,16 @@ try {
   assert.ok(arena && arena.height > 997 * .8, 'desktop arena should use over 80% of viewport height');
   assert.equal(pads, null, 'desktop pads are hidden behind keyboard help');
   await page.getByRole('button', { name: 'Keyboard controls', exact: true }).click();
-  await page.getByText('SPACE — hold to charge, release to fire', { exact: true }).waitFor();
+  // Assert the rendered help against the module that owns the copy, so a wording change cannot rot this smoke again (#169).
+  const shortcuts = page.getByRole('dialog');
+  // Ask the module for the same platform the page renders, or a mac-only driving key would pass on CI and fail on a Mac.
+  const mac = await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent));
+  const driving = keyboardShortcuts({ mac, canConfigure: true, solo: true }).find(group => group.title === 'Driving')!;
+  await shortcuts.getByText('Driving', { exact: true }).waitFor();
+  for (const [keys, action] of driving.entries) {
+    await shortcuts.getByText(keys, { exact: true }).waitFor();
+    await shortcuts.getByText(action, { exact: true }).waitFor();
+  }
   await page.getByRole('button', { name: 'CLOSE', exact: true }).click();
   assert.ok(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight));
   // Check the real playing path too: steering must change the rendered rider
@@ -98,6 +110,7 @@ try {
   await page.locator('.desktop-game').waitFor();
   assert.equal(await page.locator('.online-controls').isVisible(), false);
   const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+  phone.setDefaultTimeout(smokeTimeout(30000));
   phone.on('pageerror', error => errors.push(error.message));
   await phone.goto(`${base}?solo=1`);
   await phone.locator('.online-controls').waitFor({ state: 'visible' });

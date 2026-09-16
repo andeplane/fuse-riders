@@ -193,7 +193,7 @@ export class RoomRuntime {
     if(message.hash!==null)this.pendingHash={tick:Math.floor(message.tick)-HASH_LAG_TICKS,hash:message.hash,lastSeq};
     const open=new Set<string>();
     // A sender that reports a higher lastSeq than this view holds contiguously is a gap too. A trailing entry lost for a whole
-    // retention window (a MAIN MENU during a stall) never appears in gaps(), because no later seq ever arrives to expose it (#132).
+    // retention window (a BACK TO LOBBY during a stall) never appears in gaps(), because no later seq ever arrives to expose it (#132).
     const gaps=new Map(sim.gaps());
     for(const [member,last] of lastSeq){const contiguous=sim.stream(member).contiguous;if(last>contiguous&&!gaps.has(member))gaps.set(member,contiguous+1);}
     for(const [member,firstMissing] of gaps){
@@ -295,7 +295,7 @@ export class RoomRuntime {
     const session=this.session!;
     if(this.recovering){
       if(session.game.phase==='lobby'||[...session.game.players.values()].filter(player=>player.alive).every(player=>player.connected))this.recovering=false;
-      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(now,true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or reset to main menu');return;}
+      else{this.accumulator=0;if(now-this.lastPausedPublish>=500){this.publish(now,true);this.lastPausedPublish=now;}this.status.recurring('Recovered game paused — waiting for riders to rejoin, or use BACK TO LOBBY');return;}
     }
     this.accumulator+=Math.min(elapsed,100);
     if(this.dependencies.hidden()){if(!this.announced){this.publish(now,true);this.announced=true;}this.accumulator=0;return;}

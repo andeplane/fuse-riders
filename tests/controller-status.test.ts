@@ -79,14 +79,15 @@ const populated=(snapshot:GameSnapshot):GameSnapshot=>({...snapshot,
   blasts:[{bombId:1,circle:{x:3,y:4,radius:80},expiresAtTick:12}],
   pickups:[{id:2,type:'star',x:5,y:6,expiresAtTick:99}],
   portalPairs:[{id:'portal',gates:[{x:7,y:8,halfLength:40},{x:9,y:10,halfLength:40}],expiresAtTick:99},{id:'portal-2',gates:[{x:11,y:12,halfLength:40},{x:13,y:14,halfLength:40}],expiresAtTick:99}],
+  gravityFields:[{bombId:1,ownerId:'host',x:15,y:16,radius:90,expiresAtTick:99}],
 });
 test('stripSnapshot drops the arena geometry a phone never draws, and nothing else',()=>{
   const full=populated(room().snapshot()),stripped=stripSnapshot(full);
-  assert.ok(full.bombs.length&&full.blasts.length&&full.pickups.length&&full.portalPairs.length&&full.players.every(p=>p.trail.length),'the fixture carries every stripped field');
-  assert.deepEqual([stripped.bombs,stripped.blasts,stripped.pickups,stripped.portalPairs],[[],[],[],[]]);
+  assert.ok(full.bombs.length&&full.blasts.length&&full.pickups.length&&full.portalPairs.length&&full.gravityFields.length&&full.players.every(p=>p.trail.length),'the fixture carries every stripped field');
+  assert.deepEqual([stripped.bombs,stripped.blasts,stripped.pickups,stripped.portalPairs,stripped.gravityFields],[[],[],[],[],[]]);
   assert.ok(stripped.players.every(p=>p.trail.length===0));
-  const {bombs:_b,blasts:_l,pickups:_k,portalPairs:_o,players:_players,...rest}=full;
-  const blanked={bombs:undefined,blasts:undefined,pickups:undefined,portalPairs:undefined,players:undefined};
+  const {bombs:_b,blasts:_l,pickups:_k,portalPairs:_o,gravityFields:_g,players:_players,...rest}=full;
+  const blanked={bombs:undefined,blasts:undefined,pickups:undefined,portalPairs:undefined,gravityFields:undefined,players:undefined};
   assert.deepEqual({...stripped,...blanked},{...rest,...blanked});
   assert.deepEqual(stripped.players.map(p=>({...p,trail:undefined})),full.players.map(p=>({...p,trail:undefined})),'everything else about a rider survives');
 });

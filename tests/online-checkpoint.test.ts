@@ -24,6 +24,21 @@ function rejectedWithoutMutation(raw: string): void {
   assert.equal(healthy.restore(raw), false); assert.equal(healthy.game, game); assert.equal(healthy.settings, settings); assert.equal(healthy.checkpoint(), before);
 }
 
+// A field is only as trustworthy as the bomb and owner it names: the shape guard checks types, these check meaning.
+const gravityField = (game: Record<string, unknown>, overrides: Record<string, unknown> = {}) => ({
+  bombId: Number(game.nextBombId) - 1, ownerId: String(mapped(game.matchStats)[0]![0]),
+  x: 400, y: 400, radius: 90, expiresAtTick: Number(game.tick) + 40, ...overrides,
+});
+test('a gravity field that names an unissued bomb, a repeat, a stranger or a past tick is refused', () => {
+  // The control proves the fixture is shape-valid, so every rejection below is the invariant talking, not the guard.
+  const valid = corrupt(playing(), (_data, game) => { list(game.gravityFields).push(gravityField(game)); });
+  assert.equal(playing().restore(valid), true, 'a well-formed field restores');
+  rejectedWithoutMutation(corrupt(playing(), (_data, game) => { const field = gravityField(game); list(game.gravityFields).push(field, { ...field }); }));
+  rejectedWithoutMutation(corrupt(playing(), (_data, game) => { list(game.gravityFields).push(gravityField(game, { bombId: Number(game.nextBombId) })); }));
+  rejectedWithoutMutation(corrupt(playing(), (_data, game) => { list(game.gravityFields).push(gravityField(game, { expiresAtTick: Number(game.tick) })); }));
+  rejectedWithoutMutation(corrupt(playing(), (_data, game) => { list(game.gravityFields).push(gravityField(game, { ownerId: 'ghost' })); }));
+});
+
 test('checkpoint restore is atomic on the malformed sequences regression', () => {
   rejectedWithoutMutation(corrupt(playing(), (data, game) => { game.tick = 999; data.sequences = null; }));
 });

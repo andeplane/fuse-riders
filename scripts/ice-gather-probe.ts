@@ -3,7 +3,7 @@ import { DEFAULT_ICE_SERVERS } from '../src/online/ice-config.js';
 /** Redacted ICE gathering evidence: candidate types per STUN config, never addresses. Issue #12. */
 const browser=await (process.env.BROWSER==='webkit'?webkit:chromium).launch({headless:true});
 const page=await browser.newPage();
-await page.goto(process.env.PROBE_URL??'https://andeplane.github.io/fuse-riders/');
+await page.goto(process.env.PROBE_URL??'https://andeplane.github.io/fuse-riders/?analytics=0');
 const servers:RTCIceServer[]=process.env.ICE_SERVERS?process.env.ICE_SERVERS.split(',').map(urls=>({urls})):[...DEFAULT_ICE_SERVERS];
 const result=await page.evaluate(async servers=>{
   const pc=new RTCPeerConnection({iceServers:servers});pc.createDataChannel('probe');

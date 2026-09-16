@@ -93,7 +93,7 @@ try{
  try{
   while(Date.now()-startedAt<seconds*1000){
    const elapsed=Date.now()-startedAt;
-   if(host&&(await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){await touch.clear();await host.keyboard.press('Escape');await host.getByRole('button',{name:'MAIN MENU',exact:true}).click();await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();await host.getByRole('button',{name:'START RACE',exact:true}).click();restarts++;}
+   if(host&&(await host.locator('.online-notice').textContent())?.includes('MATCH COMPLETE')){await touch.clear();await host.keyboard.press('Escape');await host.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();await host.getByText('Join your friends, then start the race',{exact:true}).waitFor();await host.getByRole('button',{name:'START RACE',exact:true}).click();restarts++;}
    if(hideMs&&!hiddenWindow&&elapsed>seconds*500&&latest()?.phase==='playing'){
     await touch.clear();hiddenWindow={from:await guest.evaluate(()=>performance.now()),to:0};
     const cdp=await guestContext.newCDPSession(guest);
