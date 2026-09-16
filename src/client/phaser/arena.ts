@@ -331,23 +331,24 @@ class ArenaScene extends Phaser.Scene {
     for(const bomb of s.bombs) {
       if(bomb.shell) { const gun=!!bomb.shell.gun; this.sprite(gun?'gun':'shell',bomb.x,bomb.y,gun?48:34,gun?Math.atan2(bomb.shell.vy,bomb.shell.vx):now/130);
         const a=Math.atan2(bomb.shell.vy,bomb.shell.vx); for(let i=1;i<5;i++) g.fillStyle(gun?0xd8edff:0x66ff72,.18/i).fillCircle(bomb.x-Math.cos(a)*i*12,bomb.y-Math.sin(a)*i*12,gun?10:7); continue; }
+      const ownerTint=color(s.players.find(player=>player.id===bomb.ownerId)?.color??'#ffffff');
       // The fine outer edge stays at the exact supplied damage radius.
-      g.lineStyle(1.5,0xc9d8ed,.32).strokeCircle(bomb.x,bomb.y,bomb.blastRange);
-      g.lineStyle(4,0xff73aa,.04).strokeCircle(bomb.x,bomb.y,Math.max(0,bomb.blastRange-3));
-      g.fillStyle(0xff557f,.025).fillCircle(bomb.x,bomb.y,bomb.blastRange);
+      g.lineStyle(1.5,ownerTint,.32).strokeCircle(bomb.x,bomb.y,bomb.blastRange);
+      g.lineStyle(4,ownerTint,.04).strokeCircle(bomb.x,bomb.y,Math.max(0,bomb.blastRange-3));
+      g.fillStyle(ownerTint,.025).fillCircle(bomb.x,bomb.y,bomb.blastRange);
       const pose=bombPose(bomb,s.tick); const airborne=s.tick<bomb.landsAtTick;
       this.sprite(`${theme.id}:bomb`,pose.x,pose.y,44*(1+Math.sin(now/90)*.04));
       const remaining=clamp((bomb.explodeAtTick-s.tick)/Math.max(1,bomb.explodeAtTick-bomb.landsAtTick),0,1);
-      const ringTint=airborne?0xd67cff:remaining<.3?0xfff06a:0xff5ca6;
+      const ringTint=ownerTint;
       const progress=airborne?pose.flight:remaining, end=-Math.PI/2+Math.PI*2*progress;
-      g.lineStyle(2,0xa9b9da,.15).strokeCircle(pose.x,pose.y,26);
+      g.lineStyle(2,ownerTint,.15).strokeCircle(pose.x,pose.y,26);
       if(progress>0) {
         g.lineStyle(7,ringTint,.1).beginPath().arc(pose.x,pose.y,26,-Math.PI/2,end,false).strokePath();
         g.lineStyle(2.5,ringTint).beginPath().arc(pose.x,pose.y,26,-Math.PI/2,end,false).strokePath();
         g.fillStyle(ringTint).fillCircle(pose.x,pose.y-26,1.25);
         g.fillStyle(0xfff2d5).fillCircle(pose.x+Math.cos(end)*26,pose.y+Math.sin(end)*26,2);
       }
-      if(airborne) g.lineStyle(2,0xff73c5,.6).strokeEllipse(bomb.x,bomb.y,34,15);
+      if(airborne) g.lineStyle(2,ownerTint,.6).strokeEllipse(bomb.x,bomb.y,34,15);
     }
     for(const field of s.gravityFields) {
       const life=clamp((field.expiresAtTick-s.tick)/GRAVITY_FIELD_TICKS,0,1), swirl=now/900;
