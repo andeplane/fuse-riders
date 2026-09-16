@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { advanceRiderPose } from '../src/shared/rider-motion.js';
-import { createGame,addPlayer,startMatch,step,SLOT_COLORS,RIDER_SPEED,RIDER_TURN_RATE,TICK_HZ } from '../src/shared/game.js';
+import { createGame,addPlayer,startMatch,step,SLOT_COLORS,riderMotionStep } from '../src/shared/game.js';
 import { drunkHeadingOffset } from '../src/shared/drunk.js';
 test('pure rider kernel exactly matches authoritative turns including drunk offsets',()=>{
  const game=createGame('motion-kernel');
@@ -11,7 +11,7 @@ test('pure rider kernel exactly matches authoritative turns including drunk offs
  const controls={left:true,right:false,bomb:false};
  for(let i=0;i<80;i++){
   const previous={x:p.x,y:p.y,angle:p.angle,drunkHeadingOffset:p.drunkHeadingOffset};
-  const expected=advanceRiderPose(previous,controls,{distance:RIDER_SPEED/TICK_HZ,turn:RIDER_TURN_RATE/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,p.id,game.tick+1,p.drunkStartedTick,p.drunkUntilTick)});
+  const expected=advanceRiderPose(previous,controls,{...riderMotionStep(p,game.tick+1,game.roundStartedTick),drunkHeadingOffset:drunkHeadingOffset(game.seed,p.id,game.tick+1,p.drunkStartedTick,p.drunkUntilTick)});
   step(game,new Map([[p.id,controls]]));
   assert.deepEqual({x:p.x,y:p.y,angle:p.angle,drunkHeadingOffset:p.drunkHeadingOffset},expected);
  }

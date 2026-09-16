@@ -114,6 +114,21 @@ export const ROUND_OVER_TICKS = 60;
 export const OVERTIME_START_TICK = 1200;
 export const OVERTIME_INSET_PER_TICK = 0.5;
 export const ROUND_DRAW_TICK = 1800;
+/**
+ * Riders speed up through every round, from normal pace at the start to SPEED_RAMP_MAX when overtime begins, and hold it.
+ * Steering speeds up with them, so turning circles keep their size: the round gets faster, not wider.
+ */
+export const SPEED_RAMP_TICKS = OVERTIME_START_TICK;
+export const SPEED_RAMP_MAX = 1.5;
+export function roundSpeedMultiplier(elapsedTicks: number): number {
+  return 1 + (SPEED_RAMP_MAX - 1) * Math.max(0, Math.min(SPEED_RAMP_TICKS, elapsedTicks)) / SPEED_RAMP_TICKS;
+}
+/** How far a rider moves and may turn on `tick`: the round's ramp on both, then any boost on distance alone. */
+export function riderMotionStep(player: { boostUntilTick: number; grip: boolean }, tick: number, roundStartedTick: number | undefined): { distance: number; turn: number } {
+  const ramp = roundSpeedMultiplier(tick - (roundStartedTick ?? tick));
+  const distance = RIDER_SPEED / TICK_HZ * ramp;
+  return { distance: player.boostUntilTick > tick ? distance * BOOST_SPEED : distance, turn: riderTurnRate(player) / TICK_HZ * ramp };
+}
 
 export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'matchOver';
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
@@ -280,7 +295,6 @@ interface Movement {
 }
 
 const EPSILON = 1e-9;
-const MOVE_PER_TICK = RIDER_SPEED / TICK_HZ;
 const CAUSE_PRIORITY: Record<EliminationCause, number> = {
   rider: 0,
   trail: 1,
@@ -482,8 +496,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   for (const player of sortedPlayers(state).filter((candidate) => candidate.alive)) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
-    const distance = player.boostUntilTick > state.tick ? MOVE_PER_TICK * BOOST_SPEED : MOVE_PER_TICK;
-    const pose = advanceRiderPose(player, input, {distance,turn:riderTurnRate(player)/TICK_HZ,drunkHeadingOffset:offset});
+    const { distance, turn } = riderMotionStep(player, state.tick, state.roundStartedTick);
+    const pose = advanceRiderPose(player, input, {distance,turn,drunkHeadingOffset:offset});
     // Fields pull where the rider lands, inside the same tick, so the swept collision below still tests the path actually taken.
     const pulled = applyGravity(state, pose.x, pose.y, distance);
     player.drunkHeadingOffset = pose.drunkHeadingOffset;

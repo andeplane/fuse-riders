@@ -3,7 +3,7 @@ import test from 'node:test';
 import { clipTrailSegment } from '../src/shared/trail-clipping.ts';
 import {
   addPlayer, createGame, startMatch, step, COUNTDOWN_TICKS,
-  INITIAL_BOUNDARY_INSET, OVERTIME_START_TICK, RIDER_RADIUS, TRAIL_LIFETIME_TICKS,
+  INITIAL_BOUNDARY_INSET, OVERTIME_START_TICK, RIDER_RADIUS, SPEED_RAMP_MAX, TRAIL_LIFETIME_TICKS,
 } from '../src/shared/game.ts';
 import type { TrailSegment } from '../src/shared/protocol.ts';
 
@@ -102,5 +102,5 @@ test('overtime clipping preserves portal entry and exit discontinuity', () => {
   assert.equal(player.trail.length, 2);
   assert.equal(player.trail[0]!.x2, 189);
   assert.equal(player.trail[1]!.x1, 1012);
-  assert.equal(player.trail[1]!.x2, 1019.5);
+  assert.equal(player.trail[1]!.x2, 1012 + 7.5 * SPEED_RAMP_MAX, 'overtime runs at the full ramped speed');
 });

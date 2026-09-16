@@ -26,11 +26,12 @@ test('the boost pickup carries a rider a quarter faster until its deadline, then
   assert.equal(travelled(game, 'p0'), travelled(control, 'p0'), 'the tick you collect on is ordinary speed');
   assert.equal(rider.boostUntilTick, game.tick + BOOST_DURATION_TICKS, 'the deadline is absolute, three seconds out');
   const boosted = travelled(game, 'p0'), plain = travelled(control, 'p0');
-  assert.equal(boosted, plain * BOOST_SPEED, `boosted ${boosted} should be ${BOOST_SPEED}x of ${plain}`); // 7.5 and 9.375 are both exact in binary
+  assert.ok(Math.abs(boosted - plain * BOOST_SPEED) < 1e-9, `boosted ${boosted} should be ${BOOST_SPEED}x of ${plain}`); // the round's speed ramp makes strides inexact
   assert.equal(toSnapshot(game).players.find(player => player.id === 'p0')!.boostUntilTick, rider.boostUntilTick);
   while (game.tick < rider.boostUntilTick - 2) { step(game, new Map()); step(control, new Map()); }
-  assert.equal(travelled(game, 'p0'), plain * BOOST_SPEED, 'the last tick under the deadline is still boosted');
-  assert.equal(travelled(game, 'p0'), plain, 'the deadline tick itself is ordinary speed again');
+  const last = travelled(game, 'p0'), lastPlain = travelled(control, 'p0');
+  assert.ok(Math.abs(last - lastPlain * BOOST_SPEED) < 1e-9, 'the last tick under the deadline is still boosted');
+  assert.ok(Math.abs(travelled(game, 'p0') - travelled(control, 'p0')) < 1e-9, 'the deadline tick itself is ordinary speed again');
   assert.equal(game.tick, rider.boostUntilTick);
   assert.equal(game.players.get('p0')!.alive, true, 'the measurement ran on a living rider throughout');
 });

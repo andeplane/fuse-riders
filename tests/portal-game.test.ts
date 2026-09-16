@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { addPlayer, createGame, startMatch, startNextRound, step, toSnapshot, COUNTDOWN_TICKS } from '../src/shared/game.ts';
+import { addPlayer, createGame, riderMotionStep, startMatch, startNextRound, step, toSnapshot, COUNTDOWN_TICKS, type GameState } from '../src/shared/game.ts';
 import { MAX_PORTAL_PAIRS } from '../src/shared/portal.ts';
 import { controllerSnapshot } from '../src/server/index.ts';
 
@@ -13,6 +13,9 @@ function arena() {
   state.portalPairs = [{ id: 'pair', gates: [{ x: 200, y: 200, halfLength: 100 }, { x: 1000, y: 300, halfLength: 100 }], expiresAtTick: state.tick + 200 }];
   return state;
 }
+
+/** A plain rider's travel on the tick just stepped; riders speed up through the round. */
+const stride = (state: GameState) => riderMotionStep({ boostUntilTick: 0, grip: false }, state.tick, state.roundStartedTick).distance;
 
 test('portal transits survivors, breaks trail, preserves heading/charge, counts actual movement', () => {
   const state = arena();
@@ -29,7 +32,7 @@ test('portal transits survivors, breaks trail, preserves heading/charge, counts 
   assert.equal(player.bombChargeStartedTick, state.tick - 1);
   step(state, new Map());
   assert.equal(player.trail.at(-1)!.x1, 1012);
-  assert.equal(player.x, 1019.5);
+  assert.equal(player.x, 1012 + stride(state));
 });
 
 test('entry collision is resolved before transit, and shield remains independent', () => {
@@ -56,7 +59,7 @@ test('unsafe exit defers teleport for rider, pending trail, trail, bomb and blas
     });
     if (hazard === 'blast') state.blasts.push({ bombId: 99, ownerId: 'p1', circle: { x: 1000, y: 300, radius: 10 }, expiresAtTick: 500 });
     step(state, new Map());
-    assert.equal(state.players.get('p0')!.x, 192.5, hazard);
+    assert.equal(state.players.get('p0')!.x, 185 + stride(state), hazard);
     assert.equal(state.matchStats.get('p0')!.portalTransits, 0, hazard);
   }
 });
@@ -119,7 +122,7 @@ test('reverse transit respects cooldown at its exact deadline through any gate',
   Object.assign(player, { x: 985, y: 300, portalCooldownUntilTick: state.tick + 2 });
   state.portalPairs[0]!.id = 'second';
   step(state, new Map());
-  assert.equal(player.x, 992.5);
+  assert.equal(player.x, 985 + stride(state));
   player.x = 985;
   player.trail = [];
   step(state, new Map());
@@ -200,7 +203,7 @@ test('compressed linked wall reserves an exit for the first rider rather than ov
   assert.equal(state.matchStats.get('p0')!.portalTransits, 1);
   assert.equal(state.matchStats.get('p1')!.portalTransits, 0);
   assert.deepEqual({ x: first.x, y: first.y }, { x: 1012, y: 298.5 });
-  assert.deepEqual({ x: second.x, y: second.y }, { x: 192.5, y: 215 });
+  assert.deepEqual({ x: second.x, y: second.y }, { x: 185 + stride(state), y: 215 });
 });
 
 /** A second pair well clear of the one `arena()` opens, with its own linked wall on the right. */
@@ -265,7 +268,7 @@ test('a transit is refused rather than dropping a rider inside another pair\'s w
     step(state, new Map());
     const blocked = foreignX === 1013;
     assert.equal(state.matchStats.get('p0')!.portalTransits, blocked ? 0 : 1, `foreign wall at ${foreignX}`);
-    assert.equal(player.x, blocked ? 192.5 : 1012, `foreign wall at ${foreignX}`);
+    assert.equal(player.x, blocked ? 185 + stride(state) : 1012, `foreign wall at ${foreignX}`);
   }
 });
 
@@ -292,7 +295,7 @@ test('at the cap the oldest pair retires, before the riders still aiming at it c
     assert.equal(state.portalPairs.at(-1)!.id.startsWith('old-'), false, 'the new pair is appended last');
     // Collection resolves before the transit scan, so the retired pair is already gone this tick.
     assert.equal(state.matchStats.get('p0')!.portalTransits, 0);
-    assert.equal(state.players.get('p0')!.x, 192.5);
+    assert.equal(state.players.get('p0')!.x, 185 + stride(state));
   }
   assert.equal(checked, 1, 'at least one seed should place a pair against a full list');
 });

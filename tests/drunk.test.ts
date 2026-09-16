@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DRUNK_DURATION_TICKS, DRUNK_CYCLE_TICKS, DRUNK_MAX_HEADING_OFFSET, drunkHeadingOffset } from '../src/shared/drunk.js';
-import { addPlayer, createGame, startMatch, step } from '../src/shared/game.js';
+import { addPlayer, createGame, riderMotionStep, startMatch, step } from '../src/shared/game.js';
 
 const delta = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 
@@ -45,7 +45,7 @@ test('engine adds bounded sway to ordinary steering and restores intended headin
     player.x = 700; player.y = 400; player.trail = [];
     other.x = 1200; other.y = 700; other.trail = []; other.angle = 0;
     const direction = tick % 3 === 0 ? 1 : -1;
-    intended += direction * 2.8 / 20;
+    intended += direction * riderMotionStep(player, game.tick + 1, game.roundStartedTick).turn;
     step(game, new Map([['p0', { left: direction < 0, right: direction > 0, bomb: false }]]));
     assert.ok(Math.abs(delta(player.angle, intended)) <= Math.PI / 12 + 1e-10);
     if (tick >= 80) assert.ok(Math.abs(delta(player.angle, intended)) < 1e-10);

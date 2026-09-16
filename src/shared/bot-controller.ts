@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, riderTurnRate, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, SPEED_RAMP_MAX, riderMotionStep, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -55,7 +55,7 @@ const TRAIL_CLEARANCE=RIDER_RADIUS+TRAIL_WIDTH/2+SAFETY_MARGIN;
 
 /** Replan every tick, but evaluate short turns followed by straight escape paths. */
 function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:PlayerState[],target:{x:number;y:number}|undefined,random:number,lookahead:number):number {
-  const reach=lookahead*RIDER_SPEED*BOOST_SPEED/TICK_HZ+TRAIL_CLEARANCE;
+  const reach=lookahead*RIDER_SPEED*BOOST_SPEED*SPEED_RAMP_MAX/TICK_HZ+TRAIL_CLEARANCE;
   const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===player.id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
     .filter(candidate=>(candidate.trail.detached || candidate.trail.expiresAtTick>game.tick)&&candidate.distance<reach*reach)
     .sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
@@ -65,8 +65,8 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
     let pose={x:enemy.x,y:enemy.y,angle:enemy.angle,drunkHeadingOffset:enemy.drunkHeadingOffset};
     const path=Array.from({length:lookahead},(_,index)=>{
       const tick=game.tick+index+1,previous=pose;
-      pose=advanceRiderPose(previous,NEUTRAL,{distance:(enemy.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/TICK_HZ,
-        turn:riderTurnRate(enemy)/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,enemy.id,tick,enemy.drunkStartedTick,enemy.drunkUntilTick)});
+      pose=advanceRiderPose(previous,NEUTRAL,{...riderMotionStep(enemy,tick,game.roundStartedTick),
+        drunkHeadingOffset:drunkHeadingOffset(game.seed,enemy.id,tick,enemy.drunkStartedTick,enemy.drunkUntilTick)});
       return {x1:previous.x,y1:previous.y,x2:pose.x,y2:pose.y,createdTick:tick,expiresAtTick:tick+lookahead};
     });
     return {path,straight:enemy.drunkUntilTick<=game.tick&&enemy.drunkHeadingOffset===0};
@@ -80,9 +80,9 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
     const ownPath:TrailSegment[]=[];
     for(let future=1;future<=lookahead;future++){
       const tick=game.tick+future,previous=pose;
-      const distance=(player.boostUntilTick>tick?RIDER_SPEED*BOOST_SPEED:RIDER_SPEED)/TICK_HZ;
+      const {distance,turn}=riderMotionStep(player,tick,game.roundStartedTick);
       pose=advanceRiderPose(previous,{left:plan.direction<0&&future<=plan.turnTicks,right:plan.direction>0&&future<=plan.turnTicks},
-        {distance,turn:riderTurnRate(player)/TICK_HZ,drunkHeadingOffset:drunkHeadingOffset(game.seed,player.id,tick,player.drunkStartedTick,player.drunkUntilTick)});
+        {distance,turn,drunkHeadingOffset:drunkHeadingOffset(game.seed,player.id,tick,player.drunkStartedTick,player.drunkUntilTick)});
       const {x,y}=pose;
       const elapsed=game.tick-(game.roundStartedTick??game.tick);
       const inset=game.boundaryInset+(Math.max(0,elapsed+future-OVERTIME_START_TICK)-Math.max(0,elapsed-OVERTIME_START_TICK))*OVERTIME_INSET_PER_TICK;
