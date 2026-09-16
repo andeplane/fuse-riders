@@ -285,11 +285,12 @@ try {
   app.game.bombs.clear();
   poweredRider.bombReadyAtTick = app.game.tick;
   app.game.pickups.push({ id: 9_010, type: 'gun', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
-  app.advance(2); await phones[0].getByText('GUN · HOLD + RELEASE', { exact: true }).waitFor();
+  app.advance(2); await phones[0].getByText('GUN · TAP TO FIRE', { exact: true }).waitFor();
   await phones[0].getByRole('button', { name: 'Drop bomb' }).tap();
   await new Promise(r => setTimeout(r, 50)); app.advance(1);
   assert.equal(app.game.bombs.size, 1 + poweredRider.extraBombs, 'Gun fans out with Extra Bomb'); assert.ok([...app.game.bombs.values()].every(bomb => bomb.shell?.gun === true));
-  app.advance(4); // Let the projectile separate from the rider for visual inspection.
+  // The tracer is drawn full length from the shot and expires after GUN_TRACER_TICKS, so shoot the TV while it is still there.
+  await advanceDelivered(1);
   await host.screenshot({ path: 'artifacts/gun-projectile.png' }); app.game.bombs.clear();
   app.game.pickups.push({ id: 9_011, type: 'power', x: poweredRider.x, y: poweredRider.y, expiresAtTick: app.game.tick + 100 });
   app.advance(2); await phones[0].getByText('◆ 2 · B×2', { exact: true }).waitFor();
