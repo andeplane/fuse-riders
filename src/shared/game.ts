@@ -196,9 +196,9 @@ export interface PlayerState extends Required<PlayerIdentity> {
   invulnerableUntilTick: number;
   /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
   boostUntilTick: number;
-  /** One absolute deadline per Nitro collected, unexpired ones only: each doubles speed, so they stack (#239). */
+  /** One absolute deadline per Nitro collected, unexpired ones only: each doubles speed, so they stack (#240). */
   nitroUntilTicks: number[];
-  /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#239). */
+  /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#240). */
   snailUntilTicks: number[];
   /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
   grip: boolean;
