@@ -1,9 +1,12 @@
 name: Daily Slack update
 on:
   schedule:
-    # GitHub Actions cron is UTC-only, no DST awareness: 08:00 UTC is 9:00 CET (winter) but
-    # 10:00 CEST (summer). Shift by an hour here if the daylight-saving drift bothers you.
-    - cron: '0 8 * * *'
+    # GitHub Actions cron is UTC-only with no DST awareness, so 09:00 Oslo needs two entries
+    # and a gate job that drops whichever one is an hour off today. Minute 7 rather than 0 is
+    # deliberate: scheduled runs share a queue and the top of the hour is the most contended
+    # slot — the first run of this workflow was held for five hours and fired at 13:00 UTC.
+    - cron: '7 7 * * *' # 09:07 CEST (summer, UTC+2)
+    - cron: '7 8 * * *' # 09:07 CET  (winter, UTC+1)
   workflow_dispatch:
     inputs:
       lookback_hours:
@@ -13,7 +16,26 @@ permissions:
   contents: read
   pull-requests: read
 jobs:
+  # Both cron entries fire every day; only the one matching Oslo's current UTC offset is 09:07
+  # local, and the other one is discarded here so the summary posts once a day, not twice.
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          FIRED: ${{ github.event.schedule }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != schedule ]; then echo 'run=true' >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$(TZ=Europe/Oslo date +%z)" = '+0200' ]; then want='7 7 * * *'; else want='7 8 * * *'; fi
+          echo "fired '$FIRED', want '$want' (Oslo is UTC$(TZ=Europe/Oslo date +%z) today)"
+          if [ "$FIRED" = "$want" ]; then echo 'run=true' >> "$GITHUB_OUTPUT"; else echo 'run=false' >> "$GITHUB_OUTPUT"; fi
   post-update:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
