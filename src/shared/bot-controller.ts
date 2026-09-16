@@ -35,7 +35,7 @@ export class BotController {
     const nearest=enemies.reduce<PlayerState|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const pickup=game.pickups.reduce<GameState['pickups'][number]|undefined>((best,candidate)=>!best||hypot2(candidate.x-player.x,candidate.y-player.y)<hypot2(best.x-player.x,best.y-player.y)?candidate:best,undefined);
     const target=pickup??nearest;
-    const reach=BOT_LOOKAHEAD_TICKS*RIDER_SPEED/20+RIDER_RADIUS+TRAIL_WIDTH;
+    const reach=BOT_LOOKAHEAD_TICKS*RIDER_SPEED*BOOST_SPEED/20+RIDER_RADIUS+TRAIL_WIDTH;
     const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
       .filter(candidate=>candidate.distance<reach*reach).sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
     const random=Math.max(0,Math.min(1,this.dependencies.random(game.seed,id,game.tick)));
