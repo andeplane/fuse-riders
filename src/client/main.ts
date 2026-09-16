@@ -1,4 +1,4 @@
-import { powerLabel, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from './power-indicator.js';
+import { powerCountText, powerLabel, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from './power-indicator.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from './phaser/presentation.js';
 import { drawBombTargets } from './target-renderer.js';
@@ -6,7 +6,7 @@ import { createAvatarPicker, createAvatarPortrait, drawAvatarHead } from './avat
 import { drawInkClouds } from './ink-renderer.js';
 import { ControllerPointerBindings } from './controller-pointers.js';
 import { createGameAudio } from './game-audio.js';
-import { volleyAngles } from '../shared/launch-modifiers.js';
+import { bombsPerShot, volleyAngles } from '../shared/launch-modifiers.js';
 import './viewport-lock.js';
 import QRCode from 'qrcode';
 import { bombPreviewDistance } from './bomb-preview.js';
@@ -275,7 +275,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     const distance = bombPreviewDistance(chargeTicks, snapshot.bombChargeTicks, snapshot.aimBounce);
     ctx.save(); ctx.strokeStyle = escapeColor(player.color); ctx.globalAlpha = .62; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
     ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8;
-    const angles = player.tripleShotArmed || player.fiveShotArmed ? volleyAngles(player.angle, player.fiveShotArmed ? 5 : 3) : [player.angle];
+    const angles = volleyAngles(player.angle, bombsPerShot(player));
     for (const angle of angles) {
       const targetX = clamp(player.x + Math.cos(angle) * distance, snapshot.boundaryInset + 20, width - snapshot.boundaryInset - 20);
       const targetY = clamp(player.y + Math.sin(angle) * distance, snapshot.boundaryInset + 20, height - snapshot.boundaryInset - 20);
@@ -401,7 +401,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, snapshot: ViewSnapshot,
     if (self) { ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = .55 + Math.sin(now / 180) * .25; ctx.beginPath(); ctx.arc(player.x, player.y, 22 + Math.sin(now / 180) * 2, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
     const riderLabel = self ? 'YOU' : player.name, labelColor = self ? '#ffffff' : color;
     ctx.save(); ctx.font = `${self ? 12 : 10}px "Press Start 2P"`; ctx.textAlign = 'left';
-    const powerText = String(player.powerPickups), gap = 8;
+    const powerText = powerCountText(player.powerPickups, player.extraBombs), gap = 8;
     const nameWidth = ctx.measureText(riderLabel).width;
     const labelX = Math.round(player.x - (nameWidth + gap + POWER_ICON_SIZE + POWER_ICON_GAP + ctx.measureText(powerText).width) / 2);
     const labelY = Math.round(player.y - (self ? 30 : 27));
@@ -969,7 +969,7 @@ function startController(): void {
     identityMarker.style.setProperty('--player-color', escapeColor(player.color));
     identityCopy.querySelector('strong')!.textContent = player.name;
     stateBadge.textContent = phaseLabel(snapshot);
-    countPower.textContent = powerLabel(player.powerPickups);
+    countPower.textContent = powerLabel(player.powerPickups, player.extraBombs);
     const starTicks = player.invulnerableUntilTick - snapshot.tick;
     starPower.textContent = starTicks > 0 ? `STAR · ${(starTicks / 20).toFixed(1)}s` : 'STAR · --';
     const inkTicks = player.inkUntilTick - snapshot.tick;

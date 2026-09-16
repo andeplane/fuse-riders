@@ -171,6 +171,16 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Gold diamond: collect Power to level up blast radius and reload speed."
+    },
+    "pickup-extraBomb": {
+      "file": "pickup-extraBomb.svg",
+      "anchor": [
+        16,
+        16
+      ],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Thrown bomb with a gold +1 badge: adds one bomb per ordinary shot for this round."
     }
   }
 }

@@ -5,7 +5,7 @@ import { ACTION, AVATAR, BOT, JOIN, LEAVE, PRESENCE, SETTINGS, foldPlayerEntries
 import type { GameEvent } from './protocol.js';
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = 'fuse-p2p-9'; // 9: eliminated riders retain their remaining trails until the next round.
+export const RULES = 'fuse-p2p-10'; // 10: stacking Extra Bomb progression and variable-size volleys.
 export const RECLAIMABLE_PHASES = ['lobby', 'roundOver', 'matchOver'] as const;
 export const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'] as const;
 

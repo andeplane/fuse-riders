@@ -83,6 +83,10 @@ function volley(count: 3 | 5): string {
     ${points.map(([x, y]) => `<path d="M${x} ${y-radius}q0-5 4-5" fill="none" stroke="#ffe0a1" stroke-width="2"/><circle cx="${x}" cy="${y}" r="${radius}" fill="url(#pink)" stroke="#ffd3ee" stroke-width="1.5"/><circle cx="${x-2}" cy="${y-2}" r="1.5" fill="#fff"/>`).join('\n    ')}
     <path d="${count === 3 ? 'M23 51h18' : 'M20 51h24'}" stroke="${count === 5 ? '#ffe29c' : '#edbcff'}" stroke-width="3"/>`;
 }
+// The actual thrown bomb, with a high-contrast +1 badge drawn as paths (no font dependency).
+artwork['pickup-extraBomb'] = artwork.bomb + `
+  <rect x="30" y="37" width="32" height="24" rx="6" fill="#ffdf55" stroke="#fff4bf" stroke-width="2"/>
+  <path d="M35 49h10m-5-5v10m9-9 4-3v13m-4 0h8" stroke="#10182c" stroke-width="3"/>`;
 artwork['pickup-triple'] = volley(3);
 artwork['pickup-five'] = volley(5);
 
