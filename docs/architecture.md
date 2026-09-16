@@ -116,7 +116,7 @@ Entry tests the rider's swept movement against the wall capsule, including round
 7. Record actual travelled distance/survival and commit deaths, survivor positions, portal status and clipped new trail segments. Trail and rider contact use a three-unit head radius, matching the trail half-width; other hazards retain their existing radius. Trail/rider deaths commit their first contact position and the final partial trail, so the visible trail ends at impact rather than the previous tick. Other death causes still add no trail.
 8. Apply ordered bomb actions for living riders using committed positions/headings. Resolve round participation, placement points, round/match wins and phase exactly once, then produce the snapshot.
 
-The narrow contact geometry and final partial trails use P2P rules `fuse-p2p-4`. Refresh every participating browser when testing it; peers using earlier rules cannot join the same world.
+The narrow contact geometry and final partial trails, combined with highlight/replay state, use P2P rules `fuse-p2p-5`. Refresh every participating browser when testing it; peers using earlier rules cannot join the same world.
 
 ## Verification boundaries
 
