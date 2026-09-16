@@ -6,6 +6,7 @@ import { roomPickup, type RoomSettings } from './room-settings.js';
 import { gunVelocity, cutTrailHole, GUN_SPEED, GUN_RADIUS, GUN_HOLE_RADIUS, GUN_LIFETIME_TICKS } from './gun.js';
 import { advanceShell, SHELL_SPEED, SHELL_RADIUS, type ShellPoint } from './shell.js';
 import { DEFAULT_AVATAR, type AvatarId } from './avatars.js';
+import { advanceTrail, boundTrail, cutTrail, detachTrail } from './trail-lifecycle.js';
 import { clipTrailSegment } from './trail-clipping.js';
 import { pickupTypeForRoll } from './pickup-weights.js';
 import { segmentIntersectsDisk } from './blast-geometry.js';
@@ -226,6 +227,7 @@ export interface GameState {
   pickups: PickupState[];
   portalPairs: PortalPair[];
   gravityFields: GravityField[];
+  nextTrailPieceId: number;
   nextBombId: number;
   nextPickupId: number;
   nextPickupSpawnTick: number;
@@ -281,6 +283,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     pickups: [],
     portalPairs: [],
     gravityFields: [],
+    nextTrailPieceId: 1,
     nextBombId: 1,
     nextPickupId: 1,
     nextPickupSpawnTick: 0,
@@ -411,9 +414,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   state.gravityFields = state.gravityFields.filter((field) => state.tick < field.expiresAtTick);
   const events: GameEvent[] = [];
 
-  for (const player of state.players.values()) {
-    player.trail = player.trail.filter((segment) => segment.expiresAtTick > state.tick);
-  }
   state.blasts = state.blasts.filter((blast) => blast.expiresAtTick > state.tick);
   state.pickups = state.pickups.filter((pickup) => pickup.expiresAtTick > state.tick);
 
@@ -426,6 +426,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   if (state.phase !== 'playing') return { snapshot: toSnapshot(state), events };
+
+  for (const player of state.players.values()) player.trail = advanceTrail(player.trail, state.tick);
 
   const elapsed = state.tick - (state.roundStartedTick ?? state.tick);
   state.boundaryInset = INITIAL_BOUNDARY_INSET +
@@ -441,12 +443,10 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     field.y = Math.max(trailBounds.minY, Math.min(trailBounds.maxY, field.y));
   }
   for (const player of state.players.values()) {
-    const clippedTrail: TrailSegment[] = [];
-    for (const segment of player.trail) {
+    player.trail = cutTrail(player.trail, state.tick, segment => {
       const clipped = clipTrailSegment(segment, trailBounds);
-      if (clipped) clippedTrail.push(clipped);
-    }
-    player.trail = clippedTrail;
+      return clipped ? [clipped] : [];
+    }, () => state.nextTrailPieceId++);
   }
 
   if (state.tick >= state.nextPickupSpawnTick) {
@@ -498,7 +498,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         !(player.id === bomb.ownerId && state.tick - bomb.launchedTick < 6) &&
         segmentDistanceSquared(from.x, from.y, to.x, to.y, trail.x1, trail.y1, trail.x2, trail.y2) <= square(GUN_RADIUS + TRAIL_WIDTH / 2)));
       if (trailHit) {
-        for (const player of state.players.values()) player.trail = player.trail.flatMap(trail => cutTrailHole(trail, to.x, to.y, GUN_HOLE_RADIUS));
+        for (const player of state.players.values()) player.trail = cutTrail(player.trail, state.tick, trail => cutTrailHole(trail, to.x, to.y, GUN_HOLE_RADIUS), () => state.nextTrailPieceId++);
         detonateGun(bomb, state.tick, to.x, to.y); continue;
       }
       shellPaths.set(bomb.id, [from, to]); bomb.x = to.x; bomb.y = to.y;
@@ -581,9 +581,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   if (newBlasts.length > 0) {
     captureOrigins();
     for (const player of state.players.values()) {
-      player.trail = player.trail.filter((segment) =>
-        !newBlasts.some((blast) => segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)),
-      );
+      player.trail = cutTrail(player.trail, state.tick, segment =>
+        newBlasts.some(blast => segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)) ? [] : [segment],
+      () => state.nextTrailPieceId++);
     }
   }
 
@@ -708,7 +708,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
           x1: movement.oldX, y1: movement.oldY, x2: movement.x, y2: movement.y,
           createdTick: state.tick, expiresAtTick: state.tick + powerTrailLifetimeTicks(movement.player.powerPickups),
         }, trailBounds);
-        if (trail && (trail.x1 !== trail.x2 || trail.y1 !== trail.y2)) movement.player.trail.push(trail);
+        if (trail && (trail.x1 !== trail.x2 || trail.y1 !== trail.y2)) movement.player.trail = boundTrail([...movement.player.trail, trail]);
       }
       movement.player.alive = false;
       movement.player.bombChargeStartedTick = undefined; movement.player.bombTarget = undefined;
@@ -740,7 +740,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       createdTick: state.tick,
       expiresAtTick: state.tick + powerTrailLifetimeTicks(movement.player.powerPickups),
     }, trailBounds);
-    if (trail) movement.player.trail.push(trail);
+    if (trail) movement.player.trail = boundTrail([...movement.player.trail, trail]);
   }
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movementList) {
@@ -756,8 +756,8 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   if (instantBlasts.length) {
     captureOrigins();
     for (const player of state.players.values()) {
-      player.trail = player.trail.filter(segment => !instantBlasts.some(blast =>
-        segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)));
+      player.trail = cutTrail(player.trail, state.tick, segment => instantBlasts.some(blast =>
+        segmentIntersectsDisk(segment.x1, segment.y1, segment.x2, segment.y2, blast.circle, TRAIL_WIDTH / 2)) ? [] : [segment], () => state.nextTrailPieceId++);
       if (!player.alive || isHazardImmune(player, state.tick)) continue;
       const hits = instantBlasts.filter(blast => segmentIntersectsDisk(player.x, player.y, player.x, player.y, blast.circle, RIDER_RADIUS));
       if (!hits.length) continue;
@@ -872,6 +872,7 @@ function prepareRound(state: GameState): void {
   state.gravityFields = [];
   state.roundWinnerId = undefined;
   state.matchWinnerId = undefined;
+  state.nextTrailPieceId = 1;
   state.nextBombId = 1;
   state.nextPickupId = 1;
   state.nextPickupSpawnTick = 0;
@@ -987,7 +988,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       const extension = powerTrailLifetimeTicks(collector.powerPickups) - previousLifetime;
       // Retain the existing tail while the rider grows into the extra capacity.
       // Expired or destroyed trail is never recreated.
-      for (const segment of collector.trail) segment.expiresAtTick += extension;
+      for (const segment of collector.trail) if (!segment.detached) segment.expiresAtTick += extension;
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
     } else if (pickup.type === 'gravity') {
@@ -1318,10 +1319,8 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
 }
 
 function recordElimination(state: GameState, playerId: PlayerId): void {
-  // Freeze the remaining trail, including the fatal contact segment. Keep a finite
-  // deadline for snapshots, bots and renderers; blasts/walls still cut it and the
-  // next round clears it. Dead riders never append new segments.
-  for (const segment of requirePlayer(state, playerId).trail) segment.expiresAtTick = Number.MAX_SAFE_INTEGER;
+  const player = requirePlayer(state, playerId);
+  player.trail = detachTrail(player.trail, state.tick, () => state.nextTrailPieceId++);
   const participant = state.roundParticipants.get(playerId);
   if (participant && participant.eliminatedAtTick === undefined) participant.eliminatedAtTick = state.tick;
 }

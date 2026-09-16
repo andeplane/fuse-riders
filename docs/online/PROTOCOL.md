@@ -83,4 +83,37 @@ Fold rules `fuse-p2p-12` introduced GRIP; `fuse-p2p-13` softened steering from 2
 
 ### Linear Power trail growth
 
-Current fold rules are `fuse-p2p-14`. Living riders start with an 80-tick trail lifetime instead of 160. Each Power pickup adds ten ticks linearly, up to the existing 1,024-segment checkpoint budget; at normal speed this is 600 units initially plus 75 per diamond, reaching the previous length after eight diamonds. Collection extends every surviving segment by the lifetime increase, and new segments use the upgraded lifetime on the same tick. Expiry still runs before collection, so removed trail is never restored. Power and trail reset each round; eliminated trails remain fixed until the next round and can still be destroyed. Blast/reload progression is unchanged. No snapshot fields or transport envelopes change, but deterministic simulation does: rule equality rejects older peers and snapshots. Refresh every peer together and use fresh rooms after rollback.
+Fold rules `fuse-p2p-14` introduced the current active-tail tuning. Living riders start with an 80-tick trail lifetime instead of 160. Each Power pickup adds ten ticks linearly, up to the 1,024-tick active lifetime ceiling; at normal speed this is 600 units initially plus 75 per diamond, reaching the previous length after eight diamonds. Collection extends every surviving segment by the lifetime increase, and new segments use the upgraded lifetime on the same tick. Expiry still runs before collection, so removed trail is never restored. Power and trail reset each round; rule 15 replaces the permanent eliminated trails described above. Blast/reload progression is unchanged. No snapshot fields or transport envelopes change, but deterministic simulation does: rule equality rejects older peers and snapshots. Refresh every peer together and use fresh rooms after rollback.
+
+
+### Detached trail decay (#213)
+
+Current fold rules are `fuse-p2p-15`. Ordered trail segments carry optional
+`detached: { id, decayStartTick }`; absence means the living, age-limited active tail.
+The required game-state `nextTrailPieceId` issues positive, round-scoped piece ids across
+all riders. Segments in each detached piece are consecutive, touching, ordered history,
+with one clock and owner. Crossings never reconnect pieces. Portal transit preserves
+active logical continuity, but separate drawable runs become separate pieces on death
+or destructive detachment. Coordinates and original creation/expiry ticks remain intact.
+
+Blasts (including same-tick Target releases), gun holes and closing walls keep only the
+head-linked surviving suffix active; older surviving runs detach. Death, including leave,
+detaches all active runs and retained fatal-contact geometry. Detachment records
+`decayStartTick = cutOrDeathTick + 20`. Geometry stays fixed through that tick; each
+subsequent playing tick consumes 3.75 world units from each end before weapons/collision.
+Child pieces inherit the original clock when recut. Death never refreshes old debris.
+Decay ignores original expiry and owner speed/boost/Power; only active segments receive
+Power lifetime extensions. Non-playing phases freeze trail geometry, and round reset
+clears it and resets piece allocation. The current 80-tick base/Power regrowth remains.
+
+Each rider is bounded to 2,048 total segments/pieces; saturation drops oldest detached
+segments before touching active capacity. Runtime validation rejects unknown metadata,
+unissued/duplicate/noncontiguous ids, mismatched schedules, future detachment, unordered
+history and over-limit arrays before atomic snapshot installation. The existing byte and
+parser budgets also apply. Snapshots/checkpoints and LAN presentation all carry the same
+geometry. Bots ignore detached segments' obsolete expiry timestamps. Both Phaser backends
+render detached/dead trails at 60% opacity; cosmetic flying fragments remain separate.
+
+Peer hello and snapshot rules equality rejects older builds. Refresh all peers together;
+there is no live-room migration. Start fresh rooms when rolling back. This change does
+not deploy production or change packet transport envelopes.

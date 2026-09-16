@@ -34,7 +34,7 @@ const TRAIL_CLEARANCE=RIDER_RADIUS+TRAIL_WIDTH/2+SAFETY_MARGIN;
 function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:PlayerState[],target:{x:number;y:number}|undefined,random:number):number {
   const reach=BOT_LOOKAHEAD_TICKS*RIDER_SPEED*BOOST_SPEED/TICK_HZ+TRAIL_CLEARANCE;
   const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===player.id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
-    .filter(candidate=>candidate.trail.expiresAtTick>game.tick&&candidate.distance<reach*reach)
+    .filter(candidate=>(candidate.trail.detached || candidate.trail.expiresAtTick>game.tick)&&candidate.distance<reach*reach)
     .sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
   // Assume visible opponents continue straight; never inspect their queued inputs.
   // Their predicted trail remains dangerous after their head has passed a crossing.
@@ -73,7 +73,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
         // prevents tunnelling past short segments between prediction samples.
         return endpointDistance<=squared(TRAIL_CLEARANCE+distance)&&segmentDistanceSquared(previous.x,previous.y,x,y,trail.x1,trail.y1,trail.x2,trail.y2)<=squared(TRAIL_CLEARANCE);
       };
-      if(trails.some(({trail,own})=>trail.expiresAtTick>tick&&!(own&&trail.createdTick>tick-SELF_TRAIL_GRACE_TICKS)&&hitsTrail(trail)))break;
+      if(trails.some(({trail,own})=>(trail.detached || trail.expiresAtTick>tick)&&!(own&&trail.createdTick>tick-SELF_TRAIL_GRACE_TICKS)&&hitsTrail(trail)))break;
       if(ownPath.some(trail=>trail.createdTick<=tick-SELF_TRAIL_GRACE_TICKS&&hitsTrail(trail)))break;
       if(enemyPaths.some(({path,straight})=>{
         const head=path[future-1]!;

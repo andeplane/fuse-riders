@@ -26,7 +26,11 @@ export type ClientMessage =
   | { type: 'hostAuth'; token: string }
   | { type: 'hostAction'; action: 'start' | 'nextRound' | 'rematch' | 'lobby' }
   | { type: 'hostBot'; action: 'add' | 'remove'; id?:string };
-export interface TrailSegment { x1: number; y1: number; x2: number; y2: number; createdTick: number; expiresAtTick: number }
+export interface TrailSegment {
+  x1: number; y1: number; x2: number; y2: number; createdTick: number; expiresAtTick: number;
+  /** Absent on the living, age-limited tail. Detached runs share an issued id and decay clock. */
+  detached?: Readonly<{ id: number; decayStartTick: number }>;
+}
 export interface BlastCircle { x: number; y: number; radius: number }
 export interface GameSnapshot {
   bombChargeTicks: number;

@@ -256,3 +256,47 @@ test('late reordered inputs converge through GRIP collection and do not consume 
   assert.deepEqual(duplicate.events, []); assert.equal(duplicate.rollbackTicks, 0);
   assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
 });
+
+test('late duplicated and reordered Target releases converge through debris decay and peer recovery', async () => {
+  const { eliminatePlayer } = await import('../src/shared/game.js');
+  const { encodeSnapshot, decodeSnapshot, SnapshotAssembler } = await import('../src/online/snapshot.js');
+  const fixture = world('creator', ['creator', 'b', 'c']); playing(fixture);
+  const start = fixture.tick, end = start + 35, game = fixture.state.game;
+  for (const p of game.players.values()) { p.trail = []; p.invulnerableUntilTick = end + 100; }
+  const victim = game.players.get('c')!;
+  victim.trail = Array.from({ length: 40 }, (_, i) => ({ x1: 200 + i * 15, y1: 200, x2: 215 + i * 15, y2: 200,
+    createdTick: start - 40 + i, expiresAtTick: start + 1 }));
+  eliminatePlayer(game, 'c'); game.players.get('b')!.targetBombArmed = true;
+  const entries: Entry[] = [[1, start + 1, PRESS, 1], [2, start + 2, RELEASE, 1, Math.round(500 / game.width * 65535), Math.round(200 / game.height * 65535)]];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), 'creator', 'creator');
+    for (const id of ['creator', 'b', 'c']) w.stream(id, 1).through = id === 'b' ? start : end;
+    return w;
+  };
+  const recover = (source: World) => {
+    const assembler = new SnapshotAssembler(42);
+    let decoded: ReturnType<typeof decodeSnapshot>;
+    for (const chunk of encodeSnapshot(source, 42)) { const complete = assembler.accept(chunk); if (complete) decoded = decodeSnapshot(complete.bytes, 42); }
+    assert.ok(decoded);
+    assert.equal(hashRoomState(decoded.state), hashRoomState(source.state));
+    const joiner = new World(decoded.state, 'creator', 'creator');
+    for (const s of decoded.streams) joiner.stream(s.id, s.generation, { seq: s.seq, tick: joiner.tick, gesture: s.gesture });
+    return joiner;
+  };
+  const reference = replica(), beforeDecay = recover(reference), delayed = replica();
+  for (const w of [reference, beforeDecay]) { w.receive('b', entries, 2, end, end); for (const s of w.streams.values()) s.through = end; w.advance(end); }
+  delayed.advance(end);
+  delayed.receive('b', [entries[1]!], 2, end, end);
+  assert.ok(delayed.receive('b', [entries[0]!], 2, end, end).rollbackTicks > 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.equal(hashRoomState(beforeDecay.state), hashRoomState(reference.state));
+  const pieces = delayed.state.game.players.get('c')!.trail;
+  assert.ok(pieces.length > 0 && pieces.length < 40);
+  assert.equal(new Set(pieces.map(s => s.detached?.id)).size, 2);
+  assert.ok(pieces.every(s => s.detached?.decayStartTick === start + 20));
+  assert.equal(delayed.receive('b', entries, 2, end, end).rollbackTicks, 0);
+  const recovered = recover(delayed);
+  for (const w of [reference, delayed, recovered]) { for (const s of w.streams.values()) s.through = end + 30; w.advance(end + 30); }
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.equal(hashRoomState(recovered.state), hashRoomState(reference.state));
+});

@@ -199,8 +199,8 @@ class ArenaScene extends Phaser.Scene {
     const passes = [[4 * glow, .25, tint], [5, 1, tint], [1, .95, 0xffffff]] as const;
     for (const [index, [width, alpha, shade]] of passes.entries()) {
       const core = index === passes.length - 1;
-      // Remaining trail geometry is still solid even after its rider crashes.
-      graphics.lineStyle(width, shade, alpha * (alive ? 1 : .8)).fillStyle(shade, alpha * (alive ? 1 : .8));
+      // Detached trails are quieter visually but remain collidable until eroded.
+      graphics.lineStyle(width, shade, alpha * (alive ? 1 : .6)).fillStyle(shade, alpha * (alive ? 1 : .6));
       for (const path of paths) {
         if (path.length < 2) continue;
         if (core && pixel) {
@@ -308,7 +308,7 @@ class ArenaScene extends Phaser.Scene {
       for (const stroke of history.strokes) this.strokeTrail(this.trails, stroke.paths, color(stroke.color), stroke.alive, theme);
     }
     this.trailTips.clear();
-    for (const player of s.players) this.strokeTrail(this.trailTips, [trailTip(player, s.tick, s.phase)], color(player.color), player.alive, theme);
+    for (const player of s.players) this.strokeTrail(this.trailTips, [trailTip(player, s.tick, s.phase)], color(player.color), player.alive && !player.trail.at(-1)?.detached, theme);
     const events = this.transitions.accept(s,matchId);
     for(const p of events.deaths) { this.sparks.setParticleTint(color(p.color)); this.sparks.explode(12,p.x,p.y); }
     for(const p of s.pickups) {

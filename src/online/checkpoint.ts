@@ -1,3 +1,4 @@
+import { MAX_TRAIL_SEGMENTS, TRAIL_DECAY_PAUSE_TICKS, trailSegmentsConnect } from '../shared/trail-lifecycle.js';
 import { MAX_EXTRA_BOMBS } from '../shared/launch-modifiers.js';
 import { MAX_BOARD_PICKUPS, MAX_POWER_PICKUPS, POWER_TUNING } from '../shared/power-progression.js';
 import { ARENA_WIDTH, ARENA_HEIGHT, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
@@ -8,7 +9,7 @@ import type { MatchPlayerStatsState } from '../shared/match-stats.js';
 import { MAX_MOMENTS, MAX_MOMENTS_PER_KIND, MOMENT_KINDS, type Moment, type MomentKind } from '../shared/moments.js';
 
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
-export const MAX_CHECKPOINT_TRAILS = POWER_TUNING.maxTrailLifetimeTicks;
+export const MAX_CHECKPOINT_TRAILS = MAX_TRAIL_SEGMENTS;
 const MAX_HISTORY = 128;
 type Guard = (value: unknown) => boolean;
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Map);
@@ -25,7 +26,7 @@ const shape = (fields: Record<string, Guard>): Guard => v => record(v) && Object
 const map = (keyGuard: Guard, valueGuard: Guard, max: number): Guard => v => v instanceof Map && v.size <= max && [...v].every(([key, value]) => keyGuard(key) && valueGuard(value));
 const position = range(-1000, ARENA_WIDTH + 1000);
 const portalPair: Guard = shape({ id: text, gates: v => Array.isArray(v) && v.length === 2 && v.every(shape({ x: position, y: position, halfLength: range(0.001, 150) })), expiresAtTick: integer });
-const trail: Guard = v => shape({ x1: position, y1: position, x2: position, y2: position, createdTick: integer, expiresAtTick: integer })(v) && record(v) && (v.expiresAtTick as number) > (v.createdTick as number);
+const trail: Guard = v => shape({ x1: position, y1: position, x2: position, y2: position, createdTick: integer, expiresAtTick: integer, detached: optional(shape({ id: v => integer(v) && v !== 0, decayStartTick: integer })) })(v) && record(v) && (v.expiresAtTick as number) > (v.createdTick as number);
 const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
@@ -67,7 +68,7 @@ const gameShape = shape({
   players: map(text, player, 5), bombs: map(integer, bomb, 256), blasts: array(blast, 256), pickups: array(pickup, MAX_BOARD_PICKUPS),
   portalPairs: array(portalPair, MAX_PORTAL_PAIRS),
   gravityFields: array(gravityField, 256),
-  nextBombId: integer, nextPickupId: integer, nextPickupSpawnTick: integer, seed: count(0xffffffff), randomState: count(0xffffffff),
+  nextTrailPieceId: v => integer(v) && v !== 0, nextBombId: integer, nextPickupId: integer, nextPickupSpawnTick: integer, seed: count(0xffffffff), randomState: count(0xffffffff),
   leaderboard: map(text, shape({ id: text, name, totalScoreUnits: integer, roundsPlayed: integer, roundWins: integer, matchWins: integer }), MAX_HISTORY),
   roundParticipants: map(text, shape({ id: text, name, eliminatedAtTick: optional(integer) }), 5),
   roundPlacements: array(shape({ playerId: text, name, place: v => count(5)(v) && v !== 0, scoreUnits: integer }), 5), roundScored: boolean,
@@ -102,12 +103,28 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
 
 function gameInvariants(game: GameState): boolean {
   const slots = new Set<number>();
+  const pieceIds = new Set<number>();
   for (const [id, p] of game.players) {
     if (id !== p.id || slots.has(p.slot) || p.color !== SLOT_COLORS[p.slot] || !game.leaderboard.has(id)) return false;
     slots.add(p.slot);
     if (p.alive && (!game.roundParticipants.has(id) || !game.matchStats.has(id))) return false;
     if (p.bombChargeStartedTick !== undefined && p.bombChargeStartedTick > game.tick) return false;
     if (p.drunkStartedTick > game.tick || p.trail.some(t => t.createdTick > game.tick)) return false;
+    let active = false;
+    for (let i = 0; i < p.trail.length; i++) {
+      const segment = p.trail[i]!, previous = p.trail[i - 1];
+      if (previous && previous.createdTick > segment.createdTick) return false;
+      const piece = segment.detached;
+      if (!piece) { if (!p.alive) return false; active = true; continue; }
+      if (active || piece.id >= game.nextTrailPieceId || piece.decayStartTick > game.tick + TRAIL_DECAY_PAUSE_TICKS ||
+          piece.decayStartTick < segment.createdTick + TRAIL_DECAY_PAUSE_TICKS) return false;
+      if (previous?.detached?.id === piece.id) {
+        if (previous.detached.decayStartTick !== piece.decayStartTick || !trailSegmentsConnect(previous, segment)) return false;
+      } else {
+        if (pieceIds.has(piece.id)) return false;
+        pieceIds.add(piece.id);
+      }
+    }
   }
   for (const [id, entry] of game.leaderboard) if (id !== entry.id) return false;
   for (const [id, entry] of game.matchStats) if (id !== entry.playerId || !game.leaderboard.has(id)) return false;

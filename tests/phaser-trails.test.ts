@@ -76,3 +76,18 @@ test('head interpolation never extends a stale, destroyed, teleported or dead tr
   assert.deepEqual(trailTip({ ...player, trail: [] }, 10.5, 'playing'), []);
   assert.equal(trailTip({ ...player, trail: player.trail.slice(0, -1) }, 10.5, 'playing').length, 2);
 });
+
+test('detached living pieces use dead-trail styling and refresh either shrinking endpoint', () => {
+  const cache = new TrailHistoryCache(), player = rider();
+  player.trail = player.trail.map(s => ({ ...s, detached: { id: 1, decayStartTick: 30 } }));
+  const first = cache.update([player], 'match:1');
+  assert.equal(first.strokes[0]!.alive, false);
+  assert.deepEqual(trailTip(player, 10.5, 'playing').at(-1), { x: 20, y: 10 });
+  const shrunk = { ...player, trail: [{ ...player.trail[0]!, x1: 3.75 }, { ...player.trail[1]!, x2: 17 }] };
+  assert.equal(cache.update([shrunk], 'match:1').changed, true);
+  assert.equal(trailTip(shrunk, 11, 'playing').at(-1)!.x, 17);
+  const active = rider();
+  assert.equal(cache.update([active], 'match:1').strokes[0]!.alive, true);
+  const crossing = [segment(1, 0, 0, 10, 0), { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 30 } }];
+  assert.equal(trailPaths(crossing).length, 2);
+});

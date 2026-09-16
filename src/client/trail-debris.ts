@@ -1,4 +1,5 @@
 import { BLAST_VISIBLE_TICKS, TRAIL_WIDTH } from '../shared/game.js';
+import { advanceTrail } from '../shared/trail-lifecycle.js';
 import { segmentIntersectsDisk } from '../shared/blast-geometry.js';
 import type { TrailSegment } from '../shared/protocol.js';
 import type { ViewSnapshot } from './snapshot-stream.js';
@@ -47,8 +48,8 @@ export class TrailDebris {
         if (!rider) continue;
         // A partially clipped/corrected segment is not a fully removed piece of trail.
         const retained = new Set(rider.trail.map(segment => segment.createdTick));
-        for (const segment of previous.trail) {
-          if (retained.has(segment.createdTick) || segment.expiresAtTick <= snapshot.tick) continue;
+        for (const segment of advanceTrail(previous.trail, Math.floor(snapshot.tick), Math.floor(this.tick))) {
+          if (retained.has(segment.createdTick)) continue;
           const b = snapshot.boundaryInset;
           if ([segment.x1, segment.x2].some(x => x < b || x > snapshot.width - b) ||
               [segment.y1, segment.y2].some(y => y < b || y > snapshot.height - b)) continue;

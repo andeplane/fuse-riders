@@ -34,7 +34,7 @@ function advanceWithSurvivors(game: GameState, ticks: number) {
 }
 
 for (const cause of ['leave', 'wall', 'trail', 'rider', 'bomb', 'target'] as const) {
-  test(`${cause} elimination keeps the remaining trail fixed past its original lifetime and clears it next round`, () => {
+  test(`${cause} elimination pauses then erodes the remaining trail and clears it next round`, () => {
     const { game, dead, survivor } = fixture();
     let input = new Map<string, InputIntent>();
     if (cause === 'leave') eliminatePlayer(game, dead.id);
@@ -56,28 +56,30 @@ for (const cause of ['leave', 'wall', 'trail', 'rider', 'bomb', 'target'] as con
     assert.ok(dead.trail.length > 0);
     if (cause === 'trail' || cause === 'rider') assert.equal(dead.trail.at(-1)!.x2, dead.x, 'fatal contact segment is kept');
     const trail = structuredClone(dead.trail), pose = { x: dead.x, y: dead.y, angle: dead.angle };
-    advanceWithSurvivors(game, TRAIL_LIFETIME_TICKS + 10);
-    assert.deepEqual(dead.trail, trail, 'no tail decay or new trail after death');
+    advanceWithSurvivors(game, 10);
+    assert.deepEqual(dead.trail, trail, 'pause ignores original expiry');
     assert.deepEqual({ x: dead.x, y: dead.y, angle: dead.angle }, pose);
     const restored = decodeGameState(encodeGameState(game));
-    assert.ok(restored, 'persistent trails survive checkpoint validation');
+    assert.ok(restored, 'decaying trails survive checkpoint validation');
     for (let i = 0; i < 10; i++) assert.deepEqual(step(restored, new Map()), step(game, new Map()), 'restored replay agrees');
     assert.equal(encodeGameState(restored), encodeGameState(game));
+    advanceWithSurvivors(game, 40);
+    assert.deepEqual(dead.trail, [], 'both ends eventually meet');
     for (const player of game.players.values()) if (player.alive && player.id !== 'p2') eliminatePlayer(game, player.id);
     step(game, new Map());
     assert.equal(game.phase, 'roundOver');
     while (game.tick < game.phaseEndsAtTick!) step(game, new Map());
-    assert.deepEqual(dead.trail, trail, 'round-over presentation also retains the trail');
+    assert.deepEqual(dead.trail, [], 'eroded trail stays gone');
     startNextRound(game);
     assert.deepEqual(dead.trail, []);
     assert.equal(dead.alive, true);
   });
 }
 
-test('an old dead trail still kills crossing riders and is avoided by bots', () => {
+test('a dead trail past its original expiry still kills crossing riders and is avoided by bots', () => {
   const { game, dead, survivor } = fixture();
   eliminatePlayer(game, dead.id);
-  advanceWithSurvivors(game, TRAIL_LIFETIME_TICKS + 10);
+  advanceWithSurvivors(game, 10);
   Object.assign(survivor, { x: 250, y: 160, angle: Math.PI / 2, invulnerableUntilTick: 0, trail: [] });
   const input = new BotController({ random: () => .25 }).input(game, survivor.id);
   assert.ok(input.left || input.right, 'bots see the persistent obstacle');
@@ -90,8 +92,60 @@ test('an old dead trail still kills crossing riders and is avoided by bots', () 
 test('explosions can still destroy a dead trail after its original expiry', () => {
   const { game, dead, survivor } = fixture();
   eliminatePlayer(game, dead.id);
-  advanceWithSurvivors(game, TRAIL_LIFETIME_TICKS + 10);
+  advanceWithSurvivors(game, 10);
   survivor.targetBombArmed = true;
   step(game, new Map([[survivor.id, { ...neutral, bombCommands: [{ action: 'press' }, { action: 'release', aim: { x: 250 / game.width, y: 200 / game.height } }] }]]));
   assert.deepEqual(dead.trail, []);
 });
+
+test('round results freeze remaining decay and round reset clears the pieces', () => {
+  const { game, dead } = fixture();
+  eliminatePlayer(game, dead.id);
+  for (const player of game.players.values()) if (player.id !== 'p2') eliminatePlayer(game, player.id);
+  step(game, new Map());
+  const final = structuredClone(dead.trail);
+  assert.equal(game.phase, 'roundOver');
+  while (game.tick < game.phaseEndsAtTick!) step(game, new Map());
+  assert.deepEqual(dead.trail, final);
+  startNextRound(game);
+  assert.deepEqual(dead.trail, []); assert.equal(game.nextTrailPieceId, 1);
+});
+
+test('riders can pass through space eroded before this tick collision check', () => {
+  const { game, dead, survivor } = fixture();
+  dead.trail = [{ x1: 200, y1: 200, x2: 500, y2: 200, createdTick: 0, expiresAtTick: game.tick + 3 }];
+  eliminatePlayer(game, dead.id);
+  advanceWithSurvivors(game, 30);
+  assert.equal(dead.trail[0]!.x1, 237.5);
+  Object.assign(survivor, { x: 220, y: 193, angle: Math.PI / 2, invulnerableUntilTick: 0, trail: [] });
+  step(game, new Map()); assert.equal(survivor.alive, true);
+});
+
+for (const weapon of ['bomb', 'target', 'gun'] as const) {
+  test(`${weapon} cuts detach older history, preserve active suffix and allow full boosted regrowth`, () => {
+    const { game, dead: rider, survivor } = fixture();
+    rider.trail = Array.from({ length: 20 }, (_, i) => ({ x1: 200 + i * 15, y1: 200, x2: 215 + i * 15, y2: 200,
+      createdTick: game.tick - 20 + i, expiresAtTick: game.tick + 20 + i }));
+    rider.powerPickups = 4;
+    let inputs = new Map<string, InputIntent>();
+    if (weapon === 'target') {
+      survivor.targetBombArmed = true;
+      inputs = new Map([[survivor.id, { ...neutral, bombCommands: [{ action: 'press' }, { action: 'release', aim: { x: 350 / game.width, y: 200 / game.height } }] }]]);
+    } else {
+      game.bombs.set(1, { id: 1, ownerId: survivor.id, x: 350, y: weapon === 'gun' ? 180 : 200, launchX: 350, launchY: 200,
+        launchedTick: game.tick, placedTick: game.tick, landsAtTick: game.tick, explodeAtTick: game.tick + (weapon === 'gun' ? 60 : 1),
+        blastRange: 25, flightPath: [{ x: 350, y: 200, angle: 0 }], ...(weapon === 'gun' ? { shell: { vx: 0, vy: 300, gun: true } } : {}) });
+      game.nextBombId = 2;
+    }
+    step(game, inputs);
+    assert.equal(rider.alive, true);
+    assert.ok(rider.trail[0]!.detached, 'older cut-off piece decays');
+    assert.equal(rider.trail.at(-1)!.detached, undefined, 'newest tail remains active');
+    const start = rider.trail[0]!.detached!.decayStartTick;
+    rider.boostUntilTick = game.tick + 60;
+    advanceWithSurvivors(game, 130);
+    assert.equal(rider.trail.length, 120, 'full Power-adjusted moving trail returns');
+    assert.ok(rider.trail.every(s => !s.detached));
+    assert.equal(start < game.tick, true);
+  });
+}
