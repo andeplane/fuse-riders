@@ -13,6 +13,7 @@ import {
 
 import {
   BOMB_COOLDOWN_TICKS,
+  RIDER_RADIUS,
   BOMB_FUSE_TICKS,
   BOMB_BLAST_RANGE,
   BLAST_VISIBLE_TICKS,
@@ -1115,10 +1116,11 @@ test('shell persists beyond five seconds and permits another shot after cooldown
   owner.fiveShotArmed = true; owner.targetBombArmed = true;
   step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
-  assert.equal(state.bombs.size, 1);
+  assert.equal(state.bombs.size, 5, 'Five fans the shell out');
+  for (const extra of [...state.bombs.values()].filter((_, index) => index !== 2)) state.bombs.delete(extra.id);
   const shell = [...state.bombs.values()][0]!;
   assert.ok(shell.shell); assert.equal(shell.explodeAtTick, Number.MAX_SAFE_INTEGER);
-  assert.equal(owner.shellArmed, false); assert.equal(owner.fiveShotArmed, true); assert.equal(owner.targetBombArmed, true);
+  assert.equal(owner.shellArmed, false); assert.equal(owner.fiveShotArmed, false); assert.equal(owner.targetBombArmed, true);
   const snap = toSnapshot(state).bombs[0]!; assert.equal(snap.shell!.vx, 450);
   snap.shell!.vx = -2; assert.equal(shell.shell!.vx, 450);
   shell.x = 800; shell.y = 700;
@@ -1131,7 +1133,7 @@ test('shell persists beyond five seconds and permits another shot after cooldown
   assert.notEqual(owner.bombChargeStartedTick, undefined);
   owner.targetBombArmed = false;
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
-  assert.equal(state.bombs.size, 6);
+  assert.equal(state.bombs.size, 2, 'the spent Five no longer widens the next pull');
 });
 test('shell body hits once, shield absorbs it, and no blast radius is produced', () => {
   for (const shield of [false, true]) {
@@ -1149,25 +1151,42 @@ test('shell body hits once, shield absorbs it, and no blast radius is produced',
   }
 });
 
-test('Gun pickup fires one bullet at twice rider speed and cuts a traversable trail gap', () => {
+test('Gun pickup fires one bullet at three times rider speed and cuts a traversable trail gap', () => {
   const state = gameWithPlayers(3); enterPlaying(state);
   const owner = state.players.get('p0')!; Object.assign(owner, { x: 500, y: 450, angle: 0, trail: [] });
   Object.assign(state.players.get('p1')!, { x: 1000, y: 700, trail: [] });
   Object.assign(state.players.get('p2')!, { x: 1200, y: 200, trail: [] });
   state.pickups = [{ id: 999, type: 'gun', x: owner.x, y: owner.y, expiresAtTick: state.tick + 50 }];
   step(state, new Map()); assert.equal(owner.gunArmed, true);
-  owner.fiveShotArmed = true;
   step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
   step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
+  assert.equal(state.bombs.size, 1);
   const bullet = [...state.bombs.values()][0]!;
-  assert.equal(bullet.shell!.gun, true); assert.equal(bullet.shell!.vx, 300);
-  assert.equal(owner.gunArmed, false); assert.equal(owner.fiveShotArmed, true);
-  state.players.get('p1')!.trail = [{ x1: bullet.x + 15, x2: bullet.x + 15, y1: 300, y2: 600, createdTick: state.tick, expiresAtTick: state.tick + 100 }];
+  assert.equal(bullet.shell!.gun, true); assert.equal(bullet.shell!.vx, 450);
+  assert.equal(owner.gunArmed, false);
+  state.players.get('p1')!.trail = [{ x1: bullet.x + 22.5, x2: bullet.x + 22.5, y1: 300, y2: 600, createdTick: state.tick, expiresAtTick: state.tick + 100 }];
   step(state, new Map());
   assert.equal(state.bombs.size, 0); assert.equal(state.blasts.length, 1);
   const pieces = state.players.get('p1')!.trail.filter(t => t.y1 < 600 && t.y2 > 300);
   assert.ok(pieces.some(t => t.y2 === 400)); assert.ok(pieces.some(t => t.y1 === 500));
-  assert.equal(owner.alive, false);
+  assert.equal(owner.alive, true, 'a bullet that meets a trail right after launch spares its shooter');
+});
+test('a fanned Gun beside a trail or wall does not blow up its own shooter', () => {
+  for (const beside of ['trail', 'wall'] as const) {
+    const state = gameWithPlayers(3); enterPlaying(state);
+    const wallY = state.boundaryInset + RIDER_RADIUS + 6;
+    const owner = state.players.get('p0')!; Object.assign(owner, { x: 500, y: beside === 'wall' ? wallY : 450, angle: 0, trail: [], gunArmed: true, fiveShotArmed: true });
+    Object.assign(state.players.get('p1')!, { x: 1000, y: 700, trail: beside === 'trail'
+      ? [{ x1: 300, y1: 470, x2: 900, y2: 470, createdTick: state.tick, expiresAtTick: state.tick + 500 }] : [] });
+    Object.assign(state.players.get('p2')!, { x: 1200, y: 200, trail: [] });
+    step(state, inputs(['p0', { bomb: true, bombCommands: [{ action: 'press' }] }]));
+    step(state, inputs(['p0', { bomb: false, bombCommands: [{ action: 'release' }] }]));
+    assert.equal([...state.bombs.values()].filter(bomb => bomb.shell?.gun).length, 5);
+    let blasts = 0;
+    for (let tick = 0; tick < 4; tick++) blasts += step(state, new Map()).events.filter(event => event.type === 'explosion').length;
+    assert.ok(blasts > 0, `a side bullet met the ${beside}`);
+    assert.equal(owner.alive, true, `the shooter survives its own bullets meeting the ${beside}`);
+  }
 });
 test('gun head and wall impacts explode', () => {
   for (const wall of [false, true]) {

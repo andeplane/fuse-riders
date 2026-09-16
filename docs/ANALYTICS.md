@@ -74,7 +74,7 @@ The point is histograms, so both events carry every dimension an outcome might b
 | Property | On | Meaning |
 | --- | --- | --- |
 | `weapon` | both | what the pull fired |
-| `bombs` | both | bombs the pull put in the air — 1 for Gun, Shell and Target, more for a volley or with Extra Bomb |
+| `bombs` | both | bombs the pull put in the air — 1 for Target, more for a volley or with Extra Bomb (Gun and Shell fan out too) |
 | `power`, `extraBombs`, `fuseLevel`, `grip` | both | the shooter's round-long upgrades at the moment of the pull, not at the round's end |
 | `round`, `secondsIntoRound` | both | when the trigger was pulled, to a tenth of a second |
 | `riders`, `bots` | both | the room when the round was reported |
@@ -118,8 +118,8 @@ with the first of these that it spent:
 
 `gun` → `shell` → `target` → `gravity` → `five` → `triple` → `bomb`
 
-Gun and Shell come first because they launch on a path of their own; a rider holding Target as well keeps it
-armed for the next pull, so nothing is lost. Below them Target wins because it is the only one the others cannot
+Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
+under their label, and a rider holding Target as well keeps it armed for the next pull. Below them Target wins because it is the only one the others cannot
 combine with, then Gravity, so a gravity volley is `weapon = gravity` — which under-counts `five` and `triple` by
 the rare pull that spent both, where the alternative would lose Gravity, the harder of the two to judge. The
 round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse and GRIP sharpen every pull rather than

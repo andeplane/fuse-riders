@@ -85,23 +85,22 @@ test('Triple/Five add their temporary bonus; Power and Singularity apply to upgr
   }
 });
 
-test('Target, Shell and Cannon fire one special and preserve the permanent upgrade and temporary volley', () => {
+test('Shell and Cannon fan out with the volley and spend it; Target fires one and preserves it', () => {
   for (const special of ['target', 'shell', 'gun'] as const) {
     const game = playing(), rider = game.players.get('p0')!;
     collect(game, 'extraBomb', 'extraBomb', 'triple', special);
     const events = step(game, fire);
-    assert.equal(events.events.filter(event => event.type === 'bombPlaced').length, 1);
-    assert.equal(rider.extraBombs, 2); assert.equal(rider.tripleShotArmed, true);
+    const projectile = special !== 'target';
+    assert.equal(events.events.filter(event => event.type === 'bombPlaced').length, projectile ? 5 : 1);
+    assert.equal(rider.extraBombs, 2); assert.equal(rider.tripleShotArmed, !projectile);
     // Shells deliberately remain in flight and do not block the next ordinary shot.
     while (game.tick < rider.bombReadyAtTick) step(game, new Map());
     if (special === 'gun') {
-      const cannon = [...game.bombs.values()][0]!;
       assert.equal(step(game, fire).events.filter(event => event.type === 'bombPlaced').length, 0, 'a live Cannon still blocks firing after reload');
-      assert.equal(rider.tripleShotArmed, true);
-      while (game.tick < cannon.explodeAtTick) step(game, new Map());
+      while ([...game.bombs.values()].some(bomb => bomb.shell?.gun)) step(game, new Map());
     }
     const followup = step(game, fire);
-    assert.equal(followup.events.filter(event => event.type === 'bombPlaced').length, 5);
+    assert.equal(followup.events.filter(event => event.type === 'bombPlaced').length, projectile ? 3 : 5);
   }
 });
 
