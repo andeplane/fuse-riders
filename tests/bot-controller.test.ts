@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BotController, botRandom } from '../src/shared/bot-controller.js';
+import { BotController, botRandom, botDifficulty, botDisplayName, rollBotDifficulty, BOT_DIFFICULTIES, BOT_TIERS } from '../src/shared/bot-controller.js';
 import { createGame, addPlayer, startMatch, step, SLOT_COLORS, OVERTIME_START_TICK, type GameState } from '../src/shared/game.js';
 import { defaultRoomSettings } from '../src/shared/room-settings.js';
-import { applyTick, createRoomState, freeSlot, type StreamEntries } from '../src/shared/apply-tick.js';
-import { ACTION, BOT, JOIN, STEER, type Entry } from '../src/shared/input-log.js';
+import { applyTick, createRoomState, freeSlot, BOT_NAMES, type StreamEntries } from '../src/shared/apply-tick.js';
+import { ACTION, BOT, JOIN, STEER, MAX_NAME_LENGTH, type Entry } from '../src/shared/input-log.js';
 function fixture(){
   const game=createGame('bot-fixture');
   addPlayer(game,{id:'bot:1',name:'AI',slot:0,color:SLOT_COLORS[0]});addPlayer(game,{id:'human',name:'Player',slot:1,color:SLOT_COLORS[1]});
@@ -128,7 +128,11 @@ test('AI target/gun/shell shots use normal input actions and target aim is bound
     const game=fixture(),bot=new BotController(),player=game.players.get('bot:1')!;
     game.players.get('human')!.x=600;player[powerup]=true;
     const press=bot.input(game,player.id);assert.equal(press.bombCommands?.[0]?.action,'press');
-    if(powerup==='targetBombArmed')assert.deepEqual(press.aim,{x:600/game.width,y:450/game.height});
+    if(powerup==='targetBombArmed'){
+      const aim=press.aim!;assert.ok(aim.x>=0&&aim.x<=1&&aim.y>=0&&aim.y<=1,'aim stays inside the arena');
+      const error=BOT_TIERS[botDifficulty(player.name)].aimError;
+      assert.ok(Math.abs(aim.x*game.width-600)<=error&&Math.abs(aim.y*game.height-450)<=error,'aim misses by at most this tier\'s error');
+    }
     step(game,new Map([[player.id,press]]));step(game,new Map([[player.id,bot.input(game,player.id)]]));
     const release=bot.input(game,player.id);assert.equal(release.bombCommands?.[0]?.action,'release');
     step(game,new Map([[player.id,release]]));assert.equal(player[powerup],false);
@@ -157,6 +161,33 @@ test('AI arriving during a match waits and appears in the next round; removal be
   tick(['host',[BOT,'add','bot:3','AI Hopper',2]]);assert.ok(state.game.players.has('bot:3'),'a removed bot identity is not reused');
 });
 
+test('Every AI is rolled a difficulty that shows in its name and steers its own controller',()=>{
+  assert.deepEqual([0,.34,.67,.99].map(rollBotDifficulty),['easy','medium','hard','hard']);
+  for(const base of BOT_NAMES)for(const difficulty of BOT_DIFFICULTIES){
+    const name=botDisplayName(base,difficulty);
+    assert.equal(botDifficulty(name),difficulty,`${name} must read back its own tier`);
+    assert.ok(name.length<=MAX_NAME_LENGTH,`${name} must fit the rider name the log accepts`);
+  }
+  assert.equal(botDifficulty('Ada'),'hard','a name carrying no tier is full strength, never a quiet downgrade');
+  const [easy,medium,hard]=BOT_DIFFICULTIES.map(difficulty=>BOT_TIERS[difficulty]);
+  assert.ok(easy!.aimError>medium!.aimError&&medium!.aimError>hard!.aimError,'a harder AI aims better');
+  assert.equal(hard!.aimError,0,'the top tier is exactly the shipped controller, never a quiet downgrade of it');
+  assert.ok(easy!.blunderRate>medium!.blunderRate&&medium!.blunderRate>hard!.blunderRate,'a harder AI lapses less');
+  assert.ok(hard!.lookaheadTicks>medium!.lookaheadTicks&&medium!.lookaheadTicks>easy!.lookaheadTicks,'a harder AI plans further');
+});
+
+test('A weak rider lapses on a schedule the tick decides, so a rollback replays the same mistake',()=>{
+  const game=fixture(),player=game.players.get('bot:1')!;
+  // Rigged so the lapse always fires and always swerves right; the tier is the only thing that changes.
+  const rigged={random:(_seed:number,id:string)=>id.endsWith(':lapse')?0:id.endsWith(':swerve')?.9:.5};
+  player.name=botDisplayName('Ada','easy');
+  const lapsed=new BotController(rigged).input(game,player.id);
+  assert.deepEqual(lapsed,new BotController(rigged).input(game,player.id),'a fresh controller replays the same lapse from the same tick');
+  assert.equal(lapsed.right,true,'a lapse swerves instead of steering well');
+  player.name=botDisplayName('Ada','hard');
+  const sober=new BotController(rigged).input(game,player.id);
+  assert.notDeepEqual({left:sober.left,right:sober.right},{left:lapsed.left,right:lapsed.right},'the top tier never lapses');
+});
 
 test('GRIP bots plan tighter turns and survive a corner using ordinary simulation inputs', () => {
   const game = steeringFixture();
