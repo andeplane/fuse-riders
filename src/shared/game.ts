@@ -460,27 +460,6 @@ export function step(
   } = ctx;
   const movementList = [...movements.values()];
   const { sceneryReached } = ctx;
-  for (const movement of movementList) {
-    if (!causes.has(movement.player.id) || !movement.player.shielded) continue;
-    movement.player.shielded = false;
-    movement.player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
-    // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
-    // blast must not leave it inside the rock, riding out its grace ticks in there.
-    const obstacleTime = sceneryReached.get(movement.player.id);
-    const obstacleHit = obstaclesReached.get(movement.player.id);
-    if (
-      obstacleTime !== undefined &&
-      obstacleHit &&
-      reflectAtObstacle(obstacleHit, movement, obstacleTime)
-    )
-      bounced.add(movement.player.id);
-    if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
-    causes.delete(movement.player.id);
-    causeOwners.delete(movement.player.id);
-    // Together with the cause, or an absorbed hit would still be holding a shot for any later mark to credit.
-    shotSources.delete(movement.player.id);
-  }
-
   const { transits } = ctx;
   for (const movement of movementList) {
     if (causes.has(movement.player.id)) continue;
