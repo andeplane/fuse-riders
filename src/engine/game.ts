@@ -238,7 +238,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
 /**
  * One tick: the early-out and a loop over PHASES, which is where the order of a tick is written down. `phases` is the
  * seam a test uses to put a failing phase into the tick; nothing else passes it. A phase that throws surfaces as a
- * `TickFault`, and the state is then unusable: see `TickFault`.
+ * `TickFault` naming it, and the state is left part-way through the tick exactly as a throw always left it.
  */
 export function step(
   state: GameState,

@@ -247,10 +247,9 @@ function applyManagement(state: RoomState, entry: Entry): void {
  * Advance the room by one tick from the entries stamped with that tick. Management entries apply first, then each
  * player's entries fold into its held controls, then the shared `step`, then automatic round progression.
  *
- * Not transactional: if `step` throws (a `TickFault`), `state` is left part-way through the tick and the caller must
- * discard it for a copy from before the tick. `World` does, from the snapshots it already retains; copying the state
- * here on every tick would nearly double what a re-simulated tick costs. `phases` is the fault-injection seam of
- * `step`, passed through.
+ * Not transactional, as it never was: if `step` throws (a `TickFault` naming the phase), `state` is left part-way
+ * through the tick and the error reaches the caller. `phases` is the fault-injection seam of `step`, passed through
+ * for tests.
  */
 export function applyTick(
   state: RoomState,

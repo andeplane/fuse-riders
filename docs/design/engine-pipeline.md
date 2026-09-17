@@ -107,22 +107,16 @@ The pipeline itself costs nothing measurable (context allocation and one `try` p
 
 Not done from C7: typed-array trails, clone cadence, bot replans on re-simulated ticks.
 
-## Throw safety (C8)
+## Throw safety (C8): the engine part only
 
-**What could throw.** The per-tick match-stats recorders threw on a rider the match never seated and on a distance that is not one. Only a damaged state can produce either, but a throw there left the tick half-done with `state.tick` already advanced. They now tolerate: the rider is not counted, the distance is dropped (`match-stats.ts`; `finalizeMatchStatsRound` still rejects a contradictory round). That removes the known sources. It does not make a tick unable to throw.
+Two things changed, and neither changes what a throw does to a running room.
 
-**Decision: `step` and `applyTick` are not transactional; the `World` is.** Making `applyTick` restore the state needs a copy from before the tick, and `structuredClone(RoomState)` costs 182 µs per tick on the golden recording against about 215 µs for the tick itself — it would undo C7 for every re-simulated tick to guard against something that should never happen. The `World` already retains snapshots for rollback (every `SNAPSHOT_INTERVAL` ticks, plus the constructor's, `install`'s and every rollback's base), so it can always reach a whole state from before any tick without paying anything on the ticks that succeed.
+- **The known throw sources are gone.** The per-tick match-stats recorders threw on a rider the match never seated and on a distance that is not one. Only a damaged state can produce either, but a throw there left the tick half-done. They now tolerate: the rider is not counted, the distance is dropped (`match-stats.ts`; `finalizeMatchStatsRound` still rejects a contradictory round). The tolerance is silent; a once-per-match warning through the runtime's reporting path belongs to the follow-up.
+- **A throw names its phase.** `step` wraps each phase and rethrows a `TickFault { tick, phase, cause }`. `step(state, inputs, phases = PHASES)` is the seam `tests/tick-fault.test.ts` uses to insert a throwing phase before `commitMovement`; `applyTick` passes it through. Nothing is patched.
 
-So:
+What is **not** changed: a throw still leaves the state part-way through the tick — the clock has advanced, some phases have written, the rest have not — and the error still escapes `applyTick`, `World.advance` and the runtime's interval callback exactly as the raw error does on `main` (nothing in `src/online/` catches it; that iteration's packets and frame are skipped). `step` and `applyTick` are deliberately not transactional: a `structuredClone(RoomState)` per tick measured 182 µs on the golden recording against about 215 µs for the tick itself, which would undo C7 on every re-simulated tick.
 
-- `step` wraps each phase and rethrows a `TickFault { tick, phase, cause }`. The state it was given is part-way through the tick and must not be simulated, hashed, served or drawn again. `applyTick` documents the same.
-- `World.simulate` catches any throw from `applyTick`, drops that state, stands on the newest snapshot from before the failing tick, deletes snapshots after it, and sets `world.fault`. A faulted world does not simulate: `advance` returns at once, `receive` keeps logging entries but does not roll back. Everything it hashes (`hashAt`), serves to a joiner (`servable`) and publishes (`view`) is therefore always a whole state. `install` clears the fault.
-- Nothing is swallowed. The fault is returned on the `advance`/`receive` call during which it happened, so `RoomRuntime.noteFault` reports it once: the `simulationError` option if given, else `console.error` — the same shape as `callbackError` — and `faults`/`lastFault` in `RuntimeMetrics`, which the page's telemetry already posts.
-- **Recovery is a resync, the path a divergence already takes.** The runtime asks a peer for a snapshot. If the throw was local (damaged state, an engine-specific failure), a peer that got past the tick replaces the world and play continues; the two-replica test does exactly this and the emitted hashes converge afterwards. If the tick fails on every replica — a deterministic engine bug — nobody can serve a state past it, the fault repeats, and after `DIVERGENCE_LIMIT` faults inside `DIVERGENCE_WINDOW_MS`, or at once when there is no peer to ask (solo), the page shows the terminal status "Simulation stopped — reload this page". That is the honest outcome: every replica stopped at the same whole state, visibly, instead of riding on with a state nobody can trust.
-
-Rejected: _skipping the tick_ (every replica would have to skip identically, which holds only if the throw is deterministic, and the state that caused it is still there on the next tick); _retrying_ (deterministic code throws again); _cloning per tick_ (cost, above).
-
-**Seam.** `step(state, inputs, phases = PHASES)`, passed through by `applyTick`, `new World(…, phases)` and `RuntimeOptions.phases`. `tests/tick-fault.test.ts` inserts a throwing phase before `commitMovement` — after riders have been stepped and pickups collected, before anything is committed — and patches nothing.
+Recovery — what the `World` and the runtime should do when a tick throws, bounded and honest about the fact that a deterministic throw happens on every replica at once — needs its own design and is a separate pull request stacked on this one. A first version was written in this branch and split out after review found that its resync loop was unbounded when every replica faults.
 
 ## What is left of #253
 

@@ -75,10 +75,10 @@ export const PHASES: readonly Phase[] = [
 ];
 
 /**
- * A phase threw. The state it was given is part-way through the tick — the clock has advanced, some phases have
- * written and the rest have not — and must not be simulated, hashed, served or shown again: the caller restores a
- * state from before the tick. `step` cannot do that itself without copying the state every tick, which costs most of
- * what a tick costs; the world that owns the state already keeps snapshots (docs/design/engine-pipeline.md).
+ * A phase threw. `step` names the tick and the phase; it changes nothing else about a throw. As before the pipeline,
+ * the state it was given is part-way through the tick — the clock has advanced, some phases have written and the rest
+ * have not — and the error reaches whoever called `step`. What a driver should do about that is the follow-up to
+ * issue #253 C8 (docs/design/engine-pipeline.md).
  */
 export class TickFault extends Error {
   constructor(

@@ -3,7 +3,6 @@ import {
   type Callbacks,
   type RoomTransport,
   type RuntimeDependencies,
-  type RuntimeOptions,
   type TransportEvents,
 } from "../../src/online/room-runtime.js";
 import type { RoomSettings } from "../../src/engine/room-settings.js";
@@ -195,9 +194,6 @@ export class FakeNetwork {
       displayOnly?: boolean;
       humanName?: string;
       generation?: number;
-      /** Fault injection: the tick's phases for this member's worlds, and where its faults are reported. */
-      phases?: RuntimeOptions["phases"];
-      simulationError?: RuntimeOptions["simulationError"];
     } = {},
   ): RoomRuntime {
     if (extra.generation !== undefined)
@@ -228,10 +224,6 @@ export class FakeNetwork {
       displayOnly: extra.displayOnly,
       humanName: extra.humanName,
       dependencies: this.dependencies(id),
-      ...(extra.phases ? { phases: extra.phases } : {}),
-      ...(extra.simulationError
-        ? { simulationError: extra.simulationError }
-        : {}),
     });
     this.runtimes.set(id, runtime);
     return runtime;
