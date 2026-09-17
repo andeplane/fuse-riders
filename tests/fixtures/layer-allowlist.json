@@ -26,6 +26,8 @@
   "src/client/render-snapshot.ts -> src/shared/arena-map.ts",
   "src/client/render-snapshot.ts -> src/shared/shell.ts",
   "src/client/render-snapshot.ts -> src/shared/wrap.ts",
+  "src/client/self-locator.ts -> src/client/snapshot-stream.ts",
+  "src/client/self-locator.ts -> src/shared/game.ts",
   "src/client/snapshot-stream.ts -> src/shared/protocol.ts",
   "src/client/socket-client.ts -> src/shared/protocol.ts",
   "src/client/themes.ts -> src/client/safe-storage.ts",

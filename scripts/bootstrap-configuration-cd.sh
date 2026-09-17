@@ -6,6 +6,9 @@ readonly project=andershaf-87
 readonly role=fuseRidersConfigurationDeployer
 readonly member=serviceAccount:fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com
 cd "$(git rev-parse --show-toplevel)"
+# CD calls bill the deployer's own project, so the API Keys API must be enabled here. A personal gcloud token bills
+# gcloud's project instead, which is why a local `config:plan --account` passes without it.
+gcloud services enable apikeys.googleapis.com --project="$project" --account="$BOOTSTRAP_ACCOUNT"
 if gcloud iam roles describe "$role" --project="$project" --account="$BOOTSTRAP_ACCOUNT" --format='value(name)' >/dev/null 2>&1; then
   gcloud iam roles update "$role" --project="$project" --account="$BOOTSTRAP_ACCOUNT" --file=deploy/configuration-role.yaml
 else

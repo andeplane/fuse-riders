@@ -120,6 +120,7 @@ const rendering = new Set([
   "portal-palettes",
   "reload-ring",
   "render-snapshot",
+  "self-locator",
   "themes",
   "trail-debris",
 ]);

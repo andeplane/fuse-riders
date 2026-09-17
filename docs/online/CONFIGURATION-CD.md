@@ -48,8 +48,10 @@ An authorized project IAM administrator runs the reviewed bootstrap once:
 BOOTSTRAP_ACCOUNT=YOUR_AUTHORIZED_GOOGLE_ACCOUNT bash scripts/bootstrap-configuration-cd.sh
 ```
 
-It grants the existing `fuse-riders-deployer` a custom role from `deploy/configuration-role.yaml`.
-There are no new secrets, downloaded keys, runtime grants or enabled services. The role has configuration permissions,
+It enables the API Keys API (`apikeys.googleapis.com`), which CD needs to read and restrict the web key, and grants
+the existing `fuse-riders-deployer` a custom role from `deploy/configuration-role.yaml`. A local
+`config:plan --account` passes without that API because a personal gcloud token bills gcloud's own project; the
+workload identity bills this one. There are no new secrets, downloaded keys or runtime grants. The role has configuration permissions,
 not Firestore document access, IAM administration, database creation/deletion or index deletion. Auth configuration
 is project-wide; this project's Auth is shared, so domain/provider edits need review. The script pins the game's database,
 web app and API key; those checks are application safeguards, not an IAM boundary for every configuration API.
