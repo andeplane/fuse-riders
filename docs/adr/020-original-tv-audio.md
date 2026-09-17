@@ -1,6 +1,8 @@
 # ADR 020: Original synthesized TV audio
 
-Status: Accepted; root reviewed before implementation.
+Status: Historical, amended by the dated updates below. The original synthesized soundtrack and TV-only policy are superseded: current music uses recorded tracks through `HTMLAudioElement`, while effects remain synthesized. See `src/client/game-audio.ts`, `audio-director.ts` and `radio.ts` for the current implementation.
+
+The opening paragraphs preserve the original decision; later dated updates take precedence.
 
 Use a TV-only Web Audio synthesizer for an original looping arcade melody, bass and percussion. All notes are composed in source; no licensed recordings or external audio requests. Separate music/effects mute controls and volumes remain accessible beside TV controls. Audio starts only after an explicit host gesture; unsupported or blocked audio never blocks play.
 

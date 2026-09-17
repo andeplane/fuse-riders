@@ -32,7 +32,7 @@ import {
 import type { GameEvent } from "./protocol.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-25"; // 25: arena maps — per-round ground and solid, blast-clearable obstacles. 24: Boost removed; Gravity opens black holes.
+export const RULES = "fuse-p2p-26"; // 26: arena maps — per-round ground and solid, blast-clearable obstacles. 25: checkpoints freeze the match's connected finishers for history agreement.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 

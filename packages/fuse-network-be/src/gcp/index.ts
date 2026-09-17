@@ -5,13 +5,19 @@ import { PubSub } from "@google-cloud/pubsub";
 import type { AuthClient } from "google-auth-library";
 import { RoomStore } from "../room-store.js";
 import { RoomGateway } from "../gateway.js";
-import { createRoomServer } from "../http.js";
+import { createRoomServer, type HttpExtension } from "../http.js";
 import { FirestoreRoomDatabase } from "./firestore-store.js";
 import { PubSubRoomBus } from "./pubsub-bus.js";
 export { FirestoreRoomDatabase } from "./firestore-store.js";
 export { PubSubRoomBus } from "./pubsub-bus.js";
 
 export interface GcpRoomServiceOptions {
+  httpExtension?: (context: {
+    store: RoomStore;
+    firestore: Firestore;
+    prefix: string;
+    projectId: string;
+  }) => HttpExtension;
   /** Logged on start, e.g. `my-game-gateway`. */
   serviceName: string;
   /** Firestore collection and Pub/Sub subscription prefix when ROOM_COLLECTION_PREFIX is unset. */
@@ -83,6 +89,7 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
   const server = createRoomServer({
     store,
     gateway,
+    extension: options.httpExtension?.({ store, firestore, prefix, projectId }),
     allowOrigin: (origin) => origins.has(origin),
     // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
     clientAddress: (req) => {
