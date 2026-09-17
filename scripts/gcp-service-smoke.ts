@@ -19,7 +19,7 @@ const authClient=accessToken?new OAuth2Client():undefined;if(authClient&&accessT
 const firestore=new Firestore({projectId,databaseId,...(authClient?{authClient}:{})});
 const pubsub=new PubSub({projectId,apiEndpoint:`${region}-pubsub.googleapis.com:443`,...(authClient?{authClient}:{})});
 const revision=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-const sourcePaths=['src/service/index.ts','src/service/gateway.ts','src/service/room-store.ts','src/service/room-bus.ts','src/service/pubsub-bus.ts','src/service/firestore-store.ts','scripts/gcp-service-smoke.ts','scripts/gcp-service-child.ts','package-lock.json'];
+const sourcePaths=['src/service/index.ts','packages/fuse-network-be/src/gcp/index.ts','packages/fuse-network-be/src/gateway.ts','packages/fuse-network-be/src/room-store.ts','packages/fuse-network-be/src/room-bus.ts','packages/fuse-network-be/src/gcp/pubsub-bus.ts','packages/fuse-network-be/src/gcp/firestore-store.ts','scripts/gcp-service-smoke.ts','scripts/gcp-service-child.ts','package-lock.json'];
 const sourceSha256=Object.fromEntries(await Promise.all(sourcePaths.map(async path=>[path,createHash('sha256').update(await readFile(path)).digest('hex')])));
 const children:ChildProcess[]=[],peers:Peer[]=[];
 const stderr:string[]=[];
