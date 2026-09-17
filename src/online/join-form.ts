@@ -102,6 +102,7 @@ export function createJoinForm(
   };
   return {
     element: form,
+    submitButton: button,
     picker: {
       ...picker,
       sync(id: AvatarId) {

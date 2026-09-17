@@ -75,8 +75,8 @@ test("the creator opens a fresh world, seats joiners, adds bots and starts; ever
     .players.find((p) => p.id.startsWith("bot:"))!.name;
   assert.match(
     botName,
-    /^AI \w+ · (Easy|Medium|Hard)$/,
-    "an added AI carries the difficulty it was rolled, so every roster shows it",
+    /^AI \w+$/,
+    "an added AI has no difficulty label in the replicated roster",
   );
   assert.equal(
     host.command({ type: "action", action: "start" }),
