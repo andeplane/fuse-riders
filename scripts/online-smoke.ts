@@ -349,9 +349,10 @@ try {
   const running = await latest(host);
   // Guest refresh mid-round: a reload comes back into the running match with the seat it held, without the join card.
   await guest.reload();
-  // The seat is read from the runtime's own snapshots: the phone play layout hides the roster, so a wait on roster text
-  // only ended when the match did. A recovered world that lists this rider is the seat kept; one that does not, with
-  // the join card up, is the rider pruned at a round boundary that fell inside the reload.
+  // The seat is read from the runtime's own snapshots and from the roster text the page keeps current whether or not
+  // the layout shows it: the phone play layout hides the roster, so a wait on visible roster text only ended when the
+  // match did. Back means listed in the recovered world and no longer marked offline. A recovered world that does not
+  // list this rider, with the join card up, is the rider pruned at a round boundary that fell inside the reload.
   const landed = (cardCounts: boolean) =>
     guest.waitForFunction(
       (cardCounts) => {
@@ -360,7 +361,11 @@ try {
         const state = list?.at(-1);
         if (!state || state.phase === "lobby") return false;
         if (state.players.some((player) => player.id === state.playerId))
-          return "seated";
+          return [
+            ...document.querySelectorAll(".online-roster .online-score-name"),
+          ].some((name) => /^Guest(?! · offline)/.test(name.textContent ?? ""))
+            ? "seated"
+            : false;
         return cardCounts &&
           document.querySelector(".room-join")?.getClientRects().length
           ? "pruned"
