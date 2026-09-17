@@ -260,7 +260,7 @@ Literals that are not exported, and so are not machine-checked:
 | Reliable frame cap                            | 200000 chars                               | `PeerTransport.channel`                        | C9.                                                                          |
 | Reliable envelope de-duplication              | 1000 ids per peer                          | `PeerTransport.receive`                        |                                                                              |
 | Early ICE candidates buffered                 | 64 per link                                | `RemoteSignal`                                 |                                                                              |
-| Signalling rate limit                         | 32 burst, 5 per s                          | `RoomGateway` (`gateway.ts`)                   |                                                                              |
+| Signalling rate limit                         | 80 burst, 10 per s, per target member      | `RoomGateway` (`gateway.ts`)                   | Over the limit a frame is dropped, not the socket. 400 frames per s overall. |
 | Packet decode limits                          | str 128, array 16, map 32                  | `decodePacket`                                 | §14.                                                                         |
 | Preflight limits                              | depth 32, 200000 nodes, array 4096, map 64 | `packet.ts` `preflight`                        | §14.                                                                         |
 
