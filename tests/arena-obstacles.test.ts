@@ -285,7 +285,7 @@ test('the room setting picks the board, and rotate gives each round a different 
     for (let slot = 0; slot < 2; slot += 1) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: SLOT_COLORS[slot]! });
     startMatch(game);
     assert.equal(game.map, map);
-    assert.equal(game.obstacles.length === 0, map === 'classic', `${map} scenery`);
+    assert.equal(game.obstacles.length > 0, ['desert', 'forest', 'city'].includes(map), `${map} scenery`);
   }
   const game = createGame('rotating', 4);
   game.settings = { ...defaultRoomSettings(), map: 'rotate' };

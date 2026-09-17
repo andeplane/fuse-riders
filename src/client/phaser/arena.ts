@@ -13,6 +13,9 @@ import { EffectTransitions, bombPose } from './effects.js';
 import { TrailHistoryCache, trailTip, type TrailPoint } from './trails.js';
 import { arenaWall, trailStuds } from '../arena-wall.js';
 import { mapGround, obstacleParts } from '../arena-maps.js';
+import { crossViews, edgeGhosts } from '../arena-views.js';
+import { edgesOpen } from '../../shared/arena-map.js';
+import { wrapCoordinate } from '../../shared/wrap.js';
 import { observeArenaDisplay } from './viewport.js';
 import { blastFrame } from '../blast-animation.js';
 import { reloadRemaining, RELOAD_RING_RADIUS } from '../reload-ring.js';
@@ -21,6 +24,7 @@ import { TrailDebris } from '../trail-debris.js';
 const pickups = PICKUP_TYPES;
 const color = (value: string): number => /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
 const clamp = Phaser.Math.Clamp;
+const NO_GHOSTS = [{ dx: 0, dy: 0 }] as const;
 export interface ArenaOptions { renderer?: 'auto' | 'canvas'; quality?: 'high' | 'low'; resolution?: 'display' | 'world'; onStatus?: (status: 'ready' | 'context-lost' | 'restored') => void }
 export interface ArenaMetrics { renderer: string; objects: number; particles: number; renderMs: number; automaticLoopRunning: boolean; trailHistoryBuilds: number }
 export interface PhaserArena {
@@ -78,20 +82,29 @@ export function createPhaserArena(canvas: HTMLCanvasElement, options: ArenaOptio
   window.addEventListener('beforeunload',onLeaving);
   canvas.addEventListener('webglcontextlost', onLost);
   canvas.addEventListener('webglcontextrestored', onRestored);
-  const resize = (width: number, height: number) => {
+  const resize = (width: number, height: number, crossed = false) => {
     if (destroyed || !booted) return;
     const backing = options.resolution === 'world' ? { width, height } : display.backing(width, height);
     if (game.scale.width !== backing.width || game.scale.height !== backing.height) game.scale.resize(backing.width, backing.height);
     // CSS layout remains independent of the physical canvas; all drawing stays in world units.
     canvas.style.width = '100%'; canvas.style.height = '100%';
-    scene.cameras.main.setViewport(0, 0, backing.width, backing.height).setOrigin(0, 0).setScroll(0, 0).setZoom(backing.width / width, backing.height / height);
+    // The crossed map is the same world seen through four cameras, each showing one quarter in the opposite corner
+    // of the screen. Nothing that is drawn knows: every object is clipped at a seam and picked up past it for free.
+    const views = crossed ? crossViews(width, height, backing.width, backing.height)
+      : [{ x: 0, y: 0, width: backing.width, height: backing.height, scrollX: 0, scrollY: 0 }];
+    const cameras = scene.cameras;
+    while (cameras.cameras.length > views.length) cameras.remove(cameras.cameras[cameras.cameras.length - 1]!);
+    while (cameras.cameras.length < views.length) cameras.add(0, 0, 1, 1);
+    for (const [index, view] of views.entries()) {
+      cameras.cameras[index]!.setViewport(view.x, view.y, view.width, view.height).setOrigin(0, 0).setScroll(view.scrollX, view.scrollY).setZoom(backing.width / width, backing.height / height);
+    }
   };
   return {
     ready,
     render(snapshot, now, theme, matchId, selfId) {
       if (!booted || destroyed || lost || document.hidden) return;
       const start = performance.now();
-      resize(snapshot.width, snapshot.height);
+      resize(snapshot.width, snapshot.height, snapshot.map === 'cross');
       scene.paint(snapshot, now, theme, matchId, selfId);
       game.step(now, lastNow ? Math.min(50, Math.max(0, now - lastNow)) : 16.667);
       lastNow = now; renderMs = performance.now() - start;
@@ -276,6 +289,8 @@ class ArenaScene extends Phaser.Scene {
     const g = this.dynamic.clear(); const f = this.front.clear();
     const { width:w, height:h, boundaryInset:b } = s;
     const ground = mapGround(s.map, theme);
+    const open = edgesOpen(s);
+    const ghosts = (x: number, y: number, reach: number) => open ? edgeGhosts(w, h, x, y, reach) : NO_GHOSTS;
     const backgroundKey = `${w}:${h}:${theme.id}:${s.map}`;
     if (backgroundKey !== this.backgroundKey) {
       this.backgroundKey = backgroundKey;
@@ -303,10 +318,17 @@ class ArenaScene extends Phaser.Scene {
       this.floor.lineStyle(1,grid.color,grid.alphaGL);
       for(let x=0;x<=w;x+=ground.gridSize)this.floor.lineBetween(x,0,x,h);
       for(let y=0;y<=h;y+=ground.gridSize)this.floor.lineBetween(0,y,w,y);
-      this.floor.fillStyle(0x00020c,.67)
-        .fillRect(0,0,w,b).fillRect(0,h-b,w,b)
-        .fillRect(0,b,b,h-2*b).fillRect(w-b,b,b,h-2*b);
-      this.drawWall(w,h,b,theme);
+      if(edgesOpen(s)) {
+        // No wall to draw. A dashed rim marks where the board repeats, in place of one that would say "stop".
+        this.floor.lineStyle(2,color(theme.palette.rim),.35);
+        for(let x=0;x<w;x+=28){this.floor.lineBetween(x,1,x+14,1);this.floor.lineBetween(x,h-1,x+14,h-1);}
+        for(let y=0;y<h;y+=28){this.floor.lineBetween(1,y,1,y+14);this.floor.lineBetween(w-1,y,w-1,y+14);}
+      } else {
+        this.floor.fillStyle(0x00020c,.67)
+          .fillRect(0,0,w,b).fillRect(0,h-b,w,b)
+          .fillRect(0,b,b,h-2*b).fillRect(w-b,b,b,h-2*b);
+        this.drawWall(w,h,b,theme);
+      }
       // After the boundary band: an obstacle the closing walls have reached is already gone from the state.
       this.drawObstacles(s.obstacles);
       this.maskShape.clear().fillStyle(0xffffff).fillRect(b,b,w-2*b,h-2*b);
@@ -349,14 +371,19 @@ class ArenaScene extends Phaser.Scene {
         g.fillStyle(0xffffff,alpha).fillCircle(bomb.x,bomb.y,2);
         continue;
       }
-      if(bomb.shell) { this.sprite('shell',bomb.x,bomb.y,34,now/130);
-        const a=Math.atan2(bomb.shell.vy,bomb.shell.vx); for(let i=1;i<5;i++) g.fillStyle(0x66ff72,.18/i).fillCircle(bomb.x-Math.cos(a)*i*12,bomb.y-Math.sin(a)*i*12,7); continue; }
+      if(bomb.shell) { for(const {dx,dy} of ghosts(bomb.x,bomb.y,60)) { const x=bomb.x+dx,y=bomb.y+dy; this.sprite('shell',x,y,34,now/130);
+        const a=Math.atan2(bomb.shell.vy,bomb.shell.vx); for(let i=1;i<5;i++) g.fillStyle(0x66ff72,.18/i).fillCircle(x-Math.cos(a)*i*12,y-Math.sin(a)*i*12,7); } continue; }
       const ownerTint=color(s.players.find(player=>player.id===bomb.ownerId)?.color??'#ffffff');
       // The fine outer edge stays at the exact supplied damage radius.
-      g.lineStyle(1.5,ownerTint,.32).strokeCircle(bomb.x,bomb.y,bomb.blastRange);
-      g.lineStyle(4,ownerTint,.04).strokeCircle(bomb.x,bomb.y,Math.max(0,bomb.blastRange-3));
-      g.fillStyle(ownerTint,.025).fillCircle(bomb.x,bomb.y,bomb.blastRange);
-      const pose=bombPose(bomb,s.tick); const airborne=s.tick<bomb.landsAtTick;
+      for(const {dx,dy} of ghosts(bomb.x,bomb.y,bomb.blastRange)) {
+        g.lineStyle(1.5,ownerTint,.32).strokeCircle(bomb.x+dx,bomb.y+dy,bomb.blastRange);
+        g.lineStyle(4,ownerTint,.04).strokeCircle(bomb.x+dx,bomb.y+dy,Math.max(0,bomb.blastRange-3));
+        g.fillStyle(ownerTint,.025).fillCircle(bomb.x+dx,bomb.y+dy,bomb.blastRange);
+        if(s.tick<bomb.landsAtTick) g.lineStyle(2,ownerTint,.6).strokeEllipse(bomb.x+dx,bomb.y+dy,34,15);
+      }
+      // A lob over an open edge is one straight throw in the state; it is folded onto the board only to be drawn.
+      const flown=bombPose(bomb,s.tick); const airborne=s.tick<bomb.landsAtTick;
+      const pose=open?{...flown,x:wrapCoordinate(flown.x,w),y:wrapCoordinate(flown.y,h)}:flown;
       this.sprite(`${theme.id}:bomb`,pose.x,pose.y,44*(1+Math.sin(now/90)*.04));
       const remaining=clamp((bomb.explodeAtTick-s.tick)/Math.max(1,bomb.explodeAtTick-bomb.landsAtTick),0,1);
       const ringTint=ownerTint;
@@ -368,7 +395,6 @@ class ArenaScene extends Phaser.Scene {
         g.fillStyle(ringTint).fillCircle(pose.x,pose.y-26,1.25);
         g.fillStyle(0xfff2d5).fillCircle(pose.x+Math.cos(end)*26,pose.y+Math.sin(end)*26,2);
       }
-      if(airborne) g.lineStyle(2,ownerTint,.6).strokeEllipse(bomb.x,bomb.y,34,15);
     }
     for(const field of s.gravityFields) {
       const life=clamp((field.expiresAtTick-s.tick)/GRAVITY_FIELD_TICKS,0,1), swirl=now/900;
@@ -391,8 +417,9 @@ class ArenaScene extends Phaser.Scene {
       g.lineStyle(piece.width,tint,piece.alpha).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
       g.lineStyle(1,0xffffff,piece.alpha*.65).lineBetween(piece.x1,piece.y1,piece.x2,piece.y2);
     }
-    for(const p of s.players) {
-      if(!p.alive) continue;
+    // Near an open edge a rider is drawn on both sides of it, so it arrives as it leaves rather than popping across.
+    for(const rider of s.players) for(const ghost of rider.alive?ghosts(rider.x,rider.y,40):[]) {
+      const p=ghost.dx||ghost.dy?{...rider,x:rider.x+ghost.dx,y:rider.y+ghost.dy}:rider;
       const tint=color(p.color);
       // The portrait stays upright at the trail head; only its direction marker turns.
       g.fillStyle(0x080c22).fillCircle(p.x,p.y,15);
@@ -423,7 +450,7 @@ class ArenaScene extends Phaser.Scene {
       if(p.drunkUntilTick>s.tick) { f.lineStyle(2,0xd799ff,.9).strokeEllipse(p.x,p.y-12,70,35); for(let i=0;i<4;i++){ const a=now/240+i*Math.PI/2; const sx=p.x+Math.cos(a)*36,sy=p.y-12+Math.sin(a)*20; f.fillStyle(i%2?0xffe790:0xffaa32).fillRect(sx-2,sy-8,4,16).fillRect(sx-8,sy-2,16,4); } this.label('DIZZY',p.x,p.y+37,'#fff078',9); }
       if(p.bombChargeStartedTick!==undefined && !p.targetBombArmed && !p.shellArmed && !p.gunArmed) {
         const distance=bombPreviewDistance((p.presentationTick??s.tick)-p.bombChargeStartedTick,s.bombChargeTicks,s.aimBounce);
-        for(const a of volleyAngles(p.angle,bombsPerShot(p))) { const x=clamp(p.x+Math.cos(a)*distance,b+20,w-b-20),y=clamp(p.y+Math.sin(a)*distance,b+20,h-b-20); f.lineStyle(2,tint,.5).lineBetween(p.x,p.y,x,y).lineStyle(2,tint,.9).strokeRect(x-9,y-9,18,18); }
+        for(const a of volleyAngles(p.angle,bombsPerShot(p))) { const x=open?p.x+Math.cos(a)*distance:clamp(p.x+Math.cos(a)*distance,b+20,w-b-20),y=open?p.y+Math.sin(a)*distance:clamp(p.y+Math.sin(a)*distance,b+20,h-b-20); f.lineStyle(2,tint,.5).lineBetween(p.x,p.y,x,y).lineStyle(2,tint,.9).strokeRect(x-9,y-9,18,18); }
       }
       if(p.targetBombArmed && !p.shellArmed && !p.gunArmed && p.bombChargeStartedTick!==undefined && p.bombTarget) {
         const {x,y}=p.bombTarget; f.lineStyle(2,tint,.5).lineBetween(p.x,p.y,x,y).lineStyle(3,tint).strokeCircle(x,y,23).lineBetween(x-32,y,x-11,y).lineBetween(x+11,y,x+32,y).lineBetween(x,y-32,x,y-11).lineBetween(x,y+11,x,y+32);

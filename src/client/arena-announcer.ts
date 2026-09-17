@@ -1,4 +1,5 @@
 import { COUNTDOWN_TICKS, OVERTIME_START_TICK, ROUND_DRAW_TICK, TICK_HZ } from '../shared/game.js';
+import { ARENA_MAP_RECIPES } from '../shared/arena-map.js';
 import type { ArenaMapId, GameEvent } from '../shared/protocol.js';
 import type { ViewSnapshot } from './snapshot-stream.js';
 
@@ -64,5 +65,5 @@ export function eliminationLine(
 ): string | undefined {
   if (event.type !== 'playerEliminated') return undefined;
   const name = event.playerId === selfId ? 'YOU' : players.find(player => player.id === event.playerId)?.name ?? 'A rider';
-  return `${name} ${event.cause === 'wall' && map !== 'classic' ? 'crashed' : CAUSES[event.cause]}`;
+  return `${name} ${event.cause === 'wall' && ARENA_MAP_RECIPES[map].species.length > 0 ? 'crashed' : CAUSES[event.cause]}`;
 }

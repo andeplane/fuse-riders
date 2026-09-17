@@ -31,6 +31,8 @@ try {
       bounds: { minX: 20 + OBSTACLE_WALL_MARGIN, minY: 20 + OBSTACLE_WALL_MARGIN, maxX: 1580 - OBSTACLE_WALL_MARGIN, maxY: 880 - OBSTACLE_WALL_MARGIN },
       keepClear: [...app.game.players.values()].map(player => ({ x1: player.x, y1: player.y, x2: player.x + 220, y2: player.y, radius: 56 })),
     });
+    // One rider parked on the right-hand edge, so the wrap map shows it arriving on the left as it leaves.
+    Object.assign(app.game.players.get('p1')!, { x: 1594, y: 460, angle: 0, trail: [] });
     app.advance(1);
     await page.waitForTimeout(400);
     await page.screenshot({ path: `artifacts/map-${map}.png` });
