@@ -234,18 +234,12 @@ import {
   reflectAtObstacle,
 } from "./sim/riders.js";
 import { explodeInstant } from "./sim/phases/explode.js";
+import { captureOrigins, markCause, markShot } from "./sim/marks.js";
 
 export interface TickResult {
   snapshot: GameSnapshot;
   events: GameEvent[];
 }
-
-const CAUSE_PRIORITY: Record<EliminationCause, number> = {
-  rider: 0,
-  trail: 1,
-  wall: 2,
-  explosion: 3,
-};
 
 export function createGame(
   matchId: string,
@@ -457,30 +451,7 @@ export function step(
 
   // Highlight observations (ADR 043): what the sweep learns about each death, and where every rider was before a blast.
   const { observations, landingHits, shellHits, trailHits } = ctx;
-  /** Where each rider stood DODGE_LOOKBACK_TICKS ago, read from its own trail before this tick's blasts burn that segment away. */
-  const captureOrigins = (): void => {
-    if (ctx.origins) return;
-    const origins = (ctx.origins = new Map());
-    for (const player of sortedPlayers(state)) {
-      const segment = player.trail.find(
-        (candidate) =>
-          candidate.createdTick === state.tick - DODGE_LOOKBACK_TICKS,
-      );
-      if (segment) origins.set(player.id, { x: segment.x2, y: segment.y2 });
-    }
-  };
-
   const { causes, causeOwners, shotSources } = ctx;
-  const markShot = (
-    victimId: PlayerId,
-    bombId: number,
-    shot?: number,
-  ): void => {
-    if (shot === undefined) return;
-    const known = shotSources.get(victimId);
-    if (!known || bombId < known.bombId)
-      shotSources.set(victimId, { bombId, shot });
-  };
   const {
     trailContactTimes,
     riderContactTimes,
@@ -490,97 +461,8 @@ export function step(
   // Id order: each contact bisection starts from the one before it, and the last to shorten it is what a shield
   // turns away from, so the order obstacles are visited in is part of the outcome.
   const obstacleHitboxes = sortedObstacles(state).map(obstacleHitbox);
-  // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
-  for (const bomb of sortedBombs(state)) {
-    if (
-      bomb.shell?.gun ||
-      bomb.launchedTick >= state.tick ||
-      (!bomb.shell && bomb.landsAtTick < state.tick)
-    )
-      continue;
-    if (!bomb.shell) {
-      if (bomb.landsAtTick !== state.tick) continue;
-      for (const movement of movements.values()) {
-        if (
-          movement.player.id === bomb.ownerId ||
-          isHazardImmune(movement.player, state.tick)
-        )
-          continue;
-        if (
-          square(nearestDelta(open, movement.x - bomb.x, state.width)) +
-            square(nearestDelta(open, movement.y - bomb.y, state.height)) <=
-          square(RIDER_RADIUS + SHELL_RADIUS)
-        ) {
-          markCause(
-            causes,
-            causeOwners,
-            movement.player.id,
-            "explosion",
-            bomb.ownerId,
-          );
-          markShot(movement.player.id, bomb.id, bomb.shot);
-          if (!landingHits.has(movement.player.id))
-            landingHits.set(movement.player.id, bomb.ownerId);
-        }
-      }
-      continue;
-    }
-    let hit: Movement | undefined;
-    let hitTime = Infinity;
-    for (const path of shellPaths.get(bomb.id) ?? [])
-      for (let i = 1; i < path.length; i++) {
-        const start = path[i - 1]!;
-        const end = path[i]!;
-        for (const movement of movements.values()) {
-          if (
-            (movement.player.id === bomb.ownerId &&
-              state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS) ||
-            isHazardImmune(movement.player, state.tick)
-          )
-            continue;
-          const mx = movement.x - movement.oldX;
-          const my = movement.y - movement.oldY;
-          const px =
-            nearestDelta(open, start.x - movement.oldX, state.width) -
-            mx * start.t;
-          const py =
-            nearestDelta(open, start.y - movement.oldY, state.height) -
-            my * start.t;
-          const vx = end.x - start.x - mx * (end.t - start.t);
-          const vy = end.y - start.y - my * (end.t - start.t);
-          const radius = RIDER_RADIUS + SHELL_RADIUS;
-          const c = px * px + py * py - radius * radius;
-          const a = vx * vx + vy * vy;
-          const b = 2 * (px * vx + py * vy);
-          const discriminant = b * b - 4 * a * c;
-          const contact =
-            c <= 0
-              ? 0
-              : a > 0 && discriminant >= 0
-                ? (-b - Math.sqrt(discriminant)) / (2 * a)
-                : Infinity;
-          const time = start.t + contact * (end.t - start.t);
-          if (contact >= 0 && contact <= 1 && time < hitTime) {
-            hit = movement;
-            hitTime = time;
-          }
-        }
-      }
-    if (hit) {
-      markCause(causes, causeOwners, hit.player.id, "explosion", bomb.ownerId);
-      markShot(hit.player.id, bomb.id, bomb.shot);
-      if (!shellHits.has(hit.player.id))
-        shellHits.set(hit.player.id, {
-          ownerId: bomb.ownerId,
-          bounces: bomb.shell?.bounces ?? 0,
-          age: state.tick - bomb.launchedTick,
-        });
-      state.bombs.delete(bomb.id);
-    }
-  }
-
   if (newBlasts.length > 0) {
-    captureOrigins();
+    captureOrigins(ctx);
     for (const player of sortedPlayers(state)) {
       player.trail = cutTrail(
         player.trail,
@@ -627,7 +509,7 @@ export function step(
           "explosion",
           blast.ownerId,
         );
-        markShot(movement.player.id, blast.bombId, blast.shot);
+        markShot(shotSources, movement.player.id, blast.bombId, blast.shot);
       }
     }
 
@@ -1055,7 +937,7 @@ export function step(
   explodeInstant(ctx);
   const instantBlasts = ctx.instantBlasts;
   if (instantBlasts.length || gunHits.size) {
-    captureOrigins();
+    captureOrigins(ctx);
     for (const player of sortedPlayers(state)) {
       player.trail = cutTrail(
         player.trail,
@@ -1984,24 +1866,6 @@ function assertPhase(
 ): void {
   if (!allowed.includes(state.phase))
     throw new Error(`${command} is invalid during ${state.phase}`);
-}
-
-function markCause(
-  causes: Map<PlayerId, EliminationCause>,
-  causeOwners: Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>,
-  playerId: PlayerId,
-  cause: EliminationCause,
-  ownerId?: PlayerId,
-): void {
-  const current = causes.get(playerId);
-  if (!current || CAUSE_PRIORITY[cause] > CAUSE_PRIORITY[current])
-    causes.set(playerId, cause);
-  if (ownerId === undefined) return;
-  let byCause = causeOwners.get(playerId);
-  if (!byCause) causeOwners.set(playerId, (byCause = new Map()));
-  let owners = byCause.get(cause);
-  if (!owners) byCause.set(cause, (owners = new Set()));
-  owners.add(ownerId);
 }
 
 function soleCreditedOwner(
