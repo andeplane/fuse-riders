@@ -55,17 +55,22 @@ test("PHASES is the tick order the design note describes", () => {
 });
 
 /** Names a file imports as values (not types) from a module whose path ends with one of `modules`. */
-function valueImports(file: string, modules: readonly string[]): string[] {
+function valueImports(
+  file: string,
+  modules: readonly string[],
+  text?: string,
+): string[] {
   const names: string[] = [];
-  for (const statement of syntax(file).statements) {
+  for (const statement of syntax(file, text).statements) {
     if (
       !ts.isImportDeclaration(statement) ||
-      !ts.isStringLiteralLike(statement.moduleSpecifier) ||
-      !modules.some((name) =>
-        (statement.moduleSpecifier as ts.StringLiteralLike).text.endsWith(
-          `/${name}.js`,
-        ),
-      )
+      !ts.isStringLiteralLike(statement.moduleSpecifier)
+    )
+      continue;
+    // `allowImportingTsExtensions` is on, so a specifier may end in .ts as well as .js.
+    const specifier = statement.moduleSpecifier.text;
+    if (
+      !modules.some((name) => new RegExp(`/${name}\\.(js|ts)$`).test(specifier))
     )
       continue;
     const clause = statement.importClause;
@@ -100,6 +105,17 @@ test("recordFacts is the only phase that writes statistics, the shot log or mome
   assert.ok(
     valueImports(`${SIM}/phases/record-facts.ts`, ["match-stats"]).length > 0,
     "the guard reads the imports it claims to",
+  );
+  assert.deepEqual(
+    valueImports(
+      "sample.ts",
+      ["match-stats", "shot-log"],
+      `import { recordDeath, type MatchStatsState } from "../../match-stats.ts";
+       import type { RoundShot } from "../../shot-log.js";
+       import { recordShot as log } from "../../shot-log.js";`,
+    ),
+    ["recordDeath", "recordShot"],
+    "either extension is seen, types are not, and an alias does not hide the name",
   );
 });
 

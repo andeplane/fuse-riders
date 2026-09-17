@@ -40,7 +40,7 @@ try {
         String("/src/client/themes.ts")
       )) as typeof import("../src/client/themes.js");
       const { BOMB_COOLDOWN_TICKS } = (await import(
-        String("/src/shared/game.ts")
+        String("/src/engine/game.ts")
       )) as typeof import("../src/engine/game.js");
       const { RELOAD_RING_RADIUS } = (await import(
         String("/src/client/reload-ring.ts")

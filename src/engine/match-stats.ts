@@ -67,7 +67,8 @@ export interface MatchPlayerStatsState extends Omit<
 /**
  * Statistics observe a match; they never stop one. Every recorder below is called from inside a tick (`recordFacts`),
  * where a throw would abandon the tick half-way, so a rider the match never seated — which only a damaged state can
- * produce — is simply not counted (issue #253, C8). `finalizeMatchStatsRound` still rejects a contradictory round.
+ * produce — is simply not counted (issue #253, C8). `finalizeMatchStatsRound` skips an unseated id the same way and
+ * keeps its other two rejections: duplicate participant ids, and a winner who is not a participant.
  */
 export type MatchStatsState = Map<string, MatchPlayerStatsState>;
 
