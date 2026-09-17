@@ -198,7 +198,10 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       };
       if (mine !== landingGeneration || !account) return;
       const rating = profile?.rating ?? newRating();
-      button.textContent = `${profile?.rank ? `#${profile.rank}` : "UNRANKED"} · ${Math.round(rating.value).toLocaleString()} ELO`;
+      leaderboardButton.textContent = profile?.rank
+        ? `#${profile.rank} · LEADERBOARD`
+        : "LEADERBOARD";
+      button.textContent = `${account.name}\n${Math.round(rating.value).toLocaleString()} ELO`;
       button.title = "Your global rank and Elo · Open player stats";
     } catch {
       if (mine === landingGeneration && account) {
@@ -451,7 +454,8 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     cancelRefresh?.();
     cancelRefresh = undefined;
     account = next;
-    button.textContent = next ? "MY STATS" : "SIGN IN";
+    leaderboardButton.textContent = "LEADERBOARD";
+    button.textContent = next ? next.name : "SIGN IN";
     button.dataset.signedIn = String(Boolean(next));
     button.title = next
       ? `Signed in as ${next.name}`

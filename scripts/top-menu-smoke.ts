@@ -21,7 +21,7 @@ const vite = await createServer({
 });
 await vite.listen();
 await mkdir("artifacts", { recursive: true });
-const rating = "#3 · 969 ELO";
+const rating = "Neon Rider 969 ELO";
 const inside = async (page: Page) => {
   const account = page.getByRole("button", { name: rating, exact: true });
   await account.waitFor({ state: "visible" });
@@ -142,7 +142,7 @@ try {
           /♫ MUSIC (ON|OFF)/,
           /🔊 SOUND (ON|OFF)/,
           "SETTINGS",
-          "LEADERBOARD",
+          "#3 · LEADERBOARD",
           rating,
         ])
           await page
@@ -179,7 +179,7 @@ try {
             .getByRole("button", { name: "☰ MENU", exact: true })
             .click();
           await page
-            .getByRole("button", { name: "LEADERBOARD", exact: true })
+            .getByRole("button", { name: "#3 · LEADERBOARD", exact: true })
             .waitFor({ state: "visible" });
           await inside(page);
         }
@@ -236,14 +236,25 @@ try {
                 },
               },
             });
-            const changed = (ready: () => boolean) => new Promise<void>(resolve => {
-              if (ready()) {resolve(); return;}
-              const observer = new MutationObserver(() => {
-                if (ready()) {observer.disconnect(); resolve();}
+            const changed = (ready: () => boolean) =>
+              new Promise<void>((resolve) => {
+                if (ready()) {
+                  resolve();
+                  return;
+                }
+                const observer = new MutationObserver(() => {
+                  if (ready()) {
+                    observer.disconnect();
+                    resolve();
+                  }
+                });
+                observer.observe(panel.button, {
+                  childList: true,
+                  subtree: true,
+                  attributes: true,
+                });
               });
-              observer.observe(panel.button, {childList:true, subtree:true, attributes:true});
-            });
-            await changed(() => panel.button.textContent === "#3 · 1,000 ELO");
+            await changed(() => panel.button.textContent === "Test\n1,000 ELO");
             panel.refresh();
             panel.refresh();
             panel.refresh();
@@ -254,9 +265,9 @@ try {
             const scheduled = [...pending.values()];
             pending.clear();
             scheduled.forEach((run) => run());
-            await changed(() => panel.button.textContent === "#3 · 1,016 ELO");
+            await changed(() => panel.button.textContent === "Test\n1,016 ELO");
             const updated =
-              panel.button.textContent === "#3 · 1,016 ELO" &&
+              panel.button.textContent === "Test\n1,016 ELO" &&
               requests === 2 &&
               pending.size === 0;
             offline = true;
@@ -265,11 +276,20 @@ try {
             const failure = [...pending.values()];
             pending.clear();
             failure.forEach((run) => run());
-            await changed(() => panel.button.title.includes("Could not refresh"));
-            const retained = panel.button.textContent === "#3 · 1,016 ELO";
+            await changed(() =>
+              panel.button.title.includes("Could not refresh"),
+            );
+            const retained = panel.button.textContent === "Test\n1,016 ELO";
             panel.refresh();
             panel.dispose();
-            if (!updated || !retained) throw new Error(JSON.stringify({label:panel.button.textContent,requests,pending:pending.size}));
+            if (!updated || !retained)
+              throw new Error(
+                JSON.stringify({
+                  label: panel.button.textContent,
+                  requests,
+                  pending: pending.size,
+                }),
+              );
             return {
               coalesced,
               updated,

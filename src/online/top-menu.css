@@ -112,3 +112,12 @@
 .online-app.mobile-play.mobile-tools-open .game-top-menu {
   display: contents;
 }
+
+.online-app
+  :is(.landing-top, .online-header)
+  .game-top-menu
+  button[data-signed-in="true"],
+.online-app > .player-account[data-signed-in="true"] {
+  white-space: pre-line;
+  text-align: center;
+}
