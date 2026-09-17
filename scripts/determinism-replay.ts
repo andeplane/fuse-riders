@@ -7,7 +7,7 @@ import {
   makeRecording,
   replayHashes,
   type Recording,
-} from "./fixtures/replay-log.ts";
+} from "../tests/fixtures/replay-log.ts";
 
 // Phase 0 gate: the same seeded five-rider log folds to the same state hash on every tick in Node, Chromium and WebKit.
 const ticks = Number(process.env.REPLAY_TICKS ?? 3000),
@@ -20,7 +20,7 @@ console.log(
 );
 const bundle = await build({
   stdin: {
-    contents: `import { replayHashes } from './scripts/fixtures/replay-log.ts'; globalThis.replayHashes = replayHashes;`,
+    contents: `import { replayHashes } from './tests/fixtures/replay-log.ts'; globalThis.replayHashes = replayHashes;`,
     resolveDir: process.cwd(),
     loader: "ts",
   },

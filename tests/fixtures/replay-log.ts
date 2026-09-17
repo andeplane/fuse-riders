@@ -6,6 +6,7 @@ import {
   freeSlot,
   hashRoomState,
   type StreamEntries,
+  type RoomState,
 } from "../../src/shared/apply-tick.ts";
 import {
   ACTION,
@@ -16,9 +17,73 @@ import {
   PRESS,
   RELEASE,
   STEER,
+  SETTINGS,
   type Entry,
 } from "../../src/shared/input-log.ts";
 import { defaultRoomSettings } from "../../src/shared/room-settings.js";
+import {
+  PICKUP_TYPES,
+  SHIELD_GRACE_TICKS,
+  type PickupType,
+} from "../../src/shared/game.js";
+import {
+  PORTAL_COOLDOWN_TICKS,
+  PORTAL_GRACE_TICKS,
+} from "../../src/shared/portal.js";
+import type { GameEvent } from "../../src/shared/protocol.js";
+
+export interface ReplayCoverage {
+  collected: PickupType[];
+  portalTransits: number;
+  shieldAbsorbs: number;
+}
+
+export function coverageObserver(coverage: ReplayCoverage) {
+  return (state: Readonly<RoomState>) => {
+    const pickups = new Map(
+      state.game.pickups.map((pickup) => [pickup.id, pickup.type]),
+    );
+    const players = new Map(
+      [...state.game.players].map(([id, player]) => [
+        id,
+        {
+          shielded: player.shielded,
+          cooldown: player.portalCooldownUntilTick,
+          x: player.x,
+          matchId: state.game.matchId,
+        },
+      ]),
+    );
+    return (events: readonly GameEvent[]) => {
+      for (const event of events) {
+        if (event.type !== "pickupCollected") continue;
+        const type = pickups.get(event.pickupId);
+        if (type && !coverage.collected.includes(type))
+          coverage.collected.push(type);
+      }
+      for (const [id, player] of state.game.players) {
+        const before = players.get(id);
+        if (!before || before.matchId !== state.game.matchId) continue;
+        if (
+          before.shielded &&
+          !player.shielded &&
+          player.alive &&
+          player.shieldGraceUntilTick === state.game.tick + SHIELD_GRACE_TICKS
+        )
+          coverage.shieldAbsorbs++;
+        if (
+          player.portalCooldownUntilTick > before.cooldown &&
+          player.portalCooldownUntilTick ===
+            state.game.tick + PORTAL_COOLDOWN_TICKS &&
+          player.portalGraceUntilTick ===
+            state.game.tick + PORTAL_GRACE_TICKS &&
+          Math.abs(player.x - before.x) > 100
+        )
+          coverage.portalTransits++;
+      }
+    };
+  };
+}
 
 /** Seeded five-rider recording: two scripted humans plus three AI riders, rematching whenever a match ends. */
 export interface Recording {
@@ -39,7 +104,11 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-export function makeRecording(seed: number, ticks: number): Recording {
+export function makeRecording(
+  seed: number,
+  ticks: number,
+  coverMechanics = false,
+): Recording {
   const random = mulberry32(seed),
     creator = "creator",
     players = [creator, "rider"];
@@ -54,6 +123,15 @@ export function makeRecording(seed: number, ticks: number): Recording {
     creator: { active: 0, latest: 0 },
     rider: { active: 0, latest: 0 },
   };
+  const coverage: ReplayCoverage = {
+    collected: [],
+    portalTransits: 0,
+    shieldAbsorbs: 0,
+  };
+  const observe = coverageObserver(coverage);
+  let focus: PickupType | undefined;
+  let attempt = 0;
+  let attemptStart = 0;
   for (let tick = 1; tick <= ticks; tick++) {
     if (tick === 1) {
       log(creator, tick, JOIN, creator, "Creator", 0, "robot", 1);
@@ -73,6 +151,33 @@ export function makeRecording(seed: number, ticks: number): Recording {
         );
       }
     if (tick === 3) log(creator, tick, ACTION, "start", `match-${tick}`);
+    if (coverMechanics && tick >= 3) {
+      const wanted =
+        PICKUP_TYPES.find((type) => !coverage.collected.includes(type)) ??
+        (coverage.shieldAbsorbs === 0
+          ? "orbitShield"
+          : coverage.portalTransits === 0
+            ? "portal"
+            : undefined);
+      if (!wanted)
+        return { matchId: "replay", creator, ticks: tick - 1, entries };
+      if (
+        wanted !== focus ||
+        tick - attemptStart >= 1000 ||
+        state.game.phase === "matchOver"
+      ) {
+        focus = wanted;
+        attemptStart = tick;
+        log(creator, tick, ACTION, "lobby", `coverage-${seed}-${++attempt}`);
+        log(creator, tick, SETTINGS, {
+          ...defaultRoomSettings(),
+          length: 1,
+          weights: { [wanted]: 1 },
+        });
+        log(creator, tick, ACTION, "start", `coverage-${seed}-${attempt}`);
+        for (const gesture of Object.values(gestures)) gesture.active = 0;
+      }
+    }
     if (
       state.game.phase === "matchOver" &&
       state.game.tick >= (state.game.phaseEndsAtTick ?? 0)
@@ -109,8 +214,13 @@ export function makeRecording(seed: number, ticks: number): Recording {
         gesture.active = 0;
       }
     }
-    applyTick(state, creator, streamsAt(entries, tick), bots);
+    const after = observe(state);
+    after(applyTick(state, creator, streamsAt(entries, tick), bots));
   }
+  if (coverMechanics)
+    throw new Error(
+      `Coverage incomplete at ${ticks} ticks: ${JSON.stringify(coverage)}`,
+    );
   return { matchId: "replay", creator, ticks, entries };
 }
 
@@ -127,17 +237,24 @@ function streamsAt(
 }
 
 /** One hash per tick. Any engine that disagrees with another on any tick has diverged. */
-export function replayHashes(recording: Recording): string[] {
+export function replayHashes(
+  recording: Recording,
+  observe?: (
+    state: Readonly<RoomState>,
+  ) => (events: readonly GameEvent[]) => void,
+): string[] {
   const state = createRoomState(recording.matchId, defaultRoomSettings()),
     bots = new BotController(),
     hashes: string[] = [];
   for (let tick = 1; tick <= recording.ticks; tick++) {
-    applyTick(
+    const after = observe?.(state);
+    const events = applyTick(
       state,
       recording.creator,
       streamsAt(recording.entries, tick),
       bots,
     );
+    after?.(events);
     hashes.push(hashRoomState(state));
   }
   return hashes;

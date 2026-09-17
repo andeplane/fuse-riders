@@ -1,0 +1,13 @@
+# Engine safety net (issue #253, stage A1)
+
+This stage protects the current engine before the phase-pipeline migration. It does not move modules or merge the pending map/device feature PRs (#243, #248, #210); those dependencies still need resolution before A2 rewrites `game.ts`.
+
+The golden workload is a persisted, valid input log generated with `makeRecording(20260915, 30000, true)`. Two scripted human streams and three ordinary bots run through `applyTick`. The creator uses normal lobby/start/settings entries to select each pickup in turn. Coverage observes actual collection events, portal exit grace plus a cross-arena displacement, and a surviving shield absorption. No fixture writes simulation state. Persisting the successful 3,424-tick log keeps the unit test fast and fixes the workload across refactors and rules updates.
+
+`tests/fixtures/golden-hashes.json` pins every tick and its rules version. A refactor must preserve it. An intentional simulation change updates `RULES` and runs `npx tsx scripts/update-golden-hashes.ts` in the same `[rules N→N+1]` commit. `--record` regenerates the input workload and is only for an explicit coverage change; inspect coverage before accepting it. A golden assertion detects unintentional drift, not deliberate edits to both a test and its expected data.
+
+Ordering becomes explicit where canonical hashing previously hid meaningful Map/object insertion order: player traversal is slot/id ordered, bombs are id ordered, and pickup weights use `PICKUP_TYPES`. Codepoint ordering replaces locale-dependent tie breaks. The changes intentionally advance the rules version even where the ordinary workload's hash happens to stay stable.
+
+AST tests reject nondeterministic math, powers, clocks and locale comparison in engine-owned source. Another AST import test classifies current and target directories and pins exact legacy violating edges. Removing an edge also requires removing its allowlist entry; adding an edge fails. This is a migration ratchet, not a claim that the current architecture already satisfies the target boundaries.
+
+Seeded fake-network scenarios cover loss, duplicate delivery, reordering and repair with ordinary runtime commands. Cross-browser verification replays the same mechanic log in Node, Chromium and WebKit. The full browser matrix is not required for this stage; no browser UI or transport implementation changes are included.

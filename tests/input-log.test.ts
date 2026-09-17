@@ -23,7 +23,6 @@ import {
 } from "../src/shared/input-log.js";
 import { BotController } from "../src/shared/bot-controller.js";
 import {
-  RULES,
   actingCreator,
   applyTick,
   canonicalRoomState,
@@ -513,7 +512,6 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-24");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;
