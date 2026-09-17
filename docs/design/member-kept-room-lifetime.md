@@ -11,7 +11,9 @@ absolute: it writes the deadline `ROOM_ENDED_AT` (0) rather than the ending inst
 still reads the room as ended and the code is reusable at once. A departure restarts the
 grace only while that member's own connection lease is live; a member whose lease already
 lapsed had stopped renewing the room, so its late socket close removes it without moving
-the deadline.
+the deadline. Since #256 S4 a heartbeat only _writes_ the extension once a lease it keeps
+is down to half its lifetime ([heartbeat write cost](heartbeat-write-cost.md)); under
+a steady two-second heartbeat the deadline of an occupied room stays 74 to 90 seconds away.
 
 The creator's identity, reserved seat and explicit end capability remain unchanged.
 Room lifetime is separate from the creator authority grant: guests renew room

@@ -434,7 +434,8 @@ test("v2 renewal accepts GrantIdentity without timestamps at the actual JSON bou
     holder: grant.holder,
     grantId: grant.grantId,
   };
-  f.advance(3000);
+  // Past half the grant's lease, so this heartbeat is one that renews (docs/design/heartbeat-write-cost.md).
+  f.advance(6000);
   await f.a.receive(
     hostConnection,
     JSON.stringify({ type: "time", id: 1, sentAt: 50, renew: identity }),
@@ -443,7 +444,7 @@ test("v2 renewal accepts GrantIdentity without timestamps at the actual JSON bou
   assert.ok(renewed && typeof renewed === "object");
   assert.equal(
     (renewed as { expiresAt: number }).expiresAt,
-    grant.expiresAt + 3000,
+    grant.expiresAt + 6000,
   );
 });
 
