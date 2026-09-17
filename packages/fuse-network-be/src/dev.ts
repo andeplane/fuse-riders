@@ -9,6 +9,7 @@ import {
 import { LocalRoomBus, MemoryRoomDatabase } from "./memory-database.js";
 import { RoomGateway } from "./gateway.js";
 import { RoomStore } from "./room-store.js";
+import { rateLimitAddress } from "./client-address.js";
 
 export interface DevRoomServiceOptions {
   httpExtension?: (store: RoomStore) => HttpExtension;
@@ -17,9 +18,10 @@ export interface DevRoomServiceOptions {
   /** Extra page origins allowed besides same-origin loopback pages. */
   allowedOrigins?: readonly string[];
   now?: () => number;
-  /** Socket authentication deadline scheduler, operational log and the deprecated `?token=` window; see `RoomHttpOptions`. */
+  /** Socket authentication deadline scheduler and operational log; see `RoomHttpOptions`. */
   schedule?: RoomHttpOptions["schedule"];
   log?: RoomHttpOptions["log"];
+  /** LEGACY-QUERY-TOKEN: the deprecated `?token=` window, passed through for its tests; see `RoomHttpOptions`. */
   legacyQueryToken?: boolean;
   /** Room capacity and its refusal text; see `RoomStoreDependencies`. */
   maxGuests?: number;
@@ -88,11 +90,13 @@ export function createDevRoomService(
     now,
     ...(options.schedule ? { schedule: options.schedule } : {}),
     ...(options.log ? { log: options.log } : {}),
+    // LEGACY-QUERY-TOKEN: delete with the option.
     ...(options.legacyQueryToken ? { legacyQueryToken: true } : {}),
     extension: options.httpExtension?.(store),
     allowOrigin: (origin, req) =>
       extra.has(origin) || sameLoopbackOrigin(origin, req),
-    clientAddress: (req) => req.socket.remoteAddress ?? "local",
+    clientAddress: (req) =>
+      rateLimitAddress(req.socket.remoteAddress ?? "local"),
     ...(options.staticDirectory
       ? { staticDirectory: options.staticDirectory }
       : {}),

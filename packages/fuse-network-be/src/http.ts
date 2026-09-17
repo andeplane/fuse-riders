@@ -11,6 +11,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { AdmissionGate } from "./admission-gate.js";
 import {
   RoomError,
+  RoomFullError,
   digest,
   peerId,
   validCode,
@@ -18,9 +19,14 @@ import {
   type RoomStore,
 } from "./room-store.js";
 import type { RoomGateway } from "./gateway.js";
-import { AUTH_DEADLINE_MS, authToken } from "./socket-auth.js";
+import {
+  AUTH_DEADLINE_MS,
+  REFUSED_CLOSE_GRACE_MS,
+  authToken,
+} from "./socket-auth.js";
 import {
   CLOSE_ROOM_ENDED,
+  CLOSE_ROOM_FULL,
   CLOSE_UNAUTHENTICATED,
   DEFAULT_ICE_SERVERS,
 } from "fuse-network-protocol";
@@ -44,11 +50,12 @@ export interface RoomHttpOptions {
   /** Rate-limit identity for room creation and admission failures. */
   clientAddress: (req: IncomingMessage) => string;
   now?: () => number;
-  /** Runs the socket authentication deadline; returns its cancellation. Defaults to an unreferenced timer. */
+  /** Runs the socket authentication deadline and the refused-socket cut-off; returns the cancellation. Defaults to an unreferenced timer. */
   schedule?: (callback: () => void, delayMs: number) => () => void;
   /** Structured operational log. Entries never carry a request URL, a token or a frame. */
   log?: (entry: Record<string, unknown>) => void;
   /**
+   * LEGACY-QUERY-TOKEN — every site of the window carries this tag; `grep -rn LEGACY-QUERY-TOKEN` lists what to delete.
    * DEPRECATED rollout window (#256 S3, docs/online/TOKEN-TRANSPORT.md): also admit a room socket whose token is in
    * `?token=`, as clients built before the first-frame handshake send it. Off unless the deployment asks for it.
    * Remove this option, its block in the upgrade handler and its tests once no client sends the old form.
@@ -257,7 +264,7 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
   });
   let legacyUses = 0,
     legacyLoggedAt = Number.NEGATIVE_INFINITY;
-  // DEPRECATED rollout window — see `legacyQueryToken`. At most one line a minute, and only a count.
+  // LEGACY-QUERY-TOKEN: DEPRECATED rollout window — see `legacyQueryToken`. At most one line a minute, and only a count.
   const deprecatedQueryToken = () => {
     legacyUses++;
     if (now() - legacyLoggedAt < 60_000) return;
@@ -301,7 +308,7 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
     // The request carries no credential: the socket authenticates with its first frame, inside the admission
     // slot taken below, so unauthenticated sockets are bounded per address and in total like any other admission.
     let queryToken: string | undefined;
-    // DEPRECATED rollout window — see `legacyQueryToken`. Delete this block with the option.
+    // LEGACY-QUERY-TOKEN: DEPRECATED rollout window — see `legacyQueryToken`. Delete this block (and `queryToken`) with the option.
     if (options.legacyQueryToken && url.searchParams.has("token")) {
       queryToken = url.searchParams.get("token") ?? "";
       if (!validToken(queryToken)) {
@@ -333,6 +340,7 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                 closed = false,
                 pending: string[] = [],
                 // "auth": only an `auth` frame is read. "rejected": nothing is read again.
+                // LEGACY-QUERY-TOKEN: without the window the initial phase is always "auth".
                 phase: "auth" | "admitted" | "rejected" =
                   queryToken === undefined ? "auth" : "admitted",
                 cancelDeadline: (() => void) | undefined;
@@ -387,34 +395,55 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
               ws.on("close", () => {
                 closed = true;
                 pending = [];
-                // Leaving before authenticating spends the budget too, or a slot could be held for free forever.
-                if (phase === "auth")
-                  refuse(new RoomError(401, "Closed before authentication"));
+                // Leaving before authenticating frees the slot and is not a failure. Charging it would stop nobody —
+                // a slot can be held to the deadline and then authenticated for free — and it would land on honest
+                // pages: one closed, frozen or dropped within a round trip of the upgrade.
+                if (phase === "auth") {
+                  phase = "rejected";
+                  cancelDeadline?.();
+                  resolve();
+                }
                 if (connectionId) void gateway.disconnect(connectionId);
               });
               ws.on("error", () => {
+                // `ws` reports a frame it will not parse (a protocol violation, or one past `maxPayload`) here, not a
+                // network drop. As a first frame that is a bad authentication attempt like any other.
+                if (phase === "auth")
+                  refuse(new RoomError(401, "Authentication required"));
                 ws.close();
               });
+              // LEGACY-QUERY-TOKEN: admitted without an `auth` frame.
               if (queryToken !== undefined) admit(queryToken);
             });
           }),
       )
       .catch((error) => {
         logFailure("admission", error);
-        if (upgraded)
-          upgraded.close(
+        if (upgraded) {
+          const refused = upgraded;
+          refused.close(
             !(error instanceof RoomError)
               ? 4000
-              : error.status === 404
-                ? CLOSE_ROOM_ENDED
-                : error.status === 401
-                  ? CLOSE_UNAUTHENTICATED
-                  : 4000,
+              : error instanceof RoomFullError
+                ? CLOSE_ROOM_FULL
+                : error.status === 404
+                  ? CLOSE_ROOM_ENDED
+                  : error.status === 401
+                    ? CLOSE_UNAUTHENTICATED
+                    : 4000,
             error instanceof RoomError
               ? error.message
               : "Room service unavailable",
           );
-        else if (!socket.destroyed)
+          // `ws` waits 30 s for the peer's close frame. A refused socket holds no admission slot by then, but it
+          // still occupies one of the platform's concurrent requests; a peer that never answers is cut off.
+          // Only refused sockets: an admitted socket's close handshake is left to run.
+          if (refused.readyState !== refused.CLOSED)
+            refused.once(
+              "close",
+              schedule(() => refused.terminate(), REFUSED_CLOSE_GRACE_MS),
+            );
+        } else if (!socket.destroyed)
           socket.end(
             `HTTP/1.1 ${error instanceof RoomError && error.status === 429 ? "429 Too Many Requests" : "503 Service Unavailable"}\r\nConnection: close\r\n\r\n`,
           );

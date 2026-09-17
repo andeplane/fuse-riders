@@ -3,8 +3,10 @@ export const ROOM_PROTOCOL_VERSION = 2;
 /** Room socket close codes the client acts on. Anything else is a transient drop and is retried. */
 export const CLOSE_AUTHORITY_REPLACED = 4001;
 export const CLOSE_ROOM_ENDED = 4004;
-/** The first frame was missing, late, oversized or not a valid `auth` frame. Not acted on: the client retries. */
+/** The first frame was missing, late, oversized or not a valid `auth` frame. The client retries, backing off. */
 export const CLOSE_UNAUTHENTICATED = 4401;
+/** The room has no free seat. Terminal for this page: the client stops retrying and says so; the reason is the service's wording. */
+export const CLOSE_ROOM_FULL = 4029;
 /** Upper bound on the first (`auth`) frame of a room socket; the real frame is under 100 bytes. */
 export const AUTH_FRAME_MAX_BYTES = 256;
 /**

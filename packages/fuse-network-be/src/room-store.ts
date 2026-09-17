@@ -94,6 +94,15 @@ export class RoomError extends Error {
     super(message);
   }
 }
+/**
+ * The code and token were fine; the room has no free seat. Not an admission failure: it spends no failure budget,
+ * and the socket closes with `CLOSE_ROOM_FULL` so the client stops retrying instead of hammering a full room.
+ */
+export class RoomFullError extends RoomError {
+  constructor(message: string) {
+    super(429, message);
+  }
+}
 const clone = (room: RoomRecord): RoomRecord => structuredClone(room);
 function live(room: RoomRecord | undefined, now: number): RoomRecord {
   if (!room || room.expiresAt <= now)
@@ -183,7 +192,7 @@ export class RoomStore {
         guests = this.maxGuests,
         capacity = host || room.members[room.hostId] ? guests + 1 : guests;
       if (Object.keys(room.members).length >= capacity && !room.members[id])
-        throw new RoomError(429, this.dependencies.fullMessage ?? "Room full");
+        throw new RoomFullError(this.dependencies.fullMessage ?? "Room full");
       const member: Member = {
         id,
         connectionId,

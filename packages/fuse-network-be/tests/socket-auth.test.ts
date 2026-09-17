@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import type { AddressInfo } from "node:net";
+import { randomBytes, randomUUID } from "node:crypto";
+import { connect, type AddressInfo } from "node:net";
 import { WebSocket } from "ws";
 import {
   AUTH_FRAME_MAX_BYTES,
+  CLOSE_ROOM_FULL,
   CLOSE_UNAUTHENTICATED,
   authFrame,
 } from "fuse-network-protocol";
@@ -12,7 +13,11 @@ import { createRoomServer } from "../src/http.js";
 import { RoomGateway } from "../src/gateway.js";
 import { LocalRoomBus, MemoryRoomDatabase } from "../src/memory-database.js";
 import { RoomStore, digest } from "../src/room-store.js";
-import { AUTH_DEADLINE_MS, authToken } from "../src/socket-auth.js";
+import {
+  AUTH_DEADLINE_MS,
+  REFUSED_CLOSE_GRACE_MS,
+  authToken,
+} from "../src/socket-auth.js";
 
 const ORIGIN = "https://game.example";
 const ADDRESS = "203.0.113.7";
@@ -43,6 +48,8 @@ interface Scheduled {
   callback: () => void;
   delayMs: number;
   cancelled: boolean;
+  /** Resolves when the service cancels this entry. */
+  whenCancelled: Promise<void>;
 }
 interface Peer {
   socket: WebSocket;
@@ -53,10 +60,17 @@ interface Peer {
   closed: Promise<{ code: number; reason: string }>;
 }
 
-async function fixture(options: { legacyQueryToken?: boolean } = {}) {
+async function fixture(
+  options: { legacyQueryToken?: boolean; maxGuests?: number } = {},
+) {
   let now = 1_000_000;
+  const { maxGuests, ...httpOptions } = options;
   const database = new CountingDatabase(),
-    store = new RoomStore(database, { now: () => now, id: randomUUID }),
+    store = new RoomStore(database, {
+      now: () => now,
+      id: randomUUID,
+      maxGuests,
+    }),
     scheduled: Scheduled[] = [],
     logs: Array<Record<string, unknown>> = [];
   const gateway = new RoomGateway("test", store, new LocalRoomBus(), {
@@ -73,14 +87,23 @@ async function fixture(options: { legacyQueryToken?: boolean } = {}) {
     allowOrigin: (origin) => origin === ORIGIN,
     clientAddress: () => ADDRESS,
     schedule: (callback, delayMs) => {
-      const entry = { callback, delayMs, cancelled: false };
+      let cancel = () => {};
+      const entry: Scheduled = {
+        callback,
+        delayMs,
+        cancelled: false,
+        whenCancelled: new Promise((resolve) => {
+          cancel = resolve;
+        }),
+      };
       scheduled.push(entry);
       return () => {
         entry.cancelled = true;
+        cancel();
       };
     },
     log: (entry) => logs.push(entry),
-    ...options,
+    ...httpOptions,
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
@@ -152,6 +175,12 @@ async function fixture(options: { legacyQueryToken?: boolean } = {}) {
     database,
     gateway,
     scheduled,
+    /** The authentication deadlines, in the order their sockets upgraded. */
+    deadlines: () =>
+      scheduled.filter((entry) => entry.delayMs === AUTH_DEADLINE_MS),
+    /** The cut-offs of refused sockets, in the order they were refused. */
+    cutOffs: () =>
+      scheduled.filter((entry) => entry.delayMs === REFUSED_CLOSE_GRACE_MS),
     logs,
     create,
     open,
@@ -230,6 +259,8 @@ test("a room socket authenticates with its first frame, and the deadline is canc
     // Authentication changes nothing after it: the socket is still text-only.
     peer.socket.send(Buffer.from("binary"));
     assert.equal((await peer.closed).code, 1003);
+    // Only refused sockets are ever cut off: an admitted socket's close handshake runs to its end.
+    assert.equal(f.cutOffs().length, 0);
   } finally {
     await f.close();
   }
@@ -251,7 +282,7 @@ test("a token in the query string does not authenticate a socket", async () => {
     // The same page staying silent instead meets the deadline.
     const silent = f.open(code, `?token=${token}`);
     await silent.opened;
-    f.scheduled.at(-1)!.callback();
+    f.deadlines().at(-1)!.callback();
     assert.equal((await silent.closed).code, CLOSE_UNAUTHENTICATED);
     assert.equal(f.database.charged, 2);
     assert.equal(f.gateway.connections, 0);
@@ -286,7 +317,7 @@ test("garbage, oversized, binary and wrong first frames are refused and charged 
       assert.equal((await peer.closed).code, CLOSE_UNAUTHENTICATED, name);
       assert.deepEqual(peer.frames, [], name);
       assert.equal(f.database.charged, before + 1, name);
-      assert.equal(f.scheduled.at(-1)!.cancelled, true, name);
+      assert.equal(f.deadlines().at(-1)!.cancelled, true, name);
     }
     // Past the socket's own 32 kB payload limit ws drops the connection itself; that is charged as well.
     const before = f.database.charged,
@@ -349,21 +380,150 @@ test("a silent socket is closed by the injected deadline; authenticating late do
   }
 });
 
-test("a socket that leaves before authenticating is charged and frees its slot", async () => {
+test("a socket that leaves before authenticating frees its slot and is not charged", async () => {
   const f = await fixture();
   try {
     const { code, token } = await f.create();
-    const peer = f.open(code);
-    await peer.opened;
-    const charged = f.database.nextCharge();
-    peer.socket.close();
-    await charged;
+    // Every slot this address has: a slot that is not freed leaves no room for the socket below.
+    const held = [f.open(code), f.open(code), f.open(code), f.open(code)];
+    await Promise.all(held.map((peer) => peer.opened));
+    await assert.rejects(f.open(code).opened, /HTTP 429/);
+    const logged = f.logs.length;
+    for (const peer of held) peer.socket.close();
+    // The service drops the deadline as it frees the slot.
+    await Promise.all(f.deadlines().map((entry) => entry.whenCancelled));
+    assert.equal(f.database.charged, 0, "an honest page may leave early");
+    assert.equal(f.logs.length, logged, "and leaving is not a failure");
+    assert.equal(f.cutOffs().length, 0);
+    const next = [f.open(code), f.open(code), f.open(code), f.open(code)];
+    await Promise.all(next.map((peer) => peer.opened));
+    next[0]!.socket.send(authFrame(token));
+    assert.equal((await next[0]!.frame()).type, "welcome");
+  } finally {
+    await f.close();
+  }
+});
+
+test("slots held to the deadline and then authenticated are free: only the concurrent bound limits them", async () => {
+  // Pins what the failure budget does NOT bound (docs/online/TOKEN-TRANSPORT.md): any well-formed token is admitted
+  // to a live room, so a slot can be held for the whole deadline at no charge, indefinitely.
+  const f = await fixture();
+  try {
+    const { code, token } = await f.create();
+    const tokens = [token, "b".repeat(64), "c".repeat(64), "d".repeat(64)];
+    for (let round = 0; round < 32; round++) {
+      const held = tokens.map(() => f.open(code));
+      await Promise.all(held.map((peer) => peer.opened));
+      await assert.rejects(
+        f.open(code).opened,
+        /HTTP 429/,
+        "a fifth concurrent socket is refused before the upgrade",
+      );
+      // "Just before the deadline": it has not fired, and authenticating cancels it.
+      const deadlines = f.deadlines().slice(-held.length);
+      assert.deepEqual(
+        deadlines.map((entry) => entry.cancelled),
+        [false, false, false, false],
+      );
+      held.forEach((peer, slot) => peer.socket.send(authFrame(tokens[slot]!)));
+      for (const peer of held)
+        assert.equal((await peer.frame()).type, "welcome");
+      assert.deepEqual(
+        deadlines.map((entry) => entry.cancelled),
+        [true, true, true, true],
+      );
+    }
+    assert.equal(f.database.charged, 0, "128 held slots, nothing charged");
+    await f.open(code).opened;
+  } finally {
+    await f.close();
+  }
+});
+
+test("a full room is not an admission failure: its own close code, no charge, however often it is tried", async () => {
+  const f = await fixture({ maxGuests: 1 });
+  try {
+    const { code, token } = await f.create();
+    const creator = f.open(code);
+    await creator.opened;
+    creator.socket.send(authFrame(token));
+    assert.equal((await creator.frame()).type, "welcome");
+    const guest = f.open(code);
+    await guest.opened;
+    guest.socket.send(authFrame("b".repeat(64)));
+    assert.equal((await guest.frame()).type, "welcome");
+    for (let attempt = 0; attempt < 31; attempt++) {
+      const late = f.open(code);
+      await late.opened;
+      late.socket.send(authFrame("c".repeat(64)));
+      assert.deepEqual(await late.closed, {
+        code: CLOSE_ROOM_FULL,
+        reason: "Room full",
+      });
+    }
+    assert.equal(f.database.charged, 0);
+    // A wrong code is still a guess, and still charged.
+    const missing = f.open("ZZ99");
+    await missing.opened;
+    missing.socket.send(authFrame("c".repeat(64)));
+    assert.equal((await missing.closed).code, 4004);
     assert.equal(f.database.charged, 1);
-    assert.equal(f.scheduled[0]!.cancelled, true);
-    const next = f.open(code);
-    await next.opened;
-    next.socket.send(authFrame(token));
-    assert.equal((await next.frame()).type, "welcome");
+  } finally {
+    await f.close();
+  }
+});
+
+test("a refused socket that never answers the close frame is cut off; one that answers is left alone", async () => {
+  const f = await fixture();
+  try {
+    const { code } = await f.create();
+    // A well-behaved client completes the close handshake, and its cut-off is cancelled.
+    const polite = f.open(code);
+    await polite.opened;
+    polite.socket.send("{}");
+    assert.equal((await polite.closed).code, CLOSE_UNAUTHENTICATED);
+    assert.equal(f.cutOffs().length, 1);
+    await f.cutOffs()[0]!.whenCancelled;
+
+    // A raw client upgrades and then ignores everything, including the close frame.
+    const raw = connect(f.port, "127.0.0.1");
+    let received = Buffer.alloc(0),
+      ended = false;
+    const waiting: Array<() => void> = [];
+    raw.on("data", (chunk) => {
+      received = Buffer.concat([received, chunk]);
+      for (const resolve of waiting.splice(0)) resolve();
+    });
+    const gone = new Promise<void>((resolve) =>
+      raw.on("close", () => {
+        ended = true;
+        resolve();
+      }),
+    );
+    raw.on("error", () => {});
+    const until = async (done: () => boolean) => {
+      while (!done())
+        await new Promise<void>((resolve) => waiting.push(resolve));
+    };
+    raw.write(
+      `GET /api/rooms/${code}/ws HTTP/1.1\r\nHost: 127.0.0.1:${f.port}\r\nOrigin: ${ORIGIN}\r\n` +
+        `Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\n` +
+        `Sec-WebSocket-Key: ${randomBytes(16).toString("base64")}\r\n\r\n`,
+    );
+    await until(() => received.includes("\r\n\r\n"));
+    assert.match(received.toString(), /^HTTP\/1\.1 101 /);
+    const head = received.length;
+    f.deadlines().at(-1)!.callback();
+    // The close frame (opcode 0x8) with the refusal code arrives, and the socket is still open after it.
+    await until(() => received.length >= head + 4);
+    assert.equal(received[head], 0x88);
+    assert.equal(received.readUInt16BE(head + 2), CLOSE_UNAUTHENTICATED);
+    const cutOff = f.cutOffs().at(-1)!;
+    assert.equal(f.cutOffs().length, 2);
+    assert.equal(cutOff.cancelled, false);
+    assert.equal(ended, false, "ws alone would hold this socket for 30 s");
+    cutOff.callback();
+    await gone;
   } finally {
     await f.close();
   }
@@ -383,7 +543,7 @@ test("unauthenticated sockets are bounded per address by the admission gate", as
     const fifth = f.open(code);
     await fifth.opened;
     // So does the deadline.
-    for (const entry of f.scheduled) if (!entry.cancelled) entry.callback();
+    for (const entry of f.deadlines()) if (!entry.cancelled) entry.callback();
     for (const peer of [...held.slice(1), fifth])
       assert.equal((await peer.closed).code, CLOSE_UNAUTHENTICATED);
     await f.open(code).opened;
@@ -506,7 +666,7 @@ test("ICE and ending a room take the token from Authorization only, behind an ex
   }
 });
 
-// DEPRECATED rollout window — delete with `legacyQueryToken`.
+// LEGACY-QUERY-TOKEN: DEPRECATED rollout window — delete with `legacyQueryToken`, and the fixture option with it.
 test("the rollout window admits the old query form, says so at most once a minute, and never logs the token", async () => {
   const f = await fixture({ legacyQueryToken: true });
   try {
