@@ -186,42 +186,38 @@ test("human Elo settles exactly once, graph and public rank agree, AI positions 
   assert.equal(history.matches.length, 0);
   const onlyAI = result([f.ids[0]!, "bot:1"], "ai-game");
   await f.report(0, onlyAI);
-  assert.equal((await f.history.profile("user0"))!.rating!.games, 1);
+  assert.equal((await f.history.profile("user0"))!.rating!.games, 2);
+  assert.equal((await f.history.profile("user0"))!.rating!.rounds, 2);
+  assert.equal((await f.history.profile("user0"))!.rating!.value, 1016);
   assert.equal((await f.history.profile("user0"))!.career, undefined);
   await f.history.rename("user0", { username: "New name" });
   assert.equal((await f.history.leaderboard("board-ip"))[0]!.name, "New name");
   assert.equal((await f.history.profile("user0"))!.rating!.value, 1016);
 });
 
-test("late identity completes rating and rivals once; guests, departures and partial matches stay unrated", async () => {
+test("one signed-in human records a zero-change round; late sign-in cannot rewrite a settled field", async () => {
   const f = await fixture();
   const match = result(f.ids);
-  match.players[0]!.combat!.victims[f.ids[1]!] = 2;
   await f.report(0, match);
   await f.report(1, match, null);
-  assert.equal((await f.history.profile("user0"))?.rating, undefined);
-  assert.deepEqual(await f.database.rivals("user0"), { nemeses: [], prey: [] });
+  const recorded = (await f.history.profile("user0"))!.rating!;
+  assert.equal(recorded.value, 1000);
+  assert.equal(recorded.rounds, 1);
+  assert.equal(recorded.points[0]!.opponents, 0);
   f.advance();
   await f.report(1, match);
-  assert.equal((await f.history.profile("user0"))!.rating!.value, 1016);
-  assert.equal(
-    (await f.history.profile("user0"))!.rating!.points[0]!.at,
-    1_800_000_001_000,
-  );
-  const rivals = await f.database.rivals("user0");
-  assert.equal(rivals.prey.length, 0);
-  assert.equal((await f.history.profile("user1"))!.name, "Rider 2");
   await f.report(0, match);
-  assert.equal((await f.database.rivals("user0")).prey.length, 0);
-  const variants = ["departure", "partial"] as const;
-  for (const mode of variants) {
+  assert.deepEqual((await f.history.profile("user0"))!.rating, recorded);
+  assert.equal((await f.history.profile("user1"))?.rating, undefined);
+  for (const mode of ["departure", "partial"] as const) {
     const g = await fixture(),
       m = result(g.ids);
     if (mode === "departure") m.finishers = [g.ids[0]!];
     else m.players[1]!.roundsPlayed = 0;
     await g.report(0, m);
     await g.report(1, m);
-    assert.equal((await g.history.profile("user0"))?.rating, undefined);
+    assert.equal((await g.history.profile("user0"))!.rating!.value, 1000);
+    assert.equal((await g.history.profile("user0"))!.rating!.rounds, 1);
   }
 });
 

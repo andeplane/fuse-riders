@@ -137,8 +137,8 @@ try {
   };
   assert.equal(
     initial.profile.rating.games,
-    7,
-    "AI-only match does not alter Elo",
+    8,
+    "a lone signed-in human records a zero-change round",
   );
   await mkdir("artifacts", { recursive: true });
   for (const [name, launcher] of [
@@ -223,7 +223,7 @@ try {
           await page.locator('[data-testid="elo-value"]').textContent(),
           Math.round(initial.profile.rating.value).toLocaleString(),
         );
-        assert.equal(await page.locator(".rating-chart circle").count(), 8);
+        assert.equal(await page.locator(".rating-chart circle").count(), 9);
         assert.equal(
           await page.locator(".stats-primary dd").first().textContent(),
           "8",

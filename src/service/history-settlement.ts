@@ -128,7 +128,7 @@ export function settleHistory<T>(
     !match.ratings &&
     match.ratingScope &&
     stayed.every((p) => match.attesters.includes(p.playerId)) &&
-    humans.length >= 2 &&
+    humans.length >= 1 &&
     new Set(humans.map((p) => match.uidByPlayer[p.playerId])).size ===
       humans.length;
   if (!eligible) return { profiles: updated, rivals, claimed: false };
@@ -162,10 +162,18 @@ export function settleHistory<T>(
     }
     const rating = profile.rating ?? newRating(),
       value = calculated.get(player.id)!;
-    const point = { match: match.id, at, before: player.rating, after: value };
+    const point = {
+      match: match.id,
+      at,
+      before: player.rating,
+      after: value,
+      round: match.result.round!,
+      opponents: humans.length - 1,
+    };
     profile.rating = {
       value,
       games: rating.games + 1,
+      rounds: (rating.rounds ?? 0) + 1,
       peak: Math.max(rating.peak, value),
       points: [...rating.points, point].slice(-100),
     };

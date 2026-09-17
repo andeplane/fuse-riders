@@ -77,6 +77,17 @@ export function createHistoryHttp(
         json(await history.submit(reporter, body, uid));
         return true;
       }
+      if (url.pathname === "/api/me/round-results" && req.method === "POST") {
+        const header = req.headers["x-fuse-identity"];
+        if (typeof header !== "string" || !header)
+          throw new RoomError(401, "Sign in first");
+        const uid = await identity(header);
+        if (!uid)
+          throw new RoomError(503, "Identity unavailable; retry round report");
+        const reporter = await history.admitSolo(uid, clientAddress);
+        json(await history.submitSolo(reporter, await readJson(req), uid));
+        return true;
+      }
       if (url.pathname === "/api/leaderboard" && req.method === "GET") {
         const token = bearer(req),
           uid = token ? await identity(token) : undefined;

@@ -92,7 +92,7 @@ const svgElement = <K extends keyof SVGElementTagNameMap>(
 export function ratingCard(rating: Rating, rank?: number): HTMLElement {
   const card = section(
     "RIDER ELO",
-    "Human opponents only · AI never changes your rating",
+    "Every individual round counts · Only signed-in humans affect Elo",
   );
   card.classList.add("stats-rating");
   const last = rating.points.at(-1),
@@ -111,7 +111,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     head.append(
       element(
         "span",
-        `${signed(Math.round(last.after) - Math.round(last.before))} last match`,
+        `${signed(Math.round(last.after) - Math.round(last.before))} ${last.round === undefined ? "earlier full game" : "last round"}`,
         "rating-delta",
       ),
     );
@@ -119,7 +119,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     head,
     element(
       "p",
-      `${rating.games < 10 ? "Provisional · " : ""}${number(rating.games)} rated results · Peak ${number(rating.peak)}`,
+      `${rating.games < 10 ? "Provisional · " : ""}${number(rating.rounds ?? 0)} rounds recorded${rating.games > (rating.rounds ?? 0) ? ` · ${number(rating.games - (rating.rounds ?? 0))} earlier full-game ratings` : ""} · Peak ${number(rating.peak)}`,
       "stats-muted",
     ),
   );
@@ -127,7 +127,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     card.append(
       element(
         "p",
-        "Your graph starts after your first rated round. Finish a round against at least one other signed-in human. Guests and bots do not affect Elo.",
+        "Your graph starts after your first signed-in round. With no other signed-in human, the round is recorded with zero Elo change. Guests and bots never affect Elo.",
         "stats-empty",
       ),
     );
@@ -223,16 +223,22 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     }
     card.append(chart);
     const data = details(
-        `Rating history · latest ${points.length} rated results`,
+        `Round-by-round Elo · latest ${points.length} entries`,
       ),
       table = element("table");
     const header = element("tr");
-    for (const label of ["Date", "Elo", "Change"])
+    for (const label of ["Result", "Date", "Elo", "Change"])
       header.append(element("th", label));
     table.append(header);
     for (const p of [...points].reverse()) {
       const row = element("tr");
       row.append(
+        element(
+          "td",
+          p.round === undefined
+            ? "Earlier full game"
+            : `Round ${p.round}${p.opponents === 0 ? " · no signed-in opponent" : ""}`,
+        ),
         element("td", new Date(p.at).toLocaleString()),
         element("td", number(p.after)),
         element("td", signed(Math.round(p.after) - Math.round(p.before))),
@@ -246,7 +252,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
   rules.append(
     element(
       "p",
-      "Start at 1,000. Elo updates after each individual round, comparing only signed-in human finishers with each other. At least two are needed. Guests and bots are excluded; ties split the result. You can join late or leave between rounds and keep the Elo from rounds you completed. Reports must agree before ratings settle, and a missing finisher report can delay settlement. Earlier whole-game ratings remain in your history. This community ladder uses peer-confirmed results.",
+      "Start at 1,000. Elo updates after each individual round, comparing only signed-in human finishers with each other. Every signed-in finisher records a round; without another signed-in human the Elo change is zero. Guests and bots are excluded; ties split the result. You can join late or leave between rounds and keep the Elo from rounds you completed. Reports must agree before ratings settle, and a missing finisher report can delay settlement. Earlier whole-game ratings remain in your history. This community ladder uses peer-confirmed results.",
     ),
   );
   card.append(rules);
@@ -315,14 +321,14 @@ export function playerStats(page: StatsPage): HTMLElement {
   group.setAttribute("aria-label", "Game opponents");
   for (const [value, label] of [
     ["all", "All time"],
-    ["recent", "Last 20 matches"],
+    ["recent", "Last 20 full games"],
   ]) {
     const option = element("option", label);
     option.value = value!;
     period.append(option);
   }
   for (const [value, label] of [
-    ["all", "All games"],
+    ["all", "All full games"],
     ["human", "Humans only"],
     ["mixed", "Humans + AI"],
     ["practice", "AI / solo practice"],
@@ -336,7 +342,7 @@ export function playerStats(page: StatsPage): HTMLElement {
     group,
     element(
       "span",
-      "Filters apply below · Elo is always human-only",
+      "Full-game career stats below · Separate from the round-by-round Elo above",
       "stats-muted",
     ),
   );
@@ -363,7 +369,7 @@ export function playerStats(page: StatsPage): HTMLElement {
     content.replaceChildren(
       metrics(
         [
-          ["Matches", number(stats.matches)],
+          ["Full games", number(stats.matches)],
           ["Win rate", percent(stats.wins, stats.matches)],
           ["Kills", number(stats.kills)],
           ["Distance · arena units", number(stats.distance)],
@@ -375,7 +381,7 @@ export function playerStats(page: StatsPage): HTMLElement {
       content.append(
         element(
           "p",
-          "No recorded matches in this selection yet.",
+          "No recorded full games in this selection yet.",
           "stats-empty",
         ),
       );
@@ -390,7 +396,7 @@ export function playerStats(page: StatsPage): HTMLElement {
       content.append(
         element(
           "p",
-          "Expanded stats cover matches recorded since this update. Older matches remain in your history.",
+          "Career totals count completed full games, not individual rounds. Older games may lack detailed stats.",
           "stats-muted",
         ),
       );
@@ -502,7 +508,7 @@ export function playerStats(page: StatsPage): HTMLElement {
     combat.append(
       element(
         "p",
-        `Detailed attribution: ${number(stats.detailMatches)} of ${number(stats.matches)} matches. Self-inflicted and uncredited deaths appear only under all opponents + hazards.`,
+        `Detailed attribution: ${number(stats.detailMatches)} of ${number(stats.matches)} full games. Self-inflicted and uncredited deaths appear only under all opponents + hazards.`,
         "stats-muted",
       ),
     );
@@ -548,7 +554,7 @@ export function leaderboardTable(
 ): HTMLElement {
   const root = section(
     "GLOBAL LEADERBOARD",
-    "Top 50 · human Elo · equal ratings share a rank",
+    "Top 50 · Rounds includes zero-change rounds · Older full-game Elo is retained",
   );
   if (!players.length) {
     root.append(
@@ -562,7 +568,7 @@ export function leaderboardTable(
   }
   const table = element("table", "", "stats-leaderboard"),
     header = element("tr");
-  for (const label of ["Rank", "Rider", "Elo", "Games"])
+  for (const label of ["Rank", "Rider", "Elo", "Rounds"])
     header.append(element("th", label));
   table.append(header);
   for (const p of players) {
@@ -572,7 +578,7 @@ export function leaderboardTable(
       element("td", `#${p.rank}`),
       element("td", `${p.name}${p.you ? " (you)" : ""}`),
       element("td", number(p.elo)),
-      element("td", number(p.games)),
+      element("td", number(p.rounds ?? 0)),
     );
     table.append(row);
   }

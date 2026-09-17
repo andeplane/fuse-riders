@@ -7,6 +7,7 @@ import {
   type GameGroup,
 } from "../shared/career-stats.js";
 import {
+  SOLO_RATING_PLAYER_ID,
   parseRating,
   type Rating,
   type RatingPoint,
@@ -577,6 +578,49 @@ export class HistoryStore {
       ));
     if (!allowed) throw new RoomError(429, "Too many results; try later");
     return { code, rider, incarnation: room.incarnation };
+  }
+
+  /** Local solo play has no room transport. Only an authenticated zero-change round can use this path. */
+  async admitSolo(uid: string, address: string): Promise<Reporter> {
+    const allowed =
+      (await this.rooms.database.allowance(
+        digest(`solo-round:${uid}`),
+        this.now(),
+        600,
+      )) &&
+      (await this.rooms.database.allowance(
+        digest(`solo-round-address:${address}`),
+        this.now(),
+        3000,
+      ));
+    if (!allowed) throw new RoomError(429, "Too many solo rounds; try later");
+    return {
+      code: "SO00",
+      rider: SOLO_RATING_PLAYER_ID,
+      incarnation: `solo:${uid}`,
+    };
+  }
+
+  async submitSolo(
+    reporter: Reporter,
+    body: unknown,
+    uid: string,
+  ): Promise<SubmitOutcome> {
+    const result = plain(body) ? parseMatchResult(body.result) : undefined;
+    if (
+      !result ||
+      result.round === undefined ||
+      humansOf(result).length !== 1 ||
+      humansOf(result)[0] !== SOLO_RATING_PLAYER_ID ||
+      result.finishers.length !== 1 ||
+      result.finishers[0] !== SOLO_RATING_PLAYER_ID ||
+      reporter.incarnation !== `solo:${uid}`
+    )
+      throw new RoomError(
+        400,
+        "Solo reports must contain one signed-in human round",
+      );
+    return this.submit(reporter, body, uid);
   }
 
   /** One rider's report. `uid` is that rider's own verified account, or undefined for a guest; nothing in the body can name one. */

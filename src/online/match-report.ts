@@ -6,6 +6,7 @@ import {
   type MatchPlayerStats,
   type MatchStatsState,
 } from "../shared/match-stats.js";
+import { SOLO_RATING_PLAYER_ID } from "../shared/rating.js";
 import type { DecidedRound } from "../shared/shot-log.js";
 
 /**
@@ -101,8 +102,12 @@ export function buildRoundReport(
       matchId: decision.matchId,
       round: decision.round,
       length: 1,
-      finishers: [...decision.rating.finishers],
-      players,
+      finishers: decision.rating.finishers.map((id) =>
+        id === "solo" ? SOLO_RATING_PLAYER_ID : id,
+      ),
+      players: players.map((p) =>
+        p.playerId === "solo" ? { ...p, playerId: SOLO_RATING_PLAYER_ID } : p,
+      ),
     },
   };
 }
