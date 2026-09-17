@@ -33,7 +33,7 @@ import {
 import type { GameEvent } from "./protocol.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-28"; // 28: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, PICKUP_TYPES weights). 27: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through. 26: arena maps. 25: history agreement metadata.
+export const RULES = "fuse-p2p-29"; // 29: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, PICKUP_TYPES weights). 28: drunk riders stagger in uneven waves and drift (ADR-046). 27: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through. 26: arena maps. 25: history agreement metadata.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
@@ -145,11 +145,7 @@ function resetGestures(state: RoomState): void {
 }
 
 /** Every management entry is applied defensively: an inapplicable entry is a no-op on every replica alike. */
-function applyManagement(
-  state: RoomState,
-  entry: Entry,
-  newMatchIdTick: number,
-): void {
+function applyManagement(state: RoomState, entry: Entry): void {
   const game = state.game;
   try {
     switch (entry[2]) {
@@ -242,7 +238,7 @@ function applyManagement(
         return;
     }
   } catch {
-    /* A rejected transition leaves the state untouched; game.ts validates before mutating. */ void newMatchIdTick;
+    /* A rejected transition leaves the state untouched; game.ts validates before mutating. */
   }
 }
 
@@ -269,7 +265,7 @@ export function applyTick(
       if (entry[1] !== tick || !isManagementKind(entry[2])) continue;
       // Delegation is re-evaluated per entry: the creator's own return revokes the acting creator mid-tick.
       if (!permitted(state, creatorId, manager, entry)) continue;
-      applyManagement(state, entry, tick);
+      applyManagement(state, entry);
     }
   }
   const inputs = new Map<string, InputIntent>();

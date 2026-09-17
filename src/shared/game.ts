@@ -49,10 +49,11 @@ import {
   edgesOpen,
   initialBoundaryInset,
   generateObstacles,
-  obstacleBlocksPath,
-  obstacleBounceNormal,
   obstacleDistanceSquared,
   obstacleEdges,
+  obstacleHitbox,
+  hitboxBlocksPath,
+  hitboxBounceNormal,
   obstacleInsideBounds,
   obstacleTouchesCircle,
   segmentObstacleDistanceSquared,
@@ -60,6 +61,7 @@ import {
   type ArenaMapId,
   type ClearCapsule,
   type Obstacle,
+  type ObstacleHitbox,
 } from "./arena-map.js";
 import {
   NO_WRAP,
@@ -170,6 +172,12 @@ export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
 /** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
 export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
+/**
+ * Scenery is met at the head's visible width too, and against the obstacle's hitbox (`obstacleHitbox`) rather than
+ * always its whole footprint: a portrait that overlapped a rock, or a rider that crossed the empty corner of a
+ * crown's footprint, did not crash.
+ */
+export const RIDER_OBSTACLE_RADIUS = RIDER_CONTACT_RADIUS;
 export const TRAIL_LIFETIME_TICKS = POWER_TUNING.baseTrailLifetimeTicks;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
@@ -969,6 +977,11 @@ export function step(
   const riderContactTimes = new Map<PlayerId, number>();
   /** Crashing into scenery is `wall`, and only these riders stop against what they hit rather than at the boundary. */
   const obstacleContactTimes = new Map<PlayerId, number>();
+  // Id order: each contact bisection starts from the one before it, and the last to shorten it is what a shield
+  // turns away from, so the order obstacles are visited in is part of the outcome.
+  const obstacleHitboxes = sortedObstacles(state).map(obstacleHitbox);
+  /** The scenery each of those contacts is with, which is what an absorbed crash turns the rider away from. */
+  const obstaclesReached = new Map<PlayerId, ObstacleHitbox>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of sortedBombs(state)) {
     if (
@@ -1145,16 +1158,16 @@ export function step(
     // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
     // Only the contact time is recorded here; the cause is decided below, once the trail and rider contacts of
     // this tick are known and can be compared against it.
-    for (const obstacle of sortedObstacles(state)) {
+    for (const obstacle of obstacleHitboxes) {
       if (isHazardImmune(movement.player, state.tick)) break;
       const touches = (time: number): boolean =>
-        obstacleBlocksPath(
+        hitboxBlocksPath(
           obstacle,
           movement.oldX,
           movement.oldY,
           movement.oldX + (movement.x - movement.oldX) * time,
           movement.oldY + (movement.y - movement.oldY) * time,
-          RIDER_RADIUS,
+          RIDER_OBSTACLE_RADIUS,
         );
       const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
       // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
@@ -1165,6 +1178,7 @@ export function step(
         movement.player.id,
         firstContactTime(touches, previous),
       );
+      obstaclesReached.set(movement.player.id, obstacle);
     }
 
     // A step that reaches past an open edge is also tested from the far side, where the trails it is about to meet are.
@@ -1318,9 +1332,11 @@ export function step(
     // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
     // blast must not leave it inside the rock, riding out its grace ticks in there.
     const obstacleTime = sceneryReached.get(movement.player.id);
+    const obstacleHit = obstaclesReached.get(movement.player.id);
     if (
       obstacleTime !== undefined &&
-      reflectAtObstacle(state, movement, obstacleTime)
+      obstacleHit &&
+      reflectAtObstacle(obstacleHit, movement, obstacleTime)
     )
       bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
@@ -2377,24 +2393,13 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
  * shielded rider, and without it a shield would only buy the ticks of grace it takes to die inside the same obstacle.
  */
 function reflectAtObstacle(
-  state: GameState,
+  hit: ObstacleHitbox,
   movement: Movement,
   contactTime: number,
 ): boolean {
   movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
   movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
-  let hit: Obstacle | undefined;
-  let nearest = Infinity;
-  // Id order: the lower id keeps an exact tie, whatever order a restored array arrived in.
-  for (const obstacle of sortedObstacles(state)) {
-    const distance = obstacleDistanceSquared(obstacle, movement.x, movement.y);
-    if (distance < nearest) {
-      nearest = distance;
-      hit = obstacle;
-    }
-  }
-  if (!hit) return false;
-  const { nx, ny } = obstacleBounceNormal(hit, movement.x, movement.y);
+  const { nx, ny } = hitboxBounceNormal(hit, movement.x, movement.y);
   const heading = { x: cos(movement.angle), y: sin(movement.angle) };
   const approach = heading.x * nx + heading.y * ny;
   if (approach >= 0) return false; // already turned away from the face by this tick's steering
@@ -3110,7 +3115,7 @@ function resolveRound(
   const winnerId = winner?.id;
   const placements = state.roundScored
     ? undefined
-    : rankRound([...state.roundParticipants.values()]);
+    : rankRound(seatedParticipants(state));
   const scores = new Map(
     placements?.map((placement) => [placement.playerId, placement.scoreUnits]),
   );
@@ -3170,6 +3175,22 @@ function resolveRound(
   }
   state.phase = "roundOver";
   state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS + pause;
+}
+
+/**
+ * The round's riders in seat order, the order `prepareRound` entered them in. `rankRound` lists riders that share a
+ * place in the order it is given, and the placements are state peers compare, so that order cannot be left to how a
+ * restored Map happened to be built. Nobody is unseated while a round is in play; the id keeps the sort total anyway.
+ */
+function seatedParticipants(state: GameState): RoundParticipant[] {
+  const seats = new Map(
+    sortedPlayers(state).map((player, seat) => [player.id, seat]),
+  );
+  return [...state.roundParticipants.values()].sort(
+    (a, b) =>
+      (seats.get(a.id) ?? MAX_PLAYERS) - (seats.get(b.id) ?? MAX_PLAYERS) ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
 }
 
 const roundElapsed = (state: GameState): number =>
