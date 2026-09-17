@@ -35,6 +35,13 @@ const press: InputIntent = {
   bomb: true,
   bombCommands: [{ action: "press" }],
 };
+/** A Gun fires on release; a tap is the press and its release arriving in one tick. */
+const tap: InputIntent = {
+  left: false,
+  right: false,
+  bomb: false,
+  bombCommands: [{ action: "press" }, { action: "release" }],
+};
 const boulder = (overrides: Partial<Obstacle> = {}): Obstacle => ({
   id: 1,
   kind: "rock",
@@ -405,7 +412,7 @@ test("a gun ray stops at scenery and cannot shoot through it", () => {
     angle: Math.PI,
     trail: [],
   });
-  step(covered, new Map([["p0", press]]));
+  step(covered, new Map([["p0", tap]]));
   assert.equal(rider(covered, "p1").alive, true, "the rock took the bullet");
   const tracer = [...covered.bombs.values()].find((bomb) => bomb.shell?.gun)!;
   assert.ok(
@@ -421,7 +428,7 @@ test("a gun ray stops at scenery and cannot shoot through it", () => {
     angle: Math.PI,
     trail: [],
   });
-  step(open, new Map([["p0", press]]));
+  step(open, new Map([["p0", tap]]));
   assert.equal(
     rider(open, "p1").alive,
     false,

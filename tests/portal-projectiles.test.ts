@@ -29,6 +29,13 @@ const press: InputIntent = {
   bomb: true,
   bombCommands: [{ action: "press" }],
 };
+/** A Gun fires on release; a tap is the press and its release arriving in one tick. */
+const tap: InputIntent = {
+  left: false,
+  right: false,
+  bomb: false,
+  bombCommands: [{ action: "press" }, { action: "release" }],
+};
 /** One tick of shell travel: `advanceShell` moves `vx / 20` per tick. */
 const REACH = SHELL_SPEED / 20;
 /** A shell meets a gate this far short of it, and leaves one unit further past the partner. */
@@ -387,7 +394,7 @@ test("a gun ray comes out of the partner gate and kills there, one tracer per se
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
   // Between the gates: behind the entry wall, not in front of the bullet.
   Object.assign(bystander, { x: 600, y: 450, angle: Math.PI });
-  const result = step(game, new Map([["p0", press]]));
+  const result = step(game, new Map([["p0", tap]]));
   assert.equal(victim.alive, false, "the shot carried on past the far gate");
   assert.equal(
     bystander.alive,
@@ -433,7 +440,7 @@ test("a body in front of a gate takes the shot instead of the gate", () => {
   // Standing short of the entry gate, so the bullet never reaches it.
   Object.assign(bystander, { x: 250, y: 450, angle: Math.PI });
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
-  step(game, new Map([["p0", press]]));
+  step(game, new Map([["p0", tap]]));
   assert.equal(bystander.alive, false, "the nearer head wins");
   assert.equal(
     victim.alive,
@@ -446,7 +453,7 @@ test("a body in front of a gate takes the shot instead of the gate", () => {
   const control = scene();
   Object.assign(control.shooter, { gunArmed: true });
   Object.assign(control.victim, { x: 1100, y: 450, angle: Math.PI });
-  step(control.game, new Map([["p0", press]]));
+  step(control.game, new Map([["p0", tap]]));
   assert.equal(control.victim.alive, false);
   assert.equal(control.game.bombs.size, 2);
 });
@@ -465,7 +472,7 @@ test("a gun ray cuts its hole past the gate, not between the gates", () => {
     angle: Math.PI,
     trail: [wall(1000, 300, 600, game.tick)],
   });
-  step(game, new Map([["p0", press]]));
+  step(game, new Map([["p0", tap]]));
   assert.equal(
     victim.alive,
     true,
@@ -503,7 +510,7 @@ test("a cycle of gates cannot hold a gun ray", () => {
       ],
     }),
   ];
-  step(game, new Map([["p0", press]]));
+  step(game, new Map([["p0", tap]]));
   assert.equal(
     game.bombs.size,
     3,
@@ -523,7 +530,7 @@ test("a projectile transit is nobody's portal jump, and a continuation tracer is
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
   const was = { ...game.matchStats.get("p0")! };
   launchShell(game);
-  step(game, new Map([["p0", press]]));
+  step(game, new Map([["p0", tap]]));
   assert.equal(game.bombs.size, 3, "the shell plus both gun segments");
   const owner = game.matchStats.get("p0")!;
   assert.equal(
@@ -543,7 +550,7 @@ test("a hopping ray folds the same from a checkpoint decoded in another map orde
   Object.assign(shooter, { gunArmed: true });
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
   const shell = launchShell(game);
-  step(game, new Map([["p0", press]]));
+  step(game, new Map([["p0", tap]]));
   assert.equal(typeof shell.portalCooldownUntilTick, "number");
 
   const encoded = encodeGameState(game);

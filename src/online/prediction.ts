@@ -1,4 +1,5 @@
-import { gravityBend, riderMotionStep } from "../shared/game.js";
+import { gravityBend, isAimingGun, riderMotionStep } from "../shared/game.js";
+import { sweepGunAim } from "../shared/gun.js";
 import {
   advanceRiderPose,
   type MotionControls,
@@ -49,6 +50,9 @@ export function interpolateWorld(
         x: previous.x + dx(player.x - previous.x) * f,
         y: previous.y + dy(player.y - previous.y) * f,
         angle: previous.angle + delta * f,
+        ...(previous.gunAim !== undefined && player.gunAim !== undefined
+          ? { gunAim: previous.gunAim + (player.gunAim - previous.gunAim) * f }
+          : {}),
       };
     }),
     bombs: older.bombs.map((previous) => {
@@ -95,6 +99,8 @@ export function presentWorld(
       : undefined;
   if (!rider || !rider.alive || local!.lead <= 0) return shown;
   const lead = Math.min(1, local!.lead);
+  // A held Gun steers its sight, not the rider: lead the sight with the controls and let the rider run straight.
+  const aiming = isAimingGun(rider);
   const motion = riderMotionStep(rider, newer.tick + 1, newer.roundStartedTick);
   const pose = advanceRiderPose(
     {
@@ -111,7 +117,7 @@ export function presentWorld(
         ),
       drunkHeadingOffset: 0,
     },
-    local!.controls,
+    aiming ? { left: false, right: false } : local!.controls,
     {
       distance: motion.distance * lead,
       turn: motion.turn * lead,
@@ -142,6 +148,9 @@ export function presentWorld(
             x: pose.x,
             y: pose.y,
             angle: pose.angle,
+            ...(aiming
+              ? { gunAim: sweepGunAim(p.gunAim ?? 0, local!.controls, lead) }
+              : {}),
             trail,
             presentationTick: presentationTick + lead,
           }

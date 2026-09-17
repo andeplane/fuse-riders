@@ -16,6 +16,7 @@ import {
   GUN_HOLE_RADIUS,
   GUN_HEADSHOT_RADIUS,
   GUN_TRACER_TICKS,
+  sweepGunAim,
 } from "./gun.js";
 import {
   advanceShell,
@@ -286,6 +287,14 @@ export function riderSpeedMultiplier(
     if (until > tick) multiplier *= SNAIL_SPEED;
   return multiplier;
 }
+/** A Gun whose trigger is held: the rider runs straight and steering sweeps the sight instead. */
+export function isAimingGun(player: {
+  gunArmed?: boolean;
+  bombChargeStartedTick?: number;
+}): boolean {
+  return player.gunArmed === true && player.bombChargeStartedTick !== undefined;
+}
+
 /** How far a rider moves and may turn on `tick`: the round's ramp on both, then the speed pickups on distance alone. */
 export function riderMotionStep(
   player: SpeedEffects & { grip: boolean },
@@ -352,6 +361,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   bombReadyAtTick: number;
   bombChargeStartedTick?: number;
   gunArmed?: boolean;
+  /** The held Gun sight, in radians off the heading. Present only while a Gun's trigger is held. */
+  gunAim?: number;
   shellArmed?: boolean;
   targetBombArmed: boolean;
   bombTarget?: AimPoint;
@@ -622,6 +633,7 @@ export function eliminatePlayer(state: GameState, playerId: PlayerId): void {
   player.alive = false;
   player.bombChargeStartedTick = undefined;
   player.bombTarget = undefined;
+  player.gunAim = undefined;
   recordElimination(state, playerId);
   if (state.roundParticipants.has(playerId))
     recordEarlyExit(state.matchStats, playerId);
@@ -783,13 +795,16 @@ export function step(
       state.tick,
       state.roundStartedTick,
     );
+    // A held Gun takes the steering for its sight: the rider runs straight while left and right sweep the aim.
+    const aiming = isAimingGun(player);
+    if (aiming) player.gunAim = sweepGunAim(player.gunAim ?? 0, input);
     // Curved space turns the rider before the kernel does, so steering and the hole add up inside one ordinary turn-then-move step.
     const pose = advanceRiderPose(
       {
         ...player,
         angle: player.angle + gravityBend(state.gravityFields, player, turn),
       },
-      input,
+      aiming ? NEUTRAL_INPUT : input,
       { distance, turn, drunkHeadingOffset: offset },
     );
     player.drunkHeadingOffset = pose.drunkHeadingOffset;
@@ -820,7 +835,7 @@ export function step(
   const shellPaths = new Map<number, ShellPoint[][]>();
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
-    // Gun damage was resolved on press; these are stationary, harmless tracers.
+    // Gun damage was resolved on firing; these are stationary, harmless tracers.
     if (bomb.shell.gun) {
       if (state.tick >= bomb.explodeAtTick) state.bombs.delete(bomb.id);
       continue;
@@ -1417,6 +1432,7 @@ export function step(
       movement.player.alive = false;
       movement.player.bombChargeStartedTick = undefined;
       movement.player.bombTarget = undefined;
+      movement.player.gunAim = undefined;
       recordElimination(state, movement.player.id);
       const credited = soleCreditedOwner(
         causeOwners,
@@ -1522,7 +1538,7 @@ export function step(
   const gunHits = resolveGunShots(state);
 
   /**
-   * Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched — and so after
+   * Resolve fired Guns and released Target Bombs in this same tick, after every rider has launched — and so after
    * the sweep above. A rider that crashed into scenery earlier in this tick died against a board that was still
    * standing when it got there, and a Target Bomb landing afterwards then clears that same rock: chronological
    * within the tick, and the same order in which a pickup collected this tick survives a blast opened by it.
@@ -1573,6 +1589,7 @@ export function step(
       player.alive = false;
       player.bombChargeStartedTick = undefined;
       player.bombTarget = undefined;
+      player.gunAim = undefined;
       recordElimination(state, player.id);
       const owners = new Set(hits.map((blast) => blast.ownerId));
       const credited = owners.size === 1 ? hits[0]!.ownerId : undefined;
@@ -1702,6 +1719,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed,
+      ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
       shellArmed: player.shellArmed,
       targetBombArmed: player.targetBombArmed,
       ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}),
@@ -1818,6 +1836,7 @@ function prepareRound(state: GameState): void {
     player.trail = [];
     player.bombChargeStartedTick = undefined;
     player.bombTarget = undefined;
+    player.gunAim = undefined;
     player.bombReadyAtTick = state.tick;
     player.extraBombs = 0;
     player.fuseLevel = 0;
@@ -2441,6 +2460,7 @@ function applyBombActions(
     if (action === "cancel") {
       player.bombChargeStartedTick = undefined;
       player.bombTarget = undefined;
+      player.gunAim = undefined;
       continue;
     }
     if (action === "press") {
@@ -2453,19 +2473,22 @@ function applyBombActions(
         player.bombReadyAtTick <= state.tick
       ) {
         player.bombChargeStartedTick = state.tick;
-        if (player.targetBombArmed && !player.shellArmed && !player.gunArmed)
+        if (player.gunArmed) player.gunAim = 0;
+        else if (player.targetBombArmed && !player.shellArmed)
           player.bombTarget = targetPoint(state, player, command.aim);
       }
-      // Guns consume the press immediately. Release/cancel cannot fire a second shot.
-      if (!player.gunArmed) continue;
+      // Every weapon fires on release; a Gun spends the hold sweeping its sight, and a tap fires straight ahead.
+      continue;
     }
 
     const target = player.targetBombArmed
       ? targetPoint(state, player, command.aim, player.bombTarget)
       : undefined;
     const chargeStartedTick = player.bombChargeStartedTick;
+    const gunAim = player.gunAim ?? 0;
     player.bombChargeStartedTick = undefined;
     player.bombTarget = undefined;
+    player.gunAim = undefined;
     if (chargeStartedTick === undefined) continue;
     const ownsBomb = [...state.bombs.values()].some(
       (bomb) => bomb.ownerId === player.id && !bomb.shell,
@@ -2479,7 +2502,10 @@ function applyBombActions(
         : Number.MAX_SAFE_INTEGER;
       const speed = gun ? 1 : SHELL_SPEED;
       // Triple, Five and Extra Bomb fan the projectile out exactly as they fan a lob; the pull spends Triple and Five.
-      const angles = volleyAngles(player.angle, bombsPerShot(player));
+      const angles = volleyAngles(
+        player.angle + (gun ? gunAim : 0),
+        bombsPerShot(player),
+      );
       const shot = state.nextBombId;
       logShot(state, player, shot, weapon, angles.length);
       for (const angle of angles) {

@@ -33,6 +33,7 @@ import {
   type PickupState,
 } from "../shared/game.js";
 import { isAvatarId } from "../shared/avatars.js";
+import { GUN_AIM_MAX } from "../shared/gun.js";
 import { MAX_PORTAL_PAIRS } from "../shared/portal.js";
 import {
   ARENA_MAPS,
@@ -144,6 +145,7 @@ const playerFields = {
   bombReadyAtTick: integer,
   bombChargeStartedTick: optional(integer),
   gunArmed: optional(boolean),
+  gunAim: optional(range(-GUN_AIM_MAX, GUN_AIM_MAX)),
   shellArmed: optional(boolean),
   targetBombArmed: boolean,
   bombTarget: optional(

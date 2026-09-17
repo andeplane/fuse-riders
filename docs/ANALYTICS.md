@@ -109,7 +109,7 @@ the whole next round, a device that catches up past the round-over pause in one 
 resynchronised snapshot) still reports it. What is lost: a round whose shooter's device leaves before it is
 confirmed, and a round a device skips entirely by catching up across two decisions at once.
 
-Gun shots resolve on press: a visible tracer is already a hit or miss.
+Gun shots resolve the tick they are fired (on release): a visible tracer is already a hit or miss.
 
 A pull whose bomb or shell is still in the air when the round ends — and has killed nobody — is **not** a
 `Miss`: the round's end interrupted it. Without that rule, weapons that stay in flight longest (Shell, lobbed

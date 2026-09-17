@@ -23,6 +23,7 @@ import {
   BOMB_MAX_LAUNCH_DISTANCE,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
+import { GUN_AIM_STEP } from "./gun.js";
 import {
   edgesOpen,
   obstacleBlocksPath,
@@ -116,6 +117,8 @@ function distanceToSegmentSquared(
     squared(y - segment.y1 - fraction * dy)
   );
 }
+/** The longest a bot holds a Gun's trigger: its planner does not know the hold locks steering, so it stays brief. */
+const BOT_GUN_AIM_TICKS = 4;
 function angleDifference(a: number, b: number): number {
   return atan2(sin(a - b), cos(a - b));
 }
@@ -608,6 +611,24 @@ export class BotController {
               ),
             ),
           );
+    if (player.bombChargeStartedTick !== undefined && player.gunArmed) {
+      // A held Gun runs straight and steers its sight, so the hold is kept short: swing toward the target, then fire.
+      const off = angleDifference(
+        bearing + scatter(":gun") / Math.max(distance, 1),
+        player.angle + (player.gunAim ?? 0),
+      );
+      const release =
+        Math.abs(off) <= GUN_AIM_STEP / 2 ||
+        game.tick - player.bombChargeStartedTick >= BOT_GUN_AIM_TICKS;
+      return release
+        ? {
+            left: false,
+            right: false,
+            bomb: false,
+            bombCommands: [{ action: "release" }],
+          }
+        : { left: off < 0, right: off > 0, bomb: true };
+    }
     if (player.bombChargeStartedTick !== undefined) {
       const release = game.tick - player.bombChargeStartedTick >= wantedCharge;
       return {

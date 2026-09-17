@@ -9,6 +9,7 @@ import {
   GRAVITY_FIELD_TICKS,
   PICKUP_TYPES,
   gravityCoreRadius,
+  isAimingGun,
 } from "../../shared/game.js";
 import Phaser from "phaser";
 import type { ViewSnapshot } from "../snapshot-stream.js";
@@ -1208,6 +1209,31 @@ class ArenaScene extends Phaser.Scene {
               .lineBetween(p.x, p.y, x, y)
               .lineStyle(2, tint, 0.9)
               .strokeRect(x - 9, y - 9, 18, 18);
+          }
+        }
+        if (isAimingGun(p)) {
+          // The held sight: a line to the arena's edge along each barrel. What stops the bullet short is for the shooter to read.
+          const reach = Math.hypot(w, h);
+          for (const a of volleyAngles(
+            p.angle + (p.gunAim ?? 0),
+            bombsPerShot(p),
+          )) {
+            let t = reach;
+            if (!open) {
+              const cx = Math.cos(a),
+                cy = Math.sin(a);
+              if (cx > 0) t = Math.min(t, (w - b - p.x) / cx);
+              else if (cx < 0) t = Math.min(t, (b - p.x) / cx);
+              if (cy > 0) t = Math.min(t, (h - b - p.y) / cy);
+              else if (cy < 0) t = Math.min(t, (b - p.y) / cy);
+            }
+            t = Math.max(0, t);
+            const x = p.x + Math.cos(a) * t,
+              y = p.y + Math.sin(a) * t;
+            f.lineStyle(4, tint, 0.18)
+              .lineBetween(p.x, p.y, x, y)
+              .lineStyle(1.5, 0xffffff, 0.75)
+              .lineBetween(p.x, p.y, x, y);
           }
         }
         if (

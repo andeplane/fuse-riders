@@ -323,6 +323,7 @@ export function applyTick(
     for (const player of game.players.values()) {
       player.bombChargeStartedTick = undefined;
       player.bombTarget = undefined;
+      player.gunAim = undefined;
     }
   return result.events;
 }

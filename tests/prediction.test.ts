@@ -7,6 +7,7 @@ import { createRoomState } from "../src/shared/apply-tick.js";
 import { defaultRoomSettings } from "../src/shared/room-settings.js";
 import { COUNTDOWN_TICKS, riderMotionStep } from "../src/shared/game.js";
 import { advanceRiderPose } from "../src/shared/rider-motion.js";
+import { GUN_AIM_STEP } from "../src/shared/gun.js";
 import { bombPreviewDistance } from "../src/client/bomb-preview.js";
 
 function frames() {
@@ -170,4 +171,34 @@ test("presentation leads the local rider by its held controls and marks its pres
     }),
     newer,
   );
+});
+
+test("a held Gun leads its sight with the controls while the rider is shown running straight", () => {
+  const { older, newer } = frames();
+  const aiming = (gunAim: number, frame: typeof newer) => ({
+    ...frame,
+    players: frame.players.map((p) => ({
+      ...p,
+      gunArmed: true,
+      bombChargeStartedTick: frame.tick - 2,
+      gunAim,
+    })),
+  });
+  const held = aiming(0.3, newer);
+  const led = presentWorld(aiming(0.2, older), held, held.tick, {
+    id: "h",
+    controls: { left: false, right: true },
+    lead: 0.5,
+  });
+  const rider = led.players.find((p) => p.id === "h")!,
+    base = held.players.find((p) => p.id === "h")!;
+  assert.equal(rider.angle, base.angle, "steering no longer turns the rider");
+  assert.ok(Math.abs(rider.gunAim! - (0.3 + GUN_AIM_STEP * 0.5)) < 1e-12);
+  assert.equal(
+    led.players.find((p) => p.id === "p")!.gunAim,
+    0.3,
+    "a remote sight is shown as simulated",
+  );
+  const between = interpolateWorld(aiming(0.2, older), held, 0.5);
+  assert.ok(Math.abs(between.players[0]!.gunAim! - 0.25) < 1e-12);
 });

@@ -110,6 +110,7 @@ export interface GameSnapshot {
     drunkUntilTick: number;
     inkUntilTick: number;
     gunArmed?: boolean;
+    gunAim?: number;
     shellArmed?: boolean;
     targetBombArmed: boolean;
     bombTarget?: AimPoint;

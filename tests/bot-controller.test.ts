@@ -384,6 +384,15 @@ test("AI target/gun/shell shots use normal input actions and target aim is bound
     }
     step(game, new Map([[player.id, press]]));
     if (powerup === "gunArmed") {
+      assert.equal(game.shots.length, 0, "a Gun holds fire until release");
+      // The hold is brief: a few ticks of swinging the sight, then an ordinary release.
+      let release = bot.input(game, player.id);
+      for (let held = 0; held < 5 && !release.bombCommands; held++) {
+        step(game, new Map([[player.id, release]]));
+        release = bot.input(game, player.id);
+      }
+      assert.equal(release.bombCommands?.[0]?.action, "release");
+      step(game, new Map([[player.id, release]]));
       assert.equal(player.gunArmed, false);
       assert.equal(game.shots[0]!.weapon, "gun");
       continue;
@@ -394,6 +403,45 @@ test("AI target/gun/shell shots use normal input actions and target aim is bound
     step(game, new Map([[player.id, release]]));
     assert.equal(player[powerup], false);
   }
+});
+
+test("an AI rider swings a held Gun's sight toward a rival off its heading, briefly, and fires", () => {
+  const game = fixture(),
+    bot = new BotController(),
+    player = game.players.get("bot:1")!,
+    human = game.players.get("human")!;
+  // Running alongside, 0.3 rad off the bot's nose: a clear miss if fired straight along the heading.
+  Object.assign(human, {
+    x: player.x + Math.cos(0.3) * 300,
+    y: player.y + Math.sin(0.3) * 300,
+    angle: 0,
+  });
+  player.gunArmed = true;
+  let held = 0,
+    bearing = 0;
+  for (let tick = 0; tick < 8 && !game.shots.length; tick++) {
+    const input = bot.input(game, player.id);
+    if (player.bombChargeStartedTick !== undefined) {
+      held += 1;
+      assert.equal(input.left, false, "the sight only ever swings toward it");
+    }
+    step(game, new Map([[player.id, input]]));
+    bearing = Math.atan2(human.y - player.y, human.x - player.x);
+  }
+  assert.equal(game.shots[0]?.weapon, "gun");
+  assert.ok(held >= 2 && held <= 5, `held ${held} ticks`);
+  const tracer = [...game.bombs.values()][0]!;
+  const fired = Math.atan2(
+    tracer.y - tracer.launchY,
+    tracer.x - tracer.launchX,
+  );
+  const off = (a: number, b: number) =>
+    Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  assert.ok(off(fired, player.angle) > 0.2, "the shot left the heading");
+  assert.ok(
+    off(fired, bearing) < 0.1,
+    `the sight closed on the rival: ${off(fired, bearing)}`,
+  );
 });
 
 test("AI riders are logged by the creator, take the five shared slots, and never steer from a stream of their own", () => {

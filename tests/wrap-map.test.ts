@@ -46,6 +46,13 @@ const press: InputIntent = {
   bomb: true,
   bombCommands: [{ action: "press" }],
 };
+/** A Gun fires on release; a tap is the press and its release arriving in one tick. */
+const tap: InputIntent = {
+  left: false,
+  right: false,
+  bomb: false,
+  bombCommands: [{ action: "press" }, { action: "release" }],
+};
 const release: InputIntent = {
   ...neutral,
   bombCommands: [{ action: "release" }],
@@ -381,7 +388,7 @@ test("a bullet carries on through an open edge and hits a rider beyond it, withi
   const game = scene();
   place(game, "p0", { x: 1500, y: 400, angle: 0, gunArmed: true });
   place(game, "p1", { x: 100, y: 400, angle: Math.PI / 2 });
-  const events = step(game, new Map([["p0", press]])).events;
+  const events = step(game, new Map([["p0", tap]])).events;
   assert.ok(
     events.some(
       (event) =>
@@ -403,7 +410,7 @@ test("a bullet carries on through an open edge and hits a rider beyond it, withi
   const empty = scene();
   place(empty, "p0", { x: 800, y: 100, angle: 0, gunArmed: true });
   place(empty, "p1", { x: 800, y: 800, angle: 0 });
-  step(empty, new Map([["p0", press]]));
+  step(empty, new Map([["p0", tap]]));
   const legs = [...empty.bombs.values()].filter((bomb) => bomb.shell?.gun);
   const travelled = legs.reduce(
     (sum, leg) => sum + Math.abs(leg.x - leg.launchX),
@@ -621,7 +628,7 @@ test("a bullet fired along an open edge hits a rider overhanging that edge from 
     const game = scene();
     place(game, "p0", { x: 1596, y: 100, angle: Math.PI / 2, gunArmed: true });
     place(game, "p1", { x: victimX, y: 500, angle: Math.PI / 2 });
-    return step(game, new Map([["p0", press]])).events.some(
+    return step(game, new Map([["p0", tap]])).events.some(
       (event) => event.type === "playerEliminated" && event.playerId === "p1",
     );
   };

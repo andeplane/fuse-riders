@@ -1498,7 +1498,9 @@ export async function startOnline(): Promise<void> {
         fireButton.textContent = remaining
           ? `${Math.ceil(remaining / 20)}s RECHARGE`
           : player.gunArmed
-            ? "TAP TO FIRE GUN"
+            ? inputState.isHeld("bomb")
+              ? "STEER TO AIM · RELEASE!"
+              : "HOLD TO AIM GUN"
             : player.targetBombArmed
               ? "SLIDE TO AIM"
               : player.shellArmed
