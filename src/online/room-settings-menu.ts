@@ -9,6 +9,8 @@ import {
   weightFor,
 } from "./powerup-rarity.js";
 import { TICK_HZ, type PickupType } from "../shared/game.js";
+import { ARENA_MAP_LABELS } from "../client/arena-maps.js";
+import type { ArenaMapChoice } from "../shared/arena-map.js";
 import {
   BOMB_MIN_CHARGE_TICKS,
   BOMB_CHARGE_TICKS_LIMIT,
@@ -112,6 +114,26 @@ export function showRoomSettings(
         (value) => {
           draft.aimBounce = value === "on";
         },
+      ),
+      choices<ArenaMapChoice>(
+        "Arena map",
+        draft.map,
+        [
+          ["rotate", "A different map every round"],
+          ["desert", ARENA_MAP_LABELS.desert],
+          ["forest", ARENA_MAP_LABELS.forest],
+          ["city", ARENA_MAP_LABELS.city],
+          ["classic", `${ARENA_MAP_LABELS.classic} · no obstacles`],
+        ],
+        (value) => {
+          draft.map = value;
+        },
+      ),
+    );
+    body.append(
+      element(
+        "p",
+        "Maps other than the classic grid put rocks, trees and buildings on the board. Crashing into one is fatal; a bomb blast clears it away.",
       ),
     );
     const lengthLabel = element("label", "Match length"),

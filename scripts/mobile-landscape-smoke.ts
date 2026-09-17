@@ -40,6 +40,22 @@ for (const [name, type] of [
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.stack ?? e.message));
   try {
+    /* The rider is left riding while the touch zones are probed: the classic board has nothing for it to crash into. */ await page.addInitScript(
+      () => {
+        if (!localStorage.getItem("fuse-riders-room-settings-v1"))
+          localStorage.setItem(
+            "fuse-riders-room-settings-v1",
+            JSON.stringify({
+              version: 1,
+              mode: "devices",
+              match: "rounds",
+              length: 5,
+              map: "classic",
+              weights: { power: 1 },
+            }),
+          );
+      },
+    );
     await page.goto(new URL("?solo=1", base).href);
     await page.locator(".mobile-rotate-gate").waitFor({ state: "visible" });
     await page.locator(".mobile-tools-toggle").click();

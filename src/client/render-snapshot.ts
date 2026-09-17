@@ -1,4 +1,5 @@
 import { advanceShell, SHELL_RADIUS } from "../shared/shell.js";
+import { obstacleDistanceSquared, obstacleEdges } from "../shared/arena-map.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 export const VISUAL_PROJECTION_LIMIT_MS = 50;
@@ -64,6 +65,12 @@ export function renderedSnapshot(
         vx: bomb.shell.vx * dt * 20,
         vy: bomb.shell.vy * dt * 20,
       };
+      // As in the simulation: the obstacle a shell is inside of does not hold it.
+      const obstacleWalls = newer.snapshot.obstacles
+        .filter(
+          (obstacle) => obstacleDistanceSquared(obstacle, bomb.x, bomb.y) > 0,
+        )
+        .flatMap(obstacleEdges);
       advanceShell(
         motion,
         {
@@ -74,12 +81,17 @@ export function renderedSnapshot(
           bottom:
             newer.snapshot.height - newer.snapshot.boundaryInset - SHELL_RADIUS,
         },
-        newer.snapshot.players.flatMap((player) =>
-          player.id === bomb.ownerId &&
-          newer.snapshot.tick - bomb.launchedTick < 6
-            ? []
-            : [...player.trail],
-        ),
+        // Scenery bounces a shell in the simulation, so the projection has to bounce it too or the sprite
+        // slides through a building until the next authoritative tick snaps it back.
+        [
+          ...obstacleWalls,
+          ...newer.snapshot.players.flatMap((player) =>
+            player.id === bomb.ownerId &&
+            newer.snapshot.tick - bomb.launchedTick < 6
+              ? []
+              : [...player.trail],
+          ),
+        ],
       );
       return { ...bomb, x: motion.x, y: motion.y };
     }),

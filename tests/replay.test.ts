@@ -81,6 +81,8 @@ function world(
       portalCooldownUntilTick: 0,
       portalGraceUntilTick: 0,
     })),
+    map: "classic",
+    obstacles: [],
     bombs: [],
     blasts: [],
     pickups: [],

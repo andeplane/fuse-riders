@@ -6,16 +6,22 @@ export class EffectTransitions {
   private tick = -1;
   private blasts = new Set<number>();
   private living = new Set<string>();
+  private obstacles = new Map<number, ViewSnapshot["obstacles"][number]>();
   reset(): void {
     this.scope = "";
     this.tick = -1;
     this.blasts.clear();
     this.living.clear();
+    this.obstacles.clear();
   }
   accept(
     snapshot: ViewSnapshot,
     matchId: string,
-  ): { explosions: ViewSnapshot["blasts"]; deaths: ViewSnapshot["players"] } {
+  ): {
+    explosions: ViewSnapshot["blasts"];
+    deaths: ViewSnapshot["players"];
+    rubble: ViewSnapshot["obstacles"];
+  } {
     const scope = `${matchId}:${snapshot.round}`;
     const reset = scope !== this.scope || snapshot.tick < this.tick;
     const explosions = reset
@@ -26,6 +32,13 @@ export class EffectTransitions {
       : snapshot.players.filter(
           (player) => !player.alive && this.living.has(player.id),
         );
+    // An obstacle that has left the board was blown away or crushed by the closing walls; either way it puffs.
+    const standing = new Set(snapshot.obstacles.map((obstacle) => obstacle.id));
+    const rubble = reset
+      ? []
+      : [...this.obstacles.values()].filter(
+          (obstacle) => !standing.has(obstacle.id),
+        );
     this.scope = scope;
     this.tick = snapshot.tick;
     this.blasts = new Set(snapshot.blasts.map((blast) => blast.bombId));
@@ -34,7 +47,10 @@ export class EffectTransitions {
         .filter((player) => player.alive)
         .map((player) => player.id),
     );
-    return { explosions, deaths };
+    this.obstacles = new Map(
+      snapshot.obstacles.map((obstacle) => [obstacle.id, obstacle]),
+    );
+    return { explosions, deaths, rubble };
   }
 }
 

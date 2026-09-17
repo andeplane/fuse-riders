@@ -50,6 +50,8 @@ function scene() {
   Object.assign(target!, { x: 850, y: 700, angle: 0, trail: [] });
   Object.assign(behind!, { x: 1200, y: 450, angle: Math.PI, trail: [] });
   Object.assign(spare!, { x: 1200, y: 150, angle: 0, trail: [] });
+  // An open board: every ray in these tests is cast against riders and trails placed at exact coordinates.
+  game.obstacles = [];
   game.nextPickupSpawnTick = game.tick + 1000;
   const fire = (input = press) => step(game, new Map([["p0", input]]));
   const body = (x: number, y1 = 300, y2 = 600) => ({

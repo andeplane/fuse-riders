@@ -23,6 +23,7 @@ import {
   BOMB_MAX_LAUNCH_DISTANCE,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
+import { obstacleBlocksPath, obstacleDistanceSquared } from "./arena-map.js";
 import { drunkHeadingOffset } from "./drunk.js";
 import type { TrailSegment } from "./protocol.js";
 
@@ -225,6 +226,12 @@ function chooseSteering(
     ),
   ];
   const bombs = [...game.bombs.values()].filter((bomb) => !bomb.shell?.gun);
+  // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
+  // of this plan are worth testing each step.
+  const obstacles = game.obstacles.filter(
+    (obstacle) =>
+      obstacleDistanceSquared(obstacle, player.x, player.y) < reach * reach,
+  );
   let chosen = 0,
     bestSurvived = -1,
     bestScore = -Infinity;
@@ -353,6 +360,19 @@ function chooseSteering(
             if (hitsTrail(path[index]!)) return true;
           return false;
         })
+      )
+        break;
+      if (
+        obstacles.some((obstacle) =>
+          obstacleBlocksPath(
+            obstacle,
+            previous.x,
+            previous.y,
+            x,
+            y,
+            TRAIL_CLEARANCE,
+          ),
+        )
       )
         break;
       if (

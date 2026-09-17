@@ -81,6 +81,7 @@ for (const [name, type] of [
         mode: "devices",
         match: "wins",
         length: 3,
+        map: "classic",
         weights: {},
       }),
     );

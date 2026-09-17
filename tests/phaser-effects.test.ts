@@ -44,6 +44,58 @@ test("effects do not replay on repeated snapshots or across authority/match rese
     0,
   );
 });
+test("scenery cleared from the board puffs once, and a fresh board is not all rubble", () => {
+  const effects = new EffectTransitions();
+  const s = frame();
+  const standing = {
+    ...s,
+    obstacles: [
+      {
+        id: 1,
+        kind: "rock" as const,
+        x: 300,
+        y: 200,
+        halfWidth: 40,
+        halfHeight: 30,
+      },
+      {
+        id: 2,
+        kind: "tree" as const,
+        x: 800,
+        y: 400,
+        halfWidth: 20,
+        halfHeight: 20,
+      },
+    ],
+  };
+  assert.deepEqual(
+    effects.accept(standing, "room:a").rubble,
+    [],
+    "the board it first sees is standing, not destroyed",
+  );
+  const cleared = { ...standing, obstacles: [standing.obstacles[1]!] };
+  assert.deepEqual(
+    effects.accept(cleared, "room:a").rubble.map((o) => o.id),
+    [1],
+    "the rock that left the board puffs where it stood",
+  );
+  assert.deepEqual(
+    effects.accept(cleared, "room:a").rubble,
+    [],
+    "and only once",
+  );
+  // A new round lays a new board: every piece of the old one is gone, and none of it is an explosion to draw.
+  assert.deepEqual(
+    effects.accept({ ...cleared, round: 2, obstacles: [] }, "room:a").rubble,
+    [],
+  );
+  effects.accept(standing, "room:b");
+  assert.deepEqual(
+    effects.accept({ ...standing, obstacles: [] }, "room:c").rubble,
+    [],
+    "nor across a match reset",
+  );
+});
 test("bomb flight sprite follows segmented path while damage radius stays at landing point", () => {
   const bomb = {
     id: 1,

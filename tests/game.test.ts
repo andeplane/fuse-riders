@@ -73,6 +73,8 @@ function gameWithPlayers(
 
 function enterPlaying(state: GameState): void {
   startMatch(state);
+  // The open arena: obstacles are their own tests, and the rules here are about walls, trails, bombs and rounds.
+  state.obstacles = [];
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
   assert.equal(state.phase, "playing");
 }
@@ -2447,6 +2449,7 @@ test("a drawn final round still awards the fixed-rounds match to the standings l
   state.tick = state.phaseEndsAtTick!;
   startNextRound(state);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  state.obstacles = []; // the second round lays its own board; this one is decided by the draw clock alone
   Object.assign(state.players.get("p0")!, {
     x: 600,
     y: 450,

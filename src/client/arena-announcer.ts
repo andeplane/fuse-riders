@@ -4,7 +4,7 @@ import {
   ROUND_DRAW_TICK,
   TICK_HZ,
 } from "../shared/game.js";
-import type { GameEvent } from "../shared/protocol.js";
+import type { ArenaMapId, GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 /**
@@ -132,11 +132,17 @@ const CAUSES = {
   rider: "rammed a rider",
 } as const;
 
-/** One line for the elimination feed, or undefined for events that are not eliminations. */
+/**
+ * One line for the elimination feed, or undefined for events that are not eliminations.
+ *
+ * Crashing into scenery is reported as `wall`, because it is the same kind of death, so on a board that has any the
+ * line cannot promise which solid thing was hit.
+ */
 export function eliminationLine(
   event: GameEvent,
   players: ReadonlyArray<{ id: string; name: string }>,
   selfId: string,
+  map: ArenaMapId = "classic",
 ): string | undefined {
   if (event.type !== "playerEliminated") return undefined;
   const name =
@@ -144,5 +150,5 @@ export function eliminationLine(
       ? "YOU"
       : (players.find((player) => player.id === event.playerId)?.name ??
         "A rider");
-  return `${name} ${CAUSES[event.cause]}`;
+  return `${name} ${event.cause === "wall" && map !== "classic" ? "crashed" : CAUSES[event.cause]}`;
 }
