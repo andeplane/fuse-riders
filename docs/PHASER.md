@@ -6,7 +6,6 @@ Fuse Riders uses **Phaser 3.90.0 for arena presentation**. The shared TypeScript
 
 The cleaner presentation restoration ([issue #63](https://github.com/andeplane/fuse-riders/issues/63)) takes its visual reference from the pre-Phaser client at `1776ef5`: radial arena shading, a world-anchored grid, slimmer trails, simple three-layer blast silhouettes and restrained rider outlines. Phaser still renders the supplied snapshots. The background texture is cached independently of the shrinking boundary; the existing theme palettes, avatars and gameplay geometry are retained. The later border cleanup removed the decorative block wall, corner ornaments and outer canvas frame in both Phaser and Canvas, leaving one thin boundary line for every theme; see **Themed arena boundary** below. Online screens also reuse the earlier squared panels, cyan primary action and player-colored score cards above the desktop board.
 
-
 ## Themed arena boundary
 
 The border cleanup left one thin rim for every theme, which erased the only remaining difference between the two visual styles: `neon-pixel` rendered `clean-neon`'s geometry, and the Phaser arena read neither `wallWidth` nor `pixelated` at all. `src/client/arena-wall.ts` now owns the choice — `arenaWall(width, height, inset, theme)` returns either a `pixel` wall (brick runs, corner brackets, warning studs) or a `smooth` wall (one `wallWidth` stroke outside the rim) — and the Phaser scene paints that geometry on either backend.
@@ -47,12 +46,12 @@ The separate hand-written Canvas renderer and `?renderer=canvas` override have b
 
 Measured on Apple M4 Max / 48 GiB RAM, macOS, headless Chrome 153 and Playwright WebKit 26.6. Each renderer ran for 30 seconds with a one-second warmup at 1600×900: five riders, 800 trail segments, 24 projectiles, six pickups and five repeating explosions. Other development processes were active. Raw samples, source SHA-256 hashes and limitations are preserved in [Chrome results](performance/phaser-chrome.json) and [WebKit results](performance/phaser-webkit.json).
 
-| Browser / renderer | Frame p95 / p99 / max | Render CPU p95 | Maximum scene objects / live particles |
-| --- | --- | --- | --- |
-| Chrome / original Canvas | 16.7 / 16.8 / 16.8 ms | 0.6 ms | Not instrumented |
-| Chrome / Phaser WebGL | 16.7 / 16.8 / 16.8 ms | 4.9 ms | 83 / 284 |
-| WebKit / original Canvas | 18 / 18 / 21 ms | 1 ms | Not instrumented |
-| WebKit / Phaser WebGL | 18 / 19 / 20 ms | 4 ms | 79 / 289 |
+| Browser / renderer       | Frame p95 / p99 / max | Render CPU p95 | Maximum scene objects / live particles |
+| ------------------------ | --------------------- | -------------- | -------------------------------------- |
+| Chrome / original Canvas | 16.7 / 16.8 / 16.8 ms | 0.6 ms         | Not instrumented                       |
+| Chrome / Phaser WebGL    | 16.7 / 16.8 / 16.8 ms | 4.9 ms         | 83 / 284                               |
+| WebKit / original Canvas | 18 / 18 / 21 ms       | 1 ms           | Not instrumented                       |
+| WebKit / Phaser WebGL    | 18 / 19 / 20 ms       | 4 ms           | 79 / 289                               |
 
 Both renderers sustained the desktop frame budget. Phaser's richer scene costs more CPU than the original Canvas renderer; this is **not evidence of a CPU speedup**. An earlier 60-second WebKit run recorded a 112 ms maximum frame despite an 18 ms p95, so occasional long frames remain worth tracking. Object counts and particle caps are not a heap-allocation/GC profile. These are synthetic rendering results, not proof of phone performance, network smoothness, or the complete online 30-minute soak gate.
 
@@ -72,14 +71,11 @@ BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
 BROWSER=webkit DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
 npx vite build --outDir artifacts/phaser-dist
-BUILD_DIRECTORY=artifacts/phaser-dist npm run test:browser
-BUILD_DIRECTORY=artifacts/phaser-dist BROWSER=webkit npm run test:browser
 npx vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
 npx tsx scripts/phaser-pages-smoke.ts
-npx tsx scripts/gameplay-showcase.ts
 ```
 
-The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot: `scripts/gameplay-showcase.ts` adds 5 AI riders, starts a real race, and advances ticks across the match, screenshotting whenever the bots' own play produces a busier frame (more bombs, a live portal, a fired gun shot, an explosion) — no injected fixture, no image-generated mockup. `scripts/phaser-showcase.ts` still exists for a deterministic, reproducible showcase state used in earlier reviews. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
+The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
 
 Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authority and release acceptance remain governed by the online ADRs and roadmap; this rendering work does not close those gates.
 
@@ -88,11 +84,11 @@ Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authori
 The same synthetic workload was subsequently measured sequentially in Chrome and WebKit at **390×844 viewport, DPR 2**, low quality with a 160-particle cap, for 30 seconds per renderer. The fitted board measured **390×219.375 CSS pixels**, while its actual backing remained **1600×900**, matching the production renderer at that recorded revision. The current display-aware sizing follow-up is measured separately above. Raw reports include actual dimensions, source revisions/hashes and every timing sample: [Chrome](performance/phaser-mobile-chrome.json), [WebKit](performance/phaser-mobile-webkit.json).
 
 | Browser / renderer | Frame p95 / p99 / max | Render CPU p95 | Max scene objects / particles |
-| --- | --- | --- | --- |
-| Chrome / Canvas | 16.7 / 16.8 / 16.8 ms | 0.6 ms | Not instrumented |
-| Chrome / Phaser | 16.7 / 16.8 / 16.8 ms | 4.9 ms | 83 / 159 |
-| WebKit / Canvas | 18 / 19 / 20 ms | 1 ms | Not instrumented |
-| WebKit / Phaser | 18 / 19 / 22 ms | 5 ms | 79 / 158 |
+| ------------------ | --------------------- | -------------- | ----------------------------- |
+| Chrome / Canvas    | 16.7 / 16.8 / 16.8 ms | 0.6 ms         | Not instrumented              |
+| Chrome / Phaser    | 16.7 / 16.8 / 16.8 ms | 4.9 ms         | 83 / 159                      |
+| WebKit / Canvas    | 18 / 19 / 20 ms       | 1 ms           | Not instrumented              |
+| WebKit / Phaser    | 18 / 19 / 22 ms       | 5 ms           | 79 / 158                      |
 
 Each mode retained 1,741 post-warmup frames. Both browser runs had zero page errors, no independent Phaser RAF loop, and active particles below the mobile cap. This is desktop browser viewport/DPR emulation on the same M4 Max machine, **not physical-phone GPU, thermals, touch or battery evidence**. Phaser costs more CPU than Canvas here too.
 
@@ -103,4 +99,4 @@ BROWSER=webkit VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TA
 
 The default desktop workload remains unchanged. `QUALITY` defaults to low below 701 viewport pixels; explicit low/high values let measurements reproduce the selected budget. Backing size is observed and asserted, not rescaled into a different game world.
 
-Gun tracers use the authoritative launch point and resolved endpoint, with a two-unit line and a two-unit-radius bullet tip. They fade over three simulation ticks using supplied presentation time. They do not project forward, run collision checks or create explosion effects. `npx tsx scripts/gun-browser.ts` checks real LAN phone pointer-down fire and captures the TV result (`BROWSER=webkit` also supported).
+Gun tracers use the authoritative launch point and resolved endpoint, with a two-unit line and a two-unit-radius bullet tip. They fade over three simulation ticks using supplied presentation time. They do not project forward, run collision checks or create explosion effects.

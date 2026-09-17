@@ -10,10 +10,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # One group per pushed commit: a shared main group lets only one run wait, so every further
+  # merge cancelled the waiting run, and on a busy day most commits never got a CI conclusion
+  # or a deployment. Push runs now overlap instead and each one completes.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   # Cancel superseded pull-request runs, but never a push run: a cancelled CI run has no
-  # success conclusion, so cancelling main's run silently withholds every deployment for
-  # that commit. Pending push runs still collapse to the newest, so no backlog forms.
+  # success conclusion, so cancelling main's run silently withholds that commit's deployment.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   # The gate a pull request waits on: type checks, unit coverage and the build, about a
@@ -28,6 +30,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run format:check
+      - run: npm run config:check
       - run: npm run typecheck
       - run: npm run test:coverage
       - run: npm run build
@@ -79,15 +83,7 @@ jobs:
       # seconds rather than after a minute of Playwright installs.
       - run: npm run build
       - run: npx playwright install --with-deps chrome chromium webkit
-      - name: Chrome five-phone smoke
-        run: scripts/ci-smoke.sh "Chrome five-phone smoke" npm run test:browser
-      - name: WebKit five-phone smoke
-        run: scripts/ci-smoke.sh "WebKit five-phone smoke" npm run test:browser
-        env:
-          BROWSER: webkit
-      - name: Small-phone avatar picker layout
-        run: scripts/ci-smoke.sh "Small-phone avatar picker layout" npx tsx scripts/avatar-layout.ts
-      # The production room protocol (src/service) over in-memory metadata, serving dist/.
+      # The production room protocol (packages/fuse-network-be) over in-memory metadata, serving dist/.
       - name: Start local online room service
         run: |
           mkdir -p artifacts

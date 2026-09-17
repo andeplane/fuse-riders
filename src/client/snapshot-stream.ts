@@ -1,10 +1,22 @@
-import type { GameSnapshot } from '../shared/protocol.js';
+import type { GameSnapshot } from "../shared/protocol.js";
 
 /** Per-rider presentation time is local rendering metadata, never authoritative state. */
-export type ViewPlayer = GameSnapshot['players'][number] & { presentationTick?: number };
+export type ViewPlayer = GameSnapshot["players"][number] & {
+  presentationTick?: number;
+};
 /** Optional fractional world time for cosmetics; LAN retains the discrete snapshot tick. */
-export type ViewSnapshot = Omit<GameSnapshot, 'players'> & { tick: number; round: number; players: readonly ViewPlayer[]; presentationTick?: number };
-export interface SnapshotEnvelope { matchId: string; round: number; tick: number; state: GameSnapshot }
+export type ViewSnapshot = Omit<GameSnapshot, "players"> & {
+  tick: number;
+  round: number;
+  players: readonly ViewPlayer[];
+  presentationTick?: number;
+};
+export interface SnapshotEnvelope {
+  matchId: string;
+  round: number;
+  tick: number;
+  state: GameSnapshot;
+}
 
 /** Accepts only forward progress while allowing opaque, randomly generated match IDs. */
 export class SnapshotStream {
@@ -17,15 +29,26 @@ export class SnapshotStream {
         if (message.round < this.current.round) return undefined;
         // Equal-tick snapshots are authoritative membership/auth resyncs sent
         // immediately after a join or connection change on the ordered socket.
-        if (message.round === this.current.round && message.tick < this.current.tick) return undefined;
+        if (
+          message.round === this.current.round &&
+          message.tick < this.current.tick
+        )
+          return undefined;
       } else {
         if (this.retiredMatchIds.has(message.matchId)) return undefined;
         this.retiredMatchIds.add(this.current.matchId);
       }
     }
-    this.current = { matchId: message.matchId, round: message.round, tick: message.tick };
+    this.current = {
+      matchId: message.matchId,
+      round: message.round,
+      tick: message.tick,
+    };
     return { ...message.state, tick: message.tick, round: message.round };
   }
 
-  get scope(): Readonly<{ matchId: string; round: number; tick: number }> | undefined { return this.current; }
+  get scope():
+    Readonly<{ matchId: string; round: number; tick: number }> | undefined {
+    return this.current;
+  }
 }

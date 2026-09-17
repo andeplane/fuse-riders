@@ -10,17 +10,17 @@ Authentication used the explicitly authorized active gcloud user's short-lived a
 
 These are elapsed times between single-run check markers, not latency distributions or gameplay benchmarks:
 
-| Check | Elapsed |
-| --- | ---: |
-| Process startup | 569 ms |
-| Firestore create and Origin boundary | 822 ms |
-| Membership and initial welcome | 13,122 ms |
-| Forward cross-process SDP | 6,678 ms |
-| Reverse SDP | 406 ms |
-| Identity renewal | 382 ms |
-| Creator replacement | 339 ms |
-| Guest replacement | 7,534 ms |
-| Test resource cleanup | 5,195 ms |
+| Check                                |   Elapsed |
+| ------------------------------------ | --------: |
+| Process startup                      |    569 ms |
+| Firestore create and Origin boundary |    822 ms |
+| Membership and initial welcome       | 13,122 ms |
+| Forward cross-process SDP            |  6,678 ms |
+| Reverse SDP                          |    406 ms |
+| Identity renewal                     |    382 ms |
+| Creator replacement                  |    339 ms |
+| Guest replacement                    |  7,534 ms |
+| Test resource cleanup                |  5,195 ms |
 
 Cold subscription setup and signalling can take seconds. The room UI must remain in a clear connecting state and support retry; this evidence does not establish fast room entry. Subscription creation has a bounded 15-second RPC timeout and signalling frames expire after 10 seconds. These control-plane limits do not change direct gameplay latency budgets. Actual testing exposed and fixed the regional Pub/Sub SDK endpoint requiring an explicit `:443` port.
 

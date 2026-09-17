@@ -42,11 +42,11 @@ The phone profile fits a 693⅓×390 CSS-pixel board into an 844×390 viewport, 
 ## Isolated results before display-aware sizing
 
 | Browser / profile | Samples | Frame p95 / p99 / max (ms) | Render CPU p95 (ms) | Max objects / particles |
-| --- | ---: | ---: | ---: | ---: |
-| Chrome / desktop | 841 | 16.7 / 16.8 / 16.8 | 2.5 | 60 / 132 |
-| Webkit / desktop | 839 | 18.0 / 18.0 / 28.0 | 3.0 | 56 / 134 |
-| Chrome / phone | 541 | 16.7 / 16.8 / 16.8 | 2.8 | 60 / 133 |
-| Webkit / phone | 541 | 17.0 / 18.0 / 19.0 | 3.0 | 56 / 132 |
+| ----------------- | ------: | -------------------------: | ------------------: | ----------------------: |
+| Chrome / desktop  |     841 |         16.7 / 16.8 / 16.8 |                 2.5 |                60 / 132 |
+| Webkit / desktop  |     839 |         18.0 / 18.0 / 28.0 |                 3.0 |                56 / 134 |
+| Chrome / phone    |     541 |         16.7 / 16.8 / 16.8 |                 2.8 |                60 / 133 |
+| Webkit / phone    |     541 |         17.0 / 18.0 / 19.0 |                 3.0 |                56 / 132 |
 
 Raw distributions and the tested source fingerprints: [Chrome desktop](../performance/smooth-trails/desktop-chrome.json), [WebKit desktop](../performance/smooth-trails/desktop-webkit.json), [Chrome phone viewport](../performance/smooth-trails/phone-chrome.json), [WebKit phone viewport](../performance/smooth-trails/phone-webkit.json). The recorded Git revision is the base commit; the source fingerprints identify the uncommitted implementation measured here. These isolated runs used a corrected harness, so their CPU timings should not be interpreted as a direct speedup against the initial comparison.
 
@@ -63,12 +63,12 @@ VIEWPORT_WIDTH=844 VIEWPORT_HEIGHT=390 DPR=3 QUALITY=low DURATION_MS=10000 BENCH
 BROWSER=webkit VIEWPORT_WIDTH=844 VIEWPORT_HEIGHT=390 DPR=3 QUALITY=low DURATION_MS=10000 BENCH_TAG=hidpi-phone npx tsx scripts/phaser-benchmark.ts
 ```
 
-| Browser / profile | Backing | Samples | Frame p95 / p99 / max (ms) | Render CPU p95 (ms) |
-| --- | --- | ---: | ---: | ---: |
-| Chrome / desktop | 3200×1800 | 541 | 16.8 / 16.8 / 16.8 | 5.4 |
-| Webkit / desktop | 3200×1800 | 540 | 18.0 / 18.0 / 19.0 | 5.0 |
-| Chrome / phone | 2080×1170 | 541 | 16.8 / 16.8 / 16.8 | 5.1 |
-| Webkit / phone | 2080×1170 | 541 | 17.0 / 18.0 / 20.0 | 4.0 |
+| Browser / profile | Backing   | Samples | Frame p95 / p99 / max (ms) | Render CPU p95 (ms) |
+| ----------------- | --------- | ------: | -------------------------: | ------------------: |
+| Chrome / desktop  | 3200×1800 |     541 |         16.8 / 16.8 / 16.8 |                 5.4 |
+| Webkit / desktop  | 3200×1800 |     540 |         18.0 / 18.0 / 19.0 |                 5.0 |
+| Chrome / phone    | 2080×1170 |     541 |         16.8 / 16.8 / 16.8 |                 5.1 |
+| Webkit / phone    | 2080×1170 |     541 |         17.0 / 18.0 / 20.0 |                 4.0 |
 
 All four runs reported no page errors and bounded active particle counts. Raw reports: [Chrome desktop](../performance/smooth-trails/hidpi-desktop-chrome.json), [WebKit desktop](../performance/smooth-trails/hidpi-desktop-webkit.json), [Chrome phone viewport](../performance/smooth-trails/hidpi-phone-chrome.json), [WebKit phone viewport](../performance/smooth-trails/hidpi-phone-webkit.json). These contain base revision, actual source hashes, dimensions and every sample. Desktop Phaser renders four times the pixels of the old fixed backing; phone DPR 3 renders 2080×1170. These short measurements do not establish sustained physical-device performance.
 

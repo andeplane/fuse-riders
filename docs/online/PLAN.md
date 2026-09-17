@@ -34,6 +34,7 @@ Extract current single-game state into RoomSession: game, seats, tokens, input b
 Roles: player, display/spectator, host capability. A connection may be both host and player. Validate every command against room membership and capability, not the current screen URL. Test cross-room token use, stale commands and display privilege escalation. Limit room creation, joins, sockets, packet size and action rates. Never broadcast host/resume secrets.
 
 Versioned RoomPreferences include:
+
 - presentation mode;
 - match format: first to N wins OR fixed N rounds, named separately so “number of games” is unambiguous;
 - enabled powerups and nonnegative relative spawn weights;
@@ -64,6 +65,7 @@ Disconnection policy: neutralize stale held controls, show reconnect status, res
 Current server serializes full arena state at 20 Hz for a display; compact phone controllers get 10 Hz and omit trails/projectiles. Individual-device play cannot simply give five phones the existing TV feed.
 
 Introduce a protocol version, snapshot/baseline IDs and incremental updates:
+
 - stable IDs for trail segments; append, trim, remove and split operations;
 - head/projectile transforms at an independently tunable rate;
 - reliable spawn/despawn, pickup, explosion and phase events;
@@ -83,12 +85,12 @@ Full snapshot averaged 108–114 KB, implying 17.3–18.2 Mbps per full view at 
 
 Five real loopback WebSocket clients with ordered injected delays; approximately 495 inputs/profile over five seconds:
 
-| Profile | One-way delay and jitter | Added HOL stalls | Input-to-ack p50 / p95 |
-|---|---|---|---|
-| LAN | 5 ± 2 ms | none | 37 / 58 ms |
-| Regional | 40 ± 10 ms | none | 116 / 134 ms |
-| Poor Wi-Fi model | 75 ± 30 ms | 3% of scheduled deliveries add 200 ms | 178 / 304 ms |
-| Very poor model | 150 ± 75 ms | 5% add 200 ms | 339 / 507 ms |
+| Profile          | One-way delay and jitter | Added HOL stalls                      | Input-to-ack p50 / p95 |
+| ---------------- | ------------------------ | ------------------------------------- | ---------------------- |
+| LAN              | 5 ± 2 ms                 | none                                  | 37 / 58 ms             |
+| Regional         | 40 ± 10 ms               | none                                  | 116 / 134 ms           |
+| Poor Wi-Fi model | 75 ± 30 ms               | 3% of scheduled deliveries add 200 ms | 178 / 304 ms           |
+| Very poor model  | 150 ± 75 ms              | 5% add 200 ms                         | 339 / 507 ms           |
 
 This is application-level latency/HOL injection, not real packet-loss, throughput shaping, visual latency or mobile measurements. Acknowledgements are cumulative/latest-sequence and may coalesce inputs; fewer ACK samples are not evidence of packet loss. Short-run p99 figures are exploratory. No claims yet that poor-network gameplay passes.
 
@@ -99,6 +101,7 @@ Commit reproducible harnesses and machine-readable reports. Use injected clocks/
 Matrix: 0/40/80/150/300 ms RTT; jitter 0/20/50/100 ms; real packet loss 0/1/3/5%; 0.5/2/10 Mbps downlinks; asymmetric uplinks; 1/3/10-second outages; background/resume; reconnect after server restart. Run seeded crossing trails, simultaneous shots, shell swarms, target release, shrinking arena and portal transits. Include two clients with sharply different latency.
 
 Provisional gates, to be validated on selected devices and cloud hardware:
+
 - local gesture to predicted frame p95 <= 33 ms at 60 Hz, independent of RTT;
 - full-view bandwidth <= 0.5 Mbps average and <= 1 Mbps p95 over 1-second windows in five-player stress rounds;
 - visible local corrections p95 <= one rider radius at 80 ms RTT; track count, magnitude and collision disagreements, not just averages;

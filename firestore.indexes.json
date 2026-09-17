@@ -1,0 +1,130 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "fuse-production-matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "participantUids",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "endedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ranked",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elo",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ranked",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elo",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "fuse-production-creation-limits",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-rooms",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-matches",
+      "fieldPath": "cleanupAt",
+      "ttl": true,
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "arrayConfig": "CONTAINS",
+          "queryScope": "COLLECTION"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-matches",
+      "fieldPath": "result",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "fieldPath": "career",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "fieldPath": "rating",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-matches",
+      "fieldPath": "ratings",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-matches",
+      "fieldPath": "rivalryPairs",
+      "indexes": []
+    }
+  ]
+}

@@ -1,4 +1,8 @@
-import type { AimPoint, BombAction, BombActionCommand } from '../shared/protocol.js';
+import type {
+  AimPoint,
+  BombAction,
+  BombActionCommand,
+} from "../shared/protocol.js";
 
 export const MAX_PENDING_BOMB_ACTIONS = 8;
 
@@ -11,17 +15,18 @@ export class BombInputBuffer {
 
   accept(held: boolean, action?: BombAction, aim?: AimPoint): void {
     if (aim) this.aim = { ...aim };
-    if (action === 'cancel') {
+    if (action === "cancel") {
       this.cancel();
       this.needsRelease = false;
       return;
     }
     if (!held) {
-      if (action === 'release' && this.held && !this.needsRelease) this.enqueue('release');
+      if (action === "release" && this.held && !this.needsRelease)
+        this.enqueue("release");
       else if (this.held && action === undefined) this.cancel();
       this.needsRelease = false;
-    } else if (action === 'press' && !this.held && !this.needsRelease) {
-      this.enqueue('press');
+    } else if (action === "press" && !this.held && !this.needsRelease) {
+      this.enqueue("press");
     }
     this.held = held;
     if (!held) this.aim = undefined;
@@ -30,11 +35,13 @@ export class BombInputBuffer {
   cancel(requireRelease = false): void {
     this.needsRelease ||= requireRelease || this.held;
     this.held = false;
-    this.pending = [{ action: 'cancel' }];
+    this.pending = [{ action: "cancel" }];
     this.aim = undefined;
   }
 
-  drain(): BombAction[] { return this.drainCommands().map(command => command.action); }
+  drain(): BombAction[] {
+    return this.drainCommands().map((command) => command.action);
+  }
 
   drainCommands(): BombActionCommand[] {
     const actions = this.pending;
@@ -44,6 +51,10 @@ export class BombInputBuffer {
 
   private enqueue(action: BombAction): void {
     if (this.pending.length >= MAX_PENDING_BOMB_ACTIONS) this.cancel(true);
-    else this.pending.push({ action, ...(this.aim ? { aim: { ...this.aim } } : {}) });
+    else
+      this.pending.push({
+        action,
+        ...(this.aim ? { aim: { ...this.aim } } : {}),
+      });
   }
 }

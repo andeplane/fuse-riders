@@ -4,11 +4,13 @@ Tracking: [#236](https://github.com/andeplane/fuse-riders/issues/236).
 
 Voice is optional and per device. Open **VOICE** (or **SETTINGS → VOICE CHAT**) and choose **JOIN VOICE** to request the microphone or **LISTEN ONLY** to hear the room without capturing. Joining a room, refreshing, and opening a TV display never automatically enable voice. **MUTE MIC** silences transmission; **DEAFEN** silences playback and transmission while preserving the previous microphone mute choice. **LEAVE VOICE** releases the microphone. Microphone selection, voice volume and participant silence affect only this device. Game sound controls and Ctrl+M affect music/effects only; use voice mute/deafen separately. Muting retains microphone capture for fast unmute; leaving voice stops it.
 
-On a shared screen use one device for voice, or headphones on the participating devices. Several nearby open microphones/speakers can echo. Browser echo cancellation and noise suppression are requested, but are not a substitute for physical-device testing. The existing LAN `/display` and `/controller` paths are unchanged; microphone capture requires HTTPS or localhost, so plain-HTTP LAN addresses are outside this version's scope.
+On a shared screen use one device for voice, or headphones on the participating devices. Several nearby open microphones/speakers can echo. Browser echo cancellation and noise suppression are requested, but are not a substitute for physical-device testing. Microphone capture requires HTTPS or localhost; plain-HTTP LAN addresses are outside this version's scope.
 
 ## Design and tradeoffs
 
 The existing full mesh carries one audio track per peer alongside gameplay's data channels. No media traverses the room service and no TURN/SFU or paid service is added. Upload bandwidth grows with the number of connected devices, including displays. Existing STUN-only connectivity limits still apply.
+
+The networking package exposes an optional `PeerTransportExtension` for application-owned media. It calls connection lifecycle hooks and delivers validated connection-scoped envelopes to the extension before gameplay. `VoiceChat` stays in `src/online` and owns microphone, playback and voice-status validation; `fuse-network-fe` never imports game code. This preserves the extracted network boundary while sharing the existing connection and bounded control channel.
 
 The established offerer reserves one `sendrecv` audio transceiver before its initial offer. The answerer adopts that transceiver after applying the offer. Joining voice, microphone replacement and leaving use `replaceTrack`; mute/deafen use the capture track's `enabled` property. This avoids routine renegotiation racing gameplay's ICE recovery. Recreated links attach the current capture; stale capture requests and detached sender completions cannot resurrect a microphone after leave. Voice sender errors are shown in voice controls, separate from gameplay status.
 

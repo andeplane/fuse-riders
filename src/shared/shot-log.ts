@@ -16,11 +16,18 @@
  * Shorter Fuse, GRIP) are deliberately absent: they sharpen every shot rather than being spent by one.
  *
  * A rider can hold several weapons and a pull spends only some of them, so `applyBombActions` labels the pull with
- * the first of `gun`, `shell`, `target`, `gravity`, `five`, `triple`, `bomb` that it spent; whatever it did not
+ * the first of `gun`, `shell`, `target`, `five`, `triple`, `bomb` that it spent; whatever it did not
  * spend stays armed for the next pull.
  */
-export const WEAPONS = ['bomb', 'triple', 'five', 'target', 'gun', 'shell', 'gravity'] as const;
-export type Weapon = typeof WEAPONS[number];
+export const WEAPONS = [
+  "bomb",
+  "triple",
+  "five",
+  "target",
+  "gun",
+  "shell",
+] as const;
+export type Weapon = (typeof WEAPONS)[number];
 
 export interface ShotKill {
   victimId: string;
@@ -61,6 +68,18 @@ export interface DecidedRound {
   /** The tick the round was decided at; the log is final once every replica has confirmed it. */
   tick: number;
   shots: RoundShot[];
+  /** Frozen at the decision tick; absent in older checkpoints. */
+  rating?: {
+    finishers: string[];
+    standings: Array<{
+      playerId: string;
+      name: string;
+      slot: number;
+      color: string;
+      place: number;
+      scoreUnits: number;
+    }>;
+  };
 }
 
 /**
@@ -68,10 +87,23 @@ export interface DecidedRound {
  * nobody while one of its bombs was still in the air was interrupted by the round's end, not a miss. A pull that
  * already killed stays, with the kills it made.
  */
-export function decideRound(matchId: string, round: number, tick: number, shots: readonly RoundShot[], inFlight: ReadonlySet<number>): DecidedRound {
+export function decideRound(
+  matchId: string,
+  round: number,
+  tick: number,
+  shots: readonly RoundShot[],
+  inFlight: ReadonlySet<number>,
+): DecidedRound {
   return {
-    matchId, round, tick,
-    shots: shots.filter(shot => shot.kills.length > 0 || !inFlight.has(shot.shot)).map(shot => ({ ...shot, kills: shot.kills.map(kill => ({ ...kill })) })),
+    matchId,
+    round,
+    tick,
+    shots: shots
+      .filter((shot) => shot.kills.length > 0 || !inFlight.has(shot.shot))
+      .map((shot) => ({
+        ...shot,
+        kills: shot.kills.map((kill) => ({ ...kill })),
+      })),
   };
 }
 
@@ -79,6 +111,10 @@ export function recordShot(shots: RoundShot[], shot: RoundShot): void {
   if (shots.length < MAX_ROUND_SHOTS) shots.push(shot);
 }
 
-export function recordShotKill(shots: readonly RoundShot[], shot: number, kill: ShotKill): void {
-  shots.find(entry => entry.shot === shot)?.kills.push(kill);
+export function recordShotKill(
+  shots: readonly RoundShot[],
+  shot: number,
+  kill: ShotKill,
+): void {
+  shots.find((entry) => entry.shot === shot)?.kills.push(kill);
 }

@@ -1,0 +1,16 @@
+{
+  "name": "fuse-network-fe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser side of Fuse rooms: a full WebRTC mesh negotiated through a fuse-network-be room service.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "fuse-network-protocol": "0.1.0"
+  }
+}

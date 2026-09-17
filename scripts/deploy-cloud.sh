@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds an immutable checked commit, then deploys it. Provisioning is intentionally separate.
+# Verifies application configuration, then builds and deploys an immutable checked commit. IAM/bootstrap is separate.
 set -euo pipefail
 
 readonly PROJECT_ID=andershaf-87
@@ -65,6 +65,10 @@ gcloud firestore databases describe --project="$PROJECT_ID" --database="$FIRESTO
 gcloud pubsub topics describe "$PUBSUB_TOPIC" --project="$PROJECT_ID" --format='value(name)'
 gcloud artifacts repositories describe "$ARTIFACT_REPOSITORY" --location="$ARTIFACT_LOCATION" --project="$PROJECT_ID" --format='value(name)'
 
+# Apply the versioned named-database/Auth/key configuration only after the source gate passed.
+# This waits for required indexes/TTLs and refuses an unregistered OAuth redirect before any gateway rollout.
+npx tsx scripts/deploy-configuration.ts --apply --revision "$revision"
+
 build_dir="$(mktemp -d "${TMPDIR:-/tmp}/fuse-cloud.XXXXXX")"
 trap 'rm -rf "$build_dir"' EXIT
 git archive "$revision" | tar -x -C "$build_dir"
@@ -78,7 +82,10 @@ build_id="$(gcloud builds submit "$build_dir" --project="$PROJECT_ID" --region="
 gcloud builds log "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" --stream
 build_status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" --format='value(status)')"
 [[ "$build_status" == SUCCESS ]] || { echo "Build $build_id failed: $build_status" >&2; exit 1; }
-image_digest="$(gcloud artifacts docker images describe "$image_tag" --project="$PROJECT_ID" --format='value(image_summary.digest)')"
+# The digest this build pushed, from the build itself. `artifacts docker images describe` also lists Container
+# Analysis occurrences once the deployer can see that API is enabled, which the configuration role allows but
+# the deployer has no permission for.
+image_digest="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" --format='value(results.images[0].digest)')"
 [[ "$image_digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'Build did not produce a valid image digest.' >&2; exit 1; }
 image="$image_name@$image_digest"
 previous_revision="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project="$PROJECT_ID" --region="$GCP_REGION" --format='value(status.latestReadyRevisionName)' 2>/dev/null || true)"
@@ -108,7 +115,9 @@ import {readFileSync,writeFileSync} from 'node:fs';
 const [servicePath,manifestPath,revision,image,buildId,previousRevision]=process.argv.slice(2);
 const service=JSON.parse(readFileSync(servicePath,'utf8'));
 const sourceVerification={mode:process.env.source_verification,observedCiResult:process.env.ci_result,...(process.env.source_verification==='local'?{note:process.env.LOCAL_VERIFICATION_NOTE}:{})};
-const evidence={sourceVerification,recordedAt:new Date().toISOString(),project:'andershaf-87',region:process.env.GCP_REGION,gitRevision:revision,image,buildId,service:service.metadata?.name,readyRevision:service.status?.latestReadyRevisionName,url:service.status?.url,previousRevision,smoke:'NOT YET VERIFIED'};
+const configuration=JSON.parse(readFileSync(`artifacts/config-release-${revision}.json`,'utf8'));
+if(configuration.verified!==true||configuration.revision!==revision)throw new Error('Missing configuration verification for this revision');
+const evidence={configuration:{digest:configuration.configDigest,verifiedAt:configuration.verifiedAt},sourceVerification,recordedAt:new Date().toISOString(),project:'andershaf-87',region:process.env.GCP_REGION,gitRevision:revision,image,buildId,service:service.metadata?.name,readyRevision:service.status?.latestReadyRevisionName,url:service.status?.url,previousRevision,smoke:'NOT YET VERIFIED'};
 writeFileSync(manifestPath,JSON.stringify(evidence,null,2)+'\n');
 console.log(JSON.stringify(evidence,null,2));
 NODE
