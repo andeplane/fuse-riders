@@ -7,6 +7,9 @@ import {
   RoomError,
   CONNECTION_TTL_MS,
   ROOM_TTL_MS,
+  LEASE_RENEW_BELOW_MS,
+  GRANT_RENEW_BELOW_MS,
+  ROOM_RENEW_BELOW_MS,
   peerId,
   renewalDue,
   type Member,
@@ -190,7 +193,7 @@ async function room(f: Fixture, guests: number, instanceOf = (_: number) => 0) {
   return seats;
 }
 
-test("a six-member room-hour of 2 s heartbeats commits 1,725 writes instead of 10,800 and reads nothing", async () => {
+test("a six-member room-hour of 2 s heartbeats commits 2,400 writes instead of 10,800 and reads nothing", async () => {
   const f = fixture(),
     seats = await room(f, 5);
   let heartbeats = 0;
@@ -205,8 +208,8 @@ test("a six-member room-hour of 2 s heartbeats commits 1,725 writes instead of 1
     assert.ok(grant.expiresAt > f.now(), "creator grant lapsed");
   }
   assert.equal(heartbeats, 10_800);
-  // Creator: the 10 s grant is at half after 6 s -> 3600/6. Guest: the 30 s lease is at half after 16 s -> 3600/16.
-  assert.equal(f.database.commits, 600 + 5 * 225);
+  // Creator: the 10 s grant is at half after 6 s -> 3600/6. Guest: the 30 s lease is at two thirds after 10 s -> 3600/10.
+  assert.equal(f.database.commits, 600 + 5 * 360);
   assert.equal(f.database.transactions, f.database.commits);
   assert.equal(f.database.notifications, f.database.commits);
   assert.equal(f.database.reads, 0);
@@ -265,35 +268,77 @@ test("leases survive a hidden tab throttled from 1 Hz down to 0.2 Hz", async () 
       await assertAllLive(f, seats);
       assert.ok((await stored(f)).grant!.expiresAt > f.now());
     }
-  // 5 s apart the grant is at half on every heartbeat, so the creator writes each time; a guest every third.
+  // 5 s apart the grant is at half on every heartbeat, so the creator writes each time; a guest every second one.
   assert.ok(f.database.commits < 3 * (120 + 100 + 240));
   await f.stop();
 });
 
-test("leases survive 30% of heartbeats going missing (seeded)", async () => {
-  const f = fixture(),
-    seats = await room(f, 5),
-    random = mulberry32(256);
-  let sent = 0;
-  for (let t = 2000; t <= 3_600_000; t += 2000) {
-    f.advance(2000);
-    for (const s of seats)
-      if (random() >= 0.3) {
-        await heartbeat(s);
-        sent++;
+/**
+ * A lease is renewed with 20 s left, so the last heartbeat that was skipped left more than 20 s: at 2 s apart, 22 s.
+ * The heartbeats due 2..20 s later can all go missing and the one after them (2 s left) still renews.
+ */
+const MISSES_BEFORE_A_LAPSE = 10;
+
+test("whatever heartbeats go missing, a seat closes only after ten in a row, closes retryable, and is re-admitted", async () => {
+  let lapses = 0;
+  for (const [loss, seeds] of [
+    [0.3, 50],
+    [0.6, 10],
+  ] as const) {
+    let lapsesAtThisLoss = 0;
+    for (let seed = 1; seed <= seeds; seed++) {
+      const f = fixture(),
+        seats = await room(f, 5),
+        random = mulberry32(seed),
+        missed = seats.map(() => 0);
+      /** Any seat may be closed by any step: its own heartbeat, or another member's admission pruning it. */
+      const settle = async () => {
+        for (const [i, s] of seats.entries()) {
+          if (s.socket.closes.length === 0) continue;
+          assert.deepEqual(s.socket.closes, [4000], `seed ${seed}`);
+          assert.ok(
+            missed[i]! >= MISSES_BEFORE_A_LAPSE,
+            `seed ${seed}: closed after only ${missed[i]} missed heartbeats`,
+          );
+          lapsesAtThisLoss++;
+          missed[i] = 0;
+          seats[i] = await seat(f, token(i));
+          const welcome = seats[i]!.socket.messages[0]!;
+          assert.equal(welcome.type, "welcome");
+          assert.equal(
+            (await stored(f)).members[peerId(token(i))]!.connectionId,
+            welcome.connectionId,
+          );
+        }
+      };
+      for (let t = 2000; t <= 3_600_000; t += 2000) {
+        f.advance(2000);
+        for (const [i, s] of seats.entries()) {
+          if (random() < loss) {
+            missed[i]!++;
+            continue;
+          }
+          await heartbeat(s);
+          await settle();
+          missed[i] = 0;
+        }
       }
-    await assertAllLive(f, seats);
+      await f.stop();
+    }
+    // 250 guest-hours at 30%: a lapse needs ten misses in a row at the wrong moment. At 60% it is routine, which is
+    // what shows the invariant above was exercised rather than vacuous.
+    if (loss === 0.3) assert.ok(lapsesAtThisLoss <= 5, `${lapsesAtThisLoss}`);
+    else assert.ok(lapsesAtThisLoss > 50, `${lapsesAtThisLoss}`);
+    lapses += lapsesAtThisLoss;
   }
-  assert.ok(sent > 7000 && sent < 8000);
-  assert.ok(f.database.commits < sent / 4);
-  await f.stop();
+  assert.ok(lapses > 0);
 });
 
-test("silence after a skipped heartbeat: six missed heartbeats keep the seat, a lapsed seat closes retryable", async () => {
+test("silence after a skipped heartbeat: nine missed heartbeats keep the seat, a lapsed seat closes retryable and rejoins", async () => {
   const f = fixture(),
     [host, guest] = await room(f, 1);
-  // 14 s after admission the guest's heartbeat is still skipped (16 s of lease left): the worst moment to go quiet.
-  for (let i = 0; i < 7; i++) {
+  // 8 s after admission the guest's heartbeat is still skipped (22 s of lease left): the worst moment to go quiet.
+  for (let i = 0; i < 4; i++) {
     f.advance(2000);
     await heartbeat(host!);
     await heartbeat(guest!);
@@ -302,8 +347,8 @@ test("silence after a skipped heartbeat: six missed heartbeats keep the seat, a 
     (await stored(f)).members[peerId(GUEST)]!.expiresAt,
     1000 + CONNECTION_TTL_MS,
   );
-  // Heartbeats at 16..26 s never arrive; the one at 28 s finds 2 s of lease left and renews it.
-  for (let i = 0; i < 7; i++) {
+  // Heartbeats at 10..26 s never arrive; the one at 28 s finds 2 s of lease left and renews it.
+  for (let i = 0; i < MISSES_BEFORE_A_LAPSE; i++) {
     f.advance(2000);
     await heartbeat(host!);
   }
@@ -321,6 +366,12 @@ test("silence after a skipped heartbeat: six missed heartbeats keep the seat, a 
   await heartbeat(guest!);
   assert.deepEqual(guest!.socket.closes, [4000]);
   assert.deepEqual(host!.socket.closes, []);
+  const back = await seat(f, GUEST);
+  assert.deepEqual(back.socket.closes, []);
+  assert.equal(
+    (await stored(f)).members[peerId(GUEST)]!.connectionId,
+    back.connection,
+  );
   await f.stop();
 });
 
@@ -361,6 +412,12 @@ test("the store refuses a replaced connection, a lapsed lease and an ended room 
     (error) => error instanceof RoomError && error.status === 409,
   );
   f.advance(CONNECTION_TTL_MS);
+  await assert.rejects(
+    store.time(CODE, second.member, undefined),
+    (error) => error instanceof RoomError && error.status === 410,
+  );
+  // A seat that is gone (pruned, or already departed) is a lapse to retry, never a replacement.
+  await store.leave(CODE, second.member);
   await assert.rejects(
     store.time(CODE, second.member, undefined),
     (error) => error instanceof RoomError && error.status === 410,
@@ -453,7 +510,7 @@ test("with its watch stalled an instance still learns of an end and of a replace
     while (guest.socket.closes.length === 0) {
       f.advance(2000);
       await heartbeat(guest);
-      assert.ok(f.now() - since <= CONNECTION_TTL_MS / 2 + 2000);
+      assert.ok(f.now() - since <= CONNECTION_TTL_MS - LEASE_RENEW_BELOW_MS);
     }
     assert.deepEqual(guest.socket.closes, [event === "end" ? 4004 : 4001]);
     await f.instances[0]!.gateway.stop();
@@ -480,7 +537,7 @@ test("instances 40 ms apart neither double-write nor let a lease lapse", async (
     assert.ok((await stored(f)).grant!.expiresAt > f.now() + 40);
   }
   // Each member is renewed by the one instance that seats it, on that instance's clock: the same count as one clock.
-  assert.equal(f.database.commits, 100 + 5 * 37);
+  assert.equal(f.database.commits, 100 + 5 * 60);
   assert.equal(f.database.transactions, f.database.commits);
   assert.equal(f.database.reads, 0);
   await f.stop();
@@ -491,12 +548,12 @@ test("a lagging copy that shows a renewal due does not repeat a write the stored
     { store } = f;
   await store.create(CODE, HOST);
   const guest = await store.admit(CODE, GUEST, "g0");
-  f.advance(16_000);
+  f.advance(10_000);
   const renewed = await store.time(CODE, guest.member, undefined, guest.room);
   assert.equal(renewed.revision, guest.room.revision + 1);
   f.advance(2000);
   f.database.reset();
-  // The admission-time copy shows 12 s of lease left; the stored room has 28 s.
+  // The admission-time copy shows 18 s of lease left; the stored room has 28 s.
   const current = await store.time(CODE, guest.member, undefined, guest.room);
   assert.deepEqual([f.database.transactions, f.database.commits], [1, 0]);
   assert.deepEqual(current, renewed);
@@ -553,7 +610,7 @@ test("the creator's grant is renewed before it lapses and a duplicate creator ta
   await f.stop();
 });
 
-test("renewalDue is the half-life rule for the lease, the room deadline and a renewable grant only", () => {
+test("renewalDue: the lease at two thirds, the room deadline and a renewable grant at half, nothing else", () => {
   const member: Member = {
       id: peerId(HOST),
       connectionId: "c1",
@@ -583,16 +640,28 @@ test("renewalDue is the half-life rule for the lease, the room deadline and a re
   const due = (room: RoomRecord, now = 100_000, renew = true) =>
     renewalDue(room, member, renew ? grant : undefined, now);
   assert.equal(due(at(CONNECTION_TTL_MS, ROOM_TTL_MS)), false);
-  assert.equal(due(at(CONNECTION_TTL_MS / 2 + 1, ROOM_TTL_MS)), false);
-  assert.equal(due(at(CONNECTION_TTL_MS / 2, ROOM_TTL_MS)), true);
-  assert.equal(due(at(CONNECTION_TTL_MS, ROOM_TTL_MS / 2 + 1)), false);
-  assert.equal(due(at(CONNECTION_TTL_MS, ROOM_TTL_MS / 2)), true);
+  assert.deepEqual(
+    [LEASE_RENEW_BELOW_MS, GRANT_RENEW_BELOW_MS, ROOM_RENEW_BELOW_MS],
+    [20_000, 5000, 45_000],
+  );
+  assert.equal(due(at(LEASE_RENEW_BELOW_MS + 1, ROOM_TTL_MS)), false);
+  assert.equal(due(at(LEASE_RENEW_BELOW_MS, ROOM_TTL_MS)), true);
+  assert.equal(due(at(CONNECTION_TTL_MS, ROOM_RENEW_BELOW_MS + 1)), false);
+  assert.equal(due(at(CONNECTION_TTL_MS, ROOM_RENEW_BELOW_MS)), true);
   const room = at(CONNECTION_TTL_MS, ROOM_TTL_MS);
-  assert.equal(due(room, 100_000 + LEASE_MS / 2 - 1), false);
-  assert.equal(due(room, 100_000 + LEASE_MS / 2), true);
-  assert.equal(due(room, 100_000 + LEASE_MS / 2, false), false);
+  assert.equal(due(room, 100_000 + LEASE_MS - GRANT_RENEW_BELOW_MS - 1), false);
+  assert.equal(due(room, 100_000 + LEASE_MS - GRANT_RENEW_BELOW_MS), true);
   assert.equal(
-    renewalDue(room, { ...member, host: false }, grant, 100_000 + LEASE_MS / 2),
+    due(room, 100_000 + LEASE_MS - GRANT_RENEW_BELOW_MS, false),
+    false,
+  );
+  assert.equal(
+    renewalDue(
+      room,
+      { ...member, host: false },
+      grant,
+      100_000 + LEASE_MS - GRANT_RENEW_BELOW_MS,
+    ),
     false,
     "a guest never writes for the creator's grant",
   );
@@ -611,7 +680,7 @@ test("renewalDue is the half-life rule for the lease, the room deadline and a re
       at(CONNECTION_TTL_MS, ROOM_TTL_MS),
       member,
       { ...grant, epoch: 2 },
-      100_000 + LEASE_MS / 2,
+      100_000 + LEASE_MS - GRANT_RENEW_BELOW_MS,
     ),
     false,
     "a grant this claimant cannot renew is no reason to write",
