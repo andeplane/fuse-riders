@@ -1,6 +1,6 @@
 import { powerCountText, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from '../power-indicator.js';
 import { assetUrl } from '../asset-url.js';
-import { GRAVITY_FIELD_TICKS, PICKUP_TYPES } from '../../shared/game.js';
+import { GRAVITY_FIELD_TICKS, PICKUP_TYPES, gravityCoreRadius } from '../../shared/game.js';
 import Phaser from 'phaser';
 import type { ViewSnapshot } from '../snapshot-stream.js';
 import { themes, type ThemeDefinition } from '../themes.js';
@@ -293,7 +293,9 @@ class ArenaScene extends Phaser.Scene {
       this.floorImage.setDisplaySize(w, h);
     }
     // Obstacles are only ever removed within a round, so their count identifies the standing set.
-    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${s.obstacles.length}`;
+    // Black holes pull the grid toward their cores. The ease is quantised, so the floor only redraws while a hole opens or closes.
+    const wells=s.gravityFields.map(field=>{ const left=field.expiresAtTick-(s.presentationTick??s.tick); return {x:field.x,y:field.y,radius:field.radius,pull:Math.round(clamp(left/20,0,1)*clamp((GRAVITY_FIELD_TICKS-left)/6,0,1)*20)/20*.5}; }).filter(well=>well.pull>0);
+    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${s.obstacles.length}:${wells.map(well=>`${Math.round(well.x)},${Math.round(well.y)},${Math.round(well.radius)},${well.pull}`).join(';')}`;
     if (floorKey !== this.floorKey) {
       this.floorKey = floorKey;
       // Boundary motion must not redraw/upload the full background texture each tick.
@@ -301,8 +303,25 @@ class ArenaScene extends Phaser.Scene {
       // Draw grid lines as geometry: baking them into a texture loses lines on small boards.
       const grid = Phaser.Display.Color.RGBStringToColor(ground.grid.replace(/,\s*\./, ',0.'));
       this.floor.lineStyle(1,grid.color,grid.alphaGL);
-      for(let x=0;x<=w;x+=ground.gridSize)this.floor.lineBetween(x,0,x,h);
-      for(let y=0;y<=h;y+=ground.gridSize)this.floor.lineBetween(0,y,w,y);
+      // Each point slides toward a core by pull·(1-d/R)², which keeps order along every ray, so lines bunch up without ever crossing.
+      const warp=(x:number,y:number):[number,number]=>{ let dx=0,dy=0; for(const well of wells){ const tx=well.x-x,ty=well.y-y,d=Math.hypot(tx,ty); if(d>=well.radius)continue; const k=well.pull*(1-d/well.radius)**2; dx+=tx*k; dy+=ty*k; } return [x+dx,y+dy]; };
+      const gridLine=(x1:number,y1:number,x2:number,y2:number)=>{
+        if(!wells.some(well=>x1===x2?Math.abs(well.x-x1)<well.radius:Math.abs(well.y-y1)<well.radius)){ this.floor.lineBetween(x1,y1,x2,y2); return; }
+        const steps=Math.ceil(Math.hypot(x2-x1,y2-y1)/12); this.floor.beginPath();
+        for(let i=0;i<=steps;i++){ const [px,py]=warp(x1+(x2-x1)*i/steps,y1+(y2-y1)*i/steps); if(i===0)this.floor.moveTo(px,py); else this.floor.lineTo(px,py); }
+        this.floor.strokePath();
+        // The theme grid is nearly invisible by design, so the bent stretch is traced again in the hole's violet, brighter toward the core.
+        for(let i=0;i<steps;i++){
+          const ax=x1+(x2-x1)*i/steps,ay=y1+(y2-y1)*i/steps; let depth=0;
+          for(const well of wells)depth=Math.max(depth,(1-Math.hypot(well.x-ax,well.y-ay)/well.radius)*well.pull*2);
+          if(depth<=0)continue;
+          const [px,py]=warp(ax,ay),[qx,qy]=warp(x1+(x2-x1)*(i+1)/steps,y1+(y2-y1)*(i+1)/steps);
+          this.floor.lineStyle(1,0xa98bff,.08+.4*depth).lineBetween(px,py,qx,qy);
+        }
+        this.floor.lineStyle(1,grid.color,grid.alphaGL);
+      };
+      for(let x=0;x<=w;x+=ground.gridSize)gridLine(x,0,x,h);
+      for(let y=0;y<=h;y+=ground.gridSize)gridLine(0,y,w,y);
       this.floor.fillStyle(0x00020c,.67)
         .fillRect(0,0,w,b).fillRect(0,h-b,w,b)
         .fillRect(0,b,b,h-2*b).fillRect(w-b,b,b,h-2*b);
@@ -371,11 +390,9 @@ class ArenaScene extends Phaser.Scene {
       if(airborne) g.lineStyle(2,ownerTint,.6).strokeEllipse(bomb.x,bomb.y,34,15);
     }
     for(const field of s.gravityFields) {
-      const life=clamp((field.expiresAtTick-s.tick)/GRAVITY_FIELD_TICKS,0,1), swirl=now/900;
-      g.fillStyle(0x784ed6,.16+life*.16).fillCircle(field.x,field.y,field.radius);
-      g.lineStyle(2,0xc9a6ff,.45+life*.3);
-      for(let arm=0;arm<3;arm++) { const start=swirl+arm*Math.PI*2/3; g.beginPath(); g.arc(field.x,field.y,field.radius*(.35+.2*arm),start,start+1.1,false); g.strokePath(); }
-      g.fillStyle(0x0a0618,.95).fillCircle(field.x,field.y,field.radius*.16);
+      // The bent floor grid shows the hole's reach; only the black core is drawn here.
+      const left=field.expiresAtTick-(s.presentationTick??s.tick), fade=clamp(left/20,0,1)*clamp((GRAVITY_FIELD_TICKS-left)/6,0,1);
+      g.fillStyle(0x000000,fade).fillCircle(field.x,field.y,gravityCoreRadius(field.radius));
     }
     for(const blast of s.blasts) {
       const frame=blastFrame(blast,s.presentationTick??s.tick), {x,y,radius}=blast.circle;

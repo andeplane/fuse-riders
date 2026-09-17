@@ -142,16 +142,6 @@
       "tint": false,
       "description": "Green segmented shell for the next bouncing projectile."
     },
-    "pickup-boost": {
-      "file": "pickup-boost.svg",
-      "anchor": [
-        16,
-        16
-      ],
-      "baseAngle": 0,
-      "tint": false,
-      "description": "Chevron over speed lines; a quarter faster for three seconds."
-    },
     "pickup-gravity": {
       "file": "pickup-gravity.svg",
       "anchor": [
@@ -160,7 +150,7 @@
       ],
       "baseAngle": 0,
       "tint": false,
-      "description": "Spiral collapsing into a dark core; the next bomb leaves a pull that drags riders in."
+      "description": "Spiral collapsing into a dark core; opens black holes that bend every rider's path."
     },
     "pickup-power": {
       "file": "pickup-power.svg",

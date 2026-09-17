@@ -31,3 +31,10 @@ test('bomb aim time, chain reaction and aim bounce validate, and older saved pre
   assert.deepEqual(parseRoomSettings(older),{...defaults,bombChargeTicks:BOMB_MAX_CHARGE_TICKS,chainReaction:true,aimBounce:true});
   assert.deepEqual(loadRoomSettings({getItem:()=>JSON.stringify({...older,bombChargeTicks:24,chainReaction:false})}),{...defaults,bombChargeTicks:24,chainReaction:false});
 });
+
+test('saved preferences that still weigh a retired pickup keep everything else', () => {
+  const defaults = defaultRoomSettings();
+  const saved = { ...defaults, length: 9, weights: { ...defaults.weights, boost: 160, gun: 7 } };
+  assert.equal(parseRoomSettings(saved), undefined, 'the wire still refuses a pickup the rules do not know');
+  assert.deepEqual(loadRoomSettings({ getItem: () => JSON.stringify(saved) }), { ...defaults, length: 9, weights: { ...defaults.weights, gun: 7 } });
+});

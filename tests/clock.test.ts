@@ -39,3 +39,11 @@ test('pausing while hidden removes the paused time on resume', () => {
   f.clock.resume(); assert.equal(f.clock.paused, false); assert.equal(f.clock.tick(), 20); f.advance(50); assert.equal(f.clock.tick(), 21);
   const idle = new TickClock(() => 0); idle.pause(); idle.resume(); assert.equal(idle.tick(), 0);
 });
+
+test('a rate change keeps the ticks already counted and scales only what follows', () => {
+  const f = fixture(); f.clock.start(); f.advance(1000); assert.equal(f.clock.tick(), 20);
+  f.clock.rate = 3; assert.equal(f.clock.tick(), 20, 'no jump at the change'); f.advance(1000); assert.equal(f.clock.tick(), 80);
+  f.clock.pause(); f.advance(500); f.clock.rate = 1; f.clock.resume(); assert.equal(f.clock.tick(), 80, 'paused time stays out'); f.advance(50); assert.equal(f.clock.tick(), 81);
+  f.clock.rate = 0; f.clock.rate = Number.NaN; assert.equal(f.clock.rate, 1, 'nonsense rates are ignored');
+  const g = fixture(); g.clock.rate = 3; g.clock.sample(500, 100); assert.equal(g.clock.tick(), 503, 'half a round trip is three times as many ticks');
+});

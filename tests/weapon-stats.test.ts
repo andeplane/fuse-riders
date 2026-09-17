@@ -78,9 +78,6 @@ test('every launch logs one shot under the powerup it spent, and its bombs name 
     [{ targetBombArmed: true }, 'target', 1],
     // Target is the only one the others cannot combine with: it leaves triple armed for the next pull.
     [{ targetBombArmed: true, tripleShotArmed: true }, 'target', 1],
-    [{ gravityArmed: true }, 'gravity', 1],
-    // A gravity volley is one shot of five bombs, reported as gravity: the field is the harder effect to judge.
-    [{ gravityArmed: true, fiveShotArmed: true }, 'gravity', 5],
     [{ gunArmed: true }, 'gun', 1],
     [{ shellArmed: true }, 'shell', 1],
     [{ gunArmed: true, shellArmed: true }, 'gun', 1],
@@ -162,7 +159,7 @@ test('a shell that sweeps into a rider is one shot and one kill for the shell, e
 
 test('a blast and a direct landing both credit the weapon that fired the bomb', () => {
   for (const landing of [false, true]) {
-    for (const weapon of ['bomb', 'triple', 'five', 'gravity', 'shell'] as const) {
+    for (const weapon of ['bomb', 'triple', 'five', 'shell'] as const) {
       const { game, victim } = fixture();
       dueBomb(game, 1, 'p0', victim.x + (landing ? 7 : 0), victim.y, weapon, landing);
       step(game, new Map());
@@ -175,7 +172,7 @@ test('a blast and a direct landing both credit the weapon that fired the bomb', 
 
 test('a rider that blows itself up records the death and credits the weapon to nobody', () => {
   const { game, player } = fixture();
-  dueBomb(game, 1, 'p0', player.x, player.y, 'gravity');
+  dueBomb(game, 1, 'p0', player.x, player.y, 'five');
   step(game, new Map());
   assert.equal(player.alive, false);
   assert.equal(game.matchStats.get('p0')!.deathsByCause.explosion, 1);
@@ -198,7 +195,7 @@ test('two riders blasting the same victim credit neither an elimination nor a we
 });
 
 test('one owner, two weapons on the same victim: the lowest bomb id decides, so every replica agrees', () => {
-  for (const [first, second] of [['triple', 'gravity'], ['gravity', 'triple']] as const) {
+  for (const [first, second] of [['triple', 'five'], ['five', 'triple']] as const) {
     const { game } = fixture(3);
     const victim = game.players.get('p2')!;
     dueBomb(game, 1, 'p1', victim.x, victim.y, first);

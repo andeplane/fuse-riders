@@ -16,10 +16,10 @@
  * Shorter Fuse, GRIP) are deliberately absent: they sharpen every shot rather than being spent by one.
  *
  * A rider can hold several weapons and a pull spends only some of them, so `applyBombActions` labels the pull with
- * the first of `gun`, `shell`, `target`, `gravity`, `five`, `triple`, `bomb` that it spent; whatever it did not
+ * the first of `gun`, `shell`, `target`, `five`, `triple`, `bomb` that it spent; whatever it did not
  * spend stays armed for the next pull.
  */
-export const WEAPONS = ['bomb', 'triple', 'five', 'target', 'gun', 'shell', 'gravity'] as const;
+export const WEAPONS = ['bomb', 'triple', 'five', 'target', 'gun', 'shell'] as const;
 export type Weapon = typeof WEAPONS[number];
 
 export interface ShotKill {
