@@ -22,7 +22,6 @@ export class TickClock {
   private lastAdjust = 0;
   private lastTick = -Infinity;
   private samples: Sample[] = [];
-  private lastSampleAt = -Infinity;
   private pausedAt?: number;
   private scale = 1;
   constructor(private readonly now: () => number) {}
@@ -87,7 +86,6 @@ export class TickClock {
       this.start(estimate);
       return;
     }
-    this.lastSampleAt = now;
     this.samples = this.samples.filter(
       (sample) => now - sample.at <= SAMPLE_WINDOW_MS,
     );
@@ -101,12 +99,6 @@ export class TickClock {
     }
     this.target = best.offset;
   }
-  /** No usable sample for two seconds: the clock keeps running on its own rate. */
-  freeRunning(): boolean {
-    return (
-      this.t0 !== undefined && this.now() - this.lastSampleAt > SAMPLE_WINDOW_MS
-    );
-  }
   /** Solo pause while the page is hidden: time spent paused is removed from the clock on resume. */
   pause(): void {
     if (this.t0 !== undefined && this.pausedAt === undefined)
@@ -118,9 +110,6 @@ export class TickClock {
       this.lastAdjust = this.now();
       this.pausedAt = undefined;
     }
-  }
-  get paused(): boolean {
-    return this.pausedAt !== undefined;
   }
   diagnostics(): { offset: number; samples: number; bestRttMs?: number } {
     const best = this.samples.length

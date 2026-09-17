@@ -49,10 +49,11 @@ import {
   edgesOpen,
   initialBoundaryInset,
   generateObstacles,
-  obstacleBlocksPath,
-  obstacleBounceNormal,
   obstacleDistanceSquared,
   obstacleEdges,
+  obstacleHitbox,
+  hitboxBlocksPath,
+  hitboxBounceNormal,
   obstacleInsideBounds,
   obstacleTouchesCircle,
   segmentObstacleDistanceSquared,
@@ -60,6 +61,7 @@ import {
   type ArenaMapId,
   type ClearCapsule,
   type Obstacle,
+  type ObstacleHitbox,
 } from "./arena-map.js";
 import {
   NO_WRAP,
@@ -170,6 +172,12 @@ export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
 /** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
 export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
+/**
+ * Scenery is met at the head's visible width too, and against the obstacle's hitbox (`obstacleHitbox`) rather than
+ * always its whole footprint: a portrait that overlapped a rock, or a rider that crossed the empty corner of a
+ * crown's footprint, did not crash.
+ */
+export const RIDER_OBSTACLE_RADIUS = RIDER_CONTACT_RADIUS;
 export const TRAIL_LIFETIME_TICKS = POWER_TUNING.baseTrailLifetimeTicks;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
@@ -969,6 +977,9 @@ export function step(
   const riderContactTimes = new Map<PlayerId, number>();
   /** Crashing into scenery is `wall`, and only these riders stop against what they hit rather than at the boundary. */
   const obstacleContactTimes = new Map<PlayerId, number>();
+  const obstacleHitboxes = state.obstacles.map(obstacleHitbox);
+  /** The scenery each of those contacts is with, which is what an absorbed crash turns the rider away from. */
+  const obstaclesReached = new Map<PlayerId, ObstacleHitbox>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
     if (
@@ -1145,16 +1156,16 @@ export function step(
     // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
     // Only the contact time is recorded here; the cause is decided below, once the trail and rider contacts of
     // this tick are known and can be compared against it.
-    for (const obstacle of state.obstacles) {
+    for (const obstacle of obstacleHitboxes) {
       if (isHazardImmune(movement.player, state.tick)) break;
       const touches = (time: number): boolean =>
-        obstacleBlocksPath(
+        hitboxBlocksPath(
           obstacle,
           movement.oldX,
           movement.oldY,
           movement.oldX + (movement.x - movement.oldX) * time,
           movement.oldY + (movement.y - movement.oldY) * time,
-          RIDER_RADIUS,
+          RIDER_OBSTACLE_RADIUS,
         );
       const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
       // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
@@ -1165,6 +1176,7 @@ export function step(
         movement.player.id,
         firstContactTime(touches, previous),
       );
+      obstaclesReached.set(movement.player.id, obstacle);
     }
 
     // A step that reaches past an open edge is also tested from the far side, where the trails it is about to meet are.
@@ -1318,9 +1330,11 @@ export function step(
     // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
     // blast must not leave it inside the rock, riding out its grace ticks in there.
     const obstacleTime = sceneryReached.get(movement.player.id);
+    const obstacleHit = obstaclesReached.get(movement.player.id);
     if (
       obstacleTime !== undefined &&
-      reflectAtObstacle(state, movement, obstacleTime)
+      obstacleHit &&
+      reflectAtObstacle(obstacleHit, movement, obstacleTime)
     )
       bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
@@ -1759,6 +1773,9 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ? {
           decidedRound: {
             ...state.decidedRound,
+            ...(state.decidedRound.rating
+              ? { rating: structuredClone(state.decidedRound.rating) }
+              : {}),
             shots: state.decidedRound.shots.map((shot) => ({
               ...shot,
               kills: shot.kills.map((kill) => ({ ...kill })),
@@ -2379,23 +2396,13 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
  * shielded rider, and without it a shield would only buy the ticks of grace it takes to die inside the same obstacle.
  */
 function reflectAtObstacle(
-  state: GameState,
+  hit: ObstacleHitbox,
   movement: Movement,
   contactTime: number,
 ): boolean {
   movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
   movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
-  let hit: Obstacle | undefined;
-  let nearest = Infinity;
-  for (const obstacle of state.obstacles) {
-    const distance = obstacleDistanceSquared(obstacle, movement.x, movement.y);
-    if (distance < nearest) {
-      nearest = distance;
-      hit = obstacle;
-    }
-  }
-  if (!hit) return false;
-  const { nx, ny } = obstacleBounceNormal(hit, movement.x, movement.y);
+  const { nx, ny } = hitboxBounceNormal(hit, movement.x, movement.y);
   const heading = { x: cos(movement.angle), y: sin(movement.angle) };
   const approach = heading.x * nx + heading.y * ny;
   if (approach >= 0) return false; // already turned away from the face by this tick's steering
@@ -3157,6 +3164,17 @@ function resolveRound(
     state.shots,
     inFlight,
   );
+  state.decidedRound.rating = {
+    finishers: [...state.roundParticipants.keys()]
+      .filter(
+        (id) => state.players.get(id)?.connected && !id.startsWith("bot:"),
+      )
+      .sort(),
+    standings: state.roundPlacements.map((placement) => {
+      const identity = state.matchStats.get(placement.playerId)!;
+      return { ...placement, slot: identity.slot, color: identity.color };
+    }),
+  };
   if (matchWinnerId !== undefined || fixedEnd) {
     state.matchFinishers = [...state.players.values()]
       .filter((player) => player.connected && state.matchStats.has(player.id))

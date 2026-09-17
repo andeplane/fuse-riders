@@ -45,9 +45,20 @@ jobs:
             // to a run that was replaced. Resolving it here means a replaced run never loses a release.
             let sha = context.payload.inputs?.revision;
             if (!manual) {
-              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push', status: 'success', per_page: 1 });
-              sha = data.workflow_runs[0]?.head_sha;
-              core.setOutput('ci_run', String(data.workflow_runs[0]?.id ?? ''));
+              // Start from the run that triggered this, which is known to have passed, and only move forward to a
+              // later passing run whose commit descends from it. The `status` filter is eventually consistent and
+              // has answered with a months-old run right after a completion, so it is not used, and whatever the
+              // listing says can never select something older than the trigger.
+              const trigger = context.payload.workflow_run;
+              let run = trigger;
+              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push', per_page: 50 });
+              const newer = data.workflow_runs.filter((r) => r.conclusion === 'success' && r.run_number > trigger.run_number).sort((a, b) => b.run_number - a.run_number)[0];
+              if (newer) {
+                const { data: order } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${trigger.head_sha}...${newer.head_sha}` });
+                if (order.status === 'ahead') run = newer;
+              }
+              sha = run.head_sha;
+              core.setOutput('ci_run', String(run.id));
             }
             if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('An exact full revision is required.');
             if (manual && !context.payload.inputs.local_verification?.trim()) throw new Error('Local verification evidence is required.');

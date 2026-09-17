@@ -50,3 +50,15 @@ the creator's authority lease against duplicate tabs (`AuthorityClock`), and red
 
 What it does not do: simulate, order or repair application messages. Fuse Riders' rollback runtime lives in the
 game (`src/online/`) on top of this transport.
+
+## Optional media extension
+
+`PeerTransportOptions.extension` accepts an application-owned `PeerTransportExtension`.
+It attaches media before the initial offer, adopts remote transceivers before an answer,
+and receives link replacement/reset/close notifications for cleanup. The extension's
+`status()` returns a small JSON status message sent on channel open and once per second
+while visible; `receive(id, data)` validates and consumes its own connection-scoped
+messages, returning false for unrelated traffic. Keep application/media policy in the
+extension: this package never imports game code or requests microphone permission.
+Omit the extension for data-only rooms. See the game's voice browser smoke for media
+negotiation, opt-in, replacement, recovery and teardown coverage.
