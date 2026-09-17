@@ -16,8 +16,7 @@ import { driveGameTick, STEPS_PER_TICK } from "../src/engine/tick-driver.js";
 import { readFileSync } from "node:fs";
 
 function match(settings: RoomSettings, riders = 3): GameState {
-  const game = createGame("driver");
-  game.settings = settings;
+  const game = createGame("driver", settings);
   for (let slot = 0; slot < riders; slot++)
     addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(game);

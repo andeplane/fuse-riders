@@ -20,8 +20,9 @@ import {
   type InputIntent,
 } from "../src/engine/game.ts";
 import { BombInputBuffer } from "../src/engine/bomb-input.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 function fixture() {
-  const game = createGame("target");
+  const game = createGame("target", classicSettings());
   for (let i = 0; i < 2; i++)
     addPlayer(game, { id: `p${i}`, name: `P${i}`, slot: i, color: "#fff" });
   startMatch(game);

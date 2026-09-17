@@ -149,7 +149,12 @@ export interface PickupState {
 }
 
 export interface GameState {
-  settings?: RoomSettings;
+  /**
+   * What this game is played under. Required: there is no game without settings and no fallback for a missing one, so
+   * a rule cannot differ by who built the state. The room's current choice (`RoomState.settings`) can be newer; the
+   * game takes it over in the lobby, at a match start and at a round boundary (`driveGameTick`).
+   */
+  settings: RoomSettings;
   matchId: string;
   round: number;
   tick: number;

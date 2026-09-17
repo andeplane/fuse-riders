@@ -18,10 +18,11 @@ import {
   type GameState,
   type InputIntent,
 } from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 function fixture() {
-  const game = createGame("dead-trails", 42);
+  const game = createGame("dead-trails", classicSettings(), 42);
   for (let slot = 0; slot < 4; slot++)
     addPlayer(game, {
       id: `p${slot}`,

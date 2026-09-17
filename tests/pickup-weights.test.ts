@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PICKUP_TYPES, pickupPacing } from "../src/engine/game.ts";
-import {
-  PICKUP_WEIGHTS,
-  pickupTypeForRoll,
-} from "../src/engine/pickup-weights.ts";
+import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.ts";
 import {
   defaultRoomSettings,
   roomPickup,
@@ -20,18 +17,17 @@ test("weighted table gives Five one third Triple probability with deterministic 
   const counts = new Map<string, number>();
   const defaults = defaultRoomSettings();
   for (let index = 0; index < total; index += 1) {
-    const type = pickupTypeForRoll((index + 0.5) / total);
-    assert.equal(type, pickupTypeForRoll((index + 0.5) / total));
-    assert.equal(roomPickup((index + 0.5) / total, defaults.weights), type);
+    const type = roomPickup((index + 0.5) / total, defaults.weights);
+    assert.ok(type);
+    assert.equal(type, roomPickup((index + 0.5) / total, defaults.weights));
     counts.set(type, (counts.get(type) ?? 0) + 1);
   }
   for (const row of PICKUP_WEIGHTS)
     assert.equal(counts.get(row.type), row.weight);
   assert.equal(counts.get("triple"), counts.get("five")! * 3);
-  assert.equal(pickupTypeForRoll(0), "power");
-  assert.equal(pickupTypeForRoll(1 - Number.EPSILON), "snail");
-  for (const invalid of [-1, 1, NaN, Infinity])
-    assert.throws(() => pickupTypeForRoll(invalid));
+  assert.equal(roomPickup(0, defaults.weights), "power");
+  assert.equal(roomPickup(1 - Number.EPSILON, defaults.weights), "snail");
+  assert.equal(roomPickup(0.5, {}), undefined, "nothing weighted, no drop");
 });
 
 test("Power is abundant while special drops remain optional", () => {

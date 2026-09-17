@@ -25,6 +25,7 @@ import {
   encodeGameState,
   decodeGameState,
 } from "../src/engine/codec/checkpoint.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const press: InputIntent = {
   left: false,
@@ -50,7 +51,7 @@ const pair = (overrides: Partial<PortalPair> = {}): PortalPair => ({
 });
 
 function scene() {
-  const game = createGame("portal-projectiles", 7);
+  const game = createGame("portal-projectiles", classicSettings(), 7);
   for (let slot = 0; slot < 4; slot++)
     addPlayer(game, {
       id: `p${slot}`,

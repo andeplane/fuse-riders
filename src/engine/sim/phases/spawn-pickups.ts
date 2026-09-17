@@ -11,7 +11,6 @@ import {
 } from "../../tuning.js";
 import { nextRandom } from "../../rng.js";
 import { obstacleTouchesCircle } from "../../arena-map.js";
-import { pickupTypeForRoll } from "../../pickup-weights.js";
 import { pointSegmentDistanceSquared, square } from "../../geometry.js";
 import { roomPickup } from "../../room-settings.js";
 
@@ -29,9 +28,7 @@ export function spawnPickups(ctx: TickContext): void {
 function maybeSpawnPickup(state: GameState, cap: number): void {
   if (state.pickups.length >= cap) return;
   const typeRoll = nextRandom(state);
-  const type = state.settings
-    ? roomPickup(typeRoll, state.settings.weights)
-    : pickupTypeForRoll(typeRoll);
+  const type = roomPickup(typeRoll, state.settings.weights);
   if (!type) return;
   const minimumX = state.boundaryInset + PICKUP_SPAWN_MARGIN;
   const maximumX = state.width - state.boundaryInset - PICKUP_SPAWN_MARGIN;

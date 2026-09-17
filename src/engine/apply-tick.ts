@@ -58,8 +58,7 @@ export function createRoomState(
   matchId: string,
   settings: RoomSettings,
 ): RoomState {
-  const game = createGame(matchId);
-  game.settings = settings;
+  const game = createGame(matchId, settings);
   return { game, settings, folds: new Map(), bots: new Set() };
 }
 export const reclaimable = (game: GameState): boolean =>

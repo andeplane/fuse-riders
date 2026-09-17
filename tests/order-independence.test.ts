@@ -23,6 +23,7 @@ import {
 } from "../src/engine/game.js";
 import type { Obstacle } from "../src/engine/arena-map.js";
 import { streamReader, type Recording } from "./fixtures/replay-log.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 test("every weighted pickup interval is independent of object insertion order", () => {
   const weights = Object.fromEntries(
@@ -143,7 +144,7 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
 
 /** A started round with two riders facing along one lane, and the scenery the test lays across it. */
 function lane(obstacles: Obstacle[]): GameState {
-  const game = createGame("order", 11);
+  const game = createGame("order", classicSettings(), 11);
   for (let slot = 0; slot < 2; slot++)
     addPlayer(game, {
       id: `p${slot}`,

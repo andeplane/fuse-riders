@@ -21,11 +21,12 @@ import {
 import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
 import { MAX_PORTAL_PAIRS, createPortalPair } from "../src/engine/portal.js";
 import { MOMENT_KINDS } from "../src/engine/moments.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 // The replica state a joiner installs comes from any peer, so decodeGameState is an untrusted boundary: every shape and
 // cross-reference guard here is what keeps a corrupt or hostile snapshot from replacing a healthy world.
 function playing(): GameState {
-  const game = createGame("checkpoint");
+  const game = createGame("checkpoint", classicSettings());
   addPlayer(game, {
     id: "p0",
     name: "P0",
@@ -103,6 +104,34 @@ const gates = (game: GameState, index: number) =>
     })(),
     isSafe: () => true,
   })!;
+
+test("a state must carry its settings, whole: no fallback stands in for a missing rule (#253 A3)", () => {
+  const game = playing();
+  assert.deepEqual(
+    decodeGameState(encodeGameState(game))?.settings,
+    game.settings,
+  );
+  rejected(game, (data) => delete data.settings, "no settings at all");
+  rejected(game, (data) => (data.settings = null), "null settings");
+  // Each of these parses as a browser preference saved before the flag existed. A game is not a preference: the
+  // simulation would read `undefined` where the parser's copy says `true`.
+  for (const flag of ["chainReaction", "aimBounce", "map", "bombChargeTicks"])
+    rejected(
+      game,
+      (data) => delete object(data.settings)[flag],
+      `settings without ${flag}`,
+    );
+  rejected(
+    game,
+    (data) => (object(data.settings).extra = 1),
+    "a key no settings have would enter the hash",
+  );
+  rejected(
+    game,
+    (data) => (object(data.settings).length = 21),
+    "a value the parser refuses",
+  );
+});
 
 test("a well-formed playing state with a bomb, a gravity field and two portal pairs round-trips exactly", () => {
   const game = withBomb(playing());
@@ -573,7 +602,7 @@ test("highlight moments and shell bounces round-trip, and malformed ones are rej
     },
     "a zero the fold never writes",
   );
-  const lobby = createGame("lobby-moments");
+  const lobby = createGame("lobby-moments", classicSettings());
   addPlayer(lobby, {
     id: "p0",
     name: "P0",
@@ -764,7 +793,7 @@ test("the round shot log names issued pulls and seated riders, and kills each ri
     },
     "a pull missing its upgrades",
   );
-  const lobby = createGame("checkpoint-lobby");
+  const lobby = createGame("checkpoint-lobby", classicSettings());
   addPlayer(lobby, {
     id: "p0",
     name: "P0",
@@ -970,7 +999,7 @@ test("detached trail identity, schedule and ownership are validated before repla
 });
 
 test("five riders at the total segment cap remain within checkpoint byte and parser budgets", () => {
-  const game = createGame("max-trail-checkpoint");
+  const game = createGame("max-trail-checkpoint", classicSettings());
   for (let slot = 0; slot < 5; slot++)
     addPlayer(game, {
       id: `p${slot}`,

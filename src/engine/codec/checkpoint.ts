@@ -268,8 +268,21 @@ const shotRecord = shape({
   grip: boolean,
   kills: array(shape({ victimId: text, elapsed: integer }), 4),
 } satisfies Record<keyof RoundShot, Guard>);
-const settings: Guard = (v) =>
-  v === undefined || parseRoomSettings(v) !== undefined;
+/**
+ * Required, and whole. Every game a peer on these rules can hold was created with settings and only ever replaced them
+ * with a parsed or spread copy, so a state without them, or with a field missing, is not one of ours. The parser alone
+ * is too kind for this boundary: it fills in flags a browser saved before they existed, and the simulation reads the
+ * object that arrived, not the parser's copy.
+ */
+const settings: Guard = (v) => {
+  const parsed = parseRoomSettings(v);
+  return (
+    parsed !== undefined &&
+    record(v) &&
+    Object.keys(v).length === Object.keys(parsed).length &&
+    Object.keys(parsed).every((key) => v[key] !== undefined)
+  );
+};
 /** Half extents are bounded well under the arena: scenery is something a rider rides around, not a second wall. */
 const obstacle: Guard = shape({
   id: (v) => integer(v) && v !== 0,

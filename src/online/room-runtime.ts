@@ -1321,7 +1321,7 @@ export class RoomRuntime {
         return `Connected · ${player.name} lagging`;
     }
     if (
-      game.settings?.mode === "shared" &&
+      game.settings.mode === "shared" &&
       !this.full &&
       ![...this.members.values()].some(
         (member) => member.full && now - member.lastPacketAt <= DISCONNECT_MS,

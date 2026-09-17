@@ -33,8 +33,9 @@ import {
   MAX_NAME_LENGTH,
   type Entry,
 } from "../src/engine/input-log.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 function fixture() {
-  const game = createGame("bot-fixture");
+  const game = createGame("bot-fixture", classicSettings());
   addPlayer(game, { id: "bot:1", name: "AI", slot: 0, color: SLOT_COLORS[0] });
   addPlayer(game, {
     id: "human",

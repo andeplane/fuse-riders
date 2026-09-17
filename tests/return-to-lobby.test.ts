@@ -10,6 +10,7 @@ import {
   toSnapshot,
   type GamePhase,
 } from "../src/engine/game.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 for (const phase of [
   "lobby",
   "countdown",
@@ -18,7 +19,7 @@ for (const phase of [
   "matchOver",
 ] satisfies GamePhase[]) {
   test(`return to lobby from ${phase} clears match state without inventing session points`, () => {
-    const game = createGame("before");
+    const game = createGame("before", classicSettings());
     for (let slot = 0; slot < 3; slot++)
       addPlayer(game, {
         id: `p${slot}`,
@@ -110,7 +111,7 @@ for (const phase of [
   });
 }
 test("empty party can return to lobby and invalid scope is rejected before mutation", () => {
-  const game = createGame("before");
+  const game = createGame("before", classicSettings());
   assert.throws(() => returnToLobby(game, ""));
   assert.equal(game.matchId, "before");
   returnToLobby(game, "empty");

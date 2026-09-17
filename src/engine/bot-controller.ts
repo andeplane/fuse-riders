@@ -20,7 +20,6 @@ import {
   type PlayerState,
 } from "./game.js";
 import {
-  BOMB_MAX_CHARGE_TICKS,
   BOMB_MIN_LAUNCH_DISTANCE,
   BOMB_MAX_LAUNCH_DISTANCE,
 } from "./bomb-launch.js";
@@ -593,8 +592,7 @@ export class BotController {
           ),
         }
       : undefined;
-    const maxChargeTicks =
-      game.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS;
+    const maxChargeTicks = game.settings.bombChargeTicks;
     const wantedCharge =
       aimed || player.gunArmed || player.shellArmed
         ? 1

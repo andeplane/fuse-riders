@@ -17,6 +17,7 @@ import {
   type Phase,
 } from "../src/engine/game.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 /**
  * The seam: PHASES with one more phase in the middle of the tick, after riders have been moved and pickups collected
@@ -48,7 +49,7 @@ function room(): RoomState {
 }
 
 test("a phase that throws surfaces as a TickFault naming the tick and the phase, and the state is left mid-tick", () => {
-  const game = createGame("fault");
+  const game = createGame("fault", classicSettings());
   for (let slot = 0; slot < 2; slot++)
     addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(game);

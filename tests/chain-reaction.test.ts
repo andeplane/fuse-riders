@@ -14,12 +14,13 @@ import {
   defaultRoomSettings,
   parseRoomSettings,
 } from "../src/engine/room-settings.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const flightPath = (x: number, y: number) =>
   Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));
 /** Two bombs side by side: the first is due this tick, the second sits inside its blast with a fuse far in the future. */
 function twoBombs(chainReaction: boolean, fuse = 500): GameState {
-  const state = createGame("chain", 7);
+  const state = createGame("chain", classicSettings(), 7);
   for (let slot = 0; slot < 2; slot += 1)
     addPlayer(state, {
       id: `p${slot}`,
@@ -102,11 +103,6 @@ test("with chaining off a caught bomb still fires on its own fuse, it is not str
     "its own fuse still fires",
   );
   assert.equal(state.bombs.size, 0);
-});
-test("a game with no settings at all still chains, as it did before the toggle", () => {
-  const state = twoBombs(true);
-  state.settings = undefined;
-  assert.deepEqual(explosions(step(state, new Map())), [1, 2]);
 });
 test("settings saved before the toggle keep chaining, and a non-boolean is refused", () => {
   const { chainReaction, ...older } = defaultRoomSettings();

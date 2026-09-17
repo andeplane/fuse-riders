@@ -71,8 +71,8 @@ export function driveGameTick(
       // Format stays fixed for a match; powerup changes apply at round boundaries.
       game.settings = {
         ...roomSettings,
-        match: game.settings!.match,
-        length: game.settings!.length,
+        match: game.settings.match,
+        length: game.settings.length,
       };
       startNextRound(game);
       roundStarted = true;
