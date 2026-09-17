@@ -16,22 +16,20 @@ _Five AI riders playing an actual match in the real game client — not a staged
 
 Public Chrome and WebKit checks covered phone hosting, AI, guest connections, saved settings, shared-TV play and reset at runtime `6c1673b`; the [public acceptance report](docs/online/PUBLIC-ACCEPTANCE.md) records that tested release. The restored UI (`68bea0d`: neon lobby, landscape touch controls, keyboard controls, short room codes) was first published after local Chrome/WebKit verification; its CI run failed at the desktop keyboard browser check, PRs #9 and #11 fixed that check, and the currently deployed `a4bee00` runtime passed CI 34822503284. No clean public acceptance run for the restored UI is recorded in this repository; see the [release status](docs/online/PUBLIC-BETA-2026-09-14.md#restored-ui-release-68bea0d). Renderer and network benchmarks are documented separately; physical-device performance and arbitrary network reliability are not guaranteed. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The LAN path remains available.
 
-## Run a LAN game
+## Run locally
 
 Requires Node.js **22.12 or newer** and npm. From a fresh checkout:
 
 ```sh
 npm ci
-PORT=3030 npm start
+PORT=3030 npm run dev
 ```
 
-Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host display URL printed by the server**, then scan its QR code from each phone. The host URL contains a capability needed to start/reset matches; an ordinary `/display` URL does not grant those controls. Phones use `/controller`. Use the printed LAN IP on phones, not `localhost`. Set `HOST_IP` if automatic interface discovery selects the wrong network.
+Run the online development service locally with `npm run dev`, or use the deployed room service in production. Create a room and choose shared-screen or individual-device play from the home page.
 
-LAN WebSocket connections require an exact same-origin page on the advertised IP, a local interface, localhost or the machine hostname. A custom hostname must be configured as `HOST_IP`. Command-line clients must send the matching `Origin` header. Clients whose send backlog remains above 512 kB for three seconds are closed for reconnect; an unresponsive close is terminated after another second. `/telemetry` accepts writes only in development.
+`npm start` builds the latest browser assets before starting the local online room service. `npm run dev` does the same for development. Rooms and match history are in memory and vanish when the process exits.
 
-`npm start` builds the latest browser assets before starting the server. For development, use `PORT=3030 npm run dev`: Vite serves current browser code and updates it as you edit, with no separate build needed. Changes to server code or its shared dependencies automatically restart the Node process. Each restart clears the in-memory game and session scores; open the new printed host link and refresh/rejoin phones. Production does not watch files or automatically refresh; stop and run `npm start` again between matches to pick up changes. The default port is 3000 when `PORT` is omitted; if that port is taken the server walks upward (3001, 3002, …) and prints the links for the port it actually got, so parallel worktrees and stale processes never collide. Vite's HMR shares the same port instead of its fixed 24678.
-
-`npm run dev` also starts the local room service in the same process (the production `fuse-network-be` protocol over in-memory rooms, on 127.0.0.1:8787 or the next free port) and proxies `/api` to it, so the home page's CREATE ROOM and JOIN ROOM work on the same LAN address as `/display` and `/controller`; set `ROOM_API=http://host:port` to use another room service instead. To run only the built app with that room service, use the following command.
+The local service uses the production `fuse-network-be` protocol over in-memory rooms on port 8787 (or the next free port).
 
 ## Try online rooms locally
 
@@ -54,6 +52,14 @@ Every device in a room simulates the game from one shared input log, so no brows
 Riders speed up as each round goes on: from normal pace at the start to 1.5× after 60 seconds, when overtime starts closing the walls, and they stay at that speed until the round ends. Steering speeds up too, so turning circles stay the same size; you just have less time to react. Every round starts at normal speed again, and the speed pickups multiply on top ([`riderMotionStep`](src/shared/game.ts)).
 
 When a rider dies, its remaining trail stays in the arena as an obstacle until the next round, without shrinking from the tail. Explosions, bullets and closing walls can still cut it.
+
+Rounds are played on an **arena map**, chosen in ROOM SETTINGS. **Desert** scatters rocks and cacti, **Forest** grows trees, bushes and boulders, **City** lays out buildings and crates, and **Classic** is the plain neon grid with nothing on it. A room's default rotates through the three maps that have scenery, so a match visits every one of them before it repeats any. Every map is generated per round from the match seed, so every device lays out the same board ([`arena-map.ts`](src/shared/arena-map.ts)).
+
+Only immunity (a Star, shield grace or portal grace) can carry a rider into scenery; if it lapses in there, that one obstacle lets the rider out again rather than killing it on the spot, and the same goes for a shell fired from inside. Scenery is otherwise solid: riding into it kills you exactly as the boundary does, and carries the same `wall` cause as the boundary (the elimination feed says “crashed” rather than “hit the wall” on a board that has scenery, because the cause alone cannot say which solid thing you hit). A bomb blast clears whatever it covers, at the blast's full radius, so blowing a hole through a row of buildings is a way through and a way to open a line on someone. Shells bounce off scenery and gun shots stop dead at it; thrown bombs fly over and land normally. Pickups and portal gates never appear on top of it, every rider starts with a clear road ahead, and the closing overtime walls crush whatever they reach. An Orbit Shield absorbs one crash and turns you away from the face you hit; Star rides straight through. AI riders steer around it under the same rules.
+
+Two more maps change the edges instead of the ground. **Wrap-around** has no walls: riders, shells, bullets, thrown bombs and blasts that leave one side of the board arrive on the opposite one, a trail just past an edge is as solid as any other, and bots plan through the edges too. A bullet flies one board's width in all, so a shot that meets nothing still ends. Overtime brings the walls in from the very edge, and from then on the round is an ordinary walled one. **Crossed** is the classic arena under exactly the classic rules, drawn shifted by half a board: the outer wall meets in a cross in the middle of the screen, and what rides off one screen edge comes back on the other. It plays move for move like Classic and is only harder to read. Neither is part of the default rotation.
+
+A map is the room's choice and part of the simulation. The visual style (Neon Pixel / Clean Neon) stays a per-device choice on top of it, so one player can watch the same desert in either style.
 
 On desktop, use **← / →** to steer and hold/release **Space** to charge and fire in online rooms or solo mode. Opening a menu or leaving the tab cancels held controls. On phones the lobby is a plain screen in either orientation: the room code with the join link and QR, the riders, and for the host START RACE, ADD AI, ROOM SETTINGS and TV VIEW. Once the race starts, rotate to landscape: from countdown through the match report the phone is the controller — the left, middle and right thirds of the screen steer left, charge/fire, and steer right, and the phase notice floats at the top. Introductory hints fade over the arena; shared-TV phones retain visible colored controls. **☰ MENU** opens the roster, game actions (START RACE / REMATCH / BACK TO LOBBY) and settings. Fullscreen is requested where the browser supports it. Hold **Fire** to charge a forward launch, then release. Target Bomb changes Fire into a thumb trackpad with a public aiming marker. Tap **HEAD** to change avatar, including during a round. Phone colors match riders. Joiners can enter during play when a seat is available and wait for the next round.
 
@@ -103,7 +109,6 @@ The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript
 | Location                                                                     | Responsibility                                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/shared/`                                                                | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops                                                                                                             |
-| `src/server/`                                                                | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling                                                                                                                                                   |
 | `src/client/`                                                                | Phaser presentation (WebGL/Canvas), themes, audio, avatars and phone pointer controls                                                                                                                                                  |
 | `src/shared/input-log.ts`, `apply-tick.ts`                                   | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries                                                                                                            |
 | `src/online/stream.ts`, `rollback.ts`, `clock.ts`                            | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock                                                                                                     |
@@ -129,11 +134,9 @@ npm test
 npm run test:coverage
 npm run build
 npx playwright install chrome chromium webkit
-npm run test:browser
-BROWSER=webkit npm run test:browser
 ```
 
-LAN browser smoke starts its own isolated server. It uses installed Chrome by default and WebKit with `BROWSER=webkit`. Online smoke uses bundled Chromium by default and needs `npm run dev:online` running in another terminal:
+Online smoke uses bundled Chromium by default and needs `npm run dev:online` running in another terminal:
 
 ```sh
 mkdir -p artifacts
@@ -148,11 +151,11 @@ ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-measure.ts
 
 The soundtrack is **Fuse Riders Radio**: it plays for as long as the page is open, starting on the landing page itself, and nothing in the game state restarts a track — rounds, matches and alt-tabbing all leave it playing, and only a finished track or the listener changes the song. **♫ RADIO** (room **SETTINGS**, TV toolbar) is a car-radio panel with previous / play-pause / next, the track list, a personal playlist (add with **+**), loop song and loop playlist. CREATE ROOM, JOIN ROOM and PLAY SOLO swap the landing view for the room in place rather than reloading, so the song simply plays on; the playlist, loop settings, current track and position also persist between visits, so a real page load resumes the same song where it was. Shortcuts: **Ctrl+A** radio, **Ctrl+M** mute all, **Ctrl+Alt+M** music, **Ctrl+Alt+E** effects (text fields keep Ctrl+A). The radio also appears on the iOS lock screen, CarPlay and car browsers with the track title and artwork; their play/pause and previous/next buttons follow the radio's own queue. The **♫ MUSIC ON / OFF** toggle (landing top bar, room **SETTINGS** with an **EFFECTS ON / OFF** twin, TV toolbar) says whether music is on, not whether the speaker is making a sound: a page the browser has not let play yet still reads ON, because the first gesture anywhere starts it (every page load on a phone needs one tap first). Tapping ON turns music off; tapping OFF unmutes, unpauses and plays. Next to it, **🔊 SOUND ON / 🔇 SOUND OFF** mutes and unmutes music and effects together, the same as Ctrl+M. On phones and tablets music starts off on the first visit; the choice is stored. Music plays through a media element so a phone's volume keys reach it, and the page asks iOS for an ambient audio session so the silent switch mutes it too (the cost is that ambient audio stops when the screen locks, so the lock-screen radio only plays while the phone is awake); effects stay synthesized. Mute and volume for both channels persist in `localStorage`, so the toggle keeps music off through the page load into a room. `LANDING_URL=http://127.0.0.1:5173/ npx tsx scripts/landing-music-smoke.ts` drives that flow in a real browser against `npx vite` and writes `artifacts/landing-music.png`; set `CHROMIUM_PATH` to use a specific Chromium build.
 
-The game ships two visual styles. **Neon Pixel** (the default) draws a chunky brick boundary wall with corner brackets and warning studs, a 30px grid and dotted trail cores; **Clean Neon** draws a thin glowing rim with a smooth outer stroke, a 50px grid and hairline trails. The style is a per-device choice stored in `localStorage` and never sent to other players: switch it under the room's **SETTINGS** button, the LAN `/display` **Visual style** selector, or a `?theme=neon-pixel` / `?theme=clean-neon` URL. Switching applies immediately, mid-round included, and only changes graphics — never hitboxes or timing.
+The game ships two visual styles. **Neon Pixel** (the default) draws a chunky brick boundary wall with corner brackets and warning studs, a 30px grid and dotted trail cores; **Clean Neon** draws a thin glowing rim with a smooth outer stroke, a 50px grid and hairline trails. The style is a per-device choice stored in `localStorage` and never sent to other players: switch it under the room's **SETTINGS** button or with a `?theme=neon-pixel` / `?theme=clean-neon` URL. Switching applies immediately, mid-round included, and only changes graphics — never hitboxes or timing.
 
-Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?** and device preferences (music, effects, radio, visual style, fullscreen) under **SETTINGS**. The arena fits the remaining viewport without changing its aspect ratio; phone touch thirds and the LAN display/controller layout are preserved. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
+Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?** and device preferences (music, effects, radio, visual style, fullscreen) under **SETTINGS**. The arena fits the remaining viewport without changing its aspect ratio. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
 
-The end-of-match report (podium, totals, highlight reel, awards and rider comparison) is built by the pure [`src/shared/match-recap.ts`](src/shared/match-recap.ts) module from the authoritative `matchStats` and `moments`; the LAN `/display` overlay and the online `MATCH RESULTS` dialog both render it, so ties, empty rosters and formatting are covered once by `tests/match-recap.test.ts`. The highlight reel lists the plays worth replaying — a bomb on a head, a banked shell, a rider cut off or boxed in, a double kill, a last-moment escape from a blast zone — detected inside the shared simulation by [`src/shared/moments.ts`](src/shared/moments.ts) so every device agrees on them ([ADR 043](docs/adr/043-highlight-moments.md)). A round that ends on one pauses a few seconds longer and every screen replays it broadcast-style: letterbox bars, a chyron naming the play, slow motion and a push-in through the impact, a LIVE flag when play returns; reel cards offer WATCH to see a clip again ([ADR 044](docs/adr/044-instant-replay.md)). Clips are local footage each screen recorded itself, so a screen that joined late shows none. The online dialog opens only after the final-round pause and can be reopened with the header `RESULTS` button until a rematch starts. `HOME_URL=http://localhost:8787/ npx tsx scripts/match-recap-smoke.ts` (and `BROWSER=webkit`) plays a one-round solo match to completion on a desktop and a phone-landscape viewport, checks the pause gate, layout bounds and reopen flow, and writes screenshots to `artifacts/match-recap-*.png`; reviewed copies live under [docs/online/ui-evidence/](docs/online/ui-evidence/).
+The end-of-match report (podium, totals, highlight reel, awards and rider comparison) is built by the pure [`src/shared/match-recap.ts`](src/shared/match-recap.ts) module from the authoritative `matchStats` and `moments`; the online `MATCH RESULTS` dialog renders it, so ties, empty rosters and formatting are covered once by `tests/match-recap.test.ts`. The highlight reel lists the plays worth replaying and is detected inside the shared simulation by [`src/shared/moments.ts`](src/shared/moments.ts) so every device agrees on them.
 
 `ONLINE_URL=https://your-preview.example npx tsx scripts/online-smoke.ts` targets a preview and creates test rooms there. Never point tests at an occupied game. Benchmark scripts write reports under `docs/online/`; review regenerated evidence before committing it.
 
@@ -165,7 +168,7 @@ PORT=8801 scripts/ci-local.sh
 ONLY=core,keyboard PORT=8801 scripts/ci-local.sh
 ```
 
-Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across all game and networking source except the [documented exact-file exclusions](docs/coverage-exclusions.md). New modules join the gate automatically. Those thresholds do **not** mean every browser path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
+Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
 
 The determinism replay folds one seeded 3,000-tick five-rider log in Node, Chromium and WebKit and compares the state hash on every tick. The mesh harness runs six contexts alternating Chromium and WebKit through fifteen links, thirty send directions, a three-second send blackhole and a closed channel. The measurement script runs five scripted players plus a TV, once locally and once with injected 40 ms delay, 20 ms jitter and 2% loss, and reports wire bytes, rollbacks and input-to-state latencies as p50/p95 into `artifacts/p2p-measure.json`. Opt-in `?benchmark=1` events expose simulated states, inputs and events without capabilities. While `npm run dev` serves a room, every device also posts its runtime metrics and status changes to `artifacts/telemetry/<ROOM>.ndjson`; `npx tsx scripts/telemetry-report.ts <file>` summarises them. Application-message injection is not real IP packet loss, and desktop timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
 
@@ -258,7 +261,7 @@ and a rider's avatar travels beside the result, self-reported. The client retrie
 | Confirmed, no signed-in rider           | 30 days  |
 | Confirmed, at least one signed-in rider | forever  |
 
-What this does **not** cover: LAN `/display` games and PLAY SOLO (neither has a room on the gateway), and a rider who
+What this does **not** cover: a rider who
 signs in only after leaving the room.
 
 ### API
@@ -392,21 +395,18 @@ the shared `andeplane.github.io` origin noted in the review.
 
 ### Changing the configuration
 
+The backend CD workflow now applies the committed rules, indexes and TTL policies to the named `fuse-riders`
+database, plus Auth domains/provider flags and web-key restrictions from [`deploy/firebase-config.json`](deploy/firebase-config.json),
+before rolling out the gateway. It verifies the OAuth redirect and waits for required indexes and TTL policies.
+See [configuration CD](docs/online/CONFIGURATION-CD.md) for the one-time IAM bootstrap, read-only plan and recovery steps.
+No personal token or new GitHub secret is needed: deployments use the existing workload identity.
+
 ```bash
-firebase deploy --only firestore --project andershaf-87
+npm run config:check
+npm run config:plan -- --account YOUR_AUTHORIZED_GOOGLE_ACCOUNT
 ```
 
-deploys the rules, indexes and TTL policies. **`--only firestore:rules` is a silent no-op** with a named-database `firebase.json`: it prints
-"Deploy complete" and releases nothing. Confirm a release with:
-
-```bash
-curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: andershaf-87" https://firebaserules.googleapis.com/v1/projects/andershaf-87/releases
-```
-
-Rules are not deployed by CI; the deployer service account has no Firebase roles, deliberately. Auth settings live at
-`https://identitytoolkit.googleapis.com/admin/v2/projects/andershaf-87/config` (PATCH with an `updateMask`), and the key
-is managed with `gcloud services api-keys update 06d6ec38-6348-4b7b-865d-1ea58a9b7d91 --project andershaf-87`. Always
-pass the project explicitly; a developer machine's default gcloud project is usually something else. Two things about
+Two things about
 that key bite:
 
 - **A referrer pattern with a scheme does not match a port.** `http://localhost:*/*` is accepted and then blocks
@@ -498,7 +498,7 @@ Accepted, not fixed:
   needs its own entries in `firestore.indexes.json`, or `/api/me/matches` fails and its pending records never expire.
 - **A browser that remembers a sign-in downloads the SDK when its first recap opens** (to fetch a token). Guarded, so
   it cannot disturb the recap; it costs a signed-in player ~47 kB once per page load.
-- **Account/history HTTP requests without `Origin` skip the origin check.** WebSocket upgrades require an allowed
-  origin. Origin checks stop other websites, not scripts; credentials are what authenticate.
+- **A request with no `Origin` header skips the origin check**, as on every other route. Origin checks stop other
+  websites, not scripts; the credentials are what authenticate.
 
 Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.

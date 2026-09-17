@@ -17,6 +17,8 @@ function playing() {
     addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());
+  // An open board: these riders are parked on a line and expected to keep driving straight.
+  game.obstacles = [];
   for (const player of game.players.values())
     Object.assign(player, {
       x: 300 + player.slot * 250,

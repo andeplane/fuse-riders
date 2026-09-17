@@ -23,7 +23,6 @@ import {
   toSnapshot,
   type GameState,
 } from "../src/shared/game.js";
-import { controllerSnapshot } from "../src/server/index.js";
 
 function playing(seed = 5): GameState {
   const state = createGame("gravity", seed);
@@ -264,23 +263,6 @@ test("holes do not outlive their round", () => {
   startNextRound(state);
   assert.deepEqual(state.gravityFields, []);
 });
-// Online phones simulate the world themselves, so only the LAN controller snapshot strips the geometry it cannot draw.
-test("a LAN phone is never sent the hole geometry it cannot draw", () => {
-  const state = playing();
-  hole(state, 400, 400, 120);
-  const full = toSnapshot(state);
-  assert.equal(
-    full.gravityFields.length,
-    1,
-    "the fixture carries a hole, so the strip below is not vacuous",
-  );
-  assert.deepEqual(
-    controllerSnapshot(full).gravityFields,
-    [],
-    "the LAN server strips it",
-  );
-});
-
 test("a rider that falls into the core dies an ownerless wall death; skimming the hole outside it does not", () => {
   const state = playing();
   const rider = state.players.get("p0")!;

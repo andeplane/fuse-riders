@@ -177,6 +177,25 @@ test("eliminations become one readable feed line", () => {
     ),
     "AI Ada hit the wall",
   );
+  // A board with scenery reports crashes under the same cause, so the line stops naming the wall.
+  assert.equal(
+    eliminationLine(
+      { type: "playerEliminated", playerId: "ai", cause: "wall" },
+      players,
+      "me",
+      "desert",
+    ),
+    "AI Ada crashed",
+  );
+  assert.equal(
+    eliminationLine(
+      { type: "playerEliminated", playerId: "me", cause: "trail" },
+      players,
+      "me",
+      "city",
+    ),
+    "YOU clipped a trail",
+  );
   assert.equal(
     eliminationLine(
       { type: "playerEliminated", playerId: "me", cause: "explosion" },

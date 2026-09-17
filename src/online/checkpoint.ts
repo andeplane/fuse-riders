@@ -34,6 +34,12 @@ import {
 import { isAvatarId } from "../shared/avatars.js";
 import { MAX_PORTAL_PAIRS } from "../shared/portal.js";
 import {
+  ARENA_MAPS,
+  MAX_OBSTACLES,
+  OBSTACLE_KINDS,
+  type Obstacle,
+} from "../shared/arena-map.js";
+import {
   parseRoomSettings,
   type RoomSettings,
 } from "../shared/room-settings.js";
@@ -268,6 +274,16 @@ const shotRecord = shape({
 } satisfies Record<keyof RoundShot, Guard>);
 const settings: Guard = (v) =>
   v === undefined || parseRoomSettings(v) !== undefined;
+/** Half extents are bounded well under the arena: scenery is something a rider rides around, not a second wall. */
+const obstacle: Guard = shape({
+  id: (v) => integer(v) && v !== 0,
+  kind: (v) =>
+    typeof v === "string" && (OBSTACLE_KINDS as readonly string[]).includes(v),
+  x: position,
+  y: position,
+  halfWidth: range(1, ARENA_WIDTH / 4),
+  halfHeight: range(1, ARENA_HEIGHT / 4),
+} satisfies Record<keyof Obstacle, Guard>);
 const gravityField: Guard = shape({
   x: position,
   y: position,
@@ -287,6 +303,9 @@ const gameShape = shape({
   width: (v) => v === ARENA_WIDTH,
   height: (v) => v === ARENA_HEIGHT,
   boundaryInset: range(0, ARENA_HEIGHT / 2 - 1),
+  map: (v) =>
+    typeof v === "string" && (ARENA_MAPS as readonly string[]).includes(v),
+  obstacles: array(obstacle, MAX_OBSTACLES),
   players: map(text, player, 5),
   bombs: map(integer, bomb, 256),
   blasts: array(blast, 256),
@@ -534,6 +553,20 @@ function gameInvariants(game: GameState): boolean {
   for (const pair of game.portalPairs) {
     if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false;
     portalIds.add(pair.id);
+  }
+  // Obstacles are addressed by id by nothing but the renderer's rubble diff, which a duplicate would confuse into
+  // reporting a standing obstacle as destroyed; they are also never anywhere but inside the arena.
+  const obstacleIds = new Set<number>();
+  for (const piece of game.obstacles) {
+    if (obstacleIds.has(piece.id)) return false;
+    obstacleIds.add(piece.id);
+    if (
+      piece.x - piece.halfWidth < 0 ||
+      piece.x + piece.halfWidth > game.width ||
+      piece.y - piece.halfHeight < 0 ||
+      piece.y + piece.halfHeight > game.height
+    )
+      return false;
   }
   for (const field of game.gravityFields)
     if (
