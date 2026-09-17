@@ -7,6 +7,36 @@ import {
   syntax,
 } from "./fixtures/source-guards.js";
 
+test("Math aliases and destructured functions cannot bypass the simulation guard", () => {
+  for (const source of [
+    "const { sin, random } = Math; sin(1); random();",
+    "const native = Math; native.sin(1);",
+    "const native = globalThis.Math; native.random();",
+    "const native = globalThis['Math']; native.cos(1);",
+  ]) {
+    assert.ok(
+      deterministicViolations(syntax("sample.ts", source)).includes(
+        "Math extraction",
+      ),
+    );
+  }
+  assert.deepEqual(
+    deterministicViolations(
+      syntax(
+        "sample.ts",
+        "const maximum = Math.max; maximum(1, 2); globalThis['Math'].sqrt(4);",
+      ),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    deterministicViolations(
+      syntax("sample.ts", "globalThis['Math']['random']();"),
+    ),
+    ["Math.random"],
+  );
+});
+
 test("simulation source uses deterministic math and has no clock or locale dependencies", () => {
   const violations = sourceFiles("src")
     .filter((file) => layer(file) === "engine")

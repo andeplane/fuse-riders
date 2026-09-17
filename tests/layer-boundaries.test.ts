@@ -23,6 +23,16 @@ test("architecture imports match the exact shrinking migration allowlist", () =>
 });
 
 test("the boundary guard covers target directories, re-exports, type imports and dynamic imports", () => {
+  for (const specifier of [
+    "fuse-network-fe",
+    "fuse-network-be",
+    "fuse-network-protocol",
+    "fuse-network-fe/room-api",
+  ]) {
+    assert.ok(forbiddenEdge("src/render/world.ts", specifier));
+    assert.ok(forbiddenEdge("src/engine/game.ts", specifier));
+    assert.equal(forbiddenEdge("src/net/world.ts", specifier), undefined);
+  }
   assert.deepEqual(
     imports(
       syntax(

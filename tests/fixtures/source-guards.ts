@@ -24,7 +24,29 @@ export function syntax(
 
 export function deterministicViolations(file: ts.SourceFile): string[] {
   const found = new Set<string>();
+  const mathObject = (node: ts.Node): boolean =>
+    (ts.isIdentifier(node) && node.text === "Math") ||
+    (ts.isPropertyAccessExpression(node) &&
+      node.expression.getText(file) === "globalThis" &&
+      node.name.text === "Math") ||
+    (ts.isElementAccessExpression(node) &&
+      node.expression.getText(file) === "globalThis" &&
+      ts.isStringLiteralLike(node.argumentExpression) &&
+      node.argumentExpression.text === "Math");
   const visit = (node: ts.Node): void => {
+    if (mathObject(node)) {
+      const parent = node.parent;
+      const memberAccess =
+        (ts.isPropertyAccessExpression(parent) ||
+          ts.isElementAccessExpression(parent)) &&
+        parent.expression === node;
+      // The identifier in globalThis.Math is the object's name, not a second extraction.
+      const objectName =
+        ts.isPropertyAccessExpression(parent) &&
+        parent.name === node &&
+        mathObject(parent);
+      if (!memberAccess && !objectName) found.add("Math extraction");
+    }
     if (
       ts.isIdentifier(node) &&
       (node.text === "Date" || node.text === "performance")
@@ -46,9 +68,8 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
             ts.isStringLiteralLike(node.argumentExpression)
           ? node.argumentExpression.text
           : undefined;
-      const receiver = node.expression.getText(file);
       if (key === "localeCompare") found.add("localeCompare");
-      if (receiver === "Math" || receiver === "globalThis.Math") {
+      if (mathObject(node.expression)) {
         if (
           key === undefined ||
           /^(sin|cos|tan|atan2?|hypot|pow|exp|log\w*|random)$/.test(key)
@@ -97,6 +118,7 @@ const rendering = new Set([
 
 /** Today's ownership, plus the target directories, so moving files cannot disable the guard. */
 export function layer(file: string): Layer {
+  if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
   if (file.startsWith("src/engine/") || file === "src/online/checkpoint.ts")
     return "engine";
