@@ -4,7 +4,7 @@ import {
   type KillMethod,
 } from "./combat-stats.js";
 import type { RoundPlacement } from "./leaderboard.js";
-import type { PickupType } from "./game.js";
+import type { PickupType } from "./pickup-types.js";
 
 export type MatchDeathCause = "wall" | "trail" | "explosion" | "rider";
 

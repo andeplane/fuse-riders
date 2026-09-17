@@ -1,5 +1,17 @@
 import { hypot2, sin, cos, atan2 } from "./deterministic-math.js";
 import {
+  EPSILON,
+  firstContactTime,
+  normalizeAngle,
+  pointSegmentDistanceSquared,
+  segmentDistanceSquared,
+  square,
+} from "./geometry.js";
+export { segmentDistanceSquared } from "./geometry.js";
+import { hashSeed, nextRandom, normalizeSeed } from "./rng.js";
+import { type PickupType } from "./pickup-types.js";
+export { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
+import {
   POWER_TUNING,
   MAX_POWER_PICKUPS,
   pickupPacing,
@@ -381,27 +393,6 @@ export type GamePhase =
 export type EliminationCause = "wall" | "trail" | "explosion" | "rider";
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = [
-  "power",
-  "extraBomb",
-  "stopwatch",
-  "gun",
-  "shell",
-  "target",
-  "star",
-  "beer",
-  "ink",
-  "triple",
-  "five",
-  "orbitShield",
-  "portal",
-  "gravity",
-  "grip",
-  "nitro",
-  "snail",
-] as const;
-export type PickupType = (typeof PICKUP_TYPES)[number];
-
 export interface PlayerIdentity {
   id: PlayerId;
   name: string;
@@ -575,7 +566,6 @@ interface Movement {
   angle: number;
 }
 
-const EPSILON = 1e-9;
 const CAUSE_PRIORITY: Record<EliminationCause, number> = {
   rider: 0,
   trail: 1,
@@ -2716,28 +2706,6 @@ function createStraightFlightPath(
   }));
 }
 
-function hashSeed(value: string): number {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return normalizeSeed(hash);
-}
-
-function normalizeSeed(seed: number): number {
-  const normalized = Number.isFinite(seed) ? seed >>> 0 : 0;
-  return normalized || 0x6d2b79f5;
-}
-
-function nextRandom(state: GameState): number {
-  state.randomState = (state.randomState + 0x6d2b79f5) >>> 0;
-  let value = state.randomState;
-  value = Math.imul(value ^ (value >>> 15), value | 1);
-  value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-  return ((value ^ (value >>> 14)) >>> 0) / 0x1_0000_0000;
-}
-
 /**
  * The first unspent gate a gun ray meets, as a fraction of the cast segment. A bullet is a point at
  * this scale, so only portal-wall clearance can refuse the exit — a rider or a trail waiting there is
@@ -3436,127 +3404,6 @@ function soleCreditedOwner(
   if (!owners || owners.size !== 1) return undefined;
   const ownerId = owners.values().next().value as PlayerId | undefined;
   return ownerId === victimId ? undefined : ownerId;
-}
-
-function normalizeAngle(angle: number): number {
-  const tau = Math.PI * 2;
-  return ((angle % tau) + tau) % tau;
-}
-
-function square(value: number): number {
-  return value * value;
-}
-
-/** Earliest contact of a swept prefix. Fixed iterations keep replay deterministic;
- * 32 subdivisions locate contact to much less than a pixel without advancing physics.
- * `through` may already be an earlier hit against another segment.
- */
-function firstContactTime(
-  touchesPrefix: (time: number) => boolean,
-  through = 1,
-): number {
-  if (!touchesPrefix(through)) return through;
-  if (touchesPrefix(0)) return 0;
-  let before = 0;
-  let contact = through;
-  for (let iteration = 0; iteration < 32; iteration++) {
-    const middle = (before + contact) / 2;
-    if (touchesPrefix(middle)) contact = middle;
-    else before = middle;
-  }
-  return contact;
-}
-
-export function segmentDistanceSquared(
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number,
-  dx: number,
-  dy: number,
-): number {
-  if (segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy)) return 0;
-  return Math.min(
-    pointSegmentDistanceSquared(ax, ay, cx, cy, dx, dy),
-    pointSegmentDistanceSquared(bx, by, cx, cy, dx, dy),
-    pointSegmentDistanceSquared(cx, cy, ax, ay, bx, by),
-    pointSegmentDistanceSquared(dx, dy, ax, ay, bx, by),
-  );
-}
-
-function pointSegmentDistanceSquared(
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-): number {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared <= EPSILON) return square(px - ax) + square(py - ay);
-  const t = Math.max(
-    0,
-    Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared),
-  );
-  return square(px - (ax + t * dx)) + square(py - (ay + t * dy));
-}
-
-function segmentsIntersect(
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number,
-  dx: number,
-  dy: number,
-): boolean {
-  const o1 = orientation(ax, ay, bx, by, cx, cy);
-  const o2 = orientation(ax, ay, bx, by, dx, dy);
-  const o3 = orientation(cx, cy, dx, dy, ax, ay);
-  const o4 = orientation(cx, cy, dx, dy, bx, by);
-  if (
-    ((o1 > EPSILON && o2 < -EPSILON) || (o1 < -EPSILON && o2 > EPSILON)) &&
-    ((o3 > EPSILON && o4 < -EPSILON) || (o3 < -EPSILON && o4 > EPSILON))
-  )
-    return true;
-  return (
-    (Math.abs(o1) <= EPSILON && onSegment(ax, ay, bx, by, cx, cy)) ||
-    (Math.abs(o2) <= EPSILON && onSegment(ax, ay, bx, by, dx, dy)) ||
-    (Math.abs(o3) <= EPSILON && onSegment(cx, cy, dx, dy, ax, ay)) ||
-    (Math.abs(o4) <= EPSILON && onSegment(cx, cy, dx, dy, bx, by))
-  );
-}
-
-function orientation(
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number,
-): number {
-  return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-}
-
-function onSegment(
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  px: number,
-  py: number,
-): boolean {
-  return (
-    px >= Math.min(ax, bx) - EPSILON &&
-    px <= Math.max(ax, bx) + EPSILON &&
-    py >= Math.min(ay, by) - EPSILON &&
-    py <= Math.max(ay, by) + EPSILON
-  );
 }
 
 const NEUTRAL_INPUT: InputIntent = Object.freeze({

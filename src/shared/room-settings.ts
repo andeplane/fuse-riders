@@ -1,7 +1,7 @@
 import { PICKUP_WEIGHTS } from "./pickup-weights.js";
 import { ARENA_MAP_CHOICES, type ArenaMapChoice } from "./arena-map.js";
 import { BOMB_MAX_CHARGE_TICKS, isBombChargeTicks } from "./bomb-launch.js";
-import { PICKUP_TYPES, type PickupType } from "./game.js";
+import { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
 export interface RoomSettings {
   version: 1;
   mode: "shared" | "devices";

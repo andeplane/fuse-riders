@@ -1,4 +1,4 @@
-import type { PickupType } from "./game.js";
+import type { PickupType } from "./pickup-types.js";
 import { POWER_TUNING } from "./power-progression.js";
 /** Power supplies roughly three quarters of default drops; specials stay occasional. */
 export const PICKUP_WEIGHTS: ReadonlyArray<

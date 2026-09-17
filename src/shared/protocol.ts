@@ -4,7 +4,7 @@ import type { ArenaMapId, Obstacle } from "./arena-map.js";
 import type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
 import type { MatchPlayerStats } from "./match-stats.js";
 import type { FlightPoint } from "./launch-modifiers.js";
-import type { PickupType } from "./game.js"; // the type alone: this module never needs the tuple's value
+import type { PickupType } from "./pickup-types.js";
 import type { Moment } from "./moments.js";
 import type { DecidedRound } from "./shot-log.js";
 
