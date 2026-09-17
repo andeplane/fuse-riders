@@ -205,17 +205,56 @@ signed in still get the match recorded. It runs on what the game already had —
 database in `andershaf-87` — plus **Firebase Authentication**. There is no Postgres, no Functions, Storage or Realtime
 Database, Firebase Hosting serves nothing but the sign-in handler, and nothing here costs money at this game's scale.
 
-On the landing page the top bar has **SIGN IN**; once signed in it reads **MY GAMES** and opens the account's
-username, totals and past matches. Sign in before entering a room: the room screen has no sign-in of its own, and a match can only be linked to
+On the landing page the top bar has **SIGN IN**; once signed in it shows **your global rank and Elo** and opens your
+stats dashboard, username settings and past matches. The adjacent **LEADERBOARD** opens the public top 50. Sign in before entering a room: the room screen has no sign-in of its own, and a match can only be linked to
 an account by a device that was in the room when it ended.
+
+### Player stats and human Elo
+
+The stats dashboard leads with current **Rider Elo**, global rank, peak rating and a dated graph of the latest 100
+rated matches. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
+players start at 1,000 and remain unranked until their first rated match. Equal rounded Elo values share a rank.
+The public leaderboard exposes rider names, avatars, Elo and rated-match counts, never account IDs or emails.
+
+- Elo compares each human's final score (then round wins) with the other humans, using all pre-match ratings at once
+  and averaging the K=32 pairwise changes. Ties split the outcome. **AI never awards or deducts Elo**, including in
+  mixed games. One human against bots cannot enter or climb the leaderboard.
+- Every human participant must report, link a distinct signed-in account, play every round and stay to the finish.
+  Guest games, departures and partial participation remain career history without rating. A late sign-in/report
+  can complete eligibility; the graph uses server settlement time. This is a community ladder with peer-confirmed
+  results, not an anti-cheat system; colluding accounts can fabricate results.
+- All time / Last 20 controls the expanded stats. A shared opponent filter separates humans-only, mixed human/AI,
+  and AI/solo practice games. Combat has an additional human/AI target filter, so mixed games can be broken down.
+  Distance, time and placements belong to a whole game and are filtered by game composition, not assigned to targets.
+- Results include match and round placement distributions, round win rate, average finish, field beaten and recent
+  finishes. Combat shows signature kill method, common death method and expandable weapon efficiency. Records show
+  most kills, longest life and furthest distance in a match. Further riding counters are collapsed by default.
+- Nemeses and Prey show the top three signed-in human opponents by deaths and kills, including both directions.
+  They use verified account identity across rooms and renames, never matching by username. These cards explicitly
+  remain all-time human rivalries regardless of the game filters. Unlinked guests cannot form a career rivalry.
+- Expanded aggregates and attribution begin with this update. Old records remain readable without inventing missing
+  weapon/rivalry data; the page indicates when older career matches lack expanded statistics.
+
+`GET /api/leaderboard` is public (300 requests/address/hour), with optional identity for the caller's highlighted row.
+`GET /api/me` adds rating/rank and career buckets; match history adds per-match rating receipts and the caller's top
+rivalries. Atomic transactions keep profiles, Elo, per-match receipts and rivalry credits together; retries do not
+re-credit them. A room-incarnation/match-id claim prevents conflicting result variants from rating twice.
+
+**Deployment prerequisite:** apply the new ranked/Elo indexes in `firestore.indexes.json` and wait for readiness before
+shipping the gateway. [Issue #261](https://github.com/andeplane/fuse-riders/issues/261) owns automated configuration CD.
+Client/service should ship together because peer checkpoints now carry optional combat counters; refresh peers before
+new games. See [the design and rollout notes](docs/design/PLAYER-STATS.md).
+
+Focused browser verification: `npx tsx scripts/player-stats-smoke.ts`. It uses the real local history API with injected
+test identity, Chromium and WebKit at desktop/phone widths; it does not exercise Google OAuth or production Firestore.
 
 ### Usernames
 
 An account has one **username**, and a signed-in rider rides under it in every room and on every device: the join form
-shows it and is not editable there. It is changed under MY GAMES. The rule is the rider-name rule everywhere
+shows it and is not editable there. It is changed under **Account settings** in your stats. The rule is the rider-name rule everywhere
 ([`rider-name.ts`](src/shared/rider-name.ts)): 1–18 characters, trimmed, no control characters.
 
-- The first time an account opens MY GAMES without a username, it takes the rider name that browser already used, or
+- The first time an account opens their stats without a username, it takes the rider name that browser already used, or
   failing that the first word of the Google display name, and the field is right there to change it.
 - The browser caches the username so a room can seat the rider without waiting for anything. A browser that is signed
   in but has never seen it (an invite link opened on a new phone) fetches it while the join form is up.
