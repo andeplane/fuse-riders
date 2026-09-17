@@ -36,7 +36,7 @@ import {
   type ShellPoint,
   type ShellTrail,
 } from "./shell.js";
-import { DEFAULT_AVATAR, type AvatarId } from "./avatars.js";
+import { DEFAULT_AVATAR } from "./avatars.js";
 import {
   advanceTrail,
   boundTrail,
@@ -83,17 +83,6 @@ import {
   wrapImages,
   type WrapOffset,
 } from "./wrap.js";
-import type {
-  AimPoint,
-  BombActionCommand,
-  BlastCircle,
-  BombAction,
-  GameEvent,
-  GameSnapshot,
-  PlayerId,
-  TrailSegment,
-  FlightPoint,
-} from "./protocol.js";
 import {
   applyRoundScores,
   rankRound,
@@ -147,350 +136,80 @@ import {
   type TickObservations,
 } from "./moments.js";
 
-export type {
-  BlastCircle,
-  BombAction,
-  GameEvent,
-  GameSnapshot,
-  PlayerId,
-  TrailSegment,
-} from "./protocol.js";
-
-export const TICK_HZ = 20;
-export const MAX_PLAYERS = 5;
-export const MIN_PLAYERS = 2;
-
-export const ARENA_WIDTH = 1600;
-export const ARENA_HEIGHT = 900;
-export const INITIAL_BOUNDARY_INSET = 20;
-export const SLOT_COLORS = [
-  "#22d3ee",
-  "#ff4fa3",
-  "#a3e635",
-  "#fb923c",
-  "#a78bfa",
-] as const;
-
-export const RIDER_SPEED = 150;
-/** Ticks after launch during which a Shell ignores its shooter's trail and body. */
-const PROJECTILE_OWNER_GRACE_TICKS = 6;
-export const RIDER_TURN_RATE = 2.8;
-/** GRIP reduces the turn radius by about 43% at unchanged speed, lasting until the next round. */
-export const GRIP_TURN_MULTIPLIER = 1.75;
-export function riderTurnRate(player: { grip: boolean }): number {
-  return RIDER_TURN_RATE * (player.grip ? GRIP_TURN_MULTIPLIER : 1);
-}
-export const RIDER_RADIUS = 7;
-export const TRAIL_WIDTH = 6;
-/** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
-export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
-/**
- * Scenery is met at the head's visible width too, and against the obstacle's hitbox (`obstacleHitbox`) rather than
- * always its whole footprint: a portrait that overlapped a rock, or a rider that crossed the empty corner of a
- * crown's footprint, did not crash.
- */
-export const RIDER_OBSTACLE_RADIUS = RIDER_CONTACT_RADIUS;
-export const TRAIL_LIFETIME_TICKS = POWER_TUNING.baseTrailLifetimeTicks;
-export const SELF_TRAIL_GRACE_TICKS = 10;
-
-export const BOMB_FUSE_TICKS = 40;
-/** Shorter Fuse stacks twice per round; capture the duration when a bomb launches. */
-export function bombFuseTicks(level = 0): number {
-  return BOMB_FUSE_TICKS - Math.min(2, Math.max(0, level)) * 10;
-}
-export const BOMB_COOLDOWN_TICKS = POWER_TUNING.baseReloadTicks;
-export const BOMB_BLAST_RANGE = POWER_TUNING.baseBlastRadius;
-export const BLAST_VISIBLE_TICKS = 8;
-/**
- * Gravity opens one to three black holes of random size for eight seconds. Space curves inside one: every rider's
- * heading bends toward the centre, hardest at the middle and not at all at the rim, so nobody rides a straight line there.
- */
-export const GRAVITY_FIELD_TICKS = 160;
-export const GRAVITY_MAX_HOLES_PER_PICKUP = 3;
-/** Live holes at once; a pickup past the cap retires the oldest first, as portal pairs do. */
-export const MAX_GRAVITY_FIELDS = 6;
-export const GRAVITY_MIN_RADIUS = 110;
-/** The largest hole curves almost the whole arena across its short side. */
-export const GRAVITY_MAX_RADIUS = ARENA_HEIGHT * 0.47;
-/** The black core at a hole's centre. A rider whose centre crosses into it is gone: an ownerless death, recorded as `wall`. */
-export function gravityCoreRadius(radius: number): number {
-  return Math.min(30, radius * 0.16);
-}
-/** A hole never opens with its core this close to a living rider's centre; the hole is slid away instead. */
-export const GRAVITY_CORE_SPAWN_CLEARANCE = 140;
-/** Peak bend at the centre, as a share of the tick's own steering. Under 1, so a rider can always steer out of an orbit. */
-export const GRAVITY_BEND = 0.85;
-
-/** Pickups are destroyed strictly inside the inner 60% of a new bomb blast. */
-export const PICKUP_DESTRUCTION_RADIUS_RATIO = 0.6;
-export const PICKUP_SPAWN_ATTEMPTS = 24;
-export const PICKUP_RADIUS = 14;
-export const PICKUP_SPAWN_MARGIN = 40;
-export const PICKUP_RIDER_BOMB_CLEARANCE = 80;
-export const PICKUP_TRAIL_CLEARANCE = 40;
-export const PICKUP_SEPARATION = 28;
-/**
- * Nitro doubles the collector's speed and Snail halves every rival's, each for five seconds. Every pickup is its own
- * deadline: two Nitros run at 4x until the first expires, and a Snail on a Nitro rider cancels to 1x.
- * Only distance changes, so a fast rider turns wide and a slowed one turns tight.
- */
-export const NITRO_DURATION_TICKS = 100;
-export const NITRO_SPEED = 2;
-export const SNAIL_DURATION_TICKS = 100;
-export const SNAIL_SPEED = 0.5;
-/** Deadlines a rider can hold per effect: a bound for checkpoints. A 33rd collection inside one window is dropped, at a speed nobody survives anyway. */
-export const MAX_SPEED_EFFECT_STACK = 32;
-export const STAR_DURATION_TICKS = 100;
-export const SHIELD_GRACE_TICKS = 10;
-
-/** Pickups never sit against an obstacle, where collecting one would mean crashing into it. */
-export const PICKUP_OBSTACLE_CLEARANCE = 30;
-/** Every rider starts clear of the scenery, with this much open road along its heading to pick a line. */
-export const SPAWN_CORRIDOR_LENGTH = 220;
-export const SPAWN_CORRIDOR_RADIUS = 56;
-
-export const COUNTDOWN_TICKS = 60;
-export const ROUND_OVER_TICKS = 60;
-/**
- * The final round ends like any other (its own result, then the replay), and only then names the match winner for this
- * long before the recap. Without the second beat the match result covered the round's, and read as the round's.
- */
-export const MATCH_WINNER_TICKS = 60;
-export const OVERTIME_START_TICK = 1200;
-export const OVERTIME_INSET_PER_TICK = 0.5;
-export const ROUND_DRAW_TICK = 1800;
-/**
- * Riders speed up through every round, from normal pace at the start to SPEED_RAMP_MAX when overtime begins, and hold it.
- * Steering speeds up with them, so turning circles keep their size: the round gets faster, not wider.
- */
-export const SPEED_RAMP_TICKS = OVERTIME_START_TICK;
-export const SPEED_RAMP_MAX = 1.5;
-export function roundSpeedMultiplier(elapsedTicks: number): number {
-  return (
-    1 +
-    ((SPEED_RAMP_MAX - 1) *
-      Math.max(0, Math.min(SPEED_RAMP_TICKS, elapsedTicks))) /
-      SPEED_RAMP_TICKS
-  );
-}
-/**
- * Once every human rider is out, the rest of the round is bots racing each other: the clock that drives the
- * simulation runs this many times faster until the round ends. Tick rules are untouched, so outcomes are the same.
- */
-export const BOTS_ONLY_TIME_SCALE = 3;
-export function simulationTimeScale(
-  state: Pick<GameState, "phase" | "players">,
-  bots: ReadonlySet<string>,
-): number {
-  if (state.phase !== "playing") return 1;
-  let humans = 0,
-    botsAlive = 0;
-  for (const player of sortedPlayers(state)) {
-    if (!bots.has(player.id)) {
-      if (player.alive) return 1;
-      humans++;
-    } else if (player.alive) botsAlive++;
-  }
-  // A room with no human rider at all is a showcase, not a wait: it keeps its pace.
-  return humans > 0 && botsAlive > 0 ? BOTS_ONLY_TIME_SCALE : 1;
-}
-export interface SpeedEffects {
-  nitroUntilTicks: ReadonlyArray<number>;
-  snailUntilTicks: ReadonlyArray<number>;
-}
-/** Every speed pickup in force on `tick`, multiplied together: one factor per unexpired Nitro or Snail deadline. */
-export function riderSpeedMultiplier(
-  player: SpeedEffects,
-  tick: number,
-): number {
-  let multiplier = 1;
-  // Powers of two are exact, so the order of these products never matters to replicas.
-  for (const until of player.nitroUntilTicks)
-    if (until > tick) multiplier *= NITRO_SPEED;
-  for (const until of player.snailUntilTicks)
-    if (until > tick) multiplier *= SNAIL_SPEED;
-  return multiplier;
-}
-/**
- * Holding the bomb button slows the rider to steady the aim. The slowdown eases in over AIM_SLOW_RAMP_TICKS and eases
- * back out the same way on release, cancel or the cap: speed never jumps. The cap is a budget, not the age of a charge:
- * every slowed tick of aiming spends one of AIM_SLOW_MAX_TICKS, and they come back one per tick only while the button is
- * up, so a second of slowdown is all a hold buys however long it lasts, and cancelling into a fresh press buys nothing.
- * A gun fires on the press and never charges, so it never slows.
- */
-export const AIM_SLOW_SPEED = 0.5;
-export const AIM_SLOW_MAX_TICKS = TICK_HZ;
-export const AIM_SLOW_RAMP_TICKS = 6;
-/**
- * Aiming never takes a rider below this fraction of the round's pace. Self-trail immunity is counted in ticks, so a rider
- * much slower than this is still touching trail they laid after the grace ran out: three Snails are survivable, and
- * pressing the bomb button under them must stay so.
- */
-export const AIM_SLOW_FLOOR = 0.125;
-export interface AimSlow {
-  /** How far into the slowdown the rider is, 0 (full speed) to AIM_SLOW_RAMP_TICKS (slowest). One step per tick. */
-  aimSlowTicks: number;
-  /** Ticks of the slowdown budget in use, 0 to AIM_SLOW_MAX_TICKS. */
-  aimSlowSpentTicks: number;
-  bombChargeStartedTick?: number;
-}
-/** The rider's slowdown once the next tick has moved them: a step toward slow while they aim within budget, a step back otherwise. */
-export function nextAimSlow(
-  player: AimSlow,
-): Pick<AimSlow, "aimSlowTicks" | "aimSlowSpentTicks"> {
-  const held = player.bombChargeStartedTick !== undefined;
-  const aiming = held && player.aimSlowSpentTicks < AIM_SLOW_MAX_TICKS;
-  return {
-    aimSlowTicks: Math.max(
-      0,
-      Math.min(AIM_SLOW_RAMP_TICKS, player.aimSlowTicks + (aiming ? 1 : -1)),
-    ),
-    aimSlowSpentTicks: Math.max(
-      0,
-      player.aimSlowSpentTicks + (aiming ? 1 : held ? 0 : -1),
-    ),
-  };
-}
-/** Smoothstep from 1 down to AIM_SLOW_SPEED: basic arithmetic only, so every replica agrees to the bit. */
-export function aimSlowMultiplier(aimSlowTicks: number): number {
-  const t = aimSlowTicks / AIM_SLOW_RAMP_TICKS;
-  return 1 - (1 - AIM_SLOW_SPEED) * t * t * (3 - 2 * t);
-}
-/**
- * How far a rider moves and may turn on `tick`, given their state after the tick before: the round's ramp on both, then
- * the speed pickups and the aiming slowdown on distance alone. The slowdown returned is the one this step moves at, for
- * the simulation to store. A caller looking further ahead than one tick holds the slowdown at that level, which is close
- * enough for a forecast: it is never more than AIM_SLOW_RAMP_TICKS steps from the truth.
- */
-export function riderMotionStep(
-  player: SpeedEffects & AimSlow & { grip: boolean },
-  tick: number,
-  roundStartedTick: number | undefined,
-): {
-  distance: number;
-  turn: number;
-  aimSlowTicks: number;
-  aimSlowSpentTicks: number;
-} {
-  const ramp = roundSpeedMultiplier(tick - (roundStartedTick ?? tick));
-  const distance = (RIDER_SPEED / TICK_HZ) * ramp;
-  const aimSlow = nextAimSlow(player);
-  const speed = riderSpeedMultiplier(player, tick);
-  return {
-    distance:
-      distance *
-      Math.max(
-        speed * aimSlowMultiplier(aimSlow.aimSlowTicks),
-        Math.min(speed, AIM_SLOW_FLOOR),
-      ),
-    turn: (riderTurnRate(player) / TICK_HZ) * ramp,
-    ...aimSlow,
-  };
-}
-
-export type GamePhase =
-  "lobby" | "countdown" | "playing" | "roundOver" | "matchOver";
-export type EliminationCause = "wall" | "trail" | "explosion" | "rider";
-export const INK_DURATION_TICKS = 60;
-
-export interface PlayerIdentity {
-  id: PlayerId;
-  name: string;
-  slot: number;
-  color: string;
-  connected?: boolean;
-  avatarId?: AvatarId;
-}
-
-export interface InputIntent {
-  left: boolean;
-  right: boolean;
-  bomb: boolean;
-  bombCommands?: readonly BombActionCommand[];
-  aim?: AimPoint;
-}
-
-export interface PlayerState extends Required<PlayerIdentity> {
-  x: number;
-  y: number;
-  angle: number;
-  alive: boolean;
-  roundWins: number;
-  bombReadyAtTick: number;
-  bombChargeStartedTick?: number;
-  /** Eased aiming slowdown, 0 to AIM_SLOW_RAMP_TICKS, and the budget it has used, 0 to AIM_SLOW_MAX_TICKS: see `nextAimSlow`. */
-  aimSlowTicks: number;
-  aimSlowSpentTicks: number;
-  gunArmed?: boolean;
-  shellArmed?: boolean;
-  targetBombArmed: boolean;
-  bombTarget?: AimPoint;
-  /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
-  extraBombs: number;
-  fuseLevel: number;
-  powerPickups: number;
-  /** Captured at launch so collecting a level never distorts an active reload ring. */
-  reloadDurationTicks: number;
-  invulnerableUntilTick: number;
-  /** One absolute deadline per Nitro collected, unexpired ones only: each doubles speed, so they stack (#240). */
-  nitroUntilTicks: number[];
-  /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#240). */
-  snailUntilTicks: number[];
-  /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
-  grip: boolean;
-  drunkUntilTick: number;
-  inkUntilTick: number;
-  drunkStartedTick: number;
-  drunkHeadingOffset: number;
-  tripleShotArmed: boolean;
-  fiveShotArmed: boolean;
-
-  shielded: boolean;
-  shieldGraceUntilTick: number;
-  portalCooldownUntilTick: number;
-  portalGraceUntilTick: number;
-  trail: TrailSegment[];
-}
-
-export interface BombState {
-  id: number;
-  ownerId: PlayerId;
-  launchX: number;
-  launchY: number;
-  x: number;
-  y: number;
-  launchedTick: number;
-  landsAtTick: number;
-  flightPath: FlightPoint[];
-  placedTick: number;
-  explodeAtTick: number;
-  /** `bounces` counts a shell's wall and trail reflections since launch; a gun bullet never bounces and never carries it. */
-  blastRange: number;
-  shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
-  /** A shell's own portal re-entry cooldown, so a gate pair it is aimed down cannot hold it in a loop. */
-  portalCooldownUntilTick?: number;
-  /**
-   * The trigger pull that put this bomb in the air — its entry in `GameState.shots` — so a kill can name the shot.
-   * Statistics only: nothing in the simulation reads it, and it never reaches a public snapshot. Optional as defence
-   * in depth at the checkpoint boundary: a bomb that arrives without one kills without being logged against a shot.
-   */
-  shot?: number;
-}
-
-/** A black hole: headings bend toward (x, y) anywhere inside `radius`. */
-export interface GravityField {
-  x: number;
-  y: number;
-  radius: number;
-  expiresAtTick: number;
-}
-
-export interface BlastState {
-  bombId: number;
-  ownerId: PlayerId;
-  circle: BlastCircle;
-  expiresAtTick: number;
-}
+export * from "./state.js";
+export * from "./tuning.js";
+import {
+  ARENA_HEIGHT,
+  ARENA_WIDTH,
+  BLAST_VISIBLE_TICKS,
+  BOMB_COOLDOWN_TICKS,
+  COUNTDOWN_TICKS,
+  GRAVITY_BEND,
+  GRAVITY_CORE_SPAWN_CLEARANCE,
+  GRAVITY_FIELD_TICKS,
+  GRAVITY_MAX_HOLES_PER_PICKUP,
+  GRAVITY_MAX_RADIUS,
+  GRAVITY_MIN_RADIUS,
+  INITIAL_BOUNDARY_INSET,
+  INK_DURATION_TICKS,
+  MATCH_WINNER_TICKS,
+  MAX_GRAVITY_FIELDS,
+  MAX_PLAYERS,
+  MAX_SPEED_EFFECT_STACK,
+  MIN_PLAYERS,
+  NITRO_DURATION_TICKS,
+  OVERTIME_INSET_PER_TICK,
+  OVERTIME_START_TICK,
+  PICKUP_DESTRUCTION_RADIUS_RATIO,
+  PICKUP_OBSTACLE_CLEARANCE,
+  PICKUP_RADIUS,
+  PICKUP_RIDER_BOMB_CLEARANCE,
+  PICKUP_SEPARATION,
+  PICKUP_SPAWN_ATTEMPTS,
+  PICKUP_SPAWN_MARGIN,
+  PICKUP_TRAIL_CLEARANCE,
+  PROJECTILE_OWNER_GRACE_TICKS,
+  RIDER_CONTACT_RADIUS,
+  RIDER_OBSTACLE_RADIUS,
+  RIDER_RADIUS,
+  ROUND_DRAW_TICK,
+  ROUND_OVER_TICKS,
+  SELF_TRAIL_GRACE_TICKS,
+  SHIELD_GRACE_TICKS,
+  SNAIL_DURATION_TICKS,
+  SPAWN_CORRIDOR_LENGTH,
+  SPAWN_CORRIDOR_RADIUS,
+  STAR_DURATION_TICKS,
+  TICK_HZ,
+  TRAIL_WIDTH,
+  bombFuseTicks,
+  gravityCoreRadius,
+  riderMotionStep,
+} from "./tuning.js";
+import {
+  type BlastState,
+  type BombState,
+  type EliminationCause,
+  type GamePhase,
+  type GameState,
+  type GravityField,
+  type InputIntent,
+  type PlayerIdentity,
+  type PlayerState,
+  sortedBombs,
+  sortedObstacles,
+  sortedPlayers,
+} from "./state.js";
+import {
+  type AimPoint,
+  type BlastCircle,
+  type BombActionCommand,
+  type FlightPoint,
+  type GameEvent,
+  type GameSnapshot,
+  type PlayerId,
+  type TrailSegment,
+} from "./state.js";
 
 /**
  * A blast opened this tick, carrying the shot of the bomb that made it. The stored `state.blasts` entry is a plain
@@ -498,59 +217,6 @@ export interface BlastState {
  * moment it explodes, so the shot has to travel with the blast rather than be looked up afterwards.
  */
 type NewBlast = BlastState & { shot?: number };
-
-export interface PickupState {
-  id: number;
-  type: PickupType;
-  x: number;
-  y: number;
-  /** Round-long: MAX_SAFE_INTEGER keeps snapshots finite and pickup sprites fully visible. */
-  expiresAtTick: number;
-}
-
-export interface GameState {
-  settings?: RoomSettings;
-  matchId: string;
-  round: number;
-  tick: number;
-  phase: GamePhase;
-  phaseEndsAtTick?: number;
-  roundStartedTick?: number;
-  width: number;
-  height: number;
-  boundaryInset: number;
-  /** The ground this round is played on, chosen once in `prepareRound` from the room's setting. */
-  map: ArenaMapId;
-  /** Solid scenery: lethal on contact, cleared by a blast, and gone once the overtime walls pass it. */
-  obstacles: Obstacle[];
-  players: Map<PlayerId, PlayerState>;
-  bombs: Map<number, BombState>;
-  blasts: BlastState[];
-  pickups: PickupState[];
-  portalPairs: PortalPair[];
-  gravityFields: GravityField[];
-  nextTrailPieceId: number;
-  nextBombId: number;
-  nextPickupId: number;
-  nextPickupSpawnTick: number;
-  seed: number;
-  randomState: number;
-  leaderboard: Map<PlayerId, SessionLeaderboardEntry>;
-  roundParticipants: Map<PlayerId, RoundParticipant>;
-  roundPlacements: RoundPlacement[];
-  roundScored: boolean;
-  matchStats: MatchStatsState;
-  /** Connected participants frozen at match end; later recap joins/leaves cannot change agreement. */
-  matchFinishers: string[];
-  /** Highlight moments of the match, bounded per kind and cleared with `matchStats` (ADR 043). */
-  moments: Moment[];
-  /** Every trigger pull of the current round and whom it killed, for per-kill and per-miss analytics. Cleared each round. */
-  shots: RoundShot[];
-  /** The most recently decided round's log, kept until the next round is decided — through a rematch and the lobby too. */
-  decidedRound?: DecidedRound;
-  roundWinnerId?: PlayerId;
-  matchWinnerId?: PlayerId;
-}
 
 export interface TickResult {
   snapshot: GameSnapshot;
@@ -3366,14 +3032,6 @@ function assertPhase(
     throw new Error(`${command} is invalid during ${state.phase}`);
 }
 
-export function sortedPlayers(
-  state: Pick<GameState, "players">,
-): PlayerState[] {
-  return [...state.players.values()].sort(
-    (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-  );
-}
-
 function markCause(
   causes: Map<PlayerId, EliminationCause>,
   causeOwners: Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>,
@@ -3411,14 +3069,3 @@ const NEUTRAL_INPUT: InputIntent = Object.freeze({
   right: false,
   bomb: false,
 });
-
-export function sortedBombs(state: Readonly<GameState>): BombState[] {
-  return [...state.bombs.values()].sort((a, b) => a.id - b.id);
-}
-
-/** Scenery in id order, which is the order it was generated in: contact bisection and exact ties read it in order. */
-export function sortedObstacles(
-  state: Pick<GameState, "obstacles">,
-): Obstacle[] {
-  return [...state.obstacles].sort((a, b) => a.id - b.id);
-}

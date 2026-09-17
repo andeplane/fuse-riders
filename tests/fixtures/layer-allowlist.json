@@ -47,11 +47,11 @@
   "src/shared/bomb-input.ts -> src/shared/protocol.ts",
   "src/shared/bot-controller.ts -> src/shared/protocol.ts",
   "src/shared/game.ts -> src/shared/avatars.ts",
-  "src/shared/game.ts -> src/shared/protocol.ts",
   "src/shared/gun.ts -> src/shared/protocol.ts",
   "src/shared/input-log.ts -> src/shared/avatars.ts",
   "src/shared/input-log.ts -> src/shared/protocol.ts",
   "src/shared/match-recap.ts -> src/shared/duration-text.ts",
+  "src/shared/state.ts -> src/shared/protocol.ts",
   "src/shared/trail-clipping.ts -> src/shared/protocol.ts",
   "src/shared/trail-lifecycle.ts -> src/shared/protocol.ts",
   "src/shared/wrap.ts -> src/shared/protocol.ts"

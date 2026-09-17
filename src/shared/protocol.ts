@@ -8,6 +8,7 @@ import type { PickupType } from "./pickup-types.js";
 import type { Moment } from "./moments.js";
 import type { DecidedRound } from "./shot-log.js";
 
+export type { AvatarId } from "./avatars.js";
 export type { ArenaMapId, Obstacle, ObstacleKind } from "./arena-map.js";
 export type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
 export type {
