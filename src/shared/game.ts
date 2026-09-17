@@ -218,6 +218,13 @@ import {
   type TrailSegment,
 } from "./state.js";
 import { toSnapshot } from "./view.js";
+import {
+  layTrail,
+  movementImages,
+  nearestDelta,
+  portalBounds,
+  wallReach,
+} from "./sim/field.js";
 
 export interface TickResult {
   snapshot: GameSnapshot;
@@ -431,43 +438,7 @@ export function step(
   if (state.phase !== "playing") return { snapshot: toSnapshot(state), events };
   const { pickupSchedule } = ctx;
 
-  for (const player of sortedPlayers(state))
-    player.trail = advanceTrail(player.trail, state.tick);
-
-  const elapsed = state.tick - (state.roundStartedTick ?? state.tick);
-  state.boundaryInset =
-    initialBoundaryInset(state.map, INITIAL_BOUNDARY_INSET) +
-    Math.max(0, elapsed - OVERTIME_START_TICK) * OVERTIME_INSET_PER_TICK;
-  // Decided once per tick: open edges carry riders, shells, bullets, bombs and blasts through to the far side.
-  const open = edgesOpen(state);
-  const trailBounds = portalBounds(state);
-  ctx.elapsed = elapsed;
-  ctx.open = open;
-  ctx.trailBounds = trailBounds;
-  state.portalPairs = state.portalPairs
-    .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
-    .filter((pair): pair is PortalPair => pair !== undefined);
-  // Scenery is not resized the way a gate is: an obstacle the closing walls have reached is rubble.
-  state.obstacles = state.obstacles.filter((obstacle) =>
-    obstacleInsideBounds(obstacle, trailBounds),
-  );
-  // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out
-  // of bounds. Clamped against the inset computed just above, like the portal fit, rather than last tick's.
-  for (const field of state.gravityFields) {
-    field.x = Math.max(trailBounds.minX, Math.min(trailBounds.maxX, field.x));
-    field.y = Math.max(trailBounds.minY, Math.min(trailBounds.maxY, field.y));
-  }
-  for (const player of sortedPlayers(state)) {
-    player.trail = cutTrail(
-      player.trail,
-      state.tick,
-      (segment) => {
-        const clipped = clipTrailSegment(segment, trailBounds);
-        return clipped ? [clipped] : [];
-      },
-      () => state.nextTrailPieceId++,
-    );
-  }
+  const { elapsed, open, trailBounds } = ctx;
 
   if (state.tick >= state.nextPickupSpawnTick) {
     state.nextPickupSpawnTick = state.tick + pickupSchedule.interval;
@@ -1696,15 +1667,6 @@ function expireSpeedEffects(player: PlayerState, tick: number): void {
     );
 }
 
-function portalBounds(state: GameState) {
-  return {
-    minX: state.boundaryInset,
-    minY: state.boundaryInset,
-    maxX: state.width - state.boundaryInset,
-    maxY: state.height - state.boundaryInset,
-  };
-}
-
 /**
  * The first gate a shell's swept path meets this tick, as a fraction of the tick, or nothing.
  * Projectiles are held only to portal-wall clearance at the exit, not to the rider rule: a shell has
@@ -1860,66 +1822,6 @@ function isSafePortalPosition(
       radius,
     ),
   );
-}
-
-/**
- * How far from the wall's face a rider dies. A rider's radius, except while a wrap board's walls are first coming in:
- * riders may legally be anywhere up to the very edge when they appear, so the lethal band grows out of the edge over
- * a few ticks instead of arriving a full radius wide in one.
- */
-function wallReach(state: GameState): number {
-  return state.map === "wrap"
-    ? Math.min(RIDER_RADIUS, 2 * state.boundaryInset)
-    : RIDER_RADIUS;
-}
-
-/** The short way round when the edges are open, the plain difference when they are not. */
-function nearestDelta(open: boolean, delta: number, size: number): number {
-  return open ? wrapDelta(delta, size) : delta;
-}
-
-/** Where a step has to be tested from so that it meets everything within `reach` of it, across open edges included. */
-function movementImages(
-  state: GameState,
-  movement: Movement,
-  reach: number,
-): WrapOffset[] {
-  return wrapImages(
-    state.width,
-    state.height,
-    Math.min(movement.oldX, movement.x) - reach,
-    Math.min(movement.oldY, movement.y) - reach,
-    Math.max(movement.oldX, movement.x) + reach,
-    Math.max(movement.oldY, movement.y) + reach,
-  );
-}
-
-/**
- * This tick's trail for a step. Walls clip it; an open edge splits it instead, into the piece up to the edge and the
- * piece on from the opposite one. The two never join — same tick, different ends of the board — which is the same
- * logical link with a gap in it that a portal crossing already leaves.
- */
-function layTrail(
-  state: GameState,
-  open: boolean,
-  bounds: ReturnType<typeof portalBounds>,
-  player: PlayerState,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-): TrailSegment[] {
-  const segment: TrailSegment = {
-    x1,
-    y1,
-    x2,
-    y2,
-    createdTick: state.tick,
-    expiresAtTick: state.tick + powerTrailLifetimeTicks(player.powerPickups),
-  };
-  if (open) return splitWrappedSegment(segment, state.width, state.height);
-  const clipped = clipTrailSegment(segment, bounds);
-  return clipped ? [clipped] : [];
 }
 
 function isInvulnerable(player: PlayerState, tick: number): boolean {

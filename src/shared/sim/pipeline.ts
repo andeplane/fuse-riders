@@ -6,6 +6,8 @@ import type { TickContext } from "./context.js";
 import { advanceClock } from "./phases/advance-clock.js";
 import { expire } from "./phases/expire.js";
 import { startPlay } from "./phases/start-play.js";
+import { ageTrails } from "./phases/age-trails.js";
+import { fitField } from "./phases/fit-field.js";
 
 export interface Phase {
   readonly name: string;
@@ -18,6 +20,8 @@ export const PHASES: readonly Phase[] = [
   { name: "advanceClock", when: "always", run: advanceClock },
   { name: "expire", when: "always", run: expire },
   { name: "startPlay", when: "always", run: startPlay },
+  { name: "ageTrails", when: "playing", run: ageTrails },
+  { name: "fitField", when: "playing", run: fitField },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */
