@@ -20,7 +20,18 @@ import {
 import type { RoomGateway } from "./gateway.js";
 import { DEFAULT_ICE_SERVERS } from "fuse-network-protocol";
 
+/** Optional game-owned HTTP routes, behind the common Origin and error boundaries. */
+export interface HttpExtension {
+  methods?: readonly string[];
+  headers?: readonly string[];
+  handle(
+    req: IncomingMessage,
+    res: ServerResponse,
+    clientAddress: string,
+  ): Promise<boolean>;
+}
 export interface RoomHttpOptions {
+  extension?: HttpExtension;
   store: RoomStore;
   gateway: RoomGateway;
   /** Decides a request's Origin header; WebSocket upgrades must always carry an allowed one. */
@@ -112,10 +123,19 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
     }
     res.setHeader("Cache-Control", "no-store");
     if (req.method === "OPTIONS") {
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+      res.setHeader(
+        "Access-Control-Allow-Methods",
+        ["GET", "POST", "OPTIONS", ...(options.extension?.methods ?? [])].join(
+          ", ",
+        ),
+      );
       res.setHeader(
         "Access-Control-Allow-Headers",
-        "Content-Type, Authorization",
+        [
+          "Content-Type",
+          "Authorization",
+          ...(options.extension?.headers ?? []),
+        ].join(", "),
       );
       res.writeHead(204);
       res.end();
@@ -182,6 +202,8 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         json({ iceServers: DEFAULT_ICE_SERVERS, relayConfigured: false });
         return;
       }
+      if (await options.extension?.handle(req, res, options.clientAddress(req)))
+        return;
       if (
         url.pathname !== "/api" &&
         !url.pathname.startsWith("/api/") &&
