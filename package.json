@@ -7,13 +7,12 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "NODE_ENV=development tsx watch --exclude '**/.vite-temp/**' src/server/index.ts",
+    "dev": "npm run build && tsx src/service/dev.ts --port 8787",
     "build": "tsc --noEmit && vite build",
     "prestart": "npm run build",
-    "start": "NODE_ENV=production tsx src/server/index.ts",
+    "start": "npm run build && tsx src/service/dev.ts --port 8787",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
-    "test:browser": "tsx scripts/browser-smoke.ts",
     "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
     "dev:online": "npm run build && tsx src/service/dev.ts --port 8787",
     "format": "prettier --write .",

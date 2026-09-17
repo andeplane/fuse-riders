@@ -71,8 +71,6 @@ BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
 BROWSER=webkit DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
 npx vite build --outDir artifacts/phaser-dist
-BUILD_DIRECTORY=artifacts/phaser-dist npm run test:browser
-BUILD_DIRECTORY=artifacts/phaser-dist BROWSER=webkit npm run test:browser
 npx vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
 npx tsx scripts/phaser-pages-smoke.ts
 npx tsx scripts/gameplay-showcase.ts

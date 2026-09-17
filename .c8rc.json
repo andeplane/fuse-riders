@@ -2,7 +2,6 @@
   "all": true,
   "include": [
     "src/shared/**",
-    "src/server/**",
     "src/client/controller-state.ts",
     "src/client/controller-pointers.ts",
     "src/client/controller-keyboard.ts",
