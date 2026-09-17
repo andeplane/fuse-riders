@@ -349,23 +349,39 @@ try {
   const running = await latest(host);
   // Guest refresh mid-round: a reload comes back into the running match with the seat it held, without the join card.
   await guest.reload();
-  await guest
-    .locator(".online-roster:visible")
-    .getByText("Guest", { exact: false })
-    .waitFor();
-  await guest.waitForFunction(
-    () => {
-      const list = Reflect.get(window, "__snapshots") as Snapshot[] | undefined;
-      const state = list?.at(-1);
-      return (
-        !!state &&
-        state.phase !== "lobby" &&
-        state.players.some((player) => player.id === state.playerId)
-      );
-    },
-    undefined,
-    { timeout: smokeTimeout(30000) },
-  );
+  // The seat is read from the runtime's own snapshots: the phone play layout hides the roster, so a wait on roster text
+  // only ended when the match did. A recovered world that lists this rider is the seat kept; one that does not, with
+  // the join card up, is the rider pruned at a round boundary that fell inside the reload.
+  const landed = (cardCounts: boolean) =>
+    guest.waitForFunction(
+      (cardCounts) => {
+        const list = Reflect.get(window, "__snapshots") as
+          Snapshot[] | undefined;
+        const state = list?.at(-1);
+        if (!state || state.phase === "lobby") return false;
+        if (state.players.some((player) => player.id === state.playerId))
+          return "seated";
+        return cardCounts &&
+          document.querySelector(".room-join")?.getClientRects().length
+          ? "pruned"
+          : false;
+      },
+      cardCounts,
+      { timeout: smokeTimeout(30000) },
+    );
+  if ((await (await landed(true)).jsonValue()) === "pruned") {
+    // Absent riders leave at round progression and come back through the join card: legitimate only across a boundary.
+    assert.ok(
+      (await latest(guest))!.round > running!.round,
+      "a guest that reloads inside one round keeps its seat without the join card",
+    );
+    await guest.getByPlaceholder("Your name").fill("Guest");
+    await guest
+      .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
+      .click();
+    await landed(false);
+    console.log("Guest seat pruned at a round boundary; rejoined by the card");
+  }
   const afterGuest = await latest(guest);
   assert.equal(
     afterGuest!.matchId,
