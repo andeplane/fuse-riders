@@ -62,6 +62,7 @@ export interface PhaserArena {
     theme: ThemeDefinition,
     matchId: string,
     selfId?: string,
+    replay?: boolean,
   ): void;
   resize(width: number, height: number): void;
   reset(): void;
@@ -220,11 +221,11 @@ export function createPhaserArena(
   };
   return {
     ready,
-    render(snapshot, now, theme, matchId, selfId) {
+    render(snapshot, now, theme, matchId, selfId, replay) {
       if (!booted || destroyed || lost || document.hidden) return;
       const start = performance.now();
       resize(snapshot.width, snapshot.height, snapshot.map === "cross");
-      scene.paint(snapshot, now, theme, matchId, selfId);
+      scene.paint(snapshot, now, theme, matchId, selfId, replay);
       game.step(
         now,
         lastNow ? Math.min(50, Math.max(0, now - lastNow)) : 16.667,
@@ -606,6 +607,7 @@ class ArenaScene extends Phaser.Scene {
     theme: ThemeDefinition,
     matchId: string,
     selfId?: string,
+    replay = false,
   ): void {
     this.imageIndex = 0;
     this.labelIndex = 0;
@@ -1035,8 +1037,9 @@ class ArenaScene extends Phaser.Scene {
         piece.y2,
       );
     }
+    // A replayed moment is not the round opening for the viewer, so it never points them out.
+    const locate = replay ? 0 : selfLocatorStrength(s);
     // Near an open edge a rider is drawn on both sides of it, so it arrives as it leaves rather than popping across.
-    const locate = selfLocatorStrength(s);
     for (const rider of s.players)
       for (const ghost of rider.alive ? ghosts(rider.x, rider.y, 40) : []) {
         const p =

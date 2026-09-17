@@ -3,8 +3,8 @@ import type { ViewSnapshot } from "./snapshot-stream.js";
 
 /** How long the locator lingers, fading, once the riders start moving. */
 export const SELF_LOCATOR_LINGER_TICKS = 2 * TICK_HZ;
-/** Room the arrow and its "YOU" caption need on the side of the rider they are drawn on. */
-export const SELF_LOCATOR_REACH = 150;
+/** Room the arrow and its "YOU" caption need on the side of the rider they are drawn on, caption glyphs included. */
+export const SELF_LOCATOR_REACH = 170;
 const RING_PERIOD_MS = 1100;
 const RING_FAR = 230;
 const RING_NEAR = 30;
