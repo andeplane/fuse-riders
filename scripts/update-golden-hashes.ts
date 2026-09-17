@@ -5,11 +5,8 @@ import {
   validateGoldenUpdate,
   type GoldenHashes,
 } from "./lib/golden-update.js";
-import {
-  makeRecording,
-  replayHashes,
-  type Recording,
-} from "../tests/fixtures/replay-log.js";
+import { replayHashes, type Recording } from "../tests/fixtures/replay-log.js";
+import { makeRecording } from "../tests/fixtures/replay-recorder.js";
 
 const path = new URL("../tests/fixtures/", import.meta.url);
 const previous: GoldenHashes = JSON.parse(

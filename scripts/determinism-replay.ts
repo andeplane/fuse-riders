@@ -3,11 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
 import { chromium, webkit } from "playwright";
-import {
-  makeRecording,
-  replayHashes,
-  type Recording,
-} from "../tests/fixtures/replay-log.ts";
+import { replayHashes, type Recording } from "../tests/fixtures/replay-log.ts";
+import { makeRecording } from "../tests/fixtures/replay-recorder.ts";
 
 // Phase 0 gate: the same seeded five-rider log folds to the same state hash on every tick in Node, Chromium and WebKit.
 const seed = Number(process.env.REPLAY_SEED ?? 20260915);
