@@ -3,7 +3,8 @@ import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
-import { chromium, webkit, type Page } from "playwright";
+import type { Page } from "playwright";
+import { launchBrowser } from "./lib/browser.js";
 import { smokeTimeout } from "./smoke-timeout.js";
 
 // Phase 3 gate: six contexts alternating Chromium and WebKit establish all fifteen links, exchange packets in all
@@ -85,8 +86,8 @@ const mesh = <T>(page: Page, expression: string, argument?: unknown) =>
     [expression, argument] as [string, unknown],
   ) as Promise<T>;
 const browsers = [
-  await chromium.launch({ headless: true }),
-  await webkit.launch({ headless: true }),
+  await launchBrowser("chromium", { headless: true }),
+  await launchBrowser("webkit", { headless: true }),
 ];
 const pages: Page[] = [],
   errors: string[] = [];

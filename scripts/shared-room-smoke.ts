@@ -1,4 +1,5 @@
-import { chromium, webkit, type Page } from "playwright";
+import type { Page } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
@@ -12,11 +13,8 @@ async function qr(page: Page) {
     return image?.complete && image.naturalWidth > 0;
   });
 }
-for (const [name, type] of [
-  ["chrome", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await type.launch({ headless: true });
+for (const { name, kind } of BOTH_ENGINES) {
+  const browser = await launchBrowser(kind, { headless: true });
   const errors: string[] = [];
   let guestSockets = 0;
   let guestNavigations = 0;

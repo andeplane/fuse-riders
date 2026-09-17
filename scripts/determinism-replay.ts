@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
-import { chromium, webkit } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import {
   makeRecording,
   replayHashes,
@@ -34,11 +34,8 @@ const results: Record<
   string,
   { ticks: number; ms: number; firstMismatch?: number }
 > = { node: { ticks, ms: Math.round(performance.now() - started) } };
-for (const [name, engine] of [
-  ["chromium", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await engine.launch({ headless: true });
+for (const { kind: name } of BOTH_ENGINES) {
+  const browser = await launchBrowser(name, { headless: true });
   try {
     const page = await browser.newPage();
     await page.setContent("<!doctype html><title>Determinism replay</title>");

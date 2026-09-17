@@ -40,22 +40,36 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
+          # The path filter below diffs against the commit Cloud Run serves, however far back that is.
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm ci
-      - run: npm ci --prefix tools/firebase
       # Keyless federation: no service-account key is stored in this repository.
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/867594018708/locations/global/workloadIdentityPools/github/providers/fuse-riders
           service_account: fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com
       - uses: google-github-actions/setup-gcloud@v2
+      # Path filter: a main push that changed nothing the backend is built from (documentation, CI,
+      # browser scripts, tests) does not rebuild and roll Cloud Run. The list is
+      # scripts/lib/backend-paths.ts; the comparison is with the commit Cloud Run serves, so a change
+      # whose own run failed is deployed by the next one. A manual dispatch always deploys, and so
+      # does any doubt about what is served.
+      - name: Did anything the backend is built from change?
+        id: changes
+        run: npx tsx scripts/backend-changed.ts
+        env:
+          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}
+      - if: steps.changes.outputs.deploy == 'true'
+        run: npm ci --prefix tools/firebase
       # The script re-checks that this revision is still main and that its CI run passed,
       # builds the committed source and deploys the resulting immutable digest.
-      - run: ./scripts/deploy-cloud.sh
+      - if: steps.changes.outputs.deploy == 'true'
+        run: ./scripts/deploy-cloud.sh
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.changes.outputs.deploy == 'true'
         with:
           name: cloud-release-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
           path: |

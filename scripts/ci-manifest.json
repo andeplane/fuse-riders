@@ -1,0 +1,190 @@
+{
+  "about": "Every CI step, once. .github/workflows/ci.yml builds its browser matrix from `smokes` (one job per entry) and scripts/ci-local.sh runs `verify` then `smokes`, both through scripts/ci-run.ts. The `verify` job's steps are written out in ci.yml so they keep their names there; tests/ci-manifest.test.ts fails when the two lists differ. Fields are documented in scripts/lib/ci-manifest.ts.",
+  "verify": [
+    { "id": "format", "command": "npm run format:check" },
+    { "id": "config", "command": "npm run config:check" },
+    { "id": "typecheck", "command": "npm run typecheck" },
+    { "id": "coverage", "command": "npm run test:coverage" },
+    { "id": "build", "command": "npm run build" }
+  ],
+  "smokes": [
+    {
+      "id": "keyboard",
+      "group": "keyboard",
+      "name": "Desktop keyboard steering and firing",
+      "command": "npx tsx scripts/keyboard-smoke.ts",
+      "browsers": ["chromium", "webkit"],
+      "env": {},
+      "serviceUrlEnv": "HOME_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "desktop",
+      "group": "desktop",
+      "name": "Desktop control bar and keyboard help",
+      "why": "Compact desktop bar, ultrawide fit, resize recovery and the ? help: uncovered until #166 found it broken.",
+      "command": "npx tsx scripts/desktop-controls-smoke.ts",
+      "browsers": ["chrome"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "online-chrome",
+      "group": "online",
+      "name": "Online WebRTC room smoke (Phaser Canvas)",
+      "why": "Keep five-peer functional assertions on Phaser Canvas; six software-GL views overloaded the runner. Single-view Phaser remains a separate required gate.",
+      "command": "npx tsx scripts/online-smoke.ts",
+      "browsers": ["chromium"],
+      "env": { "ROOM_RENDERER": "phaser-canvas" },
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 25,
+      "retries": 1
+    },
+    {
+      "id": "online-webkit",
+      "group": "online",
+      "name": "Online WebKit room smoke (Phaser Canvas)",
+      "command": "npx tsx scripts/online-smoke.ts",
+      "browsers": ["webkit"],
+      "env": {
+        "SMOKE_RIDERS": "3",
+        "BROWSER": "webkit",
+        "ROOM_RENDERER": "phaser-canvas"
+      },
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 25,
+      "retries": 1
+    },
+    {
+      "id": "preview-chrome",
+      "group": "preview",
+      "name": "Chrome bomb charge preview",
+      "why": "The unit tests pin the charge ramp; this is the only thing that renders it, and a new room bounces by default, so without it CI never draws the ramp most rooms actually use (#176).",
+      "command": "npx tsx scripts/bomb-preview-smoke.ts",
+      "browsers": ["chrome"],
+      "env": {},
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "preview-webkit",
+      "group": "preview",
+      "name": "WebKit bomb charge preview",
+      "command": "npx tsx scripts/bomb-preview-smoke.ts",
+      "browsers": ["webkit"],
+      "env": { "BROWSER": "webkit" },
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "phaser-chrome",
+      "group": "phaser",
+      "name": "Chrome Phaser lifecycle and graphics retry",
+      "command": "npx tsx scripts/phaser-browser.ts",
+      "browsers": ["chrome"],
+      "env": {},
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "phaser-webkit",
+      "group": "phaser",
+      "name": "WebKit Phaser lifecycle and graphics retry",
+      "command": "npx tsx scripts/phaser-browser.ts",
+      "browsers": ["webkit"],
+      "env": { "BROWSER": "webkit" },
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "home",
+      "group": "home",
+      "name": "Landing, offline solo and mobile menus",
+      "command": "npx tsx scripts/home-mobile-smoke.ts",
+      "browsers": ["chromium", "webkit"],
+      "env": {},
+      "serviceUrlEnv": "HOME_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "landscape",
+      "group": "landscape",
+      "name": "Landscape gameplay and touch zones",
+      "command": "npx tsx scripts/mobile-landscape-smoke.ts",
+      "browsers": ["chromium", "webkit"],
+      "env": {},
+      "serviceUrlEnv": "HOME_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "phase",
+      "group": "phase",
+      "name": "One controller presentation across phone phases",
+      "command": "npx tsx scripts/mobile-phase-smoke.ts",
+      "browsers": ["chromium", "webkit"],
+      "env": {},
+      "serviceUrlEnv": "HOME_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "recap-chrome",
+      "group": "recap",
+      "name": "Chrome end-of-match recap",
+      "command": "npx tsx scripts/match-recap-smoke.ts",
+      "browsers": ["chromium"],
+      "env": {},
+      "serviceUrlEnv": "HOME_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "recap-webkit",
+      "group": "recap",
+      "name": "WebKit end-of-match recap",
+      "command": "npx tsx scripts/match-recap-smoke.ts",
+      "browsers": ["webkit"],
+      "env": { "BROWSER": "webkit" },
+      "serviceUrlEnv": "HOME_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "shared",
+      "group": "shared",
+      "name": "Shared QR lobby and room termination regression",
+      "command": "npx tsx scripts/shared-room-smoke.ts",
+      "browsers": ["chromium", "webkit"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 25,
+      "retries": 1
+    },
+    {
+      "id": "determinism",
+      "group": "determinism",
+      "name": "Cross-engine determinism replay",
+      "command": "npx tsx scripts/determinism-replay.ts",
+      "browsers": ["chromium", "webkit"],
+      "env": {},
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "mesh",
+      "group": "mesh",
+      "name": "Six-peer WebRTC mesh transport",
+      "command": "npx tsx scripts/p2p-mesh-browser.ts",
+      "browsers": ["chromium", "webkit"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 25,
+      "retries": 1
+    }
+  ]
+}
