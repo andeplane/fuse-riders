@@ -22,6 +22,7 @@ import { settleSceneryContacts } from "./phases/settle-scenery-contacts.js";
 import { resolveDefences } from "./phases/resolve-defences.js";
 import { portalTransit } from "./phases/portal-transit.js";
 import { stopAtContact } from "./phases/stop-at-contact.js";
+import { commitMovement } from "./phases/commit-movement.js";
 
 export interface Phase {
   readonly name: string;
@@ -54,6 +55,7 @@ export const PHASES: readonly Phase[] = [
   { name: "resolveDefences", when: "playing", run: resolveDefences },
   { name: "portalTransit", when: "playing", run: portalTransit },
   { name: "stopAtContact", when: "playing", run: stopAtContact },
+  { name: "commitMovement", when: "playing", run: commitMovement },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */

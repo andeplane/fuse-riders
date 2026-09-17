@@ -235,6 +235,7 @@ import {
 } from "./sim/riders.js";
 import { explodeInstant } from "./sim/phases/explode.js";
 import { captureOrigins, markCause, markShot } from "./sim/marks.js";
+import { logShot, logShotKill, recordElimination } from "./sim/recording.js";
 
 export interface TickResult {
   snapshot: GameSnapshot;
@@ -461,118 +462,6 @@ export function step(
   const movementList = [...movements.values()];
   const { sceneryReached } = ctx;
   const { transits } = ctx;
-  for (const movement of movementList) {
-    const cause = causes.get(movement.player.id);
-    if (cause) {
-      // A wreck against scenery is left where it hit, with the trail it laid getting there; the boundary keeps
-      // its own behaviour, where the rider has already been carried out of bounds.
-      if (
-        cause === "trail" ||
-        cause === "rider" ||
-        (cause === "wall" && obstacleContactTimes.has(movement.player.id))
-      ) {
-        movement.player.x = open
-          ? wrapCoordinate(movement.x, state.width)
-          : movement.x;
-        movement.player.y = open
-          ? wrapCoordinate(movement.y, state.height)
-          : movement.y;
-        movement.player.angle = movement.angle;
-        const laid = layTrail(
-          state,
-          open,
-          trailBounds,
-          movement.player,
-          movement.oldX,
-          movement.oldY,
-          movement.x,
-          movement.y,
-        ).filter((trail) => trail.x1 !== trail.x2 || trail.y1 !== trail.y2);
-        if (laid.length)
-          movement.player.trail = boundTrail([
-            ...movement.player.trail,
-            ...laid,
-          ]);
-      }
-      movement.player.alive = false;
-      movement.player.bombChargeStartedTick = undefined;
-      movement.player.bombTarget = undefined;
-      recordElimination(state, movement.player.id);
-      const credited = soleCreditedOwner(
-        causeOwners,
-        movement.player.id,
-        cause,
-      );
-      recordDeath(
-        state.matchStats,
-        movement.player.id,
-        cause,
-        causeOwners.get(movement.player.id)?.get(cause)?.size === 1
-          ? causeOwners.get(movement.player.id)!.get(cause)!.values().next()
-              .value
-          : undefined,
-        cause === "explosion"
-          ? causeOwners.get(movement.player.id)?.get(cause)?.size === 1
-            ? (state.shots.find(
-                (s) => s.shot === shotSources.get(movement.player.id)?.shot,
-              )?.weapon ?? "unknown")
-            : "unknown"
-          : cause,
-      );
-      if (cause === "explosion")
-        logShotKill(
-          state,
-          movement.player.id,
-          credited,
-          shotSources.get(movement.player.id)?.shot,
-        );
-      events.push({
-        type: "playerEliminated",
-        playerId: movement.player.id,
-        cause,
-      });
-      const trailHit =
-        cause === "trail" ? trailHits.get(movement.player.id) : undefined;
-      const landingHit = landingHits.get(movement.player.id),
-        shellHit = shellHits.get(movement.player.id);
-      observations.deaths.push({
-        victimId: movement.player.id,
-        cause,
-        owners: [...(causeOwners.get(movement.player.id)?.get(cause) ?? [])],
-        x: movement.x,
-        y: movement.y,
-        ...(trailHit ? { trailAge: trailHit.age } : {}),
-        ...(landingHit ? { landingHit } : {}),
-        ...(shellHit ? { shellHit } : {}),
-      });
-      continue;
-    }
-    const transit = transits.get(movement.player.id);
-    movement.player.x =
-      transit?.exitPoint.x ??
-      (open ? wrapCoordinate(movement.x, state.width) : movement.x);
-    movement.player.y =
-      transit?.exitPoint.y ??
-      (open ? wrapCoordinate(movement.y, state.height) : movement.y);
-    if (transit) {
-      movement.player.portalCooldownUntilTick = transit.cooldownUntilTick;
-      movement.player.portalGraceUntilTick = transit.graceUntilTick;
-      recordPortalTransit(state.matchStats, movement.player.id);
-    }
-    movement.player.angle = movement.angle;
-    const laid = layTrail(
-      state,
-      open,
-      trailBounds,
-      movement.player,
-      movement.oldX,
-      movement.oldY,
-      transit?.entryPoint.x ?? movement.x,
-      transit?.entryPoint.y ?? movement.y,
-    );
-    if (laid.length)
-      movement.player.trail = boundTrail([...movement.player.trail, ...laid]);
-  }
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movementList) {
     if (movement.player.alive) {
@@ -1431,60 +1320,6 @@ function seatedParticipants(state: GameState): RoundParticipant[] {
   );
 }
 
-const roundElapsed = (state: GameState): number =>
-  state.tick - (state.roundStartedTick ?? state.tick);
-
-function logShot(
-  state: GameState,
-  shooter: PlayerState,
-  shot: number,
-  weapon: Weapon,
-  bombs: number,
-): void {
-  const combat = state.matchStats.get(shooter.id)?.combat;
-  if (combat) combat.uses[weapon] += 1;
-  recordShot(state.shots, {
-    shot,
-    shooterId: shooter.id,
-    weapon,
-    elapsed: roundElapsed(state),
-    bombs,
-    power: shooter.powerPickups,
-    extraBombs: shooter.extraBombs,
-    fuseLevel: shooter.fuseLevel,
-    grip: shooter.grip,
-    kills: [],
-  });
-}
-
-/**
- * Log a kill against a shot on exactly the deaths `recordDeath` credits as eliminations: one owner behind the
- * explosion, and not the victim itself, so blowing yourself up stays a death with no kill anywhere. The credited
- * owner is necessarily the shot's shooter — every explosion mark on the victim came from that one owner's bombs.
- */
-function logShotKill(
-  state: GameState,
-  victimId: PlayerId,
-  creditedId: PlayerId | undefined,
-  shot: number | undefined,
-): void {
-  if (creditedId === undefined || creditedId === victimId || shot === undefined)
-    return;
-  recordShotKill(state.shots, shot, { victimId, elapsed: roundElapsed(state) });
-}
-
-function recordElimination(state: GameState, playerId: PlayerId): void {
-  const player = requirePlayer(state, playerId);
-  player.trail = detachTrail(
-    player.trail,
-    state.tick,
-    () => state.nextTrailPieceId++,
-  );
-  const participant = state.roundParticipants.get(playerId);
-  if (participant && participant.eliminatedAtTick === undefined)
-    participant.eliminatedAtTick = state.tick;
-}
-
 function scoreRoundOnce(
   state: GameState,
   placements: RoundPlacement[] | undefined,
@@ -1540,18 +1375,4 @@ function assertPhase(
 ): void {
   if (!allowed.includes(state.phase))
     throw new Error(`${command} is invalid during ${state.phase}`);
-}
-
-function soleCreditedOwner(
-  causeOwners: ReadonlyMap<
-    PlayerId,
-    ReadonlyMap<EliminationCause, ReadonlySet<PlayerId>>
-  >,
-  victimId: PlayerId,
-  cause: EliminationCause,
-): PlayerId | undefined {
-  const owners = causeOwners.get(victimId)?.get(cause);
-  if (!owners || owners.size !== 1) return undefined;
-  const ownerId = owners.values().next().value as PlayerId | undefined;
-  return ownerId === victimId ? undefined : ownerId;
 }
