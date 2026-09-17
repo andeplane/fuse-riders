@@ -95,7 +95,7 @@ try {
       const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
       const roster = document.querySelector('.online-roster')!.getBoundingClientRect();
       const actions = document.querySelector('.online-host')!.getBoundingClientRect();
-      return { viewport: { width: innerWidth, height: innerHeight }, arena: { width: r.width, height: r.height, y: r.y }, fitted: { width: canvas.width * scale, height: canvas.height * scale }, bar: { height: bar.height, bottom: bar.bottom }, rosterY: roster.y, actionsY: actions.y, overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
+      return { ui: parseFloat(getComputedStyle(document.documentElement).fontSize) / 16, viewport: { width: innerWidth, height: innerHeight }, arena: { width: r.width, height: r.height, y: r.y }, fitted: { width: canvas.width * scale, height: canvas.height * scale }, bar: { height: bar.height, bottom: bar.bottom }, rosterY: roster.y, actionsY: actions.y, overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
     })).jsonValue();
     assert.ok(layout);
     assert.equal(layout.overflow, false);
@@ -105,8 +105,9 @@ try {
     }));
     assert.equal(scores.length, 5);
     assert.ok(scores.every(score => score.fits && /\d+ PTS · \+\d+/.test(score.text ?? '')), 'long rider names must not truncate match points or the round award');
-    assert.ok(layout.arena.y >= layout.bar.bottom && layout.arena.y <= layout.bar.bottom + 5, `Arena/bar placement: ${JSON.stringify(layout)}`);
-    assert.ok(layout.arena.height >= viewport.height - layout.bar.height - 13);
+    assert.ok(layout.arena.y >= layout.bar.bottom && layout.arena.y <= layout.bar.bottom + 5 * layout.ui, `Arena/bar placement: ${JSON.stringify(layout)}`);
+    // The UI scales with the viewport above 1920x1080, so the bar's padding and gap allowances scale with it.
+    assert.ok(layout.arena.height >= viewport.height - layout.bar.height - 13 * layout.ui);
     if (viewport.width === 2048) {
       assert.ok(layout.fitted.width > viewport.width * .97, 'reference screen uses at least 97% of horizontal space');
       assert.ok(Math.abs(layout.rosterY - layout.actionsY) < 8, 'scores and actions share a row');

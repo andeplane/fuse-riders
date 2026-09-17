@@ -7,10 +7,10 @@
   --pink: #ff2e9d;
   --navy: #020715;
   --panel: rgba(5, 14, 37, .93);
-  /* All UI is sized in rem. Up to the 1600x900 design viewport 1rem is the browser default; on anything larger
+  /* All UI is sized in rem. Up to the 1920x1080 design viewport 1rem is the browser default; on anything larger
      (4K, 8K, a TV) it grows with the viewport, so menus and the HUD keep the same share of the screen.
-     Media queries stay in px: they measure the real viewport, and none of them matches once this scale kicks in. */
-  font-size: max(100%, min(100vw / 100, 100vh / 56.25));
+     Media queries stay in px: they measure the real viewport, and no size breakpoint matches once this scale kicks in. */
+  font-size: max(100%, min(100vw / 120, 100vh / 67.5));
 }
 
 * { box-sizing: border-box; }
