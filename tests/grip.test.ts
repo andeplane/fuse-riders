@@ -62,7 +62,12 @@ test("GRIP increases left/right steering by 75% from the next tick without chang
     step(game, input);
     assert.equal(p.grip, true);
     const plain = riderMotionStep(
-      { nitroUntilTicks: [], snailUntilTicks: [], grip: false },
+      {
+        nitroUntilTicks: [],
+        snailUntilTicks: [],
+        grip: false,
+        aimSlowTicks: 0,
+      },
       game.tick,
       game.roundStartedTick,
     ).turn;
@@ -74,7 +79,12 @@ test("GRIP increases left/right steering by 75% from the next tick without chang
     const before = { ...p };
     step(game, input);
     const ungripped = riderMotionStep(
-      { nitroUntilTicks: [], snailUntilTicks: [], grip: false },
+      {
+        nitroUntilTicks: [],
+        snailUntilTicks: [],
+        grip: false,
+        aimSlowTicks: 0,
+      },
       game.tick,
       game.roundStartedTick,
     );

@@ -98,6 +98,7 @@ export interface GameSnapshot {
     waitingForNextRound?: boolean;
     bombReadyAtTick: number;
     bombChargeStartedTick?: number;
+    aimSlowTicks: number;
     trail: ReadonlyArray<TrailSegment>;
     extraBombs: number;
     fuseLevel: number;
