@@ -347,3 +347,29 @@ test('once both humans are out the room runs three ticks per 50 ms on every memb
   assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
   host.stop(); guest.stop();
 });
+
+function botsOnlyRoom() {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  for (let i = 0; i < 3; i++) host.command({ type: 'bot', action: 'add' });
+  host.command({ type: 'action', action: 'start' }); net.step(COUNTDOWN_TICKS * 50 + 200);
+  const botsOnly = () => { const frame = net.frame(HOST)!; return frame.phase === 'playing' && frame.players.some(p => p.alive) && frame.players.every(p => !p.alive || p.id.startsWith('bot:')); };
+  return { net, host, guest, botsOnly, untilBotsOnly: () => { for (let i = 0; i < 600 && !botsOnly(); i++) net.step(50); assert.ok(botsOnly()); } };
+}
+const apart = (a: RoomRuntime, b: RoomRuntime) => Math.abs(a.metrics().clockTick - b.metrics().clockTick);
+
+test('a guest hidden before the last human dies follows the authority to triple pace instead of holding the room back', () => {
+  const f = botsOnlyRoom(); f.net.step(300); f.net.setHidden(GUESTS[0]!, true); f.untilBotsOnly(); f.net.step(1500);
+  const before = f.net.frame(HOST)!.tick; f.net.step(500);
+  assert.equal(f.net.frame(HOST)!.phase, 'playing'); assert.ok(f.net.frame(HOST)!.tick - before >= 27, `the room is not waiting on the hidden guest: ${f.net.frame(HOST)!.tick - before}`);
+  f.host.stop(); f.guest.stop();
+});
+
+test('a guest hidden while only AI riders race drops back with the authority at round over and returns in step', () => {
+  const f = botsOnlyRoom(); f.untilBotsOnly(); f.net.step(300); f.net.setHidden(GUESTS[0]!, true);
+  for (let i = 0; i < 1200 && f.net.frame(HOST)!.phase === 'playing'; i++) f.net.step(50);
+  f.net.step(3000); assert.ok(apart(f.host, f.guest) < 45, `the frozen world did not keep the guest at triple pace: ${apart(f.host, f.guest)}`);
+  f.net.setHidden(GUESTS[0]!, false); f.net.step(3000); assert.ok(apart(f.host, f.guest) < 5, `back in step: ${apart(f.host, f.guest)}`);
+  assert.equal(f.host.metrics().mismatches + f.guest.metrics().mismatches, 0); assert.equal(f.guest.metrics().snapshotRequest, false);
+  f.host.stop(); f.guest.stop();
+});

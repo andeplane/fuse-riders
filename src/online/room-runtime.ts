@@ -11,7 +11,7 @@ import { ACTION, AIM, AVATAR, BOT, CANCEL, JOIN, LEAVE, MAX_NAME_LENGTH, PRESENC
 import { isAvatarId, type AvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import { botDisplayName, botRandom, rollBotDifficulty, BOT_ID_PREFIX } from '../shared/bot-controller.js';
-import { simulationTimeScale } from '../shared/game.js';
+import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from '../shared/game.js';
 import type { AimPoint, GameEvent } from '../shared/protocol.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import { uuid } from '../shared/uuid.js';
@@ -51,6 +51,8 @@ interface Member { generation: number; snapshotServedAt: number; lastPacketAt: n
 export const DISCONNECT_MS = 1000, CREATOR_SILENCE_MS = 5000, LAG_INDICATOR_MS = 250, SNAPSHOT_RETRY_MS = 2000, SNAPSHOT_FAILURES = 3, JOIN_RETRY_MS = 1000;
 export const SNAPSHOT_BUFFER_LIMIT = 4_000_000, STALLED_GAP_MS = 1500, SNAPSHOT_SERVE_MS = 500;
 export const HASH_INTERVAL = 20, HASH_LAG = 40, CATCHUP_TICKS = 8, BEHIND_TICKS = 400, NACK_INTERVAL_MS = 100, DIVERGENCE_WINDOW_MS = 60_000, DIVERGENCE_LIMIT = 3, FRESH_WORLD_WAIT_MS = 3000;
+/** How long one reading of the authority's clock rate spans, and how long a follower trusts its own answer against a steady reading. */
+export const RATE_WINDOW_MS = 500, RATE_DEFER_MS = 1500;
 /** A page's generation: 100 ms units since 2020-09-13, so two loads of the same page never share one (the previous whole-second value collided on quick reloads); wraps in 2034. */
 export const pageGeneration = (nowMs = Date.now()): number => Math.floor((nowMs - 1_600_000_000_000) / 100) >>> 0;
 const browserDependencies: RuntimeDependencies = {
@@ -199,6 +201,7 @@ export class RoomRuntime {
       const rtt = wrapDelta(wrapMs(now), packet.echoSentAt) - packet.echoHeld;
       if (rtt >= 0 && rtt < 10_000) { member.rttMs = rtt; if (id === this.authority()) this.clock.sample(packet.clockTick, rtt); }
     }
+    if (id === this.authority()) this.observeRate(id, packet.sentAt, packet.clockTick);
     if (!this.world) return;
     const result = this.world.receive(id, packet.entries, packet.lastSeq, packet.through, Math.floor(this.clock.tick()));
     if (result.status === 'unrepairable') { this.requestSnapshot(); return; }
@@ -446,6 +449,7 @@ export class RoomRuntime {
   private visibilityChanged(): void {
     const hidden = this.deps.hidden(); if (hidden === this.hiddenState) return;
     this.hiddenState = hidden;
+    this.paceClock(this.deps.now());
     if (hidden) {
       if (this.world && this.player()) { if (this.held.flags > 0) { this.append(STEER, 0); this.held.flags = 0; } if (this.held.active) { this.append(CANCEL, this.held.active); this.held.active = 0; } }
       // Solo freezes the clock, so the released controls are folded in now rather than when the tab returns.
@@ -454,6 +458,29 @@ export class RoomRuntime {
     }
     if (this.solo) this.clock.resume();
     else if (this.world && Math.floor(this.clock.tick()) - this.world.tick > BEHIND_TICKS) this.requestSnapshot();
+  }
+  private pace = { from: '', sentAt: 0, clockTick: 0, observed: 1, streak: 0, local: 1, localSince: -Infinity };
+  /** The authority's clock rate as its packets show it: ticks gained per 50 ms of its own send times, over half a second. */
+  private observeRate(id: string, sentAt: number, clockTick: number): void {
+    const pace = this.pace, elapsed = wrapDelta(sentAt, pace.sentAt);
+    if (pace.from !== id || elapsed < 0 || elapsed > 5000) { pace.from = id; pace.sentAt = sentAt; pace.clockTick = clockTick; pace.streak = 0; return; }
+    if (elapsed < RATE_WINDOW_MS) return;
+    const observed = (clockTick - pace.clockTick) * 50 / elapsed > (1 + BOTS_ONLY_TIME_SCALE) / 2 ? BOTS_ONLY_TIME_SCALE : 1;
+    pace.streak = observed === pace.observed ? pace.streak + 1 : 1; pace.observed = observed; pace.sentAt = sentAt; pace.clockTick = clockTick;
+  }
+  /**
+   * The clock's rate comes from this member's own world, which every member folds alike. A hidden member's world is
+   * frozen, so it cannot judge: a follower then keeps the pace its authority shows and a hidden authority keeps normal
+   * pace. A follower whose own answer has disagreed with a steady authority for a while defers to it for the same reason.
+   */
+  private paceClock(now: number): void {
+    if (!this.world) return;
+    const pace = this.pace, stale = this.hiddenState && !this.solo;
+    const local = stale ? undefined : simulationTimeScale(this.world.state.game, this.world.state.bots);
+    if (local !== undefined && local !== pace.local) { pace.local = local; pace.localSince = now; }
+    const follows = !this.solo && this.authority() !== this.id && pace.from === this.authority() && pace.streak >= 2;
+    if (local === undefined) this.clock.rate = follows ? pace.observed : 1;
+    else this.clock.rate = follows && pace.observed !== local && now - pace.localSince > RATE_DEFER_MS ? pace.observed : local;
   }
   private lastLoopAt = -Infinity;
   private tickLoop(): void {
@@ -479,7 +506,7 @@ export class RoomRuntime {
       return;
     }
     const world = this.world!;
-    this.clock.rate = simulationTimeScale(world.state.game, world.state.bots);
+    this.paceClock(now);
     const tick = Math.floor(this.clock.tick());
     if (this.snapshotRequest && now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS) this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
