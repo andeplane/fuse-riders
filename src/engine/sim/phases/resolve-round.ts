@@ -91,9 +91,15 @@ export function resolveRound(ctx: TickContext): void {
         (id) => state.players.get(id)?.connected && !id.startsWith("bot:"),
       )
       .sort(),
-    standings: state.roundPlacements.map((placement) => {
-      const identity = state.matchStats.get(placement.playerId)!;
-      return { ...placement, slot: identity.slot, color: identity.color };
+    // Like the statistics recorders, this does not throw mid-tick on a rider the match never seated (only a damaged
+    // state has one): the seat is read from the rider instead, and a rider known nowhere is left out.
+    standings: state.roundPlacements.flatMap((placement) => {
+      const identity =
+        state.matchStats.get(placement.playerId) ??
+        state.players.get(placement.playerId);
+      return identity
+        ? [{ ...placement, slot: identity.slot, color: identity.color }]
+        : [];
     }),
   };
   if (matchWinnerId !== undefined || fixedEnd) {

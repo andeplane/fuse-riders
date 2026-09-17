@@ -29,7 +29,7 @@ try {
       String("/src/client/themes.ts")
     )) as typeof import("../src/client/themes.js");
     const { generateObstacles } = (await import(
-      String("/src/shared/arena-map.ts")
+      String("/src/engine/arena-map.ts")
     )) as typeof import("../src/engine/arena-map.js");
     const pictures: { name: string; data: string }[] = [];
     for (const backend of ["auto", "canvas"] as const) {

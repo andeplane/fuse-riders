@@ -88,7 +88,7 @@ const report = {
   controllerSha256: createHash("sha256")
     .update(
       await readFile(
-        new URL("../src/shared/bot-controller.ts", import.meta.url),
+        new URL("../src/engine/bot-controller.ts", import.meta.url),
       ),
     )
     .digest("hex"),
