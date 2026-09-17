@@ -45,3 +45,7 @@ This makes coverage scope explicit; it does not claim these excluded modules are
 | `src/service/index.ts`                                | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
 | `src/service/listen-free.ts`                          | TCP listener startup integration; needs explicit binding/retry tests.                                                                                              |
 | `src/service/room-limits.ts`                          | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+
+## Player stats rendering
+
+`src/online/player-stats.ts` creates DOM/SVG only and is exercised by `scripts/player-stats-smoke.ts` in Chromium and WebKit at desktop and phone widths. Its aggregation, Elo and parsing logic lives in covered shared/service modules. Remove this exact-file exemption when the Node coverage harness supports the browser DOM/SVG fixture; browser coverage is not implied by the unit percentage.

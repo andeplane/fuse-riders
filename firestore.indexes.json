@@ -13,6 +13,34 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ranked",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elo",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ranked",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elo",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -76,6 +104,26 @@
     {
       "collectionGroup": "fuse-production-matches",
       "fieldPath": "result",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "fieldPath": "career",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-users",
+      "fieldPath": "rating",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-matches",
+      "fieldPath": "ratings",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-matches",
+      "fieldPath": "rivalryPairs",
       "indexes": []
     }
   ]

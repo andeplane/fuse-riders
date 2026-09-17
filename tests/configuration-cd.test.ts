@@ -64,18 +64,15 @@ class FakeCloud implements Cloud {
       { source: { files: [{ name: "firestore.rules", content: rules }] } },
     );
     this.resources.set(`${this.p.db}/collectionGroups/-/indexes`, {
-      indexes: [
-        {
-          name: `projects/${c.projectId}/databases/${c.databaseId}/collectionGroups/fuse-production-matches/indexes/one`,
-          queryScope: "COLLECTION",
-          state: "READY",
-          fields: [
-            { fieldPath: "participantUids", arrayConfig: "CONTAINS" },
-            { fieldPath: "endedAt", order: "DESCENDING" },
-            { fieldPath: "__name__", order: "DESCENDING" },
-          ],
-        },
-      ],
+      indexes: this.d.indexes.map((index, number) => ({
+        name: `projects/${c.projectId}/databases/${c.databaseId}/collectionGroups/${index.collectionGroup}/indexes/${number}`,
+        queryScope: index.queryScope,
+        state: "READY",
+        fields: [
+          ...index.fields,
+          { fieldPath: "__name__", order: "DESCENDING" },
+        ],
+      })),
     });
     for (const field of this.d.fields)
       this.resources.set(

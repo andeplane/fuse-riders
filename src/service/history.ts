@@ -1,3 +1,20 @@
+import {
+  careerFor,
+  gameGroup,
+  parseBuckets,
+  type CareerBuckets,
+  type CareerStats,
+  type GameGroup,
+} from "../shared/career-stats.js";
+import {
+  parseRating,
+  type Rating,
+  type RatingPoint,
+  type LeaderboardEntry,
+  type Rivalries,
+} from "../shared/rating.js";
+import type { HistoryMutation } from "./history-settlement.js";
+import { parseCombat } from "../shared/combat-stats.js";
 import { createHash } from "node:crypto";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
@@ -35,6 +52,9 @@ export interface MatchResult {
   players: StoredPlayer[];
 }
 export interface MatchRecord {
+  ratingScope?: string;
+  ratings?: Record<string, RatingPoint>;
+  rivalryPairs?: string[];
   version: 1;
   id: string;
   roomCode: string;
@@ -65,6 +85,7 @@ export const TOTAL_KEYS = [
 ] as const;
 export type Totals = Record<(typeof TOTAL_KEYS)[number], number>;
 export interface Credit {
+  career?: { group: GameGroup; stats: CareerStats };
   uid: string;
   name: string;
   avatarId?: AvatarId;
@@ -72,6 +93,9 @@ export interface Credit {
   totals: Totals;
 }
 export interface UserProfile {
+  career?: CareerBuckets;
+  rating?: Rating;
+  rank?: number;
   /** The name the account chose; what its rider is called in every room. Absent until chosen. */
   username?: string;
   /** The rider name of the last credited match, from before usernames or from a device that was signed out of one. */
@@ -84,11 +108,7 @@ export interface HistoryDatabase {
   /** Like RoomDatabase.transact: the operation is pure and may be retried. Credits commit atomically with the match. */
   transactMatch<T>(
     id: string,
-    operation: (current: MatchRecord | undefined) => {
-      match?: MatchRecord;
-      credits?: Credit[];
-      result: T;
-    },
+    operation: (current: MatchRecord | undefined) => HistoryMutation<T>,
   ): Promise<T>;
   /** Confirmed matches of an account, newest first. */
   matchesFor(
@@ -97,6 +117,9 @@ export interface HistoryDatabase {
     limit: number,
   ): Promise<MatchRecord[]>;
   profile(uid: string): Promise<UserProfile | undefined>;
+  leaderboard(uid?: string): Promise<LeaderboardEntry[]>;
+  rank(elo: number): Promise<number>;
+  rivals(uid: string): Promise<Rivalries>;
   setUsername(uid: string, username: string, at: number): Promise<void>;
 }
 
@@ -171,6 +194,7 @@ const PLAYER_KEYS = new Set<string>([
   "name",
   "color",
   "deathsByCause",
+  "combat",
   ...COUNTERS,
 ]);
 
@@ -246,6 +270,11 @@ function parsePlayer(raw: unknown, rounds: number): StoredPlayer | undefined {
   player.deathsByCause = Object.fromEntries(
     DEATHS.map((cause) => [cause, deaths[cause]]),
   ) as unknown as MatchDeathCounts;
+  if (raw.combat !== undefined) {
+    const combat = parseCombat(raw.combat, MAX_EVENTS);
+    if (!combat) return;
+    player.combat = combat;
+  }
   return player;
 }
 
@@ -281,6 +310,16 @@ export function parseMatchResult(raw: unknown): MatchResult | undefined {
   }
   const ids = new Set(players.map((player) => player.playerId));
   if (ids.size !== players.length) return;
+  if (
+    players.some(
+      (p) =>
+        p.combat &&
+        Object.keys({ ...p.combat.victims, ...p.combat.killers }).some(
+          (id) => id === p.playerId || !ids.has(id),
+        ),
+    )
+  )
+    return;
   if (players.some((player) => player.matchPlacement > players.length)) return;
   if (
     winnerId !== undefined &&
@@ -353,8 +392,44 @@ export function parseMatchRecord(raw: unknown): MatchRecord | undefined {
     !raw.participantUids.every(validUid)
   )
     return;
+  if (
+    raw.ratingScope !== undefined &&
+    (typeof raw.ratingScope !== "string" ||
+      !/^[a-f0-9]{40}$/.test(raw.ratingScope))
+  )
+    return;
+  const ratings: Record<string, RatingPoint> = {};
+  if (raw.ratings !== undefined) {
+    if (!plain(raw.ratings) || Object.keys(raw.ratings).length > humans.size)
+      return;
+    for (const [id, point] of Object.entries(raw.ratings)) {
+      if (!humans.has(id) || !plain(point)) return;
+      const parsed = parseRating({
+        value: point.after,
+        peak: point.after,
+        games: 1,
+        points: [point],
+      });
+      if (!parsed || parsed.points[0]!.match !== raw.id) return;
+      ratings[id] = parsed.points[0]!;
+    }
+  }
+  if (
+    raw.rivalryPairs !== undefined &&
+    (!Array.isArray(raw.rivalryPairs) ||
+      raw.rivalryPairs.length > 8128 ||
+      !raw.rivalryPairs.every(
+        (p) => typeof p === "string" && /^[a-f0-9]{24}:[a-f0-9]{24}$/.test(p),
+      ))
+  )
+    return;
   // Rebuilt rather than passed through, so a storage-only field (Firestore's cleanupAt) never rides along into a rewrite.
   return {
+    ...(raw.ratingScope ? { ratingScope: raw.ratingScope as string } : {}),
+    ...(raw.ratings ? { ratings } : {}),
+    ...(raw.rivalryPairs
+      ? { rivalryPairs: [...raw.rivalryPairs] as string[] }
+      : {}),
     version: 1,
     id: raw.id,
     roomCode: raw.roomCode,
@@ -388,8 +463,10 @@ function creditFor(
   player: StoredPlayer,
   avatarId: AvatarId | undefined,
   at: number,
+  players: StoredPlayer[],
 ): Credit {
   return {
+    career: { group: gameGroup(players), stats: careerFor(player, players) },
     uid,
     name: player.name,
     ...(avatarId === undefined ? {} : { avatarId }),
@@ -421,6 +498,7 @@ export type SubmitOutcome = {
 };
 /** What an account may see of a match: every rider's stats, and which seat was its own; never another rider's account. */
 export interface HistoryEntry {
+  rating?: RatingPoint;
   id: string;
   endedAt: number;
   roomCode: string;
@@ -508,6 +586,10 @@ export class HistoryStore {
         ? structuredClone(current)
         : {
             version: 1,
+            ratingScope: createHash("sha256")
+              .update(JSON.stringify([reporter.incarnation, result.matchId]))
+              .digest("hex")
+              .slice(0, 40),
             id,
             roomCode: code,
             status: "pending",
@@ -542,6 +624,7 @@ export class HistoryStore {
               match.result.players.find((entry) => entry.playerId === seat)!,
               match.avatars[seat],
               now,
+              match.result.players,
             ),
           );
       } else if (match.status === "confirmed" && linking)
@@ -551,6 +634,7 @@ export class HistoryStore {
             player,
             match.avatars[rider],
             match.endedAt ?? now,
+            match.result.players,
           ),
         );
       if (match.status === "confirmed") {
@@ -580,7 +664,10 @@ export class HistoryStore {
       ))
     )
       throw new RoomError(429, "Too many requests; try later");
-    return this.database.profile(uid);
+    const profile = await this.database.profile(uid);
+    if (profile?.rating?.games)
+      profile.rank = await this.database.rank(Math.round(profile.rating.value));
+    return profile;
   }
 
   /** Usernames are not unique and not reserved: they are what friends call a rider, not an identifier. The account is the identifier. */
@@ -603,10 +690,29 @@ export class HistoryStore {
     return { username: body.username };
   }
 
+  async leaderboard(
+    address: string,
+    uid?: string,
+  ): Promise<LeaderboardEntry[]> {
+    if (
+      !(await this.rooms.database.allowance(
+        digest(`leaderboard:${address}`),
+        this.now(),
+        READS_PER_HOUR,
+      ))
+    )
+      throw new RoomError(429, "Too many requests; try later");
+    return this.database.leaderboard(uid);
+  }
+
   async history(
     uid: string,
     before: number | undefined,
-  ): Promise<{ profile: UserProfile | undefined; matches: HistoryEntry[] }> {
+  ): Promise<{
+    profile: UserProfile | undefined;
+    matches: HistoryEntry[];
+    rivals: Rivalries;
+  }> {
     if (
       !(await this.rooms.database.allowance(
         digest(`history:${uid}`),
@@ -615,17 +721,22 @@ export class HistoryStore {
       ))
     )
       throw new RoomError(429, "Too many requests; try later");
-    const [profile, records] = await Promise.all([
-      this.database.profile(uid),
+    const [profile, records, rivals] = await Promise.all([
+      this.profile(uid),
       this.database.matchesFor(uid, before, HISTORY_PAGE),
+      this.database.rivals(uid),
     ]);
     return {
       profile,
+      rivals,
       matches: records.map((record) => {
         const you = Object.entries(record.uidByPlayer).find(
           ([, account]) => account === uid,
         )?.[0];
         return {
+          ...(you && record.ratings?.[you]
+            ? { rating: record.ratings[you] }
+            : {}),
           id: record.id,
           endedAt: record.endedAt ?? record.createdAt,
           roomCode: record.roomCode,
@@ -637,4 +748,27 @@ export class HistoryStore {
       }),
     };
   }
+}
+
+/** User storage is validated before it can affect Elo or appear on a page. */
+export function parseProfile(data: unknown): UserProfile | undefined {
+  if (!plain(data)) return;
+  const rating =
+    data.rating === undefined ? undefined : parseRating(data.rating);
+  const career =
+    data.career === undefined ? undefined : parseBuckets(data.career);
+  if (
+    (data.rating !== undefined && !rating) ||
+    (data.career !== undefined && !career)
+  )
+    throw new Error("Stored player stats are incompatible");
+  return {
+    ...(validRiderName(data.username) ? { username: data.username } : {}),
+    ...(validRiderName(data.name) ? { name: data.name } : {}),
+    ...(isAvatarId(data.avatarId) ? { avatarId: data.avatarId } : {}),
+    totals: parseTotals(data.totals),
+    updatedAt: counterLike(data.updatedAt) ? data.updatedAt : 0,
+    ...(rating ? { rating } : {}),
+    ...(career ? { career } : {}),
+  };
 }

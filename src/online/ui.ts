@@ -402,11 +402,14 @@ export async function startOnline(): Promise<void> {
           `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
         ),
       profileUrl: apiUrl("/api/me"),
+      leaderboardUrl: apiUrl("/api/leaderboard"),
       localName: () => read("fuse-riders-player-name"),
       fetch: (input, init) => fetch(input, init),
       track,
     });
-    card.querySelector(".landing-top-end")!.append(accountPanel.button);
+    card
+      .querySelector(".landing-top-end")!
+      .append(accountPanel.leaderboardButton, accountPanel.button);
     card.append(accountPanel.dialog);
     window.addEventListener("pagehide", accountPanel.dispose, { once: true });
     void startAttract(
