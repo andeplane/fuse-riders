@@ -1,6 +1,6 @@
 # Working on Fuse Riders
 
-Fuse Riders is a small TypeScript game for 2–5 friends under active development, with LAN TV/phone play and online rooms supporting shared-screen or individual-device play. Prioritize responsive, fun gameplay, consistent outcomes and low hosting cost, avoiding an always-running simulation server where practical. Deliver working changes promptly; scale process to the change.
+Fuse Riders is a small TypeScript game for 2–5 friends under active development, played in online rooms that support shared-screen (TV plus phone controllers) or individual-device play. Prioritize responsive, fun gameplay, consistent outcomes and low hosting cost, avoiding an always-running simulation server where practical. Deliver working changes promptly; scale process to the change.
 
 ## Default workflow
 
@@ -8,7 +8,7 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 - Inspect `git status`, relevant code and nearby tests before editing. Preserve unrelated work. Use `codex/` for new branches and stage only your own changes when committing.
 - Read documentation that helps with the current change. There is no mandatory tour of historical ADRs, reviews or the roadmap.
 - Routine fixes, UI changes and bounded refactors need no ADR or independent approval. For a substantial architecture change, write a short design note identifying the intended behavior and key tradeoffs, then implement. Mid-implementation review is not a gate for each correction; the review that matters happens on the pull request (see **Pull requests**).
-- Follow the user's intended architecture. Do not preserve an obsolete online design or add compatibility modes unless needed by the task. Preserve LAN play.
+- Follow the user's intended architecture. Do not preserve an obsolete online design or add compatibility modes unless needed by the task. The separate LAN server was removed in #271; do not resurrect it.
 - Use existing issues when useful. Creating issues, changing labels, posting progress comments and producing formal handoffs are not prerequisites for work. Update tracking at meaningful milestones, not every iteration.
 - Make reasonable implementation decisions autonomously. Ask only when missing information materially affects scope or an action needs authorization.
 - Finish the requested scope with relevant checks and a concise report. Do not expand every development task into a release, exhaustive audit or network qualification project.
@@ -17,8 +17,8 @@ These workflow rules replace older process requirements in ADRs, review notes an
 
 ## Code and gameplay
 
-- Keep the LAN `/display` and `/controller` paths and the neon/pixel aesthetic. Cosmetic changes must not alter simulation geometry, timing or player identity.
-- `src/shared/` owns deterministic rules and simulation; `src/server/` owns LAN authority; `src/online/` owns online simulation coordination on top of the `fuse-network-fe` transport; `packages/` holds the game-agnostic networking libraries (`fuse-network-fe`: WebRTC mesh and room client, `fuse-network-be`: room signalling service, `fuse-network-protocol`: their shared wire contract) and must not import from `src/`; `src/service/` is the game's thin entry to `fuse-network-be` (Cloud Run in production, `src/service/dev.ts` in-memory locally and in CI); `src/client/` owns presentation and controls.
+- Keep the shared-screen display (`?room=CODE&display=1`) and phone controller modes of an online room, and the neon/pixel aesthetic. Cosmetic changes must not alter simulation geometry, timing or player identity.
+- `src/shared/` owns deterministic rules and simulation; `src/online/` owns online simulation coordination on top of the `fuse-network-fe` transport; `packages/` holds the game-agnostic networking libraries (`fuse-network-fe`: WebRTC mesh and room client, `fuse-network-be`: room signalling service, `fuse-network-protocol`: their shared wire contract) and must not import from `src/`; `src/service/` is the game's thin entry to `fuse-network-be` (Cloud Run in production, `src/service/dev.ts` in-memory locally and in CI); `src/client/` owns presentation and controls.
 - `src/shared/rider-motion.ts` is the shared pure motion kernel. Preserve turn-then-move fixed-step behavior and atomic agreement between applied-tick records and snapshots. Bots in `src/shared/bot-controller.ts` emit ordinary inputs and get no privileged physics.
 - Keep simulation ticks and clocks separate from rendering. Phaser may render fractional snapshot time but must not run authoritative physics, game timers or a competing render loop. Consult `docs/PHASER.md` when changing presentation timing.
 - Keep ownership and ordering of actions and outcomes explicit. Prediction or rollback must converge on consistent collisions, pickups, scores and results. When changing delivery, account for entry tick and sequence, member generation, gaps and repair, retries and cancellation. A queued send is not proof the receiver applied it.
@@ -55,6 +55,6 @@ npm run build
 ## Documentation and deployment
 
 - Update documentation directly affected by the change. Keep release history in release documents rather than duplicating it here. Consult `docs/online/PUBLIC-BETA-2026-09-14.md` and the deployment inventory when reporting release status, and verify current external state before claiming publication or CI success.
-- Use README for onboarding, `docs/online/PROTOCOL.md` and relevant ADRs for protocol context, and the roadmap for planned work. Historical `docs/architecture.md` has old LAN/balance details; verify game constants from source and link to current rule definitions instead of copying balance tables. Proposed designs and review findings are not completed features.
+- Use README for onboarding, `docs/online/PROTOCOL.md` and relevant ADRs for protocol context, and the roadmap for planned work. `docs/architecture.md` is the current system map; verify game constants from source and link to current rule definitions instead of copying balance tables. Proposed designs and review findings are not completed features.
 - For production deployment, follow `docs/online/GCP-DEPLOY.md`. Preserve exact-source verification and distinguish local verification from CI. Check client compatibility and rollback implications for protocol releases.
 - Never commit or expose bearer tokens, TURN secrets, credential files or unredacted logs. Public invites must not carry host capabilities; Origin checks are not authentication. Do not enable paid services without user authorization.

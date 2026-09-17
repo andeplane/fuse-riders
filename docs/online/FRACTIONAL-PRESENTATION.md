@@ -1,5 +1,7 @@
 # Fractional presentation
 
+> Superseded in part: the LAN server was removed in #271, so the LAN rows and the LAN projection described below no longer exist; the online behaviour still applies.
+
 ## Held-bomb preview — issue #84
 
 The charge marker previously called the authoritative `bombLaunchDistance`, which floors charge age. Its 100–400 unit range over 24 ticks therefore extended in 12.5-unit steps every 50 ms, even when the frame supplied fractional time.

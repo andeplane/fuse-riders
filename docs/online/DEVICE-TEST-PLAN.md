@@ -50,8 +50,8 @@ five-player sustained soak content already covered by
   network** (e.g. a neighbor's or a mobile hotspot, not the host's own SSID).
   Record which of (a)/(b)/(c) each run used; several sections below specify
   which configuration applies.
-- Keep the LAN game itself untouched; none of this exercises `/display` or
-  `/controller`.
+- The LAN game this item once protected (`/display`, `/controller`) was removed
+  in #271; every run here is an online room.
 
 ## Recording location
 
