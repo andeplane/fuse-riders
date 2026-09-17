@@ -52,8 +52,14 @@ function rows(): Row[] {
       .split("|")
       .slice(1, -1)
       .map((cell) => cell.trim());
-    const name = cells[0]?.match(/^`([A-Z][A-Z0-9_]*)`$/)?.[1];
-    if (!name) continue; // The header, the rule under it and blank lines.
+    // Only blank lines, the header and the rule under it may be skipped: any other row must parse, or a typo would hide a constant.
+    if (!cells.length || cells[0] === "Constant" || /^-+$/.test(cells[0]!))
+      continue;
+    const name = cells[0]!.match(/^`([A-Z][A-Z0-9_]*)`$/)?.[1];
+    assert.ok(
+      name,
+      `constants table row does not start with a \`CONSTANT_NAME\` cell: ${line.trim().slice(0, 80)}`,
+    );
     const path = cells[3]?.match(/^`([^`]+\.ts)`$/)?.[1];
     assert.match(cells[1] ?? "", /^\d+$/, `${name}: the value is an integer`);
     assert.ok(path, `${name}: "Defined in" is one source path`);
@@ -84,28 +90,33 @@ test("ADR 047's constants table quotes the values the source exports", async () 
 });
 
 test("every numeric constant the netcode core exports has a row in ADR 047", async () => {
-  const table = rows();
+  const table = rows(),
+    missing: string[] = [];
   for (const path of COMPLETE) {
     const listed = new Set(
       table.filter((row) => row.path === path).map((row) => row.name),
     );
     for (const [name, value] of Object.entries(await load(path)))
-      if (typeof value === "number" && /^[A-Z][A-Z0-9_]*$/.test(name))
-        assert.ok(
-          listed.has(name),
-          `${name} is exported from ${path} but ${ADR} does not list it: add a row with its unit and what it couples to`,
-        );
+      if (
+        typeof value === "number" &&
+        /^[A-Z][A-Z0-9_]*$/.test(name) &&
+        !listed.has(name)
+      )
+        missing.push(`${name} (${path})`);
   }
+  assert.deepEqual(
+    missing,
+    [],
+    `exported but not listed in ${ADR}: ${missing.join(", ")} — add a row for each with its unit and what it couples to`,
+  );
 });
 
 test("the couplings ADR 047 marks as checked hold", () => {
   // C1: speculation never outruns the rollback window.
   assert.equal(STALL_TICKS, ROLLBACK_TICKS);
-  // C2: a retained snapshot always precedes the oldest entry a rollback may still apply.
-  assert.ok(
-    SNAPSHOT_INTERVAL * (SNAPSHOTS_RETAINED - 1) >=
-      ROLLBACK_TICKS + SNAPSHOT_INTERVAL - 1,
-  );
+  // C2: the oldest repairable entry is at W - ROLLBACK_TICKS + 1 and needs a snapshot at or before W - ROLLBACK_TICKS;
+  // the oldest retained one is at most W - SNAPSHOT_INTERVAL * (SNAPSHOTS_RETAINED - 1).
+  assert.ok(SNAPSHOT_INTERVAL * (SNAPSHOTS_RETAINED - 1) >= ROLLBACK_TICKS);
   // C3: hashes exist only at retained snapshot ticks, and the hashed tick is still in the ring when it is sent.
   assert.equal(HASH_INTERVAL % SNAPSHOT_INTERVAL, 0);
   assert.equal(HASH_LAG % SNAPSHOT_INTERVAL, 0);
