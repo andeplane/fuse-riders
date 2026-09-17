@@ -1,6 +1,6 @@
 # AI riders
 
-The room host can click **ADD AI** on phone or desktop, then start a race with one human and one or more AI opponents. Humans plus AI share five rider slots. An AI added during a race joins the next round automatically. Use **×** beside its roster entry to remove it in the lobby, between rounds or after a match. During racing/countdown, return to the menu first if removal is needed. The LAN TV has the same ADD AI and roster removal controls; its authenticated host token is required.
+The room host can click **ADD AI** on phone or desktop, then start a race with one human and one or more AI opponents. Humans plus AI share five rider slots. An AI added during a race joins the next round automatically. Use **×** beside its roster entry to remove it in the lobby, between rounds or after a match. During racing/countdown, return to the menu first if removal is needed.
 
 Bots consume no WebRTC connection or backend membership. Their controller runs inside the simulation itself on every device, because each replica folds the same input log and the AI reads only that folded state (it is deterministic, seeded from the match). It emits ordinary left/right/fire/aim inputs; shared movement, charge, cooldown, collision, pickups, eliminations and scoring remain unchanged. The initial controller is a lightweight survival/attack opponent, not expert competitive AI.
 

@@ -2,7 +2,7 @@
 
 > **Status (2026-09-16): superseded.** The "implemented foundations" below describe the host-star runtime that [P2P-INPUT-LOG-BRIEF.md](P2P-INPUT-LOG-BRIEF.md) replaced (every device simulates from one shared input log over a WebRTC mesh; no browser authority, leases only fence duplicate creator tabs, no local checkpoints, no input ledger or world deltas). The remaining gates (physical-device and WAN qualification, sustained active-rider runs) still apply; the brief's §14 lists the follow-ups the new design enables.
 
-Updated 2026-09-14. LAN remains available while the online release is qualified. This roadmap replaces historical PLAN.md. Implementation, successful local checks and verified public deployment are distinct milestones.
+Updated 2026-09-14; the LAN server this roadmap said remained available was removed in #271. This roadmap replaces historical PLAN.md. Implementation, successful local checks and verified public deployment are distinct milestones.
 
 ## Implemented foundations
 
