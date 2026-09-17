@@ -6,7 +6,7 @@ export const SNAP_TICKS = 200;
 interface Sample { at: number; offset: number; rttMs: number }
 
 /**
- * Fractional simulation time from an injected monotonic clock: `tick = base + (now − t0) / 50` plus a slewed offset.
+ * Fractional simulation time from an injected monotonic clock: `tick = base + (now − t0) · rate / 50` plus a slewed offset.
  * The time authority starts it and never adjusts it; followers feed lowest-RTT samples and slew at most one tick per
  * second. It never steps backwards, and a follower with no fresh sample free-runs rather than pausing.
  */
@@ -20,11 +20,22 @@ export class TickClock {
   private samples: Sample[] = [];
   private lastSampleAt = -Infinity;
   private pausedAt?: number;
+  private scale = 1;
   constructor(private readonly now: () => number) {}
   get started(): boolean { return this.t0 !== undefined; }
   /** Authority start, or a follower's first estimate. */
   start(tick = 0): void { this.t0 = this.now(); this.base = tick; this.offset = this.target = 0; this.lastAdjust = this.t0; this.lastTick = -Infinity; this.samples = []; }
-  private raw(now: number): number { return this.base + (now - (this.t0 ?? now)) / TICK_MS; }
+  private raw(now: number): number { return this.base + (now - (this.t0 ?? now)) * this.scale / TICK_MS; }
+  /**
+   * Ticks per 50 ms from here on. Every member derives the same rate from the same world, so clocks change pace
+   * within a round trip of each other and the usual slew absorbs the difference. Ticks already counted are kept.
+   */
+  get rate(): number { return this.scale; }
+  set rate(scale: number) {
+    if (scale === this.scale || !(scale > 0) || !Number.isFinite(scale)) return;
+    if (this.t0 !== undefined) { const now = this.pausedAt ?? this.now(); this.base = this.raw(now); this.t0 = now; }
+    this.scale = scale;
+  }
   /** Current fractional tick, monotonic across calls. */
   tick(): number {
     if (this.t0 === undefined) return 0;
@@ -44,7 +55,7 @@ export class TickClock {
    */
   sample(authorityTick: number, rttMs: number): void {
     if (!Number.isFinite(authorityTick) || !Number.isFinite(rttMs) || rttMs < 0) return;
-    const now = this.now(), estimate = authorityTick + rttMs / 2 / TICK_MS;
+    const now = this.now(), estimate = authorityTick + rttMs / 2 * this.scale / TICK_MS;
     if (this.t0 === undefined) { this.start(estimate); return; }
     this.lastSampleAt = now;
     this.samples = this.samples.filter(sample => now - sample.at <= SAMPLE_WINDOW_MS);
