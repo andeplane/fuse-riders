@@ -59,6 +59,18 @@
       "retries": 1
     },
     {
+      "id": "voice",
+      "group": "voice",
+      "name": "Online voice chat (synthetic microphone)",
+      "why": "Chromium's synthetic microphone sends real RTP over the mesh. Browser emulation: not physical-phone, Bluetooth, acoustic echo or Safari evidence.",
+      "command": "npx tsx scripts/voice-smoke.ts",
+      "browsers": ["chromium"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
       "id": "preview-chrome",
       "group": "preview",
       "name": "Chrome bomb charge preview",
