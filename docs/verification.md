@@ -15,7 +15,7 @@ npm run build
 
 `npm test` runs the same unit-test file globs without coverage instrumentation: `tests/*.test.ts` and `packages/*/tests/*.test.ts`. Use focused tests during iteration and the broader checks at integration milestones. Add a regression for a confirmed bug; test the observable contract and failure/recovery boundaries rather than copying implementation logic.
 
-Do not freeze a test count or coverage percentage in this document. Obtain them from the exact revision's command output and `coverage/coverage-summary.json`. [.c8rc.json](../.c8rc.json) currently uses an explicit include list and thresholds of 95% lines/statements/functions and 85% branches. It omits substantial UI, rendering and production-adapter code; passing its gate is not 95% coverage of the entire product. Broadening that scope is tracked in [#257](https://github.com/andeplane/fuse-riders/issues/257).
+Do not freeze a test count or coverage percentage in this document. Obtain them from the exact revision's command output and `coverage/coverage-summary.json`. [.c8rc.json](../.c8rc.json) includes all game and networking source by default, with exact-file exemptions documented in [coverage exclusions](coverage-exclusions.md). New source modules automatically join the gate. Thresholds remain 95% lines/statements/functions and 85% branches. Substantial UI, rendering and production-adapter code remains exempt; passing the gate is not 95% coverage of the entire product. Removing those exemptions needs focused tests and remains tracked in [#257](https://github.com/andeplane/fuse-riders/issues/257).
 
 ## What the suites establish
 
