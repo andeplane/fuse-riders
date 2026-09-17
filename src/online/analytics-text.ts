@@ -18,10 +18,11 @@ const PATTERNS: readonly (readonly [RegExp, string])[] = [
   [/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>)\]]+/gi, "[url]"],
   // A query string on a bare path ("/index.html?room=AB42").
   [/\?[\w.%~-]+=[^\s"'<>)\]]*/g, "[query]"],
-  // Credential-shaped pairs outside any URL ("room=AB42", "token: abc"). Deliberately not `code` or `key`: "error
-  // code: 1006" is the useful half of a message, and the room code is covered by `room=` and by `secrets`.
+  // Credential-shaped pairs outside any URL ("room=AB42", "token: abc", "Authorization: Bearer abc" — the scheme
+  // word is not the secret, what follows it is). Deliberately not `code` or `key`: "error code: 1006" is the useful
+  // half of a message, and the room code is covered by `room=` and by `secrets`.
   [
-    /\b(room|token|secret|auth|authorization|password)\s*[=:]\s*[^\s"'<>&,;)\]]+/gi,
+    /\b(room|token|secret|auth|authorization|password)\s*[=:]\s*(?:(?:bearer|basic)\s+)?[^\s"'<>&,;)\]]+/gi,
     "$1=[redacted]",
   ],
   [/\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g, "[email]"],
@@ -64,9 +65,15 @@ export function sanitizeText(
   { max = MAX_TEXT_LENGTH, secrets = [] }: SanitizeOptions = {},
 ): string {
   let text = stringify(value);
-  if (text.length > MAX_SCANNED)
+  const cut = text.length > MAX_SCANNED;
+  if (cut)
     // The cut can land inside a token, and half a token matches no pattern: drop the run the cut went through.
     text = text.slice(0, MAX_SCANNED).replace(/\S*$/, "");
+  text = text
+    // Zero-width and other format characters (U+200B, U+FEFF, soft hyphen…) can split a token so no pattern sees it.
+    .replace(/\p{Cf}+/gu, "")
+    // `room%3DAB42`: the separators a credential hides behind when a URL fragment is quoted percent-encoded.
+    .replace(/%(?:3[ADF]|26|2F)/gi, (encoded) => decodeURIComponent(encoded));
   for (const [pattern, replacement] of PATTERNS)
     text = text.replace(pattern, replacement);
   for (const secret of secrets)
@@ -81,6 +88,8 @@ export function sanitizeText(
       );
   // One line: a stack trace's newlines and any control characters collapse to single spaces.
   text = text.replace(/[\s\p{Cc}]+/gu, " ").trim();
+  // A multi-kilobyte input with no whitespace at all is dropped whole by the cut above; say so rather than send "".
+  if (cut) text = `${text} [truncated]`.trim();
   return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}…` : text;
 }
 
@@ -168,4 +177,19 @@ export function bootFailedProps(
     code: bootFailureCode(error),
     message: sanitizeText(errorMessage(error), options),
   };
+}
+
+/**
+ * `Connect Failed`'s `status` is the runtime's status line, and two of its wordings name a rider: "Waiting for
+ * <name>" and "Connected · <name> lagging". Both are all but unreachable before the first snapshot — which is
+ * when `Connect Failed` fires — but the notice in SETTINGS says "No names", so the name never leaves. The fixed
+ * wordings ("Waiting for the game…", "Waiting for a display") pass through. `null` when there is no status yet.
+ */
+export function connectStatus(status: string): string | null {
+  if (!status) return null;
+  if (/^Connected · .* lagging$/.test(status))
+    return "Connected · [rider] lagging";
+  if (/^Waiting for (?!the game\b|a display$)/.test(status))
+    return "Waiting for [rider]";
+  return status;
 }

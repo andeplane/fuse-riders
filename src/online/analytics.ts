@@ -63,6 +63,16 @@ export const MIXPANEL_CONFIG = {
 } satisfies Partial<MixpanelConfig>;
 
 /**
+ * Where the SDK keeps its unsent batches (`get_batcher_configs` in mixpanel-browser 2.83: `__mpq_<token>_ev`,
+ * `_pp`, `_gr`). `opt_out_tracking()` empties them, but the SDK enqueues asynchronously, behind a lock it polls
+ * every 100 ms, so an event accepted a moment before the switch can land in storage just after it. Nothing would
+ * send it while analytics is off; it is removed anyway, so that switching back on replays nothing.
+ */
+export const SDK_QUEUE_KEYS = ["ev", "pp", "gr"].map(
+  (suffix) => `__mpq_${TOKEN}_${suffix}`,
+);
+
+/**
  * The override sticks for the browser rather than riding the URL. `appUrl` replaces the query string on every
  * navigation out of the landing page — deliberately, so an invite can never inherit a capability — so a flag
  * read only from `location.search` would last exactly one page: `?analytics=0` would come back on at CREATE
@@ -145,6 +155,12 @@ export interface AnalyticsEnvironment {
   search(): string;
   port(): string;
   doNotTrack(): boolean;
+  /**
+   * Calls `listener` with the key whenever ANOTHER tab changes storage (`null` for a clear) — the browser's
+   * `storage` event, which never fires in the tab that made the change. Optional: where it is missing, or where
+   * storage is refused and there is nothing shared to hear about, this page's own switch still works.
+   */
+  onStorage?(listener: (key: string | null) => void): void;
 }
 
 export interface Analytics {
@@ -153,6 +169,8 @@ export interface Analytics {
   status(): AnalyticsStatus;
   /** This device's choice from SETTINGS. Takes effect at once, in both directions, and survives a reload. */
   setOptOut(optedOut: boolean): void;
+  /** `listener` runs whenever the status may have changed, from this page or another tab. Returns the unsubscribe. */
+  onChange(listener: () => void): () => void;
   reportBootFailure(error: unknown): void;
 }
 
@@ -182,11 +200,23 @@ export function createAnalytics(environment: AnalyticsEnvironment): Analytics {
       doNotTrack: environment.doNotTrack(),
       optedOut: environment.storage.getItem(OPT_OUT_KEY) === "1",
     });
+  const purgeSdkQueues = () => {
+    for (const key of SDK_QUEUE_KEYS) environment.storage.removeItem(key);
+  };
   const begin = () => {
     // `init` runs inside the promise: a browser that refuses storage can make Mixpanel's own persistence throw,
     // and that must reject here — where every caller already ignores it — rather than throw into page boot.
     client ??= environment.load().then((mixpanel) => {
-      mixpanel.init(TOKEN, MIXPANEL_CONFIG);
+      mixpanel.init(TOKEN, {
+        ...MIXPANEL_CONFIG,
+        hooks: {
+          // The last gate, and the only synchronous one: the SDK runs this for each event as a batch is about to
+          // be sent — on its five-second timer and as the page hides — and the status is re-read from storage
+          // right then. So a switch flipped in ANOTHER tab stops this tab's next flush even if the `storage`
+          // event below has not been delivered yet. Returning `null` drops the event; a batch of none sends nothing.
+          before_send_events: (payload) => (status() === "on" ? payload : null),
+        },
+      });
       // Switching off below also tells the SDK, which remembers it in its own storage. This code only runs while
       // analytics is on, so a remembered opt-out is from before the rider switched back on.
       if (mixpanel.has_opted_out_tracking())
@@ -197,14 +227,66 @@ export function createAnalytics(environment: AnalyticsEnvironment): Analytics {
     void client.then((mixpanel) => mixpanel.register(registered)).catch(ignore);
   };
 
+  const listeners = new Set<() => void>();
+  /**
+   * Makes the SDK agree with the status, whoever changed it. Off: `opt_out_tracking()` stops the SDK's batch
+   * sender, empties the batch it had queued and disables its unload flush — our own gate in `track` only stops
+   * NEW events. On: the SDK's remembered opt-out is cleared, or the SDK is started late if this page never
+   * fetched it.
+   */
+  const sync = () => {
+    const now = status();
+    if (now === "on") {
+      if (client)
+        void client
+          .then((mixpanel) => {
+            if (mixpanel.has_opted_out_tracking())
+              mixpanel.clear_opt_in_out_tracking();
+          })
+          .catch(ignore);
+      // A page that loaded switched off never fetched the SDK. Start it now, if this page ever asked to.
+      else if (superProperties) begin();
+    } else {
+      if (now === "optedOut") purgeSdkQueues();
+      void client
+        ?.then((mixpanel) => mixpanel.opt_out_tracking())
+        .catch(ignore);
+    }
+    for (const listener of [...listeners]) {
+      try {
+        listener();
+      } catch {
+        /* a SETTINGS row that cannot render is not analytics' problem, nor the next row's */
+      }
+    }
+  };
+  try {
+    // Another tab switched analytics off (or back on): this tab's SDK still holds a batch and a timer of its own,
+    // and its SETTINGS row still shows the old label. Deliberately deaf to `fuse-analytics`: `status()` writes
+    // that key whenever the address carries `?analytics=`, so two tabs opened with opposite flags would answer
+    // each other's writes for ever.
+    environment.onStorage?.((key) => {
+      if (key === null || key === OPT_OUT_KEY) sync();
+    });
+  } catch {
+    /* no cross-tab channel: this page's own switch still works */
+  }
+
   const analytics: Analytics = {
     status,
+    onChange(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     start(properties) {
       superProperties = {
         ...superProperties,
         ...sanitizeProperties(properties, { secrets: secrets() }),
       };
-      if (status() === "on") begin();
+      const now = status();
+      if (now === "on") begin();
+      // A page that loads switched off: whatever an earlier page left in the SDK's queue is never to be sent.
+      else if (now === "optedOut") purgeSdkQueues();
     },
     track(event, properties) {
       if (!client || status() !== "on") return;
@@ -219,23 +301,11 @@ export function createAnalytics(environment: AnalyticsEnvironment): Analytics {
     },
     setOptOut(optedOut) {
       if (optedOut) environment.storage.setItem(OPT_OUT_KEY, "1");
-      else environment.storage.removeItem(OPT_OUT_KEY);
-      if (optedOut) {
-        // Not only a gate of our own: the SDK holds a batch it flushes every five seconds and again as the page
-        // unloads. `opt_out_tracking` stops its senders and empties that queue, so nothing already accepted by
-        // `track` above is sent afterwards either.
-        void client
-          ?.then((mixpanel) => mixpanel.opt_out_tracking())
-          .catch(ignore);
-        return;
+      else {
+        environment.storage.removeItem(OPT_OUT_KEY);
+        purgeSdkQueues(); // nothing from the time it was off is replayed
       }
-      if (status() !== "on") return;
-      if (client)
-        void client
-          .then((mixpanel) => mixpanel.clear_opt_in_out_tracking())
-          .catch(ignore);
-      // A page that loaded switched off never fetched the SDK. Start it now, if this page ever asked to.
-      else if (superProperties) begin();
+      sync();
     },
     /**
      * Registers nothing of its own: a boot failure raised after a room already registered its `role` would
@@ -268,6 +338,8 @@ const page = createAnalytics({
       (navigator as { msDoNotTrack?: unknown }).msDoNotTrack,
       (window as { doNotTrack?: unknown }).doNotTrack,
     ]),
+  onStorage: (listener) =>
+    window.addEventListener("storage", (event) => listener(event.key)),
 });
 
 /**
@@ -287,6 +359,7 @@ export const startAnalytics = page.start;
 export const track = page.track;
 export const analyticsStatusNow = page.status;
 export const setAnalyticsOptOut = page.setOptOut;
+export const onAnalyticsChange = page.onChange;
 export const reportBootFailure = page.reportBootFailure;
 
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);

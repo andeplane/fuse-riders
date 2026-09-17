@@ -4,6 +4,7 @@ import {
   EVENT_PREFIX,
   MIXPANEL_CONFIG,
   OPT_OUT_KEY,
+  SDK_QUEUE_KEYS,
   analyticsEnabled,
   analyticsOverride,
   analyticsStatus,
@@ -521,9 +522,14 @@ function fakeSdk(transport: { url: string; events: string[] }[]) {
     registered,
     tracked,
     config: () => config,
-    /** The SDK's batch timer or unload handler firing. */
+    /** The SDK's batch timer or unload handler firing: each event passes the `before_send_events` hook, as in 2.83. */
     flush() {
-      if (optedOut || !queue.length) return;
+      if (optedOut) return;
+      const hook = config?.hooks?.before_send_events;
+      queue = queue.filter((event) =>
+        hook ? hook({ event, properties: {} }) !== null : true,
+      );
+      if (!queue.length) return;
       transport.push({
         url: `https://api-js.mixpanel.com/track/?ip=${config?.ip ? 1 : 0}`,
         events: queue,
@@ -535,6 +541,13 @@ function fakeSdk(transport: { url: string; events: string[] }[]) {
     },
   };
 }
+
+const seededStorage = (initial: Record<string, string>): SafeStorage => {
+  const storage = createMemoryStorage();
+  for (const [key, value] of Object.entries(initial))
+    storage.setItem(key, value);
+  return storage;
+};
 
 /** Lets every reaction already attached to a settled promise run. No timers. */
 const settle = async () => {
@@ -552,7 +565,11 @@ function page(
   const transport: { url: string; events: string[] }[] = [];
   const fake = fakeSdk(transport);
   let loads = 0;
+  const storageListeners: ((key: string | null) => void)[] = [];
   const environment: AnalyticsEnvironment = {
+    onStorage: (listener) => {
+      storageListeners.push(listener);
+    },
     load: () => {
       loads += 1;
       return Promise.resolve(fake.sdk);
@@ -568,6 +585,9 @@ function page(
     transport,
     fake,
     loads: () => loads,
+    /** The browser telling this tab that another tab changed `key`. */
+    storageEvent: (key: string | null) =>
+      storageListeners.forEach((listener) => listener(key)),
   };
 }
 
@@ -575,7 +595,9 @@ test("Mixpanel is initialised without IP geolocation, page URLs, pageviews, auto
   const { analytics, fake } = page();
   analytics.start({ role: "landing" });
   await settle();
-  assert.deepEqual(fake.config(), MIXPANEL_CONFIG);
+  const { hooks, ...config } = fake.config() ?? {};
+  assert.deepEqual(config, MIXPANEL_CONFIG);
+  assert.deepEqual(Object.keys(hooks ?? {}), ["before_send_events"]);
   assert.deepEqual(MIXPANEL_CONFIG, {
     persistence: "localStorage",
     cross_subdomain_cookie: false,
@@ -769,7 +791,8 @@ test("a boot failure leaves as a class, a code and a scrubbed message, without r
       properties: {
         name: "TypeError",
         code: "module-load",
-        message: "Failed to fetch dynamically imported module: [url]",
+        message:
+          "Failed to fetch dynamically imported module: [url] [truncated]",
         role: "boot",
       },
     },
@@ -853,4 +876,153 @@ test("SETTINGS says what is true for each status, and only offers a switch that 
   }
   assert.match(ANALYTICS_NOTICE, /Mixpanel/);
   assert.ok(!ANALYTICS_NOTICE.includes("\n"), "one line");
+});
+
+test("a second tab stops sending when another tab opts out: at the next flush, and for good once the storage event arrives", async () => {
+  const storage = createMemoryStorage(); // one browser, two tabs
+  const tabA = page({ storage });
+  const tabB = page({ storage });
+  tabA.analytics.start({ role: "landing" });
+  tabA.analytics.track("App Opened");
+  await settle(); // accepted by A's SDK, waiting in A's batch
+  tabB.analytics.start({ role: "landing" });
+  await settle();
+
+  tabB.analytics.setOptOut(true);
+  await settle();
+  // Before the browser has delivered the storage event, A's five-second timer fires: the hook re-reads storage.
+  tabA.fake.flush();
+  assert.equal(
+    tabA.transport.length,
+    0,
+    "A's queued App Opened is dropped at the flush",
+  );
+  assert.equal(tabA.analytics.status(), "optedOut");
+
+  let rendered = 0;
+  tabA.analytics.onChange(() => (rendered += 1));
+  tabA.analytics.track("Seat Taken"); // refused by our own gate
+  tabA.storageEvent("some-other-key");
+  await settle();
+  assert.deepEqual(tabA.fake.calls, ["init"], "unrelated keys are ignored");
+  tabA.storageEvent(OPT_OUT_KEY);
+  await settle();
+  assert.deepEqual(
+    tabA.fake.calls,
+    ["init", "opt_out"],
+    "A's SDK is told, so its sender and unload flush stop",
+  );
+  assert.equal(rendered, 1, "A's SETTINGS rows re-render");
+  tabA.fake.flush();
+  assert.equal(tabA.transport.length, 0);
+  assert.equal(tabB.transport.length, 0);
+
+  // And the other way: B switches back on, A hears about it and resumes.
+  tabB.analytics.setOptOut(false);
+  tabA.storageEvent(OPT_OUT_KEY);
+  await settle();
+  tabA.analytics.track("Recap Reopened");
+  await settle();
+  tabA.fake.flush();
+  assert.deepEqual(tabA.fake.calls, ["init", "opt_out", "clear_opt"]);
+  assert.deepEqual(
+    tabA.transport.map((hit) => hit.events),
+    [["FlowRiders.Recap Reopened"]],
+  );
+  assert.equal(rendered, 2);
+
+  // storage.clear() in another tab arrives as a null key and is a change like any other.
+  storage.setItem(OPT_OUT_KEY, "1");
+  tabA.storageEvent(null);
+  await settle();
+  assert.equal(tabA.fake.calls.at(-1), "opt_out");
+});
+
+test("a tab that loaded switched off starts late when another tab switches analytics back on", async () => {
+  const storage = seededStorage({ [OPT_OUT_KEY]: "1" });
+  const tab = page({ storage });
+  tab.analytics.start({ role: "host" });
+  await settle();
+  assert.equal(tab.loads(), 0);
+  storage.removeItem(OPT_OUT_KEY);
+  tab.storageEvent(OPT_OUT_KEY);
+  await settle();
+  assert.equal(tab.loads(), 1);
+  assert.deepEqual(tab.fake.registered, [{ role: "host" }]);
+});
+
+test("the SDK's stored batches are removed on opt-out, on a page load while opted out, and on switching back on", async () => {
+  assert.deepEqual(SDK_QUEUE_KEYS, [
+    "__mpq_b5022dd7fe5b3cd0396d84284ae647e6_ev",
+    "__mpq_b5022dd7fe5b3cd0396d84284ae647e6_pp",
+    "__mpq_b5022dd7fe5b3cd0396d84284ae647e6_gr",
+  ]);
+  const seeded = () =>
+    Object.fromEntries(SDK_QUEUE_KEYS.map((key) => [key, '[{"id":"late"}]']));
+  const left = (storage: SafeStorage) =>
+    SDK_QUEUE_KEYS.filter((key) => storage.getItem(key) !== null);
+
+  const optingOut = page({ storage: seededStorage(seeded()) });
+  optingOut.analytics.start({ role: "landing" });
+  assert.equal(
+    left(optingOut.environment.storage).length,
+    3,
+    "untouched while analytics is on",
+  );
+  optingOut.analytics.setOptOut(true);
+  assert.deepEqual(left(optingOut.environment.storage), []);
+
+  const loadedOff = page({
+    storage: seededStorage({ ...seeded(), [OPT_OUT_KEY]: "1" }),
+  });
+  loadedOff.analytics.start({ role: "landing" });
+  assert.deepEqual(left(loadedOff.environment.storage), []);
+
+  // An event the SDK enqueued a moment after the opt-out, found when switching back on: not replayed.
+  for (const [key, value] of Object.entries(seeded()))
+    loadedOff.environment.storage.setItem(key, value);
+  loadedOff.analytics.setOptOut(false);
+  assert.deepEqual(left(loadedOff.environment.storage), []);
+
+  // Off for the address is not an opt-out: the deployed site's queue on the same browser is not this page's to clear.
+  const local = page({ port: "8831", storage: seededStorage(seeded()) });
+  local.analytics.start({ role: "landing" });
+  assert.equal(left(local.environment.storage).length, 3);
+});
+
+test("SETTINGS rows hear about every change, can unsubscribe, and one that throws stops nothing", async () => {
+  const { analytics, fake } = page();
+  analytics.start({ role: "landing" });
+  const heard: string[] = [];
+  analytics.onChange(() => {
+    throw new Error("row exploded");
+  });
+  const stop = analytics.onChange(() => heard.push(analytics.status()));
+  analytics.setOptOut(true);
+  analytics.setOptOut(false);
+  stop();
+  analytics.setOptOut(true);
+  await settle();
+  assert.deepEqual(heard, ["optedOut", "on"]);
+  assert.ok(fake.calls.includes("opt_out"));
+});
+
+test("a browser with no storage event, or one that throws when asked for it, still has a working switch", async () => {
+  const base = page().environment;
+  const { onStorage: _none, ...silent } = base;
+  for (const environment of [
+    silent,
+    {
+      ...base,
+      onStorage: () => {
+        throw new DOMException("denied", "SecurityError");
+      },
+    },
+  ] satisfies AnalyticsEnvironment[]) {
+    const analytics = createAnalytics(environment);
+    analytics.start({ role: "landing" });
+    analytics.setOptOut(true);
+    assert.equal(analytics.status(), "optedOut");
+  }
+  await settle();
 });

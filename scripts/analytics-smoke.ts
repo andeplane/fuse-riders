@@ -39,7 +39,7 @@ const page = await context.newPage();
 const reported: Reported[] = [];
 const requestUrls: string[] = [];
 // Intercepted, never delivered: a smoke must not write into the production project.
-await page.route("**/*mixpanel.com/**", async (route) => {
+await context.route("**/*mixpanel.com/**", async (route) => {
   requestUrls.push(route.request().url());
   try {
     for (const event of JSON.parse(
@@ -81,7 +81,10 @@ await page.waitForFunction(
 );
 await page.waitForTimeout(6000);
 
-// Switching analytics off in SETTINGS stops every request at once — the SDK's queued batch and its unload flush
+// What the solo match reported, before the second tab below adds an App Opened of its own.
+const soloReported = [...reported];
+
+// Switching analytics off stops every request at once — in EVERY tab, the SDK's queued batch and its unload flush
 // included — and the choice survives a reload, where the SDK is not even downloaded.
 const closeDialog = () =>
   page
@@ -90,15 +93,55 @@ const closeDialog = () =>
     .first()
     .click();
 await closeDialog();
+// Tab B: the landing page in the same browser, analytics on (the `?analytics=1` override is sticky).
+const other = await context.newPage();
+await other.goto(base);
+for (let waited = 0; waited < 15000; waited += 250) {
+  if (reported.filter((e) => e.event === "FlowRiders.App Opened").length > 1)
+    break;
+  await other.waitForTimeout(250);
+}
+assert.equal(
+  reported.filter((e) => e.event === "FlowRiders.App Opened").length,
+  2,
+  "tab B is reporting too",
+);
+await other
+  .getByRole("button", { name: /SETTINGS/ })
+  .first()
+  .click();
+await other.locator("details.settings-privacy > summary").click();
+const otherToggle = other.locator("details.settings-privacy > button");
+assert.equal(await otherToggle.textContent(), "ANALYTICS ON");
+// Tab A queues an event in its own SDK batch, and tab B opts out before A's five-second flush.
+await page.getByRole("button", { name: "RESULTS", exact: true }).click();
+await otherToggle.focus();
+await other.keyboard.press("Enter");
+assert.equal(await otherToggle.textContent(), "ANALYTICS OFF");
+const requestsAtOptOut = requestUrls.length;
+await page.waitForTimeout(7000); // past A's flush timer
+assert.equal(
+  requestUrls.length,
+  requestsAtOptOut,
+  "tab A kept sending after tab B opted out",
+);
+await other.close();
+// Tab A's own row heard about it, and works by keyboard in both directions without sending anything itself.
+await closeDialog();
 await page.getByRole("button", { name: "SETTINGS", exact: true }).click();
 const analyticsToggle = page.locator(".settings-privacy > button");
-assert.equal(await analyticsToggle.textContent(), "ANALYTICS ON");
+assert.equal(
+  await analyticsToggle.textContent(),
+  "ANALYTICS OFF",
+  "tab A's SETTINGS row shows the choice made in tab B",
+);
 await analyticsToggle.focus();
 await page.keyboard.press("Enter");
+assert.equal(await analyticsToggle.textContent(), "ANALYTICS ON");
+await page.keyboard.press("Enter");
 assert.equal(await analyticsToggle.textContent(), "ANALYTICS OFF");
-const requestsAtOptOut = requestUrls.length;
 await closeDialog();
-await page.getByRole("button", { name: "RESULTS", exact: true }).click(); // would be a second Recap Reopened
+await page.getByRole("button", { name: "RESULTS", exact: true }).click(); // would be another Recap Reopened
 await page.waitForTimeout(6000);
 const sdkFetches: string[] = [];
 page.on("request", (request) => {
@@ -121,7 +164,7 @@ assert.deepEqual(sdkFetches, [], "an opted-out page never downloads the SDK");
 await browser.close();
 
 const named = (name: string) =>
-  reported.filter((event) => event.event === `FlowRiders.${name}`);
+  soloReported.filter((event) => event.event === `FlowRiders.${name}`);
 const only = (name: string) => {
   const found = named(name);
   assert.equal(

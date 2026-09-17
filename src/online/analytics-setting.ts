@@ -4,6 +4,7 @@
  */
 import {
   analyticsStatusNow,
+  onAnalyticsChange,
   setAnalyticsOptOut,
   type AnalyticsStatus,
 } from "./analytics.js";
@@ -20,13 +21,26 @@ export interface AnalyticsSettingOptions {
   collapsed?: boolean;
   status?: () => AnalyticsStatus;
   setOptOut?: (optedOut: boolean) => void;
+  onChange?: (listener: () => void) => unknown;
+}
+
+export interface AnalyticsSetting {
+  element: HTMLElement;
+  /**
+   * Re-reads the status. Call it whenever SETTINGS opens: the choice can change behind a built row's back — in
+   * another tab, or in the landing page's row before a room is entered without a reload — and a stale label
+   * makes the first click do the opposite of what it says. `onChange` covers both already; this covers a browser
+   * that delivers no `storage` event.
+   */
+  render(): void;
 }
 
 export function createAnalyticsSetting({
   collapsed = false,
   status = analyticsStatusNow,
   setOptOut = setAnalyticsOptOut,
-}: AnalyticsSettingOptions = {}): { element: HTMLElement } {
+  onChange = onAnalyticsChange,
+}: AnalyticsSettingOptions = {}): AnalyticsSetting {
   const element = document.createElement(collapsed ? "details" : "section");
   element.className = collapsed
     ? "settings-privacy dialog-foot"
@@ -55,12 +69,14 @@ export function createAnalyticsSetting({
     reason.textContent = view.reason;
   };
   button.onclick = () => {
-    setOptOut(consentView(status()).on);
+    // What the label on screen says, not what storage says now: if the two disagree the click only catches up.
+    const shownOn = button.dataset.muted === "false";
+    if (shownOn === consentView(status()).on) setOptOut(shownOn);
     render();
   };
-  // The other copy of this row (landing page, then a room entered without a reload) may have changed the choice.
   if (collapsed) element.addEventListener("toggle", render);
+  onChange(render);
   render();
   element.append(heading, notice, button, reason);
-  return { element };
+  return { element, render };
 }

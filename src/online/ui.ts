@@ -80,6 +80,7 @@ import { createJoinCard, createJoinForm } from "./join-form.js";
 import { safeStorage } from "../client/safe-storage.js";
 import { startAnalytics, track } from "./analytics.js";
 import { createAnalyticsSetting } from "./analytics-setting.js";
+import { connectStatus } from "./analytics-text.js";
 import { createFunnel } from "./funnel.js";
 import { POWERUP_GUIDE } from "../client/powerup-guide.js";
 import { createPowerupGuide } from "../client/powerup-guide-view.js";
@@ -355,11 +356,8 @@ export async function startOnline(): Promise<void> {
     landingBar.append(node("strong", "SETTINGS"), landingActions);
     const landingBody = node("div", "", "dialog-body");
     // This device's privacy choice sits under the room settings draft rather than in it: it is not the room's.
-    landingDialog.append(
-      landingBar,
-      landingBody,
-      createAnalyticsSetting({ collapsed: true }).element,
-    );
+    const landingPrivacy = createAnalyticsSetting({ collapsed: true });
+    landingDialog.append(landingBar, landingBody, landingPrivacy.element);
     landingDialog.addEventListener("click", (event) => {
       if (event.target === landingDialog) {
         const r = landingDialog.getBoundingClientRect();
@@ -375,6 +373,7 @@ export async function startOnline(): Promise<void> {
     // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
     // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
     landingSettings.onclick = () => {
+      landingPrivacy.render();
       showRoomSettings(
         landingBody,
         loadRoomSettings(storage),
@@ -549,7 +548,7 @@ export async function startOnline(): Promise<void> {
     if (waited >= 20000 && !connectFailed) {
       connectFailed = true;
       track("Connect Failed", {
-        status: rawStatus || null,
+        status: connectStatus(rawStatus),
         secondsWaiting: Math.round(waited / 1000),
       });
     }
@@ -1047,6 +1046,7 @@ export async function startOnline(): Promise<void> {
       ? "EXIT FULLSCREEN"
       : "FULLSCREEN";
   });
+  const privacy = createAnalyticsSetting();
   prefs.append(
     musicButton,
     effectsButton,
@@ -1055,7 +1055,7 @@ export async function startOnline(): Promise<void> {
     styleHeading,
     styleRow,
     fullscreen,
-    createAnalyticsSetting().element,
+    privacy.element,
   );
   const voice = solo ? undefined : new VoiceChat();
   if (voice) {
@@ -1078,6 +1078,7 @@ export async function startOnline(): Promise<void> {
     });
   }
   prefsButton.onclick = () => {
+    privacy.render();
     if (voice) prefs.append(voice.controls);
     dialogTitle.textContent = "SETTINGS";
     dialog.setAttribute("aria-label", "Settings");

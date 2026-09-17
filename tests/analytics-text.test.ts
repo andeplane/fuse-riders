@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   MAX_TEXT_LENGTH,
+  connectStatus,
   bootFailedProps,
   bootFailureCode,
   sanitizeProperties,
@@ -28,7 +29,81 @@ test("a multi-kilobyte message is cut to the bound, and a token the cut ran thro
   assert.equal(straddling.slice(0, 4096).includes(ROOM_TOKEN), false);
   assert.ok(straddling.slice(0, 4096).includes(ROOM_TOKEN.slice(0, 16)));
   assert.ok(!/[0-9a-f]{8,}/.test(sanitizeText(straddling)));
-  assert.ok(sanitizeText("z".repeat(100_000)).length <= MAX_TEXT_LENGTH);
+  // No whitespace at all: the whole run is dropped by the cut, and the result says so instead of being empty.
+  assert.equal(sanitizeText("z".repeat(100_000)), "[truncated]");
+  assert.equal(
+    sanitizeText(`boot failed ${"q".repeat(5000)}`),
+    "boot failed [truncated]",
+  );
+});
+
+test("an Authorization header loses the credential, not the word Bearer", () => {
+  assert.equal(
+    sanitizeText("401 for Authorization: Bearer abc.def-123 on /api/me"),
+    "401 for Authorization=[redacted] on /api/me",
+  );
+  assert.equal(
+    sanitizeText("authorization=Basic dXNlcjpwYXNz; retrying"),
+    "authorization=[redacted]; retrying",
+  );
+  assert.equal(sanitizeText("token: bearer hunter2"), "token=[redacted]");
+});
+
+test("percent-encoded separators and zero-width characters do not hide a credential", () => {
+  assert.equal(
+    sanitizeText("redirect=%2Findex.html%3Froom%3DAB42%26display%3D1 failed", {
+      secrets: ["AB42"],
+    }),
+    "redirect=/index.html[query] failed",
+  );
+  assert.equal(
+    sanitizeText("joining room%3DAB42", { secrets: ["AB42"] }),
+    "joining room=[redacted]",
+  );
+  assert.equal(
+    sanitizeText("bad %3DAB42 value", { secrets: ["AB42"] }),
+    "bad =[redacted] value",
+    "the D of %3D no longer shields the code from the whole-word match",
+  );
+  const zeroWidth = String.fromCharCode(0x200b);
+  const split = `${ROOM_TOKEN.slice(0, 20)}${zeroWidth}${ROOM_TOKEN.slice(20)}`;
+  assert.equal(sanitizeText(`peer ${split} gone`), "peer [token] gone");
+  assert.equal(
+    sanitizeText(`Room A${zeroWidth}B42 is full`, { secrets: ["AB42"] }),
+    "Room [redacted] is full",
+  );
+  assert.equal(
+    sanitizeText("100%3 done, 50%ZZ"),
+    "100%3 done, 50%ZZ",
+    "a stray percent is left alone",
+  );
+});
+
+test("a connect status never carries a rider's name", () => {
+  assert.equal(connectStatus(""), null);
+  assert.equal(connectStatus("Waiting for Anders"), "Waiting for [rider]");
+  assert.equal(
+    connectStatus("Waiting for the game to load"),
+    "Waiting for the game to load",
+  );
+  assert.equal(
+    connectStatus("Waiting for the game — ICE failed"),
+    "Waiting for the game — ICE failed",
+  );
+  assert.equal(connectStatus("Waiting for a display"), "Waiting for a display");
+  assert.equal(
+    connectStatus("Waiting for a display hog"),
+    "Waiting for [rider]",
+    "a rider may be called anything",
+  );
+  assert.equal(
+    connectStatus("Connected · Anders lagging"),
+    "Connected · [rider] lagging",
+  );
+  assert.equal(
+    connectStatus("Connected · linking riders"),
+    "Connected · linking riders",
+  );
 });
 
 test("query strings, credential pairs, tokens, UUIDs, JWTs and e-mail addresses are all removed outside URLs too", () => {
