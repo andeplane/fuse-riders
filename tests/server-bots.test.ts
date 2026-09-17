@@ -64,7 +64,11 @@ async function fixture() {
     }),
     peers: Peer[] = [];
   const connect = async () => {
-    const peer = new Peer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`));
+    const peer = new Peer(
+      new WebSocket(`ws://127.0.0.1:${app.port}/ws`, {
+        origin: `http://127.0.0.1:${app.port}`,
+      }),
+    );
     peers.push(peer);
     await once(peer.socket, "open");
     await peer.take("snapshot");
@@ -150,7 +154,11 @@ test("LAN loop runs three ticks per 50 ms once only AI riders survive, and drops
   const peers: Peer[] = [];
   try {
     const connect = async () => {
-      const peer = new Peer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`));
+      const peer = new Peer(
+        new WebSocket(`ws://127.0.0.1:${app.port}/ws`, {
+          origin: `http://127.0.0.1:${app.port}`,
+        }),
+      );
       peers.push(peer);
       await once(peer.socket, "open");
       await peer.take("snapshot");

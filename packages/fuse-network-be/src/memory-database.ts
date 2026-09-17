@@ -69,10 +69,17 @@ export class MemoryRoomDatabase implements RoomDatabase {
   }
 
   /** Same hourly window as FirestoreRoomDatabase.allowance. */
-  async allowance(key: string, now: number, limit: number): Promise<boolean> {
+  async allowance(
+    key: string,
+    now: number,
+    limit: number,
+    consume = true,
+  ): Promise<boolean> {
     const hour = Math.floor(now / HOUR_MS),
       previous = this.allowances.get(key);
-    const count = previous?.hour === hour ? previous.count + 1 : 1;
+    const used = previous?.hour === hour ? previous.count : 0;
+    if (!consume) return used < limit;
+    const count = used + 1;
     if (count > limit) return false;
     if (!previous && this.allowances.size >= MAX_ALLOWANCE_KEYS) {
       for (const [stale, window] of this.allowances)
