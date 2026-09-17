@@ -251,6 +251,13 @@ try {
         await page.locator(".rating-chart").waitFor();
         await page.getByText("Account settings", { exact: true }).click();
         await page
+          .getByLabel("USERNAME", { exact: true })
+          .fill("Renamed Rider");
+        await page.getByRole("button", { name: "SAVE", exact: true }).click();
+        await page
+          .getByRole("heading", { name: "Renamed Rider", exact: true })
+          .waitFor();
+        await page
           .getByRole("button", { name: "SIGN OUT", exact: true })
           .click();
         await page

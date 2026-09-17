@@ -1432,9 +1432,11 @@ export function step(
               .value
           : undefined,
         cause === "explosion"
-          ? (state.shots.find(
-              (s) => s.shot === shotSources.get(movement.player.id)?.shot,
-            )?.weapon ?? "unknown")
+          ? causeOwners.get(movement.player.id)?.get(cause)?.size === 1
+            ? (state.shots.find(
+                (s) => s.shot === shotSources.get(movement.player.id)?.shot,
+              )?.weapon ?? "unknown")
+            : "unknown"
           : cause,
       );
       if (cause === "explosion")

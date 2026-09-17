@@ -374,10 +374,20 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       }
       save.disabled = true;
       saved.textContent = "Saving…";
+      const mine = generation;
       try {
-        saved.textContent = (await saveUsername(value))
+        const success = await saveUsername(value);
+        saved.textContent = success
           ? "Saved. This is your name in every room."
           : "Could not save. Try again.";
+        if (success && mine === generation) {
+          const heading = body.querySelector(".stats-player-name");
+          const portrait = heading?.querySelector(".avatar-portrait");
+          heading?.replaceChildren(
+            ...(portrait ? [portrait] : []),
+            document.createTextNode(value),
+          );
+        }
       } catch {
         saved.textContent = "Could not save. Try again.";
       } finally {
