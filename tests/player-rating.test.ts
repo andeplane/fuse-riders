@@ -1,5 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {
+  createGame,
+  addPlayer,
+  startMatch,
+  step,
+  toSnapshot,
+  SLOT_COLORS,
+} from "../src/shared/game.js";
+import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { buildRoundReport } from "../src/online/match-report.js";
 import { calculateElo } from "../src/shared/elo.js";
 import { parseRating, newRating } from "../src/shared/rating.js";
 import {
@@ -537,4 +547,52 @@ test("account round quota exhaustion cannot register a guest vote and can recove
   assert.equal((await history.profile("user0"))!.rating!.value, 1016);
   assert.equal((await history.profile("user1"))!.rating!.value, 1000);
   assert.equal((await history.profile("user2"))!.rating!.value, 984);
+});
+
+test("a real simulation round reaches history settlement before the multi-round game ends", async () => {
+  const f = await fixture(3);
+  const game = createGame("elo-real-round");
+  game.settings = {
+    ...defaultRoomSettings(),
+    match: "rounds",
+    length: 3,
+    map: "classic",
+  };
+  f.ids.forEach((id, slot) =>
+    addPlayer(game, {
+      id,
+      slot,
+      name: `Rider ${slot}`,
+      color: SLOT_COLORS[slot]!,
+      connected: true,
+    }),
+  );
+  startMatch(game);
+  for (let i = 0; i < 10000 && !game.decidedRound; i++) step(game, new Map());
+  const state = toSnapshot(game);
+  assert.equal(state.phase, "roundOver", "the full game has not ended");
+  assert.equal(
+    state.matchStats.length,
+    0,
+    "no full-game stats are needed to rate this round",
+  );
+  const report = buildRoundReport(state.decidedRound, f.ids[0]!, game.tick)!;
+  assert.ok(report);
+  const parsed = parseMatchResult(report.result)!;
+  assert.ok(parsed, "the service accepts the actual simulation receipt");
+  await f.report(2, parsed, null);
+  await f.report(0, parsed);
+  await f.report(1, parsed);
+  const a = parsed.players.find((p) => p.playerId === f.ids[0])!;
+  const b = parsed.players.find((p) => p.playerId === f.ids[1])!;
+  const expected =
+    a.matchScoreUnits === b.matchScoreUnits
+      ? 1000
+      : a.matchScoreUnits > b.matchScoreUnits
+        ? 1016
+        : 984;
+  assert.equal((await f.history.profile("user0"))!.rating!.value, expected);
+  assert.equal((await f.history.profile("user0"))!.rating!.games, 1);
+  assert.equal((await f.history.profile("user0"))!.totals.matches, 0);
+  assert.equal(await f.history.profile("user2"), undefined);
 });
