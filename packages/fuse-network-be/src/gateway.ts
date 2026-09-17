@@ -34,8 +34,10 @@ interface Client {
   chain: Promise<void>;
   pending: number;
   pendingBytes: number;
-  /** One signalling bucket per target member; "" is shared by every target this gateway does not know. */
+  /** One signalling bucket per target member; "" is shared by every frame that names no current connection. */
   signals: Map<string, Bucket>;
+  /** `time` frames: each is a database transaction. */
+  times: Bucket;
   /** Spent by each refused frame; running out is what a flood looks like. */
   refusals: Bucket;
   refused: number;
@@ -53,19 +55,25 @@ function take(
   now: number,
   burst: number,
   perSecond: number,
+  cost = 1,
 ): boolean {
   bucket.tokens = Math.min(
     burst,
     bucket.tokens + (Math.max(0, now - bucket.at) * perSecond) / 1000,
   );
   bucket.at = now;
-  if (bucket.tokens < 1) return false;
-  bucket.tokens--;
+  if (bucket.tokens < cost) return false;
+  bucket.tokens -= cost;
   return true;
 }
 // docs/design/signalling-abuse-isolation.md carries the arithmetic behind these.
-/** Frames one connection may send per second, of any kind: above the largest honest mesh negotiation (5 links × 67). */
-const FRAMES_PER_SECOND = 400;
+/**
+ * Frames and bytes one connection may send per second, of any kind: above the largest honest mesh negotiation
+ * (5 links × 67 frames, about 110 kB). Every member links to as many peers as the creator, and gameplay never
+ * transits the service, so the creator has no larger allowance.
+ */
+const FRAMES_PER_SECOND = 400,
+  BYTES_PER_SECOND = 256_000;
 /** Frames and bytes one connection may have waiting on the database or the bus: the memory the old 64 × 32 kB cap allowed. */
 const PENDING_FRAMES = 400,
   PENDING_BYTES = 2_000_000;
@@ -73,6 +81,24 @@ const PENDING_FRAMES = 400,
 const LINK_BURST = 80;
 /** Refills a whole negotiation within the 8 s ICE restart interval. */
 const LINK_PER_SECOND = 10;
+/**
+ * Frames that name no current connection (an unknown member, or a connection id the gateway's view has replaced) are
+ * never relayed and each costs a database read, so they share one small bucket. An honest page sends a handful, in the
+ * moment between a peer's reload and hearing of it.
+ */
+const STRANGER_BURST = 16,
+  STRANGER_PER_SECOND = 1;
+/** The heartbeat is one `time` frame every 2 s, with a few more around a welcome or a lease change. */
+const TIME_BURST = 8,
+  TIME_PER_SECOND = 2;
+/**
+ * What one room may publish to one other gateway, in billed kilobytes (a frame counts as at least one): the receiving
+ * dedupe window, 512 ids per 10 s, seen from the side that pays for the publish. Anything above it would be dropped on
+ * arrival anyway. Kept per gateway, not per connection or view, so reconnecting or minting a token buys nothing.
+ */
+const PUBLISH_BURST = 512,
+  PUBLISH_PER_SECOND = 51.2,
+  PUBLISH_ROOMS = 4096;
 /** Refused frames tolerated before the connection counts as a flood, and how fast that tolerance returns. */
 const FLOOD_BURST = 400,
   FLOOD_PER_SECOND = 50;
@@ -99,6 +125,7 @@ export class RoomGateway {
   private busGeneration = 0;
   private stopping = false;
   private flags = new Map<string, number>();
+  private publishes = new Map<string, Bucket>();
   constructor(
     readonly id: string,
     readonly store: RoomStore,
@@ -110,6 +137,12 @@ export class RoomGateway {
   }
   get connections(): number {
     return this.clients.size;
+  }
+  /** Rate-limiter entries held right now: signalling buckets of every connection, publish buckets, flood flags. */
+  get limiterEntries(): number {
+    let entries = this.flags.size + this.publishes.size;
+    for (const client of this.clients.values()) entries += client.signals.size;
+    return entries;
   }
   private serial<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.lifecycle.then(operation, operation);
@@ -199,6 +232,7 @@ export class RoomGateway {
           pending: 0,
           pendingBytes: 0,
           signals: new Map(),
+          times: { tokens: TIME_BURST, at: this.deps.now() },
           refusals: { tokens: FLOOD_BURST, at: this.deps.now() },
           refused: 0,
           noticeAt: -Infinity,
@@ -246,10 +280,9 @@ export class RoomGateway {
       client.count = 0;
       client.bytes = 0;
     }
-    // A guest links to as many peers as the creator does, so the frame allowance no longer depends on the role.
     if (
       ++client.count > FRAMES_PER_SECOND ||
-      (client.bytes += bytes) > (client.member.host ? 2_000_000 : 256_000) ||
+      (client.bytes += bytes) > BYTES_PER_SECOND ||
       client.pending >= PENDING_FRAMES ||
       client.pendingBytes + bytes > PENDING_BYTES
     ) {
@@ -258,7 +291,7 @@ export class RoomGateway {
     }
     client.pending++;
     client.pendingBytes += bytes;
-    const result = client.chain.then(() => this.handle(client, raw));
+    const result = client.chain.then(() => this.handle(client, raw, bytes));
     client.chain = result
       .catch((error) => {
         this.deps.error("message", error);
@@ -309,23 +342,76 @@ export class RoomGateway {
     });
     client.refused = 0;
   }
-  /** Known targets each get their own bucket; every unknown target shares one, so naming strangers mints nothing. */
-  private signalBucket(client: Client, room: RoomRecord, to: string): Bucket {
-    const key = Object.hasOwn(room.members, to) ? to : "";
+  /**
+   * A target's current connection has its own bucket. Everything else shares the strangers' bucket: an unknown member,
+   * or a connection id this gateway's view has replaced. Those frames are never relayed and each costs a database
+   * read, so naming strangers or stale connections mints neither allowance nor reads.
+   */
+  private takeSignal(
+    client: Client,
+    room: RoomRecord,
+    to: string,
+    targetConnectionId: unknown,
+    now: number,
+  ): boolean {
+    const current =
+      Object.hasOwn(room.members, to) &&
+      (targetConnectionId === undefined ||
+        room.members[to]!.connectionId === targetConnectionId);
+    const bucket = this.signalBucket(client, room, current ? to : "");
+    return current
+      ? take(bucket, now, LINK_BURST, LINK_PER_SECOND)
+      : take(bucket, now, STRANGER_BURST, STRANGER_PER_SECOND);
+  }
+  private signalBucket(client: Client, room: RoomRecord, key: string): Bucket {
     let bucket = client.signals.get(key);
     if (!bucket) {
       // A long-lived connection keeps a bucket per current member and one for strangers, never one per member it ever saw.
       for (const id of client.signals.keys())
         if (id && !Object.hasOwn(room.members, id)) client.signals.delete(id);
       bucket = {
-        tokens: client.flagged ? LINK_PER_SECOND : LINK_BURST,
+        tokens: !key
+          ? STRANGER_BURST
+          : client.flagged
+            ? LINK_PER_SECOND
+            : LINK_BURST,
         at: this.deps.now(),
       };
       client.signals.set(key, bucket);
     }
     return bucket;
   }
-  private async handle(client: Client, raw: string): Promise<void> {
+  /** Charged only when a frame is about to be published; same-gateway relays cost nothing and are not counted. */
+  private takePublish(
+    code: string,
+    destination: string,
+    bytes: number,
+    now: number,
+  ): boolean {
+    const key = `${code}:${destination}`;
+    let bucket = this.publishes.get(key);
+    // Re-inserting keeps the map oldest-first; a bucket idle for a whole refill is full again, so forgetting it changes nothing.
+    this.publishes.delete(key);
+    for (const [other, idle] of this.publishes)
+      if (now - idle.at >= (PUBLISH_BURST / PUBLISH_PER_SECOND) * 1000)
+        this.publishes.delete(other);
+      else break;
+    if (!bucket && this.publishes.size >= PUBLISH_ROOMS) return false;
+    bucket ??= { tokens: PUBLISH_BURST, at: now };
+    this.publishes.set(key, bucket);
+    return take(
+      bucket,
+      now,
+      PUBLISH_BURST,
+      PUBLISH_PER_SECOND,
+      Math.max(1, bytes / 1000),
+    );
+  }
+  private async handle(
+    client: Client,
+    raw: string,
+    bytes: number,
+  ): Promise<void> {
     if (
       this.stateValue !== "ready" ||
       client.closed ||
@@ -350,6 +436,10 @@ export class RoomGateway {
     )
       throw new RoomError(409, "Connection replaced");
     if (m.type === "time") {
+      if (!take(client.times, this.deps.now(), TIME_BURST, TIME_PER_SECOND)) {
+        this.refuse(client, this.deps.now());
+        return;
+      }
       if (
         !(
           (typeof m.id === "string" && m.id.length > 0 && m.id.length <= 64) ||
@@ -394,18 +484,10 @@ export class RoomGateway {
     // Charged before the target is resolved, so a refused frame never costs a database read or a bus publish.
     // A rejoin negotiates every link at once: each target has its own allowance rather than a share of one.
     const now = this.deps.now();
-    if (
-      !take(
-        this.signalBucket(client, room, to),
-        now,
-        LINK_BURST,
-        LINK_PER_SECOND,
-      )
-    ) {
+    if (!this.takeSignal(client, room, to, m.targetConnectionId, now)) {
       this.refuse(client, now);
       return;
     }
-
     const member = (from: RoomRecord): Member | undefined =>
       Object.hasOwn(from.members, to) ? from.members[to] : undefined;
     let current = room,
@@ -453,7 +535,11 @@ export class RoomGateway {
       },
     };
     if (target.gatewayId === this.id) await this.route(routed, false);
-    else await this.bus.publish(routed);
+    else if (
+      this.takePublish(client.room, target.gatewayId, bytes, this.deps.now())
+    )
+      await this.bus.publish(routed);
+    else this.refuse(client, this.deps.now());
   }
   private observe(code: string, room: RoomRecord | undefined): void {
     let view = this.views.get(code);
