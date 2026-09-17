@@ -33,11 +33,14 @@ interface Client {
   bytes: number;
   chain: Promise<void>;
   pending: number;
+  signalTokens: number;
+  signalAt: number;
 }
 interface View {
   room: RoomRecord;
   stop: () => void;
   cancelExpiry?: () => void;
+  seen: Map<string, number>;
 }
 export type GatewayState =
   "idle" | "starting" | "ready" | "draining" | "failed";
@@ -47,7 +50,10 @@ export class RoomGateway {
   private views = new Map<string, View>();
   private lifecycle: Promise<void> = Promise.resolve();
   private stateValue: GatewayState = "idle";
-  private seen = new Map<string, number>();
+  private rooms = new Map<string, Promise<void>>();
+  private activeOperations = 0;
+  private busGeneration = 0;
+  private stopping = false;
   constructor(
     readonly id: string,
     readonly store: RoomStore,
@@ -68,33 +74,64 @@ export class RoomGateway {
     );
     return result;
   }
+  /** Only bus start/stop is global; database latency in one room cannot queue another. */
+  private inRoom<T>(code: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.rooms.get(code) ?? Promise.resolve();
+    const result = previous.then(async () => {
+      this.activeOperations++;
+      try {
+        return await operation();
+      } finally {
+        this.activeOperations--;
+        await this.serial(async () => {
+          if (
+            this.activeOperations === 0 &&
+            this.clients.size === 0 &&
+            this.stateValue !== "idle"
+          )
+            await this.drain();
+        });
+      }
+    });
+    const settled = result.then(
+      () => {},
+      () => {},
+    );
+    this.rooms.set(code, settled);
+    void settled.then(() => {
+      if (this.rooms.get(code) === settled) this.rooms.delete(code);
+    });
+    return result;
+  }
   async connect(
     code: string,
     token: string,
     socket: GatewaySocket,
   ): Promise<string> {
-    return this.serial(async () => {
-      if (this.stateValue === "failed") await this.drain();
-      if (this.stateValue !== "ready") {
-        this.stateValue = "starting";
-        try {
-          await this.bus.start(
-            (message) => this.deliver(message),
-            (error) => this.fail("bus", error),
-          );
-          this.stateValue = "ready";
-        } catch (error) {
-          this.stateValue = "failed";
-          throw error;
+    if (this.stopping) throw new RoomError(503, "Service restarting");
+    return this.inRoom(code, async () => {
+      const generation = await this.serial(async () => {
+        if (this.stateValue === "failed") await this.drain();
+        if (this.stateValue !== "ready") {
+          this.stateValue = "starting";
+          try {
+            await this.bus.start(
+              (message) => this.deliver(message),
+              (error) => this.fail("bus", error),
+            );
+            this.stateValue = "ready";
+          } catch (error) {
+            this.stateValue = "failed";
+            throw error;
+          }
         }
-      }
+        return this.busGeneration;
+      });
       const priorIncarnation = this.views.get(code)?.room.incarnation;
-      let admission: Awaited<ReturnType<RoomStore["admit"]>>;
-      try {
-        admission = await this.store.admit(code, token, this.id);
-      } catch (error) {
-        if (this.clients.size === 0) await this.drain();
-        throw error;
+      const admission = await this.store.admit(code, token, this.id);
+      if (generation !== this.busGeneration || this.stateValue !== "ready") {
+        await this.store.leave(code, admission.member);
+        throw new RoomError(503, "Room relay restarting");
       }
       const currentView = this.views.get(code);
       if (
@@ -115,6 +152,8 @@ export class RoomGateway {
           bytes: 0,
           chain: Promise.resolve(),
           pending: 0,
+          signalTokens: 32,
+          signalAt: this.deps.now(),
         };
       this.clients.set(member.connectionId, client);
       this.send(client, {
@@ -134,7 +173,7 @@ export class RoomGateway {
       });
       if (this.views.has(code)) this.observe(code, room);
       else {
-        const view: View = { room, stop: () => {} };
+        const view: View = { room, stop: () => {}, seen: new Map() };
         this.views.set(code, view);
         this.watchView(code, view);
         this.scheduleExpiry(code, view);
@@ -248,6 +287,21 @@ export class RoomGateway {
     }
     if (m.type !== "signal" || typeof m.to !== "string") return;
     if (!validSignal(m.data)) return;
+    // ICE candidates arrive in bursts across several peers. Bound sustained signalling
+    // without rejecting the initial mesh negotiation (32-frame burst, five per second).
+    const now = this.deps.now();
+    client.signalTokens = Math.min(
+      32,
+      client.signalTokens + (Math.max(0, now - client.signalAt) * 5) / 1000,
+    );
+    client.signalAt = now;
+    if (client.signalTokens < 1) {
+      client.socket.close(1008, "Signalling rate limit");
+      void this.disconnect(client.member.connectionId);
+      return;
+    }
+    client.signalTokens--;
+
     let current = room,
       target = current.members[m.to];
     // Only a connection transition needs an authoritative metadata refresh; no database read per input.
@@ -292,7 +346,7 @@ export class RoomGateway {
         data: m.data,
       },
     };
-    if (target.gatewayId === this.id) await this.deliver(routed);
+    if (target.gatewayId === this.id) await this.route(routed, false);
     else await this.bus.publish(routed);
   }
   private observe(code: string, room: RoomRecord | undefined): void {
@@ -309,7 +363,7 @@ export class RoomGateway {
       if (room.incarnation !== previous.incarnation) {
         view.stop();
         view.cancelExpiry?.();
-        view = { room, stop: () => {} };
+        view = { room, stop: () => {}, seen: new Map() };
         this.views.set(code, view);
         this.watchView(code, view);
       } else view.room = room;
@@ -357,6 +411,12 @@ export class RoomGateway {
       }
   }
   async deliver(message: RoutedMessage): Promise<void> {
+    return this.route(message, true);
+  }
+  private async route(
+    message: RoutedMessage,
+    busOrigin: boolean,
+  ): Promise<void> {
     if (
       this.stateValue !== "ready" ||
       message.destination !== this.id ||
@@ -370,13 +430,6 @@ export class RoomGateway {
       client.member.id !== message.to.id
     )
       return;
-    for (const [id, expires] of this.seen)
-      if (expires <= this.deps.now()) this.seen.delete(id);
-    if (this.seen.has(message.id)) return;
-    if (this.seen.size >= 4096) {
-      this.fail("bus-overflow", new Error("Deduplication capacity"));
-      return;
-    }
     let room = this.views.get(message.code)?.room;
     if (
       !room ||
@@ -406,7 +459,18 @@ export class RoomGateway {
       message.from.id === message.to.id
     )
       return;
-    this.seen.set(message.id, message.expiresAt);
+    if (busOrigin) {
+      // Each live room owns a bounded dedupe window. One abusive room cannot
+      // consume another room's capacity or fail the gateway. Local delivery never retries.
+      const seen = this.views.get(message.code)!.seen;
+      for (const [id, expires] of seen)
+        if (expires <= this.deps.now()) seen.delete(id);
+      if (seen.has(message.id) || seen.size >= 512) return;
+      seen.set(
+        message.id,
+        Math.min(message.expiresAt, this.deps.now() + BUS_FRAME_TTL_MS),
+      );
+    }
     // observe above sends peer connection replacement before this source's first frame.
     this.send(client, message.wire);
   }
@@ -471,7 +535,9 @@ export class RoomGateway {
     }
   }
   async disconnect(connectionId: string): Promise<void> {
-    return this.serial(async () => {
+    const room = this.clients.get(connectionId)?.room;
+    if (!room) return;
+    return this.inRoom(room, async () => {
       const client = this.clients.get(connectionId);
       if (!client) return;
       this.clients.delete(connectionId);
@@ -485,7 +551,6 @@ export class RoomGateway {
         this.views.get(client.room)?.cancelExpiry?.();
         this.views.delete(client.room);
       }
-      if (this.clients.size === 0) await this.drain();
     });
   }
   private send(client: Client, message: unknown): void {
@@ -503,6 +568,7 @@ export class RoomGateway {
   }
   private fail(kind: string, error: Error): void {
     this.stateValue = "failed";
+    this.busGeneration++;
     this.deps.error(kind, error);
     for (const client of this.clients.values()) {
       client.socket.close(1012, "Room relay restarting");
@@ -516,13 +582,17 @@ export class RoomGateway {
     } catch (error) {
       this.deps.error("bus-stop", error);
     }
-    this.seen.clear();
+    for (const view of this.views.values()) view.seen.clear();
     this.stateValue = "idle";
   }
   async stop(): Promise<void> {
+    this.stopping = true;
+    await Promise.all(this.rooms.values());
     for (const client of this.clients.values())
       client.socket.close(1001, "Service restarting");
     for (const id of [...this.clients.keys()]) await this.disconnect(id);
-    if (this.stateValue !== "idle") await this.drain();
+    await this.serial(async () => {
+      if (this.stateValue !== "idle") await this.drain();
+    });
   }
 }

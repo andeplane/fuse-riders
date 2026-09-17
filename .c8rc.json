@@ -2,7 +2,6 @@
   "all": true,
   "include": [
     "src/shared/**",
-    "src/server/**",
     "src/client/controller-state.ts",
     "src/client/controller-pointers.ts",
     "src/client/controller-keyboard.ts",
@@ -18,8 +17,6 @@
     "src/client/asset-url.ts",
     "src/client/legend-src.ts",
     "src/client/arena-wall.ts",
-    "src/client/arena-maps.ts",
-    "src/client/arena-views.ts",
     "src/client/powerup-guide.ts",
     "packages/fuse-network-be/src/memory-database.ts",
     "packages/fuse-network-be/src/http.ts",

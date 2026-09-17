@@ -798,3 +798,204 @@ test("direct new admission rotates an active old watch before its delayed callba
   await f.a.stop();
   await f.b.stop();
 });
+
+test("bus dedupe overflow drops only that room's frames; local and other-room signalling survive", async () => {
+  const f = fixture(),
+    { hostConnection, guestConnection, guest } = await joined(f);
+  f.aBus.delayed = true;
+  await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
+  const packet = f.aBus.published[0]!;
+  for (let i = 0; i < 4200; i++)
+    await f.b.deliver({ ...packet, id: `flood-${i}` });
+  assert.equal(guest.frames("signal").length, 512);
+  assert.equal(guest.closes.length, 0);
+  assert.equal(f.b.state, "ready");
+  // A same-process sender needs no retry window, even when this room's bus window is full.
+  const local = new Socket(),
+    localToken = "c".repeat(64);
+  const localConnection = await f.b.connect(CODE, localToken, local);
+  await f.b.receive(localConnection, signal(peerId(GUEST), guestConnection));
+  assert.equal(guest.frames("signal").length, 513);
+  await f.store.create("CD34", HOST);
+  const otherHost = new Socket(),
+    otherGuest = new Socket();
+  const otherHostConnection = await f.a.connect("CD34", HOST, otherHost);
+  const otherGuestConnection = await f.b.connect("CD34", GUEST, otherGuest);
+  f.aBus.delayed = false;
+  await f.a.receive(
+    otherHostConnection,
+    signal(peerId(GUEST), otherGuestConnection),
+  );
+  assert.equal(otherGuest.frames("signal").length, 1);
+  await f.b.deliver({ ...packet, id: "flood-0" });
+  assert.equal(
+    guest.frames("signal").length,
+    513,
+    "accepted duplicate remains suppressed at capacity",
+  );
+  f.advance(10_001);
+  await f.b.deliver({ ...packet, id: "fresh", expiresAt: 21_001 });
+  assert.equal(
+    guest.frames("signal").length,
+    514,
+    "expired dedupe slots become available",
+  );
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("signalling allows an ICE burst and five-per-second refill, then closes only the abusive sender", async () => {
+  const f = fixture(),
+    { host, guest, hostConnection, guestConnection } = await joined(f);
+  for (let i = 0; i < 32; i++)
+    await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
+  assert.equal(guest.frames("signal").length, 32);
+  f.advance(1000);
+  for (let i = 0; i < 5; i++)
+    await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
+  assert.equal(guest.frames("signal").length, 37);
+  await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
+  assert.equal(host.closes.at(-1)?.code, 1008);
+  assert.equal(guest.closes.length, 0);
+  assert.equal(guest.frames("signal").length, 37);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test(
+  "slow admission and departure serialize only their own room",
+  { timeout: 2000 },
+  async () => {
+    let releaseAdmission = () => {},
+      releaseDeparture = () => {},
+      startedAdmission = () => {},
+      startedDeparture = () => {};
+    const admissionStarted = new Promise<void>((resolve) => {
+      startedAdmission = resolve;
+    });
+    const departureStarted = new Promise<void>((resolve) => {
+      startedDeparture = resolve;
+    });
+    const admissionWait = new Promise<void>((resolve) => {
+      releaseAdmission = resolve;
+    });
+    const departureWait = new Promise<void>((resolve) => {
+      releaseDeparture = resolve;
+    });
+    let blockAdmission = true,
+      blockDeparture = true;
+    class SlowStore extends RoomStore {
+      override async admit(code: string, token: string, gatewayId: string) {
+        if (code === CODE && blockAdmission) {
+          startedAdmission();
+          await admissionWait;
+        }
+        return super.admit(code, token, gatewayId);
+      }
+      override async leave(
+        code: string,
+        member: Parameters<RoomStore["leave"]>[1],
+      ) {
+        if (code === CODE && blockDeparture) {
+          startedDeparture();
+          await departureWait;
+        }
+        return super.leave(code, member);
+      }
+    }
+    const f = fixture((database, deps) => new SlowStore(database, deps));
+    await f.store.create(CODE, HOST);
+    await f.store.create("CD34", HOST);
+    const slow = f.a.connect(CODE, HOST, new Socket());
+    await admissionStarted;
+    const other = await f.a.connect("CD34", HOST, new Socket());
+    assert.equal(f.a.connections, 1);
+    releaseAdmission();
+    const first = await slow;
+    blockAdmission = false;
+    const leaving = f.a.disconnect(first);
+    await departureStarted;
+    await f.a.disconnect(other);
+    assert.equal(f.a.state, "ready", "pending work keeps the shared bus alive");
+    const next = await f.a.connect("CD34", GUEST, new Socket());
+    releaseDeparture();
+    await leaving;
+    blockDeparture = false;
+    assert.equal(f.a.connections, 1);
+    await f.a.disconnect(next);
+    assert.equal(f.a.state, "idle");
+  },
+);
+
+test("a bus restart fences an admission already waiting on its database result", async () => {
+  let release = () => {},
+    started = () => {};
+  const waiting = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const lateToken = "d".repeat(64);
+  class DelayedStore extends RoomStore {
+    override async admit(code: string, token: string, gatewayId: string) {
+      const result = await super.admit(code, token, gatewayId);
+      if (token === lateToken) {
+        started();
+        await held;
+      }
+      return result;
+    }
+  }
+  const f = fixture((db, deps) => new DelayedStore(db, deps));
+  await joined(f);
+  const late = new Socket(),
+    joining = f.a.connect(CODE, lateToken, late);
+  await waiting;
+  f.aBus.failed?.(new Error("restart"));
+  await f.store.create("CD34", HOST);
+  const healthy = new Socket();
+  await f.a.connect("CD34", HOST, healthy);
+  release();
+  await assert.rejects(joining, /relay restarting/);
+  assert.equal(late.frames("welcome").length, 0);
+  assert.equal((await f.store.get(CODE)).members[peerId(lateToken)], undefined);
+  assert.equal(healthy.closes.length, 0);
+  assert.equal(f.a.state, "ready");
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("shutdown awaits admitted room work and rejects new joins", async () => {
+  let release = () => {},
+    started = () => {};
+  const waiting = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  class DelayedStore extends RoomStore {
+    override async admit(code: string, token: string, gatewayId: string) {
+      started();
+      await held;
+      return super.admit(code, token, gatewayId);
+    }
+  }
+  const f = fixture((db, deps) => new DelayedStore(db, deps));
+  await f.store.create(CODE, HOST);
+  const socket = new Socket(),
+    joining = f.a.connect(CODE, HOST, socket);
+  await waiting;
+  const stopping = f.a.stop();
+  await assert.rejects(
+    f.a.connect(CODE, GUEST, new Socket()),
+    /Service restarting/,
+  );
+  release();
+  await joining;
+  await stopping;
+  assert.equal(f.a.connections, 0);
+  assert.equal(f.a.state, "idle");
+  assert.equal(socket.closes.at(-1)?.code, 1001);
+});

@@ -65,7 +65,12 @@ export class FirestoreRoomDatabase implements RoomDatabase {
       }
     }, failed);
   }
-  async allowance(key: string, now: number, limit: number): Promise<boolean> {
+  async allowance(
+    key: string,
+    now: number,
+    limit: number,
+    consume = true,
+  ): Promise<boolean> {
     const ref = this.firestore
         .collection(`${this.prefix}-creation-limits`)
         .doc(key),
@@ -73,10 +78,12 @@ export class FirestoreRoomDatabase implements RoomDatabase {
     return this.firestore.runTransaction(
       async (transaction) => {
         const data = (await transaction.get(ref)).data();
-        const count =
+        const used =
           data?.hour === hour && Number.isSafeInteger(data.count)
-            ? Number(data.count) + 1
-            : 1;
+            ? Number(data.count)
+            : 0;
+        if (!consume) return used < limit;
+        const count = used + 1;
         if (count > limit) return false;
         transaction.set(ref, {
           hour,

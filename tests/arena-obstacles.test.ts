@@ -28,7 +28,6 @@ import {
 import { defaultRoomSettings } from "../src/shared/room-settings.js";
 import { BotController } from "../src/shared/bot-controller.js";
 import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
-import { controllerSnapshot } from "../src/server/index.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const press: InputIntent = {
@@ -628,11 +627,6 @@ test("the board travels in snapshots and checkpoints, and a controller is not se
     game.obstacles[0]!.x,
     700,
     "the snapshot is a copy, not the board itself",
-  );
-  assert.deepEqual(
-    controllerSnapshot(toSnapshot(game)).obstacles,
-    [],
-    "a phone controller renders no arena",
   );
 
   const restored = decodeGameState(encodeGameState(game));

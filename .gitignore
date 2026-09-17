@@ -3,3 +3,5 @@ dist/
 .env
 artifacts/
 coverage/
+
+firebase-debug.log
