@@ -30,7 +30,7 @@ export interface GcpRoomServiceOptions {
 /**
  * The Cloud Run room service: Firestore holds room metadata, Pub/Sub routes signalling between instances.
  * Reads GOOGLE_CLOUD_PROJECT, GCP_REGION, PUBSUB_TOPIC, ALLOWED_ORIGINS, and optionally ROOM_COLLECTION_PREFIX,
- * FIRESTORE_DATABASE_ID and PORT.
+ * FIRESTORE_DATABASE_ID, PORT and BUILD_REVISION (the image's source commit, reported by the health route).
  */
 export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
   const { authClient } = options;
@@ -91,6 +91,9 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
     gateway,
     extension: options.httpExtension?.({ store, firestore, prefix, projectId }),
     allowOrigin: (origin) => origins.has(origin),
+    ...(/^[a-f0-9]{40}$/.test(process.env.BUILD_REVISION ?? "")
+      ? { revision: process.env.BUILD_REVISION }
+      : {}),
     // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
     clientAddress: (req) => {
       const forwarded = req.headers["x-forwarded-for"];
