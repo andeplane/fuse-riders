@@ -75,7 +75,7 @@ docker build -f Dockerfile.cloud --build-arg BUILD_REVISION="$(git rev-parse HEA
 docker run --rm -p 8080:8080 --env-file /absolute/path/to/local-emulators.env fuse-riders-gateway:test
 ```
 
-The image deliberately retains the lockfile's dev dependencies because `tsx` is currently declared there and executes the TypeScript entrypoint. It runs as the unprivileged Node user. A compiled/pruned runtime is a later image-size optimization, not an excuse to change runtime dependencies without testing.
+The image installs production dependencies only (`npm ci --omit=dev`). `tsx` executes the TypeScript entrypoint, so it is a production dependency; packages that only the browser bundle, the tests or the tooling use (Phaser, Firebase web SDK, Mixpanel, Vite, Playwright, TypeScript) are devDependencies and are not in the image. `tests/service-image-dependencies.test.ts` fails if the entrypoint comes to import a dev-only package. The image runs as the unprivileged Node user. Bundling the entrypoint to drop `tsx` from the runtime is a possible later optimization, not an excuse to change runtime dependencies without testing.
 
 ## Backend pipeline
 
