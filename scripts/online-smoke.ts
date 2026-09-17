@@ -468,6 +468,13 @@ try {
   }
   await host.getByRole("button", { name: "ADD AI", exact: true }).click();
   await host.getByRole("button", { name: /Remove AI/ }).waitFor();
+  assert.match(
+    (await host
+      .getByRole("button", { name: /Remove AI/ })
+      .getAttribute("aria-label"))!,
+    /^Remove AI \w+$/,
+    "AI roster names omit difficulty",
+  );
   await host.getByRole("button", { name: "START RACE", exact: true }).click();
   await waitPhase(host, ["countdown", "playing"]);
   await waitPhase(guest, ["countdown", "playing"]);
