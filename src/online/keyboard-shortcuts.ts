@@ -42,7 +42,12 @@ export function keyboardShortcuts({
       title: "Radio",
       entries: [
         ["Ctrl+A", "Open the radio"],
-        ["Ctrl+M", "Mute everything"],
+        [
+          "Ctrl+M",
+          solo
+            ? "Mute music and effects"
+            : "Mute music and effects (voice is separate)",
+        ],
         ["Ctrl+Alt+M", "Mute music"],
         ["Ctrl+Alt+E", "Mute effects"],
       ],

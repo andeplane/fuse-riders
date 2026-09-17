@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from "jose";
 import { WebSocket } from "ws";
+import { SOLO_RATING_PLAYER_ID, type Rating } from "../src/shared/rating.js";
 import { AVATARS } from "../src/shared/avatars.js";
 import { createDevRoomService } from "../src/service/dev.js";
 import { createIdentityVerifier } from "../src/service/identity.js";
@@ -884,6 +885,39 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
       "one signed-in human and a guest do not rate",
     );
     assert.equal((await report(guest, result, "id:bob")).status, 200);
+    const roundResult = {
+      ...result,
+      round: 1,
+      length: 1,
+      players: result.players.map((p) => ({
+        ...p,
+        roundsPlayed: 1,
+        roundWins: 0,
+        roundsDrawn: 0,
+      })),
+    };
+    const roundReport = (seat: string, identity: string) =>
+      call(`/api/rooms/${created.code}/round-results`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${seat}`,
+          "x-fuse-identity": identity,
+        },
+        body: JSON.stringify({ result: roundResult }),
+      });
+    assert.equal(
+      (await report(created.token, roundResult, "id:alice")).status,
+      400,
+      "rounds cannot use the career endpoint",
+    );
+    assert.equal((await roundReport(created.token, "id:alice")).status, 200);
+    assert.equal(
+      (await roundReport(guest, "forged-token")).status,
+      503,
+      "a failed identity does not attest as a guest",
+    );
+    assert.equal((await roundReport(guest, "id:bob")).status, 200);
+
     const board = (await (
       await call("/api/leaderboard", {
         headers: { authorization: "Bearer id:alice" },
@@ -935,6 +969,87 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
     );
   } finally {
     for (const socket of sockets) socket.terminate();
+    await service.close();
+  }
+});
+
+test("solo HTTP rounds authenticate, remain zero-change, isolate accounts and settle once", async () => {
+  const service = createDevRoomService({
+    identity: async (value) =>
+      value.startsWith("id:") ? value.slice(3) : undefined,
+  });
+  await new Promise<void>((resolve) =>
+    service.server.listen(0, "127.0.0.1", resolve),
+  );
+  const origin = `http://127.0.0.1:${(service.server.address() as AddressInfo).port}`;
+  const result = resultOf([SOLO_RATING_PLAYER_ID, "bot:1"]);
+  result.round = 1;
+  result.length = 1;
+  result.players = result.players.map((p) => ({
+    ...p,
+    roundsPlayed: 1,
+    roundWins: 0,
+    roundsDrawn: 0,
+    earlyExits: 0,
+  }));
+  const report = (body: unknown, identity?: string) =>
+    fetch(`${origin}/api/me/round-results`, {
+      method: "POST",
+      headers: { origin, ...(identity ? { "X-Fuse-Identity": identity } : {}) },
+      body: JSON.stringify(body),
+    });
+  const profile = async (uid: string) =>
+    (await (
+      await fetch(`${origin}/api/me`, {
+        headers: { origin, authorization: `Bearer id:${uid}` },
+      })
+    ).json()) as {
+      profile: { rating: Rating; totals: { matches: number } } | null;
+    };
+  try {
+    assert.equal((await report({ result })).status, 401);
+    assert.equal((await report({ result }, "invalid")).status, 503);
+    assert.equal((await profile("a")).profile, null);
+    const secondHuman = structuredClone(result);
+    secondHuman.players[1]!.playerId = "a".repeat(24);
+    for (const invalid of [
+      secondHuman,
+      { ...result, round: undefined },
+      { ...result, finishers: [] },
+      { ...result, round: 0 },
+    ])
+      assert.equal((await report({ result: invalid }, "id:a")).status, 400);
+    assert.equal((await report({ result, uid: "other" }, "id:a")).status, 400);
+    assert.equal((await report({ result }, "id:a")).status, 200);
+    const first = (await profile("a")).profile!;
+    assert.equal(first.rating.value, 1000);
+    assert.equal(first.rating.rounds, 1);
+    assert.equal(first.rating.points[0]!.opponents, 0);
+    assert.equal(first.totals.matches, 0);
+    for (const candidate of [
+      result,
+      {
+        ...result,
+        players: result.players.map((p) => ({ ...p, matchScoreUnits: 999 })),
+      },
+    ])
+      assert.equal((await report({ result: candidate }, "id:a")).status, 200);
+    assert.deepEqual((await profile("a")).profile!.rating, first.rating);
+    assert.equal((await report({ result }, "id:b")).status, 200);
+    assert.equal((await profile("b")).profile!.rating.rounds, 1);
+    assert.equal(
+      (await report({ result: { ...result, round: 2 } }, "id:a")).status,
+      200,
+    );
+    assert.equal((await profile("a")).profile!.rating.rounds, 2);
+    assert.equal((await profile("a")).profile!.rating.value, 1000);
+    const history = (await (
+      await fetch(`${origin}/api/me/matches`, {
+        headers: { origin, authorization: "Bearer id:a" },
+      })
+    ).json()) as { matches: unknown[] };
+    assert.equal(history.matches.length, 0);
+  } finally {
     await service.close();
   }
 });

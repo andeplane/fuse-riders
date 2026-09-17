@@ -34,14 +34,16 @@ const run = (command: string, args: string[]) =>
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 
+const CONFIG_SOURCES = [
+  "deploy/firebase-config.json",
+  "firebase.json",
+  "firestore.indexes.json",
+  "firestore.rules",
+];
+
 async function main() {
   const sources = await Promise.all(
-    [
-      "deploy/firebase-config.json",
-      "firebase.json",
-      "firestore.indexes.json",
-      "firestore.rules",
-    ].map((p) => readFile(p, "utf8")),
+    CONFIG_SOURCES.map((p) => readFile(p, "utf8")),
   );
   const desired = desiredConfiguration(
     JSON.parse(sources[0]!),
@@ -225,17 +227,22 @@ async function main() {
   };
   console.log(JSON.stringify(evidence, null, 2));
   if (mode === "plan") return;
-  // A late CI run may deploy older compatible code, but must not revert newer configuration.
+  // A late CI run may deploy older compatible code, but must not revert newer configuration. Compare the
+  // configuration itself, not the commit: main moves faster than CI, so demanding main's head refused every
+  // configuration change on a busy day even though main still held exactly this configuration.
   if (plan.firestore.length || plan.auth || plan.google || plan.key) {
-    const latest = run("gh", [
-      "api",
-      "repos/andeplane/fuse-riders/commits/main",
-      "--jq",
-      ".sha",
-    ]);
-    if (latest !== revision)
+    const newerOnMain = CONFIG_SOURCES.filter(
+      (path, i) =>
+        run("gh", [
+          "api",
+          "-H",
+          "Accept: application/vnd.github.raw",
+          `repos/andeplane/fuse-riders/contents/${path}?ref=main`,
+        ]) !== sources[i]!.trim(),
+    );
+    if (newerOnMain.length)
       throw new Error(
-        "This revision is behind main and would change configuration; let the newer revision deploy it",
+        `main has different configuration (${newerOnMain.join(", ")}); let the newer revision deploy it`,
       );
   }
   await applyConfiguration(desired, cloud, plan);

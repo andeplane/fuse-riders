@@ -5,6 +5,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
 const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
 const results: object[] = [];
+const forceHoldTransition = process.env.MOBILE_HOLD_PHASE_RACE === "1";
+interface HoldPhase {
+  phase: string;
+  generation: number;
+}
 await mkdir("artifacts", { recursive: true });
 // A solo round can end while the hints fade: matchOver opens the tools overlay (pointer-events:none on the thirds) and a phase
 // change clears held input. Close the overlay and retry the press instead of racing the round clock.
@@ -54,7 +59,20 @@ for (const { name, kind } of BOTH_ENGINES) {
           );
       },
     );
-    await page.goto(new URL("?solo=1", base).href);
+    // Observe actual phase transitions, including transitions occurring between driver calls.
+    await page.addInitScript(() => {
+      const state = { phase: "", generation: 0 };
+      Reflect.set(window, "__holdPhase", state);
+      window.addEventListener("fuse-benchmark", (event) => {
+        const snapshot = (event as CustomEvent<{ kind: string; phase: string }>)
+          .detail;
+        if (snapshot.kind !== "snapshot" || snapshot.phase === state.phase)
+          return;
+        state.phase = snapshot.phase;
+        state.generation++;
+      });
+    });
+    await page.goto(new URL("?solo=1&benchmark=1", base).href);
     await page.locator(".mobile-rotate-gate").waitFor({ state: "visible" });
     await page.locator(".mobile-tools-toggle").click();
     await page.screenshot({
@@ -112,33 +130,102 @@ for (const { name, kind } of BOTH_ENGINES) {
     const zones = page.locator(".online-controls>button");
     const cdp =
       name === "chrome" ? await context.newCDPSession(page) : undefined;
+    let transitionForced = false;
     for (const third of [0, 1, 2]) {
       const x = 844 / 6 + (third * 844) / 3,
         y = 195;
-      if (cdp)
-        await cdp.send("Input.dispatchTouchEvent", {
-          type: "touchStart",
-          touchPoints: [{ x, y }],
-        });
-      else {
-        await page.mouse.move(x, y);
-        await page.mouse.down();
+      let completed = false;
+      for (let attempt = 0; attempt < 6 && !completed; attempt++) {
+        await page.waitForFunction(
+          () =>
+            Reflect.get(window, "__holdPhase").phase === "playing" &&
+            !document.querySelector(".mobile-tools-open"),
+          undefined,
+          { timeout: smokeTimeout(20000) },
+        );
+        const initial = await page.evaluate(
+          () => Reflect.get(window, "__holdPhase") as HoldPhase,
+        );
+        if (initial.phase !== "playing") continue;
+        try {
+          if (cdp)
+            await cdp.send("Input.dispatchTouchEvent", {
+              type: "touchStart",
+              touchPoints: [{ x, y }],
+            });
+          else {
+            await page.mouse.move(x, y);
+            await page.mouse.down();
+          }
+          // Regression mode: keep the first gesture down until a real game transition cancels it.
+          // No synthetic snapshots or altered game clock: this deterministically exercises the retry.
+          const forcedTransition =
+            forceHoldTransition && third === 0 && !transitionForced;
+          if (forcedTransition)
+            await page.waitForFunction(
+              (generation) =>
+                (Reflect.get(window, "__holdPhase") as HoldPhase).generation !==
+                generation,
+              initial.generation,
+              { timeout: smokeTimeout(20000) },
+            );
+          // Measure the real hold in the page and return a latched observation. A delayed driver
+          // response must not move the sample into another round. 650 ms is the gesture, not a timeout.
+          const observation = await zones
+            .nth(third)
+            .evaluate(async (zone, expectedGeneration) => {
+              await new Promise<void>((resolve) => setTimeout(resolve, 650));
+              return {
+                phaseChanged:
+                  (Reflect.get(window, "__holdPhase") as HoldPhase)
+                    .generation !== expectedGeneration,
+                held: zone.classList.contains("active"),
+                selection: document.getSelection()?.toString() ?? "",
+              };
+            }, initial.generation);
+          assert.equal(
+            observation.selection,
+            "",
+            `long press on third ${third} selected text`,
+          );
+          if (forcedTransition) {
+            assert.equal(
+              observation.phaseChanged,
+              true,
+              "the interrupted hold must be retried",
+            );
+            transitionForced = true;
+          }
+          if (observation.phaseChanged) {
+            console.log(
+              `${name}: retry third ${third} after a phase transition`,
+            );
+            continue;
+          }
+          assert.ok(
+            observation.held,
+            `third ${third} must be held during the long press`,
+          );
+          completed = true;
+        } finally {
+          if (cdp)
+            await cdp.send("Input.dispatchTouchEvent", {
+              type: "touchEnd",
+              touchPoints: [],
+            });
+          else await page.mouse.up();
+          assert.equal(
+            await page.evaluate(
+              () => document.getSelection()?.toString() ?? "",
+            ),
+            "",
+            `releasing the long press on third ${third} selected text`,
+          );
+        }
       }
-      await page.waitForTimeout(650);
       assert.ok(
-        await zones.nth(third).evaluate((e) => e.classList.contains("active")),
-        `third ${third} must be held during the long press`,
-      );
-      if (cdp)
-        await cdp.send("Input.dispatchTouchEvent", {
-          type: "touchEnd",
-          touchPoints: [],
-        });
-      else await page.mouse.up();
-      assert.equal(
-        await page.evaluate(() => document.getSelection()?.toString() ?? ""),
-        "",
-        `long press on third ${third} selected text`,
+        completed,
+        `third ${third} never completed a 650 ms hold within one playing phase`,
       );
     }
     assert.equal(

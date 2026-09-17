@@ -1736,6 +1736,35 @@
 .online-join > input {
   min-width: 0;
 }
+.lobby-join-title {
+  display: none;
+}
+.room-riders .online-join {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.875rem;
+  border: 0.125rem solid #00d9ff;
+  background: #091b32;
+  box-shadow: 0 0 1.25rem #00d9ff20;
+}
+.room-riders .lobby-join-title {
+  display: block;
+  margin: 0 0 0.25rem;
+  color: #16e7ff;
+  font-size: 0.8125rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+.room-riders .online-join > button:not(.avatar-current) {
+  min-height: 2.75rem;
+  background: #00d9ff;
+  color: #061126;
+  font-weight: bold;
+}
+@media (max-width: 600px) {
+  .room-lobby .room-riders:has(.online-join:not([hidden])) {
+    grid-column: 1 / -1;
+  }
+}
 .online-join .avatar-picker {
   grid-column: 1/-1;
   padding: 0;
@@ -2663,4 +2692,67 @@
 .side-standings .key-hint,
 .side-standings .online-power-status {
   left: calc(50% - var(--standings-width) / 2);
+}
+
+/* Voice belongs to each device; indicators never change rider identity or arena geometry. */
+.voice-settings {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #365477;
+  padding-top: 12px;
+  min-width: 0;
+}
+.voice-settings h3,
+.voice-settings p {
+  margin: 0;
+}
+.voice-settings p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #a3b9cb;
+}
+.voice-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.online-app dialog .voice-settings label {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin: 0;
+}
+.voice-settings select {
+  min-width: 0;
+}
+.voice-participants {
+  display: grid;
+  gap: 8px;
+}
+.voice-participants > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.voice-participants span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.voice-participants button {
+  flex-shrink: 0;
+}
+.room-rider[data-voice]:not([data-voice=""])::after,
+.online-score-card[data-voice]:not([data-voice=""])::after {
+  content: attr(data-voice);
+  font-size: 8px;
+  color: #a3b9cb;
+}
+.room-rider[data-voice="SPEAKING"]::after,
+.online-score-card[data-voice="SPEAKING"]::after {
+  color: #8dffb5;
+}
+.voice-toggle {
+  white-space: nowrap;
 }
