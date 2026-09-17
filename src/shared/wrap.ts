@@ -46,6 +46,7 @@ export function splitWrappedSegment(segment: TrailSegment, width: number, height
     (piece.x1 - dx - segment.x1) * (segment.x2 - segment.x1) + (piece.y1 - dy - segment.y1) * (segment.y2 - segment.y1);
   return images.flatMap(({ dx, dy }) => {
     const piece = clipTrailSegment({ ...segment, x1: segment.x1 + dx, y1: segment.y1 + dy, x2: segment.x2 + dx, y2: segment.y2 + dy }, bounds);
-    return piece ? [{ piece, order: along(piece, dx, dy) }] : [];
+    // A piece that is only the point where the segment touches an edge or a corner is no trail at all.
+    return piece && (piece.x1 !== piece.x2 || piece.y1 !== piece.y2) ? [{ piece, order: along(piece, dx, dy) }] : [];
   }).sort((a, b) => a.order - b.order).map(({ piece }) => piece);
 }

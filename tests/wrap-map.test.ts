@@ -276,3 +276,40 @@ test('something near an open edge is drawn on both sides of it', () => {
   assert.deepEqual(edgeGhosts(1600, 900, 1590, 450, 40), [{ dx: 0, dy: 0 }, { dx: -1600, dy: 0 }]);
   assert.equal(edgeGhosts(1600, 900, 5, 895, 40).length, 4);
 });
+
+test('a blast whose rim stops just short of an open edge still reaches a rider overhanging it from the far side', () => {
+  const blastAt = (victimX: number): boolean => {
+    const game = scene();
+    place(game, 'p0', { x: 800, y: 800, angle: 0 });
+    place(game, 'p1', { x: victimX, y: 380, angle: Math.PI / 2 });
+    // Rim three units inside the left edge: nothing of the blast itself crosses, but a rider is seven units wide.
+    game.bombs.set(99, { id: 99, ownerId: 'p0', launchX: 0, launchY: 0, x: 103, y: 400, launchedTick: game.tick - 10, landsAtTick: game.tick - 4,
+      flightPath: [], placedTick: game.tick - 10, explodeAtTick: game.tick + 1, blastRange: 100 });
+    return step(game, new Map()).events.some(event => event.type === 'playerEliminated' && event.playerId === 'p1' && event.cause === 'explosion');
+  };
+  assert.equal(blastAt(1598), true, 'five units from the rim, across the edge');
+  assert.equal(blastAt(1585), false, 'eighteen units from it is out of reach either way');
+});
+
+test('a bullet fired along an open edge hits a rider overhanging that edge from the far side', () => {
+  const shotAt = (victimX: number): boolean => {
+    const game = scene();
+    place(game, 'p0', { x: 1596, y: 100, angle: Math.PI / 2, gunArmed: true });
+    place(game, 'p1', { x: victimX, y: 500, angle: Math.PI / 2 });
+    return step(game, new Map([['p0', press]])).events.some(event => event.type === 'playerEliminated' && event.playerId === 'p1');
+  };
+  assert.equal(shotAt(2), true, 'six units from the ray, across the edge');
+  assert.equal(shotAt(30), false);
+});
+
+test('a rider hugging the edge when the walls come in is not killed by their arrival', () => {
+  const game = scene();
+  game.roundStartedTick = game.tick - OVERTIME_START_TICK;
+  place(game, 'p0', { x: 5, y: 300, angle: Math.PI / 2 });
+  place(game, 'p1', { x: 800, y: 300, angle: Math.PI / 2 });
+  step(game, new Map());
+  assert.equal(edgesOpen(game), false, 'the walls are in');
+  assert.equal(rider(game).alive, true, 'and the lethal band is still narrower than where the rider legally was');
+  run(game, 12);
+  assert.equal(rider(game).alive, false, 'staying there is fatal within a second, as hugging a closing wall always is');
+});

@@ -698,17 +698,20 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   }
 
   for (const movement of movements.values()) {
+    // A rider overhanging an open edge, or whose step ends past it, is also in reach of a blast on the far side.
     for (const blast of newBlasts) {
-      if (!isHazardImmune(movement.player, state.tick) && segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, blast.circle, RIDER_RADIUS)) {
+      if (!isHazardImmune(movement.player, state.tick) && (open ? movementImages(state, movement, RIDER_RADIUS) : NO_WRAP).some(({ dx, dy }) =>
+        segmentIntersectsDisk(movement.oldX + dx, movement.oldY + dy, movement.x + dx, movement.y + dy, blast.circle, RIDER_RADIUS))) {
         markCause(causes, causeOwners, movement.player.id, 'explosion', blast.ownerId);
         markShot(movement.player.id, blast.bombId, blast.shot);
       }
     }
 
-    const left = state.boundaryInset + RIDER_RADIUS;
-    const right = state.width - state.boundaryInset - RIDER_RADIUS;
-    const top = state.boundaryInset + RIDER_RADIUS;
-    const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
+    const reach = wallReach(state);
+    const left = state.boundaryInset + reach;
+    const right = state.width - state.boundaryInset - reach;
+    const top = state.boundaryInset + reach;
+    const bottom = state.height - state.boundaryInset - reach;
     if (!open && !isHazardImmune(movement.player, state.tick) && (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom)) {
       markCause(causes, causeOwners, movement.player.id, 'wall');
     }
@@ -1313,6 +1316,15 @@ function isSafePortalPosition(
   return !state.blasts.some(blast => segmentIntersectsDisk(point.x, point.y, point.x, point.y, blast.circle, radius));
 }
 
+/**
+ * How far from the wall's face a rider dies. A rider's radius, except while a wrap board's walls are first coming in:
+ * riders may legally be anywhere up to the very edge when they appear, so the lethal band grows out of the edge over
+ * a few ticks instead of arriving a full radius wide in one.
+ */
+function wallReach(state: GameState): number {
+  return state.map === 'wrap' ? Math.min(RIDER_RADIUS, 2 * state.boundaryInset) : RIDER_RADIUS;
+}
+
 /** The short way round when the edges are open, the plain difference when they are not. */
 function nearestDelta(open: boolean, delta: number, size: number): number {
   return open ? wrapDelta(delta, size) : delta;
@@ -1349,10 +1361,11 @@ function isHazardImmune(player: PlayerState, tick: number): boolean {
 function reflectAtBoundary(state: GameState, movement: Movement): boolean {
   // An open edge is not a surface: the rider carries on through it.
   if (edgesOpen(state)) return false;
-  const left = state.boundaryInset + RIDER_RADIUS;
-  const right = state.width - state.boundaryInset - RIDER_RADIUS;
-  const top = state.boundaryInset + RIDER_RADIUS;
-  const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
+  const reach = wallReach(state);
+  const left = state.boundaryInset + reach;
+  const right = state.width - state.boundaryInset - reach;
+  const top = state.boundaryInset + reach;
+  const bottom = state.height - state.boundaryInset - reach;
   const hitX = movement.x < left || movement.x > right;
   const hitY = movement.y < top || movement.y > bottom;
   if (!hitX && !hitY) return false;
@@ -1591,6 +1604,9 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
       const dx = vx * distance, dy = vy * distance;
       let contact = 1;
       let hit: PlayerState | undefined;
+      const gunReach = RIDER_RADIUS + GUN_RADIUS;
+      const legImages = open ? wrapImages(state.width, state.height, Math.min(x, x + dx) - gunReach, Math.min(y, y + dy) - gunReach,
+        Math.max(x, x + dx) + gunReach, Math.max(y, y + dy) + gunReach) : NO_WRAP;
       // Slot order is stable even when a checkpoint was decoded with another Map insertion order.
       for (const player of sortedPlayers(state)) {
         if (player.id === bomb.ownerId) continue;
@@ -1600,8 +1616,11 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
           const time = firstContactTime(touches);
           if (time < contact || !hit) { contact = time; hit = player; }
         };
-        if (player.alive) consider(player.x, player.y, player.x, player.y, RIDER_RADIUS + GUN_RADIUS);
-        for (const trail of player.trail) consider(trail.x1, trail.y1, trail.x2, trail.y2, TRAIL_WIDTH / 2 + GUN_RADIUS);
+        // A leg along an open edge also meets what overhangs that edge from the far side.
+        for (const image of legImages) {
+          if (player.alive) consider(player.x - image.dx, player.y - image.dy, player.x - image.dx, player.y - image.dy, RIDER_RADIUS + GUN_RADIUS);
+          for (const trail of player.trail) consider(trail.x1 - image.dx, trail.y1 - image.dy, trail.x2 - image.dx, trail.y2 - image.dy, TRAIL_WIDTH / 2 + GUN_RADIUS);
+        }
       }
       // Scenery stops a bullet without taking damage from it: only a blast clears an obstacle. Whatever stood
       // behind it was never in this ray's line, so an earlier obstacle contact also drops the rider it found.
@@ -1617,6 +1636,7 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
         segment.x = gate.transit.entryPoint.x; segment.y = gate.transit.entryPoint.y;
         spent.add(gate.transit.pairId);
         segment = continueGunTracer(state, bomb, gate.transit.exitPoint);
+        range -= distance * gate.time;
         hop += 1;
         continue;
       }
@@ -1626,6 +1646,8 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
       if (!hit && contact === 1 && open && range > distance && distance < Infinity) {
         range -= distance;
         const throughX = wallX <= wallY, throughY = wallY <= wallX;
+        if (throughX) segment.x = vx > 0 ? state.width : 0;
+        if (throughY) segment.y = vy > 0 ? state.height : 0;
         segment = continueGunTracer(state, bomb, {
           x: throughX ? (vx > 0 ? 0 : state.width) : segment.x,
           y: throughY ? (vy > 0 ? 0 : state.height) : segment.y,
@@ -1633,9 +1655,11 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
         continue;
       }
       if (!hit) break;
-      impacts.push({ x: segment.x, y: segment.y });
+      // The hole is cut wherever the impact reaches, which near an open edge includes the trail on the far side.
+      for (const { dx: shiftX, dy: shiftY } of open ? wrapImages(state.width, state.height, segment.x - GUN_HOLE_RADIUS, segment.y - GUN_HOLE_RADIUS,
+        segment.x + GUN_HOLE_RADIUS, segment.y + GUN_HOLE_RADIUS) : NO_WRAP) impacts.push({ x: segment.x + shiftX, y: segment.y + shiftY });
       // A body hit is only lethal near that body's own living head, never through splash.
-      if (hit.alive && square(hit.x - segment.x) + square(hit.y - segment.y) <= square(GUN_HEADSHOT_RADIUS)) {
+      if (hit.alive && square(nearestDelta(open, hit.x - segment.x, state.width)) + square(nearestDelta(open, hit.y - segment.y, state.height)) <= square(GUN_HEADSHOT_RADIUS)) {
         const previous = hits.get(hit.id) ?? [];
         previous.push({ bombId: bomb.id, ownerId: bomb.ownerId, shot: bomb.shot });
         hits.set(hit.id, previous);
@@ -1655,8 +1679,8 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
  */
 function applyGravity(state: GameState, x: number, y: number, distance: number): { x: number; y: number } {
   let dx = 0, dy = 0;
+  const open = edgesOpen(state);
   for (const field of state.gravityFields) {
-    const open = edgesOpen(state);
     const toX = nearestDelta(open, field.x - x, state.width), toY = nearestDelta(open, field.y - y, state.height);
     const away = hypot2(toX, toY);
     if (away === 0 || away >= field.radius) continue;
@@ -1687,10 +1711,12 @@ function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
     const bomb = state.bombs.get(id);
     if (!bomb) continue;
     exploded.add(id);
-    // A blast that reaches past an open edge carries on from the opposite one. Each part is a blast in its own right,
+    // A blast that reaches past an open edge carries on from the opposite one; "reaches" is measured at a rider's
+    // radius, the widest thing a blast is tested against, so a rider or trail overhanging the edge is covered too. Each part is a blast in its own right,
     // under the same bomb id, so everything downstream — kills, cuts, chains, the drawing — covers both without knowing.
     const circles: BlastCircle[] = (edgesOpen(state)
-      ? wrapImages(state.width, state.height, bomb.x - bomb.blastRange, bomb.y - bomb.blastRange, bomb.x + bomb.blastRange, bomb.y + bomb.blastRange)
+      ? wrapImages(state.width, state.height, bomb.x - bomb.blastRange - RIDER_RADIUS, bomb.y - bomb.blastRange - RIDER_RADIUS,
+        bomb.x + bomb.blastRange + RIDER_RADIUS, bomb.y + bomb.blastRange + RIDER_RADIUS)
       : NO_WRAP).map(({ dx, dy }) => ({ x: bomb.x + dx, y: bomb.y + dy, radius: bomb.blastRange }));
     const circle = circles[0]!;
     state.pickups = state.pickups.filter(pickup => circles.every(part =>

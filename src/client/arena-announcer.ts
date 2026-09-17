@@ -26,6 +26,8 @@ export function announcementFor(snapshot: ViewSnapshot, selfId: string, touch: b
   if (snapshot.phase === 'playing') {
     const elapsed = snapshot.roundStartedTick === undefined ? 0 : snapshot.tick - snapshot.roundStartedTick;
     if (elapsed >= OVERTIME_START_TICK) return { kind: 'overtime', text: `OVERTIME // WALLS CLOSING · DRAW IN ${Math.max(0, Math.ceil((ROUND_DRAW_TICK - elapsed) / TICK_HZ))}s` };
+    // Open edges close when overtime starts, and a rider heading out through one on that tick meets a wall instead.
+    if (snapshot.map === 'wrap' && elapsed >= OVERTIME_START_TICK - 3 * TICK_HZ) return { kind: 'overtime', text: `EDGES CLOSE IN ${Math.ceil((OVERTIME_START_TICK - elapsed) / TICK_HZ)}s` };
     return { kind: 'hidden' };
   }
   if (snapshot.phase === 'roundOver') {
