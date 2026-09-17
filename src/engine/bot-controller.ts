@@ -32,7 +32,7 @@ import {
 } from "./arena-map.js";
 import { wrapCoordinate, wrapDelta, wrapImages } from "./wrap.js";
 import { drunkHeadingOffset } from "./drunk.js";
-import type { TrailSegment } from "../shared/protocol.js";
+import type { TrailSegment } from "./primitives.js";
 
 export const BOT_ID_PREFIX = "bot:";
 export const BOT_LOOKAHEAD_TICKS = 32;

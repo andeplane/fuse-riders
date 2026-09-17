@@ -1,4 +1,4 @@
-import type { TrailSegment } from "../shared/protocol.js";
+import type { TrailSegment } from "./primitives.js";
 
 export interface TrailBounds {
   minX: number;

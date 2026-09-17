@@ -35,17 +35,23 @@ export type {
   Weapon,
 } from "../engine/shot-log.js";
 
-export type PlayerId = string;
+// The primitives the simulation itself is written in are the engine's; the wire vocabulary re-exports them.
+import type {
+  AimPoint,
+  BlastCircle,
+  BombAction,
+  PlayerId,
+  TrailSegment,
+} from "../engine/primitives.js";
+export type {
+  AimPoint,
+  BlastCircle,
+  BombAction,
+  BombActionCommand,
+  PlayerId,
+  TrailSegment,
+} from "../engine/primitives.js";
 export type PlayerToken = string;
-export interface AimPoint {
-  x: number;
-  y: number;
-}
-export interface BombActionCommand {
-  action: BombAction;
-  aim?: AimPoint;
-}
-export type BombAction = "press" | "release" | "cancel";
 export type ClientMessage =
   | {
       type: "join";
@@ -69,21 +75,6 @@ export type ClientMessage =
   | { type: "hostAuth"; token: string }
   | { type: "hostAction"; action: "start" | "nextRound" | "rematch" | "lobby" }
   | { type: "hostBot"; action: "add" | "remove"; id?: string };
-export interface TrailSegment {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  createdTick: number;
-  expiresAtTick: number;
-  /** Absent on the living, age-limited tail. Detached runs share an issued id and decay clock. */
-  detached?: Readonly<{ id: number; decayStartTick: number }>;
-}
-export interface BlastCircle {
-  x: number;
-  y: number;
-  radius: number;
-}
 export interface GameSnapshot {
   matchLength: number;
   bombChargeTicks: number;

@@ -1,8 +1,4 @@
-import type {
-  AimPoint,
-  BombAction,
-  BombActionCommand,
-} from "../shared/protocol.js";
+import type { AimPoint, BombAction, BombActionCommand } from "./primitives.js";
 
 export const MAX_PENDING_BOMB_ACTIONS = 8;
 

@@ -13,25 +13,25 @@ import type { Moment } from "./moments.js";
 import type { PickupType } from "./pickup-types.js";
 import type { PortalPair } from "./portal.js";
 import type { FlightPoint } from "./launch-modifiers.js";
-// The one engine module that names wire types: every other engine file reads them from here (issue #254 moves them).
 import type {
   AimPoint,
-  AvatarId,
   BlastCircle,
   BombActionCommand,
   PlayerId,
   TrailSegment,
-} from "../shared/protocol.js";
+} from "./primitives.js";
 export type {
   AimPoint,
   BlastCircle,
   BombAction,
   BombActionCommand,
-  GameEvent,
-  GameSnapshot,
   PlayerId,
   TrailSegment,
-} from "../shared/protocol.js";
+} from "./primitives.js";
+// The one engine module that still names wire types: the avatar id a rider carries, the events a tick reports and the
+// public snapshot. Issue #254 moves the last two into the engine's view.
+import type { AvatarId } from "../shared/protocol.js";
+export type { GameEvent, GameSnapshot } from "../shared/protocol.js";
 export type { FlightPoint } from "./launch-modifiers.js";
 import type { RoomSettings } from "./room-settings.js";
 import type { DecidedRound, RoundShot } from "./shot-log.js";
