@@ -11,7 +11,8 @@ import {
 } from "./arena-map.js";
 import { beginMatchParticipant, recordEarlyExit } from "./match-stats.js";
 import { createTickContext } from "./sim/context.js";
-import { PHASES } from "./sim/pipeline.js";
+import { PHASES, TickFault, type Phase } from "./sim/pipeline.js";
+export { PHASES, TickFault, type Phase } from "./sim/pipeline.js";
 import {
   ARENA_HEIGHT,
   ARENA_WIDTH,
@@ -235,15 +236,25 @@ export function resetMatch(state: GameState, newMatchId: string): void {
   prepareRound(state);
 }
 
+/**
+ * One tick: the early-out and a loop over PHASES, which is where the order of a tick is written down. `phases` is the
+ * seam a test uses to put a failing phase into the tick; nothing else passes it. A phase that throws surfaces as a
+ * `TickFault`, and the state is then unusable: see `TickFault`.
+ */
 export function step(
   state: GameState,
   inputs: ReadonlyMap<PlayerId, InputIntent>,
+  phases: readonly Phase[] = PHASES,
 ): TickResult {
   const ctx = createTickContext(state, inputs);
-  for (const phase of PHASES) {
+  for (const phase of phases) {
     // The early-out: with no round in play the tick ends once the clock, the expiries and the countdown have run.
     if (phase.when === "playing" && state.phase !== "playing") break;
-    phase.run(ctx);
+    try {
+      phase.run(ctx);
+    } catch (error) {
+      throw new TickFault(state.tick, phase.name, error);
+    }
   }
   return { events: ctx.events };
 }

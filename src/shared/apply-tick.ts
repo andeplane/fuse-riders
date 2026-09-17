@@ -12,6 +12,7 @@ import {
   sortedPlayers,
   type GameState,
   type InputIntent,
+  type Phase,
 } from "./game.js";
 import { BotController, BOT_ID_PREFIX } from "./bot-controller.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
@@ -245,12 +246,18 @@ function applyManagement(state: RoomState, entry: Entry): void {
 /**
  * Advance the room by one tick from the entries stamped with that tick. Management entries apply first, then each
  * player's entries fold into its held controls, then the shared `step`, then automatic round progression.
+ *
+ * Not transactional: if `step` throws (a `TickFault`), `state` is left part-way through the tick and the caller must
+ * discard it for a copy from before the tick. `World` does, from the snapshots it already retains; copying the state
+ * here on every tick would nearly double what a re-simulated tick costs. `phases` is the fault-injection seam of
+ * `step`, passed through.
  */
 export function applyTick(
   state: RoomState,
   creatorId: string,
   streams: ReadonlyMap<string, StreamEntries>,
   bots: BotController,
+  phases?: readonly Phase[],
 ): GameEvent[] {
   const game = state.game,
     tick = game.tick + 1;
@@ -298,7 +305,7 @@ export function applyTick(
       if (entry[2] === AVATAR) player.avatarId = entry[3];
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }
-  const result = step(game, inputs);
+  const result = step(game, inputs, phases);
   if (
     game.phase === "roundOver" &&
     game.phaseEndsAtTick !== undefined &&

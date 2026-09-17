@@ -1,6 +1,6 @@
 import { StatusNotices } from "./status-notices.js";
 import { TickClock } from "./clock.js";
-import { World, type Frame } from "./rollback.js";
+import { World, type Frame, type WorldFault } from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
 import { PACKET_ENTRIES } from "./stream.js";
 import {
@@ -48,7 +48,11 @@ import {
   type RoomSettings,
 } from "../shared/room-settings.js";
 import { botDisplayName, BOT_ID_PREFIX } from "../shared/bot-controller.js";
-import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../shared/game.js";
+import {
+  BOTS_ONLY_TIME_SCALE,
+  simulationTimeScale,
+  type Phase,
+} from "../shared/game.js";
 import type { AimPoint, GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { uuid } from "../shared/uuid.js";
@@ -97,6 +101,9 @@ export interface RuntimeMetrics {
   sentBytes: number;
   snapshotRequest: boolean;
   mismatches: number;
+  /** Ticks that threw while being simulated (#253 C8), and the last one's tick and phase. */
+  faults: number;
+  lastFault?: { tick: number; phase?: string };
   stall: { tick: number; waitingFor?: string };
   streams: Record<
     string,
@@ -115,6 +122,10 @@ export interface RuntimeMetrics {
 export interface RuntimeOptions {
   /** Receives consumer failures; defaults to console.error. Must not throw. */
   callbackError?: (kind: keyof Callbacks, error: unknown) => void;
+  /** Receives a tick that threw while being simulated; defaults to console.error. Must not throw. */
+  simulationError?: (fault: WorldFault) => void;
+  /** Fault-injection seam for tests: the tick's phases, handed to every world this runtime builds. */
+  phases?: readonly Phase[];
   transport?: (events: TransportEvents) => RoomTransport;
   displayOnly?: boolean;
   humanName?: string;
@@ -207,6 +218,8 @@ export class RoomRuntime {
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
   private mismatches: number[] = [];
+  private faults = 0;
+  private lastFault?: { tick: number; phase?: string };
   private outOfSync = false;
   private full = true;
   private hiddenState = false;
@@ -292,7 +305,8 @@ export class RoomRuntime {
       for (let index = 0; index < 4; index++)
         this.command({ type: "bot", action: "add" });
       this.command({ type: "action", action: "start" });
-      this.world!.advance(this.lastOwnTick); // The first frame already seats everyone; the clock catches up within a tick.
+      // The first frame already seats everyone; the clock catches up within a tick.
+      this.noteFault(this.world!.advance(this.lastOwnTick).fault);
       this.publish();
     }
     this.hiddenState = this.deps.hidden();
@@ -493,6 +507,7 @@ export class RoomRuntime {
       return;
     }
     if (result.rollbackTicks > 0) this.lastFrameTick = -1;
+    this.noteFault(result.fault);
     for (const event of result.events)
       this.deliver("event", () =>
         this.callbacks.event(
@@ -543,6 +558,7 @@ export class RoomRuntime {
       createRoomState(this.deps.token(), settings),
       this.hostId,
       this.id,
+      this.options.phases,
     );
     this.world.stream(this.id, this.generation);
     this.clock.start(0);
@@ -609,7 +625,13 @@ export class RoomRuntime {
     const tick = decoded.state.game.tick,
       previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state);
-    else this.world = new World(decoded.state, this.hostId, this.id);
+    else
+      this.world = new World(
+        decoded.state,
+        this.hostId,
+        this.id,
+        this.options.phases,
+      );
     for (const stream of decoded.streams) {
       // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
       // its presence switched) install like anyone else's, and the own-stream creation then retires them in order.
@@ -705,6 +727,52 @@ export class RoomRuntime {
       return;
     }
     this.status.transient("Simulation corrected · resyncing");
+    this.requestSnapshot();
+  }
+
+  /**
+   * A tick threw (#253 C8). The world has already put itself back on a whole state and stopped; what is left is to
+   * say so and to look for a way on. Reported like a consumer failure is — a hook, or the console — and counted in
+   * the metrics the telemetry posts. A peer that got past the tick can replace the world, exactly as it does after a
+   * divergence; if the same tick keeps failing, or there is no peer to ask, the page is told to reload.
+   */
+  private noteFault(fault: WorldFault | undefined): void {
+    if (!fault) return;
+    const now = this.deps.now();
+    this.faults++;
+    this.lastFault = {
+      tick: fault.tick,
+      ...(fault.phase === undefined ? {} : { phase: fault.phase }),
+    };
+    this.lastFrameTick = -1;
+    try {
+      if (this.options.simulationError) this.options.simulationError(fault);
+      else
+        console.error(
+          `fuse-riders: simulation fault at tick ${fault.tick}${fault.phase ? ` in ${fault.phase}` : ""}`,
+          fault.error,
+        );
+    } catch (reporterError) {
+      console.error(
+        "fuse-riders: simulation fault reporter failed",
+        fault.error,
+        reporterError,
+      );
+    }
+    this.mismatches = this.mismatches.filter(
+      (at) => now - at <= DIVERGENCE_WINDOW_MS,
+    );
+    this.mismatches.push(now);
+    const peers =
+      this.transport !== undefined &&
+      [...this.members.keys()].some((id) => this.transport!.linked(id));
+    if (!peers || this.mismatches.length >= DIVERGENCE_LIMIT) {
+      this.outOfSync = true;
+      // Terminal: a stopped world never simulates again on this page, so no connection status may paper over it.
+      this.status.terminal("Simulation stopped — reload this page");
+      return;
+    }
+    this.status.transient("Simulation fault · resyncing");
     this.requestSnapshot();
   }
 
@@ -1086,7 +1154,7 @@ export class RoomRuntime {
       }
       // Solo freezes the clock, so the released controls are folded in now rather than when the tab returns.
       if (this.solo && this.world) {
-        this.world.advance(this.lastOwnTick);
+        this.noteFault(this.world.advance(this.lastOwnTick).fault);
         this.clock.pause();
         this.publish();
       }
@@ -1234,6 +1302,7 @@ export class RoomRuntime {
         const result = world.advance(
           Math.min(tick, world.tick + CATCHUP_TICKS),
         );
+        this.noteFault(result.fault);
         for (const event of result.events)
           this.deliver("event", () =>
             this.callbacks.event(
@@ -1476,6 +1545,8 @@ export class RoomRuntime {
       sentBytes: this.transport?.sentBytes ?? 0,
       snapshotRequest: this.snapshotRequest !== undefined,
       mismatches: this.mismatches.length,
+      faults: this.faults,
+      ...(this.lastFault ? { lastFault: this.lastFault } : {}),
       stall: this.world?.stallBound() ?? { tick: Infinity },
       streams,
     };

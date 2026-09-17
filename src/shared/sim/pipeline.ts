@@ -74,3 +74,25 @@ export const PHASES: readonly Phase[] = [
   { name: "recordFacts", when: "playing", run: recordFacts },
   { name: "resolveRound", when: "playing", run: resolveRound },
 ];
+
+/**
+ * A phase threw. The state it was given is part-way through the tick — the clock has advanced, some phases have
+ * written and the rest have not — and must not be simulated, hashed, served or shown again: the caller restores a
+ * state from before the tick. `step` cannot do that itself without copying the state every tick, which costs most of
+ * what a tick costs; the world that owns the state already keeps snapshots (docs/design/engine-pipeline.md).
+ */
+export class TickFault extends Error {
+  constructor(
+    /** The tick that was being simulated. */
+    readonly tick: number,
+    /** The name of the phase that threw, as listed in PHASES. */
+    readonly phase: string,
+    cause: unknown,
+  ) {
+    super(
+      `tick ${tick} failed in phase ${phase}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+    this.name = "TickFault";
+  }
+}
