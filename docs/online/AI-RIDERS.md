@@ -8,9 +8,9 @@ Bots consume no WebRTC connection or backend membership. Their controller runs i
 
 ## Difficulty
 
-Each AI is rolled **Easy**, **Medium** or **Hard** when it is added, and the tier is shown in its name (`AI Turing · Hard`), so the roster, scoreboard and recap all display it without any protocol or checkpoint change. The name is the only per-bot payload the log carries, so the tier rides in it: `botDisplayName` writes it and `botDifficulty` reads it back, and they cannot drift apart. The roll uses the same stateless random stream as the controller, so tests can pin it.
+Every newly added AI uses **Hard** difficulty, with a plain name such as `AI Turing`. The roster, scoreboard and recap do not show a difficulty label. Hard uses full lookahead, exact aim and no attention lapses; the attract screen uses the same full-strength controller.
 
-`BOT_TIERS` holds the knobs: how far the rider plans, how badly it throws a target bomb, and how often its attention lapses for a `BOT_BLUNDER_WINDOW` of ticks. **Hard is exactly the controller described below** — full lookahead, exact aim, no lapses — verified by replaying 86,400 decisions against it with no difference, so the tiers only add weaker riders and never quietly downgrade the shipped one. A name carrying no tier is Hard for the same reason, which is why the attract screen and older logs keep full-strength riders.
+The controller still recognizes explicit Easy/Medium/Hard suffixes in existing logs and benchmark fixtures, preserving their deterministic replay. `BOT_TIERS` defines those settings; new bot creation does not roll a difficulty or encode one in the name.
 
 Measured over 100 matches per pairing, four riders, seating swapped and spawns jittered (identical deterministic brains on symmetric spawns mirror each other into a simultaneous crash, which measures the arena rather than the riders): Easy loses to Medium, Medium loses to Hard, and Easy loses to Hard by a wide margin. Reproduce with `npx tsx scripts/ai-league.ts 100`.
 

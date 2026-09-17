@@ -35,12 +35,25 @@ export const DEFAULT_TRANSPORT_COPY: TransportCopy = {
   roomEnded: ROOM_ENDED_TEXT,
   hostAbsent: "the host is not in the room yet",
 };
+/** Optional application-owned media on the same peer connections; no game dependency. */
+export interface PeerTransportExtension {
+  attach(id: string, pc: RTCPeerConnection, offerer: boolean): void;
+  answer(id: string): void;
+  drop(id: string): void;
+  reset(): void;
+  close(): void;
+  /** Validate and consume a connection-scoped direct message. False passes it to the application. */
+  receive(id: string, data: unknown): boolean;
+  /** Small status message sent on channel open and once per visible second. */
+  status(): unknown;
+}
 export interface PeerTransportOptions {
   /** Resolves a room service path (`/api/rooms/…`) to an absolute URL; see `createEndpoints`. */
   apiUrl: (path: string) => string;
   /** Largest `sendFast` payload, sent or accepted. */
   maxFastBytes?: number;
   copy?: Partial<TransportCopy>;
+  extension?: PeerTransportExtension;
 }
 interface Link {
   pc: RTCPeerConnection;
@@ -142,12 +155,15 @@ export class PeerTransport implements RoomTransport {
   private readonly apiUrl: (path: string) => string;
   private readonly maxFastBytes: number;
   private readonly copy: TransportCopy;
+  private readonly extension?: PeerTransportExtension;
+  private extensionSentAt = -Infinity;
   constructor(
     readonly code: string,
     readonly token: string,
     private callbacks: TransportCallbacks,
     options: PeerTransportOptions,
   ) {
+    this.extension = options.extension;
     this.apiUrl = options.apiUrl;
     this.maxFastBytes = options.maxFastBytes ?? DEFAULT_MAX_FAST_BYTES;
     this.copy = { ...DEFAULT_TRANSPORT_COPY, ...options.copy };
@@ -189,6 +205,7 @@ export class PeerTransport implements RoomTransport {
           );
           for (const id of this.connections.keys())
             if (!roster.has(id)) this.callbacks.peer(id, false);
+          this.extension?.reset();
           for (const link of this.links.values()) link.pc.close();
           this.links.clear();
           this.connections.clear();
@@ -282,6 +299,7 @@ export class PeerTransport implements RoomTransport {
     const link = this.links.get(id);
     if (!link) return;
     link.gate.drain();
+    this.extension?.drop(id);
     link.pc.close();
     this.links.delete(id);
     this.received.delete(id);
@@ -340,6 +358,7 @@ export class PeerTransport implements RoomTransport {
       },
     };
     this.links.set(id, link);
+    this.extension?.attach(id, pc, this.initiator(id));
     pc.onicecandidate = (event) => {
       if (!isCurrentLinkCallback(this.links.get(id), link) || !event.candidate)
         return;
@@ -433,6 +452,7 @@ export class PeerTransport implements RoomTransport {
       if (current()) {
         this.callbacks.status("Direct peer link connected");
         this.callbacks.link(id, true);
+        this.sendExtensionStatus(id);
       }
     };
     channel.onclosing = () => {
@@ -453,6 +473,7 @@ export class PeerTransport implements RoomTransport {
     const old = this.links.get(id);
     if (!force && old?.game?.readyState === "open") return;
     if (old) {
+      this.extension?.drop(id);
       old.pc.close();
       this.links.delete(id);
     }
@@ -517,6 +538,7 @@ export class PeerTransport implements RoomTransport {
         await link.remote.describe(data.description);
         if (!isCurrentLinkCallback(this.links.get(id), link)) return;
         if (data.description.type === "offer") {
+          this.extension?.answer(id);
           await link.pc.setLocalDescription(await link.pc.createAnswer());
           if (!isCurrentLinkCallback(this.links.get(id), link)) return;
           if (
@@ -546,6 +568,7 @@ export class PeerTransport implements RoomTransport {
       envelope.receiver !== this.connectionId
     )
       return;
+    if (this.extension?.receive(id, envelope.data)) return;
     if (envelope.data && typeof envelope.data === "object") {
       const probe = envelope.data as { type?: string; probeId?: number };
       // #143: the peer is closing its side. Stop sending on this link now, before WebKit's lagging readyState lets a probe hit the dead channel.
@@ -645,10 +668,7 @@ export class PeerTransport implements RoomTransport {
       link.health.direct(performance.now())
     );
   }
-  private sendDirectProbe(
-    id: string,
-    data: { type: string; probeId?: number },
-  ): boolean {
+  private sendDirectProbe(id: string, data: unknown): boolean {
     const link = this.links.get(id);
     if (!link?.gate.permits(link.game, PROBE_BUFFER_LIMIT)) return false;
     try {
@@ -665,9 +685,16 @@ export class PeerTransport implements RoomTransport {
       return false;
     }
   }
+  private sendExtensionStatus(id: string): void {
+    if (this.extension) this.sendDirectProbe(id, this.extension.status());
+  }
   private checkLinks(): void {
     if (this.stopped || document.hidden) return;
     const now = performance.now();
+    if (now - this.extensionSentAt >= 1000) {
+      this.extensionSentAt = now;
+      for (const id of this.links.keys()) this.sendExtensionStatus(id);
+    }
     for (const [id, link] of this.links) {
       this.sendDirectProbe(id, {
         type: "linkProbe",
@@ -713,6 +740,7 @@ export class PeerTransport implements RoomTransport {
             this.sendDirectProbe(id, { type: "linkBye" }),
           )
         : [];
+    this.extension?.close();
     this.stopped = true;
     this.deferred.length = 0;
     this.authorityClock.invalidate();
