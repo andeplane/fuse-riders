@@ -185,6 +185,7 @@ try {
             ),
             alive: detail.players.find((player) => player.id === "solo")?.alive,
             banner: (() => {
+              if (detail.phase !== "matchOver") return undefined;
               const card = document.querySelector<HTMLElement>(
                 ".online-announce:not([hidden])",
               );
@@ -305,8 +306,11 @@ try {
       );
       // The pause is two beats on every screen: the final round's own result, then the match winner. One card naming the
       // match winner for the whole pause read as the winner of the round. The card trails its snapshot by one record.
+      // A round that ends in overtime leaves its overtime card in the first record: not one of the two beats.
       const banners = paused.flatMap((snapshot) =>
-          snapshot.banner ? [snapshot.banner] : [],
+          snapshot.banner && snapshot.banner.kind !== "other"
+            ? [snapshot.banner]
+            : [],
         ),
         firstFinal = banners.findIndex((banner) => banner.kind === "final");
       assert.ok(

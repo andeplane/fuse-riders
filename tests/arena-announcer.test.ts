@@ -13,7 +13,9 @@ import assert from "node:assert/strict";
 import {
   announcementFor,
   eliminationLine,
+  matchWinnerName,
   roundClock,
+  roundWinnerName,
   showsRoundResult,
   type Announcement,
 } from "../src/client/arena-announcer.js";
@@ -139,6 +141,17 @@ test("the final round shows its own result first, and only then names the match 
     title: "Anders WINS THE MATCH",
     subtitle: "MATCH WINNER",
   });
+  // The host can remove a rider during the pause: the round's winner keeps its name from the placements.
+  const removed = {
+    ...state,
+    players: state.players.filter((player) => player.id !== "ai"),
+  };
+  assert.equal(roundWinnerName(removed), "AI Ada");
+  assert.equal(
+    field(announcementFor(removed, "me", false), "title"),
+    "AI Ada WINS THE ROUND",
+  );
+  assert.equal(matchWinnerName(crowned), "Anders");
   assert.deepEqual(
     announcementFor({ ...crowned, matchWinnerId: undefined }, "me", false),
     { kind: "final", title: "SHARED VICTORY", subtitle: "MATCH RESULT" },

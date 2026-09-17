@@ -84,7 +84,9 @@ import { createPowerupGuide } from "../client/powerup-guide-view.js";
 import {
   announcementFor,
   eliminationLine,
+  matchWinnerName,
   roundClock,
+  roundWinnerName,
   showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus } from "./status-copy.js";
@@ -1510,12 +1512,6 @@ export async function startOnline(): Promise<void> {
                   ? "RELEASE!"
                   : "HOLD TO FIRE";
       }
-      const matchResult =
-        state.matchWinnerId === undefined
-          ? "Shared victory"
-          : state.matchWinnerId === id
-            ? "You win the match"
-            : `${state.matchStats.find((p) => p.playerId === state.matchWinnerId)?.name ?? "A rider"} wins the match`;
       notice.textContent =
         state.phase === "lobby"
           ? joined && !isHost
@@ -1526,9 +1522,16 @@ export async function startOnline(): Promise<void> {
             : showsRoundResult(state)
               ? state.roundWinnerId === id
                 ? "You win this round"
-                : `${state.players.find((p) => p.id === state.roundWinnerId)?.name ?? "Nobody"} wins this round`
+                : `${roundWinnerName(state) ?? "Nobody"} wins this round`
               : state.phase === "matchOver"
-                ? `${matchResult} · MATCH COMPLETE`
+                ? // The notice is narrow on a phone: the result alone while its beat lasts, then the old short form the smokes wait for.
+                  recapReady
+                  ? `${matchWinnerName(state) ?? "Shared victory"} · MATCH COMPLETE`
+                  : matchWinnerName(state) === undefined
+                    ? "Shared victory"
+                    : state.matchWinnerId === id
+                      ? "You win the match"
+                      : `${matchWinnerName(state)} wins the match`
                 : player?.waitingForNextRound
                   ? "You’re in — joining next round"
                   : !player?.alive && joined
@@ -1611,9 +1614,11 @@ export async function startOnline(): Promise<void> {
       addAI.disabled = state.players.length >= 5;
       const startLabel = state.phase === "matchOver" ? "REMATCH" : "START RACE";
       if (start.textContent !== startLabel) start.textContent = startLabel;
+      // A rematch during the final pause would skip the match result, the recap and the match report that opens with it.
       start.disabled =
         state.players.filter((p) => p.connected).length < 2 ||
-        !["lobby", "matchOver"].includes(state.phase);
+        !["lobby", "matchOver"].includes(state.phase) ||
+        (state.phase === "matchOver" && !recapReady);
       hostControls.hidden = !isHost || replacedHost;
       reset.disabled = state.phase === "lobby";
       reset.hidden = phoneLobby;

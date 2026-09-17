@@ -34,16 +34,38 @@ const points = (units: number): string => {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 };
 
+type Pause = Pick<ViewSnapshot, "phase" | "tick" | "phaseEndsAtTick">;
+const ticksLeft = (snapshot: Pause): number =>
+  snapshot.phaseEndsAtTick === undefined
+    ? 0
+    : Math.max(0, snapshot.phaseEndsAtTick - snapshot.tick);
+
 /**
  * A round's own result is on show: every pause between rounds, and the opening of the final pause. Only that pause's
  * closing MATCH_WINNER_TICKS name the match winner; shown from the start, that name read as the winner of the round.
  */
-export function showsRoundResult(snapshot: ViewSnapshot): boolean {
+export function showsRoundResult(snapshot: Pause): boolean {
   if (snapshot.phase === "roundOver") return true;
   return (
-    snapshot.phase === "matchOver" &&
-    (snapshot.phaseEndsAtTick ?? 0) - snapshot.tick > MATCH_WINNER_TICKS
+    snapshot.phase === "matchOver" && ticksLeft(snapshot) > MATCH_WINNER_TICKS
   );
+}
+
+/** The round winner's name. The placements keep it when the host removes that rider during the pause; the roster does not. */
+export function roundWinnerName(snapshot: ViewSnapshot): string | undefined {
+  const id = snapshot.roundWinnerId;
+  if (id === undefined) return undefined;
+  return (
+    snapshot.players.find((player) => player.id === id)?.name ??
+    snapshot.roundPlacements.find((entry) => entry.playerId === id)?.name
+  );
+}
+
+/** The match winner's name, or undefined for a shared victory. Match stats outlive a rider the host removes. */
+export function matchWinnerName(snapshot: ViewSnapshot): string | undefined {
+  return snapshot.matchStats.find(
+    (player) => player.playerId === snapshot.matchWinnerId,
+  )?.name;
 }
 
 export function announcementFor(
@@ -51,10 +73,7 @@ export function announcementFor(
   selfId: string,
   touch: boolean,
 ): Announcement {
-  const left =
-    snapshot.phaseEndsAtTick === undefined
-      ? 0
-      : Math.max(0, snapshot.phaseEndsAtTick - snapshot.tick);
+  const left = ticksLeft(snapshot);
   if (snapshot.phase === "countdown") {
     const seconds = Math.ceil(left / TICK_HZ);
     return {
@@ -86,14 +105,13 @@ export function announcementFor(
   }
   const last = snapshot.phase === "matchOver";
   if (showsRoundResult(snapshot)) {
-    const winner = snapshot.players.find(
-      (player) => player.id === snapshot.roundWinnerId,
-    );
-    const title = !winner
-      ? "DRAW"
-      : winner.id === selfId
-        ? "YOU WIN THE ROUND"
-        : `${winner.name} WINS THE ROUND`;
+    const winner = roundWinnerName(snapshot);
+    const title =
+      winner === undefined
+        ? "DRAW"
+        : snapshot.roundWinnerId === selfId
+          ? "YOU WIN THE ROUND"
+          : `${winner} WINS THE ROUND`;
     const placements = snapshot.roundPlacements.map(
       (entry) =>
         `#${entry.place} ${entry.playerId === selfId ? "YOU" : entry.name}  +${points(entry.scoreUnits)}`,
@@ -115,21 +133,20 @@ export function announcementFor(
     };
   }
   if (last) {
-    const winner = snapshot.matchStats.find(
-      (player) => player.playerId === snapshot.matchWinnerId,
-    );
+    const winner = matchWinnerName(snapshot);
     return {
       kind: "final",
-      title: !winner
-        ? "SHARED VICTORY"
-        : winner.playerId === selfId
-          ? "YOU WIN THE MATCH"
-          : `${winner.name} WINS THE MATCH`,
+      title:
+        winner === undefined
+          ? "SHARED VICTORY"
+          : snapshot.matchWinnerId === selfId
+            ? "YOU WIN THE MATCH"
+            : `${winner} WINS THE MATCH`,
       subtitle:
         left > 0
-          ? winner
-            ? "MATCH WINNER"
-            : "MATCH RESULT"
+          ? winner === undefined
+            ? "MATCH RESULT"
+            : "MATCH WINNER"
           : "MATCH COMPLETE",
     };
   }
