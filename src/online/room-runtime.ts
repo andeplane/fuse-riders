@@ -201,7 +201,7 @@ export class RoomRuntime {
       const rtt = wrapDelta(wrapMs(now), packet.echoSentAt) - packet.echoHeld;
       if (rtt >= 0 && rtt < 10_000) { member.rttMs = rtt; if (id === this.authority()) this.clock.sample(packet.clockTick, rtt); }
     }
-    if (id === this.authority()) this.observeRate(id, packet.sentAt, packet.clockTick);
+    if (id === this.authority()) { this.observeRate(id, packet.sentAt, packet.clockTick); if (this.hiddenState) this.paceClock(now); }
     if (!this.world) return;
     const result = this.world.receive(id, packet.entries, packet.lastSeq, packet.through, Math.floor(this.clock.tick()));
     if (result.status === 'unrepairable') { this.requestSnapshot(); return; }
@@ -463,6 +463,8 @@ export class RoomRuntime {
   /** The authority's clock rate as its packets show it: ticks gained per 50 ms of its own send times, over half a second. */
   private observeRate(id: string, sentAt: number, clockTick: number): void {
     const pace = this.pace, elapsed = wrapDelta(sentAt, pace.sentAt);
+    // The fast channel is unordered: a late packet is skipped, never taken as a new baseline.
+    if (pace.from === id && elapsed < 0 && elapsed > -5000) return;
     if (pace.from !== id || elapsed < 0 || elapsed > 5000) { pace.from = id; pace.sentAt = sentAt; pace.clockTick = clockTick; pace.streak = 0; return; }
     if (elapsed < RATE_WINDOW_MS) return;
     const observed = (clockTick - pace.clockTick) * 50 / elapsed > (1 + BOTS_ONLY_TIME_SCALE) / 2 ? BOTS_ONLY_TIME_SCALE : 1;

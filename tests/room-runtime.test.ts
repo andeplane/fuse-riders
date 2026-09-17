@@ -348,8 +348,8 @@ test('once both humans are out the room runs three ticks per 50 ms on every memb
   host.stop(); guest.stop();
 });
 
-function botsOnlyRoom() {
-  const { net, join } = room();
+function botsOnlyRoom(options?: NetworkOptions) {
+  const { net, join } = room(options);
   const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
   for (let i = 0; i < 3; i++) host.command({ type: 'bot', action: 'add' });
   host.command({ type: 'action', action: 'start' }); net.step(COUNTDOWN_TICKS * 50 + 200);
@@ -371,5 +371,12 @@ test('a guest hidden while only AI riders race drops back with the authority at 
   f.net.step(3000); assert.ok(apart(f.host, f.guest) < 45, `the frozen world did not keep the guest at triple pace: ${apart(f.host, f.guest)}`);
   f.net.setHidden(GUESTS[0]!, false); f.net.step(3000); assert.ok(apart(f.host, f.guest) < 5, `back in step: ${apart(f.host, f.guest)}`);
   assert.equal(f.host.metrics().mismatches + f.guest.metrics().mismatches, 0); assert.equal(f.guest.metrics().snapshotRequest, false);
+  f.host.stop(); f.guest.stop();
+});
+
+test('reordered packets do not reset the hidden guest\'s reading of the authority\'s pace', () => {
+  const f = botsOnlyRoom({ loss: 0.02, baseMs: 20, jitterMs: 120, reliableMs: 30 }); f.net.step(300); f.net.setHidden(GUESTS[0]!, true); f.untilBotsOnly(); f.net.step(1500);
+  const before = f.net.frame(HOST)!.tick; f.net.step(1000);
+  assert.equal(f.net.frame(HOST)!.phase, 'playing'); assert.ok(f.net.frame(HOST)!.tick - before >= 50, `the room keeps triple pace through jitter: ${f.net.frame(HOST)!.tick - before}`);
   f.host.stop(); f.guest.stop();
 });
