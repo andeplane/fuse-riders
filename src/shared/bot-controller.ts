@@ -4,6 +4,7 @@ import {
   RIDER_SPEED,
   gravityBend,
   gravityCoreRadius,
+  isAimingGun,
   SPEED_RAMP_MAX,
   riderMotionStep,
   riderSpeedMultiplier,
@@ -615,11 +616,11 @@ export class BotController {
               ),
             ),
           );
-    if (player.bombChargeStartedTick !== undefined && player.gunArmed) {
+    if (player.bombChargeStartedTick !== undefined && isAimingGun(player)) {
       // A held Gun runs straight and steers its sight, so the hold is kept short: swing toward the target, then fire.
       const off = angleDifference(
         bearing + scatter(":gun") / Math.max(distance, 1),
-        player.angle + (player.gunAim ?? 0),
+        player.angle + player.gunAim!,
       );
       const release =
         Math.abs(off) <= GUN_AIM_STEP / 2 ||

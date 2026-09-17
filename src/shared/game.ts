@@ -295,12 +295,12 @@ export function riderSpeedMultiplier(
     if (until > tick) multiplier *= SNAIL_SPEED;
   return multiplier;
 }
-/** A Gun whose trigger is held: the rider runs straight and steering sweeps the sight instead. */
-export function isAimingGun(player: {
-  gunArmed?: boolean;
-  bombChargeStartedTick?: number;
-}): boolean {
-  return player.gunArmed === true && player.bombChargeStartedTick !== undefined;
+/**
+ * A Gun whose trigger is held: the rider runs straight and steering sweeps the sight instead. Only a press made with
+ * the Gun armed raises the sight, so a Gun collected in the middle of an ordinary charge never takes the steering away.
+ */
+export function isAimingGun(player: { gunAim?: number }): boolean {
+  return player.gunAim !== undefined;
 }
 
 /** How far a rider moves and may turn on `tick`: the round's ramp on both, then the speed pickups on distance alone. */
@@ -804,8 +804,14 @@ export function step(
       state.roundStartedTick,
     );
     // A held Gun takes the steering for its sight: the rider runs straight while left and right sweep the aim.
-    const aiming = isAimingGun(player);
-    if (aiming) player.gunAim = sweepGunAim(player.gunAim ?? 0, input);
+    // The release tick still counts as held, so letting go with a steering key down cannot kick the shot off its line.
+    const aiming =
+      player.gunAim !== undefined &&
+      (input.bomb ||
+        (input.bombCommands ?? []).some(
+          (command) => command.action === "release",
+        ));
+    if (aiming) player.gunAim = sweepGunAim(player.gunAim!, input);
     // Curved space turns the rider before the kernel does, so steering and the hole add up inside one ordinary turn-then-move step.
     const pose = advanceRiderPose(
       {
@@ -1533,6 +1539,12 @@ export function step(
         input?.bombCommands ?? [],
         events,
       );
+      // A sight needs a held trigger. A hold whose release never arrives (a connection flap resets the held controls
+      // without one) ends here with the Gun kept, rather than leaving the rider locked on a straight line.
+      if (movement.player.gunAim !== undefined && !input?.bomb) {
+        movement.player.bombChargeStartedTick = undefined;
+        movement.player.gunAim = undefined;
+      }
       if (
         movement.player.targetBombArmed &&
         !movement.player.shellArmed &&

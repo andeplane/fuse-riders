@@ -1212,28 +1212,48 @@ class ArenaScene extends Phaser.Scene {
           }
         }
         if (isAimingGun(p)) {
-          // The held sight: a line to the arena's edge along each barrel. What stops the bullet short is for the shooter to read.
-          const reach = Math.hypot(w, h);
+          // The held sight, one line per barrel: to the wall, or over open edges round the board for the one board's
+          // width a bullet flies. What stops the bullet short of that is for the shooter to read.
           for (const a of volleyAngles(
             p.angle + (p.gunAim ?? 0),
             bombsPerShot(p),
           )) {
-            let t = reach;
-            if (!open) {
-              const cx = Math.cos(a),
-                cy = Math.sin(a);
-              if (cx > 0) t = Math.min(t, (w - b - p.x) / cx);
-              else if (cx < 0) t = Math.min(t, (b - p.x) / cx);
-              if (cy > 0) t = Math.min(t, (h - b - p.y) / cy);
-              else if (cy < 0) t = Math.min(t, (b - p.y) / cy);
+            const cx = Math.cos(a),
+              cy = Math.sin(a),
+              edge = open ? 0 : b;
+            let x = p.x,
+              y = p.y,
+              range = open ? w : Infinity;
+            for (let leg = 0; leg < 6 && range > 0; leg++) {
+              const t = Math.max(
+                0,
+                Math.min(
+                  range,
+                  cx > 0
+                    ? (w - edge - x) / cx
+                    : cx < 0
+                      ? (edge - x) / cx
+                      : range,
+                  cy > 0
+                    ? (h - edge - y) / cy
+                    : cy < 0
+                      ? (edge - y) / cy
+                      : range,
+                ),
+              );
+              if (!Number.isFinite(t)) break;
+              const x2 = x + cx * t,
+                y2 = y + cy * t;
+              f.lineStyle(4, tint, 0.18)
+                .lineBetween(x, y, x2, y2)
+                .lineStyle(1.5, 0xffffff, 0.75)
+                .lineBetween(x, y, x2, y2);
+              if (!open) break;
+              range -= t;
+              // Carry on from the opposite edge.
+              x = x2 >= w - 1e-6 ? 0 : x2 <= 1e-6 ? w : x2;
+              y = y2 >= h - 1e-6 ? 0 : y2 <= 1e-6 ? h : y2;
             }
-            t = Math.max(0, t);
-            const x = p.x + Math.cos(a) * t,
-              y = p.y + Math.sin(a) * t;
-            f.lineStyle(4, tint, 0.18)
-              .lineBetween(p.x, p.y, x, y)
-              .lineStyle(1.5, 0xffffff, 0.75)
-              .lineBetween(p.x, p.y, x, y);
           }
         }
         if (

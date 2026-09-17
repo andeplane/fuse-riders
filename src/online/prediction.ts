@@ -100,7 +100,9 @@ export function presentWorld(
   if (!rider || !rider.alive || local!.lead <= 0) return shown;
   const lead = Math.min(1, local!.lead);
   // A held Gun steers its sight, not the rider: lead the sight with the controls and let the rider run straight.
-  const aiming = isAimingGun(rider);
+  // Read from the newest tick as simulated: the lead below starts there, and the shown rider may be an older tick's.
+  const simulated = newer.players.find((p) => p.id === rider.id) ?? rider;
+  const aiming = isAimingGun(simulated);
   const motion = riderMotionStep(rider, newer.tick + 1, newer.roundStartedTick);
   const pose = advanceRiderPose(
     {
@@ -149,7 +151,13 @@ export function presentWorld(
             y: pose.y,
             angle: pose.angle,
             ...(aiming
-              ? { gunAim: sweepGunAim(p.gunAim ?? 0, local!.controls, lead) }
+              ? {
+                  gunAim: sweepGunAim(
+                    p.gunAim ?? simulated.gunAim ?? 0,
+                    local!.controls,
+                    lead,
+                  ),
+                }
               : {}),
             trail,
             presentationTick: presentationTick + lead,

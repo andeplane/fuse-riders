@@ -252,7 +252,7 @@ test("an instant headshot is one shot and one kill for the gun, end to end", () 
   input({ bomb: true, bombCommands: [{ action: "press" }] });
   input({ bombCommands: [{ action: "release" }] });
   assert.deepEqual(shots(game, "p0"), { gun: 1 });
-  assert.equal(victim.alive, false, "the press killed immediately");
+  assert.equal(victim.alive, false, "the shot killed the tick it was fired");
   assert.equal(player.alive, true, "and the riders never met");
   assert.deepEqual(kills(game, "p0"), { gun: 1 });
   assert.equal(game.matchStats.get("p1")!.deathsByCause.explosion, 1);

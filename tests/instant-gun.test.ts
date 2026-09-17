@@ -339,6 +339,49 @@ test("a checkpoint with a sight beyond its stops is rejected", () => {
   assert.ok(decodeGameState(encodeGameState(game)));
 });
 
+test("a hold whose release never arrives ends with the Gun kept and the steering back", () => {
+  const { game, shooter, fire } = scene();
+  fire(press);
+  for (let tick = 0; tick < 3; tick++)
+    fire({ ...neutral, bomb: true, right: true });
+  assert.ok(shooter.gunAim! > 0);
+  // What a connection flap leaves: the held controls reset to neutral, and the old gesture's release folds to nothing.
+  fire({ ...neutral, right: true });
+  assert.equal(shooter.gunAim, undefined);
+  assert.equal(shooter.bombChargeStartedTick, undefined);
+  assert.equal(shooter.gunArmed, true);
+  assert.equal(game.shots.length, 0);
+  assert.ok(shooter.angle > 0, "the rider steers again that same tick");
+  fire(release);
+  assert.equal(game.shots.length, 0, "a late release fires nothing");
+  fire();
+  assert.equal(game.shots.length, 1, "and the next tap fires straight");
+});
+
+test("a Gun collected during an ordinary charge never takes the steering; its release fires straight", () => {
+  const { game, shooter, fire } = scene();
+  shooter.gunArmed = false;
+  fire(press);
+  game.pickups = [
+    { id: 1, type: "gun", x: shooter.x + 7, y: shooter.y, expiresAtTick: 1e6 },
+  ];
+  fire({ ...neutral, bomb: true });
+  assert.equal(shooter.gunArmed, true);
+  fire({ ...neutral, bomb: true, right: true });
+  assert.ok(shooter.angle > 0, "still steering");
+  assert.equal(shooter.gunAim, undefined);
+  assert.equal(toSnapshot(game).players[0]!.gunAim, undefined);
+  fire(release);
+  assert.equal(game.shots[0]!.weapon, "gun");
+  const tracer = [...game.bombs.values()][0]!;
+  assert.ok(
+    Math.abs(
+      Math.atan2(tracer.y - tracer.launchY, tracer.x - tracer.launchX) -
+        shooter.angle,
+    ) < 1e-9,
+  );
+});
+
 test("dying mid-aim drops the sight", () => {
   const { game, shooter, fire, body, target } = scene();
   fire(press);
