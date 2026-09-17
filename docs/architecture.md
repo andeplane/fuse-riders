@@ -19,22 +19,23 @@ LAN remains supported. It currently shares the simulation with online, but not t
 
 ## Source ownership
 
-| Location                                                                   | Owns                                                                                           |
-| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `src/shared/game.ts`                                                       | Plain game state, lifecycle commands, seeded rules, tick execution and snapshot projection     |
-| `src/shared/rider-motion.ts`, geometry and weapon helpers                  | Pure turn-then-move motion, swept contacts, launch and hazard calculations                     |
-| `src/shared/input-log.ts`, `apply-tick.ts`                                 | Validated log entries, management ordering, held controls, bots and deterministic tick folding |
-| `src/shared/match-stats.ts`, `shot-log.ts`, `moments.ts`, `leaderboard.ts` | Match facts, shot outcomes, highlights and session scoring                                     |
-| `src/server/`                                                              | LAN HTTP/WebSocket authority, input buffering, seats and scheduling                            |
-| `src/online/room-runtime.ts`                                               | Online membership coordination, world lifecycle, clocks, input delivery and frame publication  |
-| `src/online/stream.ts`, `rollback.ts`                                      | Bounded stream history, completeness, repair and rollback                                      |
-| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts`                     | Packet decoding, chunked world transfer and runtime validation before installation             |
-| `src/client/`                                                              | Phaser rendering, themes, audio, display/controller UI and controls                            |
-| `src/online/ui.ts` and adjacent UI modules                                 | Online and solo app composition, menus, replay, layouts and diagnostics                        |
-| `packages/fuse-network-fe/`                                                | Game-agnostic WebRTC mesh, room API/socket client, link health, ICE recovery and diagnostics   |
-| `packages/fuse-network-be/`                                                | Game-agnostic room admission, metadata, signalling gateway and backend adapters                |
-| `packages/fuse-network-protocol/`                                          | Shared networking wire contract and authority validation                                       |
-| `src/service/`                                                             | Thin game entry points for the production and in-memory room service                           |
+| Location                                                                              | Owns                                                                                           |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `src/shared/game.ts`                                                                  | Plain game state, lifecycle commands, seeded rules, tick execution and snapshot projection     |
+| `src/shared/rider-motion.ts`, geometry and weapon helpers                             | Pure turn-then-move motion, swept contacts, launch and hazard calculations                     |
+| `src/shared/input-log.ts`, `apply-tick.ts`                                            | Validated log entries, management ordering, held controls, bots and deterministic tick folding |
+| `src/shared/match-stats.ts`, `shot-log.ts`, `moments.ts`, `leaderboard.ts`            | Match facts, shot outcomes, highlights and session scoring                                     |
+| `src/server/`                                                                         | LAN HTTP/WebSocket authority, input buffering, seats and scheduling                            |
+| `src/online/room-runtime.ts`                                                          | Online membership coordination, world lifecycle, clocks, input delivery and frame publication  |
+| `src/online/stream.ts`, `rollback.ts`                                                 | Bounded stream history, completeness, repair and rollback                                      |
+| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts`                                | Packet decoding, chunked world transfer and runtime validation before installation             |
+| `src/client/`                                                                         | Phaser rendering, themes, audio, display/controller UI and controls                            |
+| `src/online/ui.ts` and adjacent UI modules                                            | Online and solo app composition, menus, replay, layouts and diagnostics                        |
+| `packages/fuse-network-fe/`                                                           | Game-agnostic WebRTC mesh, room API/socket client, link health, ICE recovery and diagnostics   |
+| `packages/fuse-network-be/`                                                           | Game-agnostic room admission, metadata, signalling gateway and backend adapters                |
+| `packages/fuse-network-protocol/`                                                     | Shared networking wire contract and authority validation                                       |
+| `src/service/`                                                                        | Game entry points and optional account/history routes composed with the networking service     |
+| `src/service/history*.ts`, `firestore-history.ts`, `memory-history.ts`, `identity.ts` | Completed-match history, storage adapters and account identity verification                    |
 
 Networking packages must not import `src/`. The game composes them through `RoomTransport` and related interfaces. The renderer currently still imports game rules and the view type still lives in `src/client/snapshot-stream.ts`; the desired `engine/view` boundary is not yet enforced. See [#254](https://github.com/andeplane/fuse-riders/issues/254).
 
@@ -46,7 +47,7 @@ The target is `engine` (pure rules), `net` (simulation coordination), `render` (
 2. The service admits members, publishes roster changes and forwards validated SDP/ICE signalling. WebRTC carries reliable control/snapshot messages and unreliable per-tick input packets directly between peers. There is no gameplay relay or TURN fallback.
 3. Each member records its own ordered input stream. `applyTick` applies permitted management entries, folds player inputs and bot inputs, then executes the simulation and round progression. Generation and sequence identify reconnects and ordering; a successful send does not prove application by another replica.
 4. `StreamLog` tracks retained entries, gaps and completeness. The runtime requests missing entries or rotates retained data. `World` retains rollback state and replays late inputs within its bounded history.
-5. A joiner or refreshed device obtains a world snapshot from a peer. Packet, snapshot and checkpoint boundaries validate runtime data; installation rejects invalid state before replacing a healthy world. Gameplay state is not persisted locally or in Firestore.
+5. A joiner or refreshed device obtains a world snapshot from a peer. Packet, snapshot and checkpoint boundaries validate runtime data; installation rejects invalid state before replacing a healthy world. Live simulation checkpoints are not persisted locally or in Firestore; optional completed-match history is separate from peer world recovery.
 6. Presentation consumes snapshots, predicted/interpolated positions and scoped events. It never supplies authoritative collisions, pickups, scores or results.
 
 Direct-link failure must surface an explicit retry state. A partial mesh and browser timer throttling remain tracked risks in [#258](https://github.com/andeplane/fuse-riders/issues/258); general mesh tests are not proof of every phone or network condition. Protocol details and security boundaries are in [PROTOCOL.md](online/PROTOCOL.md).
