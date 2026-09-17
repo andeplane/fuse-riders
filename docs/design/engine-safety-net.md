@@ -52,7 +52,7 @@ Not exercised, and not asserted; the recording may pass through some of these, n
    npx tsx --test tests/golden-hash.test.ts tests/order-independence.test.ts
    ```
 
-   About 30 s for the first (26 s measured) and deterministic: the same source writes the same two fixtures on any machine. About 15 s for the golden test. Commit `tests/fixtures/golden-hashes.json` and `tests/fixtures/mechanics-recording.json` in the same commit as the engine change and the `RULES` bump. The measured table above describes the recording it was measured on; a fresh recording meets the same requirements with different counts.
+   The first takes about a minute and is deterministic: the same source writes the same two fixtures on any machine, and running it twice changes nothing. Measured on a busy machine: 37 s under rules 32 (12,779 ticks recorded, then replayed once with the coverage observer), and 85 s for a trial change of `BLAST_VISIBLE_TICKS` from 8 to 9, where the recorder needed 20,102 ticks to see everything. The golden test takes about 20 s. Commit `tests/fixtures/golden-hashes.json` and `tests/fixtures/mechanics-recording.json` in the same commit as the engine change and the `RULES` bump. The measured table above describes the recording it was measured on; a fresh recording meets the same requirements with different counts.
 
 3. **Hashes match, a coverage claim fails.** The engine is the pinned one and the recording is not: it was re-recorded or edited into something that no longer exercises requirement X. Restore both fixtures from main, or make the recorder reach X (below).
 

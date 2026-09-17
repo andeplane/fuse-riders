@@ -54,7 +54,7 @@ try {
     JSON.stringify(next, null, 2) + "\n",
   );
   console.log(
-    `Pinned ${next.rules}: ${hashes.length} ticks, ${recordingChanged ? "fresh recording" : "stored recording"}, every coverage requirement met.`,
+    `Pinned ${next.rules}: ${hashes.length} ticks, ${recordingChanged ? "fresh recording written" : "recording unchanged"}, every coverage requirement met.`,
   );
 } catch (error) {
   // A refusal is an answer, not a crash: one line, nothing written, non-zero exit.
