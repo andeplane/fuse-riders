@@ -380,6 +380,7 @@ export async function startOnline(): Promise<void> {
             bombChargeTicks: draft.bombChargeTicks,
             chainReaction: draft.chainReaction,
             aimBounce: draft.aimBounce,
+            map: draft.map,
             powerupTypes: Object.values(draft.weights).filter(
               (weight) => weight > 0,
             ).length,
@@ -399,11 +400,14 @@ export async function startOnline(): Promise<void> {
           `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
         ),
       profileUrl: apiUrl("/api/me"),
+      leaderboardUrl: apiUrl("/api/leaderboard"),
       localName: () => read("fuse-riders-player-name"),
       fetch: (input, init) => fetch(input, init),
       track,
     });
-    card.querySelector(".landing-top-end")!.append(accountPanel.button);
+    card
+      .querySelector(".landing-top-end")!
+      .append(accountPanel.leaderboardButton, accountPanel.button);
     card.append(accountPanel.dialog);
     window.addEventListener("pagehide", accountPanel.dispose, { once: true });
     void startAttract(
@@ -1230,7 +1234,12 @@ export async function startOnline(): Promise<void> {
       if (event.type === "moment") replay.moment(event.moment, matchId, round);
       if (roomEnded) return;
       if (event.type === "explosion") shake();
-      const line = eliminationLine(event, snapshot?.players ?? [], id);
+      const line = eliminationLine(
+        event,
+        snapshot?.players ?? [],
+        id,
+        snapshot?.map,
+      );
       if (line) {
         feedLine(line);
         if (event.type === "playerEliminated" && event.playerId === id) {
@@ -1827,6 +1836,7 @@ export async function startOnline(): Promise<void> {
           bombChargeTicks: draft.bombChargeTicks,
           chainReaction: draft.chainReaction,
           aimBounce: draft.aimBounce,
+          map: draft.map,
           powerupTypes: Object.values(draft.weights).filter(
             (weight) => weight > 0,
           ).length,

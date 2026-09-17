@@ -4,6 +4,8 @@ import {
   type MotionControls,
 } from "../shared/rider-motion.js";
 import { atan2, cos, hypot2, sin } from "../shared/deterministic-math.js";
+import { edgesOpen } from "../shared/arena-map.js";
+import { wrapDelta } from "../shared/wrap.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 
 /** All discrete state belongs to the earlier tick; never expose future trail/death state. */
@@ -20,6 +22,12 @@ export function interpolateWorld(
   )
     return newer;
   const f = Math.max(0, Math.min(1, fraction));
+  // Over open edges a rider or shell that crossed between the two ticks went the short way round, through the edge.
+  const open = edgesOpen(newer);
+  const dx = (delta: number): number =>
+    open ? wrapDelta(delta, newer.width) : delta;
+  const dy = (delta: number): number =>
+    open ? wrapDelta(delta, newer.height) : delta;
   return {
     ...older,
     tick: older.tick + (newer.tick - older.tick) * f,
@@ -38,8 +46,8 @@ export function interpolateWorld(
       );
       return {
         ...previous,
-        x: previous.x + (player.x - previous.x) * f,
-        y: previous.y + (player.y - previous.y) * f,
+        x: previous.x + dx(player.x - previous.x) * f,
+        y: previous.y + dy(player.y - previous.y) * f,
         angle: previous.angle + delta * f,
       };
     }),
@@ -54,8 +62,8 @@ export function interpolateWorld(
         return previous;
       return {
         ...previous,
-        x: previous.x + (bomb.x - previous.x) * f,
-        y: previous.y + (bomb.y - previous.y) * f,
+        x: previous.x + dx(bomb.x - previous.x) * f,
+        y: previous.y + dy(bomb.y - previous.y) * f,
       };
     }),
   };

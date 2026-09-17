@@ -25,6 +25,12 @@ import {
   BOMB_MAX_LAUNCH_DISTANCE,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
+import {
+  edgesOpen,
+  obstacleBlocksPath,
+  obstacleDistanceSquared,
+} from "./arena-map.js";
+import { wrapCoordinate, wrapDelta, wrapImages } from "./wrap.js";
 import { drunkHeadingOffset } from "./drunk.js";
 import type { TrailSegment } from "./protocol.js";
 
@@ -145,12 +151,31 @@ function chooseSteering(
   const reach =
     (lookahead * RIDER_SPEED * fastest * SPEED_RAMP_MAX) / TICK_HZ +
     TRAIL_CLEARANCE;
+  // Over open edges the board is a torus: a trail just past an edge is as near as one just short of it, a plan that
+  // rides off one side carries on from the other, and the walls are not there to be afraid of.
+  const open = edgesOpen(game);
+  const near = (delta: number, size: number) =>
+    open ? wrapDelta(delta, size) : delta;
+  const vantage = open
+    ? wrapImages(
+        game.width,
+        game.height,
+        player.x - reach,
+        player.y - reach,
+        player.x + reach,
+        player.y + reach,
+      )
+    : [{ dx: 0, dy: 0 }];
   const trails = sortedPlayers(game)
     .flatMap((owner) =>
       owner.trail.map((trail) => ({
         trail,
         own: owner.id === player.id,
-        distance: distanceToSegmentSquared(player.x, player.y, trail),
+        distance: Math.min(
+          ...vantage.map(({ dx, dy }) =>
+            distanceToSegmentSquared(player.x + dx, player.y + dy, trail),
+          ),
+        ),
       })),
     )
     .filter(
@@ -168,7 +193,8 @@ function chooseSteering(
   const enemyPaths = enemies
     .filter(
       (enemy) =>
-        squared(enemy.x - player.x) + squared(enemy.y - player.y) <
+        squared(near(enemy.x - player.x, game.width)) +
+          squared(near(enemy.y - player.y, game.height)) <
         squared(reach * 2),
     )
     .map((enemy) => {
@@ -182,7 +208,7 @@ function chooseSteering(
         const tick = game.tick + index + 1,
           previous = pose;
         const motion = riderMotionStep(enemy, tick, game.roundStartedTick);
-        pose = advanceRiderPose(
+        const next = advanceRiderPose(
           {
             ...previous,
             angle: previous.angle + gravityBend(fields, previous, motion.turn),
@@ -199,9 +225,13 @@ function chooseSteering(
             ),
           },
         );
+        // Each predicted step is kept where it ends up on the board, as one unbroken segment.
+        const shiftX = open ? wrapCoordinate(next.x, game.width) - next.x : 0,
+          shiftY = open ? wrapCoordinate(next.y, game.height) - next.y : 0;
+        pose = { ...next, x: next.x + shiftX, y: next.y + shiftY };
         return {
-          x1: previous.x,
-          y1: previous.y,
+          x1: previous.x + shiftX,
+          y1: previous.y + shiftY,
           x2: pose.x,
           y2: pose.y,
           createdTick: tick,
@@ -227,6 +257,12 @@ function chooseSteering(
     ),
   ];
   const bombs = sortedBombs(game).filter((bomb) => !bomb.shell?.gun);
+  // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
+  // of this plan are worth testing each step.
+  const obstacles = game.obstacles.filter(
+    (obstacle) =>
+      obstacleDistanceSquared(obstacle, player.x, player.y) < reach * reach,
+  );
   let chosen = 0,
     bestSurvived = -1,
     bestScore = -Infinity;
@@ -241,18 +277,14 @@ function chooseSteering(
       survived = 0;
     const ownPath: TrailSegment[] = [];
     for (let future = 1; future <= lookahead; future++) {
-      const tick = game.tick + future,
-        previous = pose;
+      const tick = game.tick + future;
       const { distance, turn } = riderMotionStep(
         player,
         tick,
         game.roundStartedTick,
       );
-      pose = advanceRiderPose(
-        {
-          ...previous,
-          angle: previous.angle + gravityBend(fields, previous, turn),
-        },
+      const next = advanceRiderPose(
+        { ...pose, angle: pose.angle + gravityBend(fields, pose, turn) },
         {
           left: plan.direction < 0 && future <= plan.turnTicks,
           right: plan.direction > 0 && future <= plan.turnTicks,
@@ -269,6 +301,10 @@ function chooseSteering(
           ),
         },
       );
+      const shiftX = open ? wrapCoordinate(next.x, game.width) - next.x : 0,
+        shiftY = open ? wrapCoordinate(next.y, game.height) - next.y : 0;
+      const previous = { x: pose.x + shiftX, y: pose.y + shiftY };
+      pose = { ...next, x: next.x + shiftX, y: next.y + shiftY };
       const { x, y } = pose;
       const elapsed = game.tick - (game.roundStartedTick ?? game.tick);
       const inset =
@@ -276,13 +312,17 @@ function chooseSteering(
         (Math.max(0, elapsed + future - OVERTIME_START_TICK) -
           Math.max(0, elapsed - OVERTIME_START_TICK)) *
           OVERTIME_INSET_PER_TICK;
+      // Open edges stay open for as long as this plan looks: the walls only come in with overtime, and then from the
+      // very edge, where the inset above already has them.
       let clearance =
-        Math.min(
-          x - inset,
-          game.width - inset - x,
-          y - inset,
-          game.height - inset - y,
-        ) - RIDER_RADIUS;
+        open && inset <= 0
+          ? Infinity
+          : Math.min(
+              x - inset,
+              game.width - inset - x,
+              y - inset,
+              game.height - inset - y,
+            ) - RIDER_RADIUS;
       if (clearance < SAFETY_MARGIN) break;
       let trailDistanceSquared = Infinity;
       const hitsTrail = (trail: TrailSegment) => {
@@ -358,6 +398,19 @@ function chooseSteering(
       )
         break;
       if (
+        obstacles.some((obstacle) =>
+          obstacleBlocksPath(
+            obstacle,
+            previous.x,
+            previous.y,
+            x,
+            y,
+            TRAIL_CLEARANCE,
+          ),
+        )
+      )
+        break;
+      if (
         fields.some(
           (field) =>
             distanceToSegmentSquared(field.x, field.y, {
@@ -420,7 +473,11 @@ function chooseSteering(
       });
     }
     if (target && survived === lookahead)
-      score -= hypot2(target.x - pose.x, target.y - pose.y) * 0.025;
+      score -=
+        hypot2(
+          near(target.x - pose.x, game.width),
+          near(target.y - pose.y, game.height),
+        ) * 0.025;
     if (plan.direction === 0 && survived === lookahead) score += 1;
     // Survival is lexicographic: a pickup or extra clearance can never buy a
     // shorter predicted life. Among equally safe paths, prefer breathing room.
@@ -498,8 +555,16 @@ export class BotController {
       bomb: false,
     };
     if (!nearest || game.tick < player.bombReadyAtTick) return intent;
-    const distance = hypot2(nearest.x - player.x, nearest.y - player.y);
-    const bearing = atan2(nearest.y - player.y, nearest.x - player.x);
+    // Thrown across an open edge when that is the short way to the target.
+    const open = edgesOpen(game);
+    const towardX = open
+        ? wrapDelta(nearest.x - player.x, game.width)
+        : nearest.x - player.x,
+      towardY = open
+        ? wrapDelta(nearest.y - player.y, game.height)
+        : nearest.y - player.y;
+    const distance = hypot2(towardX, towardY);
+    const bearing = atan2(towardY, towardX);
     const aimed =
       player.targetBombArmed && !player.gunArmed && !player.shellArmed;
     // One fixed miss per shot: the cooldown stamp is stable while charging, so a weak rider commits to its bad aim.

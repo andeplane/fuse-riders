@@ -22,10 +22,19 @@ import {
 } from "../../src/shared/input-log.ts";
 import { defaultRoomSettings } from "../../src/shared/room-settings.js";
 import {
+  BLAST_VISIBLE_TICKS,
   PICKUP_TYPES,
+  RIDER_RADIUS,
   SHIELD_GRACE_TICKS,
   type PickupType,
 } from "../../src/shared/game.js";
+import {
+  ARENA_MAP_RECIPES,
+  edgesOpen,
+  obstacleTouchesCircle,
+  type ArenaMapChoice,
+  type ArenaMapId,
+} from "../../src/shared/arena-map.js";
 import {
   PORTAL_COOLDOWN_TICKS,
   PORTAL_GRACE_TICKS,
@@ -36,6 +45,29 @@ export interface ReplayCoverage {
   collected: PickupType[];
   portalTransits: number;
   shieldAbsorbs: number;
+  /** Maps a round was actually played on, in first-seen order. */
+  maps: ArenaMapId[];
+  /** Obstacles a blast opened on the same tick cleared away; overtime rubble does not count. */
+  obstaclesBlasted: number;
+  /** Riders killed under `wall` standing against scenery, which keeps clear of the boundary by more than a rider. */
+  sceneryCrashes: number;
+  /** Living riders carried through an open edge of the wrap map, without a portal. */
+  edgeCrossings: number;
+  /** Blasts opened over an open edge, which also stand on the far side of it. */
+  edgeBlasts: number;
+}
+
+export function emptyCoverage(): ReplayCoverage {
+  return {
+    collected: [],
+    portalTransits: 0,
+    shieldAbsorbs: 0,
+    maps: [],
+    obstaclesBlasted: 0,
+    sceneryCrashes: 0,
+    edgeCrossings: 0,
+    edgeBlasts: 0,
+  };
 }
 
 export function coverageObserver(coverage: ReplayCoverage) {
@@ -50,10 +82,15 @@ export function coverageObserver(coverage: ReplayCoverage) {
           shielded: player.shielded,
           cooldown: player.portalCooldownUntilTick,
           x: player.x,
+          y: player.y,
+          alive: player.alive,
           matchId: state.game.matchId,
         },
       ]),
     );
+    const obstacles = [...state.game.obstacles];
+    const round = `${state.game.matchId}/${state.game.round}`;
+    const wasOpen = state.game.phase === "playing" && edgesOpen(state.game);
     return (events: readonly GameEvent[]) => {
       for (const event of events) {
         if (event.type !== "pickupCollected") continue;
@@ -61,9 +98,65 @@ export function coverageObserver(coverage: ReplayCoverage) {
         if (type && !coverage.collected.includes(type))
           coverage.collected.push(type);
       }
+      const game = state.game;
+      if (game.phase === "playing" && !coverage.maps.includes(game.map))
+        coverage.maps.push(game.map);
+      if (round === `${game.matchId}/${game.round}`) {
+        const opened = game.blasts.filter(
+          (blast) => blast.expiresAtTick === game.tick + BLAST_VISIBLE_TICKS,
+        );
+        for (const obstacle of obstacles)
+          if (
+            !game.obstacles.some((left) => left.id === obstacle.id) &&
+            opened.some(({ circle }) =>
+              obstacleTouchesCircle(
+                obstacle,
+                circle.x,
+                circle.y,
+                circle.radius,
+              ),
+            )
+          )
+            coverage.obstaclesBlasted++;
+        for (const event of events) {
+          if (event.type === "explosion") {
+            if (
+              opened.filter((blast) => blast.bombId === event.bombId).length > 1
+            )
+              coverage.edgeBlasts++;
+            continue;
+          }
+          if (event.type !== "playerEliminated" || event.cause !== "wall")
+            continue;
+          const crashed = game.players.get(event.playerId);
+          if (
+            crashed &&
+            obstacles.some((obstacle) =>
+              obstacleTouchesCircle(
+                obstacle,
+                crashed.x,
+                crashed.y,
+                RIDER_RADIUS + 1,
+              ),
+            )
+          )
+            coverage.sceneryCrashes++;
+        }
+      }
       for (const [id, player] of state.game.players) {
         const before = players.get(id);
         if (!before || before.matchId !== state.game.matchId) continue;
+        // A step is a few units; half a board in one tick with no gate used is an open edge carrying the rider through.
+        if (
+          wasOpen &&
+          game.phase === "playing" &&
+          before.alive &&
+          player.alive &&
+          player.portalCooldownUntilTick === before.cooldown &&
+          (Math.abs(player.x - before.x) > game.width / 2 ||
+            Math.abs(player.y - before.y) > game.height / 2)
+        )
+          coverage.edgeCrossings++;
         if (
           before.shielded &&
           !player.shielded &&
@@ -83,6 +176,37 @@ export function coverageObserver(coverage: ReplayCoverage) {
       }
     };
   };
+}
+
+export const isObstacleMap = (map: ArenaMapId): boolean =>
+  ARENA_MAP_RECIPES[map].species.length > 0;
+
+interface CoverageGoal {
+  key: string;
+  /** The room's default rotation of obstacle maps unless the goal is a map of its own. */
+  map: ArenaMapChoice;
+  pickup?: PickupType;
+}
+
+/** What the recording still has to reach, asked for through ordinary room settings and nothing else. */
+function nextGoal(coverage: ReplayCoverage): CoverageGoal | undefined {
+  const missing = PICKUP_TYPES.find(
+    (type) => !coverage.collected.includes(type),
+  );
+  if (missing) return { key: missing, map: "rotate", pickup: missing };
+  if (coverage.shieldAbsorbs === 0)
+    return { key: "shield", map: "rotate", pickup: "orbitShield" };
+  if (coverage.portalTransits === 0)
+    return { key: "portal", map: "rotate", pickup: "portal" };
+  if (coverage.obstaclesBlasted === 0 || !coverage.maps.some(isObstacleMap))
+    return { key: "obstacle", map: "rotate" };
+  if (
+    coverage.edgeCrossings === 0 ||
+    coverage.edgeBlasts === 0 ||
+    !coverage.maps.includes("wrap")
+  )
+    return { key: "wrap", map: "wrap" };
+  return undefined;
 }
 
 /** Seeded five-rider recording: two scripted humans plus three AI riders, rematching whenever a match ends. */
@@ -123,13 +247,9 @@ export function makeRecording(
     creator: { active: 0, latest: 0 },
     rider: { active: 0, latest: 0 },
   };
-  const coverage: ReplayCoverage = {
-    collected: [],
-    portalTransits: 0,
-    shieldAbsorbs: 0,
-  };
+  const coverage = emptyCoverage();
   const observe = coverageObserver(coverage);
-  let focus: PickupType | undefined;
+  let focus: string | undefined;
   let attempt = 0;
   let attemptStart = 0;
   for (let tick = 1; tick <= ticks; tick++) {
@@ -152,27 +272,22 @@ export function makeRecording(
       }
     if (tick === 3) log(creator, tick, ACTION, "start", `match-${tick}`);
     if (coverMechanics && tick >= 3) {
-      const wanted =
-        PICKUP_TYPES.find((type) => !coverage.collected.includes(type)) ??
-        (coverage.shieldAbsorbs === 0
-          ? "orbitShield"
-          : coverage.portalTransits === 0
-            ? "portal"
-            : undefined);
+      const wanted = nextGoal(coverage);
       if (!wanted)
         return { matchId: "replay", creator, ticks: tick - 1, entries };
       if (
-        wanted !== focus ||
+        wanted.key !== focus ||
         tick - attemptStart >= 1000 ||
         state.game.phase === "matchOver"
       ) {
-        focus = wanted;
+        focus = wanted.key;
         attemptStart = tick;
         log(creator, tick, ACTION, "lobby", `coverage-${seed}-${++attempt}`);
         log(creator, tick, SETTINGS, {
           ...defaultRoomSettings(),
           length: 1,
-          weights: { [wanted]: 1 },
+          map: wanted.map,
+          ...(wanted.pickup ? { weights: { [wanted.pickup]: 1 } } : {}),
         });
         log(creator, tick, ACTION, "start", `coverage-${seed}-${attempt}`);
         for (const gesture of Object.values(gestures)) gesture.active = 0;

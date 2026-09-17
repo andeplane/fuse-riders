@@ -41,6 +41,7 @@
     "src/online/join-form.ts",
     "src/online/keyboard-shortcuts.ts",
     "src/online/mobile-play-layout.ts",
+    "src/online/player-stats.ts",
     "src/online/room-settings-menu.ts",
     "src/online/telemetry.ts",
     "src/online/ui.ts",

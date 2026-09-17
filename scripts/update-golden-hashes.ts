@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
+import { format } from "prettier";
 import { RULES } from "../src/shared/apply-tick.js";
 import {
   validateGoldenUpdate,
@@ -29,7 +30,8 @@ validateGoldenUpdate(previous, next, recordingChanged);
 if (recordingChanged)
   writeFileSync(
     new URL("mechanics-recording.json", path),
-    JSON.stringify(recording) + "\n",
+    // The format gate covers fixtures, so the workload is written the way Prettier would leave it.
+    await format(JSON.stringify(recording), { parser: "json" }),
   );
 writeFileSync(
   new URL("golden-hashes.json", path),

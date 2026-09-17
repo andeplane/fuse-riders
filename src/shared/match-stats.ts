@@ -1,3 +1,8 @@
+import {
+  emptyCombat,
+  type CombatStats,
+  type KillMethod,
+} from "./combat-stats.js";
 import type { RoundPlacement } from "./leaderboard.js";
 import type { PickupType } from "./game.js";
 
@@ -18,6 +23,7 @@ export interface MatchPlayerIdentity {
 }
 
 export interface MatchPlayerStats {
+  combat?: CombatStats;
   playerId: string;
   name: string;
   slot: number;
@@ -73,6 +79,7 @@ export function beginMatchParticipant(
     return;
   }
   stats.set(identity.id, {
+    combat: emptyCombat(),
     playerId: identity.id,
     name: identity.name,
     slot: identity.slot,
@@ -168,6 +175,7 @@ export function recordDeath(
   playerId: string,
   cause: MatchDeathCause,
   creditedPlayerId?: string,
+  method: KillMethod = cause === "explosion" ? "unknown" : cause,
 ): void {
   const victim = requireEntry(stats, playerId);
   const credited =
@@ -175,7 +183,28 @@ export function recordDeath(
       ? requireEntry(stats, creditedPlayerId)
       : undefined;
   victim.deathsByCause[cause] += 1;
-  if (credited) credited.eliminations += 1;
+  if (victim.combat) {
+    victim.combat.deaths[method] += 1;
+    if (credited)
+      victim.combat.versus[
+        credited.playerId.startsWith("bot:") ? "ai" : "human"
+      ].deaths[method] += 1;
+    if (credited)
+      victim.combat.killers[credited.playerId] =
+        (victim.combat.killers[credited.playerId] ?? 0) + 1;
+    if (creditedPlayerId === playerId) victim.combat.selfDeaths += 1;
+  }
+  if (credited) {
+    credited.eliminations += 1;
+    if (credited.combat) {
+      credited.combat.kills[method] += 1;
+      credited.combat.versus[
+        playerId.startsWith("bot:") ? "ai" : "human"
+      ].kills[method] += 1;
+      credited.combat.victims[playerId] =
+        (credited.combat.victims[playerId] ?? 0) + 1;
+    }
+  }
 }
 
 export function recordEarlyExit(
@@ -212,6 +241,9 @@ export function finalizeMatchStatsRound(
   }
   const draw = winnerId === undefined;
   for (const entry of entries) {
+    const place = placements.find((p) => p.playerId === entry.playerId)?.place;
+    if (entry.combat && place !== undefined)
+      entry.combat.roundPlaces[place - 1]! += 1;
     entry.roundsPlayed += 1;
     entry.matchScoreUnits += scores.get(entry.playerId) ?? 0;
     if (entry.playerId === winnerId) entry.roundWins += 1;
@@ -247,6 +279,7 @@ export function snapshotMatchStats(
     if (!prior || compareMatchScores(entry, prior) !== 0) placement = index + 1;
     prior = entry;
     return {
+      ...(entry.combat ? { combat: structuredClone(entry.combat) } : {}),
       playerId: entry.playerId,
       name: entry.name,
       slot: entry.slot,

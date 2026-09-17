@@ -1,4 +1,6 @@
 [
+  "src/client/arena-maps.ts -> src/shared/arena-map.ts",
+  "src/client/arena-views.ts -> src/shared/wrap.ts",
   "src/client/blast-animation.ts -> src/client/snapshot-stream.ts",
   "src/client/blast-animation.ts -> src/shared/game.ts",
   "src/client/bomb-preview.ts -> src/shared/bomb-launch.ts",
@@ -6,9 +8,11 @@
   "src/client/phaser/arena.ts -> src/client/asset-url.ts",
   "src/client/phaser/arena.ts -> src/client/power-indicator.ts",
   "src/client/phaser/arena.ts -> src/client/snapshot-stream.ts",
+  "src/client/phaser/arena.ts -> src/shared/arena-map.ts",
   "src/client/phaser/arena.ts -> src/shared/avatars.ts",
   "src/client/phaser/arena.ts -> src/shared/game.ts",
   "src/client/phaser/arena.ts -> src/shared/launch-modifiers.ts",
+  "src/client/phaser/arena.ts -> src/shared/wrap.ts",
   "src/client/phaser/benchmark-fixture.ts -> src/client/snapshot-stream.ts",
   "src/client/phaser/benchmark-fixture.ts -> src/shared/avatars.ts",
   "src/client/phaser/benchmark-fixture.ts -> src/shared/game.ts",
@@ -19,7 +23,9 @@
   "src/client/phaser/trails.ts -> src/shared/protocol.ts",
   "src/client/reload-ring.ts -> src/client/snapshot-stream.ts",
   "src/client/render-snapshot.ts -> src/client/snapshot-stream.ts",
+  "src/client/render-snapshot.ts -> src/shared/arena-map.ts",
   "src/client/render-snapshot.ts -> src/shared/shell.ts",
+  "src/client/render-snapshot.ts -> src/shared/wrap.ts",
   "src/client/snapshot-stream.ts -> src/shared/protocol.ts",
   "src/client/socket-client.ts -> src/shared/protocol.ts",
   "src/client/themes.ts -> src/client/safe-storage.ts",
@@ -45,5 +51,6 @@
   "src/shared/input-log.ts -> src/shared/protocol.ts",
   "src/shared/match-recap.ts -> src/shared/duration-text.ts",
   "src/shared/trail-clipping.ts -> src/shared/protocol.ts",
-  "src/shared/trail-lifecycle.ts -> src/shared/protocol.ts"
+  "src/shared/trail-lifecycle.ts -> src/shared/protocol.ts",
+  "src/shared/wrap.ts -> src/shared/protocol.ts"
 ]

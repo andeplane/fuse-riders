@@ -41,7 +41,9 @@ function playing(seed = 11) {
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());
   game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER; // a random drop landing in one game and not the other would skew the comparison
-  // One rider per row, far from the walls: these tests run for whole seconds at up to four times speed.
+  // One rider per row on the classic board, far from the walls: these tests run for whole seconds at up to four
+  // times speed, and scenery in a lane would end the ride rather than the measurement.
+  game.obstacles = [];
   for (const player of game.players.values())
     Object.assign(player, {
       x: 100,

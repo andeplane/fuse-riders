@@ -4,7 +4,8 @@ import {
   ROUND_DRAW_TICK,
   TICK_HZ,
 } from "../shared/game.js";
-import type { GameEvent } from "../shared/protocol.js";
+import { ARENA_MAP_RECIPES } from "../shared/arena-map.js";
+import type { ArenaMapId, GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 /**
@@ -59,6 +60,12 @@ export function announcementFor(
       return {
         kind: "overtime",
         text: `OVERTIME // WALLS CLOSING · DRAW IN ${Math.max(0, Math.ceil((ROUND_DRAW_TICK - elapsed) / TICK_HZ))}s`,
+      };
+    // Open edges close when overtime starts, and a rider heading out through one on that tick meets a wall instead.
+    if (snapshot.map === "wrap" && elapsed >= OVERTIME_START_TICK - 3 * TICK_HZ)
+      return {
+        kind: "overtime",
+        text: `EDGES CLOSE IN ${Math.ceil((OVERTIME_START_TICK - elapsed) / TICK_HZ)}s`,
       };
     return { kind: "hidden" };
   }
@@ -132,11 +139,17 @@ const CAUSES = {
   rider: "rammed a rider",
 } as const;
 
-/** One line for the elimination feed, or undefined for events that are not eliminations. */
+/**
+ * One line for the elimination feed, or undefined for events that are not eliminations.
+ *
+ * Crashing into scenery is reported as `wall`, because it is the same kind of death, so on a board that has any the
+ * line cannot promise which solid thing was hit.
+ */
 export function eliminationLine(
   event: GameEvent,
   players: ReadonlyArray<{ id: string; name: string }>,
   selfId: string,
+  map: ArenaMapId = "classic",
 ): string | undefined {
   if (event.type !== "playerEliminated") return undefined;
   const name =
@@ -144,5 +157,5 @@ export function eliminationLine(
       ? "YOU"
       : (players.find((player) => player.id === event.playerId)?.name ??
         "A rider");
-  return `${name} ${CAUSES[event.cause]}`;
+  return `${name} ${event.cause === "wall" && ARENA_MAP_RECIPES[map].species.length > 0 ? "crashed" : CAUSES[event.cause]}`;
 }

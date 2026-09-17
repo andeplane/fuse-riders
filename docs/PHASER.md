@@ -71,14 +71,11 @@ BROWSER=webkit npx tsx scripts/phaser-browser.ts
 DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
 BROWSER=webkit DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
 npx vite build --outDir artifacts/phaser-dist
-BUILD_DIRECTORY=artifacts/phaser-dist npm run test:browser
-BUILD_DIRECTORY=artifacts/phaser-dist BROWSER=webkit npm run test:browser
 npx vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
 npx tsx scripts/phaser-pages-smoke.ts
-npx tsx scripts/gameplay-showcase.ts
 ```
 
-The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. `docs/gameplay-phaser.png` is an actual running LAN application screenshot: `scripts/gameplay-showcase.ts` adds 5 AI riders, starts a real race, and advances ticks across the match, screenshotting whenever the bots' own play produces a busier frame (more bombs, a live portal, a fired gun shot, an explosion) — no injected fixture, no image-generated mockup. `scripts/phaser-showcase.ts` still exists for a deterministic, reproducible showcase state used in earlier reviews. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
+The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
 
 Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authority and release acceptance remain governed by the online ADRs and roadmap; this rendering work does not close those gates.
 
@@ -102,4 +99,4 @@ BROWSER=webkit VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TA
 
 The default desktop workload remains unchanged. `QUALITY` defaults to low below 701 viewport pixels; explicit low/high values let measurements reproduce the selected budget. Backing size is observed and asserted, not rescaled into a different game world.
 
-Gun tracers use the authoritative launch point and resolved endpoint, with a two-unit line and a two-unit-radius bullet tip. They fade over three simulation ticks using supplied presentation time. They do not project forward, run collision checks or create explosion effects. `npx tsx scripts/gun-browser.ts` checks real LAN phone pointer-down fire and captures the TV result (`BROWSER=webkit` also supported).
+Gun tracers use the authoritative launch point and resolved endpoint, with a two-unit line and a two-unit-radius bullet tip. They fade over three simulation ticks using supplied presentation time. They do not project forward, run collision checks or create explosion effects.

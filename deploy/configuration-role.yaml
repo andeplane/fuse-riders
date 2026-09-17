@@ -1,0 +1,29 @@
+title: Fuse Riders configuration deployer
+description: Apply reviewed Firebase Auth, web-key restrictions and named Firestore configuration through CD; no data access or IAM administration.
+stage: GA
+includedPermissions:
+  - apikeys.keys.get
+  - apikeys.keys.update
+  - serviceusage.operations.get
+  - datastore.databases.getMetadata
+  - datastore.indexes.create
+  - datastore.indexes.get
+  - datastore.indexes.list
+  - datastore.indexes.update
+  - datastore.operations.get
+  - datastore.operations.list
+  - firebase.clients.get
+  - firebase.projects.get
+  - firebaseauth.configs.get
+  - firebaseauth.configs.update
+  - firebaserules.releases.create
+  - firebaserules.releases.get
+  - firebaserules.releases.list
+  - firebaserules.releases.update
+  - firebaserules.rulesets.create
+  - firebaserules.rulesets.get
+  - firebaserules.rulesets.list
+  - firebaserules.rulesets.test
+  - resourcemanager.projects.get
+  - serviceusage.services.get
+  - serviceusage.services.use

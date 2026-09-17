@@ -64,6 +64,12 @@ export function createHistoryHttp(
         json(await history.submit(reporter, body, uid));
         return true;
       }
+      if (url.pathname === "/api/leaderboard" && req.method === "GET") {
+        const token = bearer(req),
+          uid = token ? await identity(token) : undefined;
+        json({ players: await history.leaderboard(clientAddress, uid) });
+        return true;
+      }
       if (
         url.pathname === "/api/me" &&
         (req.method === "GET" || req.method === "PUT")

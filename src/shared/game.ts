@@ -1,4 +1,4 @@
-import { hypot2, sin, cos } from "./deterministic-math.js";
+import { hypot2, sin, cos, atan2 } from "./deterministic-math.js";
 import {
   POWER_TUNING,
   MAX_POWER_PICKUPS,
@@ -22,6 +22,7 @@ import {
   SHELL_SPEED,
   SHELL_RADIUS,
   type ShellPoint,
+  type ShellTrail,
 } from "./shell.js";
 import { DEFAULT_AVATAR, type AvatarId } from "./avatars.js";
 import {
@@ -43,6 +44,31 @@ import {
   type PortalPoint,
   type PortalTransit,
 } from "./portal.js";
+import {
+  chooseArenaMap,
+  edgesOpen,
+  initialBoundaryInset,
+  generateObstacles,
+  obstacleBlocksPath,
+  obstacleBounceNormal,
+  obstacleDistanceSquared,
+  obstacleEdges,
+  obstacleInsideBounds,
+  obstacleTouchesCircle,
+  segmentObstacleDistanceSquared,
+  OBSTACLE_WALL_MARGIN,
+  type ArenaMapId,
+  type ClearCapsule,
+  type Obstacle,
+} from "./arena-map.js";
+import {
+  NO_WRAP,
+  splitWrappedSegment,
+  wrapCoordinate,
+  wrapDelta,
+  wrapImages,
+  type WrapOffset,
+} from "./wrap.js";
 import type {
   AimPoint,
   BombActionCommand,
@@ -196,6 +222,12 @@ export const SNAIL_SPEED = 0.5;
 export const MAX_SPEED_EFFECT_STACK = 32;
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
+
+/** Pickups never sit against an obstacle, where collecting one would mean crashing into it. */
+export const PICKUP_OBSTACLE_CLEARANCE = 30;
+/** Every rider starts clear of the scenery, with this much open road along its heading to pick a line. */
+export const SPAWN_CORRIDOR_LENGTH = 220;
+export const SPAWN_CORRIDOR_RADIUS = 56;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
@@ -417,6 +449,10 @@ export interface GameState {
   width: number;
   height: number;
   boundaryInset: number;
+  /** The ground this round is played on, chosen once in `prepareRound` from the room's setting. */
+  map: ArenaMapId;
+  /** Solid scenery: lethal on contact, cleared by a blast, and gone once the overtime walls pass it. */
+  obstacles: Obstacle[];
   players: Map<PlayerId, PlayerState>;
   bombs: Map<number, BombState>;
   blasts: BlastState[];
@@ -481,6 +517,8 @@ export function createGame(
     width: ARENA_WIDTH,
     height: ARENA_HEIGHT,
     boundaryInset: INITIAL_BOUNDARY_INSET,
+    map: "classic",
+    obstacles: [],
     players: new Map(),
     bombs: new Map(),
     blasts: [],
@@ -691,12 +729,18 @@ export function step(
 
   const elapsed = state.tick - (state.roundStartedTick ?? state.tick);
   state.boundaryInset =
-    INITIAL_BOUNDARY_INSET +
+    initialBoundaryInset(state.map, INITIAL_BOUNDARY_INSET) +
     Math.max(0, elapsed - OVERTIME_START_TICK) * OVERTIME_INSET_PER_TICK;
+  // Decided once per tick: open edges carry riders, shells, bullets, bombs and blasts through to the far side.
+  const open = edgesOpen(state);
   const trailBounds = portalBounds(state);
   state.portalPairs = state.portalPairs
     .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
     .filter((pair): pair is PortalPair => pair !== undefined);
+  // Scenery is not resized the way a gate is: an obstacle the closing walls have reached is rubble.
+  state.obstacles = state.obstacles.filter((obstacle) =>
+    obstacleInsideBounds(obstacle, trailBounds),
+  );
   // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out
   // of bounds. Clamped against the inset computed just above, like the portal fit, rather than last tick's.
   for (const field of state.gravityFields) {
@@ -781,18 +825,58 @@ export function step(
       if (state.tick >= bomb.explodeAtTick) state.bombs.delete(bomb.id);
       continue;
     }
-    const shellBounds = {
-      left: state.boundaryInset + SHELL_RADIUS,
-      right: state.width - state.boundaryInset - SHELL_RADIUS,
-      top: state.boundaryInset + SHELL_RADIUS,
-      bottom: state.height - state.boundaryInset - SHELL_RADIUS,
-    };
-    const trails = sortedPlayers(state).flatMap((player) =>
-      player.id === bomb.ownerId &&
-      state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS
-        ? []
-        : player.trail,
-    );
+    // Open edges have nothing to bounce off: the bounds sit a whole board away, further than any tick can reach.
+    const shellBounds = open
+      ? {
+          left: -state.width,
+          right: 2 * state.width,
+          top: -state.height,
+          bottom: 2 * state.height,
+        }
+      : {
+          left: state.boundaryInset + SHELL_RADIUS,
+          right: state.width - state.boundaryInset - SHELL_RADIUS,
+          top: state.boundaryInset + SHELL_RADIUS,
+          bottom: state.height - state.boundaryInset - SHELL_RADIUS,
+        };
+    // Scenery reflects a shell exactly as a trail does; it is the one surface a shell meets that it cannot cut.
+    // An edge reflects from either side, so a shell fired by an immune rider from inside an obstacle would rattle
+    // between its walls for ever. The obstacle a shell is inside of lets it out, as it lets the rider out.
+    const obstacleWalls = sortedObstacles(state)
+      .filter(
+        (obstacle) => obstacleDistanceSquared(obstacle, bomb.x, bomb.y) > 0,
+      )
+      .flatMap(obstacleEdges);
+    const solid: ShellTrail[] = [
+      ...obstacleWalls,
+      ...sortedPlayers(state).flatMap((player) =>
+        player.id === bomb.ownerId &&
+        state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS
+          ? []
+          : player.trail,
+      ),
+    ];
+    // A shell about to cross an edge also meets what stands just beyond it, which the state holds on the far side.
+    const shellReach = SHELL_SPEED / TICK_HZ + SHELL_RADIUS + TRAIL_WIDTH / 2;
+    const trails = open
+      ? wrapImages(
+          state.width,
+          state.height,
+          bomb.x - shellReach,
+          bomb.y - shellReach,
+          bomb.x + shellReach,
+          bomb.y + shellReach,
+        ).flatMap(({ dx, dy }) =>
+          dx === 0 && dy === 0
+            ? solid
+            : solid.map((trail) => ({
+                x1: trail.x1 - dx,
+                y1: trail.y1 - dy,
+                x2: trail.x2 - dx,
+                y2: trail.y2 - dy,
+              })),
+        )
+      : solid;
     const motion = {
       x: bomb.x,
       y: bomb.y,
@@ -830,8 +914,9 @@ export function step(
         advanceShell(motion, shellBounds, trails, TRAIL_WIDTH),
       ]);
     }
-    bomb.x = motion.x;
-    bomb.y = motion.y;
+    // The swept path above stays unwrapped for this tick's hit test; only the resting place is folded back.
+    bomb.x = open ? wrapCoordinate(motion.x, state.width) : motion.x;
+    bomb.y = open ? wrapCoordinate(motion.y, state.height) : motion.y;
     bomb.shell = {
       vx: motion.vx,
       vy: motion.vy,
@@ -882,6 +967,8 @@ export function step(
   };
   const trailContactTimes = new Map<PlayerId, number>();
   const riderContactTimes = new Map<PlayerId, number>();
+  /** Crashing into scenery is `wall`, and only these riders stop against what they hit rather than at the boundary. */
+  const obstacleContactTimes = new Map<PlayerId, number>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of sortedBombs(state)) {
     if (
@@ -899,7 +986,8 @@ export function step(
         )
           continue;
         if (
-          square(movement.x - bomb.x) + square(movement.y - bomb.y) <=
+          square(nearestDelta(open, movement.x - bomb.x, state.width)) +
+            square(nearestDelta(open, movement.y - bomb.y, state.height)) <=
           square(RIDER_RADIUS + SHELL_RADIUS)
         ) {
           markCause(
@@ -931,8 +1019,12 @@ export function step(
             continue;
           const mx = movement.x - movement.oldX;
           const my = movement.y - movement.oldY;
-          const px = start.x - movement.oldX - mx * start.t;
-          const py = start.y - movement.oldY - my * start.t;
+          const px =
+            nearestDelta(open, start.x - movement.oldX, state.width) -
+            mx * start.t;
+          const py =
+            nearestDelta(open, start.y - movement.oldY, state.height) -
+            my * start.t;
           const vx = end.x - start.x - mx * (end.t - start.t);
           const vy = end.y - start.y - my * (end.t - start.t);
           const radius = RIDER_RADIUS + SHELL_RADIUS;
@@ -991,16 +1083,20 @@ export function step(
   }
 
   for (const movement of movements.values()) {
+    // A rider overhanging an open edge, or whose step ends past it, is also in reach of a blast on the far side.
     for (const blast of newBlasts) {
       if (
         !isHazardImmune(movement.player, state.tick) &&
-        segmentIntersectsDisk(
-          movement.oldX,
-          movement.oldY,
-          movement.x,
-          movement.y,
-          blast.circle,
-          RIDER_RADIUS,
+        (open ? movementImages(state, movement, RIDER_RADIUS) : NO_WRAP).some(
+          ({ dx, dy }) =>
+            segmentIntersectsDisk(
+              movement.oldX + dx,
+              movement.oldY + dy,
+              movement.x + dx,
+              movement.y + dy,
+              blast.circle,
+              RIDER_RADIUS,
+            ),
         )
       ) {
         markCause(
@@ -1014,11 +1110,13 @@ export function step(
       }
     }
 
-    const left = state.boundaryInset + RIDER_RADIUS;
-    const right = state.width - state.boundaryInset - RIDER_RADIUS;
-    const top = state.boundaryInset + RIDER_RADIUS;
-    const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
+    const reach = wallReach(state);
+    const left = state.boundaryInset + reach;
+    const right = state.width - state.boundaryInset - reach;
+    const top = state.boundaryInset + reach;
+    const bottom = state.height - state.boundaryInset - reach;
     if (
+      !open &&
       !isHazardImmune(movement.player, state.tick) &&
       (movement.x < left ||
         movement.x > right ||
@@ -1043,6 +1141,36 @@ export function step(
       markCause(causes, causeOwners, movement.player.id, "wall");
     }
 
+    // Obstacles are solid the way the boundary is, and kill under the same cause. A hazard-immune rider passes
+    // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
+    // Only the contact time is recorded here; the cause is decided below, once the trail and rider contacts of
+    // this tick are known and can be compared against it.
+    for (const obstacle of sortedObstacles(state)) {
+      if (isHazardImmune(movement.player, state.tick)) break;
+      const touches = (time: number): boolean =>
+        obstacleBlocksPath(
+          obstacle,
+          movement.oldX,
+          movement.oldY,
+          movement.oldX + (movement.x - movement.oldX) * time,
+          movement.oldY + (movement.y - movement.oldY) * time,
+          RIDER_RADIUS,
+        );
+      const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
+      // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
+      // there. A rider that starts its step already overlapping an obstacle is let out of that one rather than
+      // killed on the spot by a rock it had every right to be inside; any other obstacle is as solid as ever.
+      if (!touches(previous) || touches(0)) continue;
+      obstacleContactTimes.set(
+        movement.player.id,
+        firstContactTime(touches, previous),
+      );
+    }
+
+    // A step that reaches past an open edge is also tested from the far side, where the trails it is about to meet are.
+    const images = open
+      ? movementImages(state, movement, RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2)
+      : NO_WRAP;
     for (const owner of sortedPlayers(state)) {
       if (isHazardImmune(movement.player, state.tick)) break;
       for (const trail of owner.trail) {
@@ -1051,28 +1179,34 @@ export function step(
           trail.createdTick > state.tick - SELF_TRAIL_GRACE_TICKS
         )
           continue;
-        if (
-          segmentDistanceSquared(
-            movement.oldX,
-            movement.oldY,
-            movement.x,
-            movement.y,
-            trail.x1,
-            trail.y1,
-            trail.x2,
-            trail.y2,
-          ) <=
-          square(RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2) + EPSILON
-        ) {
+        for (const { dx, dy } of images) {
+          const fromX = movement.oldX + dx,
+            fromY = movement.oldY + dy,
+            toX = movement.x + dx,
+            toY = movement.y + dy;
+          if (
+            segmentDistanceSquared(
+              fromX,
+              fromY,
+              toX,
+              toY,
+              trail.x1,
+              trail.y1,
+              trail.x2,
+              trail.y2,
+            ) >
+            square(RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2) + EPSILON
+          )
+            continue;
           markCause(causes, causeOwners, movement.player.id, "trail", owner.id);
           const previous = trailContactTimes.get(movement.player.id) ?? 1;
           const time = firstContactTime(
             (time) =>
               segmentDistanceSquared(
-                movement.oldX,
-                movement.oldY,
-                movement.oldX + (movement.x - movement.oldX) * time,
-                movement.oldY + (movement.y - movement.oldY) * time,
+                fromX,
+                fromY,
+                fromX + (toX - fromX) * time,
+                fromY + (toY - fromY) * time,
                 trail.x1,
                 trail.y1,
                 trail.x2,
@@ -1100,14 +1234,19 @@ export function step(
       // Sweep the relative position: both endpoints use the same instant in the tick.
       // Comparing the two paths directly also compares positions reached at different
       // times, killing riders that safely follow or pass behind one another (#186).
+      // Across an open edge two riders are as close as the short way round says they are.
+      const apartX = nearestDelta(open, a.oldX - b.oldX, state.width),
+        apartY = nearestDelta(open, a.oldY - b.oldY, state.height);
+      const closingX = a.x - a.oldX - (b.x - b.oldX),
+        closingY = a.y - a.oldY - (b.y - b.oldY);
       if (
         pointSegmentDistanceSquared(
           0,
           0,
-          a.oldX - b.oldX,
-          a.oldY - b.oldY,
-          a.x - b.x,
-          a.y - b.y,
+          apartX,
+          apartY,
+          apartX + closingX,
+          apartY + closingY,
         ) <=
         square(2 * RIDER_CONTACT_RADIUS) + EPSILON
       ) {
@@ -1124,10 +1263,10 @@ export function step(
             pointSegmentDistanceSquared(
               0,
               0,
-              a.oldX - b.oldX,
-              a.oldY - b.oldY,
-              a.oldX - b.oldX + (a.x - a.oldX - (b.x - b.oldX)) * time,
-              a.oldY - b.oldY + (a.y - a.oldY - (b.y - b.oldY)) * time,
+              apartX,
+              apartY,
+              apartX + closingX * time,
+              apartY + closingY * time,
             ) <=
             square(2 * RIDER_CONTACT_RADIUS) + EPSILON,
         );
@@ -1149,10 +1288,41 @@ export function step(
     }
   }
 
+  /**
+   * Scenery kills under `wall`, which outranks `trail` and `rider`. Unlike the boundary, which a rider can only
+   * reach at the end of its step, an obstacle can be met anywhere along it — so a rock a rider would have reached
+   * later in the tick must not take a kill away from the trail or the rider that actually stopped it first.
+   * A rider already dead by explosion still keeps its contact, which is what the shield below bounces off.
+   */
+  // What the shield below bounces off: every scenery contact of the tick, whichever cause ends up winning it.
+  const sceneryReached = new Map(obstacleContactTimes);
+  for (const movement of movementList) {
+    const contact = obstacleContactTimes.get(movement.player.id);
+    if (contact === undefined) continue;
+    // No trail or rider contact is no contact at all, not one at the end of the step: a rock met exactly there still counts.
+    const reachedFirst = Math.min(
+      trailContactTimes.get(movement.player.id) ?? Infinity,
+      riderContactTimes.get(movement.player.id) ?? Infinity,
+    );
+    if (reachedFirst <= contact) {
+      obstacleContactTimes.delete(movement.player.id);
+      continue;
+    }
+    markCause(causes, causeOwners, movement.player.id, "wall");
+  }
+
   for (const movement of movementList) {
     if (!causes.has(movement.player.id) || !movement.player.shielded) continue;
     movement.player.shielded = false;
     movement.player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
+    // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
+    // blast must not leave it inside the rock, riding out its grace ticks in there.
+    const obstacleTime = sceneryReached.get(movement.player.id);
+    if (
+      obstacleTime !== undefined &&
+      reflectAtObstacle(state, movement, obstacleTime)
+    )
+      bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
     causes.delete(movement.player.id);
     causeOwners.delete(movement.player.id);
@@ -1193,7 +1363,9 @@ export function step(
         ? trailContactTimes.get(movement.player.id)
         : cause === "rider"
           ? riderContactTimes.get(movement.player.id)
-          : undefined;
+          : cause === "wall"
+            ? obstacleContactTimes.get(movement.player.id)
+            : undefined;
     if (contactTime !== undefined) {
       movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
       movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
@@ -1212,25 +1384,35 @@ export function step(
   for (const movement of movementList) {
     const cause = causes.get(movement.player.id);
     if (cause) {
-      if (cause === "trail" || cause === "rider") {
-        movement.player.x = movement.x;
-        movement.player.y = movement.y;
+      // A wreck against scenery is left where it hit, with the trail it laid getting there; the boundary keeps
+      // its own behaviour, where the rider has already been carried out of bounds.
+      if (
+        cause === "trail" ||
+        cause === "rider" ||
+        (cause === "wall" && obstacleContactTimes.has(movement.player.id))
+      ) {
+        movement.player.x = open
+          ? wrapCoordinate(movement.x, state.width)
+          : movement.x;
+        movement.player.y = open
+          ? wrapCoordinate(movement.y, state.height)
+          : movement.y;
         movement.player.angle = movement.angle;
-        const trail = clipTrailSegment(
-          {
-            x1: movement.oldX,
-            y1: movement.oldY,
-            x2: movement.x,
-            y2: movement.y,
-            createdTick: state.tick,
-            expiresAtTick:
-              state.tick +
-              powerTrailLifetimeTicks(movement.player.powerPickups),
-          },
+        const laid = layTrail(
+          state,
+          open,
           trailBounds,
-        );
-        if (trail && (trail.x1 !== trail.x2 || trail.y1 !== trail.y2))
-          movement.player.trail = boundTrail([...movement.player.trail, trail]);
+          movement.player,
+          movement.oldX,
+          movement.oldY,
+          movement.x,
+          movement.y,
+        ).filter((trail) => trail.x1 !== trail.x2 || trail.y1 !== trail.y2);
+        if (laid.length)
+          movement.player.trail = boundTrail([
+            ...movement.player.trail,
+            ...laid,
+          ]);
       }
       movement.player.alive = false;
       movement.player.bombChargeStartedTick = undefined;
@@ -1241,7 +1423,22 @@ export function step(
         movement.player.id,
         cause,
       );
-      recordDeath(state.matchStats, movement.player.id, cause, credited);
+      recordDeath(
+        state.matchStats,
+        movement.player.id,
+        cause,
+        causeOwners.get(movement.player.id)?.get(cause)?.size === 1
+          ? causeOwners.get(movement.player.id)!.get(cause)!.values().next()
+              .value
+          : undefined,
+        cause === "explosion"
+          ? causeOwners.get(movement.player.id)?.get(cause)?.size === 1
+            ? (state.shots.find(
+                (s) => s.shot === shotSources.get(movement.player.id)?.shot,
+              )?.weapon ?? "unknown")
+            : "unknown"
+          : cause,
+      );
       if (cause === "explosion")
         logShotKill(
           state,
@@ -1271,28 +1468,30 @@ export function step(
       continue;
     }
     const transit = transits.get(movement.player.id);
-    movement.player.x = transit?.exitPoint.x ?? movement.x;
-    movement.player.y = transit?.exitPoint.y ?? movement.y;
+    movement.player.x =
+      transit?.exitPoint.x ??
+      (open ? wrapCoordinate(movement.x, state.width) : movement.x);
+    movement.player.y =
+      transit?.exitPoint.y ??
+      (open ? wrapCoordinate(movement.y, state.height) : movement.y);
     if (transit) {
       movement.player.portalCooldownUntilTick = transit.cooldownUntilTick;
       movement.player.portalGraceUntilTick = transit.graceUntilTick;
       recordPortalTransit(state.matchStats, movement.player.id);
     }
     movement.player.angle = movement.angle;
-    const trail = clipTrailSegment(
-      {
-        x1: movement.oldX,
-        y1: movement.oldY,
-        x2: transit?.entryPoint.x ?? movement.x,
-        y2: transit?.entryPoint.y ?? movement.y,
-        createdTick: state.tick,
-        expiresAtTick:
-          state.tick + powerTrailLifetimeTicks(movement.player.powerPickups),
-      },
+    const laid = layTrail(
+      state,
+      open,
       trailBounds,
+      movement.player,
+      movement.oldX,
+      movement.oldY,
+      transit?.entryPoint.x ?? movement.x,
+      transit?.entryPoint.y ?? movement.y,
     );
-    if (trail)
-      movement.player.trail = boundTrail([...movement.player.trail, trail]);
+    if (laid.length)
+      movement.player.trail = boundTrail([...movement.player.trail, ...laid]);
   }
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movementList) {
@@ -1322,7 +1521,13 @@ export function step(
   // Resolve every gun against the same committed board before applying cuts or deaths.
   const gunHits = resolveGunShots(state);
 
-  // Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched.
+  /**
+   * Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched — and so after
+   * the sweep above. A rider that crashed into scenery earlier in this tick died against a board that was still
+   * standing when it got there, and a Target Bomb landing afterwards then clears that same rock: chronological
+   * within the tick, and the same order in which a pickup collected this tick survives a blast opened by it.
+   * Ordinary fuses run before movement instead (`newBlasts`), so what they clear is gone before anyone rides into it.
+   */
   const instantBlasts = resolveExplosions(state, events);
   if (instantBlasts.length || gunHits.size) {
     captureOrigins();
@@ -1371,7 +1576,21 @@ export function step(
       recordElimination(state, player.id);
       const owners = new Set(hits.map((blast) => blast.ownerId));
       const credited = owners.size === 1 ? hits[0]!.ownerId : undefined;
-      recordDeath(state.matchStats, player.id, "explosion", credited);
+      recordDeath(
+        state.matchStats,
+        player.id,
+        "explosion",
+        credited,
+        owners.size === 1
+          ? (state.shots.find(
+              (s) =>
+                s.shot ===
+                hits.reduce((first, hit) =>
+                  hit.bombId < first.bombId ? hit : first,
+                ).shot,
+            )?.weapon ?? "unknown")
+          : "unknown",
+      );
       logShotKill(
         state,
         player.id,
@@ -1447,6 +1666,8 @@ export function toSnapshot(state: GameState): GameSnapshot {
     width: state.width,
     height: state.height,
     boundaryInset: state.boundaryInset,
+    map: state.map,
+    obstacles: state.obstacles.map((obstacle) => ({ ...obstacle })),
     players: sortedPlayers(state).map((player) => ({
       id: player.id,
       name: player.name,
@@ -1627,6 +1848,34 @@ function prepareRound(state: GameState): void {
     player.angle = normalizeAngle(spawnAngle + Math.PI / 2);
     player.alive = true;
   });
+  // The layout is laid around riders already standing on the board, so nobody starts inside a rock or facing one
+  // with no room to turn. Drawn from the round's own stream, after every participant has a pose.
+  // A game with no room settings — LAN play, which has no settings screen — keeps the arena it has always had, like
+  // every other settings fallback. `rotate` is the default of a room that has settings, and so a way to turn it off.
+  state.map = chooseArenaMap(
+    state.settings?.map ?? "classic",
+    state.seed,
+    state.round,
+  );
+  state.boundaryInset = initialBoundaryInset(state.map, INITIAL_BOUNDARY_INSET);
+  const keepClear: ClearCapsule[] = participants.map((player) => ({
+    x1: player.x,
+    y1: player.y,
+    x2: player.x + cos(player.angle) * SPAWN_CORRIDOR_LENGTH,
+    y2: player.y + sin(player.angle) * SPAWN_CORRIDOR_LENGTH,
+    radius: SPAWN_CORRIDOR_RADIUS,
+  }));
+  state.obstacles = generateObstacles({
+    map: state.map,
+    bounds: {
+      minX: state.boundaryInset + OBSTACLE_WALL_MARGIN,
+      minY: state.boundaryInset + OBSTACLE_WALL_MARGIN,
+      maxX: state.width - state.boundaryInset - OBSTACLE_WALL_MARGIN,
+      maxY: state.height - state.boundaryInset - OBSTACLE_WALL_MARGIN,
+    },
+    random: () => nextRandom(state),
+    keepClear,
+  });
 }
 
 function maybeSpawnPickup(state: GameState, cap: number): void {
@@ -1687,6 +1936,17 @@ function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
     )
       return false;
   }
+  if (
+    state.obstacles.some((obstacle) =>
+      obstacleTouchesCircle(
+        obstacle,
+        x,
+        y,
+        PICKUP_RADIUS + PICKUP_OBSTACLE_CLEARANCE,
+      ),
+    )
+  )
+    return false;
   return state.pickups.every(
     (pickup) =>
       square(pickup.x - x) + square(pickup.y - y) >= square(PICKUP_SEPARATION),
@@ -1981,6 +2241,13 @@ function isSafePortalPosition(
     )
       return false;
   }
+  // A gate laid across scenery, or an exit inside it, would drop a rider straight into a lethal wall.
+  if (
+    state.obstacles.some((obstacle) =>
+      obstacleTouchesCircle(obstacle, point.x, point.y, radius),
+    )
+  )
+    return false;
   // Reserve both current flight location and landing site of live projectiles.
   for (const bomb of sortedBombs(state)) {
     if (bomb.shell?.gun) continue;
@@ -2009,6 +2276,66 @@ function isSafePortalPosition(
   );
 }
 
+/**
+ * How far from the wall's face a rider dies. A rider's radius, except while a wrap board's walls are first coming in:
+ * riders may legally be anywhere up to the very edge when they appear, so the lethal band grows out of the edge over
+ * a few ticks instead of arriving a full radius wide in one.
+ */
+function wallReach(state: GameState): number {
+  return state.map === "wrap"
+    ? Math.min(RIDER_RADIUS, 2 * state.boundaryInset)
+    : RIDER_RADIUS;
+}
+
+/** The short way round when the edges are open, the plain difference when they are not. */
+function nearestDelta(open: boolean, delta: number, size: number): number {
+  return open ? wrapDelta(delta, size) : delta;
+}
+
+/** Where a step has to be tested from so that it meets everything within `reach` of it, across open edges included. */
+function movementImages(
+  state: GameState,
+  movement: Movement,
+  reach: number,
+): WrapOffset[] {
+  return wrapImages(
+    state.width,
+    state.height,
+    Math.min(movement.oldX, movement.x) - reach,
+    Math.min(movement.oldY, movement.y) - reach,
+    Math.max(movement.oldX, movement.x) + reach,
+    Math.max(movement.oldY, movement.y) + reach,
+  );
+}
+
+/**
+ * This tick's trail for a step. Walls clip it; an open edge splits it instead, into the piece up to the edge and the
+ * piece on from the opposite one. The two never join — same tick, different ends of the board — which is the same
+ * logical link with a gap in it that a portal crossing already leaves.
+ */
+function layTrail(
+  state: GameState,
+  open: boolean,
+  bounds: ReturnType<typeof portalBounds>,
+  player: PlayerState,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): TrailSegment[] {
+  const segment: TrailSegment = {
+    x1,
+    y1,
+    x2,
+    y2,
+    createdTick: state.tick,
+    expiresAtTick: state.tick + powerTrailLifetimeTicks(player.powerPickups),
+  };
+  if (open) return splitWrappedSegment(segment, state.width, state.height);
+  const clipped = clipTrailSegment(segment, bounds);
+  return clipped ? [clipped] : [];
+}
+
 function isInvulnerable(player: PlayerState, tick: number): boolean {
   return player.invulnerableUntilTick > tick;
 }
@@ -2022,10 +2349,13 @@ function isHazardImmune(player: PlayerState, tick: number): boolean {
 }
 
 function reflectAtBoundary(state: GameState, movement: Movement): boolean {
-  const left = state.boundaryInset + RIDER_RADIUS;
-  const right = state.width - state.boundaryInset - RIDER_RADIUS;
-  const top = state.boundaryInset + RIDER_RADIUS;
-  const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
+  // An open edge is not a surface: the rider carries on through it.
+  if (edgesOpen(state)) return false;
+  const reach = wallReach(state);
+  const left = state.boundaryInset + reach;
+  const right = state.width - state.boundaryInset - reach;
+  const top = state.boundaryInset + reach;
+  const bottom = state.height - state.boundaryInset - reach;
   const hitX = movement.x < left || movement.x > right;
   const hitY = movement.y < top || movement.y > bottom;
   if (!hitX && !hitY) return false;
@@ -2039,6 +2369,39 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
     movement.angle = normalizeAngle(-movement.angle);
     movement.player.drunkHeadingOffset *= -1;
   }
+  return true;
+}
+
+/**
+ * An absorbed crash leaves the rider against the face it hit, turned away from it: the same deal the boundary gives a
+ * shielded rider, and without it a shield would only buy the ticks of grace it takes to die inside the same obstacle.
+ */
+function reflectAtObstacle(
+  state: GameState,
+  movement: Movement,
+  contactTime: number,
+): boolean {
+  movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
+  movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
+  let hit: Obstacle | undefined;
+  let nearest = Infinity;
+  // Id order: the lower id keeps an exact tie, whatever order a restored array arrived in.
+  for (const obstacle of sortedObstacles(state)) {
+    const distance = obstacleDistanceSquared(obstacle, movement.x, movement.y);
+    if (distance < nearest) {
+      nearest = distance;
+      hit = obstacle;
+    }
+  }
+  if (!hit) return false;
+  const { nx, ny } = obstacleBounceNormal(hit, movement.x, movement.y);
+  const heading = { x: cos(movement.angle), y: sin(movement.angle) };
+  const approach = heading.x * nx + heading.y * ny;
+  if (approach >= 0) return false; // already turned away from the face by this tick's steering
+  movement.angle = normalizeAngle(
+    atan2(heading.y - 2 * approach * ny, heading.x - 2 * approach * nx),
+  );
+  movement.player.drunkHeadingOffset *= -1;
   return true;
 }
 
@@ -2161,12 +2524,21 @@ function applyBombActions(
       state.settings?.bombChargeTicks,
       state.settings?.aimBounce ?? false,
     );
-    const bounds: LaunchBounds = {
-      minX: state.boundaryInset + RIDER_RADIUS,
-      maxX: state.width - state.boundaryInset - RIDER_RADIUS,
-      minY: state.boundaryInset + RIDER_RADIUS,
-      maxY: state.height - state.boundaryInset - RIDER_RADIUS,
-    };
+    // Over open edges a lob is never cut short: it flies on past the edge and comes down on the far side.
+    const open = edgesOpen(state);
+    const bounds: LaunchBounds = open
+      ? {
+          minX: -state.width,
+          maxX: 2 * state.width,
+          minY: -state.height,
+          maxY: 2 * state.height,
+        }
+      : {
+          minX: state.boundaryInset + RIDER_RADIUS,
+          maxX: state.width - state.boundaryInset - RIDER_RADIUS,
+          minY: state.boundaryInset + RIDER_RADIUS,
+          maxY: state.height - state.boundaryInset - RIDER_RADIUS,
+        };
     // Read before the release below disarms them, so the launch can still say which weapon it spent. Extra Bomb is
     // not one of them: it is a round-long upgrade that widens every shot, like Power, not a weapon a pull consumes.
     const volley: Weapon | undefined = player.fiveShotArmed
@@ -2215,8 +2587,9 @@ function applyBombActions(
         ownerId: player.id,
         launchX: player.x,
         launchY: player.y,
-        x: landing.x,
-        y: landing.y,
+        // The flight path stays unwrapped, so it is still one straight throw to whoever draws it.
+        x: open ? wrapCoordinate(landing.x, state.width) : landing.x,
+        y: open ? wrapCoordinate(landing.y, state.height) : landing.y,
         placedTick: state.tick,
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
@@ -2336,6 +2709,9 @@ function continueGunTracer(
   return tracer;
 }
 
+/** Edges one bullet can cross inside its range: a board's width of travel spans the board once across and twice down. */
+const GUN_WRAP_LEGS = 4;
+
 /** Raycast against heads, trails and walls. All shots see the same board, including simultaneous volleys. */
 function resolveGunShots(
   state: GameState,
@@ -2353,10 +2729,18 @@ function resolveGunShots(
     let segment = bomb;
     // Each pair carries a ray once, so two gates facing each other cannot hold a bullet in a loop.
     const spent = new Set<string>();
-    for (let hop = 0; hop <= MAX_PORTAL_PAIRS; hop += 1) {
+    // Over open edges a bullet flies on from the opposite side, for one board's width in all: far enough to shoot
+    // through any edge at anything on screen, and an end to a ray that would otherwise circle an empty board for ever.
+    const open = edgesOpen(state);
+    let range = open ? state.width : Infinity;
+    for (
+      let hop = 0, leg = 0;
+      hop <= MAX_PORTAL_PAIRS && leg <= MAX_PORTAL_PAIRS + GUN_WRAP_LEGS;
+      leg += 1
+    ) {
       const x = segment.launchX,
         y = segment.launchY;
-      const inset = state.boundaryInset + GUN_RADIUS;
+      const inset = open ? 0 : state.boundaryInset + GUN_RADIUS;
       const wallX =
         vx > 0
           ? (state.width - inset - x) / vx
@@ -2369,11 +2753,22 @@ function resolveGunShots(
           : vy < 0
             ? (inset - y) / vy
             : Infinity;
-      const distance = Math.max(0, Math.min(wallX, wallY));
+      const distance = Math.max(0, Math.min(wallX, wallY, range));
       const dx = vx * distance,
         dy = vy * distance;
       let contact = 1;
       let hit: PlayerState | undefined;
+      const gunReach = RIDER_RADIUS + GUN_RADIUS;
+      const legImages = open
+        ? wrapImages(
+            state.width,
+            state.height,
+            Math.min(x, x + dx) - gunReach,
+            Math.min(y, y + dy) - gunReach,
+            Math.max(x, x + dx) + gunReach,
+            Math.max(y, y + dy) + gunReach,
+          )
+        : NO_WRAP;
       // Slot order is stable even when a checkpoint was decoded with another Map insertion order.
       for (const player of sortedPlayers(state)) {
         if (player.id === bomb.ownerId) continue;
@@ -2402,22 +2797,41 @@ function resolveGunShots(
             hit = player;
           }
         };
-        if (player.alive)
-          consider(
-            player.x,
-            player.y,
-            player.x,
-            player.y,
-            RIDER_RADIUS + GUN_RADIUS,
-          );
-        for (const trail of player.trail)
-          consider(
-            trail.x1,
-            trail.y1,
-            trail.x2,
-            trail.y2,
-            TRAIL_WIDTH / 2 + GUN_RADIUS,
-          );
+        // A leg along an open edge also meets what overhangs that edge from the far side.
+        for (const image of legImages) {
+          if (player.alive)
+            consider(
+              player.x - image.dx,
+              player.y - image.dy,
+              player.x - image.dx,
+              player.y - image.dy,
+              RIDER_RADIUS + GUN_RADIUS,
+            );
+          for (const trail of player.trail)
+            consider(
+              trail.x1 - image.dx,
+              trail.y1 - image.dy,
+              trail.x2 - image.dx,
+              trail.y2 - image.dy,
+              TRAIL_WIDTH / 2 + GUN_RADIUS,
+            );
+        }
+      }
+      // Scenery stops a bullet without taking damage from it: only a blast clears an obstacle. Whatever stood
+      // behind it was never in this ray's line, so an earlier obstacle contact also drops the rider it found.
+      // Id order: each bisection starts from the contact before it, so the order decides its low bits.
+      for (const obstacle of sortedObstacles(state)) {
+        const touches = (t: number): boolean =>
+          segmentObstacleDistanceSquared(
+            obstacle,
+            x,
+            y,
+            x + dx * t,
+            y + dy * t,
+          ) <= square(GUN_RADIUS);
+        if (!touches(contact)) continue;
+        contact = firstContactTime(touches, contact);
+        hit = undefined;
       }
       const gate = findGunPortalEntry(
         state,
@@ -2431,16 +2845,50 @@ function resolveGunShots(
         segment.y = gate.transit.entryPoint.y;
         spent.add(gate.transit.pairId);
         segment = continueGunTracer(state, bomb, gate.transit.exitPoint);
+        range -= distance * gate.time;
+        hop += 1;
         continue;
       }
       segment.x = x + dx * contact;
       segment.y = y + dy * contact;
+      // Nothing in the way and range to spare: the ray reached an open edge, and carries on from the one opposite.
+      // The edge it reached is set exactly rather than computed, so the next leg starts on the board.
+      if (
+        !hit &&
+        contact === 1 &&
+        open &&
+        range > distance &&
+        distance < Infinity
+      ) {
+        range -= distance;
+        const throughX = wallX <= wallY,
+          throughY = wallY <= wallX;
+        if (throughX) segment.x = vx > 0 ? state.width : 0;
+        if (throughY) segment.y = vy > 0 ? state.height : 0;
+        segment = continueGunTracer(state, bomb, {
+          x: throughX ? (vx > 0 ? 0 : state.width) : segment.x,
+          y: throughY ? (vy > 0 ? 0 : state.height) : segment.y,
+        });
+        continue;
+      }
       if (!hit) break;
-      impacts.push({ x: segment.x, y: segment.y });
+      // The hole is cut wherever the impact reaches, which near an open edge includes the trail on the far side.
+      for (const { dx: shiftX, dy: shiftY } of open
+        ? wrapImages(
+            state.width,
+            state.height,
+            segment.x - GUN_HOLE_RADIUS,
+            segment.y - GUN_HOLE_RADIUS,
+            segment.x + GUN_HOLE_RADIUS,
+            segment.y + GUN_HOLE_RADIUS,
+          )
+        : NO_WRAP)
+        impacts.push({ x: segment.x + shiftX, y: segment.y + shiftY });
       // A body hit is only lethal near that body's own living head, never through splash.
       if (
         hit.alive &&
-        square(hit.x - segment.x) + square(hit.y - segment.y) <=
+        square(nearestDelta(open, hit.x - segment.x, state.width)) +
+          square(nearestDelta(open, hit.y - segment.y, state.height)) <=
           square(GUN_HEADSHOT_RADIUS)
       ) {
         const previous = hits.get(hit.id) ?? [];
@@ -2571,25 +3019,55 @@ function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
     const bomb = state.bombs.get(id);
     if (!bomb) continue;
     exploded.add(id);
-    const circle = { x: bomb.x, y: bomb.y, radius: bomb.blastRange };
-    state.pickups = state.pickups.filter(
-      (pickup) =>
-        square(pickup.x - circle.x) + square(pickup.y - circle.y) >=
-        square(circle.radius * PICKUP_DESTRUCTION_RADIUS_RATIO),
+    // A blast that reaches past an open edge carries on from the opposite one; "reaches" is measured at a rider's
+    // radius, the widest thing a blast is tested against, so a rider or trail overhanging the edge is covered too. Each part is a blast in its own right,
+    // under the same bomb id, so everything downstream — kills, cuts, chains, the drawing — covers both without knowing.
+    const circles: BlastCircle[] = (
+      edgesOpen(state)
+        ? wrapImages(
+            state.width,
+            state.height,
+            bomb.x - bomb.blastRange - RIDER_RADIUS,
+            bomb.y - bomb.blastRange - RIDER_RADIUS,
+            bomb.x + bomb.blastRange + RIDER_RADIUS,
+            bomb.y + bomb.blastRange + RIDER_RADIUS,
+          )
+        : NO_WRAP
+    ).map(({ dx, dy }) => ({
+      x: bomb.x + dx,
+      y: bomb.y + dy,
+      radius: bomb.blastRange,
+    }));
+    const circle = circles[0]!;
+    state.pickups = state.pickups.filter((pickup) =>
+      circles.every(
+        (part) =>
+          square(pickup.x - part.x) + square(pickup.y - part.y) >=
+          square(part.radius * PICKUP_DESTRUCTION_RADIUS_RATIO),
+      ),
+    );
+    // Scenery goes at the full radius rather than the pickups' inner disk: clearing a path is the point of the shot.
+    state.obstacles = state.obstacles.filter(
+      (obstacle) =>
+        !circles.some((part) =>
+          obstacleTouchesCircle(obstacle, part.x, part.y, part.radius),
+        ),
     );
     // Stored and returned separately: `state.blasts` is checkpointed and validated field by field, so the
     // statistics-only shot stays in the returned copy this tick's kill attribution reads.
-    const blast: BlastState = {
-      bombId: id,
-      ownerId: bomb.ownerId,
-      circle,
-      expiresAtTick: state.tick + BLAST_VISIBLE_TICKS,
-    };
-    state.blasts.push(blast);
-    result.push({
-      ...blast,
-      ...(bomb.shot === undefined ? {} : { shot: bomb.shot }),
-    });
+    for (const part of circles) {
+      const blast: BlastState = {
+        bombId: id,
+        ownerId: bomb.ownerId,
+        circle: part,
+        expiresAtTick: state.tick + BLAST_VISIBLE_TICKS,
+      };
+      state.blasts.push(blast);
+      result.push({
+        ...blast,
+        ...(bomb.shot === undefined ? {} : { shot: bomb.shot }),
+      });
+    }
     recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: "explosion", bombId: id });
 
@@ -2598,12 +3076,14 @@ function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
         if (exploded.has(candidate.id) || queued.has(candidate.id)) continue;
         if (candidate.shell || candidate.landsAtTick > state.tick) continue;
         if (
-          segmentIntersectsDisk(
-            candidate.x,
-            candidate.y,
-            candidate.x,
-            candidate.y,
-            circle,
+          circles.some((part) =>
+            segmentIntersectsDisk(
+              candidate.x,
+              candidate.y,
+              candidate.x,
+              candidate.y,
+              part,
+            ),
           )
         ) {
           queued.add(candidate.id);
@@ -2702,6 +3182,8 @@ function logShot(
   weapon: Weapon,
   bombs: number,
 ): void {
+  const combat = state.matchStats.get(shooter.id)?.combat;
+  if (combat) combat.uses[weapon] += 1;
   recordShot(state.shots, {
     shot,
     shooterId: shooter.id,
@@ -2970,4 +3452,11 @@ const NEUTRAL_INPUT: InputIntent = Object.freeze({
 
 export function sortedBombs(state: Readonly<GameState>): BombState[] {
   return [...state.bombs.values()].sort((a, b) => a.id - b.id);
+}
+
+/** Scenery in id order, which is the order it was generated in: contact bisection and exact ties read it in order. */
+export function sortedObstacles(
+  state: Pick<GameState, "obstacles">,
+): Obstacle[] {
+  return [...state.obstacles].sort((a, b) => a.id - b.id);
 }

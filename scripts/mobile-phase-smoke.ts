@@ -31,6 +31,7 @@ for (const [name, type] of [
         mode: "devices",
         match: "rounds",
         length: 1,
+        map: "classic",
         weights: {},
       }),
     ),

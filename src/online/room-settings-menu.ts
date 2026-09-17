@@ -9,6 +9,8 @@ import {
   weightFor,
 } from "./powerup-rarity.js";
 import { TICK_HZ, type PickupType } from "../shared/game.js";
+import { ARENA_MAP_LABELS } from "../client/arena-maps.js";
+import type { ArenaMapChoice } from "../shared/arena-map.js";
 import {
   BOMB_MIN_CHARGE_TICKS,
   BOMB_CHARGE_TICKS_LIMIT,
@@ -112,6 +114,35 @@ export function showRoomSettings(
         (value) => {
           draft.aimBounce = value === "on";
         },
+      ),
+      choices<ArenaMapChoice>(
+        "Arena map",
+        draft.map,
+        [
+          ["rotate", "A different map every round"],
+          ["desert", ARENA_MAP_LABELS.desert],
+          ["forest", ARENA_MAP_LABELS.forest],
+          ["city", ARENA_MAP_LABELS.city],
+          ["classic", `${ARENA_MAP_LABELS.classic} · no obstacles`],
+          ["wrap", `${ARENA_MAP_LABELS.wrap} · no walls until overtime`],
+          [
+            "cross",
+            `${ARENA_MAP_LABELS.cross} · the classic arena, split four ways`,
+          ],
+        ],
+        (value) => {
+          draft.map = value;
+        },
+      ),
+    );
+    body.append(
+      element(
+        "p",
+        "Desert, Forest and City put rocks, trees and buildings on the board. Crashing into one is fatal; a bomb blast clears it away.",
+      ),
+      element(
+        "p",
+        "Wrap-around has open edges: riders, shells, bullets, thrown bombs and blasts leave one side and arrive on the other. Crossed plays exactly like the classic arena, drawn shifted by half a board: the walls meet in a cross in the middle and the screen edges are open.",
       ),
     );
     const lengthLabel = element("label", "Match length"),

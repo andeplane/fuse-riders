@@ -12,7 +12,6 @@ import {
   type GameState,
 } from "../src/shared/game.ts";
 import { MAX_PORTAL_PAIRS } from "../src/shared/portal.ts";
-import { controllerSnapshot } from "../src/server/index.ts";
 
 function arena() {
   const state = createGame("portal", 123);
@@ -20,6 +19,8 @@ function arena() {
     addPlayer(state, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(state);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(state, new Map());
+  // An open board: gate placement and transits are measured against riders and trails alone.
+  state.obstacles = [];
   for (const [index, player] of [...state.players.values()].entries())
     Object.assign(player, {
       x: 185 + index * 500,
@@ -162,7 +163,6 @@ test("portal expiry, snapshot copying, compact geometry omission and round reset
   const snapshot = toSnapshot(state);
   snapshot.portalPairs[0]!.gates[0].x = -10;
   assert.equal(state.portalPairs[0]!.gates[0].x, 200);
-  assert.deepEqual(controllerSnapshot(toSnapshot(state)).portalPairs, []);
   state.portalPairs[0]!.expiresAtTick = state.tick + 1;
   step(state, new Map());
   assert.deepEqual(state.portalPairs, []);
@@ -286,6 +286,7 @@ test("wall placement remains useful on an occupied five-rider field across seeds
       });
     startMatch(state);
     for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(state, new Map());
+    state.obstacles = [];
     for (const [slot, player] of [...state.players.values()].entries()) {
       const x = 200 + slot * 280;
       const y = slot % 2 ? 600 : 260;

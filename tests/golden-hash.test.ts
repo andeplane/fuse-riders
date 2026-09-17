@@ -6,9 +6,10 @@ import { PICKUP_TYPES } from "../src/shared/game.js";
 import { isEntry } from "../src/shared/input-log.js";
 import {
   coverageObserver,
+  emptyCoverage,
+  isObstacleMap,
   replayHashes,
   type Recording,
-  type ReplayCoverage,
 } from "./fixtures/replay-log.js";
 
 test("the input-only mechanic recording keeps every tick on the pinned rules", () => {
@@ -27,11 +28,7 @@ test("the input-only mechanic recording keeps every tick on the pinned rules", (
   for (const entries of Object.values(recording.entries))
     for (const entry of entries)
       assert.ok(isEntry(entry), "fixture contains only valid wire entries");
-  const coverage: ReplayCoverage = {
-    collected: [],
-    portalTransits: 0,
-    shieldAbsorbs: 0,
-  };
+  const coverage = emptyCoverage();
   const observeCoverage = coverageObserver(coverage);
   let fiveRiderTicks = 0;
   const hashes = replayHashes(recording, (state) => {
@@ -56,6 +53,30 @@ test("the input-only mechanic recording keeps every tick on the pinned rules", (
   assert.ok(
     coverage.shieldAbsorbs > 0,
     "a shield absorbs a hazard while its rider survives",
+  );
+  assert.ok(
+    coverage.maps.some(isObstacleMap),
+    "a round is played on an obstacle map",
+  );
+  assert.ok(
+    coverage.obstaclesBlasted > 0,
+    "a blast clears an obstacle away on the tick it opens",
+  );
+  assert.ok(
+    coverage.sceneryCrashes > 0,
+    "a rider crashes into scenery and dies against it",
+  );
+  assert.ok(
+    coverage.maps.includes("wrap"),
+    "a round is played on the wrap map",
+  );
+  assert.ok(
+    coverage.edgeCrossings > 0,
+    "a living rider is carried through an open edge without a portal",
+  );
+  assert.ok(
+    coverage.edgeBlasts > 0,
+    "a blast opens over an open edge and stands on both sides of it",
   );
   assert.equal(
     RULES,

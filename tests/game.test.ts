@@ -73,6 +73,8 @@ function gameWithPlayers(
 
 function enterPlaying(state: GameState): void {
   startMatch(state);
+  // The open arena: obstacles are their own tests, and the rules here are about walls, trails, bombs and rounds.
+  state.obstacles = [];
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
   assert.equal(state.phase, "playing");
 }
@@ -1700,6 +1702,7 @@ test("overlapping blast owners receive no speculative elimination credit", () =>
     state.bombs.set(id, {
       id,
       ownerId,
+      shot: id,
       launchX: 500,
       launchY: 450,
       x: 500,
@@ -1711,9 +1714,23 @@ test("overlapping blast owners receive no speculative elimination credit", () =>
       blastRange: 150,
       flightPath: fixedFlightPath(500, 450),
     });
+    state.shots.push({
+      shot: id,
+      shooterId: ownerId,
+      weapon: "bomb",
+      elapsed: 0,
+      bombs: 1,
+      power: 0,
+      extraBombs: 0,
+      fuseLevel: 0,
+      grip: false,
+      kills: [],
+    });
   }
   step(state, new Map());
   assert.equal(state.matchStats.get("p0")!.deathsByCause.explosion, 1);
+  assert.equal(state.matchStats.get("p0")!.combat!.deaths.unknown, 1);
+  assert.equal(state.matchStats.get("p0")!.combat!.deaths.bomb, 0);
   assert.equal(state.matchStats.get("p1")!.bombsExploded, 1);
   assert.equal(state.matchStats.get("p2")!.bombsExploded, 1);
   assert.equal(state.matchStats.get("p1")!.eliminations, 0);
@@ -2447,6 +2464,7 @@ test("a drawn final round still awards the fixed-rounds match to the standings l
   state.tick = state.phaseEndsAtTick!;
   startNextRound(state);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
+  state.obstacles = []; // the second round lays its own board; this one is decided by the draw clock alone
   Object.assign(state.players.get("p0")!, {
     x: 600,
     y: 450,

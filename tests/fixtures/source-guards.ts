@@ -84,8 +84,14 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
 }
 
 type Layer = "engine" | "net" | "render" | "app" | "shared" | "external";
+// `career-stats`, `elo` and `rating` are the history service's settlement and the account panel's reading of it:
+// one authority computes them after a match, no replica folds them, and nothing the simulation owns imports them.
+// `combat-stats` is not here: match statistics carry it through every tick, so it stays engine-owned and guarded.
 const shared = new Set([
   "avatars",
+  "career-stats",
+  "elo",
+  "rating",
   "duration-text",
   "protocol",
   "uuid",
@@ -105,6 +111,8 @@ const network = new Set([
   "telemetry",
 ]);
 const rendering = new Set([
+  "arena-maps",
+  "arena-views",
   "arena-wall",
   "blast-animation",
   "bomb-preview",
