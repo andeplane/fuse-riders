@@ -76,7 +76,6 @@ Fold rules `fuse-p2p-10` introduced Extra Bomb. Riders and LAN presentation snap
 
 Fold rules `fuse-p2p-11` restored Shorter Fuse. The `stopwatch` pickup is enabled by default again and raises the required rider/snapshot `fuseLevel` from 0 to a cap of 2, resetting each round. Checkpoints reject missing, fractional, negative or excessive levels before installation. Ordinary bomb launches capture a 40/30/20-tick fuse; collection cannot change bombs already in flight. Volleys and Singularity use that fuse, while Target/Shell/Cannon behavior and Power reloads are unchanged. This changes deterministic rules and checkpoint state: rule equality rejects older peers and snapshots. Refresh all peers together; rollback requires fresh rooms. Room-service and transport envelopes are unchanged.
 
-
 ## Nitro and Snail speed pickups
 
 Fold rules `fuse-p2p-23` introduced Nitro and Snail (#240). Riders, LAN snapshots and checkpoints require two integer lists, `nitroUntilTicks` and `snailUntilTicks`: one absolute deadline per collection, kept ascending, holding at most `MAX_SPEED_EFFECT_STACK` (32) entries each, with spent deadlines dropped at the start of every playing tick so replicas never carry stale ones. Checkpoint decoding rejects a missing list, a non-integer entry, a list past the bound, a list out of ascending order, or a deadline further out than one duration from the checkpoint tick, since the rules never produce those. Nitro appends `tick + 100` to the collector's list; Snail appends `tick + 100` to every other living rider's. `riderSpeedMultiplier` multiplies the boost with 2 per unexpired Nitro and 0.5 per unexpired Snail, and `riderMotionStep` applies the product to distance alone, so steering and collision geometry are unchanged and a Snail cancels a Nitro exactly. Prediction reads the same lists from the snapshot. Bots size their trail horizon from the fastest multiplier any rider can reach inside the lookahead, with the boost as the floor so their horizon is unchanged until a Nitro is in play. The Phaser trail tip and local prediction size their one-step stride bound from the same multiplier. Default spawn weights include both; rule equality rejects older peers and snapshots. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
@@ -123,7 +122,6 @@ no `shot` is accepted so a missing one never becomes a wrong one — its kill is
 the canonical state hash, so rule equality rejects older peers and snapshots: refresh all peers together, and use
 fresh rooms after rollback. Room-service and transport envelopes are unchanged.
 
-
 ### Detached trail decay (#213)
 
 Fold rules `fuse-p2p-17` combined the shot log, eight-second Power trails and slower detached-trail decay. Ordered trail segments carry optional
@@ -169,7 +167,6 @@ Fold rules `fuse-p2p-19` introduced the round speed ramp. Each tick, riders move
 Fold rules `fuse-p2p-20` introduced Instant Gun. Gun consumes `press` and resolves a straight ray after turn/move and all launches in the same tick. Every shot sees the same committed heads/trails before cuts and deaths; nearest contact wins, with slot order breaking equal rider contacts. Heads, living/dead trails and walls stop shots; the shooter’s own body is ignored. Body impacts cut a radius-14 disk. An impact within 18 units of that body’s living head is lethal, respecting shield and temporary immunity. There is no splash or homing. Triple/Five/Extra Bomb still fan out, and normal reload applies. Release/cancel cannot undo or repeat a fired shot.
 
 Existing `shell.gun` bomb records now carry harmless 3-tick tracers: launch coordinates are the ray origin, `x/y` its resolved endpoint, and `vx/vy` a unit heading. They never move, explode, block the next shot or mark a shot unresolved in the round log. Headshot kills use the existing explosion death category and gun shot attribution. No fields or transport envelopes changed, but old simulation rules are incompatible: refresh every peer together and start fresh rooms after rollback.
-
 
 ## Persistent map pickups
 

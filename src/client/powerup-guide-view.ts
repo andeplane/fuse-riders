@@ -1,6 +1,6 @@
-import { legendSrc } from './legend-src.js';
-import type { PowerupGuideEntry } from './powerup-guide.js';
-import type { ThemeId } from './themes.js';
+import { legendSrc } from "./legend-src.js";
+import type { PowerupGuideEntry } from "./powerup-guide.js";
+import type { ThemeId } from "./themes.js";
 
 export interface PowerupGuideOptions {
   className: string;
@@ -21,21 +21,37 @@ export interface PowerupGuideView {
   setTheme(id: ThemeId): void;
 }
 
-export function createPowerupGuide(entries: readonly PowerupGuideEntry[], options: PowerupGuideOptions): PowerupGuideView {
-  const element = document.createElement('ul');
+export function createPowerupGuide(
+  entries: readonly PowerupGuideEntry[],
+  options: PowerupGuideOptions,
+): PowerupGuideView {
+  const element = document.createElement("ul");
   element.className = options.className;
-  if (options.label) element.setAttribute('aria-label', options.label);
-  const icons = entries.map(entry => {
-    const item = document.createElement('li'), image = document.createElement('img'), name = document.createElement('b');
-    image.alt = ''; image.decoding = 'async'; // sized by CSS: the two placements read at different distances
+  if (options.label) element.setAttribute("aria-label", options.label);
+  const icons = entries.map((entry) => {
+    const item = document.createElement("li"),
+      image = document.createElement("img"),
+      name = document.createElement("b");
+    image.alt = "";
+    image.decoding = "async"; // sized by CSS: the two placements read at different distances
     name.textContent = entry.name;
     item.append(image, name);
-    if (!options.namesOnly) item.append(document.createTextNode(` ${entry.description}`));
-    if (!entry.spawnsByDefault && options.offByDefaultNote) item.append(' ', Object.assign(document.createElement('small'), { textContent: options.offByDefaultNote }));
+    if (!options.namesOnly)
+      item.append(document.createTextNode(` ${entry.description}`));
+    if (!entry.spawnsByDefault && options.offByDefaultNote)
+      item.append(
+        " ",
+        Object.assign(document.createElement("small"), {
+          textContent: options.offByDefaultNote,
+        }),
+      );
     element.append(item);
     return { image, type: entry.type };
   });
-  const setTheme = (id: ThemeId): void => { for (const { image, type } of icons) image.src = legendSrc(id, `pickup-${type}`); };
+  const setTheme = (id: ThemeId): void => {
+    for (const { image, type } of icons)
+      image.src = legendSrc(id, `pickup-${type}`);
+  };
   if (options.themeId) setTheme(options.themeId);
   return { element, setTheme };
 }

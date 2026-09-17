@@ -5,12 +5,16 @@ export class LinkHealth {
   private lastAck = -Infinity;
   private consecutive = 0;
   private unhealthySince: number | undefined;
-  constructor(now: number) { this.unhealthySince = now; }
+  constructor(now: number) {
+    this.unhealthySince = now;
+  }
   probe(now: number): number {
-    for (const [id, at] of this.pending) if (now - at > 600) this.pending.delete(id);
+    for (const [id, at] of this.pending)
+      if (now - at > 600) this.pending.delete(id);
     const id = ++this.nextId;
     this.pending.set(id, now);
-    while (this.pending.size > 8) this.pending.delete(this.pending.keys().next().value!);
+    while (this.pending.size > 8)
+      this.pending.delete(this.pending.keys().next().value!);
     return id;
   }
   acknowledge(id: number, now: number): boolean {
@@ -33,7 +37,16 @@ export class LinkHealth {
   }
   /** An open RTC channel survives brief impairment; retry only sustained failure. */
   shouldRestart(now: number): boolean {
-    return !this.direct(now) && this.unhealthySince !== undefined && now - this.unhealthySince >= 8000;
+    return (
+      !this.direct(now) &&
+      this.unhealthySince !== undefined &&
+      now - this.unhealthySince >= 8000
+    );
   }
-  fail(now: number): void { this.consecutive = 0; this.lastAck = -Infinity; this.unhealthySince ??= now; this.pending.clear(); }
+  fail(now: number): void {
+    this.consecutive = 0;
+    this.lastAck = -Infinity;
+    this.unhealthySince ??= now;
+    this.pending.clear();
+  }
 }

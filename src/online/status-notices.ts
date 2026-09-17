@@ -12,7 +12,10 @@ export class StatusNotices {
   private emitted?: string;
   private holdUntil = -Infinity;
   private terminated = false;
-  constructor(private readonly now: () => number, private readonly emit: (text: string) => void) {}
+  constructor(
+    private readonly now: () => number,
+    private readonly emit: (text: string) => void,
+  ) {}
   /** Repeating connection/pause text: shown on a change only, and never over a live notice. */
   recurring(text: string): void {
     if (this.terminated) return;
@@ -41,7 +44,12 @@ export class StatusNotices {
   }
   /** Called every runtime tick: restores the current recurring status once a notice hold has expired. */
   refresh(): void {
-    if (this.terminated || this.now() < this.holdUntil || this.recurringText === undefined) return;
+    if (
+      this.terminated ||
+      this.now() < this.holdUntil ||
+      this.recurringText === undefined
+    )
+      return;
     this.show(this.recurringText);
   }
   private show(text: string): void {

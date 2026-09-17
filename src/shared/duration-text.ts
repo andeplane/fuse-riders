@@ -5,6 +5,7 @@ export function durationText(ticks: number): string {
   if (seconds < 10) return `${(Math.round(seconds * 10) / 10).toFixed(1)}s`;
   // Round before splitting so 59.95 s becomes "1m 0s", never "60s" or "1m 60s" (#28).
   const totalSeconds = Math.round(seconds);
-  if (totalSeconds >= 60) return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
+  if (totalSeconds >= 60)
+    return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
   return `${totalSeconds}s`;
 }

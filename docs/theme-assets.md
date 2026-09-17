@@ -4,19 +4,19 @@ The baseline follows the [neon/pixel gameplay reference](gameplay-concepts/06-ne
 
 The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` supplies palette, rendering settings, and core sprite paths. [The manifest](../public/themes/manifest.json) records the asset inventory and source geometry; it does not discover themes automatically. Pickup artwork loads by theme ID and pickup type in `src/client/phaser/arena.ts`.
 
-| Files | Purpose |
-| --- | --- |
-| `rider.svg`, `bomb.svg`, `flame.svg` | Rider, launched bomb, and flame art (flame is inventory art, not currently loaded or drawn; blasts render as procedural discs). |
-| `pickup-blast.svg`, `pickup-star.svg` | Larger explosions and invincibility. |
-| `pickup-stopwatch.svg`, `pickup-gun.svg`, `pickup-shell.svg` | Shorter fuse, gun and bouncing shell. |
-| `pickup-beer.svg` | Opponent wobble. |
-| `pickup-ink.svg` | Three-second rival ink clouds, with clear zones around unaffected riders. |
-| `pickup-target.svg` | Target Bomb reticle; phone Fire becomes a trackpad for one release. |
-| `pickup-five.svg` | Rare five-bomb fan; gold frame distinguishes it from Triple. |
-| `pickup-triple.svg` | Triple Shot. |
-| `pickup-orbitShield.svg`, `pickup-portal.svg` | Orbit Shield and Portal. |
-| `pickup-nitro.svg`, `pickup-snail.svg` | Nitro: double speed for five seconds. Snail: rivals at half speed for five seconds. Both stack per pickup. |
-| `pickup-gravity.svg` | Gravity: opens one to three black holes that bend every rider's path for eight seconds. |
+| Files                                                        | Purpose                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `rider.svg`, `bomb.svg`, `flame.svg`                         | Rider, launched bomb, and flame art (flame is inventory art, not currently loaded or drawn; blasts render as procedural discs). |
+| `pickup-blast.svg`, `pickup-star.svg`                        | Larger explosions and invincibility.                                                                                            |
+| `pickup-stopwatch.svg`, `pickup-gun.svg`, `pickup-shell.svg` | Shorter fuse, gun and bouncing shell.                                                                                           |
+| `pickup-beer.svg`                                            | Opponent wobble.                                                                                                                |
+| `pickup-ink.svg`                                             | Three-second rival ink clouds, with clear zones around unaffected riders.                                                       |
+| `pickup-target.svg`                                          | Target Bomb reticle; phone Fire becomes a trackpad for one release.                                                             |
+| `pickup-five.svg`                                            | Rare five-bomb fan; gold frame distinguishes it from Triple.                                                                    |
+| `pickup-triple.svg`                                          | Triple Shot.                                                                                                                    |
+| `pickup-orbitShield.svg`, `pickup-portal.svg`                | Orbit Shield and Portal.                                                                                                        |
+| `pickup-nitro.svg`, `pickup-snail.svg`                       | Nitro: double speed for five seconds. Snail: rivals at half speed for five seconds. Both stack per pickup.                      |
+| `pickup-gravity.svg`                                         | Gravity: opens one to three black holes that bend every rider's path for eight seconds.                                         |
 
 All sprites have transparent 32×32 SVG viewboxes. The rider points right at angle zero, centered at `[16,16]`. Recoloring preserves white highlights and dark interiors. Bombs keep a dark body with a procedural fuse ring. Pickup icons use `[16,16]` anchors; flame source art uses `[16,27]`. Bombs and pickups rasterize at 128×128 in Phaser and use smooth image scaling in both Phaser backends and the legend. Countdown arcs have rounded highlights; blast discs and radius outlines follow the supplied radius without grid snapping. Charge indicators, bomb flight/release effects, shield orbits, gravity fields, and linked portal walls are rendered procedurally using the active palette. Art never changes server hitboxes.
 

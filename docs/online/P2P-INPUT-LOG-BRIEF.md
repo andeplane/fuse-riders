@@ -40,12 +40,12 @@ controller-only phones (shared mode) send their stream and render a thin status
 
 Roles:
 
-| Role | Simulates | Sends | Receives |
-| --- | --- | --- | --- |
-| Full view | yes | per-tick packet to all | packets from all, snapshots on join |
-| Controller-only | no | per-tick packet to all | packets from all (for clock and liveness), thin status from the time authority |
-| Creator | as its role above | management entries in its own stream | hello messages from joiners |
-| Time authority | yes | its clock is the reference; also sends thin status to controllers | – |
+| Role            | Simulates         | Sends                                                             | Receives                                                                       |
+| --------------- | ----------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Full view       | yes               | per-tick packet to all                                            | packets from all, snapshots on join                                            |
+| Controller-only | no                | per-tick packet to all                                            | packets from all (for clock and liveness), thin status from the time authority |
+| Creator         | as its role above | management entries in its own stream                              | hello messages from joiners                                                    |
+| Time authority  | yes               | its clock is the reference; also sends thin status to controllers | –                                                                              |
 
 The creator is the member holding the room's host token, as the service already reports in `welcome`. The time authority is the creator's device when it is a full view, otherwise the full view with the lowest member id (the TV in shared mode). If the time authority disappears, the next lowest full view takes over; followers slew to it.
 
@@ -237,14 +237,14 @@ Implemented in `src/shared/input-log.ts`, `apply-tick.ts`, `deterministic-math.t
 
 `ONLINE_URL=http://localhost:8811/ npx tsx scripts/p2p-measure.ts` at revision `f7e6ca9`: five scripted Chromium players plus a TV, 45 s each, 5 rounds locally and 5 rounds impaired. Latencies are input event to the first simulated state showing the changed heading, stamped with page clocks on one machine; wire bytes are data-channel payloads. The impaired run injects 40 ms delay, 20 ms jitter and 2% loss at the sender's input-channel send. Raw output: `artifacts/p2p-measure.json` (ignored).
 
-| Metric (per peer, 5 links) | Local | 40 ms + 20 ms jitter + 2% loss |
-| --- | --- | --- |
-| Wire bytes per link, sent / received | 2897–3649 / 3321–3571 B/s | 2851–3534 / 3212–3499 B/s |
-| Measured RTT | 0–5 ms | 94–121 ms |
-| Rollbacks per minute / ticks per rollback | 0–6 / 2–4 | 387–500 / 2–3 |
-| Input to own simulated state, p50 / p95 | 8–40 / 40–48 ms | 11–40 / 43–60 ms |
-| Input to remote simulated state, p50 / p95 | 9–42 / 44–50 ms | 16–44 / 56–62 ms |
-| Crash to death shown on other peers, p50 / p95 | 2.8 / 7.5 ms | 4.3 / 14.8 ms |
+| Metric (per peer, 5 links)                     | Local                     | 40 ms + 20 ms jitter + 2% loss |
+| ---------------------------------------------- | ------------------------- | ------------------------------ |
+| Wire bytes per link, sent / received           | 2897–3649 / 3321–3571 B/s | 2851–3534 / 3212–3499 B/s      |
+| Measured RTT                                   | 0–5 ms                    | 94–121 ms                      |
+| Rollbacks per minute / ticks per rollback      | 0–6 / 2–4                 | 387–500 / 2–3                  |
+| Input to own simulated state, p50 / p95        | 8–40 / 40–48 ms           | 11–40 / 43–60 ms               |
+| Input to remote simulated state, p50 / p95     | 9–42 / 44–50 ms           | 16–44 / 56–62 ms               |
+| Crash to death shown on other peers, p50 / p95 | 2.8 / 7.5 ms              | 4.3 / 14.8 ms                  |
 
 Per-link traffic is a quarter of the 15 KB/s budget with no idle throttle yet. Locally, rollbacks are rare and short; under the impairment nearly every remote entry arrives after its tick, so the world rolls back about seven times a second by two to three ticks, which is the designed no-delay behaviour and the case for the adaptive input delay in §14. Own-input latency is bounded by the 10 ms loop and the tick boundary; remote latency adds one hop. These are desktop measurements on one machine, not physical-device or real-network figures.
 
