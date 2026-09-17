@@ -30,3 +30,11 @@ so stored metadata validation uses the admission limit; `startGcpRoomService` do
 be non-negative safe integers below `Number.MAX_SAFE_INTEGER`. The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
 
 Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.
+
+Games can mount account/history or other application routes without making the networking package depend on the game.
+Pass `httpExtension: store => ({ methods, headers, async handle(req, res, clientAddress) { ... } })` to the
+in-memory service, or `httpExtension: ({ store, firestore, prefix, projectId }) => ...` to the GCP service.
+For a custom host, pass the resulting `HttpExtension` as `createRoomServer`'s `extension` option. The handler
+runs after core routes and Origin validation, before static fallback; return `true` after ending the response
+or `false` to leave the request unhandled. Exceptions use the service's standard error response. Optional
+methods/headers extend CORS preflight; handlers remain responsible for authenticating their own routes.

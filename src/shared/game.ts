@@ -470,6 +470,8 @@ export interface GameState {
   roundPlacements: RoundPlacement[];
   roundScored: boolean;
   matchStats: MatchStatsState;
+  /** Connected participants frozen at match end; later recap joins/leaves cannot change agreement. */
+  matchFinishers: string[];
   /** Highlight moments of the match, bounded per kind and cleared with `matchStats` (ADR 043). */
   moments: Moment[];
   /** Every trigger pull of the current round and whom it killed, for per-kill and per-miss analytics. Cleared each round. */
@@ -534,6 +536,7 @@ export function createGame(
     roundPlacements: [],
     roundScored: false,
     matchStats: new Map(),
+    matchFinishers: [],
     moments: [],
     shots: [],
   };
@@ -681,6 +684,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
   state.seed = hashSeed(newMatchId);
   state.randomState = state.seed;
   state.matchStats = new Map();
+  state.matchFinishers = [];
   state.moments = [];
   state.round = 1;
   for (const player of state.players.values()) player.roundWins = 0;
@@ -1713,6 +1717,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     })),
     matchStats:
       state.phase === "matchOver" ? snapshotMatchStats(state.matchStats) : [],
+    matchFinishers: [...state.matchFinishers],
     moments:
       state.phase === "matchOver"
         ? state.moments.map((moment) => ({
@@ -3124,6 +3129,10 @@ function resolveRound(
     inFlight,
   );
   if (matchWinnerId !== undefined || fixedEnd) {
+    state.matchFinishers = [...state.players.values()]
+      .filter((player) => player.connected && state.matchStats.has(player.id))
+      .map((player) => player.id)
+      .sort();
     state.phase = "matchOver";
     state.phaseEndsAtTick = state.tick + 60 + pause;
     events.push({

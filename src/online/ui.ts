@@ -6,6 +6,14 @@ import { startAttract } from "./attract.js";
 import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
 import { mountArenaPresentation } from "../client/phaser/presentation.js";
 import { apiUrl, appUrl } from "./endpoints.js";
+import { createAccountPanel } from "./account-panel.js";
+import {
+  accountUsername,
+  fetchUsername,
+  identityToken,
+  remembersSignIn,
+} from "./account.js";
+import { buildMatchReport, sendMatchReport } from "./match-report.js";
 import { ControllerInputState } from "../client/controller-state.js";
 import { ControllerKeyboardBindings } from "../client/controller-keyboard.js";
 import { ControllerPointerBindings } from "../client/controller-pointers.js";
@@ -385,6 +393,20 @@ export async function startOnline(): Promise<void> {
     };
     card.querySelector(".landing-top-end")!.append(landingSettings);
     card.append(landingDialog);
+    // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
+    const accountPanel = createAccountPanel({
+      historyUrl: (before) =>
+        apiUrl(
+          `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
+        ),
+      profileUrl: apiUrl("/api/me"),
+      localName: () => read("fuse-riders-player-name"),
+      fetch: (input, init) => fetch(input, init),
+      track,
+    });
+    card.querySelector(".landing-top-end")!.append(accountPanel.button);
+    card.append(accountPanel.dialog);
+    window.addEventListener("pagehide", accountPanel.dispose, { once: true });
     void startAttract(
       card.querySelector("canvas")!,
       card.querySelector(".attract-toggle")!,
@@ -490,9 +512,19 @@ export async function startOnline(): Promise<void> {
   results.hidden = true;
   results.title = "Reopen the match results";
   header.append(title, status, statusAction, roundChip, results);
-  const joinForm = createJoinForm(storage, (playerName, avatarId) =>
-    runtime.command({ type: "join", name: playerName, avatarId }),
+  const joinForm = createJoinForm(
+    storage,
+    (playerName, avatarId) =>
+      runtime.command({ type: "join", name: playerName, avatarId }),
+    accountUsername(),
   );
+  // Signed in on this browser but never opened MY GAMES here (an invite link on a new phone): learn the username while the form is still up.
+  if (!solo && remembersSignIn() && !accountUsername())
+    void fetchUsername(apiUrl("/api/me"), (input, init) =>
+      fetch(input, init),
+    ).then((username) => {
+      if (username && !joined) joinForm.useAccountName(username);
+    });
   const bootNote = node("p", "Warming up the arena…", "room-boot-note");
   const booting = node("div", "", "room-boot");
   booting.setAttribute("role", "status");
@@ -1421,6 +1453,29 @@ export async function startOnline(): Promise<void> {
               }
             : {}),
         });
+        // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
+        // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
+        const report = solo
+          ? undefined
+          : buildMatchReport(
+              {
+                matchId,
+                matchLength: state.matchLength,
+                ...(state.matchWinnerId === undefined
+                  ? {}
+                  : { matchWinnerId: state.matchWinnerId }),
+                matchStats: state.matchStats,
+                matchFinishers: state.matchFinishers,
+                players: state.players,
+              },
+              id,
+            );
+        if (report)
+          void sendMatchReport(apiUrl(`/api/rooms/${code}/results`), report, {
+            fetch: (input, init) => fetch(input, init),
+            roomToken: token,
+            identityToken,
+          });
       }
       inputState.configureTargetAim(
         player?.targetBombArmed && !player.gunArmed && !player.shellArmed

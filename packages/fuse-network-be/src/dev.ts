@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { createRoomServer, type RoomServer } from "./http.js";
+import {
+  createRoomServer,
+  type RoomServer,
+  type HttpExtension,
+} from "./http.js";
 import { LocalRoomBus, MemoryRoomDatabase } from "./memory-database.js";
 import { RoomGateway } from "./gateway.js";
 import { RoomStore } from "./room-store.js";
 
 export interface DevRoomServiceOptions {
+  httpExtension?: (store: RoomStore) => HttpExtension;
   /** Built frontend to serve beside the room API, e.g. `dist`. */
   staticDirectory?: string;
   /** Extra page origins allowed besides same-origin loopback pages. */
@@ -76,6 +81,7 @@ export function createDevRoomService(
     store,
     gateway,
     now,
+    extension: options.httpExtension?.(store),
     allowOrigin: (origin, req) =>
       extra.has(origin) || sameLoopbackOrigin(origin, req),
     clientAddress: (req) => req.socket.remoteAddress ?? "local",
