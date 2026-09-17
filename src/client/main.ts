@@ -6,7 +6,8 @@ const app = document.querySelector<HTMLElement>("#app");
 if (!app) throw new Error("Missing app root");
 
 const bootFailure = (error: unknown) => {
-  if (app.querySelector(".boot-failure") || app.querySelector(".online-header")) return;
+  if (app.querySelector(".boot-failure") || app.querySelector(".online-header"))
+    return;
   const card = document.createElement("section");
   card.className = "boot-failure";
   card.setAttribute("role", "alert");
@@ -18,8 +19,12 @@ const bootFailure = (error: unknown) => {
   app.append(card);
 };
 
-window.addEventListener("error", (event) => bootFailure(event.error ?? event.message));
-window.addEventListener("unhandledrejection", (event) => bootFailure(event.reason));
+window.addEventListener("error", (event) =>
+  bootFailure(event.error ?? event.message),
+);
+window.addEventListener("unhandledrejection", (event) =>
+  bootFailure(event.reason),
+);
 void import("../online/ui.js")
   .then((module) => module.startOnline())
   .catch(bootFailure);
