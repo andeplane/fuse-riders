@@ -29,6 +29,11 @@ import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
 import { TrailDebris } from "../trail-debris.js";
+import {
+  selfLocatorRings,
+  selfLocatorSide,
+  selfLocatorStrength,
+} from "../self-locator.js";
 
 const pickups = PICKUP_TYPES;
 const color = (value: string): number =>
@@ -590,7 +595,7 @@ class ArenaScene extends Phaser.Scene {
       Math.ceil(Math.max(this.cameras.main.zoomX, this.cameras.main.zoomY)),
     );
     if (label.style.resolution !== resolution) label.setResolution(resolution);
-    label.setDepth(depth).setVisible(true).setPosition(x, y);
+    label.setDepth(depth).setVisible(true).setPosition(x, y).setAlpha(1);
     if (label.style.color !== tint) label.setColor(tint);
     if (label.style.fontSize !== `${size}px`) label.setFontSize(size);
     return label;
@@ -1031,6 +1036,7 @@ class ArenaScene extends Phaser.Scene {
       );
     }
     // Near an open edge a rider is drawn on both sides of it, so it arrives as it leaves rather than popping across.
+    const locate = selfLocatorStrength(s);
     for (const rider of s.players)
       for (const ghost of rider.alive ? ghosts(rider.x, rider.y, 40) : []) {
         const p =
@@ -1038,6 +1044,37 @@ class ArenaScene extends Phaser.Scene {
             ? { ...rider, x: rider.x + ghost.dx, y: rider.y + ghost.dy }
             : rider;
         const tint = color(p.color);
+        const self = p.id === selfId;
+        // On a rider's own screen the round opens by pointing them out: a glow, rings closing in and a big arrow.
+        if (self && locate > 0 && p === rider) {
+          g.fillStyle(tint, 0.16 * locate).fillCircle(p.x, p.y, 70);
+          for (const ring of selfLocatorRings(now))
+            f.lineStyle(4, tint, ring.alpha * locate).strokeCircle(
+              p.x,
+              p.y,
+              ring.radius,
+            );
+          const side = selfLocatorSide(p.y, b),
+            tip = p.y + side * (48 + Math.abs(Math.sin(now / 200)) * 14),
+            neck = tip + side * 34,
+            tail = neck + side * 30;
+          f.fillStyle(tint, locate)
+            .lineStyle(4, 0xffffff, locate)
+            .beginPath()
+            .moveTo(p.x, tip)
+            .lineTo(p.x + 32, neck)
+            .lineTo(p.x + 12, neck)
+            .lineTo(p.x + 12, tail)
+            .lineTo(p.x - 12, tail)
+            .lineTo(p.x - 12, neck)
+            .lineTo(p.x - 32, neck)
+            .closePath()
+            .fillPath()
+            .strokePath();
+          this.label("YOU", p.x, tail + side * 24, "#ffffff", 30, 8).setAlpha(
+            locate,
+          );
+        }
         // The portrait stays upright at the trail head; only its direction marker turns.
         g.fillStyle(0x080c22).fillCircle(p.x, p.y, 15);
         f.lineStyle(1, tint).strokeCircle(p.x, p.y, 15);
@@ -1060,8 +1097,7 @@ class ArenaScene extends Phaser.Scene {
           p.x + dx * 16 - dy * 5,
           p.y + dy * 16 + dx * 5,
         );
-        const self = p.id === selfId,
-          labelY = p.y - (self ? 30 : 27);
+        const labelY = p.y - (self ? 30 : 27);
         if (self)
           f.lineStyle(2, tint, 0.55 + Math.sin(now / 180) * 0.25).strokeCircle(
             p.x,
