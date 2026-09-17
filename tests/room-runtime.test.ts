@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { SNAPSHOT_INTERVAL } from '../src/online/rollback.js';
 import assert from 'node:assert/strict';
 import { FakeNetwork, type NetworkOptions } from './fixtures/fake-room.js';
 import { RoomRuntime, CREATOR_SILENCE_MS, DISCONNECT_MS, SNAPSHOT_RETRY_MS, SNAPSHOT_SERVE_MS, pageGeneration } from '../src/online/room-runtime.js';
@@ -326,4 +327,60 @@ test('a creator and four joiners that all connect at once open one world and eve
   for (const id of all) assert.deepEqual(net.frame(id)?.players.map(p => p.id).sort(), [...all].sort(), `${id} sees every rider`);
   assert.equal(hashes(net, all).size, 1); assert.ok(!net.recorded.get(HOST)!.statuses.some(text => /reload/.test(text)));
   for (const runtime of runtimes) runtime.stop();
+});
+
+test('once both humans are out the room runs three ticks per 50 ms on every member, stays in one world and drops back at round over', () => {
+  const { net, join } = room();
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  for (let i = 0; i < 3; i++) host.command({ type: 'bot', action: 'add' });
+  host.command({ type: 'action', action: 'start' }); net.step(COUNTDOWN_TICKS * 50 + 200);
+  const botsOnly = () => { const frame = net.frame(HOST)!; return frame.phase === 'playing' && frame.players.every(p => p.alive === p.id.startsWith('bot:') || !p.alive) && frame.players.some(p => p.alive); };
+  for (let i = 0; i < 600 && !botsOnly(); i++) net.step(50);
+  assert.ok(botsOnly(), 'the unsteered humans crashed while AI riders were still racing');
+  net.step(300);
+  const before = net.frame(HOST)!.tick; net.step(500);
+  assert.equal(net.frame(HOST)!.phase, 'playing'); assert.ok(Math.abs(net.frame(HOST)!.tick - before - 30) <= 2, `thirty ticks in half a second: ${net.frame(HOST)!.tick - before}`);
+  assert.ok(Math.abs(guest.metrics().clockTick - host.metrics().clockTick) < 6, `clocks stay together: ${guest.metrics().clockTick - host.metrics().clockTick}`);
+  for (let i = 0; i < 1200 && net.frame(HOST)!.phase === 'playing'; i++) net.step(50);
+  assert.equal(net.frame(HOST)!.phase, 'roundOver'); net.step(200);
+  const after = net.frame(HOST)!.tick; net.step(500); assert.ok(Math.abs(net.frame(HOST)!.tick - after - 10) <= 2, `normal pace after the round: ${net.frame(HOST)!.tick - after}`);
+  net.step(2000); assert.ok(Math.abs(guest.metrics().clockTick - host.metrics().clockTick) < 3);
+  // The clocks may sit a tick apart when sampled, so compare the world both members have already simulated.
+  const hashAt = (runtime: RoomRuntime, tick: number) => (world(runtime) as unknown as { hashAt(tick: number): string | undefined }).hashAt(tick);
+  const shared = Math.floor((Math.min(world(host).tick, world(guest).tick) - 1) / SNAPSHOT_INTERVAL) * SNAPSHOT_INTERVAL;
+  assert.ok(hashAt(host, shared) !== undefined, 'the shared tick is still in history'); assert.equal(hashAt(host, shared), hashAt(guest, shared));
+  host.stop(); guest.stop();
+});
+
+function botsOnlyRoom(options?: NetworkOptions) {
+  const { net, join } = room(options);
+  const host = join(HOST, 'Host'); net.step(200); const guest = join(GUESTS[0]!, 'Guest'); net.step(900);
+  for (let i = 0; i < 3; i++) host.command({ type: 'bot', action: 'add' });
+  host.command({ type: 'action', action: 'start' }); net.step(COUNTDOWN_TICKS * 50 + 200);
+  const botsOnly = () => { const frame = net.frame(HOST)!; return frame.phase === 'playing' && frame.players.some(p => p.alive) && frame.players.every(p => !p.alive || p.id.startsWith('bot:')); };
+  return { net, host, guest, botsOnly, untilBotsOnly: () => { for (let i = 0; i < 600 && !botsOnly(); i++) net.step(50); assert.ok(botsOnly()); } };
+}
+const apart = (a: RoomRuntime, b: RoomRuntime) => Math.abs(a.metrics().clockTick - b.metrics().clockTick);
+
+test('a guest hidden before the last human dies follows the authority to triple pace instead of holding the room back', () => {
+  const f = botsOnlyRoom(); f.net.step(300); f.net.setHidden(GUESTS[0]!, true); f.untilBotsOnly(); f.net.step(1500);
+  const before = f.net.frame(HOST)!.tick; f.net.step(500);
+  assert.equal(f.net.frame(HOST)!.phase, 'playing'); assert.ok(f.net.frame(HOST)!.tick - before >= 27, `the room is not waiting on the hidden guest: ${f.net.frame(HOST)!.tick - before}`);
+  f.host.stop(); f.guest.stop();
+});
+
+test('a guest hidden while only AI riders race drops back with the authority at round over and returns in step', () => {
+  const f = botsOnlyRoom(); f.untilBotsOnly(); f.net.step(300); f.net.setHidden(GUESTS[0]!, true);
+  for (let i = 0; i < 1200 && f.net.frame(HOST)!.phase === 'playing'; i++) f.net.step(50);
+  f.net.step(3000); assert.ok(apart(f.host, f.guest) < 45, `the frozen world did not keep the guest at triple pace: ${apart(f.host, f.guest)}`);
+  f.net.setHidden(GUESTS[0]!, false); f.net.step(3000); assert.ok(apart(f.host, f.guest) < 5, `back in step: ${apart(f.host, f.guest)}`);
+  assert.equal(f.host.metrics().mismatches + f.guest.metrics().mismatches, 0); assert.equal(f.guest.metrics().snapshotRequest, false);
+  f.host.stop(); f.guest.stop();
+});
+
+test('reordered packets do not reset the hidden guest\'s reading of the authority\'s pace', () => {
+  const f = botsOnlyRoom({ loss: 0.02, baseMs: 20, jitterMs: 120, reliableMs: 30 }); f.net.step(300); f.net.setHidden(GUESTS[0]!, true); f.untilBotsOnly(); f.net.step(1500);
+  const before = f.net.frame(HOST)!.tick; f.net.step(1000);
+  assert.equal(f.net.frame(HOST)!.phase, 'playing'); assert.ok(f.net.frame(HOST)!.tick - before >= 50, `the room keeps triple pace through jitter: ${f.net.frame(HOST)!.tick - before}`);
+  f.host.stop(); f.guest.stop();
 });
