@@ -40,8 +40,6 @@ export interface PeerTransportOptions {
   apiUrl: (path: string) => string;
   /** Largest `sendFast` payload, sent or accepted. */
   maxFastBytes?: number;
-  /** Diagnostic: join the room and signal nothing, so no direct link ever forms. */
-  disableDirect?: boolean;
   copy?: Partial<TransportCopy>;
 }
 interface Link {
@@ -143,7 +141,6 @@ export class PeerTransport implements RoomTransport {
   private ice = new IceConfig();
   private readonly apiUrl: (path: string) => string;
   private readonly maxFastBytes: number;
-  private readonly relayOnly: boolean;
   private readonly copy: TransportCopy;
   constructor(
     readonly code: string,
@@ -153,7 +150,6 @@ export class PeerTransport implements RoomTransport {
   ) {
     this.apiUrl = options.apiUrl;
     this.maxFastBytes = options.maxFastBytes ?? DEFAULT_MAX_FAST_BYTES;
-    this.relayOnly = options.disableDirect === true;
     this.copy = { ...DEFAULT_TRANSPORT_COPY, ...options.copy };
   }
   /** The smaller id offers; the other answers. Symmetric for every pair, so no member needs the creator to link. */
@@ -430,7 +426,7 @@ export class PeerTransport implements RoomTransport {
         return;
       }
       try {
-        this.receive(id, JSON.parse(event.data), true);
+        this.receive(id, JSON.parse(event.data));
       } catch {}
     };
     channel.onopen = () => {
@@ -454,7 +450,6 @@ export class PeerTransport implements RoomTransport {
   }
   /** `force` replaces a drained link with a fresh RTCPeerConnection and gate; the restart budget carries over. */
   private async offer(id: string, force = false): Promise<void> {
-    if (this.relayOnly) return;
     const old = this.links.get(id);
     if (!force && old?.game?.readyState === "open") return;
     if (old) {
@@ -502,7 +497,6 @@ export class PeerTransport implements RoomTransport {
       candidate?: RTCIceCandidateInit;
     },
   ): Promise<void> {
-    if (this.relayOnly) return;
     const previous = this.links.get(id);
     if (
       data.description?.type === "offer" &&
@@ -544,7 +538,6 @@ export class PeerTransport implements RoomTransport {
   private receive(
     id: string,
     envelope: { id: number; data: unknown; sender: string; receiver: string },
-    direct = false,
   ): void {
     if (
       !envelope ||
@@ -557,11 +550,11 @@ export class PeerTransport implements RoomTransport {
       const probe = envelope.data as { type?: string; probeId?: number };
       // #143: the peer is closing its side. Stop sending on this link now, before WebKit's lagging readyState lets a probe hit the dead channel.
       if (probe.type === "linkBye") {
-        if (direct) this.links.get(id)?.gate.drain();
+        this.links.get(id)?.gate.drain();
         return;
       }
       if (probe.type === "linkProbe" || probe.type === "linkPong") {
-        if (!direct || !Number.isSafeInteger(probe.probeId)) return;
+        if (!Number.isSafeInteger(probe.probeId)) return;
         if (probe.type === "linkPong")
           this.links
             .get(id)
@@ -603,7 +596,6 @@ export class PeerTransport implements RoomTransport {
     };
     const link = this.links.get(id);
     if (
-      !this.relayOnly &&
       link?.gate.permits(link.game, bufferLimit) &&
       link.pc.connectionState === "connected" &&
       link.health.direct(performance.now())
