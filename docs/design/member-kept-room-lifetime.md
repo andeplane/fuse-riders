@@ -5,7 +5,13 @@ keeps the room alive even after its creator disconnects. Admission and each vali
 heartbeat extend the room deadline by `ROOM_RECONNECT_GRACE_MS` (90 seconds).
 A current member's explicit departure also starts that grace, giving the final
 member time to reconnect. Expired or replaced connections cannot heartbeat;
-delayed departures cannot revive an ended or expired room.
+delayed departures cannot revive an ended or expired room. The creator's explicit end is
+absolute: it writes the deadline `ROOM_ENDED_AT` (0) rather than the ending instance's
+"now", so a heartbeat or departure handled by another instance whose clock runs behind
+still reads the room as ended and the code is reusable at once. A departure restarts the
+grace only while that member's own connection lease is live; a member whose lease already
+lapsed had stopped renewing the room, so its late socket close removes it without moving
+the deadline.
 
 The creator's identity, reserved seat and explicit end capability remain unchanged.
 Room lifetime is separate from the creator authority grant: guests renew room

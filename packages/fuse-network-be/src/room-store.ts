@@ -78,6 +78,8 @@ export interface RoomStoreDependencies {
 export const CONNECTION_TTL_MS = 30_000;
 /** Any admitted member renews the room; an empty room has this long to reconnect. */
 export const ROOM_TTL_MS = ROOM_RECONNECT_GRACE_MS;
+/** Deadline written by an explicit end: before every clock, so no instance's `now` can read the room as live. */
+export const ROOM_ENDED_AT = 0;
 export const digest = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
 export const peerId = (token: string): string => digest(token).slice(0, 24);
@@ -134,7 +136,8 @@ export class RoomStore {
       if (current.hostHash !== digest(token))
         throw new RoomError(403, "Only the host can end this room");
       const room = clone(current);
-      room.expiresAt = Math.min(room.expiresAt, this.dependencies.now());
+      // Absolute, not "now": another instance whose clock runs behind must not see an ended room as still live.
+      room.expiresAt = ROOM_ENDED_AT;
       room.revision++;
       return { room, result: undefined };
     });
@@ -227,15 +230,15 @@ export class RoomStore {
   }
   async leave(code: string, member: Member): Promise<void> {
     await this.database.transact(code, (current) => {
-      if (
-        !current ||
-        current.members[member.id]?.connectionId !== member.connectionId
-      )
+      const stored = current?.members[member.id];
+      if (!current || stored?.connectionId !== member.connectionId)
         return { result: undefined };
-      const room = clone(current);
+      const now = this.dependencies.now(),
+        room = clone(current);
       delete room.members[member.id];
-      if (room.expiresAt > this.dependencies.now())
-        room.expiresAt = this.dependencies.now() + ROOM_TTL_MS;
+      // Only a member that could still heartbeat starts the grace; a lapsed lease already stopped renewing the room.
+      if (room.expiresAt > now && stored.expiresAt > now)
+        room.expiresAt = now + ROOM_TTL_MS;
       room.revision++;
       return { room, result: undefined };
     });
