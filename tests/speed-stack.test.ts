@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  BOOST_DURATION_TICKS, BOOST_SPEED, MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, NITRO_SPEED, RIDER_SPEED, SNAIL_DURATION_TICKS, SNAIL_SPEED, TICK_HZ,
+  MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, NITRO_SPEED, RIDER_SPEED, SNAIL_DURATION_TICKS, SNAIL_SPEED, TICK_HZ,
   SLOT_COLORS, addPlayer, createGame, eliminatePlayer, riderMotionStep, riderSpeedMultiplier, startMatch, startNextRound, step, toSnapshot, type GameState, type InputIntent, type PickupType,
 } from '../src/shared/game.js';
 import { presentWorld } from '../src/online/prediction.js';
@@ -10,7 +10,7 @@ import { speedEffectLabel } from '../src/client/power-indicator.js';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 
 // Nitro and Snail are the stacking speed pickups: every collection is its own five-second deadline, so unlike the
-// refreshing boost, two Nitros run at four times speed until the first expires, and a Snail cancels a Nitro one for one.
+// refreshing effect, two Nitros run at four times speed until the first expires, and a Snail cancels a Nitro one for one.
 function playing(seed = 11) {
   const game = createGame('stack', seed);
   for (let slot = 0; slot < 3; slot += 1) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: SLOT_COLORS[slot]! });
@@ -103,7 +103,7 @@ test('Snail halves every living rival for five seconds and leaves the collector 
   close(ratio(game, control, 'p1'), 1, 'the rival is back to ordinary speed on the deadline tick');
 });
 
-test('Snails stack on a rival, and a Snail cancels a Nitro one for one, with the boost multiplying on top', () => {
+test('Snails stack on a rival, and a Snail cancels a Nitro one for one', () => {
   const game = playing(), control = playing();
   drop(game, 'p0', 'snail'); drop(game, 'p0', 'snail'); step(game, new Map()); step(control, new Map());
   const rival = game.players.get('p1')!;
@@ -114,11 +114,8 @@ test('Snails stack on a rival, and a Snail cancels a Nitro one for one, with the
   close(ratio(game, control, 'p1'), SNAIL_SPEED, 'one Nitro cancels one of two Snails');
   drop(game, 'p1', 'nitro'); step(game, new Map()); step(control, new Map());
   close(ratio(game, control, 'p1'), 1, 'two Nitros against two Snails is exactly ordinary speed');
-  drop(game, 'p1', 'boost'); step(game, new Map()); step(control, new Map());
-  assert.equal(rival.boostUntilTick, game.tick + BOOST_DURATION_TICKS);
-  close(ratio(game, control, 'p1'), BOOST_SPEED, 'the boost is one more factor in the same product');
-  assert.equal(riderSpeedMultiplier({ boostUntilTick: 0, nitroUntilTicks: [10, 10, 10], snailUntilTicks: [10] }, 5), 4, 'three Nitros and a Snail multiply to four');
-  assert.equal(riderSpeedMultiplier({ boostUntilTick: 0, nitroUntilTicks: [5], snailUntilTicks: [6] }, 5), SNAIL_SPEED, 'a deadline equal to the tick has expired; a later one has not');
+  assert.equal(riderSpeedMultiplier({ nitroUntilTicks: [10, 10, 10], snailUntilTicks: [10] }, 5), 4, 'three Nitros and a Snail multiply to four');
+  assert.equal(riderSpeedMultiplier({ nitroUntilTicks: [5], snailUntilTicks: [6] }, 5), SNAIL_SPEED, 'a deadline equal to the tick has expired; a later one has not');
 });
 
 test('speed deadlines stay sorted, are bounded, and are cleared by a new round', () => {

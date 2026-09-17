@@ -57,7 +57,7 @@ const copyText=async(text:string)=>{
   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.cssText='position:fixed;top:-1000px;opacity:0';document.body.append(field);field.select();
   try{return document.execCommand('copy');}catch{return false;}finally{field.remove();}
 };
-const labels:Record<PickupType,string>={stopwatch:'Shorter fuse',extraBomb:'Extra Bomb',power:'Power',triple:'Triple shot',five:'Five shot',gun:'Gun',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',grip:'Grip',boost:'Speed boost',nitro:'Nitro',snail:'Snail',gravity:'Singularity'};
+const labels:Record<PickupType,string>={stopwatch:'Shorter fuse',extraBomb:'Extra Bomb',power:'Power',triple:'Triple shot',five:'Five shot',gun:'Gun',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',grip:'Grip',nitro:'Nitro',snail:'Snail',gravity:'Gravity'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
 const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
@@ -160,7 +160,11 @@ export async function startOnline():Promise<void>{
   const statusAction=node('button','RETRY','online-status-action');statusAction.hidden=true;statusAction.onclick=()=>location.reload();
   const roundChip=node('span','','online-round');roundChip.hidden=true;
   let rawStatus='',replacedHost=false;
-  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,results);
+  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);
+  // The brand is the way home on every screen. A closed room goes straight to the menu; anything live opens the same exit confirmation as EXIT / ROOM.
+  const goHome=()=>{if(roomEnded)location.href=appUrl();else menu.click();};
+  title.setAttribute('role','link');title.tabIndex=0;title.title='Back to the main menu';title.onclick=goHome;title.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();goHome();}};
+  results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,results);
   const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}),accountUsername());
   // Signed in on this browser but never opened MY GAMES here (an invite link on a new phone): learn the username while the form is still up.
   if(!solo&&remembersSignIn()&&!accountUsername())void fetchUsername(apiUrl('/api/me'),(input,init)=>fetch(input,init)).then(username=>{if(username&&!joined)joinForm.useAccountName(username);});
@@ -264,13 +268,18 @@ export async function startOnline():Promise<void>{
   const updateDesktopLayout=()=>{
     const desktop=desktopQuery.matches&&!app.classList.contains('mobile-play')&&!app.classList.contains('controller-only')&&!app.classList.contains('joining')&&sharedLobby.hidden;
     app.classList.toggle('desktop-game',desktop);
-    const rosterParent=desktop?header:scoreboard;
-    if(roster.parentElement!==rosterParent){if(desktop)header.insertBefore(roster,results);else scoreboard.append(roster);}
+    // Desktop play keeps the standings in a fixed column right of the arena (its width lives in online.css), so the game bar holds actions only.
+    const side=desktop&&!canvas.hidden&&!app.classList.contains('booting')&&!app.classList.contains('room-over');
+    app.classList.toggle('side-standings',side);
+    const rosterParent=side?app:desktop?header:scoreboard;
+    if(roster.parentElement!==rosterParent){if(side)app.append(roster);else if(desktop)header.insertBefore(roster,results);else scoreboard.append(roster);}
     const actionsParent=!sharedLobby.hidden?lobbyFooter:desktop?header:footer;
     if(hostControls.parentElement!==actionsParent){if(desktop)header.insertBefore(hostControls,results);else actionsParent.append(hostControls);}
     const noticeParent=desktop?header:scoreboard;
     if(notice.parentElement!==noticeParent)noticeParent.append(notice);
   };
+  // The standings column starts under the game bar, whose height changes as its buttons wrap or hide; measured on change, never per snapshot.
+  new ResizeObserver(()=>app.style.setProperty('--standings-top',`${header.offsetTop+header.offsetHeight}px`)).observe(header);
   window.addEventListener('resize',updateDesktopLayout);
   desktopQuery.addEventListener('change',updateDesktopLayout);
 
@@ -332,7 +341,7 @@ export async function startOnline():Promise<void>{
       const player=state.players.find(player=>player.id===id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
       const recapReady=state.phase==='matchOver'&&state.tick>=(state.phaseEndsAtTick??0);results.hidden=!recapReady;
-      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);if(player&&!seatTracked){seatTracked=true;track('Seat Taken',{avatarId:player.avatarId,playerCount:state.players.length});}const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost,recapReady});joinPanel.hidden=joined||displayOnly;avatarButton.hidden=!joined;/* Before a seat the join form carries the avatar. */controls.hidden=!joined||displayOnly;
+      if(state.phase==='lobby')lastRecap='';joined=Boolean(player);if(player&&!seatTracked){seatTracked=true;track('Seat Taken',{avatarId:player.avatarId,playerCount:state.players.length});}const joining=role==='joiner'&&!joined;app.classList.toggle('joining',joining);mobileLayout.update({joined,phase:state.phase,displayOnly,host:isHost,recapReady});joinPanel.hidden=joined||displayOnly;/* Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts. */avatarButton.hidden=!joined||state.phase!=='lobby';if(avatarButton.hidden&&dialog.open&&dialogBody.querySelector('.avatar-option'))dialog.close();controls.hidden=!joined||displayOnly;
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       if(player&&!player.connected&&!displayOnly){if(!rejoinPending){rejoinPending=true;runtime.command({type:'join',name:player.name,avatarId:player.avatarId});}}else rejoinPending=false;
       // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
@@ -363,10 +372,13 @@ export async function startOnline():Promise<void>{
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.gunArmed?'TAP TO FIRE GUN':player.targetBombArmed?'SLIDE TO AIM':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?(state.roundWinnerId===id?'You win this round':`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`):state.phase==='matchOver'?`${state.matchStats.find(p=>p.playerId===state.matchWinnerId)?.name??'Shared victory'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
       for(const [playerId,row] of rosterEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();rosterEntries.delete(playerId);}
+      // Standings: cards are ordered by match score (this round's points break ties) with CSS `order`, so the DOM and its handlers stay put. The leader is marked once somebody has scored.
+      const ranked=[...state.players].sort((a,b)=>b.matchScoreUnits-a.matchScoreUnits||b.roundScoreUnits-a.roundScoreUnits),topScore=ranked[0]?.matchScoreUnits??0;
       for(const p of state.players){
         let row=rosterEntries.get(p.id);
         if(!row){const entry=node('span','','online-score-card'),label=node('span'),head=createAvatarPortrait(p.avatarId),remove=node('button','×');entry.append(head,label,remove);remove.onclick=()=>runtime.command({type:'bot',action:'remove',id:p.id});row={entry,label,head,avatar:p.avatarId,remove};rosterEntries.set(p.id,row);roster.append(entry);}
         const name=`${p.name}${p.waitingForNextRound?' · next round':p.connected?'':' · offline'}`,points=`${p.matchScoreUnits/60} PTS · +${p.roundScoreUnits/60}`;if(row.label.textContent!==`${name}${points}`){row.label.className='online-score-label';row.label.replaceChildren(node('span',name,'online-score-name'),node('span',points,'online-score-points'));}row.label.title=`${p.name} · ${p.matchScoreUnits/60} PTS · +${p.roundScoreUnits/60} this round`;row.label.setAttribute('aria-label',row.label.title);row.entry.style.color=p.color;row.entry.style.setProperty('--rider-color',p.color);row.entry.classList.toggle('out',!p.alive&&!['lobby','countdown'].includes(state.phase));
+        const rank=ranked.indexOf(p)+1;row.entry.style.order=String(rank);row.entry.dataset.rank=String(rank);row.entry.classList.toggle('leader',topScore>0&&p.matchScoreUnits===topScore);row.entry.style.setProperty('--lead',topScore>0?String(p.matchScoreUnits/topScore):'0');
         if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}
         const removeParent=sharedLobby.hidden?row.entry:lobbyEntries.get(p.id)!.entry;if(row.remove.parentElement!==removeParent)removeParent.append(row.remove);
         row.remove.hidden=!isHost||!p.id.startsWith(BOT_ID_PREFIX);row.remove.disabled=!['lobby','roundOver','matchOver'].includes(state.phase);row.remove.setAttribute('aria-label',`Remove ${p.name}`);row.remove.title=row.remove.disabled?'Remove AI between rounds or return to menu':'Remove AI rider';
@@ -388,12 +400,12 @@ export async function startOnline():Promise<void>{
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
   const statsPanel=node('pre','','net-stats');statsPanel.hidden=solo||!url.searchParams.has('stats');app.append(statsPanel);
-  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});rematch.onclick=()=>{dialog.close();start.click();};menu.onclick=()=>{dialogTitle.textContent=solo?'EXIT':'ROOM';dialog.setAttribute('aria-label',solo?'Exit':'Room');dialogBody.replaceChildren(node('p',solo?'End this solo run?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'BACK TO MENU':isHost?'END ROOM':'LEAVE ROOM');leave.onclick=async()=>{leave.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}if(read(LAST_ROOM_KEY)===code)storage.removeItem(LAST_ROOM_KEY);location.href=appUrl();};dialogBody.append(leave);
+  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});rematch.onclick=()=>{dialog.close();start.click();};menu.onclick=()=>{dialogTitle.textContent=solo?'EXIT':'ROOM';dialog.setAttribute('aria-label',solo?'Exit':'Room');dialogBody.replaceChildren(node('p',solo?'End this solo run and go back to the menu?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'END RUN':isHost?'END ROOM':'LEAVE ROOM','exit-confirm'),stay=node('button',solo?'KEEP PLAYING':'STAY'),choices=node('div','','exit-choices');stay.onclick=()=>dialog.close();choices.append(stay,leave);leave.onclick=async()=>{leave.disabled=stay.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}if(read(LAST_ROOM_KEY)===code)storage.removeItem(LAST_ROOM_KEY);location.href=appUrl();};dialogBody.append(choices);
     const standings=[...(snapshot?.leaderboard??[])].sort((a,b)=>b.totalScoreUnits-a.totalScoreUnits||b.matchWins-a.matchWins||a.name.localeCompare(b.name));
     if(standings.length){const list=node('div','','session-board');list.append(node('h2','Session standings'));let rank=0,previous:number|undefined;standings.forEach((entry,index)=>{if(entry.totalScoreUnits!==previous)rank=index+1;previous=entry.totalScoreUnits;const row=node('div','','session-row');if(entry.id===id)row.classList.add('is-you');const points=entry.totalScoreUnits/60;row.append(node('b',`#${rank}`),node('span',entry.id===id?`${entry.name} (you)`:entry.name),node('strong',`${Number.isInteger(points)?points:points.toFixed(1)} PTS`),node('small',`${entry.matchWins} ${entry.matchWins===1?'MATCH':'MATCHES'} · ${entry.roundWins} ${entry.roundWins===1?'ROUND':'ROUNDS'}`));list.append(row);});list.append(node('p','Round points: +1 per opponent outlasted, +1 for the sole survivor. Same-tick deaths tie.','session-key'));dialogBody.append(list);}
     if(!solo){const diagnostics=node('pre','','link-diagnostics');diagnostics.textContent=app.dataset.linkDiagnostics??'collecting link diagnostics…';const statsToggle=node('button',statsPanel.hidden?'SHOW NETWORK STATS':'HIDE NETWORK STATS');statsToggle.onclick=()=>{statsPanel.hidden=!statsPanel.hidden;dialog.close();};dialogBody.append(statsToggle,node('p','LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)'),diagnostics);const refresh=setInterval(()=>{if(!dialog.open){clearInterval(refresh);return;}diagnostics.textContent=app.dataset.linkDiagnostics??diagnostics.textContent;},1000);}
     dialog.showModal();};
-  avatarButton.onclick=()=>{dialogBody.replaceChildren(node('h2','Your avatar'));const picker=createAvatarPicker(storage,chosen=>{joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});
+  avatarButton.onclick=()=>{dialogTitle.textContent='AVATAR';dialog.setAttribute('aria-label','Avatar');dialogBody.replaceChildren(node('h2','Your avatar'));const picker=createAvatarPicker(storage,chosen=>{joinForm.picker.sync(chosen);if(joined)runtime.command({type:'avatar',avatarId:chosen});dialog.close();});
     // Avatars other riders already wear are marked, not blocked: two foxes are allowed, but nobody picks one by accident.
     picker.element.querySelectorAll<HTMLButtonElement>('.avatar-option').forEach(option=>{const owner=snapshot?.players.find(p=>p.id!==id&&p.avatarId===option.dataset.avatarId);option.classList.toggle('taken',Boolean(owner));option.title=owner?`${owner.name} has this one`:'';});
     dialogBody.append(picker.element);dialog.showModal();};

@@ -44,6 +44,11 @@ export function loadRoomSettings(storage: Pick<Storage,'getItem'>): RoomSettings
     // Migrate browser preferences only; old rules are never accepted on the wire.
     const migrated = saved && typeof saved === 'object' && 'match' in saved && saved.match === 'wins'
       ? { ...saved, match: 'rounds', length: 5 } : saved;
+    // A pickup retired since the save (Boost) would fail the whole parse and reset every other preference with it.
+    if (migrated && typeof migrated === 'object' && 'weights' in migrated && migrated.weights && typeof migrated.weights === 'object') {
+      const known = new Set<string>(PICKUP_TYPES);
+      return parseRoomSettings({ ...migrated, weights: Object.fromEntries(Object.entries(migrated.weights).filter(([type]) => known.has(type))) }) ?? defaultRoomSettings();
+    }
     return parseRoomSettings(migrated) ?? defaultRoomSettings();
   } catch { return defaultRoomSettings(); }
 }

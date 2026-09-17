@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodeGameState, encodeGameState, MAX_CHECKPOINT_TRAILS } from '../src/online/checkpoint.js';
-import { BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, SLOT_COLORS, addPlayer, createGame, startMatch, step, type GameState } from '../src/shared/game.js';
+import { BOMB_BLAST_RANGE, COUNTDOWN_TICKS, GRAVITY_FIELD_TICKS, GRAVITY_MAX_RADIUS, MAX_GRAVITY_FIELDS, SLOT_COLORS, addPlayer, createGame, startMatch, step, type GameState } from '../src/shared/game.js';
 import { BOMB_FLIGHT_TICKS } from '../src/shared/bomb-launch.js';
 import { MAX_PORTAL_PAIRS, createPortalPair } from '../src/shared/portal.js';
 import { MOMENT_KINDS } from '../src/shared/moments.js';
@@ -28,13 +28,13 @@ const gates = (game: GameState, index: number) => createPortalPair({ id: `portal
 
 test('a well-formed playing state with a bomb, a gravity field and two portal pairs round-trips exactly', () => {
   const game = withBomb(playing());
-  game.gravityFields.push({ bombId: 1, ownerId: 'p1', x: 400, y: 400, radius: 90, expiresAtTick: game.tick + GRAVITY_FIELD_TICKS });
+  game.gravityFields.push({ x: 400, y: 400, radius: 190, expiresAtTick: game.tick + GRAVITY_FIELD_TICKS });
   game.portalPairs = [gates(game, 0), gates(game, 1)];
   const restored = decodeGameState(encodeGameState(game)); assert.ok(restored, 'the control fixture is valid, so every rejection below is a guard talking');
   assert.equal(encodeGameState(restored), encodeGameState(game));
 });
 
-test('bombs, gravity fields and portal pairs must name issued bombs, seated owners, live ticks and sane geometry', () => {
+test('bombs, black holes and portal pairs must name issued bombs, seated owners, live ticks and sane geometry', () => {
   const game = withBomb(playing());
   rejected(game, data => { object(mapped(data.bombs)[0]![1]).ownerId = 'ghost'; }, 'a bomb from nobody');
   rejected(game, data => { object(object(mapped(data.bombs)[0]![1]).shell).vx = 1e9; }, 'a shell faster than the guard allows');
@@ -43,11 +43,11 @@ test('bombs, gravity fields and portal pairs must name issued bombs, seated owne
   rejected(game, data => { object(mapped(data.bombs)[0]![1]).shot = 2; }, 'a bomb naming a pull issued after it');
   rejected(game, data => { object(mapped(data.bombs)[0]![1]).shot = 0; }, 'a shot id no bomb ever had');
   rejected(game, data => { object(mapped(data.bombs)[0]![1]).flightPath = []; object(mapped(data.bombs)[0]![1]).x = 'here'; }, 'a position that is not a number');
-  const field = (over: Record<string, unknown> = {}) => ({ bombId: 1, ownerId: 'p1', x: 400, y: 400, radius: 90, expiresAtTick: game.tick + GRAVITY_FIELD_TICKS, ...over });
-  assert.ok(corrupt(game, data => { list(data.gravityFields).push(field()); }), 'a field naming the issued bomb restores');
-  rejected(game, data => { list(data.gravityFields).push(field({ bombId: 2 })); }, 'a field naming an unissued bomb');
-  rejected(game, data => { list(data.gravityFields).push(field(), field()); }, 'the same bomb twice');
-  rejected(game, data => { list(data.gravityFields).push(field({ ownerId: 'ghost' })); }, 'a field from nobody');
+  const field = (over: Record<string, unknown> = {}) => ({ x: 400, y: 400, radius: 190, expiresAtTick: game.tick + GRAVITY_FIELD_TICKS, ...over });
+  assert.ok(corrupt(game, data => { list(data.gravityFields).push(field()); }), 'a live hole restores');
+  rejected(game, data => { list(data.gravityFields).push(field({ radius: GRAVITY_MAX_RADIUS + 1 })); }, 'a hole wider than the rules open');
+  rejected(game, data => { list(data.gravityFields).push(...Array.from({ length: MAX_GRAVITY_FIELDS + 1 }, () => field())); }, 'more holes than the cap');
+  rejected(game, data => { list(data.gravityFields).push(field({ expiresAtTick: game.tick + GRAVITY_FIELD_TICKS + 1 })); }, 'a hole that outlasts its duration');
   rejected(game, data => { list(data.gravityFields).push(field({ expiresAtTick: game.tick })); }, 'a field already expired');
   const withPortals = playing(); withPortals.portalPairs = [gates(withPortals, 0), gates(withPortals, 1)];
   rejected(withPortals, data => { object(list(object(list(data.portalPairs)[1]).gates)[0]).halfLength = 999; }, 'a gate longer than any wall');
@@ -59,7 +59,7 @@ test('bombs, gravity fields and portal pairs must name issued bombs, seated owne
 test('players, trails, history and statistics are bounded and internally consistent', () => {
   const game = playing();
   for (const key of ['players', 'bombs', 'pickups', 'leaderboard', 'roundParticipants', 'matchStats', 'randomState', 'roundScored', 'gravityFields', 'portalPairs']) rejected(game, data => { delete data[key]; }, `missing ${key}`);
-  for (const key of ['trail', 'alive', 'drunkHeadingOffset', 'shielded', 'avatarId', 'gravityArmed', 'boostUntilTick', 'nitroUntilTicks', 'snailUntilTicks', 'grip']) rejected(game, data => { delete object(mapped(data.players)[0]![1])[key]; }, `player without ${key}`);
+  for (const key of ['trail', 'alive', 'drunkHeadingOffset', 'shielded', 'avatarId', 'nitroUntilTicks', 'snailUntilTicks', 'grip']) rejected(game, data => { delete object(mapped(data.players)[0]![1])[key]; }, `player without ${key}`);
   for (const key of ['deathsByCause', 'currentRoundSurvivalTicks', 'distanceUnits']) rejected(game, data => { delete object(mapped(data.matchStats)[0]![1])[key]; }, `stats without ${key}`);
   rejected(game, data => { object(mapped(data.players)[0]![1]).trail = Array.from({ length: MAX_CHECKPOINT_TRAILS + 1 }, () => ({ x1: 1, y1: 1, x2: 2, y2: 2, createdTick: 1, expiresAtTick: 161 })); }, 'more trail than the cap');
   rejected(game, data => { object(mapped(data.players)[0]![1]).trail = [{ x1: 1, y1: 1, x2: 2, y2: 2, createdTick: 99, expiresAtTick: 2 }]; }, 'a trail that expires before it was drawn');

@@ -3,56 +3,56 @@
 .mobile-play .online-arena{position:absolute;inset:0;width:100%!important;height:100%!important;min-height:0;border:0;object-fit:contain;flex:none}
 .mobile-play .online-header,.mobile-play .online-host,.mobile-play .online-roster,.mobile-play .online-join,.mobile-play>.shared-lobby{display:none!important}
 /* Phase notice (READY · 3, round winner, MATCH COMPLETE, lobby prompt) floats over the thirds in every phase; the roster and host actions live behind ☰ MENU. */
-.mobile-play .online-notice{position:absolute;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;min-height:0;max-width:60vw;padding:6px 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:clamp(12px,2.5vw,18px);background:#071428cc;border:1px solid #ffffff22;text-shadow:0 2px 4px #000}
+.mobile-play .online-notice{position:absolute;top:max(.5rem,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:12;pointer-events:none;min-height:0;max-width:60vw;padding:.375rem .75rem;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:clamp(.75rem,2.5vw,1.125rem);background:#071428cc;border:.0625rem solid #ffffff22;text-shadow:0 .125rem .25rem #000}
 .mobile-play .online-notice:empty{display:none}
 .mobile-play .online-controls{display:grid;position:absolute;inset:0;width:100%;height:100%;min-height:0;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr;gap:0;z-index:10}
 .mobile-play .online-controls>button{grid-row:1!important;min-height:0;min-width:0;padding:0;border:0!important;border-radius:0;background:transparent!important;color:transparent!important;font-size:0;box-shadow:none;text-shadow:none;opacity:1;touch-action:none}
 .mobile-play .online-controls>button:nth-child(1){grid-column:1!important}.mobile-play .online-controls>button:nth-child(2){grid-column:2!important}.mobile-play .online-controls>button:nth-child(3){grid-column:3!important}
-.mobile-play>.mobile-tools-toggle{display:block;position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));min-height:40px;z-index:70;background:#071428dd;font-size:12px}
+.mobile-play>.mobile-tools-toggle{display:block;position:fixed;top:max(.5rem,env(safe-area-inset-top));right:max(.5rem,env(safe-area-inset-right));min-height:2.5rem;z-index:70;background:#071428dd;font-size:.75rem}
 .mobile-play>.mobile-control-hints{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;position:absolute;inset:0;z-index:11;pointer-events:none;animation:mobile-hints-fade 3s forwards}
-.mobile-control-hints span{text-align:center;padding:12px;color:#fff;font-size:clamp(12px,2.5vw,20px);text-shadow:0 2px 4px #000;background:#07142888;border:1px solid #ffffff33}
+.mobile-control-hints span{text-align:center;padding:.75rem;color:#fff;font-size:clamp(.75rem,2.5vw,1.25rem);text-shadow:0 .125rem .25rem #000;background:#07142888;border:.0625rem solid #ffffff33}
 .mobile-control-hints span::before{content:attr(data-hint)}
 /* Touch zones, labels, gate and pill are controls, never selectable text: no iOS callout, no selection, no scroll/zoom gestures. */
 .mobile-play .online-controls,.mobile-play .online-controls>button,.mobile-control-hints,.mobile-control-hints span,.mobile-rotate-gate,.mobile-rotate-gate *,.mobile-tools-toggle,.mobile-play .online-notice{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none}
 /* Overlay text (header status, roster) is read-only too; the header/roster scroll themselves, so touch-action stays default there. */
 .mobile-play .online-header,.mobile-play .online-header *,.mobile-play .online-roster,.mobile-play .online-roster *{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 @keyframes mobile-hints-fade{0%,65%{opacity:1}100%{opacity:0}}
-.mobile-play.mobile-portrait>.mobile-rotate-gate{display:flex;position:absolute;inset:0;z-index:30;flex-direction:column;justify-content:center;align-items:center;padding:30px;text-align:center;background:#050e24;color:#eefaff}
-.mobile-rotate-gate h2{font-size:28px}.mobile-rotate-gate p{max-width:320px;line-height:1.6}.mobile-play.mobile-portrait .online-controls,.mobile-play.mobile-tools-open .online-controls{pointer-events:none}
-.mobile-play.mobile-tools-open .online-header{display:flex!important;position:absolute;left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));top:60px;max-height:calc(100dvh - 210px);overflow:auto;padding:12px;box-sizing:border-box;z-index:60;background:#061329f5;border:1px solid #42618a;gap:8px}
-.mobile-play.mobile-tools-open .online-host:not([hidden]){display:flex!important;position:absolute;bottom:max(8px,env(safe-area-inset-bottom));left:8px;right:8px;z-index:60;background:#061329f5;padding:8px;gap:6px;flex-wrap:wrap;justify-content:center;max-height:112px;overflow:auto}
+.mobile-play.mobile-portrait>.mobile-rotate-gate{display:flex;position:absolute;inset:0;z-index:30;flex-direction:column;justify-content:center;align-items:center;padding:1.875rem;text-align:center;background:#050e24;color:#eefaff}
+.mobile-rotate-gate h2{font-size:1.75rem}.mobile-rotate-gate p{max-width:20rem;line-height:1.6}.mobile-play.mobile-portrait .online-controls,.mobile-play.mobile-tools-open .online-controls{pointer-events:none}
+.mobile-play.mobile-tools-open .online-header{display:flex!important;position:absolute;left:max(.5rem,env(safe-area-inset-left));right:max(.5rem,env(safe-area-inset-right));top:3.75rem;max-height:calc(100dvh - 13.125rem);overflow:auto;padding:.75rem;box-sizing:border-box;z-index:60;background:#061329f5;border:.0625rem solid #42618a;gap:.5rem}
+.mobile-play.mobile-tools-open .online-host:not([hidden]){display:flex!important;position:absolute;bottom:max(.5rem,env(safe-area-inset-bottom));left:.5rem;right:.5rem;z-index:60;background:#061329f5;padding:.5rem;gap:.375rem;flex-wrap:wrap;justify-content:center;max-height:7rem;overflow:auto}
 /* The open menu is one panel (#142): the link status on top, then its buttons in two even columns, without the brand or keyboard help. */
 .mobile-play.mobile-tools-open .online-header{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start}
 .mobile-play.mobile-tools-open .online-header>.room-brand,.mobile-play.mobile-tools-open .online-header>.desktop-help,.mobile-play.mobile-tools-open .online-header>button[hidden]{display:none}
-.mobile-play.mobile-tools-open .online-header>.online-status{grid-column:1/-1;font-size:12px;color:#8ba3c0}
-.mobile-play.mobile-tools-open .online-header button,.mobile-play.mobile-tools-open .online-host button{min-height:40px}
-.mobile-play.mobile-tools-open .online-roster:not([hidden]){display:flex!important;position:absolute;left:8px;right:8px;bottom:max(128px,calc(env(safe-area-inset-bottom) + 120px));z-index:60;flex-wrap:wrap;justify-content:center;gap:4px 12px;max-height:64px;overflow:auto;padding:8px;box-sizing:border-box;background:#061329f5;border:1px solid #42618a;font-size:12px}
+.mobile-play.mobile-tools-open .online-header>.online-status{grid-column:1/-1;font-size:.75rem;color:#8ba3c0}
+.mobile-play.mobile-tools-open .online-header button,.mobile-play.mobile-tools-open .online-host button{min-height:2.5rem}
+.mobile-play.mobile-tools-open .online-roster:not([hidden]){display:flex!important;position:absolute;left:.5rem;right:.5rem;bottom:max(8rem,calc(env(safe-area-inset-bottom) + 7.5rem));z-index:60;flex-wrap:wrap;justify-content:center;gap:.25rem .75rem;max-height:4rem;overflow:auto;padding:.5rem;box-sizing:border-box;background:#061329f5;border:.0625rem solid #42618a;font-size:.75rem}
 /* Roster cards fit the menu's short strip instead of being cut off by their own full-size avatar and × button (#142). */
-.mobile-play.mobile-tools-open .online-score-card{padding:2px 6px;gap:6px}.mobile-play.mobile-tools-open .online-score-card .avatar-portrait{width:22px;height:22px;flex-basis:22px}.mobile-play.mobile-tools-open .online-score-card button{min-height:28px;min-width:28px;padding:0 6px}
-.mobile-play .game-dialog{max-height:calc(100dvh - 24px);z-index:100}
+.mobile-play.mobile-tools-open .online-score-card{padding:.125rem .375rem;gap:.375rem}.mobile-play.mobile-tools-open .online-score-card .avatar-portrait{width:1.375rem;height:1.375rem;flex-basis:1.375rem}.mobile-play.mobile-tools-open .online-score-card button{min-height:1.75rem;min-width:1.75rem;padding:0 .375rem}
+.mobile-play .game-dialog{max-height:calc(100dvh - 1.5rem);z-index:100}
 /* Shared-TV phones remain visibly dedicated controllers after arena hints fade. */
-.mobile-play.controller-only .online-controls>button{background:color-mix(in srgb,var(--player-color) 22%,#061023)!important;border-right:1px solid var(--player-color)!important}
+.mobile-play.controller-only .online-controls>button{background:color-mix(in srgb,var(--player-color) 22%,#061023)!important;border-right:.0625rem solid var(--player-color)!important}
 .mobile-play.controller-only .online-controls>button.active{background:color-mix(in srgb,var(--player-color) 55%,#061023)!important}
 .mobile-play.controller-only>.mobile-control-hints{animation:none;opacity:1}
 /* Hints belong to a round: hidden in the lobby, replayed on every countdown/play entry. */
 .mobile-play.mobile-lobby>.mobile-control-hints{animation:none;opacity:0}
 /* --- AAA pass: a slim HUD over the thirds, the menu overlay no longer covers the roster, announcements sit above the thirds. --- */
-.mobile-play>.mobile-hud:not([hidden]){display:flex;position:absolute;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:12;gap:10px;align-items:center;padding:4px 10px;background:#071428cc;border:1px solid #ffffff22;color:#eefaff;font-size:12px;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;max-width:calc(100vw - 180px);white-space:nowrap;overflow:hidden}
-.mobile-hud .hud-who{display:inline-flex;align-items:center;gap:6px}.mobile-hud .hud-who .avatar-portrait{width:22px;height:22px;flex:0 0 22px}.mobile-hud .hud-who b{color:var(--player-color)}
+.mobile-play>.mobile-hud:not([hidden]){display:flex;position:absolute;top:max(.5rem,env(safe-area-inset-top));left:max(.5rem,env(safe-area-inset-left));z-index:12;gap:.625rem;align-items:center;padding:.25rem .625rem;background:#071428cc;border:.0625rem solid #ffffff22;color:#eefaff;font-size:.75rem;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;max-width:calc(100vw - 11.25rem);white-space:nowrap;overflow:hidden}
+.mobile-hud .hud-who{display:inline-flex;align-items:center;gap:.375rem}.mobile-hud .hud-who .avatar-portrait{width:1.375rem;height:1.375rem;flex:0 0 1.375rem}.mobile-hud .hud-who b{color:var(--player-color)}
 .mobile-hud .hud-fire{color:#ffe46b;letter-spacing:.04em}.mobile-hud .hud-fire:empty{display:none}
 .mobile-hud .hud-wins{color:#fff}.mobile-hud .hud-round{color:#8ba3c0;letter-spacing:.08em}.mobile-hud .hud-round:empty{display:none}
 .mobile-play.mobile-tools-open>.mobile-hud,.mobile-play.mobile-portrait>.mobile-hud{display:none!important}
-.mobile-play .online-notice{top:max(8px,env(safe-area-inset-top));left:auto;right:max(56px,calc(env(safe-area-inset-right) + 48px));transform:none;max-width:40vw}
-.mobile-play .online-announce{max-width:80vw;padding:12px 22px;z-index:13}
-.mobile-play .online-announce.countdown strong{font-size:clamp(44px,12vh,80px)}
-.mobile-play .online-feed{top:max(50px,calc(env(safe-area-inset-top) + 44px));z-index:13}
+.mobile-play .online-notice{top:max(.5rem,env(safe-area-inset-top));left:auto;right:max(3.5rem,calc(env(safe-area-inset-right) + 3rem));transform:none;max-width:40vw}
+.mobile-play .online-announce{max-width:80vw;padding:.75rem 1.375rem;z-index:13}
+.mobile-play .online-announce.countdown strong{font-size:clamp(2.75rem,12vh,5rem)}
+.mobile-play .online-feed{top:max(3.125rem,calc(env(safe-area-inset-top) + 2.75rem));z-index:13}
 .mobile-play.mobile-tools-open .online-announce,.mobile-play.mobile-portrait .online-announce,.mobile-play.mobile-portrait .online-feed{display:none!important}
 /* The open menu stacks header panel, roster strip and host actions without overlap on a 360px-tall phone. */
-.mobile-play.mobile-tools-open .online-header{max-height:calc(100dvh - 60px - 210px)}
-.mobile-play .online-announce{max-height:calc(100dvh - 24px);overflow:hidden;gap:4px;padding:8px 18px}
-.mobile-play .online-announce strong{font-size:clamp(18px,6.5vh,34px)}
-.mobile-play .online-announce .announce-rows{font-size:11px;gap:2px 10px}
-.mobile-play .online-announce .announce-hint{font-size:10px}
+.mobile-play.mobile-tools-open .online-header{max-height:calc(100dvh - 3.75rem - 13.125rem)}
+.mobile-play .online-announce{max-height:calc(100dvh - 1.5rem);overflow:hidden;gap:.25rem;padding:.5rem 1.125rem}
+.mobile-play .online-announce strong{font-size:clamp(1.125rem,6.5vh,2.125rem)}
+.mobile-play .online-announce .announce-rows{font-size:.6875rem;gap:.125rem .625rem}
+.mobile-play .online-announce .announce-hint{font-size:.625rem}
 /* Five roster cards fit the menu strip in one or two rows on a 360px-tall phone: compact cards, no clipped names. */
-.mobile-play.mobile-tools-open .online-roster:not([hidden]){gap:3px 6px;padding:5px 6px;max-height:70px}
-.mobile-play.mobile-tools-open .online-score-card{padding:1px 5px;gap:4px;font-size:11px}.mobile-play.mobile-tools-open .online-score-card .avatar-portrait{width:18px;height:18px;flex-basis:18px}.mobile-play.mobile-tools-open .online-score-card button{min-height:24px;min-width:24px;padding:0 5px;font-size:12px}
+.mobile-play.mobile-tools-open .online-roster:not([hidden]){gap:.1875rem .375rem;padding:.3125rem .375rem;max-height:4.375rem}
+.mobile-play.mobile-tools-open .online-score-card{padding:.0625rem .3125rem;gap:.25rem;font-size:.6875rem}.mobile-play.mobile-tools-open .online-score-card .avatar-portrait{width:1.125rem;height:1.125rem;flex-basis:1.125rem}.mobile-play.mobile-tools-open .online-score-card button{min-height:1.5rem;min-width:1.5rem;padding:0 .3125rem;font-size:.75rem}

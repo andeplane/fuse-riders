@@ -18,6 +18,7 @@ import { parseClientMessage, type ErrorCode, type ServerMessage, type GameSnapsh
 import {
   createGame, addPlayer, removePlayer, startMatch, startNextRound, resetMatch, returnToLobby,
   setPlayerConnected, eliminatePlayer, step, toSnapshot, type InputIntent,
+  simulationTimeScale,
 } from '../shared/game.js';
 
 const COLORS = ['#00d9ff', '#ff3aaf', '#b5ff36', '#ff963b', '#b76bff'];
@@ -358,7 +359,7 @@ export async function createGameServer(options: ServerOptions = {}) {
   let previousTime = dependencies.now();
   let accumulator = 0;
   const stopLoop = options.manualTicks ? undefined : dependencies.schedule(() => {
-    const now = dependencies.now(); accumulator += now - previousTime; previousTime = now;
+    const now = dependencies.now(); accumulator += (now - previousTime) * simulationTimeScale(game, bots); previousTime = now;
     const ticks = catchUpSteps(accumulator);
     if (ticks) { advance(ticks); accumulator = accumulator >= 300 ? 0 : accumulator - ticks * 50; }
   }, 10);

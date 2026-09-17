@@ -7,7 +7,7 @@
 
 Carry a Green Shell and a Gun ray through a portal gate the way ADR-018 carries a rider: enter at the earliest gate met, leave just beyond its partner on the side consistent with travel, at the same proportional height, keeping heading and speed. This extends ADR-014, which scoped transit to riders. Nothing there is withdrawn: a live projectile's flight location and landing site still reserve a rider's exit against an overlap.
 
-Lobbed, Target and Singularity bombs are excluded. They resolve against a landing point committed at launch rather than travelling, so a gate along the way is not something they can meet; changing that would move a landing point that the aim preview, the bots and portal placement reservation all read.
+Lobbed and Target bombs are excluded. They resolve against a landing point committed at launch rather than travelling, so a gate along the way is not something they can meet; changing that would move a landing point that the aim preview, the bots and portal placement reservation all read.
 
 Find the gate with a throwaway pass over the whole tick, then commit the tick in two passes split at that entry fraction rather than rewinding the first. A bounce can fall on either side of a gate within one tick, and only a split preserves the velocity the shell actually carried into the gate. Keep one path run per hop and sweep rider contact within a run only: the gap between gates is travel the shell never made, and a rider standing on that line is not in its way.
 

@@ -27,6 +27,8 @@ import {
   STAR_DURATION_TICKS,
   TRAIL_LIFETIME_TICKS,
   addPlayer,
+  BOTS_ONLY_TIME_SCALE,
+  simulationTimeScale,
   createGame,
   riderMotionStep,
   eliminatePlayer,
@@ -219,7 +221,7 @@ test('following riders survive when their swept paths are close but their bodies
       const ahead = reversed ? 'p0' : 'p1';
       for (const [id, x] of [[behind, 500], [ahead, 520]] as const) {
         Object.assign(state.players.get(id)!, {
-          x, y: 350, angle: 0, trail: [], boostUntilTick: boosted ? state.tick + 10 : 0,
+          x, y: 350, angle: 0, trail: [], nitroUntilTicks: boosted ? [state.tick + 10] : [],
         });
       }
       const result = step(state, new Map());
@@ -1335,4 +1337,19 @@ test('the snapshot carries the room aim-bounce flag, in both directions and with
   assert.equal(toSnapshot(state).aimBounce, true, 'a room with bouncing on must reach the preview');
   state.settings = { ...defaultRoomSettings(), aimBounce: false };
   assert.equal(toSnapshot(state).aimBounce, false, 'a host who turned bouncing off must reach the preview');
+});
+
+test('the simulation clock triples only while a round is live, a human rode in it and only bots survive', () => {
+  const state = createGame('bots-only'), bots = new Set(['bot:1', 'bot:2']);
+  addPlayer(state, { id: 'human', name: 'Human', slot: 0, color: '#fff', connected: true });
+  addPlayer(state, { id: 'bot:1', name: 'AI 1', slot: 1, color: '#f00', connected: true });
+  addPlayer(state, { id: 'bot:2', name: 'AI 2', slot: 2, color: '#0f0', connected: true });
+  assert.equal(simulationTimeScale(state, bots), 1, 'lobby');
+  startMatch(state); assert.equal(simulationTimeScale(state, bots), 1, 'countdown');
+  for (let i = 0; i < COUNTDOWN_TICKS; i++) step(state, new Map());
+  assert.equal(state.phase, 'playing'); assert.equal(simulationTimeScale(state, bots), 1, 'the human still rides');
+  eliminatePlayer(state, 'human'); assert.equal(state.phase, 'playing');
+  assert.equal(simulationTimeScale(state, bots), BOTS_ONLY_TIME_SCALE); assert.equal(BOTS_ONLY_TIME_SCALE, 3);
+  assert.equal(simulationTimeScale(state, new Set(['human', 'bot:1', 'bot:2'])), 1, 'an all-bot showcase keeps its pace');
+  eliminatePlayer(state, 'bot:1'); step(state, new Map()); assert.notEqual(state.phase, 'playing'); assert.equal(simulationTimeScale(state, bots), 1, 'the round is over');
 });
