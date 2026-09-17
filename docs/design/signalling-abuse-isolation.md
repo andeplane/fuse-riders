@@ -31,4 +31,4 @@ room codes and the trusted-member mesh model are unchanged.
 The protocol envelopes and database room records do not change. Existing room
 creation limits retain their keys and accounting. The Firestore allowance
 collection retains its existing name; admission uses distinct hashed keys.
-No game simulation, relay, new hosted service or persistence is added.
+No game simulation, gameplay relay, new hosted service or stored gameplay state is added.
