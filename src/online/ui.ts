@@ -154,7 +154,11 @@ export async function startOnline():Promise<void>{
   const statusAction=node('button','RETRY','online-status-action');statusAction.hidden=true;statusAction.onclick=()=>location.reload();
   const roundChip=node('span','','online-round');roundChip.hidden=true;
   let rawStatus='',replacedHost=false;
-  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,results);
+  title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);
+  // The brand is the way home on every screen. Solo and a closed room have nothing to lose, so they go straight to the menu; a live room asks first, because a host leaving ends it for everyone.
+  const goHome=()=>{if(solo||roomEnded){runtime.stop();location.href=appUrl();}else menu.click();};
+  title.setAttribute('role','link');title.tabIndex=0;title.title='Back to the main menu';title.onclick=goHome;title.onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();goHome();}};
+  results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,results);
   const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
   const bootNote=node('p','Warming up the arena…','room-boot-note');
   const booting=node('div','','room-boot');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'));

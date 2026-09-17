@@ -1,25 +1,25 @@
-.avatar-picker { margin: 0; padding: 8px 0; border: 0; min-width: 0; }
-.avatar-picker legend { color: #bfcbe7; font-size: 12px; }
-.avatar-options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
-.avatar-option { min-width: 0; padding: 3px 0; color: #afbbd8; background: #10142a; border: 2px solid #343858; border-radius: 8px; cursor: pointer; font: inherit; font-size: 9px; display: grid; justify-items: center; }
-.avatar-option[aria-pressed="true"] { border-color: #22d3ee; background: #18324b; color: white; box-shadow: 0 0 8px #22d3ee66; }
-.avatar-portrait { display: block; width: min(48px, 100%); aspect-ratio: 1; height: auto; background-image: url('/avatars/neon-heads.png'); background-size: 500% 200%; background-repeat: no-repeat; image-rendering: pixelated; }
-@media (max-height: 520px) { .avatar-portrait { width: 32px; height: 32px; } .avatar-picker { padding: 2px 0; } }
+.avatar-picker { margin: 0; padding: .5rem 0; border: 0; min-width: 0; }
+.avatar-picker legend { color: #bfcbe7; font-size: .75rem; }
+.avatar-options { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .3125rem; }
+.avatar-option { min-width: 0; padding: .1875rem 0; color: #afbbd8; background: #10142a; border: .125rem solid #343858; border-radius: .5rem; cursor: pointer; font: inherit; font-size: .5625rem; display: grid; justify-items: center; }
+.avatar-option[aria-pressed="true"] { border-color: #22d3ee; background: #18324b; color: white; box-shadow: 0 0 .5rem #22d3ee66; }
+.avatar-portrait { display: block; width: min(3rem, 100%); aspect-ratio: 1; height: auto; background-image: url('/avatars/neon-heads.png'); background-size: 500% 200%; background-repeat: no-repeat; image-rendering: pixelated; }
+@media (max-height: 520px) { .avatar-portrait { width: 2rem; height: 2rem; } .avatar-picker { padding: .125rem 0; } }
 
-@media (max-height: 700px) { .controller-page .join-screen { padding: 12px; } .controller-page .join-screen h1 { font-size: 16px; margin: 6px 0 10px; } .controller-page .join-form { gap: 8px; } .controller-page .join-status { margin: 8px 0 0; } }
+@media (max-height: 700px) { .controller-page .join-screen { padding: .75rem; } .controller-page .join-screen h1 { font-size: 1rem; margin: .375rem 0 .625rem; } .controller-page .join-form { gap: .5rem; } .controller-page .join-status { margin: .5rem 0 0; } }
 @media (max-height: 520px) and (min-width: 600px) {
-  .controller-page .join-screen { width: min(720px, 96vw); padding: 10px 16px; }
-  .controller-page .join-form { grid-template-columns: 1fr 1fr; align-items: center; column-gap: 16px; }
+  .controller-page .join-screen { width: min(45rem, 96vw); padding: .625rem 1rem; }
+  .controller-page .join-form { grid-template-columns: 1fr 1fr; align-items: center; column-gap: 1rem; }
   .controller-page .avatar-picker { grid-column: 2; grid-row: 1 / span 2; }
   .controller-page .name-input, .controller-page .join-button { grid-column: 1; }
-  .controller-page .avatar-portrait { width: 32px; height: 32px; }
-  .controller-page .join-screen h1 { margin: 4px 0 8px; }
+  .controller-page .avatar-portrait { width: 2rem; height: 2rem; }
+  .controller-page .join-screen h1 { margin: .25rem 0 .5rem; }
 }
 
-.avatar-dialog { width: min(420px, 92vw); max-height: 88dvh; overflow: auto; color: white; background: #08132b; border: 2px solid #22d3ee; border-radius: 12px; padding: 16px; }
+.avatar-dialog { width: min(26.25rem, 92vw); max-height: 88dvh; overflow: auto; color: white; background: #08132b; border: .125rem solid #22d3ee; border-radius: .75rem; padding: 1rem; }
 .avatar-dialog::backdrop { background: #020816bb; }
-.avatar-close { display: block; margin: 10px auto 0; padding: 8px 20px; color: white; background: #20385c; border: 1px solid #22d3ee; cursor: pointer; }
+.avatar-close { display: block; margin: .625rem auto 0; padding: .5rem 1.25rem; color: white; background: #20385c; border: .0625rem solid #22d3ee; cursor: pointer; }
 button.identity-marker { background: #08132b; cursor: pointer; font-size: .7rem; font-weight: bold; }
 
-.seat-marker .avatar-portrait { width: 34px; height: 34px; }
-.score-card > .avatar-portrait { width: 28px; height: 28px; }
+.seat-marker .avatar-portrait { width: 2.125rem; height: 2.125rem; }
+.score-card > .avatar-portrait { width: 1.75rem; height: 1.75rem; }
