@@ -10,6 +10,7 @@ export * from "./remote-signal.js";
 export * from "./link-callback.js";
 export * from "./link-health.js";
 export * from "./link-restart.js";
+export * from "./reconnect-backoff.js";
 export * from "./link-send-gate.js";
 export * from "./link-diagnostics.js";
 export {
@@ -20,5 +21,6 @@ export {
   CLOSE_AUTHORITY_REPLACED,
   CLOSE_ROOM_ENDED,
   CLOSE_UNAUTHENTICATED,
+  CLOSE_ROOM_FULL,
   type AuthorityGrant,
 } from "fuse-network-protocol";

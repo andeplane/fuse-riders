@@ -9,6 +9,11 @@ import {
   roomSocketUrl,
   type RoomSocket,
 } from "../src/room-api.js";
+import {
+  DEFAULT_ICE_SERVERS,
+  IceConfig,
+  IceRefusedError,
+} from "../src/ice-config.js";
 
 const apiUrl = (path: string) => `https://rooms.test${path}`;
 type Call = { url: string; init?: RequestInit };
@@ -142,6 +147,47 @@ test("the ICE list is fetched with a bearer header and a token-free URL", async 
   assert.equal(
     new Headers(calls[0]!.init?.headers).get("authorization"),
     `Bearer ${token}`,
+  );
+});
+test("an ICE request the service refuses is a refusal, not an empty list", async () => {
+  for (const status of [401, 403, 429, 503]) {
+    const ice = new IceConfig();
+    await ice.load((signal) =>
+      fetchIceServers(
+        apiUrl,
+        "AB42",
+        memberToken(),
+        signal,
+        fetcher([], Response.json({ error: "Invalid identity" }, { status })),
+      ),
+    );
+    assert.equal(ice.source, `default (service refused: status ${status})`);
+    assert.deepEqual(ice.servers, [...DEFAULT_ICE_SERVERS]);
+  }
+  // The other two ways to end up on the default list keep their own names.
+  const invalid = new IceConfig();
+  await invalid.load((signal) =>
+    fetchIceServers(
+      apiUrl,
+      "AB42",
+      memberToken(),
+      signal,
+      fetcher([], Response.json({ iceServers: [] })),
+    ),
+  );
+  assert.equal(invalid.source, "default (service list invalid)");
+  const unreachable = new IceConfig();
+  await unreachable.load(() => Promise.reject(new TypeError("fetch failed")));
+  assert.equal(unreachable.source, "default (ice fetch failed)");
+  await assert.rejects(
+    fetchIceServers(
+      apiUrl,
+      "AB42",
+      memberToken(),
+      new AbortController().signal,
+      fetcher([], Response.json({}, { status: 401 })),
+    ),
+    (error) => error instanceof IceRefusedError && error.status === 401,
   );
 });
 test("the room socket authenticates with its first frame, never its URL", () => {

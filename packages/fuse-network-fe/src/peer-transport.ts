@@ -18,6 +18,7 @@ import { fetchIceServers, openRoomSocket } from "./room-api.js";
 import { candidateType, sameCertificate } from "./ice-signal.js";
 import { RemoteSignal } from "./remote-signal.js";
 import { LinkRestartPolicy } from "./link-restart.js";
+import { ReconnectBackoff } from "./reconnect-backoff.js";
 import { explainLink, type LinkDiagnostic } from "./link-diagnostics.js";
 import type { RoomTransport, TransportEvents } from "./transport.js";
 export type TransportCallbacks = TransportEvents;
@@ -28,12 +29,15 @@ export interface TransportCopy {
   linking: string;
   protocolChanged: string;
   roomEnded: string;
+  /** Shown when the service closes a full room's socket without a reason of its own. */
+  roomFull: string;
   hostAbsent: string;
 }
 export const DEFAULT_TRANSPORT_COPY: TransportCopy = {
   linking: "Connected · linking peers",
   protocolChanged: "Room protocol changed — reload this page",
   roomEnded: ROOM_ENDED_TEXT,
+  roomFull: "Room full",
   hostAbsent: "the host is not in the room yet",
 };
 export interface PeerTransportOptions {
@@ -44,6 +48,8 @@ export interface PeerTransportOptions {
   /** Diagnostic: join the room and signal nothing, so no direct link ever forms. */
   disableDirect?: boolean;
   copy?: Partial<TransportCopy>;
+  /** Jitter source for the room socket's reconnect backoff, in [0, 1). Defaults to `Math.random`. */
+  random?: () => number;
 }
 interface Link {
   pc: RTCPeerConnection;
@@ -141,6 +147,7 @@ export class PeerTransport implements RoomTransport {
   private seq = 0;
   private stopped = false;
   private retry?: ReturnType<typeof setTimeout>;
+  private readonly backoff: ReconnectBackoff;
   private ice = new IceConfig();
   private readonly apiUrl: (path: string) => string;
   private readonly maxFastBytes: number;
@@ -156,6 +163,7 @@ export class PeerTransport implements RoomTransport {
     this.maxFastBytes = options.maxFastBytes ?? DEFAULT_MAX_FAST_BYTES;
     this.relayOnly = options.disableDirect === true;
     this.copy = { ...DEFAULT_TRANSPORT_COPY, ...options.copy };
+    this.backoff = new ReconnectBackoff(options.random ?? Math.random);
   }
   /** The smaller id offers; the other answers. Symmetric for every pair, so no member needs the creator to link. */
   private initiator(id: string): boolean {
@@ -189,6 +197,7 @@ export class PeerTransport implements RoomTransport {
             this.close();
             return;
           }
+          this.backoff.reset();
           this.received.clear();
           // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
           const roster = new Set<string>(
@@ -275,8 +284,14 @@ export class PeerTransport implements RoomTransport {
         ended: () => this.callbacks.ended(),
         status: this.callbacks.status,
         terminated: () => this.terminate(this.copy.roomEnded),
-        retry: () => {
-          this.retry = setTimeout(() => this.connect(), 1500);
+        // The reason is the service's own wording for its capacity; it is shown as text, never parsed.
+        full: () => this.terminate(event.reason || this.copy.roomFull),
+        // A refusal before the upgrade (HTTP 429) reads as a plain drop here; it backs off like one.
+        retry: (refused) => {
+          this.retry = setTimeout(
+            () => this.connect(),
+            this.backoff.next(refused),
+          );
         },
       });
     };

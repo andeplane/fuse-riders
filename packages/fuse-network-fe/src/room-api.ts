@@ -1,4 +1,5 @@
 import { authFrame } from "fuse-network-protocol";
+import { IceRefusedError } from "./ice-config.js";
 
 /** The credentials of a new room. The token is the creator's identity: keep it on the creator's device and out of invites. */
 export interface CreatedRoom {
@@ -42,7 +43,10 @@ export async function endRoom(
   });
   if (!response.ok) throw await failure(response, "Could not end room");
 }
-/** Members only. The token is a bearer header, never part of the URL: request URLs are recorded by access logs. */
+/**
+ * Members only. The token is a bearer header, never part of the URL: request URLs are recorded by access logs.
+ * An error status rejects with `IceRefusedError`, so the caller can tell a refusal from an unusable list.
+ */
 export async function fetchIceServers(
   apiUrl: (path: string) => string,
   code: string,
@@ -54,6 +58,7 @@ export async function fetchIceServers(
     signal,
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (!response.ok) throw new IceRefusedError(response.status);
   return response.json();
 }
 /** What `openRoomSocket` needs of a WebSocket; a browser `WebSocket` satisfies it. */
