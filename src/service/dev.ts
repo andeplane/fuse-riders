@@ -69,7 +69,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const service = createDevRoomService({ staticDirectory });
   // The port asked for is where the search starts, not a demand: another worktree's service may already hold it.
   const actual = await listenFree(service.server, port, host);
-  if (actual !== port) console.log(`Port ${port} is in use; using ${actual} instead.`);
-  console.log(`Local room service: http://${host === '127.0.0.1' ? 'localhost' : host}:${actual}/ (in-memory rooms, serving ${staticDirectory})`);
+  const base = `http://${host === '127.0.0.1' || host === '0.0.0.0' ? 'localhost' : host}:${actual}`;
+  // Same shape as `npm run dev`'s banner: every link on its own line, after the build output, so it can be found and clicked.
+  console.log(`
+FUSE RIDERS — online rooms, locally
+${actual === port ? '' : `\nPort ${port} is in use; using ${actual} instead.\n`}
+Home:      ${base}/          (create or join a room, SIGN IN / MY GAMES)
+Play solo: ${base}/?solo=1
+Health:    ${base}/api/health
+
+Rooms and match history are in memory and vanish when this stops. Serving ${staticDirectory}
+`);
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => { void service.close().finally(() => process.exit(0)); });
 }
