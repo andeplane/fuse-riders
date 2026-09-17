@@ -1,6 +1,6 @@
 # ADR-002: Fixed-step deterministic Fuse Riders simulation
 
-- Status: Accepted
+- Status: Historical; deterministic fixed-step foundation retained, original gameplay and server-only model superseded. See [current architecture](../architecture.md), [radial blasts](017-radial-blasts-and-five-shot.md), and the current source definitions.
 - Date: 2026-09-13
 
 ## Context

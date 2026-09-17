@@ -8,7 +8,7 @@ A TypeScript party game for 2–5 players: steer neon riders, dodge their trails
 
 ![Restored neon room lobby with QR invite and rider cards](docs/online/ui-evidence/lobby-desktop-1a25594.png)
 
-_Actual desktop browser screenshot (1280×800) of the restored room lobby from the [controller and lobby acceptance](docs/online/ui-evidence/README.md), captured at source `1a25594` against an isolated local Worker during PR #2. Every runtime deployed since `68bea0d` (currently `a4bee00`) ships this UI; the image is not a screenshot of the public deployment._
+_Historical desktop browser screenshot (1280×800) from [controller and lobby acceptance](docs/online/ui-evidence/README.md), captured against an isolated local environment at source `1a25594`. It is not evidence of the current public deployment._
 
 ![Fuse Riders Phaser gameplay showcase](docs/gameplay-phaser.png)
 
@@ -78,6 +78,8 @@ Use **ADD AI** in the host controls to fill empty seats. AI uses normal steering
 The LAN TV provides audio controls, fullscreen, a main-menu reset, session scores, and end-of-match statistics. Music and effects need a browser user gesture. The online UI reuses the renderer, controller bindings, avatars and audio. Phone-sized Chrome/WebKit product checks pass; physical device and background/lock behavior remain separately unverified.
 
 ## Architecture
+
+See the [current system map](docs/architecture.md) for module ownership, recovery boundaries and the distinction between shipped behavior and the architecture refactor.
 
 | Path   | Simulation authority                    | Communication                                       | Lifetime                                                                                           |
 | ------ | --------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -154,7 +156,7 @@ The end-of-match report (podium, totals, highlight reel, awards and rider compar
 
 [CI](.github/workflows/ci.yml) splits into two jobs. `verify` runs on every pull request: type checks, unit coverage and the build, about a minute. `e2e` runs the browser matrix and runs on a push to main, on a manual dispatch, or on a pull request labelled `full-ci`; a push to main deploys only once both pass. Label a pull request `full-ci`, or run `scripts/ci-local.sh`, before merging a change to the renderer, the online runtime, the controller or any other browser-facing path, because otherwise a browser regression first shows up on main.
 
-To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`typecheck`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to the first three) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `typecheck`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to formatting, typecheck, coverage and build) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh
@@ -184,7 +186,7 @@ request whose properties it dropped, so a bad payload looks exactly like a good 
 
 The online beta is deployed on **GitHub Pages, Cloud Run, Firestore room metadata and Pub/Sub signalling only**; the deployed client additionally reports [product analytics](docs/ANALYTICS.md) to Mixpanel, which carries no gameplay and no room credentials. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
 
-A temporary experimental preview was reported at **https://fuse-riders.vagabond-walk.workers.dev**. This is not a declared production endpoint: current reachability, account ownership, claim status and expiry must be verified before relying on it. The supported beta uses the GitHub Pages and Cloud Run endpoints in the verified inventory; the old Cloudflare preview is not its backend. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
+The supported hosting model is GitHub Pages plus the Cloud Run room service; consult the deployment inventory for recorded endpoints and verify current external state before claiming publication. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
 See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-only decision](docs/adr/035-direct-gameplay-only.md). The public [Play link](https://andeplane.github.io/fuse-riders/) connects to `https://fuse-riders-gateway-oaaqztec5a-ew.a.run.app`. The [deployment inventory](docs/online/GCP-INVENTORY.md) records the exact frontend/backend source, immutable image, runtime identity and completed public service checks.
 
