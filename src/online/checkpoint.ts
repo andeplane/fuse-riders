@@ -80,7 +80,7 @@ const gameShape = shape({
   leaderboard: map(text, shape({ id: text, name, totalScoreUnits: integer, roundsPlayed: integer, roundWins: integer, matchWins: integer }), MAX_HISTORY),
   roundParticipants: map(text, shape({ id: text, name, eliminatedAtTick: optional(integer) }), 5),
   roundPlacements: array(shape({ playerId: text, name, place: v => count(5)(v) && v !== 0, scoreUnits: integer }), 5), roundScored: boolean,
-  matchStats: map(text, stats, MAX_HISTORY), moments: array(moment, MAX_MOMENTS), shots: array(shotRecord, MAX_ROUND_SHOTS),
+  matchFinishers: array(text, 5), matchStats: map(text, stats, MAX_HISTORY), moments: array(moment, MAX_MOMENTS), shots: array(shotRecord, MAX_ROUND_SHOTS),
   decidedRound: optional(shape({ matchId: text, round: v => integer(v) && v !== 0, tick: integer, shots: array(shotRecord, MAX_ROUND_SHOTS) })), roundWinnerId: optional(text), matchWinnerId: optional(text),
 } satisfies Record<keyof GameState, Guard>);
 
@@ -147,6 +147,8 @@ function gameInvariants(game: GameState): boolean {
   if (['countdown','roundOver','matchOver'].includes(game.phase) && game.phaseEndsAtTick === undefined) return false;
   if (game.phase !== 'lobby' && game.roundParticipants.size < 2) return false;
   if (game.phase === 'playing' && game.roundStartedTick === undefined) return false;
+  if (new Set(game.matchFinishers).size !== game.matchFinishers.length || game.matchFinishers.some(id => !game.matchStats.has(id))) return false;
+  if (game.phase !== 'matchOver' && game.matchFinishers.length) return false;
   const placements = new Set<string>();
   for (const entry of game.roundPlacements) { if (!game.roundParticipants.has(entry.playerId) || placements.has(entry.playerId)) return false; placements.add(entry.playerId); }
   if (game.roundWinnerId !== undefined && !game.roundParticipants.has(game.roundWinnerId)) return false;

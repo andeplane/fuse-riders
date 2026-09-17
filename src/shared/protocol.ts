@@ -61,6 +61,7 @@ export interface GameSnapshot {
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;
   matchStats: ReadonlyArray<MatchPlayerStats>;
+  matchFinishers?: readonly string[];
   /** Highlight moments of the match; like `matchStats`, present only once the match is over (ADR 043). */
   moments: ReadonlyArray<Moment>;
   /** The most recently decided round's trigger pulls and whom each killed, kept until the next round is decided. */

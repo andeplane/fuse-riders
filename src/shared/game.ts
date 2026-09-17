@@ -318,6 +318,8 @@ export interface GameState {
   roundPlacements: RoundPlacement[];
   roundScored: boolean;
   matchStats: MatchStatsState;
+  /** Connected participants frozen at match end; later recap joins/leaves cannot change agreement. */
+  matchFinishers: string[];
   /** Highlight moments of the match, bounded per kind and cleared with `matchStats` (ADR 043). */
   moments: Moment[];
   /** Every trigger pull of the current round and whom it killed, for per-kill and per-miss analytics. Cleared each round. */
@@ -377,6 +379,7 @@ export function createGame(matchId: string, seed = hashSeed(matchId)): GameState
     roundPlacements: [],
     roundScored: false,
     matchStats: new Map(),
+    matchFinishers: [],
     moments: [],
     shots: [],
   };
@@ -488,6 +491,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
   state.seed = hashSeed(newMatchId);
   state.randomState = state.seed;
   state.matchStats = new Map();
+  state.matchFinishers = [];
   state.moments = [];
   state.round = 1;
   for (const player of state.players.values()) player.roundWins = 0;
@@ -961,6 +965,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({ ...placement })),
     matchStats: state.phase === 'matchOver' ? snapshotMatchStats(state.matchStats) : [],
+    matchFinishers: [...state.matchFinishers],
     moments: state.phase === 'matchOver' ? state.moments.map((moment) => ({ ...moment, targetIds: [...moment.targetIds] })) : [],
     // Only a decided round is published: the round in play can still change.
     ...(state.decidedRound ? { decidedRound: {
@@ -1605,6 +1610,7 @@ function resolveRound(state: GameState, events: GameEvent[], elapsed: number): v
   const inFlight = new Set([...state.bombs.values()].flatMap((bomb) => bomb.shot === undefined || bomb.shell?.gun ? [] : [bomb.shot]));
   state.decidedRound = decideRound(state.matchId, state.round, state.tick, state.shots, inFlight);
   if (matchWinnerId !== undefined || fixedEnd) {
+    state.matchFinishers = [...state.players.values()].filter(player => player.connected && state.matchStats.has(player.id)).map(player => player.id).sort();
     state.phase = 'matchOver';
     state.phaseEndsAtTick = state.tick + 60 + pause;
     events.push({ type: 'matchEnded', ...(matchWinnerId ? { winnerId: matchWinnerId } : {}) });

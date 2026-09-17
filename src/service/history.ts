@@ -17,7 +17,7 @@ import { RoomError, digest, peerId, validCode, validToken, type RoomStore } from
 
 export type StoredPlayer = MatchPlayerStats;
 /** Exactly what every device computes identically. Anything a rider can still change on the recap screen stays out, or honest reports would differ. */
-export interface MatchResult { matchId: string; length: number; winnerId?: string; players: StoredPlayer[] }
+export interface MatchResult { matchId: string; length: number; winnerId?: string; finishers: string[]; players: StoredPlayer[] }
 export interface MatchRecord {
   version: 1; id: string; roomCode: string; status: 'pending' | 'confirmed';
   result: MatchResult;
@@ -61,8 +61,9 @@ const RENAMES_PER_HOUR = 20, SUBMISSIONS_PER_HOUR = 40, SUBMISSIONS_PER_ADDRESS_
  * a rider who reports alone is believed, and what they can inflate is their own totals, by this much per report.
  */
 const MAX_TICKS = 2_000_000, MAX_DISTANCE = 100_000_000, MAX_EVENTS = 20_000, MAX_SCORE = 10_000, MAX_ROUNDS = 99;
+export const MAX_MATCH_PARTICIPANTS = 128; // Matches retain past riders, like the checkpoint history.
 const PER_ROUND: ReadonlySet<string> = new Set(['roundsPlayed', 'roundWins', 'roundsDrawn']);
-const LIMITS: Partial<Record<string, number>> = { slot: 4, matchPlacement: 5, matchScoreUnits: MAX_SCORE, survivalTicks: MAX_TICKS, longestSurvivalTicks: MAX_TICKS, invulnerableTicks: MAX_TICKS, distanceUnits: MAX_DISTANCE };
+const LIMITS: Partial<Record<string, number>> = { slot: 4, matchPlacement: MAX_MATCH_PARTICIPANTS, matchScoreUnits: MAX_SCORE, survivalTicks: MAX_TICKS, longestSurvivalTicks: MAX_TICKS, invulnerableTicks: MAX_TICKS, distanceUnits: MAX_DISTANCE };
 const COUNTERS = ['slot', 'roundsPlayed', 'roundWins', 'matchScoreUnits', 'roundsDrawn', 'matchPlacement', 'survivalTicks', 'longestSurvivalTicks', 'distanceUnits', 'bombsPlaced', 'bombsExploded', 'eliminations', 'pickupsCollected', 'powerPickups', 'starPickups', 'beerPickups', 'inkPickups', 'triplePickups', 'fivePickups', 'targetPickups', 'shieldPickups', 'portalPickups', 'portalTransits', 'invulnerableTicks', 'wallBounces', 'earlyExits'] as const satisfies readonly (keyof MatchPlayerStats)[];
 const DEATHS = ['wall', 'trail', 'explosion', 'rider'] as const satisfies readonly (keyof MatchDeathCounts)[];
 const PLAYER_KEYS = new Set<string>(['playerId', 'name', 'color', 'deathsByCause', ...COUNTERS]);
@@ -73,11 +74,22 @@ const isBot = (id: string): boolean => id.startsWith(BOT_ID_PREFIX);
 const validPlayerId = (id: unknown): id is string => typeof id === 'string' && (/^[a-f0-9]{24}$/.test(id) || /^bot:[0-9]{1,6}$/.test(id));
 /**
  * How many riders must agree. A rider who quit mid-match is gone before the recap and can never report, so counting
- * them would leave a two-rider match with one leaver pending forever. Anyone in the result may still attest.
+ * them would leave a two-rider match with one leaver pending forever. Finishers are frozen at the final tick,
+ * not inferred from early-exit eliminations or the live recap roster. Past riders can link but cannot supply a deciding vote.
  */
-export const attestationsNeeded = (result: MatchResult): number => Math.floor(result.players.filter(player => !isBot(player.playerId) && player.earlyExits === 0).length / 2) + 1;
+export const attestationsNeeded = (result: MatchResult): number => Math.floor(result.finishers.length / 2) + 1;
 export const humansOf = (result: MatchResult): string[] => result.players.map(player => player.playerId).filter(id => !isBot(id));
 export const emptyTotals = (): Totals => Object.fromEntries(TOTAL_KEYS.map(key => [key, 0])) as Totals;
+
+/** Storage boundary for career totals; movement distances are continuous, event counts are integers. */
+export function parseTotals(raw: unknown): Totals {
+  const totals = emptyTotals(), stored = plain(raw) ? raw : {};
+  for (const key of TOTAL_KEYS) {
+    const value = stored[key];
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER && (key === 'distanceUnits' || Number.isSafeInteger(value))) totals[key] = value;
+  }
+  return totals;
+}
 
 function parsePlayer(raw: unknown, rounds: number): StoredPlayer | undefined {
   if (!plain(raw) || !Object.keys(raw).every(key => PLAYER_KEYS.has(key))) return;
@@ -87,7 +99,7 @@ function parsePlayer(raw: unknown, rounds: number): StoredPlayer | undefined {
   if (!validRiderName(name)) return;
   if (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
   if (!plain(deaths) || Object.keys(deaths).length !== DEATHS.length || !DEATHS.every(cause => counter(deaths[cause]))) return;
-  if (!COUNTERS.every(key => counter(raw[key], PER_ROUND.has(key) ? rounds : LIMITS[key]))) return;
+  if (!COUNTERS.every(key => key === 'distanceUnits' ? typeof raw[key] === 'number' && Number.isFinite(raw[key]) && raw[key] >= 0 && raw[key] <= MAX_DISTANCE : counter(raw[key], PER_ROUND.has(key) ? rounds : LIMITS[key]))) return;
   if ((raw.matchPlacement as number) < 1) return;
   // Rebuilt key by key, in one order, so equal results serialize to equal bytes whatever order a client sent them in.
   const player = { playerId, name, color } as StoredPlayer;
@@ -98,19 +110,20 @@ function parsePlayer(raw: unknown, rounds: number): StoredPlayer | undefined {
 
 /** Runtime boundary for a reported result and for a stored one: unknown fields are refused, not ignored. */
 export function parseMatchResult(raw: unknown): MatchResult | undefined {
-  if (!plain(raw) || !Object.keys(raw).every(key => ['matchId', 'length', 'winnerId', 'players'].includes(key))) return;
-  const { matchId, length, winnerId, players: rawPlayers } = raw;
+  if (!plain(raw) || !Object.keys(raw).every(key => ['matchId', 'length', 'winnerId', 'finishers', 'players'].includes(key))) return;
+  const { matchId, length, winnerId, finishers, players: rawPlayers } = raw;
   if (typeof matchId !== 'string' || !/^[\x21-\x7e]{1,128}$/.test(matchId)) return;
   if (!Number.isSafeInteger(length) || (length as number) < 1 || (length as number) > MAX_ROUNDS) return;
-  if (!Array.isArray(rawPlayers) || rawPlayers.length < 1 || rawPlayers.length > 5) return;
+  if (!Array.isArray(rawPlayers) || rawPlayers.length < 1 || rawPlayers.length > MAX_MATCH_PARTICIPANTS) return;
   const players: StoredPlayer[] = [];
   for (const entry of rawPlayers) { const player = parsePlayer(entry, length as number); if (!player) return; players.push(player); }
   const ids = new Set(players.map(player => player.playerId));
-  if (ids.size !== players.length || new Set(players.map(player => player.slot)).size !== players.length) return;
+  if (ids.size !== players.length) return;
   if (players.some(player => player.matchPlacement > players.length)) return;
   if (winnerId !== undefined && (typeof winnerId !== 'string' || !ids.has(winnerId))) return;
-  players.sort((a, b) => a.slot - b.slot);
-  return { matchId, length: length as number, ...(winnerId === undefined ? {} : { winnerId }), players };
+  if (!Array.isArray(finishers) || finishers.length > 5 || new Set(finishers).size !== finishers.length || !finishers.every(id => typeof id === 'string' && ids.has(id) && !isBot(id))) return;
+  players.sort((a, b) => a.slot - b.slot || (a.playerId < b.playerId ? -1 : 1));
+  return { matchId, length: length as number, finishers: [...finishers].sort(), ...(winnerId === undefined ? {} : { winnerId }), players };
 }
 
 export function parseMatchRecord(raw: unknown): MatchRecord | undefined {
@@ -196,7 +209,7 @@ export class HistoryStore {
       // One account per seat and one seat per account: a second device on the same account reports, but is not credited twice.
       const linking = account !== undefined && match.uidByPlayer[rider] === undefined && !Object.values(match.uidByPlayer).includes(account);
       if (linking) match.uidByPlayer[rider] = account;
-      if (match.status === 'pending' && match.attesters.length >= needed) {
+      if (match.status === 'pending' && match.attesters.filter(id => result.finishers.includes(id)).length >= needed) {
         match.status = 'confirmed'; match.endedAt = now;
         for (const [seat, owner] of Object.entries(match.uidByPlayer)) credits.push(creditFor(owner, match.result.players.find(entry => entry.playerId === seat)!, match.avatars[seat], now));
       } else if (match.status === 'confirmed' && linking) credits.push(creditFor(account, player, match.avatars[rider], match.endedAt ?? now));

@@ -25,7 +25,7 @@ export interface RoomHttpOptions {
 }
 
 const ROOM_ROUTE = /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(end|ice|ws|results)$/;
-const MAX_BODY_BYTES = 32_000, BODY_TIMEOUT_MS = 10_000;
+const MAX_BODY_BYTES = 256_000, BODY_TIMEOUT_MS = 10_000;
 const bearer = (req: IncomingMessage): string => req.headers.authorization?.replace(/^Bearer /, '') ?? '';
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json',

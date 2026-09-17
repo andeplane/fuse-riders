@@ -217,6 +217,11 @@ shows it and is not editable there. It is changed under MY GAMES. The rule is th
 
 ### How a match gets recorded
 
+The result preserves fractional movement distances and up to 128 historical participants, including riders whose
+seats were reused between rounds. Connected participants are frozen at the match-ending tick and carried in
+checkpoints; only human finishers count toward confirmation. Recap joins, departures and reconnects cannot
+change that roster. Reports over 60 kB use a normal fetch because browsers cap keepalive request bodies.
+
 Gameplay is peer-to-peer, so the gateway never sees a match. Every device computes the same final stats, so:
 
 1. When the recap opens, each rider's device sends the result it computed to
@@ -253,7 +258,7 @@ signs in only after leaving the room.
 
 | Route | Credential | Notes |
 |---|---|---|
-| `POST /api/rooms/<CODE>/results` | `Authorization: Bearer <room token>`, optional `X-Fuse-Identity: <ID token>` | Body `{ result, avatarId? }`, at most 32 kB, unknown fields refused. The sender must be a live member of the room and a rider in the result; that is checked from the room token before the body is read or a sign-in verified. 40 reports per rider and 240 per address per hour, and an account can be linked to 30 matches per hour — past that a report still counts, as a guest's. An identity that fails verification is a guest's report, never a refusal |
+| `POST /api/rooms/<CODE>/results` | `Authorization: Bearer <room token>`, optional `X-Fuse-Identity: <ID token>` | Body `{ result, avatarId? }`, at most 256 kB, unknown fields refused. The sender must be a live member of the room and a rider in the result; that is checked from the room token before the body is read or a sign-in verified. 40 reports per rider and 240 per address per hour, and an account can be linked to 30 matches per hour — past that a report still counts, as a guest's. An identity that fails verification is a guest's report, never a refusal |
 | `GET /api/me` | `Authorization: Bearer <ID token>` | `{ profile }` — username, avatar, totals — or `{ profile: null }` for an account nothing is stored about yet |
 | `PUT /api/me` | `Authorization: Bearer <ID token>` | Body `{ username }` and nothing else. 20 changes per account per hour |
 | `GET /api/me/matches[?before=<endedAt>]` | `Authorization: Bearer <ID token>` | The caller's profile totals and 20 confirmed matches, newest first; `before` pages back. Shows every rider's stats and which seat was the caller's — never another rider's account id. 300 requests per account per hour |
@@ -469,7 +474,7 @@ player's history, or have a failed verification accepted. What it did find, and 
 |---|---|
 | **High.** Room tokens are free to mint, so the per-rider limit could not stop one signed-in attacker creating unlimited permanent records, each adding up to 10⁹ to their own totals | Linking is limited per account (30/hour) and reporting per address (240/hour); past the account limit a report is a guest's and its record expires. Stats are bounded to what a match could plausibly produce (per-round counts by the match length, placement by the rider count, the rest by generous ceilings) |
 | **Medium.** The report included the room's *live* `mode`, which the host can change while the recap is up, so a late device could hash a different result | Room settings are no longer part of the result |
-| **Medium.** Riders who quit mid-match counted towards the majority but can never report | The majority is of riders with no early exit |
+| **Medium.** Riders who quit mid-match counted towards the majority but can never report | The majority is of human finishers frozen at the match-ending simulation tick, independently of elimination stats |
 | **Medium.** One attempt, while every rider writes the same record at once | Jittered retries on 5xx/408/429/network, and when a signed-in report went in unlinked |
 | **Low.** A sign-in was verified and the body read before the room token was checked; no body timeout | Room token, membership and limits first; 10-second body timeout |
 | **Low.** A tap on SIGN IN WITH GOOGLE while the SDK was still downloading could be popup-blocked (Safari) | The button is disabled until the SDK is ready |

@@ -9,21 +9,23 @@ import type { MatchPlayerStats } from '../shared/match-stats.js';
  * nothing a rider can (their avatar, sent beside it). Devices open the recap at different moments.
  */
 export interface MatchReport {
-  result: { matchId: string; length: number; winnerId?: string; players: MatchPlayerStats[] };
+  result: { matchId: string; length: number; winnerId?: string; finishers: string[]; players: MatchPlayerStats[] };
   avatarId?: AvatarId;
 }
 export interface FinishedMatch {
   matchId: string; matchLength: number; matchWinnerId?: string;
+  matchFinishers?: readonly string[];
   matchStats: readonly MatchPlayerStats[]; players: ReadonlyArray<{ id: string; avatarId: AvatarId }>;
 }
 
 /** Undefined when this device has nothing to report: it did not ride (a TV, a latecomer) or its id is not a room seat. */
 export function buildMatchReport(match: FinishedMatch, riderId: string): MatchReport | undefined {
-  if (riderId.startsWith(BOT_ID_PREFIX) || !match.matchStats.some(entry => entry.playerId === riderId)) return undefined;
+  if (!match.matchFinishers || riderId.startsWith(BOT_ID_PREFIX) || !match.matchStats.some(entry => entry.playerId === riderId)) return undefined;
   const avatarId = match.players.find(player => player.id === riderId)?.avatarId;
   return {
     result: {
       matchId: match.matchId, length: match.matchLength, ...(match.matchWinnerId === undefined ? {} : { winnerId: match.matchWinnerId }),
+      finishers: match.matchFinishers.filter(id => !id.startsWith(BOT_ID_PREFIX)).sort(),
       players: match.matchStats.map(entry => ({ ...entry, deathsByCause: { ...entry.deathsByCause } })),
     },
     ...(avatarId === undefined ? {} : { avatarId }),
@@ -59,8 +61,9 @@ export async function sendMatchReport(url: string, report: MatchReport, transpor
     if (attempt) await wait(500 * 2 ** attempt + random() * 1000);
     try {
       const identity = await transport.identityToken().catch(() => undefined);
+      const payload = JSON.stringify(report);
       const response = await transport.fetch(url, {
-        method: 'POST', body: JSON.stringify(report), keepalive: true,
+        method: 'POST', body: payload, keepalive: new TextEncoder().encode(payload).byteLength <= 60_000,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${transport.roomToken}`, ...(identity ? { 'X-Fuse-Identity': identity } : {}) },
       });
       if (response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429) return outcome;

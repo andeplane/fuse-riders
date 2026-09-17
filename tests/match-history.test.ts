@@ -22,7 +22,7 @@ function player(playerId: string, slot: number, placement: number, extra: Partia
     fivePickups: 0, targetPickups: 0, shieldPickups: 1, portalPickups: 1, portalTransits: 2, invulnerableTicks: 30, wallBounces: 0, earlyExits: 0, ...extra,
   };
 }
-const resultOf = (ids: string[], matchId = 'match-1'): MatchResult => ({ matchId, length: 5, winnerId: ids[0]!, players: ids.map((id, slot) => player(id, slot, slot + 1)) });
+const resultOf = (ids: string[], matchId = 'match-1'): MatchResult => ({ matchId, length: 5, finishers: ids.filter(id => !id.startsWith('bot:')).sort(), winnerId: ids[0]!, players: ids.map((id, slot) => player(id, slot, slot + 1)) });
 const token = () => randomBytes(32).toString('hex');
 
 // ---- sign-in verification ----
@@ -74,7 +74,7 @@ test('a result is normalised, and anything outside the schema is refused', () =>
   const a = peerId(token()), b = peerId(token()), good = resultOf([a, b, 'bot:1']);
   const parsed = parseMatchResult(structuredClone(good))!;
   assert.deepEqual(parsed, good);
-  const shuffled = { players: [...good.players].reverse().map(entry => Object.fromEntries(Object.entries(entry).reverse())), winnerId: a, length: 5, matchId: 'match-1' };
+  const shuffled = { players: [...good.players].reverse().map(entry => Object.fromEntries(Object.entries(entry).reverse())), finishers: [...good.finishers].reverse(), winnerId: a, length: 5, matchId: 'match-1' };
   assert.equal(JSON.stringify(parseMatchResult(shuffled)), JSON.stringify(parsed), 'key and player order do not change the stored bytes');
   const broken: Record<string, (value: MatchResult) => unknown> = {
     'an extra field': value => ({ ...value, uid: 'someone' }),
@@ -96,8 +96,7 @@ test('a result is normalised, and anything outside the schema is refused', () =>
     'an avatar inside the agreed result': value => ({ ...value, players: [{ ...value.players[0], avatarId: 'nope' }, value.players[1]] }),
     'an id that is neither a peer nor a bot': value => ({ ...value, players: [{ ...value.players[0], playerId: 'admin' }, value.players[1]] }),
     'a repeated rider': value => ({ ...value, players: [value.players[0], { ...value.players[0], slot: 1 }] }),
-    'a repeated slot': value => ({ ...value, players: [value.players[0], { ...value.players[1], slot: 0 }] }),
-    'six riders': value => ({ ...value, players: [0, 1, 2, 3, 4, 5].map(slot => player(`bot:${slot}`, slot, slot + 1)) }),
+    'an invalid seat slot': value => ({ ...value, players: [0, 1, 2, 3, 4, 5].map(slot => player(`bot:${slot}`, slot, slot + 1)) }),
     'no riders': value => ({ ...value, players: [] }),
     'a winner who did not play': value => ({ ...value, winnerId: 'bot:9' }),
     'a room setting inside the agreed result': value => ({ ...value, mode: 'devices' }),
@@ -182,7 +181,7 @@ test('a forged result cannot displace or block the honest one', async () => {
 
 test('a rider who quit mid-match is not waited for, and an address is limited as well as a seat', async () => {
   const f = await room(2), result = resultOf(f.ids);
-  result.players[1]!.earlyExits = 1;
+  result.finishers = [f.ids[0]!];
   assert.deepEqual(await f.report(f.tokens[0]!, { result }, 'alice'), { status: 'confirmed', attestations: 1, needed: 1, linked: true });
   assert.deepEqual(await f.report(f.tokens[1]!, { result }, 'bob'), { status: 'confirmed', attestations: 2, needed: 1, linked: true }, 'a leaver who came back may still report');
   // Room tokens are free to mint, so one address cannot report without limit by rotating them.
@@ -257,9 +256,9 @@ test('the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
     const preflight = await call(`/api/rooms/${created.code}/results`, { method: 'OPTIONS' });
     assert.match(preflight.headers.get('access-control-allow-headers') ?? '', /X-Fuse-Identity/);
     assert.equal((await report(token(), result)).status, 403);
-    assert.equal((await report(token(), 'x'.repeat(40_000))).status, 403, 'a stranger is refused before their body is read');
+    assert.equal((await report(token(), 'x'.repeat(257_000))).status, 403, 'a stranger is refused before their body is read');
     assert.equal((await report(created.token, '{not json')).status, 400);
-    assert.equal((await report(created.token, 'x'.repeat(40_000))).status, 413);
+    assert.equal((await report(created.token, 'x'.repeat(257_000))).status, 413);
     assert.equal((await report(created.token, { ...result, extra: 1 })).status, 400);
     assert.equal((await report(created.token, result, undefined, { result, avatarId: 'nope' })).status, 400, 'an avatar the game does not have');
     assert.equal((await report(created.token, result, 'id:alice', { result, uid: 'bob' })).status, 400, 'an account can never be named in the body');

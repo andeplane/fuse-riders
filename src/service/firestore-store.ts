@@ -1,6 +1,6 @@
 import { FieldValue, Firestore, Timestamp } from '@google-cloud/firestore';
 import { parseRoomRecord, type RoomDatabase, type RoomRecord } from './room-store.js';
-import { TOTAL_KEYS, emptyTotals, parseMatchRecord, type Credit, type HistoryDatabase, type MatchRecord, type UserProfile } from './history.js';
+import { TOTAL_KEYS, parseTotals, parseMatchRecord, type Credit, type HistoryDatabase, type MatchRecord, type UserProfile } from './history.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { validRiderName } from '../shared/rider-name.js';
 
@@ -62,8 +62,7 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
   }
   async profile(uid:string):Promise<UserProfile|undefined>{
     const data=(await this.users().doc(uid).get()).data();if(!data)return;
-    const totals=emptyTotals(),stored=data.totals&&typeof data.totals==='object'?data.totals as Record<string,unknown>:{};
-    for(const key of TOTAL_KEYS)if(Number.isSafeInteger(stored[key]))totals[key]=stored[key] as number;
+    const totals=parseTotals(data.totals);
     return{...(validRiderName(data.username)?{username:data.username}:{}),...(validRiderName(data.name)?{name:data.name}:{}),...(isAvatarId(data.avatarId)?{avatarId:data.avatarId}:{}),updatedAt:typeof data.updatedAt==='number'?data.updatedAt:0,totals};
   }
   async setUsername(uid:string,username:string,at:number):Promise<void>{await this.users().doc(uid).set({username,updatedAt:at},{merge:true});}

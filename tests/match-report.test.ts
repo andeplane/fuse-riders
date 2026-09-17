@@ -9,7 +9,7 @@ const RIDER = 'a'.repeat(24), OTHER = 'b'.repeat(24);
 function finished(): FinishedMatch {
   const stats: MatchStatsState = new Map();
   [RIDER, OTHER, 'bot:1'].forEach((id, slot) => beginMatchParticipant(stats, { id, name: `Rider ${slot}`, slot, color: SLOT_COLORS[slot]! }));
-  return { matchId: 'm1', matchLength: 5, matchWinnerId: RIDER, matchStats: snapshotMatchStats(stats), players: [{ id: RIDER, avatarId: 'cat' }, { id: OTHER, avatarId: 'fox' }] };
+  return { matchId: 'm1', matchLength: 5, matchFinishers: [RIDER, OTHER, 'bot:1'], matchWinnerId: RIDER, matchStats: snapshotMatchStats(stats), players: [{ id: RIDER, avatarId: 'cat' }, { id: OTHER, avatarId: 'fox' }] };
 }
 
 test('the stats the simulation produces are exactly the stats the room service accepts', () => {

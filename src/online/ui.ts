@@ -364,7 +364,7 @@ export async function startOnline():Promise<void>{
         track('Match Ended',{...matchEndedProps(state.matchStats,id),...(sawStart&&matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
-        const report=solo?undefined:buildMatchReport({matchId,matchLength:state.matchLength,...(state.matchWinnerId===undefined?{}:{matchWinnerId:state.matchWinnerId}),matchStats:state.matchStats,players:state.players},id);
+        const report=solo?undefined:buildMatchReport({matchId,matchLength:state.matchLength,...(state.matchWinnerId===undefined?{}:{matchWinnerId:state.matchWinnerId}),matchStats:state.matchStats,matchFinishers:state.matchFinishers,players:state.players},id);
         if(report)void sendMatchReport(apiUrl(`/api/rooms/${code}/results`),report,{fetch:(input,init)=>fetch(input,init),roomToken:token,identityToken});}
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       powerStatus.hidden=!player||displayOnly||!['playing','countdown'].includes(state.phase);
