@@ -326,6 +326,7 @@ const gameShape = shape({
     5,
   ),
   roundScored: boolean,
+  matchFinishers: array(text, 5),
   matchStats: map(text, stats, MAX_HISTORY),
   moments: array(moment, MAX_MOMENTS),
   shots: array(shotRecord, MAX_ROUND_SHOTS),
@@ -480,6 +481,12 @@ function gameInvariants(game: GameState): boolean {
   if (game.phase !== "lobby" && game.roundParticipants.size < 2) return false;
   if (game.phase === "playing" && game.roundStartedTick === undefined)
     return false;
+  if (
+    new Set(game.matchFinishers).size !== game.matchFinishers.length ||
+    game.matchFinishers.some((id) => !game.matchStats.has(id))
+  )
+    return false;
+  if (game.phase !== "matchOver" && game.matchFinishers.length) return false;
   const placements = new Set<string>();
   for (const entry of game.roundPlacements) {
     if (
