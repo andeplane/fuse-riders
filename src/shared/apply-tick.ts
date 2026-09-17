@@ -5,7 +5,7 @@ import { ACTION, AVATAR, BOT, JOIN, LEAVE, PRESENCE, SETTINGS, foldPlayerEntries
 import type { GameEvent } from './protocol.js';
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = 'fuse-p2p-25'; // 25: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through.
+export const RULES = 'fuse-p2p-26'; // 26: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through. 25: arena maps. 24: Boost removed; Gravity opens black holes.
 export const RECLAIMABLE_PHASES = ['lobby', 'roundOver', 'matchOver'] as const;
 export const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'] as const;
 

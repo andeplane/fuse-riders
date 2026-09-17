@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, RIDER_SPEED, gravityBend, gravityCoreRadius, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { edgesOpen, obstacleBlocksPath, obstacleDistanceSquared } from './arena-map.js';
@@ -58,9 +58,8 @@ const TRAIL_CLEARANCE=RIDER_RADIUS+TRAIL_WIDTH/2+SAFETY_MARGIN;
 /** Replan every tick, but evaluate short turns followed by straight escape paths. */
 function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:PlayerState[],target:{x:number;y:number}|undefined,random:number,lookahead:number):number {
   // The fastest anyone here could go inside the lookahead: a Snail wearing off, or a rival's stacked Nitros, must not
-  // put a trail past the horizon that is about to be reachable. The boost stays the floor, so the horizon a bot has
-  // always planned with is unchanged until a Nitro is actually in play.
-  let fastest=BOOST_SPEED;
+  // put a trail past the horizon that is about to be reachable. The floor keeps a quarter of slack over base speed.
+  let fastest=1.25;
   for(const rider of [player,...enemies])for(let future=1;future<=lookahead;future++)fastest=Math.max(fastest,riderSpeedMultiplier(rider,game.tick+future));
   const reach=lookahead*RIDER_SPEED*fastest*SPEED_RAMP_MAX/TICK_HZ+TRAIL_CLEARANCE;
   // Over open edges the board is a torus: a trail just past an edge is as near as one just short of it, a plan that
@@ -73,18 +72,22 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
     .sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
   // Assume visible opponents continue straight; never inspect their queued inputs.
   // Their predicted trail remains dangerous after their head has passed a crossing.
+  // Holes that close inside the lookahead are planned as if they stayed: a bot expects the curve a moment too long, never too short.
+  const fields=game.gravityFields;
   const enemyPaths=enemies.filter(enemy=>squared(near(enemy.x-player.x,game.width))+squared(near(enemy.y-player.y,game.height))<squared(reach*2)).map(enemy=>{
     let pose={x:enemy.x,y:enemy.y,angle:enemy.angle,drunkHeadingOffset:enemy.drunkHeadingOffset};
     const path=Array.from({length:lookahead},(_,index)=>{
       const tick=game.tick+index+1,previous=pose;
-      const next=advanceRiderPose(previous,NEUTRAL,{...riderMotionStep(enemy,tick,game.roundStartedTick),
+      const motion=riderMotionStep(enemy,tick,game.roundStartedTick);
+      const next=advanceRiderPose({...previous,angle:previous.angle+gravityBend(fields,previous,motion.turn)},NEUTRAL,{...motion,
         drunkHeadingOffset:drunkHeadingOffset(game.seed,enemy.id,tick,enemy.drunkStartedTick,enemy.drunkUntilTick)});
       // Each predicted step is kept where it ends up on the board, as one unbroken segment.
       const shiftX=open?wrapCoordinate(next.x,game.width)-next.x:0,shiftY=open?wrapCoordinate(next.y,game.height)-next.y:0;
       pose={...next,x:next.x+shiftX,y:next.y+shiftY};
       return {x1:previous.x+shiftX,y1:previous.y+shiftY,x2:pose.x,y2:pose.y,createdTick:tick,expiresAtTick:tick+lookahead};
     });
-    return {path,straight:enemy.drunkUntilTick<=game.tick&&enemy.drunkHeadingOffset===0};
+    // A black hole curves a coasting rider too, so its path is only one straight trail on a field without any.
+    return {path,straight:enemy.drunkUntilTick<=game.tick&&enemy.drunkHeadingOffset===0&&fields.length===0};
   });
   const directions=random<.5?[-1,1]:[1,-1];
   const plans:SteeringPlan[]=[{direction:0,turnTicks:0},...directions.flatMap(direction=>TURN_DURATIONS.filter(turnTicks=>turnTicks<=lookahead).map(turnTicks=>({direction,turnTicks})))];
@@ -99,7 +102,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
     for(let future=1;future<=lookahead;future++){
       const tick=game.tick+future;
       const {distance,turn}=riderMotionStep(player,tick,game.roundStartedTick);
-      const next=advanceRiderPose(pose,{left:plan.direction<0&&future<=plan.turnTicks,right:plan.direction>0&&future<=plan.turnTicks},
+      const next=advanceRiderPose({...pose,angle:pose.angle+gravityBend(fields,pose,turn)},{left:plan.direction<0&&future<=plan.turnTicks,right:plan.direction>0&&future<=plan.turnTicks},
         {distance,turn,drunkHeadingOffset:drunkHeadingOffset(game.seed,player.id,tick,player.drunkStartedTick,player.drunkUntilTick)});
       const shiftX=open?wrapCoordinate(next.x,game.width)-next.x:0,shiftY=open?wrapCoordinate(next.y,game.height)-next.y:0;
       const previous={x:pose.x+shiftX,y:pose.y+shiftY};
@@ -124,12 +127,13 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
       if(enemyPaths.some(({path,straight})=>{
         const head=path[future-1]!;
         if(distanceToSegmentSquared(x,y,head)<=squared(RIDER_RADIUS*2+SAFETY_MARGIN+distance)&&segmentDistanceSquared(previous.x,previous.y,x,y,head.x1,head.y1,head.x2,head.y2)<=squared(RIDER_RADIUS*2+SAFETY_MARGIN))return true;
-        // Collinear predicted segments form one exact trail, even across boost expiry.
+        // Collinear predicted segments form one exact trail, even across a Nitro expiring.
         if(straight)return future>1&&hitsTrail({...head,x1:path[0]!.x1,y1:path[0]!.y1,x2:head.x1,y2:head.y1});
         for(let index=0;index<future-1;index++)if(hitsTrail(path[index]!))return true;
         return false;
       }))break;
       if(obstacles.some(obstacle=>obstacleBlocksPath(obstacle,previous.x,previous.y,x,y,TRAIL_CLEARANCE)))break;
+      if(fields.some(field=>distanceToSegmentSquared(field.x,field.y,{x1:previous.x,y1:previous.y,x2:x,y2:y,createdTick:tick,expiresAtTick:tick})<squared(gravityCoreRadius(field.radius)+SAFETY_MARGIN)))break;
       if(game.blasts.some(blast=>blast.expiresAtTick>tick&&distanceToSegmentSquared(blast.circle.x,blast.circle.y,{x1:previous.x,y1:previous.y,x2:x,y2:y,createdTick:tick,expiresAtTick:tick})<squared(blast.circle.radius+RIDER_RADIUS)))break;
       if(bombs.some(bomb=>bomb.shell
         ?segmentDistanceSquared(previous.x,previous.y,x,y,bomb.x+bomb.shell.vx*(future-1)/TICK_HZ,bomb.y+bomb.shell.vy*(future-1)/TICK_HZ,bomb.x+bomb.shell.vx*future/TICK_HZ,bomb.y+bomb.shell.vy*future/TICK_HZ)<squared(RIDER_RADIUS+18)

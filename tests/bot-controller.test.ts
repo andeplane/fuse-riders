@@ -88,13 +88,12 @@ test('AI keeps escaping corners and its own trails at full round speed',()=>{
   steerFor(game,240);
 });
 
-test('AI avoids the trail a crossing rider will leave, including active and expiring boosts',()=>{
-  for(const boostTicks of [0,4,240]){
+test('AI avoids the trail a crossing rider will leave, including as a Nitro expires',()=>{
+  for(const boostTicks of [0,4]){
     const game=steeringFixture();
     Object.assign(game.players.get('human')!,{x:500,y:boostTicks?400:410,angle:Math.PI/2});
-    if(boostTicks)for(const player of game.players.values())player.boostUntilTick=game.tick+boostTicks;
-    // An expiring boost case covers the crossing and speed transition; the
-    // sustained cases also exercise several seconds of subsequent steering.
+    if(boostTicks)for(const player of game.players.values())player.nitroUntilTicks=[game.tick+boostTicks];
+    // The expiring Nitro covers the crossing and the speed transition; sustained Nitro has its own test below.
     steerFor(game,boostTicks===4?40:120);
   }
 });

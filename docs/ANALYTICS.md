@@ -67,7 +67,7 @@ device that loads into a match already past round 1 reports `Match Ended` but no
 
 `Kill` and `Miss` are the one place analytics reports per occurrence rather than per match: one `Kill` per rider
 killed and one `Miss` per trigger pull that killed nobody. `weapon` is what the pull fired — `bomb` (the ordinary
-lobbed bomb every rider has, the baseline), `triple`, `five`, `target`, `gun`, `shell` or `gravity`.
+lobbed bomb every rider has, the baseline), `triple`, `five`, `target`, `gun` or `shell`.
 
 The point is histograms, so both events carry every dimension an outcome might be broken down by:
 
@@ -118,12 +118,11 @@ A **pull** is one trigger press: a volley is one pull however many bombs it puts
 names the pull. A rider can hold several weapons at once and a pull spends only some of them, so it is labelled
 with the first of these that it spent:
 
-`gun` → `shell` → `target` → `gravity` → `five` → `triple` → `bomb`
+`gun` → `shell` → `target` → `five` → `triple` → `bomb`
 
 Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
 under their label, and a rider holding Target as well keeps it armed for the next pull. Below them Target wins because it is the only one the others cannot
-combine with, then Gravity, so a gravity volley is `weapon = gravity` — which under-counts `five` and `triple` by
-the rare pull that spent both, where the alternative would lose Gravity, the harder of the two to judge. The
+combine with. Rules before `fuse-p2p-24` also reported `gravity`, for the Singularity bomb that Gravity used to arm. The
 round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse and GRIP sharpen every pull rather than
 being spent by one.
 
@@ -137,7 +136,7 @@ exactly one — which is what turns kills back into pulls for a miss rate.
 Two consequences of chain reactions, both inherited from how eliminations have always been credited: a bomb set
 off by someone else's blast still belongs to its owner, so a rider whose Five bomb a rival detonates is credited
 the kill; and where a rider's own older plain bomb chains alongside its Target, the lowest-id rule credits `bomb`.
-What cannot be seen at all: a Gravity field that drags a rider into a wall is a `wall` death with no owner. And a
+What cannot be seen at all: a black hole that bends a rider into a wall, or swallows one in its core, is a `wall` death with no owner. And a
 pull whose only effect was uncredited — an own goal, a blast shared with another rider, or setting off someone
 else's bomb — is a `Miss`, because no kill is credited to it.
 
