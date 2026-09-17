@@ -103,6 +103,10 @@ export interface RuntimeMetrics {
   sentBytes: number;
   snapshotRequest: boolean;
   mismatches: number;
+  /** Authority hashes this replica could compare with its own state, whatever the outcome. */
+  hashChecks: number;
+  /** Members refused for announcing different rules: nothing they send is folded in. */
+  refused: string[];
   stall: { tick: number; waitingFor?: string };
   streams: Record<
     string,
@@ -139,8 +143,15 @@ interface Member {
   clockTick?: number;
   gapSince: number;
   rejected: number;
+  /** The peer's hello announced different `RULES`: its stream, joins and snapshots are refused until a matching hello. */
+  refused: boolean;
   presence?: { connected: boolean; tick: number; at: number };
 }
+/** Shown by both sides of a rules mismatch; "reload this page" is what the header treats as actionable. */
+export const RULES_MISMATCH_STATUS =
+    "A rider is on a different game version — reload this page",
+  RULES_MISMATCH_REPLY =
+    "This room runs a different game version — reload this page";
 
 export const DISCONNECT_MS = 1000,
   CREATOR_SILENCE_MS = 5000,
@@ -213,6 +224,7 @@ export class RoomRuntime {
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
   private mismatches: number[] = [];
+  private hashChecks = 0;
   private outOfSync = false;
   private full = true;
   private hiddenState = false;
@@ -347,6 +359,7 @@ export class RoomRuntime {
           helloed: false,
           gapSince: -Infinity,
           rejected: 0,
+          refused: false,
         });
       return;
     }
@@ -390,14 +403,27 @@ export class RoomRuntime {
     };
     const member = this.members.get(id);
     if (!member) return;
+    // A peer on different rules folds the same log into a different world: only a matching hello is heard from it.
+    if (member.refused && data.type !== "hello") {
+      if (data.type === "join")
+        this.transport!.send(id, {
+          type: "error",
+          error: RULES_MISMATCH_REPLY,
+        });
+      return;
+    }
     switch (data.type) {
       case "hello":
         if (data.rules !== RULES) {
-          this.status.notice(
-            "A rider is on a different game version — everyone should reload",
-          );
+          member.refused = true;
+          if (this.snapshotRequest?.to === id) {
+            this.snapshotRequest = undefined;
+            this.assembler = undefined;
+          }
+          this.status.notice(RULES_MISMATCH_STATUS);
           return;
         }
+        member.refused = false;
         if (
           typeof data.generation === "number" &&
           Number.isSafeInteger(data.generation) &&
@@ -450,7 +476,7 @@ export class RoomRuntime {
   private fast(id: string, bytes: Uint8Array): void {
     const decoded = decodePacket(bytes),
       member = this.members.get(id);
-    if (!decoded || !member) return;
+    if (!decoded || !member || member.refused) return;
     const now = this.deps.now();
     if ("nack" in decoded) {
       if (
@@ -467,6 +493,7 @@ export class RoomRuntime {
     if (packet.room !== this.room || packet.from !== id) return;
     if (packet.generation < member.generation) return;
     this.bump(id, member, packet.generation);
+    const heardAt = member.lastPacketAt;
     member.lastPacketAt = now;
     member.lastSentAt = packet.sentAt;
     member.lastSentReceivedAt = now;
@@ -495,6 +522,9 @@ export class RoomRuntime {
       return;
     }
     if (result.status === "invalid") {
+      // A refused packet is not a sign of life: a rider whose stream cannot be folded is marked absent like a silent
+      // one, so the room plays on instead of waiting for completeness that will never be accepted.
+      member.lastPacketAt = heardAt;
       member.rejected++;
       return;
     }
@@ -563,6 +593,12 @@ export class RoomRuntime {
     for (const member of this.members.values()) member.helloed = false;
     if (this.pendingJoin) this.sendJoin();
   }
+  /** Members whose world could be this one: everyone but those refused for announcing different rules. */
+  private compatible(): string[] {
+    return [...this.members]
+      .filter(([, member]) => !member.refused)
+      .map(([id]) => id);
+  }
   private saidNoWorld(id: string): boolean {
     return (
       this.deps.now() - (this.noWorld.get(id) ?? -Infinity) < SNAPSHOT_RETRY_MS
@@ -570,7 +606,7 @@ export class RoomRuntime {
   }
   private requestSnapshot(preferred?: string): void {
     if (!this.transport) return;
-    const all = [...this.members.keys()]
+    const all = this.compatible()
         .filter((id) => this.transport!.linked(id))
         .sort(),
       holders = all.filter((id) => !this.saidNoWorld(id));
@@ -697,6 +733,7 @@ export class RoomRuntime {
     )
       return;
     const mine = this.world.hashAt(tick);
+    if (mine !== undefined) this.hashChecks++;
     if (mine === undefined || mine === hash) return;
     console.warn(
       `fuse-riders: simulation diverged at tick ${tick}: local ${mine}, authority ${hash}`,
@@ -797,6 +834,7 @@ export class RoomRuntime {
       helloed: true,
       gapSince: -Infinity,
       rejected: 0,
+      refused: false,
     };
   }
   private ensurePresence(id: string, member: Member): void {
@@ -1184,9 +1222,10 @@ export class RoomRuntime {
     for (const [id, member] of this.members) this.greet(id, member);
     if (this.needsWorld()) {
       // Creator included: a room whose members all connected together has no world anywhere until every linked peer has said so.
+      const candidates = this.compatible();
       if (
         !this.snapshotRequest &&
-        [...this.members.keys()].some(
+        candidates.some(
           (id) => this.transport!.linked(id) && !this.saidNoWorld(id),
         )
       )
@@ -1195,17 +1234,16 @@ export class RoomRuntime {
         // A fresh world is opened only when nobody can have one: the room is empty, or every linked member answered
         // that it holds none. A returning creator with peers waits for their snapshot however long the links take;
         // opening a lobby on a timer would let the authority serve that lobby over the match its peers are playing.
-        const linked = [...this.members.keys()].filter((id) =>
-          this.transport!.linked(id),
-        );
+        // Members refused for their rules count as nobody: whatever world they hold is not this game's.
+        const linked = candidates.filter((id) => this.transport!.linked(id));
         const nobodyHasIt =
           linked.length > 0 && linked.every((id) => this.saidNoWorld(id));
-        if (this.members.size === 0 || nobodyHasIt) {
+        if (candidates.length === 0 || nobodyHasIt) {
           this.createWorld(this.settings);
           this.publish();
         } else if (now - this.welcomeAt > FRESH_WORLD_WAIT_MS)
           this.status.recurring(
-            `Recovering the room from ${linked.length ? "a rider" : "the riders"} — ${this.transport.explain([...this.members.keys()].sort()[0]!)}`,
+            `Recovering the room from ${linked.length ? "a rider" : "the riders"} — ${this.transport.explain(candidates.sort()[0]!)}`,
           );
       }
       if (
@@ -1490,6 +1528,11 @@ export class RoomRuntime {
       sentBytes: this.transport?.sentBytes ?? 0,
       snapshotRequest: this.snapshotRequest !== undefined,
       mismatches: this.mismatches.length,
+      hashChecks: this.hashChecks,
+      refused: [...this.members]
+        .filter(([, member]) => member.refused)
+        .map(([id]) => id)
+        .sort(),
       stall: this.world?.stallBound() ?? { tick: Infinity },
       streams,
     };

@@ -94,7 +94,7 @@ Sent on the `input` channel from every member to every other member once per tic
   roomHash,             uint32 FNV of the room incarnation
   fromIndex,            sender's index in the roster
   generation,           sender stream generation
-  through,              "no further entries of mine will carry tick ≤ through"  (= floor(local clock tick))
+  through,              "no entry of mine after lastSeq will carry tick ≤ through"  (= floor(local clock tick); enforced, see PROTOCOL.md)
   lastSeq,              highest seq the sender has issued
   entries,              newest ≤ 6 entries, plus rotation through the retained window (§6)
   sentAt,               sender monotonic ms, uint32 wrap
@@ -116,7 +116,7 @@ What each receiver derives from the stream, per sender:
 
 Each member retains its own last 64 entries or 2 seconds, whichever is smaller. Each packet includes the newest entries and rotates older retained entries into the spare slots, so every retained entry is resent at least every ~600 ms with no acknowledgements at all. A receiver that sees a seq gap sends `[1, roomHash, "nack", fromIndex, firstMissingSeq]` on the fast lane; the owner replies with a packet containing those entries. A gap older than the retained window cannot be repaired and triggers a snapshot request (§8).
 
-Receiver validation: version, room hash, sender index matches the link, generation is current, seq ≤ lastSeq, tick non-decreasing within the stream, tick ≥ 1 and ≤ local tick + 14, gesture ids strictly increasing on press, management kinds only from the creator's stream, entries with tick ≤ the stream's disconnect tick discarded. Reject the whole packet on any invalid entry; never partially apply.
+Receiver validation: version, room hash, sender index matches the link, generation is current, the sender's `hello` matched `RULES`, seq ≤ lastSeq, lastSeq no more than 4,096 past the contiguous prefix, tick non-decreasing within the stream, a new entry stamped after every `through` its owner declared with a lower `lastSeq` ([PROTOCOL.md](PROTOCOL.md#peer-stream-ingest-contract-258-n7)), tick ≥ 1 and ≤ local tick + 400, gesture ids strictly increasing on press, management kinds only from the creator's stream, entries with tick ≤ the stream's disconnect tick discarded. Reject the whole packet on any invalid entry; never partially apply.
 
 Bounds, all fixed: rollback window 40 ticks; snapshots every 4 ticks, 12 retained; 64 retained entries per stream per member; 256 buffered out-of-order entries per stream; packet 512 bytes; snapshot 2 MB; `bufferedAmount` above 16 KB skips cadence sends on that link.
 

@@ -15,6 +15,8 @@ export interface NetworkOptions {
   jitterMs: number;
   reliableMs: number;
   oneWayMs?: (from: string, to: string) => number;
+  /** Share of delivered fast packets that arrive a second time, after a delay of their own. */
+  duplicate?: number;
 }
 interface Delivery {
   at: number;
@@ -45,6 +47,7 @@ export class FakeNetwork {
   private random: () => number;
   sentFast = 0;
   droppedFast = 0;
+  duplicatedFast = 0;
   bytesFast = 0;
   /** Every reliable message by sender, receiver and type, so a test can count joins, hellos and snapshot requests. */
   readonly reliableLog: {
@@ -87,10 +90,15 @@ export class FakeNetwork {
       this.droppedFast++;
       return true;
     }
-    this.schedule(this.now + this.delay(from, to), () => {
+    const deliver = () => {
       if (target.online && !target.deaf && target.linkedWith(from))
         target.events.fast(from, bytes);
-    });
+    };
+    this.schedule(this.now + this.delay(from, to), deliver);
+    if (this.options.duplicate && this.random() < this.options.duplicate) {
+      this.duplicatedFast++;
+      this.schedule(this.now + this.delay(from, to), deliver);
+    }
     return true;
   }
   sendReliable(from: string, to: string, data: unknown): boolean {

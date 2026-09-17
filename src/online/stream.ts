@@ -8,6 +8,12 @@ export const RETAINED_ENTRIES = 64,
   RETAINED_TICKS = 40,
   PACKET_ENTRIES = 6,
   BUFFERED_ENTRIES = 256;
+/**
+ * How far a declared `lastSeq` may run ahead of the contiguous prefix. A rider logs a few tens of entries a second at
+ * most and a repair (nack, then a snapshot) takes seconds, so an honest stream is never thousands of entries ahead of
+ * what a replica holds; a larger claim is a gap nothing could ever repair, and the packet is refused instead.
+ */
+export const SEQ_AHEAD = BUFFERED_ENTRIES * 16;
 export type ReceiveStatus = "accepted" | "invalid" | "unrepairable";
 export interface ReceiveResult {
   status: ReceiveStatus;
@@ -36,6 +42,13 @@ export class StreamLog {
   private prunedSeq = 0;
   /** The highest `through` declared while the stream had no gap: final whatever gap opens later. */
   private confirmedTick = 0;
+  /**
+   * The owner's completeness promises. A packet declaring `through = T` with `lastSeq = S` promises that every entry
+   * after seq S is stamped after tick T. `promisedFloor` is the highest T whose S the contiguous prefix has reached, so
+   * it binds every entry not yet held; `promised` keeps the rest by S until the prefix reaches them.
+   */
+  private promisedFloor: number;
+  private readonly promised = new Map<number, number>();
   private rotation = 0;
   constructor(
     public generation: number,
@@ -45,7 +58,7 @@ export class StreamLog {
     this.baseSeq = base.seq;
     this.lastSeq = base.seq;
     this.baseTick = base.tick;
-    this.through = this.confirmedTick = base.tick;
+    this.through = this.confirmedTick = this.promisedFloor = base.tick;
     this.gestureFloor = this.baseGesture = base.gesture ?? 0;
   }
   /** Own stream only: the next seq, always contiguous. */
@@ -123,7 +136,8 @@ export class StreamLog {
       !uint32(lastSeq) ||
       !uint32(through) ||
       !Array.isArray(raw) ||
-      raw.length > PACKET_ENTRIES
+      raw.length > PACKET_ENTRIES ||
+      lastSeq > this.contiguous + SEQ_AHEAD
     )
       return { status: "invalid", added: [] };
     const seen = new Map(this.entries),
@@ -146,6 +160,10 @@ export class StreamLog {
       if (tick <= this.baseTick && this.contiguous === this.baseSeq)
         return { status: "unrepairable", added: [] }; // Older than the snapshot this stream started from.
       if (tick < tail) return { status: "invalid", added: [] };
+      // A new entry at or before a tick its owner already declared complete: folding it in would rewrite ticks
+      // every replica was told were final (the owner saw two seconds of play before committing to them).
+      if (tick <= this.promisedBefore(seq))
+        return { status: "invalid", added: [] };
       for (const [otherSeq, other] of seen)
         if (
           (otherSeq < seq && other[1] > tick) ||
@@ -176,6 +194,7 @@ export class StreamLog {
       this.contiguous++;
       added.push(this.entries.get(this.contiguous)!);
     }
+    this.promise(lastSeq, through);
     if (!this.gap)
       this.confirmedTick = Math.max(this.confirmedTick, this.through);
     if (!added.length) return { status: "accepted", added };
@@ -187,6 +206,27 @@ export class StreamLog {
       added,
       ...(earliest <= currentTick ? { rollbackTo: earliest } : {}),
     };
+  }
+
+  /** The latest tick the owner has promised to stamp no entry after `seq - 1` at: a new entry `seq` must come after it. */
+  private promisedBefore(seq: number): number {
+    let tick = this.promisedFloor;
+    for (const [lastSeq, through] of this.promised)
+      if (lastSeq < seq && through > tick) tick = through;
+    return tick;
+  }
+  private promise(lastSeq: number, through: number): void {
+    if (lastSeq > this.contiguous && through > this.promisedFloor)
+      this.promised.set(
+        lastSeq,
+        Math.max(this.promised.get(lastSeq) ?? 0, through),
+      );
+    else if (through > this.promisedFloor) this.promisedFloor = through;
+    for (const [seq, tick] of this.promised)
+      if (seq <= this.contiguous) {
+        if (tick > this.promisedFloor) this.promisedFloor = tick;
+        this.promised.delete(seq);
+      }
   }
 
   /** Own entries still worth resending: the last 64 or the last two seconds, whichever is smaller. */
