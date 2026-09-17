@@ -178,7 +178,7 @@ Tests should use typed injected clocks, schedulers, transports and seeded random
 
 ## Product analytics
 
-The deployed site reports eleven `FlowRiders.`-prefixed product events to Mixpanel, including one `Kill` per kill
+The deployed site reports twelve `FlowRiders.`-prefixed product events to Mixpanel, including one `Kill` per kill
 and one `Miss` per shot that killed nobody, sent by the shooter's own device once each round is decided and confirmed. LAN play and local dev are off
 by default, `?analytics=1` forces them on and `?analytics=0` forces them off; either choice sticks for the
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
@@ -188,7 +188,8 @@ for the event list and what is deliberately not tracked.
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
 `artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
 request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
-by switching analytics off in SETTINGS and asserting that no further request is made, before or after a reload.
+by opening a second tab, switching analytics off there, and asserting that neither tab makes a further request —
+the first tab's already-queued batch included — before or after a reload.
 
 ## Hosting and deployment status
 

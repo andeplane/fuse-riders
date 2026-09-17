@@ -35,8 +35,8 @@ build environment.
 
 ### The switch in SETTINGS, and Do Not Track
 
-The address rule above decides whether analytics _may_ run. Two things can still switch it off on a device, and
-in every "off" case the Mixpanel bundle is never downloaded and nothing is sent:
+The address rule above decides whether analytics _may_ run. Two things can still switch it off on a device. In
+every "off" case nothing is sent, and a page that loads in one never downloads the Mixpanel bundle:
 
 | Status       | When                                                                               | SETTINGS shows                             |
 | ------------ | ---------------------------------------------------------------------------------- | ------------------------------------------ |
@@ -56,14 +56,34 @@ help tune the game. No names, room codes or location." — in the two per-device
 deliberately not in ROOM SETTINGS, which the whole room shares. Where the switch could do nothing it is shown
 disabled with the reason rather than hidden, so the row never claims a choice that is not there.
 
-Switching off takes effect at once and guarantees no further request: `track` stops handing events to the SDK
-(checked again when the SDK finishes loading, so a switch flipped during the download still wins), and
-`opt_out_tracking()` stops the SDK's batch sender, empties the batch it had queued, disables its unload flush and
-deletes what it had stored, device id included. The choice is stored under `fuse-analytics-opt-out` on the device
-and survives a reload, where an opted-out page never downloads the SDK at all. Switching back on clears the SDK's
-own opt-out flag (`clear_opt_in_out_tracking()`, which — unlike `opt_in_tracking()` — sends no `$opt_in` event of
-its own) and resumes: under a fresh device id if a page load came in between, under the one still in memory if
-not. Events from the time in between are not replayed. There is no consent
+Switching off takes effect at once, in every open tab, and nothing the SDK already holds is sent afterwards. That
+takes four things, because the SDK batches: it sends on a five-second timer and again as the page hides, from a
+queue it keeps in local storage.
+
+1. `track` stops handing events to the SDK. The status is re-read from storage on every call, and once more when
+   the SDK finishes downloading, so a switch flipped mid-download — or in another tab — still wins.
+2. `opt_out_tracking()` stops the SDK's batch sender, empties the batch it had queued, disables its unload flush
+   and deletes what it had stored, device id included. The tab that made the change calls it directly; every other
+   tab calls it when the browser's `storage` event tells it `fuse-analytics-opt-out` changed, and re-renders its
+   PRIVACY row from the same event.
+3. A `before_send_events` hook re-reads the status as each batch is about to be sent and drops every event if it
+   is not `on`. This is the one synchronous gate: it closes the gap between another tab's switch and the `storage`
+   event arriving, and it holds in a browser that delivers no `storage` event at all.
+4. The SDK's queue keys (`__mpq_<token>_ev`, `_pp`, `_gr`) are removed on opt-out, on every page load while opted
+   out, and on switching back on. The SDK enqueues asynchronously behind a lock it polls every 100 ms, so an event
+   accepted a moment before the switch can land in storage just after step 2 emptied it; nothing would send it
+   while off, and this keeps it from being replayed later.
+
+What this cannot do is recall a request already in flight at the moment of the switch. Where storage is refused
+altogether (Safari "Block all cookies") the choice lives in memory, for that tab and that page load only: there is
+nothing shared for another tab to read.
+
+The choice is stored under `fuse-analytics-opt-out` on the device and survives a reload, where an opted-out page
+never downloads the SDK at all. Switching back on clears the SDK's own opt-out flag
+(`clear_opt_in_out_tracking()`, which — unlike `opt_in_tracking()` — sends no `$opt_in` event of its own) and
+resumes: under a fresh device id if a page load came in between, under the one still in memory if not. Events
+from the time in between are not replayed. The PRIVACY rows also re-read the status whenever SETTINGS opens, so a
+label is never older than the dialog showing it. There is no consent
 prompt: the default is unchanged — on for the deployed site — and that default is the project owner's to weigh.
 
 Do Not Track is honoured because Mixpanel's SDK honours it by default (`ignore_dnt: false`, pinned in the init
@@ -117,7 +137,10 @@ super property on every event. `mode` and `solo` are registered only on the room
 
 When `Match Started`, `Kill` / `Miss`, `Seat Taken` and `Match Ended` fire is
 [`src/online/funnel.ts`](../src/online/funnel.ts): the room UI hands it every snapshot it renders and the funnel
-does the once-only bookkeeping, outside the render callback and under test (`tests/funnel.test.ts`).
+does the once-only bookkeeping, outside the render callback and under test (`tests/funnel.test.ts`). A frame it
+cannot process never throws into the render callback; the first such failure is reported once with
+`console.warn` (there is no diagnostic event), and an event whose properties could not be built is not consumed —
+it fires on the next frame that can build it.
 
 `Boot Failed` reports the error's class (`name`, e.g. `TypeError`), a stable `code` to count by (`module-load`,
 `storage`, `webgl`, `network` or `unknown`) and a `message` to read. The message is the one place an event carries
@@ -243,7 +266,14 @@ reported as `matchLength` for exactly this reason.
   tokens are 64 hex characters) removed, and this page's own room code removed wherever it appears. Today that
   matters for two properties, `Boot Failed`'s `message` and `Connect Failed`'s `status`; a browser's "Failed to
   fetch dynamically imported module: https://…?room=AB42" would otherwise name a live invite. Anything that is not
-  a string, number, boolean, `null` or an array of those is reported as its type, never serialised.
+  a string, number, boolean, `null` or an array of those is reported as its type, never serialised. `Bearer` /
+  `Basic` schemes, percent-encoded separators (`room%3DAB42`) and zero-width characters splitting a token are
+  handled; an input over 4 096 characters is cut first and marked `[truncated]`. It is a scrubber for the shapes
+  this game's credentials take, not a general PII filter: IPv4 addresses, file paths and short `key=value` pairs
+  under other names pass through.
+- **Rider names.** They are in no event. The one place one could have ridden along is `Connect Failed`'s `status`,
+  the runtime's status line, two wordings of which name a rider ("Waiting for <name>", "Connected · <name>
+  lagging"); `connectStatus` replaces the name with `[rider]` before the status is sent.
 
 ## Cost
 
