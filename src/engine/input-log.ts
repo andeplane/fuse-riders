@@ -1,6 +1,13 @@
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
 import type { AimPoint, BombActionCommand } from "./primitives.js";
+import {
+  aimGesture,
+  cancelGesture,
+  pressGesture,
+  releaseGesture,
+  type GestureControls,
+} from "./bomb-gesture.js";
 import type { InputIntent } from "./state.js";
 
 /** Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's. */
@@ -165,11 +172,8 @@ export function dequantizeAim(x: number, y: number): AimPoint {
 }
 
 /** Per-player controls between entries; the reducer folds one tick of entries into an intent. */
-export interface HeldControls {
+export interface HeldControls extends GestureControls {
   flags: number;
-  aim?: AimPoint;
-  activeGesture: number;
-  latestGesture: number;
 }
 export const neutralControls = (): HeldControls => ({
   flags: 0,
@@ -178,45 +182,37 @@ export const neutralControls = (): HeldControls => ({
 });
 
 /**
- * Reproduces the LAN BombInputBuffer semantics from log entries: a press allocates a gesture and enqueues `press`;
- * a press while one is active enqueues `cancel` then `press`; release or cancel with the active gesture id enqueues
- * that command; a mismatched id is a no-op; aim updates the held aim. Mutates `held`.
+ * Folds one tick of a rider's entries into its held controls and the tick's intent. The bomb button goes through the
+ * gesture core (`bomb-gesture.ts`) with the ids the entries carry: a press over a held gesture yields `cancel` then
+ * `press`, a repeated press or a release or cancel of another gesture is a no-op, a RELEASE may carry its own aim.
+ * Mutates `held`.
  */
 export function foldPlayerEntries(
   held: HeldControls,
   entries: readonly Entry[],
 ): InputIntent {
   const commands: BombActionCommand[] = [];
-  const withAim = (action: BombActionCommand["action"]): BombActionCommand => ({
-    action,
-    ...(held.aim ? { aim: { ...held.aim } } : {}),
-  });
   for (const entry of entries) {
     switch (entry[2]) {
       case STEER:
         held.flags = entry[3];
         break;
       case AIM:
-        held.aim = dequantizeAim(entry[3], entry[4]);
+        aimGesture(held, dequantizeAim(entry[3], entry[4]));
         break;
       case PRESS:
-        if (entry[3] <= held.latestGesture) break;
-        if (held.activeGesture) commands.push({ action: "cancel" });
-        held.activeGesture = held.latestGesture = entry[3];
-        commands.push(withAim("press"));
+        pressGesture(held, entry[3], commands);
         break;
       case RELEASE:
-        if (entry[3] !== held.activeGesture) break;
-        if (entry.length === 6) held.aim = dequantizeAim(entry[4], entry[5]);
-        held.activeGesture = 0;
-        commands.push(withAim("release"));
-        held.aim = undefined;
+        releaseGesture(
+          held,
+          entry[3],
+          entry.length === 6 ? dequantizeAim(entry[4], entry[5]) : undefined,
+          commands,
+        );
         break;
       case CANCEL:
-        if (entry[3] !== held.activeGesture) break;
-        held.activeGesture = 0;
-        commands.push({ action: "cancel" });
-        held.aim = undefined;
+        cancelGesture(held, entry[3], commands);
         break;
       default:
         break;
