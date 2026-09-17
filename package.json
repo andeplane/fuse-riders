@@ -17,7 +17,9 @@
     "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
     "dev:online": "npm run build && tsx src/service/dev.ts --port 8787",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "config:check": "tsx scripts/deploy-configuration.ts --check",
+    "config:plan": "tsx scripts/deploy-configuration.ts --plan"
   },
   "dependencies": {
     "@fontsource/press-start-2p": "^5.3.0",

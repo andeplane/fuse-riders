@@ -21,7 +21,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       # Verified beta resources; see docs/online/GCP-DEPLOY.md. None of these are secrets.
       GCP_REGION: europe-west1
@@ -43,6 +43,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm ci
+      - run: npm ci --prefix tools/firebase
       # Keyless federation: no service-account key is stored in this repository.
       - uses: google-github-actions/auth@v2
         with:
@@ -56,6 +58,8 @@ jobs:
         if: always()
         with:
           name: cloud-release-evidence-${{ github.event.workflow_run.head_sha || github.sha }}
-          path: artifacts/cloud-release-*.json
+          path: |
+            artifacts/cloud-release-*.json
+            artifacts/config-release-*.json
           if-no-files-found: ignore
           retention-days: 30
