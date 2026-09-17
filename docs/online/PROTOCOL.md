@@ -221,3 +221,7 @@ The checkpoint schema changes, so rules move from 24 to 25. Old peers and checkp
 equality; refresh peers together and use fresh rooms after rollback. Existing gameplay inputs, physics and
 room-service signalling envelopes are unchanged. The new history endpoint requires `finishers`; this feature
 has not yet been released, so older development history records are not migrated.
+
+## Optional voice media
+
+Voice uses an audio transceiver on the existing direct peer connection and validated, connection-scoped status messages outside the simulation log. See [voice chat](VOICE-CHAT.md) for negotiation, consent and lifecycle details.

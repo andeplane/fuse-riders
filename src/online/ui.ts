@@ -1,3 +1,4 @@
+import { VoiceChat } from "./voice-chat.js";
 import { powerLabel } from "../client/power-indicator.js";
 import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
@@ -1070,7 +1071,28 @@ export async function startOnline(): Promise<void> {
     styleRow,
     fullscreen,
   );
+  const voice = solo ? undefined : new VoiceChat();
+  if (voice) {
+    prefs.prepend(node("h3", "GAME AUDIO", "settings-group"));
+    muteButton.title =
+      "Music and effects only; use DEAFEN in voice chat to silence voice.";
+    prefs.append(voice.controls);
+    topMenu.insertBefore(voice.button, prefsButton);
+    voice.button.onclick = () => {
+      dialogTitle.textContent = "VOICE CHAT";
+      dialog.setAttribute("aria-label", "Voice chat");
+      dialogBody.replaceChildren(voice.controls);
+      if (!dialog.open) dialog.showModal();
+    };
+    voice.setChanged(() => {
+      for (const [playerId, row] of rosterEntries)
+        row.entry.dataset.voice = voice.indicator(playerId);
+      for (const [playerId, row] of lobbyEntries)
+        row.entry.dataset.voice = voice.indicator(playerId);
+    });
+  }
   prefsButton.onclick = () => {
+    if (voice) prefs.append(voice.controls);
     dialogTitle.textContent = "SETTINGS";
     dialog.setAttribute("aria-label", "Settings");
     dialogBody.replaceChildren(prefs);
@@ -1700,6 +1722,11 @@ export async function startOnline(): Promise<void> {
       reset.disabled = state.phase === "lobby";
       reset.hidden = phoneLobby;
       share.hidden = solo || phoneLobby; // BACK TO LOBBY means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
+      voice?.setRoster(id, state.players);
+      for (const [playerId, row] of rosterEntries)
+        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
+      for (const [playerId, row] of lobbyEntries)
+        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
       const clock = roundClock(state);
       roundChip.textContent = clock;
       roundChip.hidden = !clock || !sharedLobby.hidden;
@@ -1735,6 +1762,7 @@ export async function startOnline(): Promise<void> {
       : {
           transport: (events) =>
             new PeerTransport(code, token, events, {
+              extension: voice,
               apiUrl,
               maxFastBytes: MAX_PACKET_BYTES,
               copy: TRANSPORT_COPY,
