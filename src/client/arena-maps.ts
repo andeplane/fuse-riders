@@ -33,20 +33,20 @@ export const ARENA_MAP_LABELS: Record<ArenaMapId, string> = {
 /** Maps that change the edges rather than the ground play on the style's own floor, as classic does. */
 const GROUNDS: Partial<Record<ArenaMapId, Omit<MapGround, "gridSize">>> = {
   desert: {
-    floorCenter: "#4a2f12",
-    floorEdge: "#150a03",
+    floorCenter: "#624020",
+    floorEdge: "#24170f",
     grid: "rgba(255,171,79,.10)",
     dust: "#e0b271",
   },
   forest: {
-    floorCenter: "#0f3018",
-    floorEdge: "#030f07",
+    floorCenter: "#164338",
+    floorEdge: "#081b20",
     grid: "rgba(96,255,148,.10)",
     dust: "#6bd98a",
   },
   city: {
-    floorCenter: "#1d2438",
-    floorEdge: "#04060e",
+    floorCenter: "#302344",
+    floorEdge: "#100f24",
     grid: "rgba(126,166,255,.13)",
     dust: "#9fb2d8",
   },
@@ -99,10 +99,10 @@ interface ObstacleStyle {
 
 export const OBSTACLE_STYLES: Record<ObstacleKind, ObstacleStyle> = {
   rock: {
-    body: "#7d6a4e",
-    top: "#a8916a",
-    shade: "#38301f",
-    detail: "#5d4e38",
+    body: "#ae7154",
+    top: "#e8ac79",
+    shade: "#513d3b",
+    detail: "#805449",
     build: "block",
   },
   crate: {
@@ -134,10 +134,10 @@ export const OBSTACLE_STYLES: Record<ObstacleKind, ObstacleStyle> = {
     build: "tree",
   },
   building: {
-    body: "#39415a",
-    top: "#5b6889",
+    body: "#414462",
+    top: "#8b82b0",
     shade: "#12162a",
-    detail: "#ffd98a",
+    detail: "#67e6dc",
     build: "tower",
   },
 };
@@ -205,6 +205,31 @@ export function obstacleParts(obstacle: Obstacle): ObstaclePart[] {
       radiusY: hh * 0.3,
       color: style.top,
     });
+    // Inset leaf clusters keep the full elliptical crown legible at collision edges.
+    for (let leaf = 0; leaf < 9; leaf++) {
+      const angle = (leaf / 9) * Math.PI * 2;
+      parts.push({
+        shape: "ellipse",
+        x: x + Math.cos(angle) * hw * 0.48,
+        y: y + Math.sin(angle) * hh * 0.48,
+        radiusX: hw * (obstacle.kind === "bush" ? 0.18 : 0.25),
+        radiusY: hh * 0.2,
+        color: leaf % 3 === 0 ? style.top : style.body,
+      });
+    }
+    if (obstacle.kind === "bush") {
+      for (let berry = 0; berry < 5; berry++) {
+        parts.push({
+          shape: "rect",
+          x: x - hw * 0.4 + noise(obstacle.id, berry) * hw * 0.8,
+          y: y - hh * 0.4 + noise(obstacle.id, berry + 9) * hh * 0.8,
+          width: 3,
+          height: 3,
+          color: "#f1b887",
+        });
+      }
+      return parts;
+    }
     // The trunk base, peeking out at the foot of the crown, is what tells a tree from a rock at a glance.
     const trunkWidth = Math.max(6, width * 0.18);
     parts.push({
@@ -278,6 +303,14 @@ export function obstacleParts(obstacle: Obstacle): ObstaclePart[] {
       height: hh * 0.4,
       color: style.body,
     });
+    parts.push({
+      shape: "rect",
+      x: x - stem * 0.22,
+      y: top + 2,
+      width: stem * 0.44,
+      height: Math.min(5, hh * 0.2),
+      color: "#ffadba",
+    });
     for (let rib = 1; rib < 4; rib += 1) {
       parts.push({
         shape: "rect",
@@ -325,6 +358,23 @@ export function obstacleParts(obstacle: Obstacle): ObstaclePart[] {
     alpha: 0.8,
   });
   if (style.build === "tower") {
+    // A recessed roof and bright parapet make these read as city blocks from above.
+    parts.push({
+      shape: "rect",
+      x: left + 6,
+      y: top + 9,
+      width: width - 12,
+      height: height - 16,
+      color: "#25273f",
+    });
+    parts.push({
+      shape: "rect",
+      x: left + 4,
+      y: top + 4,
+      width: width - 8,
+      height: 2,
+      color: obstacle.id % 2 ? "#e799d4" : "#67e6dc",
+    });
     // Window grid, lit on a fixed pattern per building, so a city block reads as inhabited without animating.
     const columns = Math.max(2, Math.round(width / 40));
     const rows = Math.max(2, Math.round(height / 34));
@@ -345,6 +395,54 @@ export function obstacleParts(obstacle: Obstacle): ObstaclePart[] {
       }
     return parts;
   }
+  if (obstacle.kind === "crate") {
+    // Metal binding and corner rivets around timber slats.
+    for (const fraction of [0.28, 0.66]) {
+      parts.push({
+        shape: "rect",
+        x: left + width * fraction,
+        y: top + 3,
+        width: 3,
+        height: height - 6,
+        color: "#e0af73",
+      });
+    }
+    for (const fraction of [0.28, 0.55, 0.78]) {
+      parts.push({
+        shape: "rect",
+        x: left + 4,
+        y: top + height * fraction,
+        width: width - 8,
+        height: 2,
+        color: style.shade,
+        alpha: 0.55,
+      });
+    }
+    for (const dx of [4, width - 7])
+      for (const dy of [4, height - 7])
+        parts.push({
+          shape: "rect",
+          x: left + dx,
+          y: top + dy,
+          width: 3,
+          height: 3,
+          color: "#ffe1a5",
+        });
+  } else {
+    // Sandstone strata stay inside the solid rectangular collision silhouette.
+    for (let layer = 0; layer < 4; layer++) {
+      const inset = 3 + noise(obstacle.id, layer + 10) * width * 0.18;
+      parts.push({
+        shape: "rect",
+        x: left + inset,
+        y: top + height * (0.26 + layer * 0.17),
+        width: width - inset - 3,
+        height: Math.max(2, height * 0.06),
+        color: layer % 2 ? style.top : style.detail,
+        alpha: 0.65,
+      });
+    }
+  }
   // Rocks and crates get one deterministic chip each, the same trick the pixel wall uses to break up a flat face.
   const chipWidth = Math.max(4, width * 0.2),
     chipHeight = Math.max(3, height * 0.16);
@@ -358,4 +456,79 @@ export function obstacleParts(obstacle: Obstacle): ObstaclePart[] {
     alpha: 0.75,
   });
   return parts;
+}
+
+/** Low-contrast, world-anchored ground detail, baked once per map/size/style change.
+ * No scenery here is solid; obstacle silhouettes are painted separately above the grid.
+ */
+export function paintMapGround(
+  ctx: Pick<
+    CanvasRenderingContext2D,
+    | "save"
+    | "restore"
+    | "lineWidth"
+    | "strokeStyle"
+    | "fillStyle"
+    | "strokeRect"
+    | "fillRect"
+    | "beginPath"
+    | "ellipse"
+    | "stroke"
+    | "fill"
+    | "moveTo"
+    | "lineTo"
+  >,
+  map: ArenaMapId,
+  width: number,
+  height: number,
+): void {
+  if (map !== "desert" && map !== "forest" && map !== "city") return;
+  ctx.save();
+  ctx.lineWidth = 1;
+  if (map === "city") {
+    ctx.strokeStyle = "rgba(174,142,208,0.09)";
+    for (let y = 0; y < height; y += 144)
+      for (let x = 0; x < width; x += 192) {
+        ctx.strokeRect(x + 9, y + 9, 174, 126);
+        ctx.fillStyle = "rgba(94,215,211,0.12)";
+        ctx.fillRect(x + 16, y + 16, 18, 2);
+        ctx.fillRect(x + 16, y + 20, 2, 10);
+      }
+  } else {
+    const spacing = map === "desert" ? 95 : 78;
+    for (let y = 0, row = 0; y < height; y += spacing, row++)
+      for (let x = 0, col = 0; x < width; x += spacing, col++) {
+        const seed = row * 97 + col;
+        const px = x + noise(seed, 0) * spacing;
+        const py = y + noise(seed, 1) * spacing;
+        if (map === "desert") {
+          ctx.strokeStyle = "rgba(245,189,119,0.10)";
+          for (let ripple = 0; ripple < 3; ripple++) {
+            ctx.beginPath();
+            ctx.ellipse(
+              px,
+              py + ripple * 7,
+              28 + ripple * 7,
+              9,
+              -0.2,
+              0.15,
+              2.7,
+            );
+            ctx.stroke();
+          }
+        } else {
+          ctx.fillStyle = "rgba(75,160,119,0.07)";
+          ctx.beginPath();
+          ctx.ellipse(px, py, 24, 10, noise(seed, 3) * 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(123,191,143,0.16)";
+          ctx.beginPath();
+          ctx.moveTo(px - 4, py - 4);
+          ctx.lineTo(px, py + 3);
+          ctx.lineTo(px + 3, py - 6);
+          ctx.stroke();
+        }
+      }
+  }
+  ctx.restore();
 }
