@@ -185,4 +185,128 @@ See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-onl
 
 Release only through the GCP/Pages flow above. Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting anything to production. See [the browser-hosted topology and the local stack](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, cloud credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
+## Firebase
+
+Firebase is configured on the same GCP project as the gateway (`andershaf-87`) as the groundwork for **player login and
+permanent match history**. It is configuration only so far: no client or gateway code uses it yet, and guests keep
+playing exactly as before. Firebase contributes two things — **Firebase Authentication** (Google sign-in) and the
+versioned **Firestore security rules**. There is no Firebase Hosting, Functions, Storage or Realtime Database.
+
+### The shape of it
+
+```
+browser ──Google popup──▶ Firebase Auth ──ID token (JWT, 1 h)──▶ browser
+browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──IAM──▶ Firestore (fuse-riders)
+```
+
+- **Browsers never talk to Firestore.** Accounts and match history are read and written only by the gateway, which
+  authenticates with IAM and bypasses security rules. [`firestore.rules`](firestore.rules) is therefore deny-all and
+  must stay that way: the web API key is public, so anything the rules allow is allowed to the whole internet.
+- **The gateway needs no Firebase credentials.** It verifies ID tokens against Google's public keys
+  (`https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`), so the runtime service
+  account keeps exactly its current roles (`roles/datastore.user` conditioned on the `fuse-riders` database, plus the
+  signalling role). Do not add `firebase-admin` or grant it `firebaseauth.*`.
+- Postgres was considered and rejected: Cloud SQL's smallest instance is roughly $10/month and never scales to zero,
+  while match history (a handful of writes per match) fits inside Firestore's free tier in the database the gateway
+  already uses.
+
+### What is configured
+
+| Thing | Value |
+|---|---|
+| Firebase project | `andershaf-87` (number `867594018708`), see [`.firebaserc`](.firebaserc) |
+| Web app | "Fuse Riders", app ID `1:867594018708:web:4444ada96e29685f063981` |
+| Sign-in providers | **Google only** (see the manual step below). Email/password, anonymous and phone are disabled |
+| Authorized domains | `localhost`, `andershaf-87.firebaseapp.com` (hosts the popup handler), `andeplane.github.io` |
+| Email enumeration protection | on |
+| Web API key | "Fuse Riders web (Firebase Auth only)", key ID `06d6ec38-6348-4b7b-865d-1ea58a9b7d91` |
+| Key: API restriction | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only |
+| Key: referrer restriction | `https://andeplane.github.io/*`, `https://andershaf-87.firebaseapp.com/*`, `http://localhost:*/*`, `http://127.0.0.1:*/*` |
+| Firestore rules | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json)) |
+| Firestore delete protection | enabled on `fuse-riders`, because it will hold history that no TTL cleans up |
+
+The `(default)` database in this project is Datastore-mode and unrelated; security rules do not apply to it.
+
+The client config, for when login is implemented. **None of it is secret** — a Firebase web API key only identifies the
+project, and the restrictions above are what protect it. Reprint it with
+`firebase apps:sdkconfig WEB 1:867594018708:web:4444ada96e29685f063981`.
+
+```ts
+const firebaseConfig = {
+  apiKey: 'AIzaSyDmK4ZmjGHZl4ImAoEAFLbQ5Vp1wkc0Wyk',
+  authDomain: 'andershaf-87.firebaseapp.com',
+  projectId: 'andershaf-87',
+  appId: '1:867594018708:web:4444ada96e29685f063981',
+};
+```
+
+### One manual step: enable the Google provider
+
+Enabling Google sign-in needs an OAuth client, which the console creates in one click and no CLI can. Open
+[Authentication → Sign-in method](https://console.firebase.google.com/project/andershaf-87/authentication/providers),
+choose **Google**, enable it, set the public-facing name to "Fuse Riders" and pick a support email. Leave every other
+provider off. Afterwards, in the [OAuth client](https://console.cloud.google.com/apis/credentials?project=andershaf-87)
+it created, the authorized JavaScript origins should be only the domains in the table above.
+
+### Changing the configuration
+
+```bash
+firebase deploy --only firestore --project andershaf-87
+```
+
+deploys the rules. **`--only firestore:rules` is a silent no-op** with a named-database `firebase.json`: it prints
+"Deploy complete" and releases nothing. Confirm a release with:
+
+```bash
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: andershaf-87" https://firebaserules.googleapis.com/v1/projects/andershaf-87/releases
+```
+
+Rules are not deployed by CI; the deployer service account has no Firebase roles, deliberately. Auth settings live at
+`https://identitytoolkit.googleapis.com/admin/v2/projects/andershaf-87/config` (PATCH with an `updateMask`), and the key
+is managed with `gcloud services api-keys update 06d6ec38-6348-4b7b-865d-1ea58a9b7d91 --project andershaf-87`. Always
+pass the project explicitly; a developer machine's default gcloud project is usually something else.
+
+### Security review (2026-09-17)
+
+Verified from outside, with the public web key:
+
+| Probe | Result |
+|---|---|
+| Auth API with a foreign or missing `Referer` | `403` — referrer restriction holds |
+| Anonymous sign-up from an allowed referrer | `400 ADMIN_ONLY_OPERATION` |
+| Email/password sign-up from an allowed referrer | `400 OPERATION_NOT_ALLOWED` |
+| Firestore REST read of the rooms collection with the web key | `403` — the key cannot reach Firestore at all, and the rules would deny it if it could |
+
+Findings and accepted risks:
+
+- **Referrer restrictions are not authentication.** `Referer` is trivially forged outside a browser, so the restriction
+  stops other sites from borrowing the key, not a script. What a forged request can reach is Google sign-in only, which
+  still requires a real Google account. That is the intended exposure.
+- **Anyone with a Google account can create a user.** That is what public login means. Accounts carry no privileges;
+  everything a user can do is decided by the gateway. If abuse appears, add App Check or a blocking function rather
+  than loosening anything here.
+- **`andeplane.github.io` is a shared origin** for every Pages site under that GitHub account. Any of them could start a
+  sign-in against this project and receive that user's ID token. Acceptable while the account is single-owner; moving
+  the game to a custom domain removes it.
+- **Three older API keys in the project are completely unrestricted** ("API key 3", and the 2018 auto-created "Server
+  key" and "Browser key"). They predate this work and nothing in this repository uses them, but an unrestricted key in a
+  project with Auth enabled can call the Auth API with no referrer check. They were left alone because something
+  outside this repository may depend on them: check their usage under APIs & Services → Credentials, then restrict or
+  delete them.
+- **No point-in-time recovery or scheduled backups** on `fuse-riders` (both cost money). Delete protection stops the
+  database being dropped, not a bad write. Revisit once history is worth more than the backup bill.
+- **MFA is off**, which is right for a game whose only factor is a Google account that carries its own.
+
+Requirements the gateway must meet when login is implemented — a token that fails any of these is a guest, never an
+error that blocks play:
+
+- Verify the signature with a maintained JOSE library against the JWKS above, algorithm pinned to `RS256`.
+- Require `iss == https://securetoken.google.com/andershaf-87`, `aud == andershaf-87`, a non-empty `sub`, unexpired
+  `exp`, and `firebase.sign_in_provider == 'google.com'`.
+- Take the `uid` for a seat only from the verified token at join time, never from a request body or from another peer.
+  Match results are attributed using the gateway's own seat records.
+- Send the ID token only in the `Authorization` header to the gateway origin. Never put it in a URL, a room invite, a
+  WebRTC message, a log line or a Mixpanel property. Extend the existing `ALLOWED_ORIGINS` check to the new endpoints.
+- Store the minimum: `uid`, display name, avatar. Do not persist email addresses.
+
 Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.

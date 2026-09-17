@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "fuse-riders",
+      "rules": "firestore.rules"
+    }
+  ]
+}
