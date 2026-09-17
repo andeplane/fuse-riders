@@ -1,14 +1,7 @@
 {
   "all": true,
-  "include": [
-    "src/**",
-    "packages/*/src/**"
-  ],
-  "reporter": [
-    "text",
-    "html",
-    "json-summary"
-  ],
+  "include": ["src/**", "packages/*/src/**"],
+  "reporter": ["text", "html", "json-summary"],
   "check-coverage": true,
   "lines": 95,
   "statements": 95,
