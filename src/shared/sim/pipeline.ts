@@ -27,6 +27,7 @@ import { launchWeapons } from "./phases/launch-weapons.js";
 import { fireGuns } from "./phases/fire-guns.js";
 import { explodeInstant } from "./phases/explode.js";
 import { resolveInstantHits } from "./phases/resolve-instant-hits.js";
+import { observeDodges } from "./phases/observe-dodges.js";
 
 export interface Phase {
   readonly name: string;
@@ -64,6 +65,7 @@ export const PHASES: readonly Phase[] = [
   { name: "fireGuns", when: "playing", run: fireGuns },
   { name: "explodeInstant", when: "playing", run: explodeInstant },
   { name: "resolveInstantHits", when: "playing", run: resolveInstantHits },
+  { name: "observeDodges", when: "playing", run: observeDodges },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */
