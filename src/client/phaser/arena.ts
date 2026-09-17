@@ -21,7 +21,7 @@ import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
 import { TrailHistoryCache, trailTip, type TrailPoint } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
-import { mapGround, obstacleParts } from "../arena-maps.js";
+import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
 import { crossViews, edgeGhosts } from "../arena-views.js";
 import { edgesOpen } from "../../shared/arena-map.js";
 import { wrapCoordinate } from "../../shared/wrap.js";
@@ -637,6 +637,7 @@ class ArenaScene extends Phaser.Scene {
       gradient.addColorStop(1, ground.floorEdge);
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, w, h);
+      paintMapGround(ctx, s.map, w, h);
       this.floorTexture.refresh();
       // Upload resets filtering; preserve smooth backdrop scaling.
       this.floorTexture.setFilter(Phaser.Textures.FilterMode.LINEAR);
