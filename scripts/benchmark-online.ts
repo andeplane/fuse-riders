@@ -126,7 +126,9 @@ for (const profile of [
   const peers: Array<() => void> = [];
   try {
     for (let i = 0; i < 5; i++) {
-      const ws = new WebSocket(`ws://127.0.0.1:${app.port}/ws`);
+      const ws = new WebSocket(`ws://127.0.0.1:${app.port}/ws`, {
+        origin: `http://127.0.0.1:${app.port}`,
+      });
       sockets.push(ws);
       await once(ws, "open");
       const up = lane(),
