@@ -8,6 +8,7 @@ import { expire } from "./phases/expire.js";
 import { startPlay } from "./phases/start-play.js";
 import { ageTrails } from "./phases/age-trails.js";
 import { fitField } from "./phases/fit-field.js";
+import { spawnPickups } from "./phases/spawn-pickups.js";
 
 export interface Phase {
   readonly name: string;
@@ -22,6 +23,7 @@ export const PHASES: readonly Phase[] = [
   { name: "startPlay", when: "always", run: startPlay },
   { name: "ageTrails", when: "playing", run: ageTrails },
   { name: "fitField", when: "playing", run: fitField },
+  { name: "spawnPickups", when: "playing", run: spawnPickups },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */
