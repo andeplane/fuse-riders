@@ -63,6 +63,7 @@ function world(
       roundScoreUnits: 0,
       bombReadyAtTick: 0,
       aimSlowTicks: 0,
+      aimSlowSpentTicks: 0,
       trail: [],
       extraBombs: 0,
       fuseLevel: 0,

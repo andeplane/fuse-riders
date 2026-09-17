@@ -45,7 +45,13 @@ function arena() {
 /** A plain rider's travel on the tick just stepped; riders speed up through the round. */
 const stride = (state: GameState) =>
   riderMotionStep(
-    { nitroUntilTicks: [], snailUntilTicks: [], grip: false, aimSlowTicks: 0 },
+    {
+      nitroUntilTicks: [],
+      snailUntilTicks: [],
+      grip: false,
+      aimSlowTicks: 0,
+      aimSlowSpentTicks: 0,
+    },
     state.tick,
     state.roundStartedTick,
   ).distance;

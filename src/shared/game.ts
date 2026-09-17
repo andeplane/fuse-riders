@@ -295,54 +295,79 @@ export function riderSpeedMultiplier(
   return multiplier;
 }
 /**
- * Holding the bomb button slows the rider to steady the aim. The slowdown eases in over AIM_SLOW_RAMP_TICKS, holds for
- * at most AIM_SLOW_MAX_TICKS after the press however long the button stays down, and eases back out the same way on
- * release, cancel or the cap: speed never jumps. A gun fires on the press and never charges, so it never slows.
+ * Holding the bomb button slows the rider to steady the aim. The slowdown eases in over AIM_SLOW_RAMP_TICKS and eases
+ * back out the same way on release, cancel or the cap: speed never jumps. The cap is a budget, not the age of a charge:
+ * every slowed tick of aiming spends one of AIM_SLOW_MAX_TICKS, and they come back one per tick only while the button is
+ * up, so a second of slowdown is all a hold buys however long it lasts, and cancelling into a fresh press buys nothing.
+ * A gun fires on the press and never charges, so it never slows.
  */
 export const AIM_SLOW_SPEED = 0.5;
 export const AIM_SLOW_MAX_TICKS = TICK_HZ;
 export const AIM_SLOW_RAMP_TICKS = 6;
+/**
+ * Aiming never takes a rider below this fraction of the round's pace. Self-trail immunity is counted in ticks, so a rider
+ * much slower than this is still touching trail they laid after the grace ran out: three Snails are survivable, and
+ * pressing the bomb button under them must stay so.
+ */
+export const AIM_SLOW_FLOOR = 0.125;
 export interface AimSlow {
   /** How far into the slowdown the rider is, 0 (full speed) to AIM_SLOW_RAMP_TICKS (slowest). One step per tick. */
   aimSlowTicks: number;
+  /** Ticks of the slowdown budget in use, 0 to AIM_SLOW_MAX_TICKS. */
+  aimSlowSpentTicks: number;
   bombChargeStartedTick?: number;
 }
-/** The rider's `aimSlowTicks` once `tick` has moved them: one step toward slow while a charge is young, one step back otherwise. */
-export function nextAimSlowTicks(player: AimSlow, tick: number): number {
-  const aiming =
-    player.bombChargeStartedTick !== undefined &&
-    tick - player.bombChargeStartedTick <= AIM_SLOW_MAX_TICKS;
-  return Math.max(
-    0,
-    Math.min(AIM_SLOW_RAMP_TICKS, player.aimSlowTicks + (aiming ? 1 : -1)),
-  );
+/** The rider's slowdown once the next tick has moved them: a step toward slow while they aim within budget, a step back otherwise. */
+export function nextAimSlow(
+  player: AimSlow,
+): Pick<AimSlow, "aimSlowTicks" | "aimSlowSpentTicks"> {
+  const held = player.bombChargeStartedTick !== undefined;
+  const aiming = held && player.aimSlowSpentTicks < AIM_SLOW_MAX_TICKS;
+  return {
+    aimSlowTicks: Math.max(
+      0,
+      Math.min(AIM_SLOW_RAMP_TICKS, player.aimSlowTicks + (aiming ? 1 : -1)),
+    ),
+    aimSlowSpentTicks: Math.max(
+      0,
+      player.aimSlowSpentTicks + (aiming ? 1 : held ? 0 : -1),
+    ),
+  };
 }
-/** Smoothstep from 1 down to AIM_SLOW_SPEED: multiplication and division only, so every replica agrees to the bit. */
+/** Smoothstep from 1 down to AIM_SLOW_SPEED: basic arithmetic only, so every replica agrees to the bit. */
 export function aimSlowMultiplier(aimSlowTicks: number): number {
   const t = aimSlowTicks / AIM_SLOW_RAMP_TICKS;
   return 1 - (1 - AIM_SLOW_SPEED) * t * t * (3 - 2 * t);
 }
 /**
  * How far a rider moves and may turn on `tick`, given their state after the tick before: the round's ramp on both, then
- * the speed pickups and the aiming slowdown on distance alone. `aimSlowTicks` is the level this step moves at, for the
- * simulation to store. A caller looking further ahead than one tick holds the slowdown at that level, which is close
+ * the speed pickups and the aiming slowdown on distance alone. The slowdown returned is the one this step moves at, for
+ * the simulation to store. A caller looking further ahead than one tick holds the slowdown at that level, which is close
  * enough for a forecast: it is never more than AIM_SLOW_RAMP_TICKS steps from the truth.
  */
 export function riderMotionStep(
   player: SpeedEffects & AimSlow & { grip: boolean },
   tick: number,
   roundStartedTick: number | undefined,
-): { distance: number; turn: number; aimSlowTicks: number } {
+): {
+  distance: number;
+  turn: number;
+  aimSlowTicks: number;
+  aimSlowSpentTicks: number;
+} {
   const ramp = roundSpeedMultiplier(tick - (roundStartedTick ?? tick));
   const distance = (RIDER_SPEED / TICK_HZ) * ramp;
-  const aimSlowTicks = nextAimSlowTicks(player, tick);
+  const aimSlow = nextAimSlow(player);
+  const speed = riderSpeedMultiplier(player, tick);
   return {
     distance:
       distance *
-      riderSpeedMultiplier(player, tick) *
-      aimSlowMultiplier(aimSlowTicks),
+      Math.max(
+        speed * aimSlowMultiplier(aimSlow.aimSlowTicks),
+        Math.min(speed, AIM_SLOW_FLOOR),
+      ),
     turn: (riderTurnRate(player) / TICK_HZ) * ramp,
-    aimSlowTicks,
+    ...aimSlow,
   };
 }
 
@@ -397,8 +422,9 @@ export interface PlayerState extends Required<PlayerIdentity> {
   roundWins: number;
   bombReadyAtTick: number;
   bombChargeStartedTick?: number;
-  /** Eased aiming slowdown, 0 to AIM_SLOW_RAMP_TICKS: see `nextAimSlowTicks`. */
+  /** Eased aiming slowdown, 0 to AIM_SLOW_RAMP_TICKS, and the budget it has used, 0 to AIM_SLOW_MAX_TICKS: see `nextAimSlow`. */
   aimSlowTicks: number;
+  aimSlowSpentTicks: number;
   gunArmed?: boolean;
   shellArmed?: boolean;
   targetBombArmed: boolean;
@@ -616,6 +642,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     roundWins: 0,
     bombReadyAtTick: 0,
     aimSlowTicks: 0,
+    aimSlowSpentTicks: 0,
     extraBombs: 0,
     fuseLevel: 0,
     powerPickups: 0,
@@ -827,12 +854,13 @@ export function step(
       player.drunkStartedTick,
       player.drunkUntilTick,
     );
-    const { distance, turn, aimSlowTicks } = riderMotionStep(
+    const { distance, turn, aimSlowTicks, aimSlowSpentTicks } = riderMotionStep(
       player,
       state.tick,
       state.roundStartedTick,
     );
     player.aimSlowTicks = aimSlowTicks;
+    player.aimSlowSpentTicks = aimSlowSpentTicks;
     // Curved space turns the rider before the kernel does, so steering and the hole add up inside one ordinary turn-then-move step.
     const pose = advanceRiderPose(
       {
@@ -1748,6 +1776,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
         ? {}
         : { bombChargeStartedTick: player.bombChargeStartedTick }),
       aimSlowTicks: player.aimSlowTicks,
+      aimSlowSpentTicks: player.aimSlowSpentTicks,
       extraBombs: player.extraBombs,
       fuseLevel: player.fuseLevel,
       powerPickups: player.powerPickups,
@@ -1876,6 +1905,7 @@ function prepareRound(state: GameState): void {
     player.bombChargeStartedTick = undefined;
     player.bombTarget = undefined;
     player.aimSlowTicks = 0;
+    player.aimSlowSpentTicks = 0;
     player.bombReadyAtTick = state.tick;
     player.extraBombs = 0;
     player.fuseLevel = 0;

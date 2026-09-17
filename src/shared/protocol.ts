@@ -99,6 +99,7 @@ export interface GameSnapshot {
     bombReadyAtTick: number;
     bombChargeStartedTick?: number;
     aimSlowTicks: number;
+    aimSlowSpentTicks: number;
     trail: ReadonlyArray<TrailSegment>;
     extraBombs: number;
     fuseLevel: number;

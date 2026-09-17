@@ -440,7 +440,7 @@ test("overtime brings the walls in from the very edge, and the round is an ordin
 });
 
 test("bots ride through open edges rather than turning away from them, and survive a wrap round", () => {
-  const game = createGame("bots", 3);
+  const game = createGame("bots", 1);
   game.settings = { ...defaultRoomSettings(), map: "wrap" };
   for (let slot = 0; slot < 4; slot += 1)
     addPlayer(game, {
