@@ -64,6 +64,11 @@ export interface MatchPlayerStatsState extends Omit<
   currentRoundSurvivalTicks: number;
 }
 
+/**
+ * Statistics observe a match; they never stop one. Every recorder below is called from inside a tick (`recordFacts`),
+ * where a throw would abandon the tick half-way, so a rider the match never seated — which only a damaged state can
+ * produce — is simply not counted (issue #253, C8). `finalizeMatchStatsRound` still rejects a contradictory round.
+ */
 export type MatchStatsState = Map<string, MatchPlayerStatsState>;
 
 export function beginMatchParticipant(
@@ -121,12 +126,13 @@ export function recordSurvivalTick(
   invulnerable: boolean,
   bounced: boolean,
 ): void {
-  if (!Number.isFinite(distanceUnits) || distanceUnits < 0)
-    throw new RangeError("distanceUnits must be finite and non-negative");
-  const entry = requireEntry(stats, playerId);
+  const entry = stats.get(playerId);
+  if (!entry) return;
   entry.survivalTicks += 1;
   entry.currentRoundSurvivalTicks += 1;
-  entry.distanceUnits += distanceUnits;
+  // A distance that is not a distance is dropped rather than added: one NaN would poison the total for the match.
+  if (Number.isFinite(distanceUnits) && distanceUnits >= 0)
+    entry.distanceUnits += distanceUnits;
   if (invulnerable) entry.invulnerableTicks += 1;
   if (bounced) entry.wallBounces += 1;
 }
@@ -135,14 +141,16 @@ export function recordBombPlaced(
   stats: MatchStatsState,
   playerId: string,
 ): void {
-  requireEntry(stats, playerId).bombsPlaced += 1;
+  const entry = stats.get(playerId);
+  if (entry) entry.bombsPlaced += 1;
 }
 
 export function recordBombExploded(
   stats: MatchStatsState,
   playerId: string,
 ): void {
-  requireEntry(stats, playerId).bombsExploded += 1;
+  const entry = stats.get(playerId);
+  if (entry) entry.bombsExploded += 1;
 }
 
 export function recordPickup(
@@ -150,7 +158,8 @@ export function recordPickup(
   playerId: string,
   type: PickupType,
 ): void {
-  const entry = requireEntry(stats, playerId);
+  const entry = stats.get(playerId);
+  if (!entry) return;
   entry.pickupsCollected += 1;
   if (type === "target") entry.targetPickups += 1;
   else if (type === "power") entry.powerPickups += 1;
@@ -167,7 +176,8 @@ export function recordPortalTransit(
   stats: MatchStatsState,
   playerId: string,
 ): void {
-  requireEntry(stats, playerId).portalTransits += 1;
+  const entry = stats.get(playerId);
+  if (entry) entry.portalTransits += 1;
 }
 
 export function recordDeath(
@@ -177,13 +187,13 @@ export function recordDeath(
   creditedPlayerId?: string,
   method: KillMethod = cause === "explosion" ? "unknown" : cause,
 ): void {
-  const victim = requireEntry(stats, playerId);
+  const victim = stats.get(playerId);
   const credited =
     creditedPlayerId !== undefined && creditedPlayerId !== playerId
-      ? requireEntry(stats, creditedPlayerId)
+      ? stats.get(creditedPlayerId)
       : undefined;
-  victim.deathsByCause[cause] += 1;
-  if (victim.combat) {
+  if (victim) victim.deathsByCause[cause] += 1;
+  if (victim?.combat) {
     victim.combat.deaths[method] += 1;
     if (credited)
       victim.combat.versus[
@@ -211,7 +221,8 @@ export function recordEarlyExit(
   stats: MatchStatsState,
   playerId: string,
 ): void {
-  requireEntry(stats, playerId).earlyExits += 1;
+  const entry = stats.get(playerId);
+  if (entry) entry.earlyExits += 1;
 }
 
 export function finalizeMatchStatsRound(
@@ -225,8 +236,8 @@ export function finalizeMatchStatsRound(
     throw new Error("Round participants must have unique ids");
   if (winnerId !== undefined && !uniqueIds.has(winnerId))
     throw new Error("Round winner must be a participant");
-  const entries = participantIds.map((playerId) =>
-    requireEntry(stats, playerId),
+  const entries = participantIds.flatMap(
+    (playerId) => stats.get(playerId) ?? [],
   );
   const scores = new Map<string, number>();
   for (const placement of placements) {
@@ -313,13 +324,4 @@ export function snapshotMatchStats(
       earlyExits: entry.earlyExits,
     };
   });
-}
-
-function requireEntry(
-  stats: ReadonlyMap<string, MatchPlayerStatsState>,
-  playerId: string,
-): MatchPlayerStatsState {
-  const entry = stats.get(playerId);
-  if (!entry) throw new Error(`unknown match participant: ${playerId}`);
-  return entry;
 }

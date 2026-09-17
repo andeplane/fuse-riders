@@ -116,37 +116,40 @@ test("tracks round draws, longest survival and competition-ranked win ties", () 
   assert.equal(zero.roundsDrawn, 1);
 });
 
-test("validates references, distances and round membership", () => {
+test("recorders called mid-tick tolerate a missing rider and a bad distance; a contradictory round is still rejected", () => {
   const stats: MatchStatsState = new Map();
   beginMatchParticipant(stats, identity("a", 0));
-  assert.throws(
-    () => recordSurvivalTick(stats, "a", -1, false, false),
-    /distanceUnits/,
+  // A throw here would abandon a tick half-way (#253 C8): the tick is counted and the distance that is not one is dropped.
+  recordSurvivalTick(stats, "a", -1, false, false);
+  recordSurvivalTick(stats, "a", Number.NaN, true, true);
+  recordSurvivalTick(stats, "a", 2.5, false, false);
+  assert.deepEqual(
+    [
+      stats.get("a")!.survivalTicks,
+      stats.get("a")!.distanceUnits,
+      stats.get("a")!.invulnerableTicks,
+      stats.get("a")!.wallBounces,
+    ],
+    [3, 2.5, 1, 1],
   );
-  assert.throws(
-    () => recordSurvivalTick(stats, "a", Number.NaN, false, false),
-    /distanceUnits/,
-  );
-  assert.throws(
-    () => recordBombPlaced(stats, "missing"),
-    /unknown match participant/,
-  );
-  assert.throws(
-    () => recordBombExploded(stats, "missing"),
-    /unknown match participant/,
-  );
-  assert.throws(
-    () => recordPickup(stats, "missing", "star"),
-    /unknown match participant/,
-  );
-  assert.throws(
-    () => recordDeath(stats, "a", "wall", "missing"),
-    /unknown match participant/,
-  );
-  assert.throws(
-    () => recordEarlyExit(stats, "missing"),
-    /unknown match participant/,
-  );
+  const before = structuredClone(stats);
+  recordSurvivalTick(stats, "missing", 1, false, false);
+  recordBombPlaced(stats, "missing");
+  recordBombExploded(stats, "missing");
+  recordPickup(stats, "missing", "star");
+  recordPortalTransit(stats, "missing");
+  recordEarlyExit(stats, "missing");
+  assert.deepEqual(stats, before, "an unseated rider is not counted");
+  // The victim's death still counts when its killer is unknown, and a known killer is still credited with an unknown victim.
+  recordDeath(stats, "a", "wall", "missing");
+  assert.equal(stats.get("a")!.deathsByCause.wall, 1);
+  assert.equal(stats.get("a")!.eliminations, 0);
+  recordDeath(stats, "missing", "explosion", "a", "bomb");
+  assert.equal(stats.get("a")!.eliminations, 1);
+  assert.equal(stats.get("a")!.combat!.kills.bomb, 1);
+  assert.equal(stats.has("missing"), false);
+  finalizeMatchStatsRound(stats, ["a", "missing"], "a");
+  assert.equal(stats.get("a")!.roundsPlayed, 1);
   assert.throws(() => finalizeMatchStatsRound(stats, ["a", "a"]), /unique ids/);
   assert.throws(
     () => finalizeMatchStatsRound(stats, ["a"], "missing"),
