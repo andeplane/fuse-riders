@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Local mirror of .github/workflows/ci.yml: same steps, same order, same env.
 # PORT=8801 scripts/ci-local.sh            (default port 8787)
-# ONLY=core,keyboard scripts/ci-local.sh   core = typecheck,coverage,build
-# Steps: typecheck coverage build lan avatar keyboard online preview phaser home landscape recap shared determinism mesh
+# ONLY=core,keyboard scripts/ci-local.sh   core = format,typecheck,coverage,build
+# Steps: format typecheck coverage build lan avatar keyboard online preview phaser home landscape recap shared determinism mesh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PORT="${PORT:-8787}"
 URL="http://localhost:$PORT/"
-STEPS="typecheck,coverage,build,lan,avatar,keyboard,online,preview,phaser,home,landscape,recap,shared,determinism,mesh"
-ONLY="${ONLY:-}"; ONLY="${ONLY//core/typecheck,coverage,build}"
+STEPS="format,typecheck,coverage,build,lan,avatar,keyboard,online,preview,phaser,home,landscape,recap,shared,determinism,mesh"
+ONLY="${ONLY:-}"; ONLY="${ONLY//core/format,typecheck,coverage,build}"
 for t in ${ONLY//,/ }; do [[ ",$STEPS," == *",$t,"* ]] || { echo "Unknown ONLY step '$t' (steps: $STEPS, core)"; exit 1; }; done
 ROOM_SERVICE_PID=""
 START=$SECONDS
@@ -49,6 +49,7 @@ stop_room_service() {
 }
 trap stop_room_service EXIT
 
+step format npm run format:check
 step typecheck npm run typecheck
 step coverage npm run test:coverage
 step build npm run build

@@ -8,11 +8,11 @@ A TypeScript party game for 2–5 players: steer neon riders, dodge their trails
 
 ![Restored neon room lobby with QR invite and rider cards](docs/online/ui-evidence/lobby-desktop-1a25594.png)
 
-*Actual desktop browser screenshot (1280×800) of the restored room lobby from the [controller and lobby acceptance](docs/online/ui-evidence/README.md), captured at source `1a25594` against an isolated local Worker during PR #2. Every runtime deployed since `68bea0d` (currently `a4bee00`) ships this UI; the image is not a screenshot of the public deployment.*
+_Actual desktop browser screenshot (1280×800) of the restored room lobby from the [controller and lobby acceptance](docs/online/ui-evidence/README.md), captured at source `1a25594` against an isolated local Worker during PR #2. Every runtime deployed since `68bea0d` (currently `a4bee00`) ships this UI; the image is not a screenshot of the public deployment._
 
 ![Fuse Riders Phaser gameplay showcase](docs/gameplay-phaser.png)
 
-*Five AI riders playing an actual match in the real game client — not a staged fixture.*
+_Five AI riders playing an actual match in the real game client — not a staged fixture._
 
 Public Chrome and WebKit checks covered phone hosting, AI, guest connections, saved settings, shared-TV play and reset at runtime `6c1673b`; the [public acceptance report](docs/online/PUBLIC-ACCEPTANCE.md) records that tested release. The restored UI (`68bea0d`: neon lobby, landscape touch controls, keyboard controls, short room codes) was first published after local Chrome/WebKit verification; its CI run failed at the desktop keyboard browser check, PRs #9 and #11 fixed that check, and the currently deployed `a4bee00` runtime passed CI 34822503284. No clean public acceptance run for the restored UI is recorded in this repository; see the [release status](docs/online/PUBLIC-BETA-2026-09-14.md#restored-ui-release-68bea0d). Renderer and network benchmarks are documented separately; physical-device performance and arbitrary network reliability are not guaranteed. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The LAN path remains available.
 
@@ -79,9 +79,9 @@ The LAN TV provides audio controls, fullscreen, a main-menu reset, session score
 
 ## Architecture
 
-| Path | Simulation authority | Communication | Lifetime |
-| --- | --- | --- | --- |
-| LAN | Local Node process | WebSocket intents, snapshots and events | Process must run during play; restart resets state |
+| Path   | Simulation authority                    | Communication                                       | Lifetime                                                                                           |
+| ------ | --------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| LAN    | Local Node process                      | WebSocket intents, snapshots and events             | Process must run during play; restart resets state                                                 |
 | Online | Every device, from one shared input log | Full WebRTC mesh; backend WebSocket signalling only | Any member can serve the world to a joiner; a refreshed creator or guest rejoins the running match |
 
 ```text
@@ -96,22 +96,22 @@ Online:  every member ── WebRTC mesh (one link per pair) ── every member
 
 The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript trigonometry so every engine folds the same state. Once every human rider is out of a round and only AI riders survive, the tick clock runs three times faster until the round ends (`simulationTimeScale` in [game.ts](src/shared/game.ts)); the tick rules themselves do not change. Online rooms are peer-to-peer: every device that renders the world simulates it locally from one shared input log. Each member owns one stream of edge-filtered entries (steer, aim, press, release, cancel, avatar); the creator's stream also carries the management entries (join, leave, presence, settings, start, rematch, lobby, AI riders). Every member sends one small MessagePack packet to every other member per tick and immediately on a new entry; completeness, liveness, loss and RTT are derived from that stream, and a missing entry is repaired by nack or by rotation through the retained window. A player's own input applies on the next simulation tick; other players' inputs apply one network hop later, and a late entry rolls the world back up to 40 ticks and re-simulates. Joiners and refreshed pages install a validated snapshot from any peer. See the [P2P design brief and measurements](docs/online/P2P-INPUT-LOG-BRIEF.md); `?stats=1` (or **ROOM → SHOW NETWORK STATS**) shows each device's own link quality. Gameplay never uses the backend as a relay. Failed WebRTC connections show why (STUN, signalling or ICE) in the header and under **MENU → LINK DIAGNOSTICS**; there is no TURN server, so a guest behind symmetric or carrier-grade NAT (common on cellular) may be unable to connect directly and should join the host's Wi-Fi. See [protocol notes](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
 
-| Location | Responsibility |
-| --- | --- |
-| `src/shared/` | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops |
-| `src/server/` | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling |
-| `src/client/` | Phaser presentation (WebGL/Canvas), themes, audio, avatars and phone pointer controls |
-| `src/shared/input-log.ts`, `apply-tick.ts` | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries |
-| `src/online/stream.ts`, `rollback.ts`, `clock.ts` | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock |
-| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts` | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation |
-| `src/online/room-runtime.ts` | One runtime for solo and online rooms (roles, cadence, creator duties, presentation), over the `fuse-network-fe` transport |
-| `src/online/prediction.ts`, `net-stats.ts`, `ui.ts` | Fractional presentation with immediate local steering, the per-device link quality overlay, and the room UI |
-| `packages/fuse-network-fe/` | Game-agnostic browser library: the full WebRTC mesh with reliable and unreliable channels (`peer-transport.ts`), link health, ICE restarts, diagnostics and the room API client ([README](packages/fuse-network-fe/README.md)) |
-| `packages/fuse-network-be/` | Game-agnostic room service: API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`), in-memory metadata (`dev.ts`) and Firestore transactions with Pub/Sub signalling (`gcp/`) ([README](packages/fuse-network-be/README.md)) |
-| `packages/fuse-network-protocol/` | The wire contract both libraries share: room codes, authority lease, STUN defaults, protocol version |
-| `src/service/` | The game's entry points into `fuse-network-be`: production (`index.ts`), local development and CI (`dev.ts`), and the room capacity |
-| `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines |
-| `tests/`, `scripts/` | Deterministic tests, browser checks and benchmark runners |
+| Location                                                                     | Responsibility                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/`                                                                | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops                                                                                                             |
+| `src/server/`                                                                | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling                                                                                                                                                   |
+| `src/client/`                                                                | Phaser presentation (WebGL/Canvas), themes, audio, avatars and phone pointer controls                                                                                                                                                  |
+| `src/shared/input-log.ts`, `apply-tick.ts`                                   | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries                                                                                                            |
+| `src/online/stream.ts`, `rollback.ts`, `clock.ts`                            | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock                                                                                                     |
+| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts`                       | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation                                                                                                                             |
+| `src/online/room-runtime.ts`                                                 | One runtime for solo and online rooms (roles, cadence, creator duties, presentation), over the `fuse-network-fe` transport                                                                                                             |
+| `src/online/prediction.ts`, `net-stats.ts`, `ui.ts`                          | Fractional presentation with immediate local steering, the per-device link quality overlay, and the room UI                                                                                                                            |
+| `packages/fuse-network-fe/`                                                  | Game-agnostic browser library: the full WebRTC mesh with reliable and unreliable channels (`peer-transport.ts`), link health, ICE restarts, diagnostics and the room API client ([README](packages/fuse-network-fe/README.md))         |
+| `packages/fuse-network-be/`                                                  | Game-agnostic room service: API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`), in-memory metadata (`dev.ts`) and Firestore transactions with Pub/Sub signalling (`gcp/`) ([README](packages/fuse-network-be/README.md)) |
+| `packages/fuse-network-protocol/`                                            | The wire contract both libraries share: room codes, authority lease, STUN defaults, protocol version                                                                                                                                   |
+| `src/service/`                                                               | The game's entry points into `fuse-network-be`: production (`index.ts`), local development and CI (`dev.ts`), and the room capacity                                                                                                    |
+| `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines                                                                                                                                                                                  |
+| `tests/`, `scripts/`                                                         | Deterministic tests, browser checks and benchmark runners                                                                                                                                                                              |
 
 Phaser is presentation only: the caller supplies snapshots to one render loop, pooled effects are bounded, and Phaser physics/timers never advance game authority. Themes and avatars respect the Pages base path. See [renderer architecture and benchmarks](docs/PHASER.md).
 

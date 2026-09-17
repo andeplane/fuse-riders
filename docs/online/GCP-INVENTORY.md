@@ -25,7 +25,7 @@ Image registry `europe-west1-docker.pkg.dev/andershaf-87/fuse-riders` is created
 - Actual public room creation returned HTTP 201 and host WSS admission returned protocol 2 plus authority using the attached runtime service account. This establishes those provider operations, not the complete public smoke or RTC acceptance.
 - The first complete public smoke stopped at `/healthz`, which Google reserves before requests reach the service. Safe `/api/health` and `/api/ready` aliases were deployed in the subsequent revision below; do not treat the initial failed smoke as passed.
 
- Active WebSockets incur Cloud Run work; minimum instances zero is not a claim that active play costs nothing.
+Active WebSockets incur Cloud Run work; minimum instances zero is not a claim that active play costs nothing.
 
 ## Verified beta backend update and public play
 

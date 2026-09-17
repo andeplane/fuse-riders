@@ -1,84 +1,673 @@
-import {chromium,webkit,type Page} from 'playwright';
-import assert from 'node:assert/strict';
-import {mkdir,writeFile} from 'node:fs/promises';
-import { smokeTimeout } from './smoke-timeout.js';
-const base=process.env.ONLINE_URL??'http://127.0.0.1:8796/';await mkdir('artifacts',{recursive:true});const results:object[]=[];
-async function qr(page:Page){await page.locator('.shared-lobby').waitFor({state:'visible'});await page.waitForFunction(()=>{const image=document.querySelector<HTMLImageElement>('.shared-lobby img');return image?.complete&&image.naturalWidth>0;});}
-for(const [name,type] of [['chrome',chromium],['webkit',webkit]] as const){const browser=await type.launch({headless:true});const errors:string[]=[];let guestSockets=0;let guestNavigations=0;let joinRetries=0;let releaseConnection=()=>{};let diagnosticPages:Record<string,Page>={};
- try{
-  // #134/#138: a host on a phone gets the phone lobby before taking a seat — join form, QR card, one menu and every host action on screen — in both orientations.
-  {const pc=await browser.newContext({viewport:{width:320,height:568},isMobile:true,hasTouch:true});const phone=await pc.newPage();diagnosticPages={phone};phone.setDefaultTimeout(smokeTimeout(25000));phone.on('pageerror',e=>errors.push(`phone: ${e.stack??e.message}`));
-   try{await phone.goto(base);await phone.getByRole('button',{name:'CREATE ROOM',exact:true}).click();await phone.waitForURL(/room=/);await phone.locator('.phone-lobby .shared-lobby').waitFor({state:'visible'});await qr(phone);
-    const phoneCode=new URL(phone.url()).searchParams.get('room')!;
-    const onScreen=async(label:string,locator:ReturnType<Page['locator']>)=>{await locator.scrollIntoViewIfNeeded();const r=await locator.boundingBox(),v=phone.viewportSize()!;assert.ok(r&&r.x>=-1&&r.y>=-1&&r.x+r.width<=v.width+1&&r.y+r.height<=v.height+1,`${label} must be fully on screen at ${v.width}x${v.height}: ${JSON.stringify(r)}`);};
-    for(const viewport of [{width:320,height:568},{width:844,height:390},{width:320,height:568}]){await phone.setViewportSize(viewport);await phone.locator('.phone-lobby').waitFor();
-     assert.equal(await phone.locator('.mobile-play').count(),0,'a host phone before joining is not the controller');assert.equal(await phone.locator('.mobile-rotate-gate').isVisible(),false,'no rotate gate');
-     assert.equal(await phone.locator('button:visible').filter({hasText:/^(ROOM|MENU|☰ MENU)$/}).count(),1,'one menu button');assert.equal(await phone.locator('.shared-room-code').first().textContent(),phoneCode);
-     await onScreen('join name field',phone.getByPlaceholder('Your name'));await onScreen('JOIN AS PLAYER',phone.getByRole('button',{name:'JOIN AS PLAYER',exact:true}));await onScreen('COPY LINK',phone.getByRole('button',{name:'COPY LINK',exact:true}));
-     for(const action of ['START RACE','ROOM SETTINGS','ADD AI'])await onScreen(action,phone.getByRole('button',{name:action,exact:true}));
-     assert.equal(await phone.getByRole('button',{name:'TV VIEW',exact:true}).isVisible(),false,'a phone is never the TV: no TV VIEW in the phone lobby');
-     // #142: the yellow hint clears the lobby card, the avatar grid stays folded behind CHANGE, no truncated URL, and ⛶ only where fullscreen exists.
-     const hintBox=(await phone.locator('.online-notice').boundingBox())!,lobbyBox=(await phone.locator('.phone-lobby>.room-lobby').boundingBox())!;assert.ok(hintBox.height>=12&&hintBox.y+hintBox.height<=lobbyBox.y+1,`lobby hint must sit above the lobby card: ${JSON.stringify({hintBox,lobbyBox})}`);
-     assert.equal(await phone.locator('.online-join .avatar-options').isVisible(),false,'avatar grid folded');assert.equal(await phone.locator('.online-controls').isVisible(),false,'no ◀ FIRE ▶ controls before a seat');assert.equal(await phone.locator('.room-qr-url').isVisible(),false,'no truncated join URL on a phone');
-     await phone.getByRole('button',{name:'SETTINGS',exact:true}).click();assert.equal(await phone.getByRole('button',{name:'FULLSCREEN',exact:true}).isVisible(),await phone.evaluate(()=>Boolean(document.fullscreenEnabled)),'fullscreen button only where fullscreen exists');await phone.getByRole('button',{name:'CLOSE',exact:true}).click();
-     await phone.screenshot({path:`artifacts/shared-phone-host-${name}-${viewport.width}x${viewport.height}.png`});}
-    await phone.getByRole('button',{name:/^Avatar · .*, change$/}).click();await phone.getByRole('button',{name:'Owl',exact:true}).click();await phone.getByRole('button',{name:'Avatar · Owl, change'}).waitFor();assert.equal(await phone.locator('.online-join .avatar-options').isVisible(),false,'a pick folds the grid again');
-    // An empty JOIN says what is missing instead of doing nothing (#132).
-    await phone.getByRole('button',{name:'JOIN AS PLAYER',exact:true}).click();await phone.getByRole('alert').filter({hasText:'Enter your name to join'}).waitFor();
-   }finally{await pc.close();}}
-const hc=await browser.newContext({viewport:{width:1280,height:800},...(name==='chrome'?{permissions:['clipboard-read','clipboard-write']}:{})}),gc=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),dc=await browser.newContext({viewport:{width:1280,height:800}});const host=await hc.newPage(),guest=await gc.newPage(),display=await dc.newPage();diagnosticPages={host,guest,display};for(const [role,page] of Object.entries(diagnosticPages)){page.setDefaultTimeout(smokeTimeout(25000));page.on('pageerror',e=>errors.push(`${role}: ${e.stack??e.message}`));}guest.on('websocket',()=>guestSockets++);guest.on('framenavigated',frame=>{if(frame===guest.mainFrame())guestNavigations++;});
- await host.goto(base);await host.getByRole('radio',{name:'Shared TV',exact:true}).check();await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();await host.waitForURL(/room=/);const invite=host.url(),code=new URL(invite).searchParams.get('room')!;assert.match(code,/^[A-Z]{2}[0-9]{2}$/);await qr(host);assert.equal(await host.locator('.shared-room-code').textContent(),code);assert.equal(await host.locator('.online-arena').isVisible(),false);
- // The lobby hands out the join link as text next to the QR, and COPY reports what it managed to do (the clipboard is unavailable on some headless browsers).
- const joinUrl=(await host.locator('.room-qr-url').textContent())!;assert.equal(joinUrl,invite,`lobby link must be the invite: ${joinUrl}`);
- const qrCardBox=(await host.locator('.room-qr-card').boundingBox())!,linkBox=(await host.locator('.room-qr-link').boundingBox())!;
- assert.ok(linkBox.x>=qrCardBox.x-1&&linkBox.x+linkBox.width<=qrCardBox.x+qrCardBox.width+1&&linkBox.y+linkBox.height<=qrCardBox.y+qrCardBox.height+1,`link must sit inside the QR card: ${JSON.stringify({qrCardBox,linkBox})}`);
- await host.getByRole('button',{name:'COPY LINK',exact:true}).click();await host.waitForFunction(()=>document.querySelector('.room-qr-copy')?.textContent!=='COPY LINK');
- const copyLabel=(await host.locator('.room-qr-copy').textContent())!;assert.match(copyLabel,/^(COPIED|COPY FAILED)$/);
- // Only Chromium grants a readable clipboard here, and a blocked read can hang, so the check is bounded and skipped elsewhere.
- const clipboard=name==='chrome'&&copyLabel==='COPIED'?await Promise.race([host.evaluate(()=>navigator.clipboard.readText()).catch(()=>'unreadable'),new Promise<string>(resolve=>setTimeout(()=>resolve('unreadable'),4000))]):'skipped';
- if(clipboard!=='skipped'&&clipboard!=='unreadable')assert.equal(clipboard,invite,'COPIED must mean the link is on the clipboard');
- await host.waitForFunction(()=>document.querySelector('.room-qr-copy')?.textContent==='COPY LINK');
- await guest.addInitScript(()=>{Reflect.set(window,'__sharedStates',[]);window.addEventListener('fuse-benchmark',event=>{const detail=(event as CustomEvent).detail;if(detail.kind==='snapshot'){const states=Reflect.get(window,'__sharedStates') as unknown[];states.push(detail);if(states.length>200)states.shift();}});});
- // #132: preserve a partly typed name and focus as peer state finishes booting. Room DOM now builds
- // synchronously without the removed sprite loader. Hold only this guest's incoming signalling messages
- // until typing begins; all messages are then forwarded unchanged and the real peer connection completes.
-  let held=true;let connected!:()=>void;const connectionSeen=new Promise<void>(resolve=>{connected=resolve;});
-  await guest.routeWebSocket(url=>url.pathname.endsWith(`/api/rooms/${code}/ws`),ws=>{
-   const server=ws.connectToServer();const pending:Array<string|Buffer>=[];
-   server.onMessage(message=>{if(held)pending.push(message);else ws.send(message);});
-   releaseConnection=()=>{held=false;for(const message of pending)ws.send(message);pending.length=0;};connected();
+import { chromium, webkit, type Page } from "playwright";
+import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { smokeTimeout } from "./smoke-timeout.js";
+const base = process.env.ONLINE_URL ?? "http://127.0.0.1:8796/";
+await mkdir("artifacts", { recursive: true });
+const results: object[] = [];
+async function qr(page: Page) {
+  await page.locator(".shared-lobby").waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const image = document.querySelector<HTMLImageElement>(".shared-lobby img");
+    return image?.complete && image.naturalWidth > 0;
   });
-  await guest.goto(invite+'&benchmark=1',{waitUntil:'domcontentloaded'});
-  let connectionDeadline:ReturnType<typeof setTimeout>|undefined;
-  try{await Promise.race([connectionSeen,new Promise<never>((_,reject)=>{connectionDeadline=setTimeout(()=>reject(Error('Guest signalling route did not open')),smokeTimeout(10000));})]);}finally{clearTimeout(connectionDeadline);}
-  const earlyName=guest.getByPlaceholder('Your name');await earlyName.focus();
-  await guest.locator('.room-boot-note').waitFor({state:'visible'});await guest.keyboard.type('QR');
-  releaseConnection();await guest.locator('.room-boot-note').waitFor({state:'hidden'});await guest.keyboard.type(' guest');
-  assert.equal(await guest.evaluate(()=>document.activeElement?.getAttribute('placeholder')),'Your name','guest name field keeps focus through boot');assert.equal(await earlyName.inputValue(),'QR guest','a name typed across boot is kept');
-  // #132: WebKit showed the guest's name field empty after JOIN, so the join never went out. The boot window itself is covered above; here an
-  // emptied field still fails with the navigation count, and a kept name whose tap was lost gets one counted retap.
-  const joinName=guest.getByPlaceholder('Your name'),joinButton=guest.getByRole('button',{name:'JOIN AS PLAYER',exact:true});await joinName.fill('QR guest');const navigationsBeforeJoin=guestNavigations;await joinButton.click();
-  if(!(await joinName.waitFor({state:'hidden',timeout:smokeTimeout(6000)}).then(()=>true,()=>false))){const field=await joinName.inputValue().catch(()=>null);assert.equal(field,'QR guest',`guest name field after JOIN (navigations ${navigationsBeforeJoin} before JOIN, ${guestNavigations} now)`);
-   if(await joinButton.isVisible()){joinRetries++;console.warn(`shared room (${name}): join form still up 6 s after JOIN with the name kept; tapping again`);await joinButton.click({timeout:smokeTimeout(3000)}).catch(()=>{});}}
-  await host.locator('.room-riders').getByText('QR guest',{exact:true}).waitFor();await guest.locator('.phone-lobby .shared-lobby').waitFor({state:'visible'});assert.equal(await guest.locator('.online-controls').isVisible(),false,'no thirds in the lobby');
- // #134: a joined phone in the lobby is a lobby screen in every viewport and orientation — its rider row on screen, one menu, no rotate gate, no thirds. The thirds are checked once the race starts.
- const controlBounds=[];for(const viewport of [{width:320,height:568},{width:390,height:844},{width:844,height:390}]){await guest.setViewportSize(viewport);await guest.locator('.phone-lobby').waitFor();assert.equal(await guest.locator('.mobile-play').count(),0,'the lobby is not the controller');assert.equal(await guest.locator('.mobile-rotate-gate').isVisible(),false,'no rotate gate in the lobby');const me=guest.locator('.room-riders').getByText('QR guest',{exact:true});await me.scrollIntoViewIfNeeded();const rider=(await me.boundingBox())!;assert.ok(rider.x>=0&&rider.y>=0&&rider.x+rider.width<=viewport.width+1&&rider.y+rider.height<=viewport.height+1,`rider row must be on screen: ${JSON.stringify(rider)}`);assert.equal(await guest.locator('button:visible').filter({hasText:/^(ROOM|MENU|☰ MENU)$/}).count(),1,'one menu button in the lobby');assert.match((await guest.locator('.online-notice').textContent())??'',/^Waiting for the host/,'guest sees why it waits');controlBounds.push({viewport,rider});await guest.screenshot({path:`artifacts/shared-lobby-${name}-${viewport.width}.png`});}
- // TV VIEW replaced the invite dialog: it opens the display role straight away.
- const [tvTab]=await Promise.all([hc.waitForEvent('page'),host.getByRole('button',{name:'TV VIEW',exact:true}).click()]);await tvTab.waitForLoadState('domcontentloaded');assert.match(tvTab.url(),new RegExp(`room=${code}&display=1`));assert.equal(await host.locator('dialog[open]').count(),0,'TV VIEW must not open a dialog');await tvTab.close();
- await display.goto(invite+'&display=1');await qr(display);assert.equal(await display.locator('.shared-room-code').textContent(),code);await host.getByRole('button',{name:'ADD AI',exact:true}).click();await host.getByRole('button',{name:/Remove AI/}).waitFor();await host.screenshot({path:`artifacts/shared-qr-${name}.png`});
- await host.getByRole('button',{name:'START RACE',exact:true}).click();await display.locator('.shared-lobby').waitFor({state:'hidden'});await display.locator('.online-arena').waitFor({state:'visible'});await display.waitForFunction(()=>document.querySelector('canvas')?.dataset.renderer?.startsWith('phaser-'));await guest.waitForFunction(()=>{const states=Reflect.get(window,'__sharedStates') as {phase:string}[];return states.at(-1)?.phase==='playing';});await guest.locator('.mobile-play').waitFor();const fullThirds=await guest.locator('.online-controls button').evaluateAll(buttons=>buttons.map(b=>{const r=b.getBoundingClientRect();return{x:r.x,width:r.width,height:r.height};}));for(const [i,r] of fullThirds.entries()){assert.ok(Math.abs(r.x-i*844/3)<1);assert.ok(Math.abs(r.width-844/3)<1);assert.equal(r.height,390);}assert.equal(await guest.locator('.online-arena').isVisible(),false);assert.equal(await guest.locator('.mobile-control-hints').evaluate(e=>getComputedStyle(e).animationName),'none');await guest.screenshot({path:`artifacts/shared-landscape-thirds-${name}.png`});const beforeAngle=await guest.evaluate(()=>{const states=Reflect.get(window,'__sharedStates') as {playerId:string;players:{id:string;angle:number}[]}[];const state=states.at(-1)!;return state.players.find(p=>p.id===state.playerId)!.angle;});const left=guest.getByRole('button',{name:'◀',exact:true}),leftBounds=await left.boundingBox();assert.ok(leftBounds);await guest.mouse.move(leftBounds.x+leftBounds.width/2,leftBounds.y+leftBounds.height/2);await guest.mouse.down();try{await guest.waitForFunction(before=>{const states=Reflect.get(window,'__sharedStates') as {playerId:string;players:{id:string;angle:number}[]}[];const state=states.at(-1)!;const player=state.players.find(p=>p.id===state.playerId)!;const change=Math.atan2(Math.sin(player.angle-before),Math.cos(player.angle-before));return change<-.01;},beforeAngle);assert.ok(await left.evaluate(e=>e.classList.contains('active')),'held input feedback');await new Promise(resolve=>setTimeout(resolve,500));assert.equal(await guest.evaluate(()=>getSelection()?.toString()??''),'');assert.equal(await left.evaluate(e=>e.dispatchEvent(new Event('contextmenu',{bubbles:true,cancelable:true}))),false,'control context menu prevented');assert.equal(await left.evaluate(e=>e.dispatchEvent(new Event('selectstart',{bubbles:true,cancelable:true}))),false,'control selection prevented');}finally{await guest.mouse.up();}await guest.waitForFunction(()=>!document.querySelector('.online-controls button')?.classList.contains('active'));
- await host.getByRole('button',{name:'BACK TO LOBBY',exact:true}).click();await qr(host);await qr(display);
- await host.getByRole('button',{name:'ROOM',exact:true}).click();await host.getByRole('button',{name:'END ROOM',exact:true}).click();await host.getByRole('link',{name:/PLAY SOLO/}).waitFor(); // #44: a joined phone must see the ended room without opening ☰ MENU — the thirds controller gives way to the ordinary header, status and MENU.
- const ended=guest.getByText(/room.*(ended|expired)/i).first();await ended.waitFor({state:'visible'});const endedBox=await ended.boundingBox();
- assert.ok(endedBox&&endedBox.width>0&&endedBox.height>0&&endedBox.x>=0&&endedBox.y>=0&&endedBox.x+endedBox.width<=844&&endedBox.y+endedBox.height<=390,`ended text must be visible inside the phone viewport: ${JSON.stringify(endedBox)}`);
- assert.equal(await guest.locator('.mobile-play').count(),0,'ended room must leave the phone thirds controller');
- assert.equal(await guest.locator('.online-controls').isVisible(),false,'ended room must not keep live-looking controls');
- await guest.getByRole('button',{name:'ROOM',exact:true}).waitFor({state:'visible'});await guest.screenshot({path:`artifacts/shared-ended-phone-${name}.png`});
- const socketCount=guestSockets;await new Promise(resolve=>setTimeout(resolve,1800));assert.equal(guestSockets,socketCount,'ended room must not auto-rejoin');assert.deepEqual(errors,[]);results.push({browser:name,passed:true,joinRetries,guestNavigations,shortCodePattern:true,hostQr:true,tvQr:true,joinLink:joinUrl,copyLabel,clipboard,startReset:true,endedWithoutReconnect:true,endedVisibleOnPhone:endedBox,controlBounds,inputApplied:true});console.log(`PASS ${name} shared QR/end room`);
- }catch(error){releaseConnection();console.error(`shared room smoke failed (${name}):`,String(error)); // a failure before release must not leave guest signalling held
-  // Every page's own status and link diagnostics (the MENU text), so a failure says which leg stalled (#132). Each read is
-  // bounded: evaluate ignores the page timeout, and a stuck renderer must not hang the job and hide the error above.
-  const pages:Record<string,object>={};for(const [role,page] of Object.entries(diagnosticPages)){pages[role]=await Promise.race([page.evaluate(()=>({status:(document.querySelector<HTMLElement>('.online-status')?.dataset.raw??document.querySelector('.online-status')?.textContent)??null,link:document.querySelector<HTMLElement>('#app')?.dataset.linkDiagnostics??null,body:document.body.innerText.slice(0,800),joinName:document.querySelector<HTMLInputElement>('.online-join input')?.value??null})).catch(e=>({unavailable:String(e)})),new Promise<object>(resolve=>setTimeout(()=>resolve({unavailable:'page did not answer within 4 s'}),4000))]);await page.screenshot({path:`artifacts/shared-failure-${name}-${role}.png`,timeout:5000}).catch(()=>{});}
-  console.error(`shared room diagnostics (${name}):`,JSON.stringify({pages,guestNavigations,joinRetries},null,2));results.push({browser:name,passed:false,error:String(error),errors,guestNavigations,joinRetries,pages});throw error;}
- finally{await browser.close();await writeFile('artifacts/shared-room-smoke.json',JSON.stringify(results,null,2));}
+}
+for (const [name, type] of [
+  ["chrome", chromium],
+  ["webkit", webkit],
+] as const) {
+  const browser = await type.launch({ headless: true });
+  const errors: string[] = [];
+  let guestSockets = 0;
+  let guestNavigations = 0;
+  let joinRetries = 0;
+  let releaseConnection = () => {};
+  let diagnosticPages: Record<string, Page> = {};
+  try {
+    // #134/#138: a host on a phone gets the phone lobby before taking a seat — join form, QR card, one menu and every host action on screen — in both orientations.
+    {
+      const pc = await browser.newContext({
+        viewport: { width: 320, height: 568 },
+        isMobile: true,
+        hasTouch: true,
+      });
+      const phone = await pc.newPage();
+      diagnosticPages = { phone };
+      phone.setDefaultTimeout(smokeTimeout(25000));
+      phone.on("pageerror", (e) =>
+        errors.push(`phone: ${e.stack ?? e.message}`),
+      );
+      try {
+        await phone.goto(base);
+        await phone
+          .getByRole("button", { name: "CREATE ROOM", exact: true })
+          .click();
+        await phone.waitForURL(/room=/);
+        await phone
+          .locator(".phone-lobby .shared-lobby")
+          .waitFor({ state: "visible" });
+        await qr(phone);
+        const phoneCode = new URL(phone.url()).searchParams.get("room")!;
+        const onScreen = async (
+          label: string,
+          locator: ReturnType<Page["locator"]>,
+        ) => {
+          await locator.scrollIntoViewIfNeeded();
+          const r = await locator.boundingBox(),
+            v = phone.viewportSize()!;
+          assert.ok(
+            r &&
+              r.x >= -1 &&
+              r.y >= -1 &&
+              r.x + r.width <= v.width + 1 &&
+              r.y + r.height <= v.height + 1,
+            `${label} must be fully on screen at ${v.width}x${v.height}: ${JSON.stringify(r)}`,
+          );
+        };
+        for (const viewport of [
+          { width: 320, height: 568 },
+          { width: 844, height: 390 },
+          { width: 320, height: 568 },
+        ]) {
+          await phone.setViewportSize(viewport);
+          await phone.locator(".phone-lobby").waitFor();
+          assert.equal(
+            await phone.locator(".mobile-play").count(),
+            0,
+            "a host phone before joining is not the controller",
+          );
+          assert.equal(
+            await phone.locator(".mobile-rotate-gate").isVisible(),
+            false,
+            "no rotate gate",
+          );
+          assert.equal(
+            await phone
+              .locator("button:visible")
+              .filter({ hasText: /^(ROOM|MENU|☰ MENU)$/ })
+              .count(),
+            1,
+            "one menu button",
+          );
+          assert.equal(
+            await phone.locator(".shared-room-code").first().textContent(),
+            phoneCode,
+          );
+          await onScreen(
+            "join name field",
+            phone.getByPlaceholder("Your name"),
+          );
+          await onScreen(
+            "JOIN AS PLAYER",
+            phone.getByRole("button", { name: "JOIN AS PLAYER", exact: true }),
+          );
+          await onScreen(
+            "COPY LINK",
+            phone.getByRole("button", { name: "COPY LINK", exact: true }),
+          );
+          for (const action of ["START RACE", "ROOM SETTINGS", "ADD AI"])
+            await onScreen(
+              action,
+              phone.getByRole("button", { name: action, exact: true }),
+            );
+          assert.equal(
+            await phone
+              .getByRole("button", { name: "TV VIEW", exact: true })
+              .isVisible(),
+            false,
+            "a phone is never the TV: no TV VIEW in the phone lobby",
+          );
+          // #142: the yellow hint clears the lobby card, the avatar grid stays folded behind CHANGE, no truncated URL, and ⛶ only where fullscreen exists.
+          const hintBox = (await phone
+              .locator(".online-notice")
+              .boundingBox())!,
+            lobbyBox = (await phone
+              .locator(".phone-lobby>.room-lobby")
+              .boundingBox())!;
+          assert.ok(
+            hintBox.height >= 12 &&
+              hintBox.y + hintBox.height <= lobbyBox.y + 1,
+            `lobby hint must sit above the lobby card: ${JSON.stringify({ hintBox, lobbyBox })}`,
+          );
+          assert.equal(
+            await phone.locator(".online-join .avatar-options").isVisible(),
+            false,
+            "avatar grid folded",
+          );
+          assert.equal(
+            await phone.locator(".online-controls").isVisible(),
+            false,
+            "no ◀ FIRE ▶ controls before a seat",
+          );
+          assert.equal(
+            await phone.locator(".room-qr-url").isVisible(),
+            false,
+            "no truncated join URL on a phone",
+          );
+          await phone
+            .getByRole("button", { name: "SETTINGS", exact: true })
+            .click();
+          assert.equal(
+            await phone
+              .getByRole("button", { name: "FULLSCREEN", exact: true })
+              .isVisible(),
+            await phone.evaluate(() => Boolean(document.fullscreenEnabled)),
+            "fullscreen button only where fullscreen exists",
+          );
+          await phone
+            .getByRole("button", { name: "CLOSE", exact: true })
+            .click();
+          await phone.screenshot({
+            path: `artifacts/shared-phone-host-${name}-${viewport.width}x${viewport.height}.png`,
+          });
+        }
+        await phone
+          .getByRole("button", { name: /^Avatar · .*, change$/ })
+          .click();
+        await phone.getByRole("button", { name: "Owl", exact: true }).click();
+        await phone
+          .getByRole("button", { name: "Avatar · Owl, change" })
+          .waitFor();
+        assert.equal(
+          await phone.locator(".online-join .avatar-options").isVisible(),
+          false,
+          "a pick folds the grid again",
+        );
+        // An empty JOIN says what is missing instead of doing nothing (#132).
+        await phone
+          .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
+          .click();
+        await phone
+          .getByRole("alert")
+          .filter({ hasText: "Enter your name to join" })
+          .waitFor();
+      } finally {
+        await pc.close();
+      }
+    }
+    const hc = await browser.newContext({
+        viewport: { width: 1280, height: 800 },
+        ...(name === "chrome"
+          ? { permissions: ["clipboard-read", "clipboard-write"] }
+          : {}),
+      }),
+      gc = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+      }),
+      dc = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const host = await hc.newPage(),
+      guest = await gc.newPage(),
+      display = await dc.newPage();
+    diagnosticPages = { host, guest, display };
+    for (const [role, page] of Object.entries(diagnosticPages)) {
+      page.setDefaultTimeout(smokeTimeout(25000));
+      page.on("pageerror", (e) =>
+        errors.push(`${role}: ${e.stack ?? e.message}`),
+      );
+    }
+    guest.on("websocket", () => guestSockets++);
+    guest.on("framenavigated", (frame) => {
+      if (frame === guest.mainFrame()) guestNavigations++;
+    });
+    await host.goto(base);
+    await host.getByRole("radio", { name: "Shared TV", exact: true }).check();
+    await host
+      .getByRole("button", { name: "CREATE ROOM", exact: true })
+      .click();
+    await host.waitForURL(/room=/);
+    const invite = host.url(),
+      code = new URL(invite).searchParams.get("room")!;
+    assert.match(code, /^[A-Z]{2}[0-9]{2}$/);
+    await qr(host);
+    assert.equal(await host.locator(".shared-room-code").textContent(), code);
+    assert.equal(await host.locator(".online-arena").isVisible(), false);
+    // The lobby hands out the join link as text next to the QR, and COPY reports what it managed to do (the clipboard is unavailable on some headless browsers).
+    const joinUrl = (await host.locator(".room-qr-url").textContent())!;
+    assert.equal(joinUrl, invite, `lobby link must be the invite: ${joinUrl}`);
+    const qrCardBox = (await host.locator(".room-qr-card").boundingBox())!,
+      linkBox = (await host.locator(".room-qr-link").boundingBox())!;
+    assert.ok(
+      linkBox.x >= qrCardBox.x - 1 &&
+        linkBox.x + linkBox.width <= qrCardBox.x + qrCardBox.width + 1 &&
+        linkBox.y + linkBox.height <= qrCardBox.y + qrCardBox.height + 1,
+      `link must sit inside the QR card: ${JSON.stringify({ qrCardBox, linkBox })}`,
+    );
+    await host.getByRole("button", { name: "COPY LINK", exact: true }).click();
+    await host.waitForFunction(
+      () =>
+        document.querySelector(".room-qr-copy")?.textContent !== "COPY LINK",
+    );
+    const copyLabel = (await host.locator(".room-qr-copy").textContent())!;
+    assert.match(copyLabel, /^(COPIED|COPY FAILED)$/);
+    // Only Chromium grants a readable clipboard here, and a blocked read can hang, so the check is bounded and skipped elsewhere.
+    const clipboard =
+      name === "chrome" && copyLabel === "COPIED"
+        ? await Promise.race([
+            host
+              .evaluate(() => navigator.clipboard.readText())
+              .catch(() => "unreadable"),
+            new Promise<string>((resolve) =>
+              setTimeout(() => resolve("unreadable"), 4000),
+            ),
+          ])
+        : "skipped";
+    if (clipboard !== "skipped" && clipboard !== "unreadable")
+      assert.equal(
+        clipboard,
+        invite,
+        "COPIED must mean the link is on the clipboard",
+      );
+    await host.waitForFunction(
+      () =>
+        document.querySelector(".room-qr-copy")?.textContent === "COPY LINK",
+    );
+    await guest.addInitScript(() => {
+      Reflect.set(window, "__sharedStates", []);
+      window.addEventListener("fuse-benchmark", (event) => {
+        const detail = (event as CustomEvent).detail;
+        if (detail.kind === "snapshot") {
+          const states = Reflect.get(window, "__sharedStates") as unknown[];
+          states.push(detail);
+          if (states.length > 200) states.shift();
+        }
+      });
+    });
+    // #132: preserve a partly typed name and focus as peer state finishes booting. Room DOM now builds
+    // synchronously without the removed sprite loader. Hold only this guest's incoming signalling messages
+    // until typing begins; all messages are then forwarded unchanged and the real peer connection completes.
+    let held = true;
+    let connected!: () => void;
+    const connectionSeen = new Promise<void>((resolve) => {
+      connected = resolve;
+    });
+    await guest.routeWebSocket(
+      (url) => url.pathname.endsWith(`/api/rooms/${code}/ws`),
+      (ws) => {
+        const server = ws.connectToServer();
+        const pending: Array<string | Buffer> = [];
+        server.onMessage((message) => {
+          if (held) pending.push(message);
+          else ws.send(message);
+        });
+        releaseConnection = () => {
+          held = false;
+          for (const message of pending) ws.send(message);
+          pending.length = 0;
+        };
+        connected();
+      },
+    );
+    await guest.goto(invite + "&benchmark=1", {
+      waitUntil: "domcontentloaded",
+    });
+    let connectionDeadline: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        connectionSeen,
+        new Promise<never>((_, reject) => {
+          connectionDeadline = setTimeout(
+            () => reject(Error("Guest signalling route did not open")),
+            smokeTimeout(10000),
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(connectionDeadline);
+    }
+    const earlyName = guest.getByPlaceholder("Your name");
+    await earlyName.focus();
+    await guest.locator(".room-boot-note").waitFor({ state: "visible" });
+    await guest.keyboard.type("QR");
+    releaseConnection();
+    await guest.locator(".room-boot-note").waitFor({ state: "hidden" });
+    await guest.keyboard.type(" guest");
+    assert.equal(
+      await guest.evaluate(() =>
+        document.activeElement?.getAttribute("placeholder"),
+      ),
+      "Your name",
+      "guest name field keeps focus through boot",
+    );
+    assert.equal(
+      await earlyName.inputValue(),
+      "QR guest",
+      "a name typed across boot is kept",
+    );
+    // #132: WebKit showed the guest's name field empty after JOIN, so the join never went out. The boot window itself is covered above; here an
+    // emptied field still fails with the navigation count, and a kept name whose tap was lost gets one counted retap.
+    const joinName = guest.getByPlaceholder("Your name"),
+      joinButton = guest.getByRole("button", {
+        name: "JOIN AS PLAYER",
+        exact: true,
+      });
+    await joinName.fill("QR guest");
+    const navigationsBeforeJoin = guestNavigations;
+    await joinButton.click();
+    if (
+      !(await joinName
+        .waitFor({ state: "hidden", timeout: smokeTimeout(6000) })
+        .then(
+          () => true,
+          () => false,
+        ))
+    ) {
+      const field = await joinName.inputValue().catch(() => null);
+      assert.equal(
+        field,
+        "QR guest",
+        `guest name field after JOIN (navigations ${navigationsBeforeJoin} before JOIN, ${guestNavigations} now)`,
+      );
+      if (await joinButton.isVisible()) {
+        joinRetries++;
+        console.warn(
+          `shared room (${name}): join form still up 6 s after JOIN with the name kept; tapping again`,
+        );
+        await joinButton.click({ timeout: smokeTimeout(3000) }).catch(() => {});
+      }
+    }
+    await host
+      .locator(".room-riders")
+      .getByText("QR guest", { exact: true })
+      .waitFor();
+    await guest
+      .locator(".phone-lobby .shared-lobby")
+      .waitFor({ state: "visible" });
+    assert.equal(
+      await guest.locator(".online-controls").isVisible(),
+      false,
+      "no thirds in the lobby",
+    );
+    // #134: a joined phone in the lobby is a lobby screen in every viewport and orientation — its rider row on screen, one menu, no rotate gate, no thirds. The thirds are checked once the race starts.
+    const controlBounds = [];
+    for (const viewport of [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+      { width: 844, height: 390 },
+    ]) {
+      await guest.setViewportSize(viewport);
+      await guest.locator(".phone-lobby").waitFor();
+      assert.equal(
+        await guest.locator(".mobile-play").count(),
+        0,
+        "the lobby is not the controller",
+      );
+      assert.equal(
+        await guest.locator(".mobile-rotate-gate").isVisible(),
+        false,
+        "no rotate gate in the lobby",
+      );
+      const me = guest
+        .locator(".room-riders")
+        .getByText("QR guest", { exact: true });
+      await me.scrollIntoViewIfNeeded();
+      const rider = (await me.boundingBox())!;
+      assert.ok(
+        rider.x >= 0 &&
+          rider.y >= 0 &&
+          rider.x + rider.width <= viewport.width + 1 &&
+          rider.y + rider.height <= viewport.height + 1,
+        `rider row must be on screen: ${JSON.stringify(rider)}`,
+      );
+      assert.equal(
+        await guest
+          .locator("button:visible")
+          .filter({ hasText: /^(ROOM|MENU|☰ MENU)$/ })
+          .count(),
+        1,
+        "one menu button in the lobby",
+      );
+      assert.match(
+        (await guest.locator(".online-notice").textContent()) ?? "",
+        /^Waiting for the host/,
+        "guest sees why it waits",
+      );
+      controlBounds.push({ viewport, rider });
+      await guest.screenshot({
+        path: `artifacts/shared-lobby-${name}-${viewport.width}.png`,
+      });
+    }
+    // TV VIEW replaced the invite dialog: it opens the display role straight away.
+    const [tvTab] = await Promise.all([
+      hc.waitForEvent("page"),
+      host.getByRole("button", { name: "TV VIEW", exact: true }).click(),
+    ]);
+    await tvTab.waitForLoadState("domcontentloaded");
+    assert.match(tvTab.url(), new RegExp(`room=${code}&display=1`));
+    assert.equal(
+      await host.locator("dialog[open]").count(),
+      0,
+      "TV VIEW must not open a dialog",
+    );
+    await tvTab.close();
+    await display.goto(invite + "&display=1");
+    await qr(display);
+    assert.equal(
+      await display.locator(".shared-room-code").textContent(),
+      code,
+    );
+    await host.getByRole("button", { name: "ADD AI", exact: true }).click();
+    await host.getByRole("button", { name: /Remove AI/ }).waitFor();
+    await host.screenshot({ path: `artifacts/shared-qr-${name}.png` });
+    await host.getByRole("button", { name: "START RACE", exact: true }).click();
+    await display.locator(".shared-lobby").waitFor({ state: "hidden" });
+    await display.locator(".online-arena").waitFor({ state: "visible" });
+    await display.waitForFunction(() =>
+      document.querySelector("canvas")?.dataset.renderer?.startsWith("phaser-"),
+    );
+    await guest.waitForFunction(() => {
+      const states = Reflect.get(window, "__sharedStates") as {
+        phase: string;
+      }[];
+      return states.at(-1)?.phase === "playing";
+    });
+    await guest.locator(".mobile-play").waitFor();
+    const fullThirds = await guest
+      .locator(".online-controls button")
+      .evaluateAll((buttons) =>
+        buttons.map((b) => {
+          const r = b.getBoundingClientRect();
+          return { x: r.x, width: r.width, height: r.height };
+        }),
+      );
+    for (const [i, r] of fullThirds.entries()) {
+      assert.ok(Math.abs(r.x - (i * 844) / 3) < 1);
+      assert.ok(Math.abs(r.width - 844 / 3) < 1);
+      assert.equal(r.height, 390);
+    }
+    assert.equal(await guest.locator(".online-arena").isVisible(), false);
+    assert.equal(
+      await guest
+        .locator(".mobile-control-hints")
+        .evaluate((e) => getComputedStyle(e).animationName),
+      "none",
+    );
+    await guest.screenshot({
+      path: `artifacts/shared-landscape-thirds-${name}.png`,
+    });
+    const beforeAngle = await guest.evaluate(() => {
+      const states = Reflect.get(window, "__sharedStates") as {
+        playerId: string;
+        players: { id: string; angle: number }[];
+      }[];
+      const state = states.at(-1)!;
+      return state.players.find((p) => p.id === state.playerId)!.angle;
+    });
+    const left = guest.getByRole("button", { name: "◀", exact: true }),
+      leftBounds = await left.boundingBox();
+    assert.ok(leftBounds);
+    await guest.mouse.move(
+      leftBounds.x + leftBounds.width / 2,
+      leftBounds.y + leftBounds.height / 2,
+    );
+    await guest.mouse.down();
+    try {
+      await guest.waitForFunction((before) => {
+        const states = Reflect.get(window, "__sharedStates") as {
+          playerId: string;
+          players: { id: string; angle: number }[];
+        }[];
+        const state = states.at(-1)!;
+        const player = state.players.find((p) => p.id === state.playerId)!;
+        const change = Math.atan2(
+          Math.sin(player.angle - before),
+          Math.cos(player.angle - before),
+        );
+        return change < -0.01;
+      }, beforeAngle);
+      assert.ok(
+        await left.evaluate((e) => e.classList.contains("active")),
+        "held input feedback",
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      assert.equal(
+        await guest.evaluate(() => getSelection()?.toString() ?? ""),
+        "",
+      );
+      assert.equal(
+        await left.evaluate((e) =>
+          e.dispatchEvent(
+            new Event("contextmenu", { bubbles: true, cancelable: true }),
+          ),
+        ),
+        false,
+        "control context menu prevented",
+      );
+      assert.equal(
+        await left.evaluate((e) =>
+          e.dispatchEvent(
+            new Event("selectstart", { bubbles: true, cancelable: true }),
+          ),
+        ),
+        false,
+        "control selection prevented",
+      );
+    } finally {
+      await guest.mouse.up();
+    }
+    await guest.waitForFunction(
+      () =>
+        !document
+          .querySelector(".online-controls button")
+          ?.classList.contains("active"),
+    );
+    await host
+      .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+      .click();
+    await qr(host);
+    await qr(display);
+    await host.getByRole("button", { name: "ROOM", exact: true }).click();
+    await host.getByRole("button", { name: "END ROOM", exact: true }).click();
+    await host.getByRole("link", { name: /PLAY SOLO/ }).waitFor(); // #44: a joined phone must see the ended room without opening ☰ MENU — the thirds controller gives way to the ordinary header, status and MENU.
+    const ended = guest.getByText(/room.*(ended|expired)/i).first();
+    await ended.waitFor({ state: "visible" });
+    const endedBox = await ended.boundingBox();
+    assert.ok(
+      endedBox &&
+        endedBox.width > 0 &&
+        endedBox.height > 0 &&
+        endedBox.x >= 0 &&
+        endedBox.y >= 0 &&
+        endedBox.x + endedBox.width <= 844 &&
+        endedBox.y + endedBox.height <= 390,
+      `ended text must be visible inside the phone viewport: ${JSON.stringify(endedBox)}`,
+    );
+    assert.equal(
+      await guest.locator(".mobile-play").count(),
+      0,
+      "ended room must leave the phone thirds controller",
+    );
+    assert.equal(
+      await guest.locator(".online-controls").isVisible(),
+      false,
+      "ended room must not keep live-looking controls",
+    );
+    await guest
+      .getByRole("button", { name: "ROOM", exact: true })
+      .waitFor({ state: "visible" });
+    await guest.screenshot({
+      path: `artifacts/shared-ended-phone-${name}.png`,
+    });
+    const socketCount = guestSockets;
+    await new Promise((resolve) => setTimeout(resolve, 1800));
+    assert.equal(guestSockets, socketCount, "ended room must not auto-rejoin");
+    assert.deepEqual(errors, []);
+    results.push({
+      browser: name,
+      passed: true,
+      joinRetries,
+      guestNavigations,
+      shortCodePattern: true,
+      hostQr: true,
+      tvQr: true,
+      joinLink: joinUrl,
+      copyLabel,
+      clipboard,
+      startReset: true,
+      endedWithoutReconnect: true,
+      endedVisibleOnPhone: endedBox,
+      controlBounds,
+      inputApplied: true,
+    });
+    console.log(`PASS ${name} shared QR/end room`);
+  } catch (error) {
+    releaseConnection();
+    console.error(`shared room smoke failed (${name}):`, String(error)); // a failure before release must not leave guest signalling held
+    // Every page's own status and link diagnostics (the MENU text), so a failure says which leg stalled (#132). Each read is
+    // bounded: evaluate ignores the page timeout, and a stuck renderer must not hang the job and hide the error above.
+    const pages: Record<string, object> = {};
+    for (const [role, page] of Object.entries(diagnosticPages)) {
+      pages[role] = await Promise.race([
+        page
+          .evaluate(() => ({
+            status:
+              document.querySelector<HTMLElement>(".online-status")?.dataset
+                .raw ??
+              document.querySelector(".online-status")?.textContent ??
+              null,
+            link:
+              document.querySelector<HTMLElement>("#app")?.dataset
+                .linkDiagnostics ?? null,
+            body: document.body.innerText.slice(0, 800),
+            joinName:
+              document.querySelector<HTMLInputElement>(".online-join input")
+                ?.value ?? null,
+          }))
+          .catch((e) => ({ unavailable: String(e) })),
+        new Promise<object>((resolve) =>
+          setTimeout(
+            () => resolve({ unavailable: "page did not answer within 4 s" }),
+            4000,
+          ),
+        ),
+      ]);
+      await page
+        .screenshot({
+          path: `artifacts/shared-failure-${name}-${role}.png`,
+          timeout: 5000,
+        })
+        .catch(() => {});
+    }
+    console.error(
+      `shared room diagnostics (${name}):`,
+      JSON.stringify({ pages, guestNavigations, joinRetries }, null, 2),
+    );
+    results.push({
+      browser: name,
+      passed: false,
+      error: String(error),
+      errors,
+      guestNavigations,
+      joinRetries,
+      pages,
+    });
+    throw error;
+  } finally {
+    await browser.close();
+    await writeFile(
+      "artifacts/shared-room-smoke.json",
+      JSON.stringify(results, null, 2),
+    );
+  }
 }
