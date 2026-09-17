@@ -53,7 +53,13 @@
     "src/online/room-runtime.ts",
     "src/online/prediction.ts",
     "packages/fuse-network-protocol/src/ice-servers.ts",
-    "packages/fuse-network-fe/src/room-api.ts"
+    "packages/fuse-network-fe/src/room-api.ts",
+    "src/service/history.ts",
+    "src/service/identity.ts",
+    "src/service/history-http.ts",
+    "src/service/memory-history.ts",
+    "src/online/match-report.ts",
+    "src/service/dev.ts"
   ],
   "reporter": ["text", "html", "json-summary"],
   "check-coverage": true,

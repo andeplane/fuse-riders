@@ -63,7 +63,14 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
 }
 
 type Layer = "engine" | "net" | "render" | "app" | "shared" | "external";
-const shared = new Set(["avatars", "duration-text", "protocol", "uuid"]);
+const shared = new Set([
+  "avatars",
+  "duration-text",
+  "protocol",
+  "uuid",
+  "rider-name",
+  "firebase-config",
+]);
 const network = new Set([
   "clock",
   "endpoints",

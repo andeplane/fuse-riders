@@ -6,6 +6,7 @@ import {
   botRandom,
   type BotDependencies,
 } from "../shared/bot-controller.js";
+import { listenFree } from "../service/listen-free.js";
 import { BOT_NAMES } from "../shared/apply-tick.js";
 import http from "node:http";
 import { BombInputBuffer } from "../shared/bomb-input.js";
@@ -234,33 +235,7 @@ export function catchUpSteps(elapsed: number) {
   return Math.min(5, Math.max(0, Math.floor(elapsed / 50)));
 }
 
-// Parallel worktrees and stale processes hold the usual ports; walk up rather than die on EADDRINUSE.
-export async function listenFree(
-  server: http.Server,
-  port: number,
-  hostname: string,
-  tries = 20,
-): Promise<number> {
-  for (;;) {
-    try {
-      await new Promise<void>((resolve, reject) => {
-        server.once("error", reject);
-        server.listen(port, hostname, () => {
-          server.off("error", reject);
-          resolve();
-        });
-      });
-      return (server.address() as AddressInfo).port;
-    } catch (error) {
-      if (
-        (error as NodeJS.ErrnoException).code !== "EADDRINUSE" ||
-        --tries <= 0
-      )
-        throw error;
-      port++;
-    }
-  }
-}
+export { listenFree };
 
 export async function createGameServer(options: ServerOptions = {}) {
   const dependencies: ServerDependencies = {

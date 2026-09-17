@@ -33,7 +33,7 @@ import {
 import type { GameEvent } from "./protocol.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-25"; // 25: stable player/bomb/weight ordering and locale-free deterministic comparisons.
+export const RULES = "fuse-p2p-26"; // 26: stable simulation ordering; includes rules 25 frozen match finishers.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
