@@ -540,6 +540,8 @@ export async function startOnline(): Promise<void> {
     role === "joiner"
       ? createJoinCard(code, joinForm.element, bootNote)
       : joinForm.element;
+  if (role !== "joiner")
+    joinForm.element.prepend(node("p", "JOIN THE RACE", "lobby-join-title"));
   if (role !== "joiner") booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt = performance.now();
@@ -914,6 +916,20 @@ export async function startOnline(): Promise<void> {
     "(min-width: 1000px) and (hover: hover) and (pointer: fine)",
   );
   const updateDesktopLayout = () => {
+    // Keep the creator's seat invitation beside the riders while the lobby is
+    // visible. Outside the lobby it must remain reachable for mid-game joins.
+    if (role !== "joiner") {
+      const joinParent = sharedLobby.hidden ? app : lobbyRiders;
+      if (joinPanel.parentElement !== joinParent) {
+        if (joinParent === app) {
+          joinForm.element.querySelector("input")!.after(joinForm.submitButton);
+          scoreboard.after(joinPanel);
+        } else {
+          joinForm.element.append(joinForm.submitButton);
+          lobbyRiders.prepend(joinPanel);
+        }
+      }
+    }
     const desktop =
       desktopQuery.matches &&
       !app.classList.contains("mobile-play") &&

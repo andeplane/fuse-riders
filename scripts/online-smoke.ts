@@ -142,6 +142,17 @@ try {
   target.searchParams.set("benchmark", "1");
   await host.goto(target.href);
   const url = host.url().replace(/&benchmark=1/, "");
+  await host.locator(".room-riders .online-join").waitFor();
+  const lobbyBox = await host.locator(".room-lobby").boundingBox();
+  const joinBox = await host.locator(".room-riders .online-join").boundingBox();
+  assert.ok(lobbyBox && joinBox);
+  assert.ok(
+    joinBox.x >= lobbyBox.x &&
+      joinBox.y >= lobbyBox.y &&
+      joinBox.x + joinBox.width <= lobbyBox.x + lobbyBox.width &&
+      joinBox.y + joinBox.height <= lobbyBox.y + lobbyBox.height,
+    "the creator's join controls belong inside the lobby beside the riders",
+  );
   await host.getByPlaceholder("Your name").fill("Host");
   await host
     .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
