@@ -238,15 +238,9 @@ try {
     name: "START RACE",
     exact: true,
   });
-  const startBounds = await startButton.boundingBox();
-  assert.ok(startBounds);
-  await host.mouse.move(
-    startBounds.x + startBounds.width / 2,
-    startBounds.y + startBounds.height / 2,
-  );
-  await host.mouse.down();
-  await new Promise((resolve) => setTimeout(resolve, 180));
-  await host.mouse.up();
+  // The shared menu may wrap and push the lobby footer below the viewport.
+  // Use a real held click with actionability/scrolling, not raw viewport coordinates.
+  await startButton.click({ delay: 180 });
   await guest.waitForFunction(() =>
     document.querySelector(".online-notice")?.textContent?.includes("READY"),
   );
@@ -603,6 +597,10 @@ try {
           .evaluate(() => {
             const canvas =
               document.querySelector<HTMLCanvasElement>(".online-arena");
+            const start = [...document.querySelectorAll("button")].find(
+              (button) => button.textContent === "START RACE",
+            );
+            const startBox = start?.getBoundingClientRect();
             let savedMode: unknown;
             try {
               savedMode = JSON.parse(
@@ -611,6 +609,17 @@ try {
             } catch {}
             return {
               body: document.body.innerText,
+              viewport: { width: innerWidth, height: innerHeight },
+              startButton: startBox
+                ? {
+                    bounds: startBox.toJSON(),
+                    disabled: start?.disabled,
+                    centerTarget: document.elementFromPoint(
+                      startBox.x + startBox.width / 2,
+                      startBox.y + startBox.height / 2,
+                    )?.outerHTML,
+                  }
+                : undefined,
               metrics:
                 document.querySelector<HTMLElement>("#app")?.dataset.metrics,
               linkDiagnostics:
