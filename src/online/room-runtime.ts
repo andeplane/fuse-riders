@@ -15,6 +15,7 @@ import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from '../shared/game.js';
 import type { AimPoint, GameEvent } from '../shared/protocol.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import { uuid } from '../shared/uuid.js';
+import type { RoomTransport, TransportEvents } from 'fuse-network-fe';
 
 export type RoomCommand =
   | { type: 'join'; name: string; avatarId?: AvatarId }
@@ -23,24 +24,7 @@ export type RoomCommand =
   | { type: 'action'; action: 'start' | 'lobby' | 'rematch' }
   | { type: 'settings'; settings: RoomSettings }
   | { type: 'bot'; action: 'add' | 'remove'; id?: string };
-/** What the runtime needs from a transport; the WebRTC mesh and the test fake both provide it. */
-export interface RoomTransport {
-  readonly id: string; readonly hostId: string; readonly sentBytes: number;
-  connect(): void;
-  /** `farewell`: the page is leaving on purpose, so the transport may say goodbye on its links first. */
-  close(farewell?: boolean): void;
-  /** Reliable, ordered. `bufferLimit` lets a snapshot transfer queue more than the room-control default. */
-  send(id: string, data: unknown, bufferLimit?: number): boolean;
-  sendFast(id: string, bytes: Uint8Array): boolean;
-  linked(id: string): boolean;
-  explain(id: string): string;
-  stats(): Promise<{ direct: number; relayed: number; buffered: number }>;
-}
-export interface TransportEvents {
-  welcome(id: string, hostId: string): void; peer(id: string, online: boolean): void; link(id: string, open: boolean): void;
-  message(id: string, data: unknown): void; fast(id: string, bytes: Uint8Array): void; status(text: string): void;
-  revoked(): void; ended(): void; terminated(text: string): void;
-}
+export type { RoomTransport, TransportEvents };
 export interface RuntimeDependencies { now(): number; hidden(): boolean; token(): string; generation(): number; schedule(callback: () => void, intervalMs: number): () => void; onVisibilityChange(callback: () => void): () => void }
 export interface Callbacks { state(frame: Frame, settings: RoomSettings): void; event(event: GameEvent, matchId: string, round: number, tick: number): void; status(text: string): void; ready(id: string, host: boolean): void; ended?(): void }
 /** What the runtime can report about its own health: per link, per stream and for the fold as a whole. */

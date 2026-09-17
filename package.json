@@ -12,9 +12,9 @@
     "prestart": "npm run build",
     "start": "NODE_ENV=production tsx src/server/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
     "test:browser": "tsx scripts/browser-smoke.ts",
-    "test:coverage": "c8 tsx --test tests/*.test.ts",
+    "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
     "dev:online": "npm run build && tsx src/service/dev.ts --port 8787"
   },
   "dependencies": {
@@ -25,12 +25,14 @@
     "@stdlib/math-base-special-atan2": "0.3.1",
     "@stdlib/math-base-special-cos": "0.3.1",
     "@stdlib/math-base-special-sin": "0.3.1",
-    "firebase": "^12.19.0",
-    "jose": "^6.2.12",
+    "fuse-network-be": "0.1.0",
+    "fuse-network-fe": "0.1.0",
     "mixpanel-browser": "^2.83.0",
     "phaser": "3.90.0",
     "qrcode": "^1.5.4",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "firebase": "^12.19.0",
+    "jose": "^6.2.12"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -42,5 +44,8 @@
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "vite": "^7.1.5"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

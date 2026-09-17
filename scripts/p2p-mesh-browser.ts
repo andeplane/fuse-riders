@@ -15,7 +15,7 @@ const response = await fetch(new URL('/api/rooms', url), { method: 'POST' });
 assert.ok(response.ok, `room creation failed: ${response.status}`);
 const room = await response.json() as { code: string; token: string };
 const bundle = await build({ stdin: { contents: `
-import { PeerTransport } from './src/online/peer-transport.ts';
+import { PeerTransport } from 'fuse-network-fe';
 import { encodePacket, decodePacket, roomHash } from './src/online/packet.ts';
 globalThis.startMesh = (code, token) => {
   let linkDrops = 0; const peers = new Set(), links = new Set(), received = new Map(), messages = [], errors = [], statuses = [];
@@ -35,7 +35,7 @@ globalThis.startMesh = (code, token) => {
     fast: (id, bytes) => { const decoded = decodePacket(bytes); if (decoded && 'packet' in decoded) received.set(id, (received.get(id) ?? 0) + 1); },
     status: text => { statuses.push(text); if (statuses.length > 40) statuses.shift(); },
     revoked: () => errors.push('revoked'), ended: () => errors.push('ended'), terminated: text => errors.push('terminated: ' + text),
-  });
+  }, { apiUrl: path => new URL(path, location.origin).href });
   transport.connect();
   let seq = 0;
   globalThis.mesh = {
@@ -51,7 +51,7 @@ globalThis.startMesh = (code, token) => {
     snapshot: async () => ({ id: transport.id, peers: [...peers], links: [...links], received: Object.fromEntries(received), errors, statuses, stats: await transport.stats(), diagnostics: await transport.diagnostics() }),
     stop: () => transport.close(),
   };
-};`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022', define: { 'import.meta.env.BASE_URL': '"/"', 'import.meta.env.VITE_API_ORIGIN': 'undefined' } });
+};`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022' });
 interface Snapshot { id: string; peers: string[]; links: string[]; received: Record<string, number>; errors: string[]; statuses: string[]; stats: { direct: number; relayed: number; buffered: number } }
 const mesh = <T>(page: Page, expression: string, argument?: unknown) => page.evaluate(([code, value]) => (0, eval)(`(mesh) => ${code}`)((globalThis as unknown as { mesh: unknown }).mesh, value), [expression, argument] as [string, unknown]) as Promise<T>;
 const browsers = [await chromium.launch({ headless: true }), await webkit.launch({ headless: true })];

@@ -8,8 +8,9 @@ import { toSnapshot } from '../src/shared/game.js';
 import { decodeGameState, encodeGameState } from '../src/online/checkpoint.js';
 import { buildMatchReport, sendMatchReport } from '../src/online/match-report.js';
 import { HistoryStore, MAX_MATCH_PARTICIPANTS, matchRecordId, parseMatchResult, parseTotals } from '../src/service/history.js';
-import { MemoryHistoryDatabase, MemoryRoomDatabase } from '../src/service/memory-database.js';
-import { RoomStore, peerId } from '../src/service/room-store.js';
+import { MemoryRoomDatabase } from 'fuse-network-be';
+import { MemoryHistoryDatabase } from '../src/service/memory-history.js';
+import { RoomStore, peerId } from 'fuse-network-be';
 
 async function fixture(riders = 2, length = 1) {
   const tokens = Array.from({ length: riders + 1 }, (_, i) => (i + 1).toString(16).padStart(64, '0'));

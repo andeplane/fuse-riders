@@ -2,9 +2,7 @@ import { powerLabel } from '../client/power-indicator.js';
 import { uuid } from '../shared/uuid.js';
 import { showRoomSettings } from './room-settings-menu.js';
 import { keyboardShortcuts } from './keyboard-shortcuts.js';
-import { validRoomCode } from '../shared/room-code.js';
 import { startAttract } from './attract.js';
-import { installRoomLifecycle } from './room-lifecycle.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
@@ -26,7 +24,8 @@ import { COMPARISON_COLUMNS, COMPARISON_KEY, HIGHLIGHTS_TITLE, RECAP_EMPTY_MESSA
 import { ReplayDirector, describeClip } from '../client/replay.js';
 import { createReplayOverlay } from '../client/replay-overlay.js';
 import { RoomRuntime, type Callbacks } from './room-runtime.js';
-import { PeerTransport } from './peer-transport.js';
+import { PeerTransport, createRoom, endRoom, formatLinkDiagnostics, installRoomLifecycle, validRoomCode } from 'fuse-network-fe';
+import { MAX_PACKET_BYTES } from './packet.js';
 import { NetStats } from './net-stats.js';
 import { Telemetry, telemetryEndpoint } from './telemetry.js';
 import type { AvatarId } from '../shared/avatars.js';
@@ -34,7 +33,6 @@ import QRCode from 'qrcode';
 import './online.css';
 import { formatNetStats } from './net-stats.js';
 import { installMobilePlayLayout } from './mobile-play-layout.js';
-import { formatLinkDiagnostics } from './link-diagnostics.js';
 import { connectHint } from './connect-hint.js';
 import { createJoinCard, createJoinForm } from './join-form.js';
 import { safeStorage } from '../client/safe-storage.js';
@@ -60,6 +58,8 @@ const copyText=async(text:string)=>{
 const labels:Record<PickupType,string>={stopwatch:'Shorter fuse',extraBomb:'Extra Bomb',power:'Power',triple:'Triple shot',five:'Five shot',gun:'Gun',shell:'Shell',target:'Target bomb',beer:'Beer',ink:'Ink',orbitShield:'Shield',portal:'Portal',star:'Star',grip:'Grip',nitro:'Nitro',snail:'Snail',gravity:'Gravity'};
 const read=(key:string)=>{try{return localStorage.getItem(key);}catch{return null;}};
 const save=(key:string,value:string)=>{try{localStorage.setItem(key,value);}catch{}};
+/** The transport's player-facing wording, in the game's voice. */
+const TRANSPORT_COPY={linking:'Connected · linking riders',protocolChanged:'Game protocol changed — reload this page',roomEnded:'Room ended — return to menu to start again',hostAbsent:'the creator is not in the room yet'};
 const secret=()=>uuid().replaceAll('-','')+uuid().replaceAll('-','');
 // One radio for the document's whole life. Entering a room from the landing page swaps the view in place rather than
 // reloading (a page load costs the soundtrack: no browser will autoplay before the new page has been tapped), so a
@@ -94,7 +94,7 @@ export async function startOnline():Promise<void>{
     const error=node('p');
     // `enter` keeps the document, so Room Created no longer needs a send-before-unload flush: nothing unloads out from
     // under the request, and the room stops waiting up to 700ms for Mixpanel before it appears.
-    create.onclick=async()=>{create.disabled=true;try{const response=await fetch(apiUrl('/api/rooms'),{method:'POST'});const body=await response.json();if(!response.ok)throw new Error(body.error??'Could not create room');save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));track('Room Created',{mode:selectedMode});enter(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
+    create.onclick=async()=>{create.disabled=true;try{const body=await createRoom(apiUrl);save(`fuse-room-${body.code}`,body.token);const settings=loadRoomSettings(localStorage);settings.mode=selectedMode;save(SETTINGS_KEY,JSON.stringify(settings));track('Room Created',{mode:selectedMode});enter(`?room=${body.code}`);}catch(e){error.textContent=String(e);create.disabled=false;}};
     join.onclick=()=>{const value=input.value.trim().toUpperCase();if(validRoomCode(value))enter(`?room=${value}`);else error.textContent='Enter a room code, for example AB42';};
     mode.setAttribute('aria-label','Where will you play?');input.setAttribute('aria-label','Room code');error.setAttribute('role','alert');
     const createRow=node('div','','landing-create');createRow.append(mode,create);
@@ -394,13 +394,13 @@ export async function startOnline():Promise<void>{
     }
   };
   // Solo is the same runtime with no transport: one rider and four AI riders fold the log locally.
-  const runtime=new RoomRuntime(code,settings,callbacks,solo?{humanName:read('fuse-riders-player-name')??undefined}:{transport:events=>new PeerTransport(code,token,events),displayOnly});
+  const runtime=new RoomRuntime(code,settings,callbacks,solo?{humanName:read('fuse-riders-player-name')??undefined}:{transport:events=>new PeerTransport(code,token,events,{apiUrl,maxFastBytes:MAX_PACKET_BYTES,disableDirect:new URLSearchParams(location.search).has('relay'),copy:TRANSPORT_COPY}),displayOnly});
   start.onclick=()=>{void audio.unlock();runtime.command({type:'action',action:snapshot?.phase==='matchOver'?'rematch':'start'});};
   announceAction.onclick=()=>start.click();
   addAI.onclick=()=>runtime.command({type:'bot',action:'add'});
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
   const statsPanel=node('pre','','net-stats');statsPanel.hidden=solo||!url.searchParams.has('stats');app.append(statsPanel);
-  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});rematch.onclick=()=>{dialog.close();start.click();};menu.onclick=()=>{dialogTitle.textContent=solo?'EXIT':'ROOM';dialog.setAttribute('aria-label',solo?'Exit':'Room');dialogBody.replaceChildren(node('p',solo?'End this solo run and go back to the menu?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'END RUN':isHost?'END ROOM':'LEAVE ROOM','exit-confirm'),stay=node('button',solo?'KEEP PLAYING':'STAY'),choices=node('div','','exit-choices');stay.onclick=()=>dialog.close();choices.append(stay,leave);leave.onclick=async()=>{leave.disabled=stay.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await fetch(apiUrl(`/api/rooms/${code}/end`),{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}if(read(LAST_ROOM_KEY)===code)storage.removeItem(LAST_ROOM_KEY);location.href=appUrl();};dialogBody.append(choices);
+  reset.onclick=()=>runtime.command({type:'action',action:'lobby'});rematch.onclick=()=>{dialog.close();start.click();};menu.onclick=()=>{dialogTitle.textContent=solo?'EXIT':'ROOM';dialog.setAttribute('aria-label',solo?'Exit':'Room');dialogBody.replaceChildren(node('p',solo?'End this solo run and go back to the menu?':isHost?'End this room for everyone?':'Leave this room?'));const leave=node('button',solo?'END RUN':isHost?'END ROOM':'LEAVE ROOM','exit-confirm'),stay=node('button',solo?'KEEP PLAYING':'STAY'),choices=node('div','','exit-choices');stay.onclick=()=>dialog.close();choices.append(stay,leave);leave.onclick=async()=>{leave.disabled=stay.disabled=true;leave.textContent='LEAVING…';runtime.stop();if(isHost&&!solo){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),2500);try{await endRoom(apiUrl,code,token,{signal:controller.signal,keepalive:true});}catch{/* Host heartbeat expiry also closes the room if the network is unavailable. */}finally{clearTimeout(timer);}forgetHostToken();}if(read(LAST_ROOM_KEY)===code)storage.removeItem(LAST_ROOM_KEY);location.href=appUrl();};dialogBody.append(choices);
     const standings=[...(snapshot?.leaderboard??[])].sort((a,b)=>b.totalScoreUnits-a.totalScoreUnits||b.matchWins-a.matchWins||a.name.localeCompare(b.name));
     if(standings.length){const list=node('div','','session-board');list.append(node('h2','Session standings'));let rank=0,previous:number|undefined;standings.forEach((entry,index)=>{if(entry.totalScoreUnits!==previous)rank=index+1;previous=entry.totalScoreUnits;const row=node('div','','session-row');if(entry.id===id)row.classList.add('is-you');const points=entry.totalScoreUnits/60;row.append(node('b',`#${rank}`),node('span',entry.id===id?`${entry.name} (you)`:entry.name),node('strong',`${Number.isInteger(points)?points:points.toFixed(1)} PTS`),node('small',`${entry.matchWins} ${entry.matchWins===1?'MATCH':'MATCHES'} · ${entry.roundWins} ${entry.roundWins===1?'ROUND':'ROUNDS'}`));list.append(row);});list.append(node('p','Round points: +1 per opponent outlasted, +1 for the sole survivor. Same-tick deaths tie.','session-key'));dialogBody.append(list);}
     if(!solo){const diagnostics=node('pre','','link-diagnostics');diagnostics.textContent=app.dataset.linkDiagnostics??'collecting link diagnostics…';const statsToggle=node('button',statsPanel.hidden?'SHOW NETWORK STATS':'HIDE NETWORK STATS');statsToggle.onclick=()=>{statsPanel.hidden=!statsPanel.hidden;dialog.close();};dialogBody.append(statsToggle,node('p','LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)'),diagnostics);const refresh=setInterval(()=>{if(!dialog.open){clearInterval(refresh);return;}diagnostics.textContent=app.dataset.linkDiagnostics??diagnostics.textContent;},1000);}

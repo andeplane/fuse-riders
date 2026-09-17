@@ -4,7 +4,7 @@ import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import type { MatchDeathCounts, MatchPlayerStats } from '../shared/match-stats.js';
 import { validRiderName } from '../shared/rider-name.js';
 import { validUid } from './identity.js';
-import { RoomError, digest, peerId, validCode, validToken, type RoomStore } from './room-store.js';
+import { RoomError, digest, peerId, validCode, validToken, type RoomStore } from 'fuse-network-be';
 
 /**
  * Match history. Gameplay is peer-to-peer, so the service never sees a match: every rider's device reports the result

@@ -8,8 +8,9 @@ import { AVATARS } from '../src/shared/avatars.js';
 import { createDevRoomService } from '../src/service/dev.js';
 import { createIdentityVerifier } from '../src/service/identity.js';
 import { GUEST_MATCH_TTL_MS, HistoryStore, PENDING_TTL_MS, matchRecordId, parseMatchRecord, parseMatchResult, type MatchRecord, type MatchResult, type StoredPlayer } from '../src/service/history.js';
-import { MemoryHistoryDatabase, MemoryRoomDatabase } from '../src/service/memory-database.js';
-import { RoomStore, digest, peerId } from '../src/service/room-store.js';
+import { MemoryRoomDatabase } from 'fuse-network-be';
+import { MemoryHistoryDatabase } from '../src/service/memory-history.js';
+import { RoomStore, digest, peerId } from 'fuse-network-be';
 
 const PROJECT = 'fuse-test-project';
 const COLORS = ['#22d3ee', '#ff4fa3', '#a3e635', '#fb923c', '#a78bfa'];
