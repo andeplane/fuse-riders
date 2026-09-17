@@ -10,7 +10,7 @@ import { speedEffectLabel } from '../src/client/power-indicator.js';
 import { POWERUP_GUIDE } from '../src/client/powerup-guide.js';
 
 // Nitro and Snail are the stacking speed pickups: every collection is its own five-second deadline, so unlike the
-// refreshing boost, two Nitros run at four times speed until the first expires, and a Snail cancels a Nitro one for one.
+// refreshing effect, two Nitros run at four times speed until the first expires, and a Snail cancels a Nitro one for one.
 function playing(seed = 11) {
   const game = createGame('stack', seed);
   for (let slot = 0; slot < 3; slot += 1) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: SLOT_COLORS[slot]! });
@@ -103,7 +103,7 @@ test('Snail halves every living rival for five seconds and leaves the collector 
   close(ratio(game, control, 'p1'), 1, 'the rival is back to ordinary speed on the deadline tick');
 });
 
-test('Snails stack on a rival, and a Snail cancels a Nitro one for one, with the boost multiplying on top', () => {
+test('Snails stack on a rival, and a Snail cancels a Nitro one for one', () => {
   const game = playing(), control = playing();
   drop(game, 'p0', 'snail'); drop(game, 'p0', 'snail'); step(game, new Map()); step(control, new Map());
   const rival = game.players.get('p1')!;

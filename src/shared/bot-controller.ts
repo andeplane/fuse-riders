@@ -109,7 +109,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
       if(enemyPaths.some(({path,straight})=>{
         const head=path[future-1]!;
         if(distanceToSegmentSquared(x,y,head)<=squared(RIDER_RADIUS*2+SAFETY_MARGIN+distance)&&segmentDistanceSquared(previous.x,previous.y,x,y,head.x1,head.y1,head.x2,head.y2)<=squared(RIDER_RADIUS*2+SAFETY_MARGIN))return true;
-        // Collinear predicted segments form one exact trail, even across boost expiry.
+        // Collinear predicted segments form one exact trail, even across a Nitro expiring.
         if(straight)return future>1&&hitsTrail({...head,x1:path[0]!.x1,y1:path[0]!.y1,x2:head.x1,y2:head.y1});
         for(let index=0;index<future-1;index++)if(hitsTrail(path[index]!))return true;
         return false;
