@@ -1,25 +1,60 @@
-# Verification record
+# Verification guide
 
-## Final release verification
+This document explains how to verify the current source. It is not a claim that a particular revision was released or that every check below has passed. Historical release evidence belongs in [release records](online/PUBLIC-BETA-2026-09-14.md), the [deployment inventory](online/DEPLOYMENT.md), and measurement reports such as [PHASER.md](PHASER.md).
 
-The latest full behavioral run passes **152 tests** with **99.09% lines/statements, 95.81% branches, and 98.11% functions**. Verified with `npm run test:coverage`; machine-readable totals are in `coverage/coverage-summary.json`. It includes all nine pickups, one-second Ink clouds, original synthesized TV audio, pointer-capture recovery, charged bomb release, Triple/Five Shot precedence, Orbit Shield, safe Portal transit, match statistics, session scoring, protocol, server, controller state, and snapshot projection.
+## Pull-request checks
 
-Portal coverage includes entry hazards before teleport, failed placement retaining the pickup, safe exit checks against heads/trails/bomb flight/blasts, trail breaks, exact cooldown/grace deadlines, replacement, round resets, compact snapshot omission, and simultaneous riders reserving a shared exit. Projectile transit (ADR 045) is covered separately in `tests/portal-projectiles.test.ts`: shell exit geometry in both directions, entry height onto an unequal partner, a gate met before and after a bounce, the shell cooldown at its exact deadline, the teleport gap never being swept for rider contact, gun rays hopping and terminating on a cycle of gates, obstructed exits, and the placement events and statistics a transit must not record. Circular-blast tests verify diagonal damage, trail clearing and chain reactions. Shrinking-field tests check trail geometry and visual clipping. Seeded Beer Worms tests bound heading deviation to 15 degrees with no residual drift at expiry.
+The `verify` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) installs locked dependencies, then runs:
 
-`npm run build` and TypeScript checking pass. The final combined browser smoke passes in Chrome and WebKit, including all nine pickups, Target Bomb thumb-drag/release, avatar selection and reconnect, Main Menu reset, portal-wall transit, audio controls, touch interruption/re-entry, Ink countdown, a Five Shot volley after collecting Triple Shot, authoritative phone launch feedback, and portrait/landscape layouts without overflow.
+```sh
+npm run format:check
+npm run typecheck
+npm run test:coverage
+npm run build
+```
 
-## Browser and performance evidence
+`npm test` runs the same unit-test file globs without coverage instrumentation: `tests/*.test.ts` and `packages/*/tests/*.test.ts`. Use focused tests during iteration and the broader checks at integration milestones. Add a regression for a confirmed bug; test the observable contract and failure/recovery boundaries rather than copying implementation logic.
 
-Final Chrome and WebKit smoke runs passed with five independent phone-controller sessions. They exercised host authentication including hash changes, QR display, portrait/landscape controls, pointer steering/release, bomb actions, pickups, leaderboard, theme changes without simulation changes, same-seat refresh recovery, first-to-three, and rematch. They ran on isolated ephemeral servers, not the live match.
+Do not freeze a test count or coverage percentage in this document. Obtain them from the exact revision's command output and `coverage/coverage-summary.json`. [.c8rc.json](../.c8rc.json) currently uses an explicit include list and thresholds of 95% lines/statements/functions and 85% branches. It omits substantial UI, rendering and production-adapter code; passing its gate is not 95% coverage of the entire product. Broadening that scope is tracked in [#257](https://github.com/andeplane/fuse-riders/issues/257).
 
-The controlled busy renderer fixture measured **60.16 FPS** with **16.7 ms p95 frame time** after performance improvements. The original pre-hotfix fixture measured 7.10 FPS. These are controlled browser measurements, not physical-TV measurements. `scripts/visual-fixture.ts` produces scenes for comparison with the [neon/pixel reference](gameplay-concepts/06-neon-pixel-hybrid.png).
+## What the suites establish
 
-The user has played on physical phones over household Wi-Fi and confirmed the controller zoom fix. Physical end-to-end input latency has not been measured. The display's `P` key or `?perf=1` enables diagnostics; controller diagnostics expose transport timing separately from render FPS.
+| Area                            | Evidence                                                                                                               |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Simulation                      | `tests/game.test.ts` plus motion, geometry, pickups, weapons, portals, trail lifecycle, statistics and moment suites   |
+| Replay and network coordination | Input-log, stream, packet, snapshot, checkpoint, rollback, generation-replay and room-runtime tests                    |
+| LAN authority and controls      | Server, server-review, client and controller tests with serialized WebSocket boundaries and injected time              |
+| Networking libraries            | `packages/*/tests/`, including room service/gateway, admission, authority and transport-policy tests                   |
+| Audio and presentation helpers  | Audio-director, radio, replay, viewport, effects and trail-cache tests; this does not cover all DOM/Phaser integration |
 
-## Scope and methods
+Use typed fakes for clocks, scheduling, transport, storage and browser surfaces. Malformed data must leave healthy state intact. For changed networking behavior, exercise the relevant dropped, duplicated, reordered, cancelled and stale-generation paths, as well as successful recovery. The current fixture scheduler does not by itself prove realistic hidden-phone timer behavior.
 
-`npm run test:coverage` enforces 95% lines/statements/functions and 85% branches across shared simulation/protocol modules, server behavior, controller state and pointer bindings, audio direction, snapshot streaming, and render-snapshot projection. Canvas and DOM rendering are checked separately by browser smoke and visual fixtures; coverage percentages do not describe the entire UI renderer. HTML coverage is generated in `coverage/`.
+## Browser checks
 
-Tests use typed injection rather than global patches. `ServerDependencies` supplies monotonic time, token generation, and scheduling; `manualTicks`, `advance`, and `checkConnections` support exact simulation/watchdog assertions. `ControllerInputState` accepts a typed `InputTransport`. Engine tests supply typed input maps, and Portal placement accepts injected randomness and safety callbacks. WebSocket tests cross the real serialized protocol boundary with independent connections.
+CI runs the browser matrix on main pushes, manual dispatch and pull requests explicitly labelled `full-ci`; it normally skips it on PRs. Inspect the actual run and revision before citing browser success. Use the affected local smoke when practical, and report what could not run. A green `verify` job alone proves no browser interaction.
 
-GitHub Actions passed type checking, coverage, build, Chrome and WebKit on release commit `4870c24` ([run](https://github.com/andeplane/slackgame/actions/runs/34780586957)). The initial private-repository run was blocked by account billing; the public-repository run succeeded. Physical speaker playback has not been independently listened to.
+[README](../README.md#tests-and-evidence) lists smoke commands. `scripts/ci-local.sh` runs the local mirror, with `ONLY` selecting relevant checks and `PORT` avoiding occupied matches:
+
+```sh
+ONLY=core PORT=8801 scripts/ci-local.sh
+ONLY=keyboard PORT=8801 scripts/ci-local.sh
+```
+
+`core` includes formatting, typecheck, coverage and build. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them. The local mirror still has tracked drift and script consolidation work in #257; consult the workflow for the authoritative matrix.
+
+`npx tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, LAN rounds, online WebRTC, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
+
+## Release and performance claims
+
+Before production deployment, run the release suite and browser checks relevant to the release:
+
+```sh
+npm run typecheck
+npm test
+npm run test:coverage
+npm run build
+```
+
+Follow [GCP-DEPLOY.md](online/GCP-DEPLOY.md) for exact-source verification, protocol compatibility and rollback. Record local checks separately from GitHub CI and publication. Do not infer deployment from a push or queued run.
+
+For performance measurements retain the command, source revision, workload/seed and results. Distinguish application payload bytes from wire bytes, rendering FPS from input-to-state latency, and synthetic browser workloads from real-device observations. Sustained impairment and physical-device qualification belong to changes that affect those behaviors or explicitly request them; never disrupt an occupied match.
