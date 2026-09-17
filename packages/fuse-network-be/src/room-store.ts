@@ -45,7 +45,13 @@ export interface RoomDatabase {
     listener: (room: RoomRecord | undefined) => void,
     failed: (error: Error) => void,
   ): () => void;
-  allowance(key: string, now: number, limit: number): Promise<boolean>;
+  /** consume=false checks a budget without charging successful admissions. */
+  allowance(
+    key: string,
+    now: number,
+    limit: number,
+    consume?: boolean,
+  ): Promise<boolean>;
 }
 /** A room seats its creator plus this many other members unless the store is told otherwise. */
 export const DEFAULT_MAX_GUESTS = 5;

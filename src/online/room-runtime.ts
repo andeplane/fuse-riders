@@ -119,6 +119,8 @@ export interface RuntimeMetrics {
   >;
 }
 export interface RuntimeOptions {
+  /** Receives consumer failures; defaults to console.error. Must not throw. */
+  callbackError?: (kind: keyof Callbacks, error: unknown) => void;
   transport?: (events: TransportEvents) => RoomTransport;
   displayOnly?: boolean;
   humanName?: string;
@@ -225,7 +227,7 @@ export class RoomRuntime {
     this.deps = options.dependencies ?? browserDependencies;
     this.status = new StatusNotices(
       () => this.deps.now(),
-      (text) => callbacks.status(text),
+      (text) => this.deliver("status", () => callbacks.status(text)),
     );
     this.clock = new TickClock(() => this.deps.now());
     this.generation = this.deps.generation();
@@ -245,7 +247,7 @@ export class RoomRuntime {
         },
         ended: () => {
           this.halt();
-          this.callbacks.ended?.();
+          this.deliver("ended", () => this.callbacks.ended?.());
         },
         terminated: (text) => {
           this.halt();
@@ -288,7 +290,7 @@ export class RoomRuntime {
         mode: "devices",
         weights: { ...this.settings.weights },
       });
-      this.callbacks.ready("solo", true);
+      this.deliver("ready", () => this.callbacks.ready("solo", true));
       this.status.recurring("Solo · you and four AI riders");
       const name =
         this.options.humanName?.trim().slice(0, MAX_NAME_LENGTH) || "You";
@@ -329,7 +331,7 @@ export class RoomRuntime {
           ? "Connected · preparing the room"
           : "Connected · waiting for the game",
       );
-    this.callbacks.ready(id, id === hostId);
+    this.deliver("ready", () => this.callbacks.ready(id, id === hostId));
   }
   private peer(id: string, online: boolean): void {
     if (online) {
@@ -498,7 +500,14 @@ export class RoomRuntime {
     }
     if (result.rollbackTicks > 0) this.lastFrameTick = -1;
     for (const event of result.events)
-      this.callbacks.event(event.event, event.matchId, event.round, event.tick);
+      this.deliver("event", () =>
+        this.callbacks.event(
+          event.event,
+          event.matchId,
+          event.round,
+          event.tick,
+        ),
+      );
     const stream = this.world.streams.get(id);
     if (stream?.gap && now - member.nackAt >= NACK_INTERVAL_MS) {
       member.nackAt = now;
@@ -1240,11 +1249,13 @@ export class RoomRuntime {
           Math.min(tick, world.tick + CATCHUP_TICKS),
         );
         for (const event of result.events)
-          this.callbacks.event(
-            event.event,
-            event.matchId,
-            event.round,
-            event.tick,
+          this.deliver("event", () =>
+            this.callbacks.event(
+              event.event,
+              event.matchId,
+              event.round,
+              event.tick,
+            ),
           );
         if (result.waitingFor !== undefined) {
           this.status.recurring(`Waiting for ${result.waitingFor}`);
@@ -1381,11 +1392,35 @@ export class RoomRuntime {
       /* Even a single entry over the cap is a bug in the entry validator, never a crash. */
     }
   }
+  /** Consumer failures never abort simulation, peer delivery or the rest of an event batch. */
+  private deliver(kind: keyof Callbacks, callback: () => void): boolean {
+    try {
+      callback();
+      return true;
+    } catch (error) {
+      if (this.options.callbackError) {
+        try {
+          this.options.callbackError(kind, error);
+        } catch (reporterError) {
+          console.error(
+            `fuse-riders: ${kind} callback and error reporter failed`,
+            error,
+            reporterError,
+          );
+        }
+      } else console.error(`fuse-riders: ${kind} callback failed`, error);
+      return false;
+    }
+  }
   private publish(): void {
     const frame = this.world?.view()[0];
     if (!frame || frame.tick === this.lastFrameTick) return;
-    this.lastFrameTick = frame.tick;
-    this.callbacks.state(frame, this.world!.state.settings);
+    if (
+      this.deliver("state", () =>
+        this.callbacks.state(frame, this.world!.state.settings),
+      )
+    )
+      this.lastFrameTick = frame.tick;
   }
   /** The frame to draw now: one tick behind the clock, the local rider led by its held controls. */
   view(): ViewSnapshot | undefined {

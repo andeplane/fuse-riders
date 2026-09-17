@@ -39,6 +39,12 @@ grant. No live world is stored by the room service: returning devices recover it
 See [the lifetime design](../../docs/design/member-kept-room-lifetime.md) for
 expiry, verification and rollout boundaries.
 
+Signalling abuse is isolated per room: a 32-frame ICE burst refills at five frames
+per second per member, and bus retry IDs use a bounded room-local window.
+Admission uses a separate 30-failures/hour/IP budget plus bounded pending work;
+successful joins do not consume it. See [abuse isolation](../../docs/design/signalling-abuse-isolation.md)
+for ordering, limits and multi-instance concurrency boundaries.
+
 Games can mount account/history or other application routes without making the networking package depend on the game.
 Pass `httpExtension: store => ({ methods, headers, async handle(req, res, clientAddress) { ... } })` to the
 in-memory service, or `httpExtension: ({ store, firestore, prefix, projectId }) => ...` to the GCP service.
