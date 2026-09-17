@@ -74,7 +74,7 @@ try {
           export const fetchUsername = async () => 'Neon Rider';
           export const warmAccount = () => {};
           export const accountReady = async () => {};
-          export const watchAccount = listener => { listener({name:'Neon Rider'}); return () => {}; };
+          export const watchAccount = listener => { listener({name:'Google Legal Name'}); return () => {}; };
           export const signIn = async () => {};
           export const signOut = async () => {};
           export const signedInToken = async () => undefined;
@@ -168,6 +168,23 @@ try {
           .click();
         await page.locator(phone ? ".mobile-play" : ".desktop-game").waitFor();
         await inside(page);
+        if (phone) {
+          const accountBox = await page
+            .getByRole("button", { name: rating, exact: true })
+            .boundingBox();
+          const hud = page.locator(".mobile-hud:not([hidden])");
+          await hud.waitFor({ state: "visible" });
+          const hudBox = await hud.boundingBox();
+          assert.ok(
+            accountBox &&
+              hudBox &&
+              (accountBox.x + accountBox.width <= hudBox.x ||
+                hudBox.x + hudBox.width <= accountBox.x ||
+                accountBox.y + accountBox.height <= hudBox.y ||
+                hudBox.y + hudBox.height <= accountBox.y),
+            "Account button never covers the live rider HUD",
+          );
+        }
         await page.screenshot({
           path: `artifacts/top-menu-${name}-${phone ? "phone" : "desktop"}-play.png`,
         });

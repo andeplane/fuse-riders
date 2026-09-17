@@ -203,7 +203,12 @@ try {
           },
           { api },
         );
-        const expected = `#${initial.profile.rank} · ${Math.round(initial.profile.rating.value).toLocaleString()} ELO`;
+        const current = (await (
+          await call("/api/me", {
+            headers: { Authorization: "Bearer smoke:user0" },
+          })
+        ).json()) as { profile: { username?: string; name?: string } };
+        const expected = `${current.profile.username ?? current.profile.name ?? "Neon Rider"} ${Math.round(initial.profile.rating.value).toLocaleString()} ELO`;
         await page
           .getByRole("button", { name: expected, exact: true })
           .waitFor();

@@ -101,7 +101,7 @@
   display: block;
   position: fixed;
   top: max(0.5rem, env(safe-area-inset-top));
-  left: max(0.5rem, env(safe-area-inset-left));
+  right: max(5.5rem, calc(env(safe-area-inset-right) + 5rem));
   z-index: 70;
   min-height: 2.5rem;
   max-width: 28vw;
@@ -120,4 +120,15 @@
 .online-app > .player-account[data-signed-in="true"] {
   white-space: pre-line;
   text-align: center;
+}
+
+/* Reserve the account and MENU space instead of covering the live rider HUD. */
+.online-app.mobile-play > .mobile-hud:not([hidden]) {
+  box-sizing: border-box;
+  max-width: calc(
+    72vw - 7rem - env(safe-area-inset-left) - env(safe-area-inset-right)
+  );
+}
+.online-app.mobile-play .online-notice {
+  top: max(3.5rem, calc(env(safe-area-inset-top) + 3rem));
 }

@@ -288,3 +288,42 @@ test("round token lookup failure retries without submitting a guest vote", async
   assert.equal(headers.length, 1);
   assert.equal(headers[0]!.get("X-Fuse-Identity"), "signed-in");
 });
+
+test("solo round reporting normalizes the local seat consistently for the authenticated endpoint", () => {
+  const decision = {
+    matchId: "solo-game",
+    round: 2,
+    tick: 500,
+    shots: [],
+    rating: {
+      finishers: ["solo"],
+      standings: [
+        {
+          playerId: "solo",
+          name: "Rider",
+          slot: 0,
+          color: "#123456",
+          place: 2,
+          scoreUnits: 0,
+        },
+        {
+          playerId: "bot:1",
+          name: "Bot",
+          slot: 1,
+          color: "#654321",
+          place: 1,
+          scoreUnits: 120,
+        },
+      ],
+    },
+  };
+  const report = buildRoundReport(decision, "solo", 500)!;
+  assert.deepEqual(report.result.finishers, ["0".repeat(24)]);
+  assert.equal(report.result.players[0]!.playerId, "0".repeat(24));
+  assert.ok(parseMatchResult(report.result));
+  assert.equal(
+    decision.rating.standings[0]!.playerId,
+    "solo",
+    "normalization never mutates simulation state",
+  );
+});

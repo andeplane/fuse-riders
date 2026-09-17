@@ -3,8 +3,7 @@
 Stacked on #249. The stats dialog puts current Elo and its dated graph first, followed by four career totals, results, rivalries, combat and records. Detailed counters and match rosters are collapsible. The landing page shows the signed-in rider's rating and global rank; the public leaderboard exposes only rider names, avatars, rounded Elo and rated-result counts, never account IDs.
 
 Elo starts at 1000, K=32. It now settles after each individual round from the frozen, confirmed round standings,
-comparing signed-in human finishers only. Guests and bots are removed before pairwise calculations, and at least two
-distinct accounts are needed. Each round's mean pairwise updates use the pre-round ratings simultaneously. A player
+comparing signed-in human finishers only. Guests and bots are removed before pairwise calculations, and a lone signed-in human records a zero-change round. Each round's mean pairwise updates use the pre-round ratings simultaneously. A player
 can join between rounds or leave before the game ends without losing completed rounds' ratings. A mid-round departure
 is excluded from that round. Settlement waits for all frozen human finishers' reports so delivery ordering does not
 exclude a signed-in finisher. A missing report can delay settlement. Late sign-in can complete an unsettled round;
@@ -15,7 +14,7 @@ The dedicated `/round-results` endpoint has bounded round-sized quotas independe
 scoped to room incarnation, match ID and round prevents duplicate or conflicting results from rating twice.
 Round receipts never credit career or rivalry totals and are omitted from the career-history index. Full-game reports
 continue to credit those totals once but cannot award Elo. Existing Elo, receipts and graph entries are retained;
-UI counts say rated results because old entries represent whole games. No historical scores are recalculated.
+UI counts show individual rounds separately from earlier full-game ratings. No historical scores are recalculated.
 
 The deterministic decided-round snapshot freezes standings and connected human participants at the decision tick.
 Clients wait until that tick is confirmed before reporting, including when the snapshot has advanced into the next

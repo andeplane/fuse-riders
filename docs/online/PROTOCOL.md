@@ -106,7 +106,12 @@ This changes canonical state hashes and the checkpoint shape, so the rules bump 
 Clients report only confirmed decision ticks to `/api/rooms/<CODE>/round-results`; the service settles signed-in
 humans only, with room-incarnation/match/round idempotency and no career credits. Full-game `/results` reports no
 longer award Elo. Refresh peers together and use fresh rooms after rollback. Deploy the client and service together;
-old services reject the new route. Existing stored Elo and rating history remain intact.
+old services reject the new route. Existing stored Elo and rating history remain intact. Every signed-in human
+finisher records a round, even with no signed-in opponents (zero Elo change). Signed-in solo clients post to
+`/api/me/round-results`; only one human is permitted and claims are scoped to the authenticated account/match/round.
+The authenticated solo path cannot move Elo. Profiles distinguish new `rounds` from total historical `games`
+settlements, and graph points optionally carry `round` and signed-in `opponents` (0–4). Missing point metadata
+identifies earlier full-game ratings.
 
 ## Round shot log
 

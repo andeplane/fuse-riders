@@ -11,7 +11,11 @@ import {
 import { defaultRoomSettings } from "../src/shared/room-settings.js";
 import { buildRoundReport } from "../src/online/match-report.js";
 import { calculateElo } from "../src/shared/elo.js";
-import { parseRating, newRating } from "../src/shared/rating.js";
+import {
+  parseRating,
+  newRating,
+  SOLO_RATING_PLAYER_ID,
+} from "../src/shared/rating.js";
 import {
   beginMatchParticipant,
   snapshotMatchStats,
@@ -591,4 +595,51 @@ test("a real simulation round reaches history settlement before the multi-round 
   assert.equal((await f.history.profile("user0"))!.rating!.games, 1);
   assert.equal((await f.history.profile("user0"))!.totals.matches, 0);
   assert.equal(await f.history.profile("user2"), undefined);
+});
+
+test("round metadata preserves legacy rating history and rejects corrupt fields", () => {
+  const old = { match: "a".repeat(40), at: 100, before: 1000, after: 1016 };
+  const round = {
+    match: "b".repeat(40),
+    at: 200,
+    before: 1016,
+    after: 1016,
+    round: 3,
+    opponents: 0,
+  };
+  const legacy = { value: 1016, peak: 1016, games: 1, points: [old] };
+  assert.deepEqual(parseRating(legacy), legacy);
+  const current = { ...legacy, games: 2, rounds: 1, points: [old, round] };
+  assert.deepEqual(parseRating(current), current);
+  for (const rounds of [-1, 3, 1.5, "1", NaN])
+    assert.equal(parseRating({ ...current, rounds }), undefined);
+  for (const point of [
+    { ...round, round: 0 },
+    { ...round, round: 1.5 },
+    { ...round, round: 1000001 },
+    { ...round, opponents: undefined },
+    { ...round, opponents: -1 },
+    { ...round, opponents: 5 },
+    { ...round, opponents: 0.5 },
+    { ...old, opponents: 0 },
+  ])
+    assert.equal(parseRating({ ...current, points: [old, point] }), undefined);
+});
+test("solo round records retain an existing competitive Elo", async () => {
+  const f = await fixture();
+  const competitive = result(f.ids);
+  await f.report(0, competitive);
+  await f.report(1, competitive);
+  const solo = result([SOLO_RATING_PLAYER_ID, "bot:1"], "solo-round");
+  const reporter = await f.history.admitSolo("user0", "ip");
+  await f.history.submitSolo(reporter, { result: solo }, "user0");
+  const rating = (await f.history.profile("user0"))!.rating!;
+  assert.equal(rating.value, 1016);
+  assert.equal(rating.rounds, 2);
+  assert.equal(rating.points[1]!.before, rating.points[1]!.after);
+  assert.equal(rating.points[1]!.opponents, 0);
+  await assert.rejects(
+    f.history.submitSolo(reporter, { result: solo }, "other-user"),
+    { status: 400 },
+  );
 });

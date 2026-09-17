@@ -201,7 +201,11 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       leaderboardButton.textContent = profile?.rank
         ? `#${profile.rank} · LEADERBOARD`
         : "LEADERBOARD";
-      button.textContent = `${account.name}\n${Math.round(rating.value).toLocaleString()} ELO`;
+      const nickname =
+        [profile?.username, profile?.name, dependencies.localName()].find(
+          validRiderName,
+        ) ?? account.name;
+      button.textContent = `${nickname}\n${Math.round(rating.value).toLocaleString()} ELO`;
       button.title = "Your global rank and Elo · Open player stats";
     } catch {
       if (mine === landingGeneration && account) {

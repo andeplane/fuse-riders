@@ -205,26 +205,27 @@ signed in still get the match recorded. It runs on what the game already had —
 database in `andershaf-87` — plus **Firebase Authentication**. There is no Postgres, no Functions, Storage or Realtime
 Database, Firebase Hosting serves nothing but the sign-in handler, and nothing here costs money at this game's scale.
 
-On the landing page the top bar has **SIGN IN**; once signed in it shows **your global rank and Elo** and opens your
-stats dashboard, username settings and past matches. The adjacent **LEADERBOARD** opens the public top 50. Sign in before entering a room: the room screen has no sign-in of its own, and a match can only be linked to
-an account by a device that was in the room when it ended.
+The shared top bar has **SIGN IN** on home, lobby and gameplay screens. Once signed in, the account button shows
+**your rider nickname above Elo** and opens stats, username settings and past full games. The adjacent
+**LEADERBOARD** button shows your global rank and opens the public top 50. Sign in before a round ends to have that
+round linked to your account; already settled rounds are not rewritten by a later sign-in.
 
 ### Player stats and human Elo
 
 The stats dashboard leads with current **Rider Elo**, global rank, peak rating and a dated graph of the latest 100
 rated results. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
 players start at 1,000 and remain unranked until their first rated round. Equal rounded Elo values share a rank.
-The public leaderboard exposes rider names, avatars, Elo and rated-result counts, never account IDs or emails.
+The public leaderboard exposes rider names, avatars, Elo and individual-round counts, never account IDs or emails.
 
 - Elo settles **after each individual round**, comparing round scores among signed-in human finishers only.
   It uses all pre-round ratings at once and averages K=32 pairwise changes. Ties split the outcome. Guests and bots
-  never award or deduct Elo; at least two distinct signed-in humans are needed.
+  never award or deduct Elo; every signed-in finisher records a round. With no other signed-in human, Elo stays unchanged.
 - Joining late or leaving between rounds does not cancel completed rounds' Elo. A rider who leaves during a round
   is excluded from that round. Settlement waits for the frozen human finishers to report, then removes guests from
   the comparison. A missing report can delay settlement; failed signed-in token lookups retry rather than count as
   guests. Late sign-in can complete an unsettled round but does not rewrite an already settled rating field.
 - Whole-game recap reports still credit career history and rivalries once, but no longer award Elo. Existing ratings
-  and older whole-game graph entries are retained; the counter therefore says rated results. This is a community
+  and older whole-game graph entries are retained; new round counts are shown separately from earlier full-game rating counts. This is a community
   ladder with peer-confirmed results, not anti-cheat; colluding accounts can fabricate results and leaving mid-round
   avoids a loss. Graph dates are server settlement times.
 - All time / Last 20 controls the expanded stats. A shared opponent filter separates humans-only, mixed human/AI,
@@ -267,6 +268,12 @@ shows it and is not editable there. It is changed under **Account settings** in 
   is what friends call you. Nothing stops a guest typing someone's username either — a room is a table of friends.
 - It is a client-side convention: joining a room is peer-to-peer and the gateway never sees the join, so it cannot
   force a signed-in rider's in-game name to match. Each stored match keeps the name it was actually played under.
+
+Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change. This authenticated
+endpoint accepts one human only; bots cannot move Elo. Guest solo play sends no account report. The account button
+shows nickname and Elo; the leaderboard button shows global rank. These controls are available in home, lobby and
+play, with a compact account button during phone play. Round completion coalesces profile refreshes at most once
+per 15 seconds rather than polling continuously.
 
 Individual rounds post to `POST /api/rooms/<CODE>/round-results` as soon as their decision tick is confirmed.
 Standings and finishers are frozen in the deterministic decided-round snapshot and survive the next round starting.
