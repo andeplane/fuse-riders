@@ -11,6 +11,7 @@ import { ACTION, AIM, AVATAR, BOT, CANCEL, JOIN, LEAVE, MAX_NAME_LENGTH, PRESENC
 import { isAvatarId, type AvatarId } from '../shared/avatars.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
 import { botDisplayName, botRandom, rollBotDifficulty, BOT_ID_PREFIX } from '../shared/bot-controller.js';
+import { simulationTimeScale } from '../shared/game.js';
 import type { AimPoint, GameEvent } from '../shared/protocol.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import { uuid } from '../shared/uuid.js';
@@ -477,7 +478,9 @@ export class RoomRuntime {
       if (this.pendingJoin && now - this.pendingJoin.sentAt > JOIN_RETRY_MS) this.sendJoin();
       return;
     }
-    const world = this.world!, tick = Math.floor(this.clock.tick());
+    const world = this.world!;
+    this.clock.rate = simulationTimeScale(world.state.game, world.state.bots);
+    const tick = Math.floor(this.clock.tick());
     if (this.snapshotRequest && now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS) this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
     if (!this.hiddenState && tick > world.tick) {

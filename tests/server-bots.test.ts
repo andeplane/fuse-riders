@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { createGameServer } from '../src/server/index.js';
+import { eliminatePlayer } from '../src/shared/game.js';
 import { parseClientMessage, type ClientMessage, type ServerMessage } from '../src/shared/protocol.js';
 class Peer {
   private queued:ServerMessage[]=[];
@@ -36,6 +37,26 @@ test('LAN AI management is authorized, shares seats, follows normal rounds and c
     for(let i=0;i<3;i++){host.send({type:'hostBot',action:'add'});await host.take('snapshot',m=>m.state.players.length===3+i);}
     host.send({type:'hostBot',action:'add'});assert.equal((await host.take('error')).code,'full');
   }finally{await f.close();}
+});
+test('LAN loop runs three ticks per 50 ms once only AI riders survive, and drops back when the round ends',async()=>{
+  let now=0;const tasks=new Map<number,()=>void>();
+  const app=await createGameServer({port:0,hostname:'127.0.0.1',dependencies:{now:()=>now,botRandom:()=>.25,schedule:(callback,interval)=>{tasks.set(interval,callback);return()=>{tasks.delete(interval);};}}});
+  const peers:Peer[]=[];
+  try{
+    const connect=async()=>{const peer=new Peer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`));peers.push(peer);await once(peer.socket,'open');await peer.take('snapshot');return peer;};
+    const host=await connect(),human=await connect();
+    host.send({type:'hostAuth',token:app.hostToken});await host.take('hostAuthenticated');
+    for(let i=0;i<2;i++){host.send({type:'hostBot',action:'add'});await host.take('snapshot',m=>m.state.players.length===1+i);}
+    human.send({type:'join',name:'Human'});const joined=await human.take('joined');
+    host.send({type:'hostAction',action:'start'});await host.take('snapshot',m=>m.state.phase==='countdown');
+    const run=tasks.get(10)!,pass=(ms:number)=>{now+=ms;run();};
+    while(app.game.phase!=='playing')pass(50);
+    let tick=app.game.tick;pass(50);assert.equal(app.game.tick,tick+1,'normal pace while the human rides');
+    eliminatePlayer(app.game,joined.playerId);
+    tick=app.game.tick;pass(50);assert.equal(app.game.tick,tick+3);
+    for(const id of['bot:1','bot:2'])eliminatePlayer(app.game,id);
+    pass(50);assert.notEqual(app.game.phase,'playing');tick=app.game.tick;pass(50);assert.equal(app.game.tick,tick+1,'round over runs at normal pace');
+  }finally{peers.forEach(peer=>peer.socket.terminate());await app.close();}
 });
 test('LAN bot protocol rejects missing IDs, human IDs and unexpected action data',()=>{
   assert.deepEqual(parseClientMessage('{"type":"hostBot","action":"add"}'),{type:'hostBot',action:'add'});
