@@ -1,6 +1,6 @@
 # ADR-024: Bounded drunk heading and stronger dizzy feedback
 
-- Status: Accepted; root reviewed before implementation
+- Status: Accepted; root reviewed before implementation. The waveform and its 15 degree bound are superseded by [ADR-046](046-drunk-stagger-and-lurch.md)
 - Date: 2026-09-13
 
 ## Decision

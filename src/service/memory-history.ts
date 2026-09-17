@@ -109,6 +109,7 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
         ...(p.avatarId ? { avatarId: p.avatarId } : {}),
         elo: Math.round(p.rating!.value),
         games: p.rating!.games,
+        rounds: p.rating!.rounds ?? 0,
         ...(id === uid ? { you: true } : {}),
       })),
     );

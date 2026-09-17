@@ -281,7 +281,7 @@ for (const [browserName, type] of [
           await inside(page, dialog);
           assert.ok(
             await page
-              .locator(".dialog-body")
+              .locator("dialog[open] .dialog-body")
               .evaluate((e) => e.scrollWidth <= e.clientWidth + 1),
             "dialog body horizontal overflow",
           );
@@ -451,7 +451,7 @@ for (const [browserName, type] of [
               page,
               page.getByRole("button", { name: "EFFECTS ON", exact: true }),
             );
-            await page
+            await dialog
               .getByRole("button", { name: "♫ RADIO", exact: true })
               .click();
             await page.locator(".audio-panel").waitFor({ state: "visible" });
@@ -460,7 +460,7 @@ for (const [browserName, type] of [
               .all())
               await inside(page, slider);
           }
-          await page.locator(".dialog-body").evaluate((e) => {
+          await page.locator("dialog[open] .dialog-body").evaluate((e) => {
             e.scrollTop = e.scrollHeight;
           });
           await inside(
