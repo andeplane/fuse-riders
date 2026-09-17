@@ -29,6 +29,7 @@ import { explodeInstant } from "./phases/explode.js";
 import { resolveInstantHits } from "./phases/resolve-instant-hits.js";
 import { observeDodges } from "./phases/observe-dodges.js";
 import { recordFacts } from "./phases/record-facts.js";
+import { resolveRound } from "./phases/resolve-round.js";
 
 export interface Phase {
   readonly name: string;
@@ -68,13 +69,5 @@ export const PHASES: readonly Phase[] = [
   { name: "resolveInstantHits", when: "playing", run: resolveInstantHits },
   { name: "observeDodges", when: "playing", run: observeDodges },
   { name: "recordFacts", when: "playing", run: recordFacts },
+  { name: "resolveRound", when: "playing", run: resolveRound },
 ];
-
-/** Walks the phases in order. False when the tick ended early because no round is in play. */
-export function runPhases(ctx: TickContext, phases: readonly Phase[]): boolean {
-  for (const phase of phases) {
-    if (phase.when === "playing" && ctx.state.phase !== "playing") return false;
-    phase.run(ctx);
-  }
-  return true;
-}
