@@ -95,7 +95,7 @@ try {
       const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
       const roster = document.querySelector('.online-roster')!.getBoundingClientRect();
       const actions = document.querySelector('.online-host')!.getBoundingClientRect();
-      return { ui: parseFloat(getComputedStyle(document.documentElement).fontSize) / 16, viewport: { width: innerWidth, height: innerHeight }, arena: { width: r.width, height: r.height, y: r.y }, fitted: { width: canvas.width * scale, height: canvas.height * scale }, bar: { height: bar.height, bottom: bar.bottom }, rosterY: roster.y, actionsY: actions.y, overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
+      return { ui: parseFloat(getComputedStyle(document.documentElement).fontSize) / 16, viewport: { width: innerWidth, height: innerHeight }, arena: { width: r.width, height: r.height, y: r.y }, fitted: { width: canvas.width * scale, height: canvas.height * scale }, bar: { height: bar.height, bottom: bar.bottom }, rosterX: roster.x, rosterWidth: roster.width, arenaRight: r.right, actionsY: actions.y, overflow: document.documentElement.scrollWidth > innerWidth || document.documentElement.scrollHeight > innerHeight };
     })).jsonValue();
     assert.ok(layout);
     assert.equal(layout.overflow, false);
@@ -109,8 +109,8 @@ try {
     // The UI scales with the viewport above 1920x1080, so the bar's padding and gap allowances scale with it.
     assert.ok(layout.arena.height >= viewport.height - layout.bar.height - 13 * layout.ui);
     if (viewport.width === 2048) {
-      assert.ok(layout.fitted.width > viewport.width * .97, 'reference screen uses at least 97% of horizontal space');
-      assert.ok(Math.abs(layout.rosterY - layout.actionsY) < 8, 'scores and actions share a row');
+      assert.ok(layout.fitted.width > (viewport.width - layout.rosterWidth) * .97, 'reference screen uses at least 97% of the space left of the standings');
+      assert.ok(layout.rosterX >= layout.arenaRight - 1, 'standings sit in their own column right of the arena');
       await page.screenshot({ path: 'artifacts/desktop-controls.png' });
     }
     layouts.push(layout);

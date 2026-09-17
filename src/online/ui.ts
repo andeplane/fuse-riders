@@ -16,7 +16,6 @@ import { applyThemeProperties, selectedTheme, storeTheme, themes, type ThemeDefi
 import { createGameAudio, type GameAudio } from '../client/game-audio.js';
 import { defaultRoomSettings, loadRoomSettings, parseRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
-import { ARENA_HEIGHT, ARENA_WIDTH } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
 import type { Moment } from '../shared/moments.js';
@@ -261,15 +260,10 @@ export async function startOnline():Promise<void>{
   const updateDesktopLayout=()=>{
     const desktop=desktopQuery.matches&&!app.classList.contains('mobile-play')&&!app.classList.contains('controller-only')&&!app.classList.contains('joining')&&sharedLobby.hidden;
     app.classList.toggle('desktop-game',desktop);
-    // The arena keeps its aspect, so a wide window leaves a gutter beside it. When the gutter fits the standings they leave the bar and stack there;
-    // the arena never gives up space for them. Entering needs more room than staying: taking the roster out of the bar can shorten it, which grows the arena and narrows the gutter.
-    const rem=parseFloat(getComputedStyle(document.documentElement).fontSize),box=canvas.getBoundingClientRect();
-    // An unmounted canvas still has the 300x150 HTML default, which is not the arena's shape.
-    const aspect=canvas.width===300&&canvas.height===150?ARENA_WIDTH/ARENA_HEIGHT:canvas.width/canvas.height;
-    const gutter=desktop&&!canvas.hidden?(box.width-Math.min(box.width,box.height*aspect))/2:0;
-    const side=gutter>=(app.classList.contains('side-standings')?7.5:10)*rem;
+    // Desktop play keeps the standings in a fixed column right of the arena (its width lives in online.css), so the game bar holds actions only.
+    const side=desktop&&!canvas.hidden;
     app.classList.toggle('side-standings',side);
-    if(side){app.style.setProperty('--standings-top',`${header.getBoundingClientRect().bottom-app.getBoundingClientRect().top}px`);app.style.setProperty('--standings-width',`${gutter}px`);}
+    if(side)app.style.setProperty('--standings-top',`${header.getBoundingClientRect().bottom-app.getBoundingClientRect().top}px`);
     const rosterParent=side?app:desktop?header:scoreboard;
     if(roster.parentElement!==rosterParent){if(side)app.append(roster);else if(desktop)header.insertBefore(roster,results);else scoreboard.append(roster);}
     const actionsParent=!sharedLobby.hidden?lobbyFooter:desktop?header:footer;
