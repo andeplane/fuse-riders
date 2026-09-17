@@ -1,6 +1,6 @@
 # ADR 039: short codes and host-session room lifetime
 
-Status: Partially current, partially historical. Short-code allocation and creator capability fencing remain. Worker-specific implementation notes are superseded by the extracted Cloud Run room service. The creator-only lifetime below still describes current code, but conflicts with the intended member-survival contract tracked in [#258](https://github.com/andeplane/fuse-riders/issues/258); it is not a requirement to preserve. See [current architecture](../architecture.md).
+Status: Partially current, partially historical. Short-code allocation and creator capability fencing remain. Worker-specific implementation notes are superseded by the extracted Cloud Run room service. The creator-only lifetime below is superseded by [member-kept room lifetime](../design/member-kept-room-lifetime.md): any admitted member can renew the room, while explicit end remains creator-authorized. The remaining text preserves the original decision. See [current architecture](../architecture.md).
 
 ## User intent and default semantics
 

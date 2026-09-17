@@ -878,6 +878,39 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
       [peerId(guest)]: AVATARS[0]!.id,
     });
     assert.equal(mine.profile.totals.wins, 1);
+    assert.deepEqual(
+      await (await call("/api/leaderboard")).json(),
+      { players: [] },
+      "one signed-in human and a guest do not rate",
+    );
+    assert.equal((await report(guest, result, "id:bob")).status, 200);
+    const board = (await (
+      await call("/api/leaderboard", {
+        headers: { authorization: "Bearer id:alice" },
+      })
+    ).json()) as {
+      players: { rank: number; elo: number; you?: boolean; name: string }[];
+    };
+    assert.equal(board.players.length, 2);
+    assert.deepEqual(
+      board.players.map((p) => [p.rank, p.elo]),
+      [
+        [1, 1016],
+        [2, 984],
+      ],
+    );
+    assert.equal(board.players[0]!.you, true);
+    assert.equal(board.players[0]!.name, "Ace");
+    assert.equal(JSON.stringify(board).includes("uidByPlayer"), false);
+    assert.equal(
+      (
+        await fetch(`${origin}/api/leaderboard`, {
+          headers: { origin: "https://evil.example" },
+        })
+      ).status,
+      403,
+    );
+
     assert.equal(
       (
         (await (

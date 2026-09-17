@@ -31,6 +31,14 @@ be non-negative safe integers below `Number.MAX_SAFE_INTEGER`. The Google client
 
 Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.
 
+Room lifetime follows active membership: admission and valid member heartbeats
+extend the 90-second reconnect grace, including when the creator has left. A
+current member leaving starts that grace too. The creator retains the reserved
+seat and exclusive explicit-end capability; guests cannot renew its authority
+grant. No live world is stored by the room service: returning devices recover it from another peer.
+See [the lifetime design](../../docs/design/member-kept-room-lifetime.md) for
+expiry, verification and rollout boundaries.
+
 Signalling abuse is isolated per room: a 32-frame ICE burst refills at five frames
 per second per member, and bus retry IDs use a bounded room-local window.
 Admission uses a separate 30-failures/hour/IP budget plus bounded pending work;
