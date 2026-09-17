@@ -4,7 +4,6 @@ import {
   type GameState,
   sortedBombs,
   sortedObstacles,
-  sortedPlayers,
 } from "../../state.js";
 import {
   PROJECTILE_OWNER_GRACE_TICKS,
@@ -24,6 +23,7 @@ import { isClearOfPortalWalls } from "../portals.js";
 import { obstacleDistanceSquared, obstacleEdges } from "../../arena-map.js";
 import { portalBounds } from "../field.js";
 import { wrapCoordinate, wrapImages } from "../../wrap.js";
+import { sortedPlayers } from "../../state.js";
 
 /**
  * Shells fly their tick: off walls, trails and scenery, through a gate if they meet one, and across open edges.

@@ -1,5 +1,5 @@
 import { GRAVITY_BEND } from "./tuning.js";
-import { type GravityField } from "./state.js";
+import type { GravityField } from "./state.js";
 import { cos, hypot2, sin } from "./deterministic-math.js";
 /**
  * How far curved space turns a heading this tick, in radians. Each hole bends by the part of its pull that lies across

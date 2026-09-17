@@ -1,5 +1,5 @@
 import { hypot2 } from "./deterministic-math.js";
-import type { EliminationCause, GameState, PlayerId } from "./game.js";
+import type { EliminationCause, GameState, PlayerId } from "./state.js";
 
 /**
  * Highlight moments: the plays a table of friends would want replayed (ADR 043). They are detected inside the shared

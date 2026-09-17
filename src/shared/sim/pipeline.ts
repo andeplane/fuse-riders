@@ -13,7 +13,7 @@ import { moveRiders } from "./phases/move-riders.js";
 import { collectPickups } from "./phases/collect-pickups.js";
 import { bounceImmuneRiders } from "./phases/bounce-immune-riders.js";
 import { moveShells } from "./phases/move-shells.js";
-import { explodeFuses } from "./phases/explode.js";
+import { explodeFuses, explodeInstant } from "./phases/explode.js";
 import { hitProjectiles } from "./phases/hit-projectiles.js";
 import { burnTrails } from "./phases/burn-trails.js";
 import { detectHazards } from "./phases/detect-hazards.js";
@@ -23,14 +23,13 @@ import { resolveDefences } from "./phases/resolve-defences.js";
 import { portalTransit } from "./phases/portal-transit.js";
 import { stopAtContact } from "./phases/stop-at-contact.js";
 import { commitMovement } from "./phases/commit-movement.js";
+import { commitDeaths } from "./phases/commit-deaths.js";
 import { launchWeapons } from "./phases/launch-weapons.js";
 import { fireGuns } from "./phases/fire-guns.js";
-import { explodeInstant } from "./phases/explode.js";
 import { resolveInstantHits } from "./phases/resolve-instant-hits.js";
 import { observeDodges } from "./phases/observe-dodges.js";
 import { recordFacts } from "./phases/record-facts.js";
 import { resolveRound } from "./phases/resolve-round.js";
-import { commitDeaths } from "./phases/commit-deaths.js";
 
 export interface Phase {
   readonly name: string;

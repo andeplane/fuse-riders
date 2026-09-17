@@ -1,9 +1,5 @@
-import {
-  type GameState,
-  type PlayerState,
-  type TrailSegment,
-} from "../state.js";
-import { type Movement } from "./context.js";
+import type { GameState, PlayerState, TrailSegment } from "../state.js";
+import type { Movement } from "./context.js";
 import { RIDER_RADIUS } from "../tuning.js";
 import {
   type WrapOffset,

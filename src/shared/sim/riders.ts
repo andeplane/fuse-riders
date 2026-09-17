@@ -1,5 +1,5 @@
-import { type GameState, type PlayerState } from "../state.js";
-import { type Movement } from "./context.js";
+import type { GameState, PlayerState } from "../state.js";
+import type { Movement } from "./context.js";
 import {
   type ObstacleHitbox,
   edgesOpen,

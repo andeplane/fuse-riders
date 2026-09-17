@@ -5,7 +5,7 @@ import {
   sortedBombs,
   sortedPlayers,
 } from "../state.js";
-import { type Movement } from "./context.js";
+import type { Movement } from "./context.js";
 import {
   PORTAL_WALL_HALF_WIDTH,
   type PortalPoint,

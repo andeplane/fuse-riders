@@ -1,4 +1,4 @@
-import type { TickContext } from "../context.js";
+import type { TickContext, TickFact } from "../context.js";
 import {
   type AimPoint,
   type BombActionCommand,
@@ -27,14 +27,13 @@ import { cos, sin } from "../../deterministic-math.js";
 import { edgesOpen } from "../../arena-map.js";
 import { powerBlastRadius, powerReloadTicks } from "../../power-progression.js";
 import { wrapCoordinate } from "../../wrap.js";
-import { type TickFact } from "../context.js";
 
 /**
  * Every living rider's bomb commands for the tick — press, release, cancel — run against the board as it was just
  * committed, in seat order: charging, aiming a Target Bomb, and launching whatever the rider has armed.
  */
 export function launchWeapons(ctx: TickContext): void {
-  const { state, inputs, events, movements } = ctx;
+  const { state, inputs, movements } = ctx;
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movements.values()) {
     if (movement.player.alive) {

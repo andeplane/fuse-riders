@@ -34,7 +34,6 @@ import {
   type PlayerState,
   sortedPlayers,
 } from "./state.js";
-import { toSnapshot } from "./view.js";
 import { takeOutOfRound } from "./sim/riders.js";
 export { segmentDistanceSquared } from "./geometry.js";
 export { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
