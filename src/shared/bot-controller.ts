@@ -1,6 +1,8 @@
 import { hypot2, sin, cos, atan2 } from "./deterministic-math.js";
 import {
   RIDER_RADIUS,
+  sortedPlayers,
+  sortedBombs,
   RIDER_SPEED,
   gravityBend,
   gravityCoreRadius,
@@ -158,7 +160,7 @@ function chooseSteering(
         player.y + reach,
       )
     : [{ dx: 0, dy: 0 }];
-  const trails = [...game.players.values()]
+  const trails = sortedPlayers(game)
     .flatMap((owner) =>
       owner.trail.map((trail) => ({
         trail,
@@ -248,7 +250,7 @@ function chooseSteering(
       ),
     ),
   ];
-  const bombs = [...game.bombs.values()].filter((bomb) => !bomb.shell?.gun);
+  const bombs = sortedBombs(game).filter((bomb) => !bomb.shell?.gun);
   // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
   // of this plan are worth testing each step.
   const obstacles = game.obstacles.filter(
@@ -496,7 +498,7 @@ export class BotController {
     const player = game.players.get(id);
     if (game.phase !== "playing" || !player?.alive || !player.connected)
       return { ...NEUTRAL };
-    const enemies = [...game.players.values()].filter(
+    const enemies = sortedPlayers(game).filter(
       (candidate) => candidate.id !== id && candidate.alive,
     );
     const nearest = enemies.reduce<PlayerState | undefined>(
@@ -508,7 +510,8 @@ export class BotController {
           : best,
       undefined,
     );
-    const pickup = game.pickups
+    const pickup = [...game.pickups]
+      .sort((a, b) => a.id - b.id)
       .filter((candidate) => candidate.type !== "grip" || !player.grip)
       .reduce<GameState["pickups"][number] | undefined>(
         (best, candidate) =>
