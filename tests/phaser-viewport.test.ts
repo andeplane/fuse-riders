@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { arenaBacking } from "../src/client/phaser/viewport.js";
+import { arenaBacking } from "../src/render/phaser/viewport.js";
 
 test("arena backing follows displayed size and screen density without changing world aspect", () => {
   assert.deepEqual(arenaBacking(1600, 900, 800, 450, 1), {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { TrailDebris } from "../src/client/trail-debris.js";
+import { TrailDebris } from "../src/render/trail-debris.js";
 import { createGame, addPlayer, toSnapshot } from "../src/engine/game.js";
 import type { WorldView } from "../src/engine/view.js";
 import type { TrailSegment } from "../src/shared/protocol.js";

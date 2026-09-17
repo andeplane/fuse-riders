@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PICKUP_TYPES } from "../src/engine/game.js";
-import { themes } from "../src/client/themes.js";
+import { themes } from "../src/render/themes.js";
 
 // Resolved from this file, not the working directory, so the test means the same run from anywhere.
 const manifestPath = fileURLToPath(

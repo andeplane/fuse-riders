@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EffectTransitions, bombPose } from "../src/client/phaser/effects.js";
+import { EffectTransitions, bombPose } from "../src/render/phaser/effects.js";
 import { createGame, addPlayer, toSnapshot } from "../src/engine/game.js";
 import type { WorldView } from "../src/engine/view.js";
 const frame = (): WorldView => {

@@ -1,4 +1,4 @@
-import { assetUrl } from "./asset-url.js";
+import { assetUrl } from "../render/asset-url.js";
 import {
   AVATARS,
   AVATAR_ATLAS_URL,

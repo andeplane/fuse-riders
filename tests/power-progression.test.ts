@@ -27,7 +27,7 @@ import {
   MAX_CHECKPOINT_TRAILS,
 } from "../src/engine/codec/checkpoint.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
-import { reloadRemaining } from "../src/client/reload-ring.js";
+import { reloadRemaining } from "../src/render/reload-ring.js";
 
 function playing() {
   const game = createGame("power-test", 725);

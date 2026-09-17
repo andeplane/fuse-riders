@@ -6,7 +6,7 @@ import {
   TrailHistoryCache,
   trailPaths,
   trailTip,
-} from "../src/client/phaser/trails.js";
+} from "../src/render/phaser/trails.js";
 
 const segment = (
   tick: number,

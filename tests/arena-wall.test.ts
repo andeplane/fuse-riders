@@ -6,13 +6,12 @@ import {
   pixelWall,
   smoothWallRect,
   trailStuds,
-} from "../src/client/arena-wall.js";
+} from "../src/render/arena-wall.js";
+import { defaultTheme, themes } from "../src/render/themes.js";
 import {
   THEME_STORAGE_KEY,
-  defaultTheme,
   selectedTheme,
-  themes,
-} from "../src/client/themes.js";
+} from "../src/client/theme-choice.js";
 import { createMemoryStorage } from "../src/client/safe-storage.js";
 import { RIDER_SPEED, TICK_HZ } from "../src/engine/game.js";
 

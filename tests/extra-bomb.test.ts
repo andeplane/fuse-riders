@@ -26,7 +26,7 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.js";
-import { powerLabel } from "../src/client/power-indicator.js";
+import { powerLabel } from "../src/render/power-indicator.js";
 
 function playing() {
   const game = createGame("extra-bomb", 725);

@@ -13,7 +13,7 @@ import {
   selfLocatorRing,
   selfLocatorSide,
   selfLocatorStrength,
-} from "../src/client/self-locator.js";
+} from "../src/render/self-locator.js";
 import type { WorldView } from "../src/engine/view.js";
 
 const view = (overrides: Partial<WorldView>): WorldView => {

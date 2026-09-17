@@ -35,12 +35,12 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { interpolateWorld } from "../src/online/prediction.js";
-import { trailPaths } from "../src/client/phaser/trails.js";
+import { trailPaths } from "../src/render/phaser/trails.js";
 import {
   crossScreenPoint,
   crossViews,
   edgeGhosts,
-} from "../src/client/arena-views.js";
+} from "../src/render/arena-views.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const press: InputIntent = {

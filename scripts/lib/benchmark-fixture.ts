@@ -3,9 +3,9 @@ import {
   addPlayer,
   toSnapshot,
   SLOT_COLORS,
-} from "../../engine/game.js";
-import { AVATARS } from "../../shared/avatars.js";
-import type { WorldView } from "../../engine/view.js";
+} from "../../src/engine/game.js";
+import { AVATARS } from "../../src/shared/avatars.js";
+import type { WorldView } from "../../src/engine/view.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
 export function visualFixture(tick: number): WorldView {
   const game = createGame("renderer-fixture", 42);

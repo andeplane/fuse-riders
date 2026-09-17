@@ -27,7 +27,7 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { speedEffectLabel } from "../src/client/power-indicator.js";
+import { speedEffectLabel } from "../src/render/power-indicator.js";
 import { POWERUP_GUIDE } from "../src/client/powerup-guide.js";
 
 // Nitro and Snail are the stacking speed pickups: every collection is its own five-second deadline, so unlike the

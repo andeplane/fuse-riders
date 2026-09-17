@@ -7,7 +7,7 @@ import {
   bombLaunchDistance,
   chargeRamp,
 } from "../src/engine/bomb-launch.js";
-import { bombPreviewDistance } from "../src/client/bomb-preview.js";
+import { bombPreviewDistance } from "../src/render/bomb-preview.js";
 import {
   defaultRoomSettings,
   parseRoomSettings,

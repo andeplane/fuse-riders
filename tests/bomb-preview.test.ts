@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { bombPreviewDistance } from "../src/client/bomb-preview.js";
+import { bombPreviewDistance } from "../src/render/bomb-preview.js";
 import {
   BOMB_MAX_CHARGE_TICKS,
   bombLaunchDistance,

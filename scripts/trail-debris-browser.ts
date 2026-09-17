@@ -28,11 +28,11 @@ try {
     await page.getByText("Invalid room code", { exact: true }).waitFor();
     const removed = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/client/phaser/arena.ts")
-      )) as typeof import("../src/client/phaser/arena.js");
+        String("/src/render/phaser/arena.ts")
+      )) as typeof import("../src/render/phaser/arena.js");
       const { themes } = (await import(
-        String("/src/client/themes.ts")
-      )) as typeof import("../src/client/themes.js");
+        String("/src/render/themes.ts")
+      )) as typeof import("../src/render/themes.js");
       const { createGame, addPlayer, startMatch, toSnapshot, step } =
         (await import(
           String("/src/engine/game.ts")

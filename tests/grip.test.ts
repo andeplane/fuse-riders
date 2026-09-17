@@ -20,7 +20,7 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { presentWorld } from "../src/online/prediction.js";
-import { powerLabel } from "../src/client/power-indicator.js";
+import { powerLabel } from "../src/render/power-indicator.js";
 
 function playing() {
   const game = createGame("grip", 725);

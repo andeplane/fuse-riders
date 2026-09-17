@@ -39,13 +39,13 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], {
 const sourceHashes = Object.fromEntries(
   await Promise.all(
     [
-      "src/client/phaser/arena.ts",
-      "src/client/blast-animation.ts",
-      "src/client/phaser/trails.ts",
-      "src/client/phaser/viewport.ts",
+      "src/render/phaser/arena.ts",
+      "src/render/blast-animation.ts",
+      "src/render/phaser/trails.ts",
+      "src/render/phaser/viewport.ts",
       "src/client/main.ts",
-      "src/client/themes.ts",
-      "src/client/phaser/benchmark-fixture.ts",
+      "src/render/themes.ts",
+      "scripts/lib/benchmark-fixture.ts",
       "scripts/phaser-benchmark.ts",
     ].map(async (path) => [
       path,
@@ -92,14 +92,14 @@ try {
       const result = await page.evaluate(
         async ({ config, mode }) => {
           const { createPhaserArena } = (await import(
-            String("/src/client/phaser/arena.ts")
-          )) as typeof import("../src/client/phaser/arena.js");
+            String("/src/render/phaser/arena.ts")
+          )) as typeof import("../src/render/phaser/arena.js");
           const { visualFixture } = (await import(
-            String("/src/client/phaser/benchmark-fixture.ts")
-          )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+            String("/scripts/lib/benchmark-fixture.ts")
+          )) as typeof import("./lib/benchmark-fixture.js");
           const { defaultTheme } = (await import(
-            String("/src/client/themes.ts")
-          )) as typeof import("../src/client/themes.js");
+            String("/src/render/themes.ts")
+          )) as typeof import("../src/render/themes.js");
           const wrapper = document.createElement("div");
           const fitWidth = Math.min(config.width, (config.height * 16) / 9);
           wrapper.style.cssText = `width:${fitWidth}px;height:${(fitWidth * 9) / 16}px`;

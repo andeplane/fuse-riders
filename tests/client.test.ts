@@ -7,7 +7,7 @@ import {
 import {
   PORTAL_PALETTES,
   portalPalettes,
-} from "../src/client/portal-palettes.js";
+} from "../src/render/portal-palettes.js";
 
 test("multitouch retains a control until its final pointer releases", () => {
   const messages: ControllerInputMessage[] = [];

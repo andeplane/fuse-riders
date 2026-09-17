@@ -23,8 +23,8 @@ import {
   obstacleParts,
   OBSTACLE_STYLES,
   ARENA_MAP_LABELS,
-} from "../src/client/arena-maps.js";
-import { themes } from "../src/client/themes.js";
+} from "../src/render/arena-maps.js";
+import { themes } from "../src/render/themes.js";
 
 const BOUNDS = { minX: 46, minY: 46, maxX: 1554, maxY: 854 };
 // The maps that put scenery on the board; `wrap` and `cross` change the edges instead and stand on the classic floor.

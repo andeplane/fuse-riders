@@ -1,11 +1,11 @@
 import { VoiceChat } from "./voice-chat.js";
-import { powerLabel } from "../client/power-indicator.js";
+import { powerLabel } from "../render/power-indicator.js";
 import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
-import { mountArenaPresentation } from "../client/phaser/presentation.js";
+import { mountArenaPresentation } from "../render/phaser/presentation.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { createAccountPanel } from "./account-panel.js";
 import {
@@ -28,12 +28,11 @@ import {
 } from "../client/avatar-heads.js";
 import {
   applyThemeProperties,
-  selectedTheme,
-  storeTheme,
   themes,
   type ThemeDefinition,
   type ThemeId,
-} from "../client/themes.js";
+} from "../render/themes.js";
+import { selectedTheme, storeTheme } from "../client/theme-choice.js";
 import { createGameAudio, type GameAudio } from "../client/game-audio.js";
 import {
   defaultRoomSettings,

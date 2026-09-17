@@ -7,7 +7,7 @@ import { createRoomState } from "../src/engine/apply-tick.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS, riderMotionStep } from "../src/engine/game.js";
 import { advanceRiderPose } from "../src/engine/rider-motion.js";
-import { bombPreviewDistance } from "../src/client/bomb-preview.js";
+import { bombPreviewDistance } from "../src/render/bomb-preview.js";
 
 function frames() {
   const world = new World(

@@ -110,21 +110,7 @@ const network = new Set([
   "stream",
   "telemetry",
 ]);
-const rendering = new Set([
-  "arena-maps",
-  "arena-views",
-  "arena-wall",
-  "blast-animation",
-  "bomb-preview",
-  "ink-renderer",
-  "portal-palettes",
-  "reload-ring",
-  "self-locator",
-  "themes",
-  "trail-debris",
-]);
-
-/** Ownership by directory, with the app-side files that are really net or render code listed by name. */
+/** Ownership by directory, with the files under `src/online/` that are netcode rather than app listed by name. */
 export function layer(file: string): Layer {
   if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
@@ -139,12 +125,7 @@ export function layer(file: string): Layer {
     file.startsWith("packages/")
   )
     return "net";
-  if (
-    file.startsWith("src/render/") ||
-    file.startsWith("src/client/phaser/") ||
-    (file.startsWith("src/client/") && rendering.has(base))
-  )
-    return "render";
+  if (file.startsWith("src/render/")) return "render";
   if (file.startsWith("src/")) return "app";
   return "external";
 }
