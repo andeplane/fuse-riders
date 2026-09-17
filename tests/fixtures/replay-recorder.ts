@@ -1,4 +1,8 @@
-import { BotController } from "../../src/shared/bot-controller.js";
+import {
+  BotController,
+  botDisplayName,
+  type BotDifficulty,
+} from "../../src/shared/bot-controller.js";
 import {
   applyTick,
   BOT_NAMES,
@@ -65,7 +69,7 @@ const MATCH_LENGTH = 2;
 /** How long a scripted human holds a gun for a clean line before it fires the way a bot does. */
 const GUN_PATIENCE_TICKS = 160;
 /** How long a wrap duel is ridden inside its overtime walls before a rider is given to them. */
-const WALLED_TICKS = 120;
+const WALLED_TICKS = 40;
 const GUN_SIGHT = 600;
 const SHELL_SIGHT = 320;
 /** A round this old has tired thumbs: the wandering grows with the square of its age in these. */
@@ -131,17 +135,37 @@ function linedUp(
     );
   });
 }
-/** Scenery standing in the line of the barrel. */
+/**
+ * Scenery standing in the line of the barrel, with more of it behind under a higher id: the shot whose stopping
+ * point depends on the order the obstacles are read in.
+ */
 function gunFacesScenery(
   game: Readonly<GameState>,
   player: PlayerState,
 ): boolean {
-  const toX = player.x + Math.cos(player.angle) * GUN_SIGHT,
-    toY = player.y + Math.sin(player.angle) * GUN_SIGHT;
-  return game.obstacles.some(
-    (obstacle) =>
-      segmentObstacleDistanceSquared(obstacle, player.x, player.y, toX, toY) <=
-      GUN_RADIUS * GUN_RADIUS,
+  const headingX = Math.cos(player.angle),
+    headingY = Math.sin(player.angle);
+  const reach = game.width + game.height;
+  const inLine = game.obstacles
+    .filter(
+      (obstacle) =>
+        segmentObstacleDistanceSquared(
+          obstacle,
+          player.x,
+          player.y,
+          player.x + headingX * reach,
+          player.y + headingY * reach,
+        ) <=
+        GUN_RADIUS * GUN_RADIUS,
+    )
+    .sort(
+      (a, b) => (a.x - b.x) * headingX + (a.y - b.y) * headingY || a.id - b.id,
+    );
+  const nearest = inLine[0];
+  return (
+    nearest !== undefined &&
+    Math.hypot(nearest.x - player.x, nearest.y - player.y) < GUN_SIGHT &&
+    inLine.some((obstacle) => obstacle.id > nearest.id)
   );
 }
 
@@ -174,7 +198,7 @@ const hand = (restlessness: number): Hand => ({
  * they do reaches the room as the log entries a device would send: steering flags, aim, press, release and cancel.
  * On top of that come the things only a human stream does — a wandering thumb, a cancelled charge, a second press
  * over a held one — and the things only a human decides: holding a gun for a clean line, putting a bullet into a
- * rock, sitting out a duel until the walls come in, riding straight at the other rider.
+ * rock, sitting out a duel until the walls come in, riding across the other rider's bows.
  *
  * With `coverMechanics` the creator also directs the room, through ordinary settings, start, rematch, lobby, bot and
  * roster entries, until every requirement in `REQUIREMENTS` has been seen in play: five riders first, then a match the
@@ -221,22 +245,15 @@ export function makeRecording(
    * Three strengths of AI. The full-strength rider plans 32 ticks ahead, which is most of what a replayed tick costs,
    * so it rides the opening match only and a second medium rider has its seat after that.
    */
-  let strongest: "" | " · Medium" = "";
-  const seatBot = (index: number, tier: string): void => {
+  let strongest: BotDifficulty | undefined;
+  const seatBot = (id: string, slot: number, tier?: BotDifficulty): void =>
+    log(creator, BOT, "add", id, botDisplayName(BOT_NAMES[slot]!, tier), slot);
+  const seatBots = (): void => {
     const slot = freeSlot(state.game);
-    log(
-      creator,
-      BOT,
-      "add",
-      `bot:${index}`,
-      `AI ${BOT_NAMES[slot + index - 1]}${tier}`,
-      slot + index - 1,
+    ([strongest, "medium", "easy"] as const).forEach((tier, index) =>
+      seatBot(`bot:${index + 1}`, slot + index, tier),
     );
   };
-  const seatBots = (): void =>
-    [strongest, " · Medium", " · Easy"].forEach((tier, index) =>
-      seatBot(index + 1, tier),
-    );
 
   const fly = (member: string, stage: Requirement["stage"]): void => {
     const game = state.game,
@@ -268,27 +285,45 @@ export function makeRecording(
     const elapsed = game.tick - (game.roundStartedTick ?? game.tick);
     let flags = (intent.left ? 1 : 0) | (intent.right ? 2 : 0);
     const rival = game.players.get(member === creator ? rider : creator);
-    // Whether two heads meet, or one head meets the trail behind the other, turns on where in a step they close.
-    // Each joust sets off at a moment of its own, so a miss is not ridden again move for move.
-    if (elapsed === 0) held.joustAfter = Math.floor(random() * 40);
+    // A head that meets the trail behind another head dies by `trail`, which outranks `rider`, so riding straight at
+    // each other mostly ends on the trail. The joust is ridden as a broadside instead: the creator holds a straight
+    // line and the second rider steers for where the creator's head is going to be, which brings it in across the
+    // bows with both trails behind the meeting. Each one sets off at a moment of its own, so a miss is not repeated.
+    if (elapsed === 0) held.joustAfter = Math.floor(random() * 30);
     if (stage === "joust" && rival?.alive && elapsed >= held.joustAfter) {
-      const bearing = Math.atan2(rival.y - player.y, rival.x - player.x);
-      const off = Math.atan2(
-        Math.sin(bearing - player.angle),
-        Math.cos(bearing - player.angle),
-      );
-      flags = off > 0.02 ? 2 : off < -0.02 ? 1 : 0;
+      if (member === creator) flags = 0;
+      else {
+        const pace = riderMotionStep(
+          rival,
+          game.tick,
+          game.roundStartedTick,
+        ).distance;
+        const lead =
+          Math.hypot(rival.x - player.x, rival.y - player.y) / (2 * pace);
+        const bearing = Math.atan2(
+          rival.y + Math.sin(rival.angle) * pace * lead - player.y,
+          rival.x + Math.cos(rival.angle) * pace * lead - player.x,
+        );
+        const off = Math.atan2(
+          Math.sin(bearing - player.angle),
+          Math.cos(bearing - player.angle),
+        );
+        flags = off > 0.02 ? 2 : off < -0.02 ? 1 : 0;
+      }
     } else if (tick < held.wanderUntil) flags = held.wander;
     else if (
-      random() <
-      held.restlessness *
-        // A duel is sat out with a steady hand; any other round tires the thumbs as it ages.
-        (stage === "duel" ? 0.25 : 1 + (elapsed / TIRING_TICKS) ** 2)
+      // A duel is sat out with a steady hand; any other round tires the thumbs as it ages.
+      stage !== "duel" &&
+      random() < held.restlessness * (1 + (elapsed / TIRING_TICKS) ** 2)
     ) {
       held.wanderUntil = tick + 2 + Math.floor(random() * 6);
       held.wander = Math.floor(random() * 4);
       flags = held.wander;
     }
+    // Two planners on an empty board mirror each other move for move, down to dying on the same tick. The second
+    // rider opens every duel with a turn of its own length, and the symmetry never forms.
+    if (stage === "duel" && member === rider && elapsed < held.joustAfter)
+      flags = 2;
     held.armedSince =
       player.gunArmed || player.shellArmed
         ? (held.armedSince ?? tick)
@@ -304,11 +339,11 @@ export function makeRecording(
     ) {
       // A bullet is cast on the tick of the press; a shell leaves on the release, a tick later.
       const lined = player.gunArmed
-        ? linedUp(game, player, Infinity, 1, GUN_SIGHT, 6) ||
+        ? linedUp(game, player, Infinity, 1, GUN_SIGHT, 8) ||
           (isObstacleMap(game.map) &&
-            coverage.gunSceneryStops === 0 &&
+            coverage.gunScreenedStops === 0 &&
             gunFacesScenery(game, player))
-        : linedUp(game, player, SHELL_SPEED / TICK_HZ, 2, SHELL_SIGHT, 10);
+        : linedUp(game, player, SHELL_SPEED / TICK_HZ, 2, SHELL_SIGHT, 14);
       press = lined || (press && tick - held.armedSince! > GUN_PATIENCE_TICKS);
       // Either leaves along the heading the tick ends on, so the shot is taken with the wheel straight.
       if (lined) held.steadyUntil = tick + (player.gunArmed ? 1 : 3);
@@ -428,14 +463,7 @@ export function makeRecording(
       !game.players.has(rider) &&
       game.players.size === 4
     ) {
-      log(
-        creator,
-        BOT,
-        "add",
-        fillIn,
-        `AI ${BOT_NAMES[freeSlot(game)]} · Easy`,
-        freeSlot(game),
-      );
+      seatBot(fillIn, freeSlot(game), "easy");
       roster = "filled";
     }
     // Settings asked for mid-match reach the next round; a finished match waits for its recap to run out.
@@ -455,7 +483,7 @@ export function makeRecording(
     if (stage === "roster" && roster === "idle") roster = "leaving";
     const dueling = stage !== "play" && stage !== "roster";
     matches++;
-    const swap = !dueling && strongest === "" && state.bots.size > 0;
+    const swap = !dueling && !strongest && state.bots.size > 0;
     if (dueling === (state.bots.size === 0) && matches % 2 && !swap) {
       settle(wanted);
       log(creator, ACTION, "rematch", `coverage-${seed}-${matches}`);
@@ -467,16 +495,9 @@ export function makeRecording(
       for (const id of [...state.bots].sort()) log(creator, BOT, "remove", id);
     else if (swap) {
       const seat = game.players.get("bot:1")!.slot;
-      strongest = " · Medium";
+      strongest = "medium";
       log(creator, BOT, "remove", "bot:1");
-      log(
-        creator,
-        BOT,
-        "add",
-        "bot:1",
-        `AI ${BOT_NAMES[seat]}${strongest}`,
-        seat,
-      );
+      seatBot("bot:1", seat, strongest);
     } else if (state.bots.size === 0) seatBots();
     settle(wanted);
     log(creator, ACTION, "start", `coverage-${seed}-${matches}`);

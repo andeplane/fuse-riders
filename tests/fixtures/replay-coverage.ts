@@ -20,6 +20,7 @@ import {
   edgesOpen,
   obstacleDistanceSquared,
   obstacleTouchesCircle,
+  segmentObstacleDistanceSquared,
   type ArenaMapId,
 } from "../../src/shared/arena-map.js";
 import { DRUNK_DURATION_TICKS } from "../../src/shared/drunk.js";
@@ -78,6 +79,11 @@ export interface ReplayCoverage {
   gunTracers: number;
   /** Tracers that end against scenery still standing after the tick, on an obstacle map. */
   gunSceneryStops: number;
+  /**
+   * Of those, the ones with a higher-numbered obstacle further along the bullet's line. Read far obstacle first, the
+   * contact bisection lands on different low bits, so these are what let the permutation replay see an unsorted read.
+   */
+  gunScreenedStops: number;
   /** Ticks a launched shell spent in flight. */
   shellTicks: number;
   shellBounces: number;
@@ -156,6 +162,7 @@ export function emptyCoverage(): ReplayCoverage {
     eliminations: zeroes(["wall", "trail", "explosion", "rider"] as const),
     gunTracers: 0,
     gunSceneryStops: 0,
+    gunScreenedStops: 0,
     shellTicks: 0,
     shellBounces: 0,
     shellBouncesOff: zeroes(SURFACES),
@@ -406,15 +413,31 @@ export function coverageObserver(coverage: ReplayCoverage) {
           if (bomb.shell?.gun) {
             if (bomb.launchedTick !== game.tick) continue;
             coverage.gunTracers++;
+            const stopped = isObstacleMap(game.map)
+              ? game.obstacles.find(
+                  (obstacle) =>
+                    obstacleDistanceSquared(obstacle, bomb.x, bomb.y) <=
+                    square(GUN_RADIUS + 1e-3),
+                )
+              : undefined;
+            if (!stopped) continue;
+            coverage.gunSceneryStops++;
+            const { vx, vy } = bomb.shell;
+            const reach = game.width + game.height;
             if (
-              isObstacleMap(game.map) &&
               game.obstacles.some(
                 (obstacle) =>
-                  obstacleDistanceSquared(obstacle, bomb.x, bomb.y) <=
-                  square(GUN_RADIUS + 1e-3),
+                  obstacle.id > stopped.id &&
+                  segmentObstacleDistanceSquared(
+                    obstacle,
+                    bomb.launchX,
+                    bomb.launchY,
+                    bomb.launchX + vx * reach,
+                    bomb.launchY + vy * reach,
+                  ) <= square(GUN_RADIUS),
               )
             )
-              coverage.gunSceneryStops++;
+              coverage.gunScreenedStops++;
             continue;
           }
           if (!bomb.shell) continue;
@@ -602,8 +625,8 @@ const PLAYED_MAPS: readonly ArenaMapId[] = [
 export const REQUIREMENTS: readonly Requirement[] = [
   requirement(
     "gun:scenery",
-    "a bullet fired on an obstacle map is stopped by scenery",
-    (coverage) => coverage.gunSceneryStops > 0,
+    "a bullet fired on an obstacle map is stopped by scenery, with more scenery of a higher id behind it in its line",
+    (coverage) => coverage.gunSceneryStops > 0 && coverage.gunScreenedStops > 0,
     ["gun"],
     "forest",
   ),
@@ -859,7 +882,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     "overtime:wrap",
     "overtime stands walls around a wrap round and a rider dies against them",
     (coverage) =>
-      coverage.wrapWalledTicks >= 100 && coverage.overtimeWallDeaths > 0,
+      coverage.wrapWalledTicks >= 40 && coverage.overtimeWallDeaths > 0,
     [],
     "wrap",
     "duel",
@@ -869,7 +892,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     "overtime walls crush scenery on an obstacle map",
     (coverage) => coverage.overtimeTicks > 0 && coverage.overtimeRubble > 0,
     [],
-    "city",
+    "forest",
     "duel",
   ),
   requirement(

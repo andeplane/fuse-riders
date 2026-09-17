@@ -36,39 +36,50 @@ test("every weighted pickup interval is independent of object insertion order", 
     );
 });
 
-const reverseKeys = <T extends object>(value: T): T =>
-  Object.fromEntries(Object.entries(value).reverse()) as T;
+/** Keys in descending order: never the order the engine builds anything in, and the same however often it is applied. */
+const descending = <K extends string | number>(a: K, b: K): number =>
+  typeof a === "number" && typeof b === "number"
+    ? b - a
+    : String(a) < String(b)
+      ? 1
+      : -1;
+const backwardsMap = <K extends string | number, V>(
+  map: Map<K, V>,
+): Map<K, V> => new Map([...map].sort(([a], [b]) => descending(a, b)));
+const backwardsKeys = <T extends object>(value: T): T =>
+  Object.fromEntries(
+    Object.entries(value).sort(([a], [b]) => descending(a, b)),
+  ) as T;
 
 /**
- * Maps, Sets and id-keyed objects lose their insertion order in the canonical hash and in a checkpoint, so they are
- * simply reversed: the seats, the bombs, the match statistics and the per-rival tallies inside them, the session
- * leaderboard, the round's participants, the folds, the bots and both copies of the pickup weights. Obstacles and
- * pickups are arrays, whose order the hash does keep; both are generated in id order, so they are reversed before the
- * tick and put back in id order after it. Reading either in array order would then show up as a different outcome.
- * Blasts, portal pairs, gravity fields, trails, shots, moments, placements and rating standings are sequences: their
- * order is the order things happened in or were ranked in, which is state in its own right rather than an accident
- * of construction.
+ * Maps, Sets and id-keyed objects lose their insertion order in the canonical hash and in a checkpoint, so before
+ * every tick each is rebuilt in descending key order: the seats, the bombs, the match statistics and the per-rival
+ * tallies inside them, the session leaderboard, the round's participants, the folds, the bots and both copies of the
+ * pickup weights. Rebuilt, not reversed: a Map the engine leaves alone would be back in its own order every second
+ * tick if it were only turned over. Obstacles and pickups are arrays, whose order the hash does keep; both are
+ * generated in id order, so they are reversed before the tick and put back in id order after it. Reading either in
+ * array order would then show up as a different outcome. Blasts, portal pairs, gravity fields, trails, shots, moments,
+ * placements and rating standings are sequences: their order is the order things happened in or were ranked in,
+ * which is state in its own right rather than an accident of construction.
  */
 function permute(state: RoomState): void {
   state.game.obstacles = [...state.game.obstacles].reverse();
   state.game.pickups = [...state.game.pickups].reverse();
-  state.game.players = new Map([...state.game.players].reverse());
-  state.game.bombs = new Map([...state.game.bombs].reverse());
-  state.game.matchStats = new Map([...state.game.matchStats].reverse());
+  state.game.players = backwardsMap(state.game.players);
+  state.game.bombs = backwardsMap(state.game.bombs);
+  state.game.matchStats = backwardsMap(state.game.matchStats);
   for (const entry of state.game.matchStats.values())
     if (entry.combat) {
-      entry.combat.victims = reverseKeys(entry.combat.victims);
-      entry.combat.killers = reverseKeys(entry.combat.killers);
+      entry.combat.victims = backwardsKeys(entry.combat.victims);
+      entry.combat.killers = backwardsKeys(entry.combat.killers);
     }
-  state.game.leaderboard = new Map([...state.game.leaderboard].reverse());
-  state.game.roundParticipants = new Map(
-    [...state.game.roundParticipants].reverse(),
-  );
-  state.folds = new Map([...state.folds].reverse());
-  state.bots = new Set([...state.bots].reverse());
-  state.settings.weights = reverseKeys(state.settings.weights);
+  state.game.leaderboard = backwardsMap(state.game.leaderboard);
+  state.game.roundParticipants = backwardsMap(state.game.roundParticipants);
+  state.folds = backwardsMap(state.folds);
+  state.bots = new Set([...state.bots].sort(descending));
+  state.settings.weights = backwardsKeys(state.settings.weights);
   if (state.game.settings)
-    state.game.settings.weights = reverseKeys(state.game.settings.weights);
+    state.game.settings.weights = backwardsKeys(state.game.settings.weights);
 }
 
 test("the whole mechanic replay survives reversed map and settings insertion order at every tick", () => {
@@ -208,7 +219,7 @@ test("a rider dies at the same point against scenery whichever order the obstacl
     {
       id: 2,
       kind: "rock",
-      x: 353.9,
+      x: 352.9,
       y: 550.3,
       halfWidth: 41.3,
       halfHeight: 100,

@@ -33,7 +33,7 @@ import {
 import type { GameEvent } from "./protocol.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-29"; // 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
+export const RULES = "fuse-p2p-30"; // 30: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
