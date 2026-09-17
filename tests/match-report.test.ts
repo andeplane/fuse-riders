@@ -5,9 +5,20 @@ import {
   snapshotMatchStats,
   type MatchStatsState,
 } from "../src/shared/match-stats.js";
-import { SLOT_COLORS } from "../src/shared/game.js";
+import {
+  createGame,
+  addPlayer,
+  startMatch,
+  step,
+  eliminatePlayer,
+  setPlayerConnected,
+  startNextRound,
+  toSnapshot,
+  SLOT_COLORS,
+} from "../src/shared/game.js";
 import {
   buildMatchReport,
+  buildRoundReport,
   sendMatchReport,
   type FinishedMatch,
 } from "../src/online/match-report.js";
@@ -151,7 +162,7 @@ test("a lost race or a dropped connection is retried; a refusal is final; nothin
   );
   assert.equal(contended.calls(), 3);
   assert.deepEqual(waits, [1000, 2000], "backs off between attempts");
-  const refused = script(403);
+  const refused = script(404);
   assert.equal(
     await sendMatchReport("u", report, refused.transport()),
     "failed",
@@ -161,6 +172,13 @@ test("a lost race or a dropped connection is retried; a refusal is final; nothin
     1,
     "a report the service refuses is not sent again",
   );
+  // A rider whose room socket dropped is refused until it reconnects a moment later.
+  const reconnecting = script(403, { status: "confirmed", linked: false });
+  assert.equal(
+    await sendMatchReport("u", report, reconnecting.transport()),
+    "confirmed",
+  );
+  assert.equal(reconnecting.calls(), 2);
   const limited = script(429);
   assert.equal(
     await sendMatchReport("u", report, limited.transport()),
@@ -193,6 +211,119 @@ test("a lost race or a dropped connection is retried; a refusal is final; nothin
       },
     }),
     "pending",
-    "a failed sign-in lookup is a guest",
+    "a failed sign-in lookup still reports",
+  );
+  assert.equal(broken.calls(), 3, "and is resent to link the account");
+});
+
+test("round reports use frozen confirmed standings, survive the next round and exclude spectators", () => {
+  const game = createGame("round-rating");
+  for (const [slot, id] of [RIDER, OTHER].entries())
+    addPlayer(game, {
+      id,
+      name: `Rider ${slot}`,
+      slot,
+      color: SLOT_COLORS[slot]!,
+      connected: true,
+    });
+  startMatch(game);
+  for (let i = 0; i < 60; i++) step(game, new Map());
+  eliminatePlayer(game, OTHER);
+  step(game, new Map());
+  const decided = toSnapshot(game).decidedRound!;
+  assert.ok(decided.rating);
+  assert.equal(buildRoundReport(decided, RIDER, decided.tick - 1), undefined);
+  assert.equal(buildRoundReport(decided, "spectator", decided.tick), undefined);
+  const report = buildRoundReport(decided, RIDER, decided.tick)!;
+  assert.ok(parseMatchResult(report.result));
+  assert.equal(report.result.round, 1);
+  assert.equal(report.result.length, 1);
+  assert.equal(
+    report.result.players.find((p) => p.playerId === RIDER)!.roundsPlayed,
+    1,
+  );
+  setPlayerConnected(game, OTHER, false);
+  assert.deepEqual(
+    buildRoundReport(toSnapshot(game).decidedRound, RIDER, game.tick),
+    report,
+    "a departure after the decision cannot rewrite it",
+  );
+  setPlayerConnected(game, OTHER, true);
+  // Use the public next-round transition at its scheduled tick.
+  while (game.tick < game.phaseEndsAtTick!) step(game, new Map());
+  if (game.phase === "roundOver") startNextRound(game);
+  assert.deepEqual(
+    buildRoundReport(toSnapshot(game).decidedRound, RIDER, game.tick),
+    report,
+  );
+  decided.rating!.finishers.length = 0;
+  assert.deepEqual(
+    buildRoundReport(toSnapshot(game).decidedRound, RIDER, game.tick),
+    report,
+    "snapshots cannot mutate the frozen simulation result",
+  );
+});
+test("round token lookup failure retries without submitting a guest vote", async () => {
+  const report = buildMatchReport(finished(), RIDER)!;
+  report.result.round = 1;
+  let attempts = 0;
+  const headers: Headers[] = [];
+  assert.equal(
+    await sendMatchReport("u", report, {
+      roomToken: "room",
+      wait: async () => {},
+      random: () => 0,
+      identityToken: async () => {
+        if (++attempts === 1) throw new Error("temporary");
+        return "signed-in";
+      },
+      fetch: async (_url, init) => {
+        headers.push(new Headers(init?.headers));
+        return Response.json({ status: "confirmed", linked: true });
+      },
+    }),
+    "confirmed",
+  );
+  assert.equal(attempts, 2);
+  assert.equal(headers.length, 1);
+  assert.equal(headers[0]!.get("X-Fuse-Identity"), "signed-in");
+});
+
+test("solo round reporting normalizes the local seat consistently for the authenticated endpoint", () => {
+  const decision = {
+    matchId: "solo-game",
+    round: 2,
+    tick: 500,
+    shots: [],
+    rating: {
+      finishers: ["solo"],
+      standings: [
+        {
+          playerId: "solo",
+          name: "Rider",
+          slot: 0,
+          color: "#123456",
+          place: 2,
+          scoreUnits: 0,
+        },
+        {
+          playerId: "bot:1",
+          name: "Bot",
+          slot: 1,
+          color: "#654321",
+          place: 1,
+          scoreUnits: 120,
+        },
+      ],
+    },
+  };
+  const report = buildRoundReport(decision, "solo", 500)!;
+  assert.deepEqual(report.result.finishers, ["0".repeat(24)]);
+  assert.equal(report.result.players[0]!.playerId, "0".repeat(24));
+  assert.ok(parseMatchResult(report.result));
+  assert.equal(
+    decision.rating.standings[0]!.playerId,
+    "solo",
+    "normalization never mutates simulation state",
   );
 });

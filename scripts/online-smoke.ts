@@ -80,6 +80,11 @@ try {
   });
   a.setDefaultTimeout(smokeTimeout(30000));
   const host = await a.newPage();
+  const roundReports: Array<{ round: number; length: number }> = [];
+  host.on("request", (request) => {
+    if (request.url().endsWith("/round-results") && request.method() === "POST")
+      roundReports.push(request.postDataJSON().result);
+  });
   // WebKit reports a send on a channel whose transport just died as a page error (the transport gates on connection state, but the last task hop can still race),
   // and a spurious same-origin access-control failure from Phaser's asset loader that Chromium never raises.
   const benign = (error: Error) =>
@@ -244,15 +249,9 @@ try {
     name: "START RACE",
     exact: true,
   });
-  const startBounds = await startButton.boundingBox();
-  assert.ok(startBounds);
-  await host.mouse.move(
-    startBounds.x + startBounds.width / 2,
-    startBounds.y + startBounds.height / 2,
-  );
-  await host.mouse.down();
-  await new Promise((resolve) => setTimeout(resolve, 180));
-  await host.mouse.up();
+  // The shared menu may wrap and push the lobby footer below the viewport.
+  // Use a real held click with actionability/scrolling, not raw viewport coordinates.
+  await startButton.click({ delay: 180 });
   await guest.waitForFunction(() =>
     document.querySelector(".online-notice")?.textContent?.includes("READY"),
   );
@@ -322,7 +321,17 @@ try {
     hostRound && guestRound && hostRound.matchId === guestRound.matchId,
     "one match on every device",
   );
-  console.log("Three rounds played on the shared log");
+  assert.ok(
+    roundReports.some((r) => r.round === 1 && r.length === 1),
+    "round one reported before the full game recap",
+  );
+  assert.ok(
+    roundReports.some((r) => r.round === 2 && r.length === 1),
+    "round two reported independently",
+  );
+  console.log(
+    "Three rounds played on the shared log; completed rounds reported independently",
+  );
   // The first match may have ended by now: the results dialog opens on its own and must be closed before the room actions.
   const closeRecap = async (page: Page) => {
     if (await page.locator("dialog[open]").count())
@@ -599,6 +608,10 @@ try {
           .evaluate(() => {
             const canvas =
               document.querySelector<HTMLCanvasElement>(".online-arena");
+            const start = [...document.querySelectorAll("button")].find(
+              (button) => button.textContent === "START RACE",
+            );
+            const startBox = start?.getBoundingClientRect();
             let savedMode: unknown;
             try {
               savedMode = JSON.parse(
@@ -607,6 +620,17 @@ try {
             } catch {}
             return {
               body: document.body.innerText,
+              viewport: { width: innerWidth, height: innerHeight },
+              startButton: startBox
+                ? {
+                    bounds: startBox.toJSON(),
+                    disabled: start?.disabled,
+                    centerTarget: document.elementFromPoint(
+                      startBox.x + startBox.width / 2,
+                      startBox.y + startBox.height / 2,
+                    )?.outerHTML,
+                  }
+                : undefined,
               metrics:
                 document.querySelector<HTMLElement>("#app")?.dataset.metrics,
               linkDiagnostics:

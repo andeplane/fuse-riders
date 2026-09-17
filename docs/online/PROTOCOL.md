@@ -86,7 +86,7 @@ Fold rules `fuse-p2p-26` introduced arena maps (#243). Game state, LAN snapshots
 
 Fold rules `fuse-p2p-27` added the `wrap` and `cross` arena maps (#248). `cross` folds exactly as `classic` and differs only in presentation. On `wrap` the round starts with `boundaryInset` 0 and the board's edges are open while it stays 0 (`edgesOpen`): committed rider, shell and bomb positions are folded into the board, a trail crossing an edge is stored as separate pieces that end and begin on opposite edges under one `createdTick`, a thrown bomb's `flightPath` stays unwrapped and may run up to one launch distance past the board, and a blast reaching within a rider's radius of an edge is stored as one `blasts` entry per side under the same `bombId`. Gun rays continue from the opposite edge for one board's width of travel in all, each leg a tracer of its own. Overtime grows the inset from 0, which closes the edges; until the inset reaches half a rider's radius the wall's lethal reach is twice the inset rather than the full radius. No state shape changed, so checkpoints validate as before; rule equality rejects older peers and snapshots. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
 
-Fold rules `fuse-p2p-28`, the current rules, reshaped the Beer wobble ([ADR 046](../adr/046-drunk-stagger-and-lurch.md)): `drunkHeadingOffset` is a fast side-to-side stagger over a slow aimless lurch, bounded by 45 degrees instead of a 15 degree sine. It remains a pure function of seed, rider, tick and the effect's start and end, and the stored `drunkHeadingOffset` keeps its checkpoint bounds, so no state shape changed; rule equality rejects older peers and snapshots. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
+Fold rules `fuse-p2p-28` reshaped the Beer wobble ([ADR 046](../adr/046-drunk-stagger-and-lurch.md)): `drunkHeadingOffset` is a fast side-to-side stagger over a slow aimless lurch, bounded by 45 degrees instead of a 15 degree sine. It remains a pure function of seed, rider, tick and the effect's start and end, and the stored `drunkHeadingOffset` keeps its checkpoint bounds, so no state shape changed; rule equality rejects older peers and snapshots. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
 
 ## Grip steering pickup
 
@@ -96,6 +96,23 @@ Fold rules `fuse-p2p-12` introduced GRIP; `fuse-p2p-13` softened steering from 2
 
 Fold rules `fuse-p2p-16` introduced the current active-tail tuning. Living riders start with a 160-tick (8-second) trail lifetime, and each Power pickup adds 40 ticks (2 seconds) linearly, up to the 1,024-tick active lifetime ceiling. At normal speed this is 1,200 units initially plus 300 per diamond, reaching 16 seconds after four diamonds and 24 seconds after eight. Rules 14 and 15 used 80 ticks initially plus ten per diamond. Collection extends every surviving active segment by the lifetime increase, and new segments use the upgraded lifetime on the same tick. Expiry still runs before collection, so removed trail is never restored. Power and trail reset each round; rule 17 replaces permanent eliminated trails with decay, described below. Blast/reload progression is unchanged. No snapshot fields or transport envelopes change, but deterministic simulation does: rule equality rejects older peers and snapshots. Refresh every peer together and use fresh rooms after rollback.
 
+## Individual-round Elo
+
+Current fold rules `fuse-p2p-29` add optional `decidedRound.rating` with frozen `finishers` (human IDs) and
+`standings` (`playerId`, `name`, `slot`, `color`, `place`, `scoreUnits`). Both arrays are bounded to five riders;
+standings have at least two unique IDs, finishers are unique human members of those standings, places fit the roster,
+colors are hex RGB and scores are bounded to 300. The decision retains these values after later joins/departures.
+This changes canonical state hashes and the checkpoint shape, so the rules bump rejects older peers before play.
+Clients report only confirmed decision ticks to `/api/rooms/<CODE>/round-results`; the service settles signed-in
+humans only, with room-incarnation/match/round idempotency and no career credits. Full-game `/results` reports no
+longer award Elo. Refresh peers together and use fresh rooms after rollback. Deploy the client and service together;
+old services reject the new route. Existing stored Elo and rating history remain intact. Every signed-in human
+finisher records a round, even with no signed-in opponents (zero Elo change). Signed-in solo clients post to
+`/api/me/round-results`; only one human is permitted and claims are scoped to the authenticated account/match/round.
+The authenticated solo path cannot move Elo. Profiles distinguish new `rounds` from total historical `games`
+settlements, and graph points optionally carry `round` and signed-in `opponents` (0–4). Missing point metadata
+identifies earlier full-game ratings.
+
 ## Round shot log
 
 Fold rules `fuse-p2p-15` introduced the following, retained in rules 17 and 18. Game state requires `shots`, the current round's trigger pulls: each entry
@@ -103,7 +120,7 @@ is `{ shot, shooterId, weapon, elapsed, bombs, power, extraBombs, fuseLevel, gri
 where `shot` is the id of the first bomb the pull launched, `weapon` is one of `bomb`, `triple`, `five`, `target`,
 `gun`, `shell`, `elapsed` counts ticks into the round, and `bombs` through `grip` record what the pull
 launched and the shooter's upgrades at that moment. A bomb carries an optional `shot` naming its pull. Game state
-also carries an optional `decidedRound` — `{ matchId, round, tick, shots }` — written when a round is decided and
+also carries an optional `decidedRound` — `{ matchId, round, tick, shots, rating? }` — written when a round is decided and
 kept until the next round is decided, through a rematch and a return to the lobby. Its `shots` leave out pulls
 that killed nobody and still had a bomb in the air at the decision, which the round's end interrupted. Nothing in
 the simulation reads any of this; it exists so product analytics can report one `Kill` per kill and one `Miss`
