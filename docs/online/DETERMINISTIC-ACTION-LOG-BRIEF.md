@@ -15,11 +15,11 @@ Transmit the causes of gameplay: steering changes, charge/release actions, joins
 
 ## Device roles
 
-| Role | Work and network subscription |
-| --- | --- |
-| Browser host | Always runs authority, even when its UI is only a phone controller. Produces committed actions, checkpoints and controller feedback. |
-| Individual-screen guest | Runs a full simulation replica, receives the committed log and predicts its own input for responsiveness. |
-| Separate TV or spectator | Runs a full replica for display; can render behind confirmed progress without predicting player intentions. |
+| Role                        | Work and network subscription                                                                                                                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser host                | Always runs authority, even when its UI is only a phone controller. Produces committed actions, checkpoints and controller feedback.                                                                    |
+| Individual-screen guest     | Runs a full simulation replica, receives the committed log and predicts its own input for responsiveness.                                                                                               |
+| Separate TV or spectator    | Runs a full replica for display; can render behind confirmed progress without predicting player intentions.                                                                                             |
 | Controller-only guest phone | Sends intentions and receives small status updates: input outcomes, alive/round state, charge/cooldown, relevant powerups and targeting feedback. No full-world simulation, geometry or replay history. |
 
 Thus shared-TV mode needs simulation on the host and a separate TV, not on every controller phone. A role change into a full view requires a checkpoint and log catch-up. Keep role permissions explicit: a TV or spectator cannot submit player actions.
@@ -90,11 +90,11 @@ The application still specifies tuple arity, opcode meaning, integer ranges/over
 
 The current code sends world changes at 20 Hz: rider poses, trail additions/removals, changed object collections, status fields and accompanying settings/prediction metadata. Guest held controls also resend at 20 Hz. This proposal removes the routine world updates and repeated gameplay records for unchanged controls.
 
-| Illustrative comparison, per full-view recipient | Payload |
-| --- | --- |
-| Recorded older JSON codec benchmark at 10 Hz | About 23,600 bytes/second |
-| Five players × 2–5 action changes/second × 10–20 bytes | 100–500 bytes/second of action records |
-| Two-second held turn | Two records, roughly 20–40 bytes, plus protocol traffic |
+| Illustrative comparison, per full-view recipient       | Payload                                                 |
+| ------------------------------------------------------ | ------------------------------------------------------- |
+| Recorded older JSON codec benchmark at 10 Hz           | About 23,600 bytes/second                               |
+| Five players × 2–5 action changes/second × 10–20 bytes | 100–500 bytes/second of action records                  |
+| Two-second held turn                                   | Two records, roughly 20–40 bytes, plus protocol traffic |
 
 The [older benchmark](delta-benchmark.json) includes periodic keyframes, excludes outer envelopes/wire overhead, and is not a measurement of today's 20 Hz runtime. The action estimate excludes acknowledgements, progress announcements, heartbeats, redundancy, headers, encryption and checkpoints. It suggests roughly 50–240 times less core replication payload under those assumptions, not a promised total-wire reduction. Measure recipient and host aggregate traffic, controller-only mode, frequent target aiming and bots separately. Batch tiny records to amortize overhead without exceeding latency budgets.
 

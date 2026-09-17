@@ -31,7 +31,12 @@ interface MatchPlayerStats {
   bombsPlaced: number;
   bombsExploded: number;
   eliminations: number;
-  deathsByCause: { wall: number; trail: number; explosion: number; rider: number };
+  deathsByCause: {
+    wall: number;
+    trail: number;
+    explosion: number;
+    rider: number;
+  };
   pickupsCollected: number;
   blastPickups: number;
   starPickups: number;

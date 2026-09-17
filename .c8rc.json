@@ -61,11 +61,7 @@
     "src/online/match-report.ts",
     "src/service/dev.ts"
   ],
-  "reporter": [
-    "text",
-    "html",
-    "json-summary"
-  ],
+  "reporter": ["text", "html", "json-summary"],
   "check-coverage": true,
   "lines": 95,
   "statements": 95,

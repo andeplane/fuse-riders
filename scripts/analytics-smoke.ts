@@ -1,8 +1,11 @@
-import { chromium, webkit } from 'playwright';
-import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { execFileSync } from 'node:child_process';
-import { defaultRoomSettings, SETTINGS_KEY } from '../src/shared/room-settings.js';
+import { chromium, webkit } from "playwright";
+import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import {
+  defaultRoomSettings,
+  SETTINGS_KEY,
+} from "../src/shared/room-settings.js";
 /**
  * Analytics evidence: a one-round solo match plays to completion with Mixpanel intercepted, and the events it
  * reported are checked against what they are supposed to carry.
@@ -12,72 +15,189 @@ import { defaultRoomSettings, SETTINGS_KEY } from '../src/shared/room-settings.j
  * `length` once erased every property on `Match Started`, including the super properties, and nothing noticed.
  * HOME_URL is the served app; BROWSER=webkit selects WebKit.
  */
-const base = process.env.HOME_URL ?? 'http://127.0.0.1:4188/';
-const browserName = process.env.BROWSER === 'webkit' ? 'webkit' : 'chrome';
-const oneRound = { ...defaultRoomSettings(), match: 'rounds' as const, length: 1 };
-interface Reported { event: string; properties: Record<string, unknown> }
+const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
+const browserName = process.env.BROWSER === "webkit" ? "webkit" : "chrome";
+const oneRound = {
+  ...defaultRoomSettings(),
+  match: "rounds" as const,
+  length: 1,
+};
+interface Reported {
+  event: string;
+  properties: Record<string, unknown>;
+}
 
-await mkdir('artifacts', { recursive: true });
-const browser = await (browserName === 'webkit' ? webkit : chromium).launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+await mkdir("artifacts", { recursive: true });
+const browser = await (browserName === "webkit" ? webkit : chromium).launch({
+  headless: true,
+});
+const context = await browser.newContext({
+  viewport: { width: 1280, height: 800 },
+});
 const page = await context.newPage();
 const reported: Reported[] = [];
 // Intercepted, never delivered: a smoke must not write into the production project.
-await page.route('**/*mixpanel.com/**', async (route) => {
-  try { for (const event of JSON.parse(new URLSearchParams(route.request().postData() ?? '').get('data')!)) reported.push(event); } catch { /* not a track payload */ }
-  await route.fulfill({ status: 200, contentType: 'application/json', body: '{"error":null,"status":1}' });
+await page.route("**/*mixpanel.com/**", async (route) => {
+  try {
+    for (const event of JSON.parse(
+      new URLSearchParams(route.request().postData() ?? "").get("data")!,
+    ))
+      reported.push(event);
+  } catch {
+    /* not a track payload */
+  }
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: '{"error":null,"status":1}',
+  });
 });
-await page.addInitScript(([key, settings]) => localStorage.setItem(key as string, JSON.stringify(settings)), [SETTINGS_KEY, oneRound]);
+await page.addInitScript(
+  ([key, settings]) =>
+    localStorage.setItem(key as string, JSON.stringify(settings)),
+  [SETTINGS_KEY, oneRound],
+);
 await page.goto(`${base}?solo=1&analytics=1`);
 // Tap fire through the countdown and the first seconds of play, so the rider pulls the trigger at least once before
 // it rides into a wall: a tap during the countdown is dropped, and one mid-reload is simply refused.
 for (let tap = 0; tap < 16; tap += 1) {
-  await page.keyboard.down('Space'); await page.waitForTimeout(150); await page.keyboard.up('Space'); await page.waitForTimeout(350);
+  await page.keyboard.down("Space");
+  await page.waitForTimeout(150);
+  await page.keyboard.up("Space");
+  await page.waitForTimeout(350);
 }
-await page.getByRole('dialog').waitFor({ timeout: 180000 });
-await page.getByRole('dialog').getByRole('button', { name: /^(CLOSE|BACK TO LOBBY)$/ }).first().click();
-await page.getByRole('button', { name: 'RESULTS', exact: true }).click();
-await page.waitForFunction(() => document.querySelectorAll('dialog[open]').length > 0);
+await page.getByRole("dialog").waitFor({ timeout: 180000 });
+await page
+  .getByRole("dialog")
+  .getByRole("button", { name: /^(CLOSE|BACK TO LOBBY)$/ })
+  .first()
+  .click();
+await page.getByRole("button", { name: "RESULTS", exact: true }).click();
+await page.waitForFunction(
+  () => document.querySelectorAll("dialog[open]").length > 0,
+);
 await page.waitForTimeout(6000);
 await browser.close();
 
-const named = (name: string) => reported.filter((event) => event.event === `FlowRiders.${name}`);
-const only = (name: string) => { const found = named(name); assert.equal(found.length, 1, `expected exactly one ${name}, got ${found.length}`); return found[0]!.properties; };
+const named = (name: string) =>
+  reported.filter((event) => event.event === `FlowRiders.${name}`);
+const only = (name: string) => {
+  const found = named(name);
+  assert.equal(
+    found.length,
+    1,
+    `expected exactly one ${name}, got ${found.length}`,
+  );
+  return found[0]!.properties;
+};
 
-const opened = only('App Opened');
-assert.equal(opened.role, 'solo');
+const opened = only("App Opened");
+assert.equal(opened.role, "solo");
 // Solo starts its match before the first snapshot reaches the UI, so a gate keyed on leaving the lobby misses it.
-const started = only('Match Started');
-for (const key of ['matchNumber', 'playerCount', 'botCount', 'matchLength', 'powerupTypes', 'host', 'role']) {
-  assert.ok(started[key] !== undefined, `Match Started lost its properties — is one of them named 'length'? missing: ${key}`);
+const started = only("Match Started");
+for (const key of [
+  "matchNumber",
+  "playerCount",
+  "botCount",
+  "matchLength",
+  "powerupTypes",
+  "host",
+  "role",
+]) {
+  assert.ok(
+    started[key] !== undefined,
+    `Match Started lost its properties — is one of them named 'length'? missing: ${key}`,
+  );
 }
-assert.equal(started.botCount, 4, 'solo seats four AI riders');
-const ended = only('Match Ended');
-for (const key of ['playerCount', 'botCount', 'humanCount', 'rounds', 'played', 'placement', 'durationSeconds']) {
+assert.equal(started.botCount, 4, "solo seats four AI riders");
+const ended = only("Match Ended");
+for (const key of [
+  "playerCount",
+  "botCount",
+  "humanCount",
+  "rounds",
+  "played",
+  "placement",
+  "durationSeconds",
+]) {
   assert.ok(ended[key] !== undefined, `Match Ended is missing ${key}`);
 }
-assert.equal(ended.played, true, 'the solo rider held a seat');
+assert.equal(ended.played, true, "the solo rider held a seat");
 // Weapons are one event per kill and per miss, never a per-match summary.
-assert.equal(Object.keys(ended).some((key) => /^(shots|kills)[A-Z]/.test(key)), false, 'Match Ended carries no weapon tallies');
-const outcomes = [...named('Kill'), ...named('Miss')];
-assert.ok(outcomes.length >= 1, 'the rider fired, so its round reported at least one Kill or Miss');
+assert.equal(
+  Object.keys(ended).some((key) => /^(shots|kills)[A-Z]/.test(key)),
+  false,
+  "Match Ended carries no weapon tallies",
+);
+const outcomes = [...named("Kill"), ...named("Miss")];
+assert.ok(
+  outcomes.length >= 1,
+  "the rider fired, so its round reported at least one Kill or Miss",
+);
 for (const outcome of outcomes) {
-  for (const key of ['weapon', 'round', 'secondsIntoRound', 'bombs', 'power', 'extraBombs', 'fuseLevel', 'grip', 'riders', 'bots', 'role']) assert.ok(outcome.properties[key] !== undefined, `${outcome.event} lost ${key} — is a property named 'length'?`);
+  for (const key of [
+    "weapon",
+    "round",
+    "secondsIntoRound",
+    "bombs",
+    "power",
+    "extraBombs",
+    "fuseLevel",
+    "grip",
+    "riders",
+    "bots",
+    "role",
+  ])
+    assert.ok(
+      outcome.properties[key] !== undefined,
+      `${outcome.event} lost ${key} — is a property named 'length'?`,
+    );
 }
-for (const kill of named('Kill')) {
-  for (const key of ['victimBot', 'shotKills', 'firstKillOfShot', 'secondsToKill']) assert.ok(kill.properties[key] !== undefined, `Kill is missing ${key}`);
+for (const kill of named("Kill")) {
+  for (const key of [
+    "victimBot",
+    "shotKills",
+    "firstKillOfShot",
+    "secondsToKill",
+  ])
+    assert.ok(kill.properties[key] !== undefined, `Kill is missing ${key}`);
 }
-only('Seat Taken');
-only('Recap Reopened');
+only("Seat Taken");
+only("Recap Reopened");
 
 // A room page is `?room=CODE` and that code is the join credential: no event may carry a page URL.
 const payload = JSON.stringify(reported);
-for (const forbidden of ['$current_url', '$referrer', '$initial_referrer']) {
-  assert.ok(!payload.includes(forbidden), `${forbidden} would ship the room invite link to Mixpanel`);
+for (const forbidden of ["$current_url", "$referrer", "$initial_referrer"]) {
+  assert.ok(
+    !payload.includes(forbidden),
+    `${forbidden} would ship the room invite link to Mixpanel`,
+  );
 }
-assert.ok(!payload.includes('solo=1'), 'no event may carry the page query string');
+assert.ok(
+  !payload.includes("solo=1"),
+  "no event may carry the page query string",
+);
 
-const identity = { revision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), date: new Date().toISOString(), base, browser: browserName };
-const summary = { ...identity, events: reported.map((event) => event.event), started, ended, outcomes: outcomes.map((outcome) => ({ event: outcome.event, ...outcome.properties })) };
-await writeFile(`artifacts/analytics-${browserName}.json`, `${JSON.stringify(summary, null, 2)}\n`);
+const identity = {
+  revision: execFileSync("git", ["rev-parse", "HEAD"], {
+    encoding: "utf8",
+  }).trim(),
+  date: new Date().toISOString(),
+  base,
+  browser: browserName,
+};
+const summary = {
+  ...identity,
+  events: reported.map((event) => event.event),
+  started,
+  ended,
+  outcomes: outcomes.map((outcome) => ({
+    event: outcome.event,
+    ...outcome.properties,
+  })),
+};
+await writeFile(
+  `artifacts/analytics-${browserName}.json`,
+  `${JSON.stringify(summary, null, 2)}\n`,
+);
 console.log(JSON.stringify(summary, null, 2));

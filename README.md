@@ -8,11 +8,11 @@ A TypeScript party game for 2–5 players: steer neon riders, dodge their trails
 
 ![Restored neon room lobby with QR invite and rider cards](docs/online/ui-evidence/lobby-desktop-1a25594.png)
 
-*Actual desktop browser screenshot (1280×800) of the restored room lobby from the [controller and lobby acceptance](docs/online/ui-evidence/README.md), captured at source `1a25594` against an isolated local Worker during PR #2. Every runtime deployed since `68bea0d` (currently `a4bee00`) ships this UI; the image is not a screenshot of the public deployment.*
+_Actual desktop browser screenshot (1280×800) of the restored room lobby from the [controller and lobby acceptance](docs/online/ui-evidence/README.md), captured at source `1a25594` against an isolated local Worker during PR #2. Every runtime deployed since `68bea0d` (currently `a4bee00`) ships this UI; the image is not a screenshot of the public deployment._
 
 ![Fuse Riders Phaser gameplay showcase](docs/gameplay-phaser.png)
 
-*Five AI riders playing an actual match in the real game client — not a staged fixture.*
+_Five AI riders playing an actual match in the real game client — not a staged fixture._
 
 Public Chrome and WebKit checks covered phone hosting, AI, guest connections, saved settings, shared-TV play and reset at runtime `6c1673b`; the [public acceptance report](docs/online/PUBLIC-ACCEPTANCE.md) records that tested release. The restored UI (`68bea0d`: neon lobby, landscape touch controls, keyboard controls, short room codes) was first published after local Chrome/WebKit verification; its CI run failed at the desktop keyboard browser check, PRs #9 and #11 fixed that check, and the currently deployed `a4bee00` runtime passed CI 34822503284. No clean public acceptance run for the restored UI is recorded in this repository; see the [release status](docs/online/PUBLIC-BETA-2026-09-14.md#restored-ui-release-68bea0d). Renderer and network benchmarks are documented separately; physical-device performance and arbitrary network reliability are not guaranteed. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The LAN path remains available.
 
@@ -79,9 +79,9 @@ The LAN TV provides audio controls, fullscreen, a main-menu reset, session score
 
 ## Architecture
 
-| Path | Simulation authority | Communication | Lifetime |
-| --- | --- | --- | --- |
-| LAN | Local Node process | WebSocket intents, snapshots and events | Process must run during play; restart resets state |
+| Path   | Simulation authority                    | Communication                                       | Lifetime                                                                                           |
+| ------ | --------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| LAN    | Local Node process                      | WebSocket intents, snapshots and events             | Process must run during play; restart resets state                                                 |
 | Online | Every device, from one shared input log | Full WebRTC mesh; backend WebSocket signalling only | Any member can serve the world to a joiner; a refreshed creator or guest rejoins the running match |
 
 ```text
@@ -96,22 +96,22 @@ Online:  every member ── WebRTC mesh (one link per pair) ── every member
 
 The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript trigonometry so every engine folds the same state. Once every human rider is out of a round and only AI riders survive, the tick clock runs three times faster until the round ends (`simulationTimeScale` in [game.ts](src/shared/game.ts)); the tick rules themselves do not change. Online rooms are peer-to-peer: every device that renders the world simulates it locally from one shared input log. Each member owns one stream of edge-filtered entries (steer, aim, press, release, cancel, avatar); the creator's stream also carries the management entries (join, leave, presence, settings, start, rematch, lobby, AI riders). Every member sends one small MessagePack packet to every other member per tick and immediately on a new entry; completeness, liveness, loss and RTT are derived from that stream, and a missing entry is repaired by nack or by rotation through the retained window. A player's own input applies on the next simulation tick; other players' inputs apply one network hop later, and a late entry rolls the world back up to 40 ticks and re-simulates. Joiners and refreshed pages install a validated snapshot from any peer. See the [P2P design brief and measurements](docs/online/P2P-INPUT-LOG-BRIEF.md); `?stats=1` (or **ROOM → SHOW NETWORK STATS**) shows each device's own link quality. Gameplay never uses the backend as a relay. Failed WebRTC connections show why (STUN, signalling or ICE) in the header and under **MENU → LINK DIAGNOSTICS**; there is no TURN server, so a guest behind symmetric or carrier-grade NAT (common on cellular) may be unable to connect directly and should join the host's Wi-Fi. See [protocol notes](docs/online/PROTOCOL.md#direct-link-establishment-diagnostics-and-nat-limits-issues-12-27).
 
-| Location | Responsibility |
-| --- | --- |
-| `src/shared/` | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops |
-| `src/server/` | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling |
-| `src/client/` | Phaser presentation (WebGL/Canvas), themes, audio, avatars and phone pointer controls |
-| `src/shared/input-log.ts`, `apply-tick.ts` | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries |
-| `src/online/stream.ts`, `rollback.ts`, `clock.ts` | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock |
-| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts` | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation |
-| `src/online/room-runtime.ts` | One runtime for solo and online rooms (roles, cadence, creator duties, presentation), over the `fuse-network-fe` transport |
-| `src/online/prediction.ts`, `net-stats.ts`, `ui.ts` | Fractional presentation with immediate local steering, the per-device link quality overlay, and the room UI |
-| `packages/fuse-network-fe/` | Game-agnostic browser library: the full WebRTC mesh with reliable and unreliable channels (`peer-transport.ts`), link health, ICE restarts, diagnostics and the room API client ([README](packages/fuse-network-fe/README.md)) |
-| `packages/fuse-network-be/` | Game-agnostic room service: API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`), in-memory metadata (`dev.ts`) and Firestore transactions with Pub/Sub signalling (`gcp/`) ([README](packages/fuse-network-be/README.md)) |
-| `packages/fuse-network-protocol/` | The wire contract both libraries share: room codes, authority lease, STUN defaults, protocol version |
-| `src/service/` | The game's entry points into `fuse-network-be`: production (`index.ts`), local development and CI (`dev.ts`), and the room capacity |
-| `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines |
-| `tests/`, `scripts/` | Deterministic tests, browser checks and benchmark runners |
+| Location                                                                     | Responsibility                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shared/`                                                                | Deterministic rules, pure rider-motion kernel, bounded AI controller, geometry, protocol types, scores, settings and drops                                                                                                             |
+| `src/server/`                                                                | LAN HTTP/WebSocket server, authority, seats, input buffering and injected scheduling                                                                                                                                                   |
+| `src/client/`                                                                | Phaser presentation (WebGL/Canvas), themes, audio, avatars and phone pointer controls                                                                                                                                                  |
+| `src/shared/input-log.ts`, `apply-tick.ts`                                   | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries                                                                                                            |
+| `src/online/stream.ts`, `rollback.ts`, `clock.ts`                            | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock                                                                                                     |
+| `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts`                       | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation                                                                                                                             |
+| `src/online/room-runtime.ts`                                                 | One runtime for solo and online rooms (roles, cadence, creator duties, presentation), over the `fuse-network-fe` transport                                                                                                             |
+| `src/online/prediction.ts`, `net-stats.ts`, `ui.ts`                          | Fractional presentation with immediate local steering, the per-device link quality overlay, and the room UI                                                                                                                            |
+| `packages/fuse-network-fe/`                                                  | Game-agnostic browser library: the full WebRTC mesh with reliable and unreliable channels (`peer-transport.ts`), link health, ICE restarts, diagnostics and the room API client ([README](packages/fuse-network-fe/README.md))         |
+| `packages/fuse-network-be/`                                                  | Game-agnostic room service: API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`), in-memory metadata (`dev.ts`) and Firestore transactions with Pub/Sub signalling (`gcp/`) ([README](packages/fuse-network-be/README.md)) |
+| `packages/fuse-network-protocol/`                                            | The wire contract both libraries share: room codes, authority lease, STUN defaults, protocol version                                                                                                                                   |
+| `src/service/`                                                               | The game's entry points into `fuse-network-be`: production (`index.ts`), local development and CI (`dev.ts`), and the room capacity                                                                                                    |
+| `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines                                                                                                                                                                                  |
+| `tests/`, `scripts/`                                                         | Deterministic tests, browser checks and benchmark runners                                                                                                                                                                              |
 
 Phaser is presentation only: the caller supplies snapshots to one render loop, pooled effects are bounded, and Phaser physics/timers never advance game authority. Themes and avatars respect the Pages base path. See [renderer architecture and benchmarks](docs/PHASER.md).
 
@@ -230,7 +230,7 @@ Gameplay is peer-to-peer, so the gateway never sees a match. Every device comput
 1. When the recap opens, each rider's device sends the result it computed to
    `POST /api/rooms/<CODE>/results`, with its **room token** as the bearer credential and, if signed in, its Firebase ID
    token in `X-Fuse-Identity` ([`match-report.ts`](src/online/match-report.ts)).
-2. A rider's in-game id *is* the digest of their room token, so the token proves which seat is speaking. The gateway
+2. A rider's in-game id _is_ the digest of their room token, so the token proves which seat is speaking. The gateway
    binds the verified account to that seat and to no other. Nothing in the request body can name an account.
 3. A result is stored under a key derived from its own content (and the room's incarnation). It becomes **confirmed**
    once a **majority of the human riders who stayed to the end** have reported exactly that result
@@ -248,38 +248,38 @@ is late), so anything that can still change while it is up stays out: the room's
 and a rider's avatar travels beside the result, self-reported. The client retries a report that lost the write race
 (every rider reports in the same instant) or went in before its sign-in could be verified.
 
-| Record | Kept for |
-|---|---|
-| Pending (no majority yet) | 24 hours |
-| Confirmed, no signed-in rider | 30 days |
-| Confirmed, at least one signed-in rider | forever |
+| Record                                  | Kept for |
+| --------------------------------------- | -------- |
+| Pending (no majority yet)               | 24 hours |
+| Confirmed, no signed-in rider           | 30 days  |
+| Confirmed, at least one signed-in rider | forever  |
 
 What this does **not** cover: LAN `/display` games and PLAY SOLO (neither has a room on the gateway), and a rider who
 signs in only after leaving the room.
 
 ### API
 
-| Route | Credential | Notes |
-|---|---|---|
-| `POST /api/rooms/<CODE>/results` | `Authorization: Bearer <room token>`, optional `X-Fuse-Identity: <ID token>` | Body `{ result, avatarId? }`, at most 256 kB, unknown fields refused. The sender must be a live member of the room and a rider in the result; that is checked from the room token before the body is read or a sign-in verified. 40 reports per rider and 240 per address per hour, and an account can be linked to 30 matches per hour — past that a report still counts, as a guest's. An identity that fails verification is a guest's report, never a refusal |
-| `GET /api/me` | `Authorization: Bearer <ID token>` | `{ profile }` — username, avatar, totals — or `{ profile: null }` for an account nothing is stored about yet |
-| `PUT /api/me` | `Authorization: Bearer <ID token>` | Body `{ username }` and nothing else. 20 changes per account per hour |
-| `GET /api/me/matches[?before=<endedAt>]` | `Authorization: Bearer <ID token>` | The caller's profile totals and 20 confirmed matches, newest first; `before` pages back. Shows every rider's stats and which seat was the caller's — never another rider's account id. 300 requests per account per hour |
+| Route                                    | Credential                                                                   | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/rooms/<CODE>/results`         | `Authorization: Bearer <room token>`, optional `X-Fuse-Identity: <ID token>` | Body `{ result, avatarId? }`, at most 256 kB, unknown fields refused. The sender must be a live member of the room and a rider in the result; that is checked from the room token before the body is read or a sign-in verified. 40 reports per rider and 240 per address per hour, and an account can be linked to 30 matches per hour — past that a report still counts, as a guest's. An identity that fails verification is a guest's report, never a refusal |
+| `GET /api/me`                            | `Authorization: Bearer <ID token>`                                           | `{ profile }` — username, avatar, totals — or `{ profile: null }` for an account nothing is stored about yet                                                                                                                                                                                                                                                                                                                                                      |
+| `PUT /api/me`                            | `Authorization: Bearer <ID token>`                                           | Body `{ username }` and nothing else. 20 changes per account per hour                                                                                                                                                                                                                                                                                                                                                                                             |
+| `GET /api/me/matches[?before=<endedAt>]` | `Authorization: Bearer <ID token>`                                           | The caller's profile totals and 20 confirmed matches, newest first; `before` pages back. Shows every rider's stats and which seat was the caller's — never another rider's account id. 300 requests per account per hour                                                                                                                                                                                                                                          |
 
 Both routes sit behind the gateway's existing `ALLOWED_ORIGINS` check, and both answer 404 on a service started without
 history (none is, today).
 
 ### Data (Firestore database `fuse-riders`)
 
-| Collection | Document | Contents |
-|---|---|---|
-| `fuse-production-matches` | hash of room incarnation + result | `status`, `result` (per-rider stats), `attesters`, `uidByPlayer`, `avatars`, `participantUids`, `createdAt`, `endedAt`, and `expiresAt`/`cleanupAt` while it can still expire |
-| `fuse-production-users` | Firebase `uid` | `username`, the rider `name` of the last credited match, `avatarId`, `updatedAt`, `totals` (matches, wins, round wins, eliminations, bombs, pickups, survival ticks, distance) |
+| Collection                | Document                          | Contents                                                                                                                                                                       |
+| ------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fuse-production-matches` | hash of room incarnation + result | `status`, `result` (per-rider stats), `attesters`, `uidByPlayer`, `avatars`, `participantUids`, `createdAt`, `endedAt`, and `expiresAt`/`cleanupAt` while it can still expire  |
+| `fuse-production-users`   | Firebase `uid`                    | `username`, the rider `name` of the last credited match, `avatarId`, `updatedAt`, `totals` (matches, wins, round wins, eliminations, bombs, pickups, survival ticks, distance) |
 
 The personal data stored is the Firebase `uid`, the username, the rider names matches were played under and the
 avatar. **No email address or profile photo reaches the gateway or the database.** The Google display name is shown in
 the player's own browser only, with one exception the player can see and undo: an account with no username and no
-earlier rider name starts with the *first word* of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, and
+earlier rider name starts with the _first word_ of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, and
 remove their `uid` from `uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
 
 [`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index
@@ -323,20 +323,20 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 
 ### What is configured
 
-| Thing | Value |
-|---|---|
-| Firebase project | `andershaf-87` (number `867594018708`), see [`.firebaserc`](.firebaserc) |
-| Web app | "Fuse Riders", app ID `1:867594018708:web:4444ada96e29685f063981` |
-| Sign-in providers | **Google only**, enabled 2026-09-17. Email/password, anonymous and phone are disabled |
-| Authorized domains | `localhost`, `andeplane.github.io`, and the two popup-handler hosts `andershaf-87.firebaseapp.com` and `fuse-riders.web.app` |
-| Hosting site | `fuse-riders` → `https://fuse-riders.web.app`. Nothing is deployed to it; it exists so the sign-in handler has a name players recognise (below) |
-| Email enumeration protection | on |
-| Web API key | "Fuse Riders web (Firebase Auth only)", key ID `06d6ec38-6348-4b7b-865d-1ea58a9b7d91` |
-| Key: API restriction | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only |
-| Key: referrer restriction | `https://andeplane.github.io/*`, `https://fuse-riders.web.app/*`, `https://andershaf-87.firebaseapp.com/*`, `localhost`, `localhost:*`, `127.0.0.1`, `127.0.0.1:*` |
-| Firestore rules | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json)) |
-| Firestore indexes and TTL | [`firestore.indexes.json`](firestore.indexes.json), deployed with the rules |
-| Firestore delete protection | enabled on `fuse-riders`, because it will hold history that no TTL cleans up |
+| Thing                        | Value                                                                                                                                                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Firebase project             | `andershaf-87` (number `867594018708`), see [`.firebaserc`](.firebaserc)                                                                                           |
+| Web app                      | "Fuse Riders", app ID `1:867594018708:web:4444ada96e29685f063981`                                                                                                  |
+| Sign-in providers            | **Google only**, enabled 2026-09-17. Email/password, anonymous and phone are disabled                                                                              |
+| Authorized domains           | `localhost`, `andeplane.github.io`, and the two popup-handler hosts `andershaf-87.firebaseapp.com` and `fuse-riders.web.app`                                       |
+| Hosting site                 | `fuse-riders` → `https://fuse-riders.web.app`. Nothing is deployed to it; it exists so the sign-in handler has a name players recognise (below)                    |
+| Email enumeration protection | on                                                                                                                                                                 |
+| Web API key                  | "Fuse Riders web (Firebase Auth only)", key ID `06d6ec38-6348-4b7b-865d-1ea58a9b7d91`                                                                              |
+| Key: API restriction         | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only                                                                                             |
+| Key: referrer restriction    | `https://andeplane.github.io/*`, `https://fuse-riders.web.app/*`, `https://andershaf-87.firebaseapp.com/*`, `localhost`, `localhost:*`, `127.0.0.1`, `127.0.0.1:*` |
+| Firestore rules              | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json))                                                                                |
+| Firestore indexes and TTL    | [`firestore.indexes.json`](firestore.indexes.json), deployed with the rules                                                                                        |
+| Firestore delete protection  | enabled on `fuse-riders`, because it will hold history that no TTL cleans up                                                                                       |
 
 The `(default)` database in this project is Datastore-mode and unrelated; security rules do not apply to it.
 
@@ -346,10 +346,10 @@ a Firebase web API key only identifies the project, and the restrictions above a
 
 ```ts
 const firebaseConfig = {
-  apiKey: 'AIzaSyDmK4ZmjGHZl4ImAoEAFLbQ5Vp1wkc0Wyk',
-  authDomain: 'andershaf-87.firebaseapp.com',
-  projectId: 'andershaf-87',
-  appId: '1:867594018708:web:4444ada96e29685f063981',
+  apiKey: "AIzaSyDmK4ZmjGHZl4ImAoEAFLbQ5Vp1wkc0Wyk",
+  authDomain: "andershaf-87.firebaseapp.com",
+  projectId: "andershaf-87",
+  appId: "1:867594018708:web:4444ada96e29685f063981",
 };
 ```
 
@@ -363,7 +363,7 @@ the authorized domains above as JavaScript origins.
 
 ### The name on Google's sign-in screen
 
-Google's screen says "to continue to *&lt;authDomain&gt;*" — the host serving Firebase's `/__/auth/handler`. The default,
+Google's screen says "to continue to _&lt;authDomain&gt;_" — the host serving Firebase's `/__/auth/handler`. The default,
 `andershaf-87.firebaseapp.com`, names the owner's project rather than the game. Every Hosting site in the project
 serves that handler with nothing deployed, so the `fuse-riders` site gives it a better name for free:
 `fuse-riders.web.app`. It is already an authorized domain and an allowed key referrer.
@@ -425,13 +425,13 @@ means the key refuses it.
 
 The Firebase configuration, verified from outside with the public web key:
 
-| Probe | Result |
-|---|---|
-| Auth API with a foreign or missing `Referer`, including look-alikes (`localhost.evil.example`, `evil.example/localhost`) | `403` — referrer restriction holds |
-| Starting a Google sign-in from `andeplane.github.io`, the `firebaseapp.com` handler, `localhost:8787`, `127.0.0.1:3030` | allowed |
-| Anonymous sign-up from an allowed referrer | `400 ADMIN_ONLY_OPERATION` |
-| Email/password sign-up from an allowed referrer | `400 OPERATION_NOT_ALLOWED` |
-| Firestore REST read of the rooms collection with the web key | `403` — the key cannot reach Firestore at all, and the rules would deny it if it could |
+| Probe                                                                                                                    | Result                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Auth API with a foreign or missing `Referer`, including look-alikes (`localhost.evil.example`, `evil.example/localhost`) | `403` — referrer restriction holds                                                     |
+| Starting a Google sign-in from `andeplane.github.io`, the `firebaseapp.com` handler, `localhost:8787`, `127.0.0.1:3030`  | allowed                                                                                |
+| Anonymous sign-up from an allowed referrer                                                                               | `400 ADMIN_ONLY_OPERATION`                                                             |
+| Email/password sign-up from an allowed referrer                                                                          | `400 OPERATION_NOT_ALLOWED`                                                            |
+| Firestore REST read of the rooms collection with the web key                                                             | `403` — the key cannot reach Firestore at all, and the rules would deny it if it could |
 
 Findings and accepted risks:
 
@@ -473,20 +473,20 @@ How the implementation holds the line:
 An independent review of the implementation (2026-09-17) found no way to credit another account, read another
 player's history, or have a failed verification accepted. What it did find, and what was done:
 
-| Finding | Resolution |
-|---|---|
+| Finding                                                                                                                                                                              | Resolution                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **High.** Room tokens are free to mint, so the per-rider limit could not stop one signed-in attacker creating unlimited permanent records, each adding up to 10⁹ to their own totals | Linking is limited per account (30/hour) and reporting per address (240/hour); past the account limit a report is a guest's and its record expires. Stats are bounded to what a match could plausibly produce (per-round counts by the match length, placement by the rider count, the rest by generous ceilings) |
-| **Medium.** The report included the room's *live* `mode`, which the host can change while the recap is up, so a late device could hash a different result | Room settings are no longer part of the result |
-| **Medium.** Riders who quit mid-match counted towards the majority but can never report | The majority is of human finishers frozen at the match-ending simulation tick, independently of elimination stats |
-| **Medium.** One attempt, while every rider writes the same record at once | Jittered retries on 5xx/408/429/network, and when a signed-in report went in unlinked |
-| **Low.** A sign-in was verified and the body read before the room token was checked; no body timeout | Room token, membership and limits first; 10-second body timeout |
-| **Low.** A tap on SIGN IN WITH GOOGLE while the SDK was still downloading could be popup-blocked (Safari) | The button is disabled until the SDK is ready |
-| **Low.** Names with a lone surrogate or untrimmed; a `uid` shaped like Firestore's reserved `__x__`; paging that differed between the two storage backends | All refused or aligned, with tests |
+| **Medium.** The report included the room's _live_ `mode`, which the host can change while the recap is up, so a late device could hash a different result                            | Room settings are no longer part of the result                                                                                                                                                                                                                                                                    |
+| **Medium.** Riders who quit mid-match counted towards the majority but can never report                                                                                              | The majority is of human finishers frozen at the match-ending simulation tick, independently of elimination stats                                                                                                                                                                                                 |
+| **Medium.** One attempt, while every rider writes the same record at once                                                                                                            | Jittered retries on 5xx/408/429/network, and when a signed-in report went in unlinked                                                                                                                                                                                                                             |
+| **Low.** A sign-in was verified and the body read before the room token was checked; no body timeout                                                                                 | Room token, membership and limits first; 10-second body timeout                                                                                                                                                                                                                                                   |
+| **Low.** A tap on SIGN IN WITH GOOGLE while the SDK was still downloading could be popup-blocked (Safari)                                                                            | The button is disabled until the SDK is ready                                                                                                                                                                                                                                                                     |
+| **Low.** Names with a lone surrogate or untrimmed; a `uid` shaped like Firestore's reserved `__x__`; paging that differed between the two storage backends                           | All refused or aligned, with tests                                                                                                                                                                                                                                                                                |
 
 Accepted, not fixed:
 
 - **A lone rider's report is believed.** One human with bots confirms alone, so a modified client can forge its own
-  match and inflate its *own* totals within the bounds above. It cannot touch anyone else's. Do not build a public
+  match and inflate its _own_ totals within the bounds above. It cannot touch anyone else's. Do not build a public
   leaderboard on `totals` without first requiring, say, two attesting humans; `attesters` is stored for that.
 - **A whole room colluding can forge a result** for themselves. Re-simulating the input log server-side is the fix and
   is out of proportion for a game among friends.

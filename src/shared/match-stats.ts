@@ -1,7 +1,7 @@
-import type { RoundPlacement } from './leaderboard.js';
-import type { PickupType } from './game.js';
+import type { RoundPlacement } from "./leaderboard.js";
+import type { PickupType } from "./game.js";
 
-export type MatchDeathCause = 'wall' | 'trail' | 'explosion' | 'rider';
+export type MatchDeathCause = "wall" | "trail" | "explosion" | "rider";
 
 export interface MatchDeathCounts {
   wall: number;
@@ -51,13 +51,19 @@ export interface MatchPlayerStats {
   earlyExits: number;
 }
 
-export interface MatchPlayerStatsState extends Omit<MatchPlayerStats, 'matchPlacement'> {
+export interface MatchPlayerStatsState extends Omit<
+  MatchPlayerStats,
+  "matchPlacement"
+> {
   currentRoundSurvivalTicks: number;
 }
 
 export type MatchStatsState = Map<string, MatchPlayerStatsState>;
 
-export function beginMatchParticipant(stats: MatchStatsState, identity: MatchPlayerIdentity): void {
+export function beginMatchParticipant(
+  stats: MatchStatsState,
+  identity: MatchPlayerIdentity,
+): void {
   const existing = stats.get(identity.id);
   if (existing) {
     existing.name = identity.name;
@@ -85,9 +91,11 @@ export function beginMatchParticipant(stats: MatchStatsState, identity: MatchPla
     pickupsCollected: 0,
     powerPickups: 0,
     starPickups: 0,
-    beerPickups: 0, inkPickups: 0,
+    beerPickups: 0,
+    inkPickups: 0,
     triplePickups: 0,
-    fivePickups: 0, targetPickups: 0,
+    fivePickups: 0,
+    targetPickups: 0,
 
     shieldPickups: 0,
     portalPickups: 0,
@@ -106,7 +114,8 @@ export function recordSurvivalTick(
   invulnerable: boolean,
   bounced: boolean,
 ): void {
-  if (!Number.isFinite(distanceUnits) || distanceUnits < 0) throw new RangeError('distanceUnits must be finite and non-negative');
+  if (!Number.isFinite(distanceUnits) || distanceUnits < 0)
+    throw new RangeError("distanceUnits must be finite and non-negative");
   const entry = requireEntry(stats, playerId);
   entry.survivalTicks += 1;
   entry.currentRoundSurvivalTicks += 1;
@@ -115,11 +124,17 @@ export function recordSurvivalTick(
   if (bounced) entry.wallBounces += 1;
 }
 
-export function recordBombPlaced(stats: MatchStatsState, playerId: string): void {
+export function recordBombPlaced(
+  stats: MatchStatsState,
+  playerId: string,
+): void {
   requireEntry(stats, playerId).bombsPlaced += 1;
 }
 
-export function recordBombExploded(stats: MatchStatsState, playerId: string): void {
+export function recordBombExploded(
+  stats: MatchStatsState,
+  playerId: string,
+): void {
   requireEntry(stats, playerId).bombsExploded += 1;
 }
 
@@ -130,18 +145,21 @@ export function recordPickup(
 ): void {
   const entry = requireEntry(stats, playerId);
   entry.pickupsCollected += 1;
-  if (type === 'target') entry.targetPickups += 1;
-  else if (type === 'power') entry.powerPickups += 1;
-  else if (type === 'star') entry.starPickups += 1;
-  else if (type === 'ink') entry.inkPickups += 1;
-  else if (type === 'beer') entry.beerPickups += 1;
-  else if (type === 'five') entry.fivePickups += 1;
-  else if (type === 'triple') entry.triplePickups += 1;
-  else if (type === 'orbitShield') entry.shieldPickups += 1;
-  else if (type === 'portal') entry.portalPickups += 1;
+  if (type === "target") entry.targetPickups += 1;
+  else if (type === "power") entry.powerPickups += 1;
+  else if (type === "star") entry.starPickups += 1;
+  else if (type === "ink") entry.inkPickups += 1;
+  else if (type === "beer") entry.beerPickups += 1;
+  else if (type === "five") entry.fivePickups += 1;
+  else if (type === "triple") entry.triplePickups += 1;
+  else if (type === "orbitShield") entry.shieldPickups += 1;
+  else if (type === "portal") entry.portalPickups += 1;
 }
 
-export function recordPortalTransit(stats: MatchStatsState, playerId: string): void {
+export function recordPortalTransit(
+  stats: MatchStatsState,
+  playerId: string,
+): void {
   requireEntry(stats, playerId).portalTransits += 1;
 }
 
@@ -152,14 +170,18 @@ export function recordDeath(
   creditedPlayerId?: string,
 ): void {
   const victim = requireEntry(stats, playerId);
-  const credited = creditedPlayerId !== undefined && creditedPlayerId !== playerId
-    ? requireEntry(stats, creditedPlayerId)
-    : undefined;
+  const credited =
+    creditedPlayerId !== undefined && creditedPlayerId !== playerId
+      ? requireEntry(stats, creditedPlayerId)
+      : undefined;
   victim.deathsByCause[cause] += 1;
   if (credited) credited.eliminations += 1;
 }
 
-export function recordEarlyExit(stats: MatchStatsState, playerId: string): void {
+export function recordEarlyExit(
+  stats: MatchStatsState,
+  playerId: string,
+): void {
   requireEntry(stats, playerId).earlyExits += 1;
 }
 
@@ -170,12 +192,22 @@ export function finalizeMatchStatsRound(
   placements: readonly RoundPlacement[] = [],
 ): void {
   const uniqueIds = new Set(participantIds);
-  if (uniqueIds.size !== participantIds.length) throw new Error('Round participants must have unique ids');
-  if (winnerId !== undefined && !uniqueIds.has(winnerId)) throw new Error('Round winner must be a participant');
-  const entries = participantIds.map((playerId) => requireEntry(stats, playerId));
+  if (uniqueIds.size !== participantIds.length)
+    throw new Error("Round participants must have unique ids");
+  if (winnerId !== undefined && !uniqueIds.has(winnerId))
+    throw new Error("Round winner must be a participant");
+  const entries = participantIds.map((playerId) =>
+    requireEntry(stats, playerId),
+  );
   const scores = new Map<string, number>();
   for (const placement of placements) {
-    if (!uniqueIds.has(placement.playerId) || scores.has(placement.playerId) || !Number.isSafeInteger(placement.scoreUnits) || placement.scoreUnits < 0) throw new Error('Invalid round score');
+    if (
+      !uniqueIds.has(placement.playerId) ||
+      scores.has(placement.playerId) ||
+      !Number.isSafeInteger(placement.scoreUnits) ||
+      placement.scoreUnits < 0
+    )
+      throw new Error("Invalid round score");
     scores.set(placement.playerId, placement.scoreUnits);
   }
   const draw = winnerId === undefined;
@@ -184,18 +216,31 @@ export function finalizeMatchStatsRound(
     entry.matchScoreUnits += scores.get(entry.playerId) ?? 0;
     if (entry.playerId === winnerId) entry.roundWins += 1;
     if (draw) entry.roundsDrawn += 1;
-    entry.longestSurvivalTicks = Math.max(entry.longestSurvivalTicks, entry.currentRoundSurvivalTicks);
+    entry.longestSurvivalTicks = Math.max(
+      entry.longestSurvivalTicks,
+      entry.currentRoundSurvivalTicks,
+    );
     entry.currentRoundSurvivalTicks = 0;
   }
 }
 
 /** Competitive ties use points, then round wins; display ordering never decides a winner. */
-export function compareMatchScores(a: Pick<MatchPlayerStats, 'matchScoreUnits' | 'roundWins'>, b: Pick<MatchPlayerStats, 'matchScoreUnits' | 'roundWins'>): number {
+export function compareMatchScores(
+  a: Pick<MatchPlayerStats, "matchScoreUnits" | "roundWins">,
+  b: Pick<MatchPlayerStats, "matchScoreUnits" | "roundWins">,
+): number {
   return b.matchScoreUnits - a.matchScoreUnits || b.roundWins - a.roundWins;
 }
 
-export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsState>): MatchPlayerStats[] {
-  const ordered = [...stats.values()].sort((a, b) => compareMatchScores(a, b) || a.slot - b.slot || a.playerId.localeCompare(b.playerId));
+export function snapshotMatchStats(
+  stats: ReadonlyMap<string, MatchPlayerStatsState>,
+): MatchPlayerStats[] {
+  const ordered = [...stats.values()].sort(
+    (a, b) =>
+      compareMatchScores(a, b) ||
+      a.slot - b.slot ||
+      a.playerId.localeCompare(b.playerId),
+  );
   let prior: MatchPlayerStatsState | undefined;
   let placement = 0;
   return ordered.map((entry, index) => {
@@ -223,7 +268,9 @@ export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsSt
       starPickups: entry.starPickups,
       beerPickups: entry.beerPickups,
       inkPickups: entry.inkPickups,
-      triplePickups: entry.triplePickups, fivePickups: entry.fivePickups, targetPickups: entry.targetPickups,
+      triplePickups: entry.triplePickups,
+      fivePickups: entry.fivePickups,
+      targetPickups: entry.targetPickups,
 
       shieldPickups: entry.shieldPickups,
       portalPickups: entry.portalPickups,
@@ -235,7 +282,10 @@ export function snapshotMatchStats(stats: ReadonlyMap<string, MatchPlayerStatsSt
   });
 }
 
-function requireEntry(stats: ReadonlyMap<string, MatchPlayerStatsState>, playerId: string): MatchPlayerStatsState {
+function requireEntry(
+  stats: ReadonlyMap<string, MatchPlayerStatsState>,
+  playerId: string,
+): MatchPlayerStatsState {
   const entry = stats.get(playerId);
   if (!entry) throw new Error(`unknown match participant: ${playerId}`);
   return entry;

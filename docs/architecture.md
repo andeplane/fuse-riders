@@ -20,18 +20,18 @@ Production tokens use 24 cryptographically random bytes. The owning controller r
 
 ## Modules and dependency injection
 
-| Module | Responsibility |
-| --- | --- |
-| `src/shared/game.ts` | Deterministic state, lifecycle commands, authoritative tick transaction and snapshots. |
-| `src/shared/protocol.ts` | Wire types and strict incoming message validation. |
-| `src/shared/bomb-launch.ts`, `launch-modifiers.ts`, `blast-geometry.ts` | Charge distance, volley trajectories and exact swept disk intersections. |
-| `src/shared/trail-clipping.ts`, `portal.ts`, `drunk.ts` | Independent geometry, portal placement/transit and seeded steering disturbance. |
-| `src/shared/pickup-weights.ts`, `leaderboard.ts`, `match-stats.ts` | Drop weights, persistent session scoring and current-match statistics. |
-| `src/server/index.ts`, `bomb-input.ts` | HTTP/WebSockets, authentication, seats, fixed scheduling and ordered bomb actions. |
-| `src/client/snapshot-stream.ts`, `render-snapshot.ts` | Forward snapshot acceptance and bounded visual projection. |
-| `src/client/controller-state.ts`, `controller-pointers.ts` | Typed input state and browser pointer/capture lifecycle. |
-| `src/client/main.ts`, `phaser/arena.ts`, `themes.ts` | TV/controller presentation, effects and interchangeable visual themes. |
-| `src/client/viewport-lock.ts` | Controller gesture suppression and readable input sizing. |
+| Module                                                                  | Responsibility                                                                         |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `src/shared/game.ts`                                                    | Deterministic state, lifecycle commands, authoritative tick transaction and snapshots. |
+| `src/shared/protocol.ts`                                                | Wire types and strict incoming message validation.                                     |
+| `src/shared/bomb-launch.ts`, `launch-modifiers.ts`, `blast-geometry.ts` | Charge distance, volley trajectories and exact swept disk intersections.               |
+| `src/shared/trail-clipping.ts`, `portal.ts`, `drunk.ts`                 | Independent geometry, portal placement/transit and seeded steering disturbance.        |
+| `src/shared/pickup-weights.ts`, `leaderboard.ts`, `match-stats.ts`      | Drop weights, persistent session scoring and current-match statistics.                 |
+| `src/server/index.ts`, `bomb-input.ts`                                  | HTTP/WebSockets, authentication, seats, fixed scheduling and ordered bomb actions.     |
+| `src/client/snapshot-stream.ts`, `render-snapshot.ts`                   | Forward snapshot acceptance and bounded visual projection.                             |
+| `src/client/controller-state.ts`, `controller-pointers.ts`              | Typed input state and browser pointer/capture lifecycle.                               |
+| `src/client/main.ts`, `phaser/arena.ts`, `themes.ts`                    | TV/controller presentation, effects and interchangeable visual themes.                 |
+| `src/client/viewport-lock.ts`                                           | Controller gesture suppression and readable input sizing.                              |
 
 `ServerDependencies` injects `now`, `token`, and `schedule`; the scheduler returns its cancellation function. `createGameServer` also accepts `manualTicks` and `buildDirectory`, and exposes `advance`, `checkConnections`, and `close` for isolated verification. Tests use actual serialized WebSocket messages while controlling simulation and watchdog time.
 
@@ -77,15 +77,15 @@ Session placement awards are 5 / 3 / 2 / 1 / 0, using the occupied positions for
 
 A seeded pickup attempt occurs every six playing seconds, with at most three active drops, 24 bounded placement attempts, and a 15-second lifetime. Locations respect walls, heads, bombs, trails and other drops. Collection uses swept movement, with nearest path distance then slot resolving contention. Failed portal-pair placement leaves the pickup available.
 
-| Power-up | Authoritative effect |
-| --- | --- |
-| Blast | Raises radius by 75, up to two levels above the base radius of 90; each launched bomb captures its radius. |
-| Star | Five seconds of hazard immunity; wall contact reflects/clamps the rider. Star contact defeats an ordinary rider; two immune riders survive. |
-| Beer | Four seconds of bounded heading sway on other living riders, at most 15 degrees with a two-second cycle and no residual heading drift. The collector is unaffected. |
-| Triple Shot | Arms the next accepted release with three projectiles at offsets −0.22, 0 and +0.22 radians. |
-| Five Shot | Arms five projectiles at −0.44, −0.22, 0, +0.22 and +0.44 radians. The strongest armed volley wins. |
-| Orbit Shield | Absorbs all hazards on one otherwise fatal tick, then gives ten ticks of grace. A protected rider does not consume a stored shield unnecessarily. |
-| Portal | Opens another pair of vertical walls for ten seconds, with swept entry and safe linked exits. Up to three pairs run at once. |
+| Power-up     | Authoritative effect                                                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Blast        | Raises radius by 75, up to two levels above the base radius of 90; each launched bomb captures its radius.                                                          |
+| Star         | Five seconds of hazard immunity; wall contact reflects/clamps the rider. Star contact defeats an ordinary rider; two immune riders survive.                         |
+| Beer         | Four seconds of bounded heading sway on other living riders, at most 15 degrees with a two-second cycle and no residual heading drift. The collector is unaffected. |
+| Triple Shot  | Arms the next accepted release with three projectiles at offsets −0.22, 0 and +0.22 radians.                                                                        |
+| Five Shot    | Arms five projectiles at −0.44, −0.22, 0, +0.22 and +0.44 radians. The strongest armed volley wins.                                                                 |
+| Orbit Shield | Absorbs all hazards on one otherwise fatal tick, then gives ten ticks of grace. A protected rider does not consume a stored shield unnecessarily.                   |
+| Portal       | Opens another pair of vertical walls for ten seconds, with swept entry and safe linked exits. Up to three pairs run at once.                                        |
 
 Five Shot has weight 1; every other available drop has weight 3. It is therefore one third as likely as Triple Shot. Homing has been removed from drops, player state, flight targeting, statistics and rendering.
 

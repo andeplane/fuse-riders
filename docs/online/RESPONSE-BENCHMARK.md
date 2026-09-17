@@ -20,10 +20,10 @@ Browser runs must be serialized with existing soak/GPU benchmarks. Implementatio
 
 Completed 2026-09-14 01:03:48 UTC against local fixture8794, source `d715642ebd4d0cc63c5e5639a0adee6c3f4ab05d`, 60seconds. [Raw frames and all attempts](evidence/response-d715642.json) preserve the failure. Served entrySHA256 `7db7166bbe989711bfdecd8cc23b7ce1e5305be66cabbad1f633574d6dd1b781`; both visible renderers were PhaserWebGL, hostcanvas hidden/uninitialized. No browser errors or truncated frame captures.
 
-| View | Eligible samples | Rejected attempts | Timeouts | First departure p50 / p95 | One degree p95 | Candidate result |
-| --- | ---: | ---: | ---: | --- | ---: | --- |
-| Local controller |17|21|0|24.9 /28.0ms|28.0ms|PASS ≤33ms |
-| TV |17|21|0|115.3 /162.5ms|174.6ms|FAIL ≤100ms |
+| View             | Eligible samples | Rejected attempts | Timeouts | First departure p50 / p95 | One degree p95 | Candidate result |
+| ---------------- | ---------------: | ----------------: | -------: | ------------------------- | -------------: | ---------------- |
+| Local controller |               17 |                21 |        0 | 24.9 /28.0ms              |         28.0ms | PASS ≤33ms       |
+| TV               |               17 |                21 |        0 | 115.3 /162.5ms            |        174.6ms | FAIL ≤100ms      |
 
 All38attempts remain in the artifact. Rejections were confounded or already-turning baselines, principally normal round/death lifecycle. The TV result is a real measured response gap under the candidate nearby threshold, not a physical-phone measurement. Current10Hz publication plus the two-tick remote interpolation buffer is a plausible mechanism; a rate/buffer adjustment needs an independent review and new response/bandwidth evidence. This run changed no networking or simulation behavior.
 
@@ -59,10 +59,10 @@ A single unchanged180second follow-up was predeclared and independently approved
 
 The single predeclared 180-second follow-up completed at **2026-09-14 01:42:13 UTC**. The served game bundle was identical to the earlier 60-second experiment: `/assets/index-BGM4abos.js`, SHA256 `96ce4dbc70c4d2baf1257ef57f2f1773489e07d87348c6caec2a0719b6538809`. The script/document revision was `c3bb4cb`; no game behavior changed between runs. [Complete 180-second raw capture](evidence/response-c3bb4cb-180s.json) and [fixed-batch summary](evidence/response-fixed-batch-summary.json) retain all observations.
 
-| Dataset | Valid / rejected / timeouts per view | Local p50 / p95 / p99 | TV p50 / p95 / p99 | Unchanged candidate result |
-| --- | --- | --- | --- | --- |
-| Predeclared 180 seconds | 51 / 62 / 0 | 24.7 / 27.6 / 28.3 ms | 62.8 / 88.2 / 94.7 ms | PASS |
-| Combined 240 seconds, including original failure | 69 / 82 / 0 | 24.9 / 27.6 / 34.1 ms | 63.5 / 88.2 / 94.7 ms | PASS |
+| Dataset                                          | Valid / rejected / timeouts per view | Local p50 / p95 / p99 | TV p50 / p95 / p99    | Unchanged candidate result |
+| ------------------------------------------------ | ------------------------------------ | --------------------- | --------------------- | -------------------------- |
+| Predeclared 180 seconds                          | 51 / 62 / 0                          | 24.7 / 27.6 / 28.3 ms | 62.8 / 88.2 / 94.7 ms | PASS                       |
+| Combined 240 seconds, including original failure | 69 / 82 / 0                          | 24.9 / 27.6 / 34.1 ms | 63.5 / 88.2 / 94.7 ms | PASS                       |
 
 The local 34.1 ms maximum remains in the combined data; it was not discarded. Both views exceed the predeclared 50-valid-sample minimum. There were zero browser errors, eligible timeouts or truncated captures. The secondary one-degree p95 across the combined batch was 51.8 ms local and 88.2 ms TV; the primary criterion remains first numerical departure, with that distinction explicit.
 

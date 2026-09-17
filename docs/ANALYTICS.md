@@ -9,12 +9,12 @@ since it too is on only for a ported address or `?telemetry=1`.
 
 ## When it is on
 
-| Address | Analytics |
-| --- | --- |
-| Deployed site, no port | on |
-| `localhost:5173`, LAN play, any address with a port | off |
-| `?analytics=1` | on, whatever the address |
-| `?analytics=0` | off, whatever the address |
+| Address                                             | Analytics                 |
+| --------------------------------------------------- | ------------------------- |
+| Deployed site, no port                              | on                        |
+| `localhost:5173`, LAN play, any address with a port | off                       |
+| `?analytics=1`                                      | on, whatever the address  |
+| `?analytics=0`                                      | off, whatever the address |
 
 Only exactly `1` and `0` override; any other value (`?analytics=off`, `?analytics=false`, bare `?analytics=`)
 falls through to the address rule rather than being read as "on", so a plausible-looking opt-out cannot report a
@@ -39,20 +39,20 @@ Every name is prefixed `FlowRiders.`. `role` (`landing` / `solo` / `display` / `
 super property on every event. `mode` and `solo` are registered only on the room path, so the landing page's
 `App Opened` and `Room Created` and the boot path's `Boot Failed` carry `role` alone.
 
-| Event | Fires | Key properties |
-| --- | --- | --- |
-| `App Opened` | once per page load | `role` |
-| `Room Created` | CREATE ROOM succeeded | `mode` |
-| `Seat Taken` | first snapshot showing this device holding a rider | `avatarId`, `playerCount` |
-| `Match Started` | the first round of a match id reaches its countdown | `matchNumber`, `playerCount`, `botCount`, `match`, `matchLength`, `powerupTypes`, `host` |
-| `Match Ended` | the recap becomes available | always `playerCount`, `botCount`, `humanCount`, `rounds`, `played`; plus `placement`, `won`, `roundWins`, `eliminations`, `pickups`, `bombsPlaced`, `bombsExploded`, `distance`, `survivalSeconds` and `deathsWall` / `deathsTrail` / `deathsExplosion` / `deathsRider` when this device held a rider; plus `durationSeconds` when it also saw the match start |
-| `Kill` | once per rider this device's rider killed, once that round is decided and confirmed | the pull's properties below, plus `victimBot`, `shotKills`, `firstKillOfShot`, `secondsToKill` |
-| `Miss` | once per pull of this device's rider that killed nobody, once that round is decided and confirmed | the pull's properties below |
-| `Recap Reopened` | the RESULTS button | — |
-| `Settings Changed` | a draft the runtime accepted | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `powerupTypes` |
-| `Connect Failed` | 20s with no link to the host | `status` (the status line, `null` if none yet), `secondsWaiting` |
-| `Boot Failed` | the boot-failure card is shown | `message` |
-| `Signed In` | a Google sign-in from the landing page's account dialog succeeded | — |
+| Event              | Fires                                                                                             | Key properties                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `App Opened`       | once per page load                                                                                | `role`                                                                                                                                                                                                                                                                                                                                                         |
+| `Room Created`     | CREATE ROOM succeeded                                                                             | `mode`                                                                                                                                                                                                                                                                                                                                                         |
+| `Seat Taken`       | first snapshot showing this device holding a rider                                                | `avatarId`, `playerCount`                                                                                                                                                                                                                                                                                                                                      |
+| `Match Started`    | the first round of a match id reaches its countdown                                               | `matchNumber`, `playerCount`, `botCount`, `match`, `matchLength`, `powerupTypes`, `host`                                                                                                                                                                                                                                                                       |
+| `Match Ended`      | the recap becomes available                                                                       | always `playerCount`, `botCount`, `humanCount`, `rounds`, `played`; plus `placement`, `won`, `roundWins`, `eliminations`, `pickups`, `bombsPlaced`, `bombsExploded`, `distance`, `survivalSeconds` and `deathsWall` / `deathsTrail` / `deathsExplosion` / `deathsRider` when this device held a rider; plus `durationSeconds` when it also saw the match start |
+| `Kill`             | once per rider this device's rider killed, once that round is decided and confirmed               | the pull's properties below, plus `victimBot`, `shotKills`, `firstKillOfShot`, `secondsToKill`                                                                                                                                                                                                                                                                 |
+| `Miss`             | once per pull of this device's rider that killed nobody, once that round is decided and confirmed | the pull's properties below                                                                                                                                                                                                                                                                                                                                    |
+| `Recap Reopened`   | the RESULTS button                                                                                | —                                                                                                                                                                                                                                                                                                                                                              |
+| `Settings Changed` | a draft the runtime accepted                                                                      | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `powerupTypes`                                                                                                                                                                                                                                                                |
+| `Connect Failed`   | 20s with no link to the host                                                                      | `status` (the status line, `null` if none yet), `secondsWaiting`                                                                                                                                                                                                                                                                                               |
+| `Boot Failed`      | the boot-failure card is shown                                                                    | `message`                                                                                                                                                                                                                                                                                                                                                      |
+| `Signed In`        | a Google sign-in from the landing page's account dialog succeeded                                 | —                                                                                                                                                                                                                                                                                                                                                              |
 
 `matchNumber` counts matches within a page load, so a rematch is the same signal a separate `Rematch` event
 would carry, with one fewer event to reconcile. `played` is false on a shared-TV display or for a spectator,
@@ -72,23 +72,23 @@ lobbed bomb every rider has, the baseline), `triple`, `five`, `target`, `gun` or
 
 The point is histograms, so both events carry every dimension an outcome might be broken down by:
 
-| Property | On | Meaning |
-| --- | --- | --- |
-| `weapon` | both | what the pull fired |
-| `bombs` | both | bombs the pull put in the air — 1 for Target, more for a volley or with Extra Bomb (Gun and Shell fan out too) |
-| `power`, `extraBombs`, `fuseLevel`, `grip` | both | the shooter's round-long upgrades at the moment of the pull, not at the round's end |
-| `round`, `secondsIntoRound` | both | when the trigger was pulled, to a tenth of a second |
-| `riders`, `bots` | both | the room when the round was reported |
-| `victimBot` | `Kill` | whether the rider killed was an AI |
-| `secondsToKill` | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target and Gun |
-| `shotKills`, `firstKillOfShot` | `Kill` | how many riders the pull killed, and one `true` per pull |
+| Property                                   | On     | Meaning                                                                                                        |
+| ------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------- |
+| `weapon`                                   | both   | what the pull fired                                                                                            |
+| `bombs`                                    | both   | bombs the pull put in the air — 1 for Target, more for a volley or with Extra Bomb (Gun and Shell fan out too) |
+| `power`, `extraBombs`, `fuseLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                            |
+| `round`, `secondsIntoRound`                | both   | when the trigger was pulled, to a tenth of a second                                                            |
+| `riders`, `bots`                           | both   | the room when the round was reported                                                                           |
+| `victimBot`                                | `Kill` | whether the rider killed was an AI                                                                             |
+| `secondsToKill`                            | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target and Gun                    |
+| `shotKills`, `firstKillOfShot`             | `Kill` | how many riders the pull killed, and one `true` per pull                                                       |
 
-| Reading | Mixpanel |
-| --- | --- |
-| Which powerup kills most | `Kill`, broken down by `weapon` |
-| How often a powerup misses | `Miss` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
-| Kills per pull | `Kill` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
-| Whether it beats a plain bomb | any of the above against `weapon = bomb` |
+| Reading                       | Mixpanel                                                       |
+| ----------------------------- | -------------------------------------------------------------- |
+| Which powerup kills most      | `Kill`, broken down by `weapon`                                |
+| How often a powerup misses    | `Miss` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
+| Kills per pull                | `Kill` over `Miss` + `Kill where firstKillOfShot`, by `weapon` |
+| Whether it beats a plain bomb | any of the above against `weapon = bomb`                       |
 
 **Exactly one device sends each event**: the shooter's own. A kill is reported only by the killer's device and a
 miss only by the device of the rider who pulled the trigger, so a room of four still sends one `Kill` per kill.

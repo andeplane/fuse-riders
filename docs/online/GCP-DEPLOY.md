@@ -4,16 +4,16 @@ The online beta is deployed; exact source/image versions and public acceptance a
 
 ## Resources and runtime
 
-| Component | Configuration |
-| --- | --- |
-| Static frontend | GitHub Pages, `https://andeplane.github.io/fuse-riders/` (verify actual Pages configuration) |
-| Gateway | Cloud Run service, configurable `CLOUD_RUN_SERVICE` (script default `fuse-riders-gateway`) |
-| Region/project | `europe-west1`, `andershaf-87` |
-| Simulation | Creator browser; the gateway does not run game ticks |
-| Room metadata | Native Firestore database `fuse-riders`, collection prefix `fuse-production` |
+| Component                                   | Configuration                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Static frontend                             | GitHub Pages, `https://andeplane.github.io/fuse-riders/` (verify actual Pages configuration)      |
+| Gateway                                     | Cloud Run service, configurable `CLOUD_RUN_SERVICE` (script default `fuse-riders-gateway`)        |
+| Region/project                              | `europe-west1`, `andershaf-87`                                                                    |
+| Simulation                                  | Creator browser; the gateway does not run game ticks                                              |
+| Room metadata                               | Native Firestore database `fuse-riders`, collection prefix `fuse-production`                      |
 | Inter-instance signalling/coordination only | Existing Pub/Sub topic `fuse-riders-signalling`; process-addressed short-lived pull subscriptions |
-| Public origins | Exact `https://andeplane.github.io`; HTTPS Origin is checked but is not authentication |
-| Cloud Run limits | Minimum 0, maximum 2; 1 CPU, 512 MiB, concurrency 80, timeout 3600 seconds, request-based CPU |
+| Public origins                              | Exact `https://andeplane.github.io`; HTTPS Origin is checked but is not authentication            |
+| Cloud Run limits                            | Minimum 0, maximum 2; 1 CPU, 512 MiB, concurrency 80, timeout 3600 seconds, request-based CPU     |
 
 Zero minimum instances removes the requested idle compute floor. Open WebSockets are active requests and keep their gateways billable. Firestore, Pub/Sub, artifact storage/builds and egress have separate usage charges. Instance caps are cost controls, not authority fencing. Cloud Run may disconnect a socket at the request timeout; clients must reconnect safely. [Cloud Run WebSockets](https://docs.cloud.google.com/run/docs/triggering/websockets)
 
@@ -165,18 +165,18 @@ That command changes live traffic. Existing WebSockets can remain on old revisio
 
 Read-only provider inspection confirmed the following application-owned resources. The Cloud Run service did not yet exist at this inspection; this is provisioning evidence, not deployed acceptance.
 
-| Resource | Verified binding/configuration |
-| --- | --- |
-| `projects/andershaf-87/databases/fuse-riders` | Native Firestore, `europe-west1`; default database untouched |
-| `fuse-production-rooms.cleanupAt`, `fuse-production-creation-limits.cleanupAt` | Both TTL policies `ACTIVE` |
-| Runtime account | `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com` |
-| Runtime database grant | `roles/datastore.user`, condition `resource.name=="projects/andershaf-87/databases/fuse-riders"` |
-| `fuse-riders-signalling` topic | Runtime custom `fuseRidersTopic`: `pubsub.topics.attachSubscription`, `get`, `publish`, bound only to this topic |
-| Runtime subscriptions | Project custom `fuseRidersSignalling`: `pubsub.subscriptions.create`, `consume`, `get`, `delete` |
-| Build account | `fuse-riders-build@andershaf-87.iam.gserviceaccount.com` |
-| `europe-west1/fuse-riders` Artifact Registry | Build account `roles/artifactregistry.writer` on this repository |
-| `gs://andershaf-87-fuse-riders-build` | Build account `roles/storage.objectViewer` on source bucket |
-| Build logging | Build account `roles/logging.logWriter` at project level |
+| Resource                                                                       | Verified binding/configuration                                                                                   |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `projects/andershaf-87/databases/fuse-riders`                                  | Native Firestore, `europe-west1`; default database untouched                                                     |
+| `fuse-production-rooms.cleanupAt`, `fuse-production-creation-limits.cleanupAt` | Both TTL policies `ACTIVE`                                                                                       |
+| Runtime account                                                                | `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com`                                                       |
+| Runtime database grant                                                         | `roles/datastore.user`, condition `resource.name=="projects/andershaf-87/databases/fuse-riders"`                 |
+| `fuse-riders-signalling` topic                                                 | Runtime custom `fuseRidersTopic`: `pubsub.topics.attachSubscription`, `get`, `publish`, bound only to this topic |
+| Runtime subscriptions                                                          | Project custom `fuseRidersSignalling`: `pubsub.subscriptions.create`, `consume`, `get`, `delete`                 |
+| Build account                                                                  | `fuse-riders-build@andershaf-87.iam.gserviceaccount.com`                                                         |
+| `europe-west1/fuse-riders` Artifact Registry                                   | Build account `roles/artifactregistry.writer` on this repository                                                 |
+| `gs://andershaf-87-fuse-riders-build`                                          | Build account `roles/storage.objectViewer` on source bucket                                                      |
+| Build logging                                                                  | Build account `roles/logging.logWriter` at project level                                                         |
 
 **Subscription IAM residual scope:** the runtime's four subscription permissions currently apply project-wide. Topic attachment and publishing remain restricted to the game's topic, and the adapter creates names beginning `fuse-production-`, but code naming is not an IAM boundary for consuming/deleting other subscriptions. The official supported `resource.name` attribute table lists Pub/Sub Lite, not standard Pub/Sub; a speculative prefix condition was therefore not installed. See [supported resource attributes](https://docs.cloud.google.com/iam/docs/conditions-resource-attributes) and [Pub/Sub permission requirements](https://docs.cloud.google.com/pubsub/docs/access-control). Stronger isolation would use a separate GCP project, or separately provisioned subscription resource policies with a redesigned lifecycle. Record this remaining permission scope when assessing production risk; do not call the current role fully prefix-scoped. No unrelated project bindings were changed by this review.
 
