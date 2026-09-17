@@ -110,7 +110,10 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
   const { store, gateway } = options,
     now = options.now ?? Date.now;
   const admissions = new AdmissionGate(store.database, now);
-  const server = createServer(async (req, res) => {
+  const handle = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> => {
     const origin = req.headers.origin;
     if (origin && !options.allowOrigin(origin, req)) {
       res.writeHead(403);
@@ -229,6 +232,15 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         error instanceof RoomError ? error.status : 503,
       );
     }
+  };
+  const server = createServer((req, res) => {
+    // node:http drops the handler's promise. What rejects here is whatever the boundary above could
+    // not answer, such as a route that failed after its response had started: report it and drop the
+    // connection, so it neither hangs nor becomes an unhandled rejection that ends the process.
+    handle(req, res).catch((error: unknown) => {
+      logFailure("http-handler", error);
+      res.destroy();
+    });
   });
   const sockets = new WebSocketServer({
     noServer: true,

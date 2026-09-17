@@ -476,3 +476,31 @@ test("rejected WebSocket handshakes release their pending admission slots", asyn
     await f.close();
   }
 });
+
+test("a route that fails after its response started drops that connection and the service keeps serving", async () => {
+  const service = createDevRoomService({
+    httpExtension: () => ({
+      handle: async (req, res) => {
+        if (req.url !== "/api/broken") return false;
+        // The error boundary can no longer answer with a status once headers are committed.
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        throw new Error("failed after the response started");
+      },
+    }),
+  });
+  await new Promise<void>((resolve) =>
+    service.server.listen(0, "127.0.0.1", resolve),
+  );
+  const origin = `http://127.0.0.1:${(service.server.address() as AddressInfo).port}`;
+  try {
+    await assert.rejects(
+      fetch(`${origin}/api/broken`),
+      "the unanswerable request is dropped instead of hanging",
+    );
+    const health = await fetch(`${origin}/api/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { ok: true });
+  } finally {
+    await service.close();
+  }
+});
