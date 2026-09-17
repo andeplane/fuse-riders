@@ -47,12 +47,7 @@ import {
   parseRoomSettings,
   type RoomSettings,
 } from "../shared/room-settings.js";
-import {
-  botDisplayName,
-  botRandom,
-  rollBotDifficulty,
-  BOT_ID_PREFIX,
-} from "../shared/bot-controller.js";
+import { botDisplayName, BOT_ID_PREFIX } from "../shared/bot-controller.js";
 import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../shared/game.js";
 import type { AimPoint, GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
@@ -981,16 +976,7 @@ export class RoomRuntime {
         )
           number++;
         const id = `${BOT_ID_PREFIX}${number}`;
-        const difficulty = rollBotDifficulty(
-          botRandom(game.seed, id, game.tick),
-        );
-        this.append(
-          BOT,
-          "add",
-          id,
-          botDisplayName(BOT_NAMES[slot]!, difficulty),
-          slot,
-        );
+        this.append(BOT, "add", id, botDisplayName(BOT_NAMES[slot]!), slot);
         return true;
       }
       if (

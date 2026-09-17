@@ -63,12 +63,14 @@ const DIFFICULTY_LABELS: Record<BotDifficulty, string> = {
   medium: "Medium",
   hard: "Hard",
 };
-/** The log carries nothing per bot but its name, so the tier rides in the name: one writer, one reader, never out of step. */
+/** New riders are unlabelled and full strength; explicit tiers remain for replay fixtures and benchmarks. */
 export function botDisplayName(
   base: string,
-  difficulty: BotDifficulty,
+  difficulty?: BotDifficulty,
 ): string {
-  return `AI ${base} · ${DIFFICULTY_LABELS[difficulty]}`;
+  return difficulty
+    ? `AI ${base} · ${DIFFICULTY_LABELS[difficulty]}`
+    : `AI ${base}`;
 }
 /** A name with no tier is full strength: the tiers add weaker riders, they never quietly downgrade an existing one. */
 export function botDifficulty(name: string): BotDifficulty {
@@ -77,14 +79,6 @@ export function botDifficulty(name: string): BotDifficulty {
       name.endsWith(`· ${DIFFICULTY_LABELS[difficulty]}`),
     ) ?? "hard"
   );
-}
-export function rollBotDifficulty(roll: number): BotDifficulty {
-  return BOT_DIFFICULTIES[
-    Math.min(
-      BOT_DIFFICULTIES.length - 1,
-      Math.floor(Math.max(0, roll) * BOT_DIFFICULTIES.length),
-    )
-  ]!;
 }
 export interface BotDependencies {
   random: (seed: number, id: string, tick: number) => number;
