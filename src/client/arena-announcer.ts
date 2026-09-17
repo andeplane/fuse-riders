@@ -1,5 +1,6 @@
 import {
   COUNTDOWN_TICKS,
+  MATCH_WINNER_TICKS,
   OVERTIME_START_TICK,
   ROUND_DRAW_TICK,
   TICK_HZ,
@@ -20,6 +21,8 @@ export type Announcement =
   | {
       kind: "round";
       round: number;
+      /** The match ends with this round: its result still comes first, and the match winner is named after it. */
+      last: boolean;
       title: string;
       placements: string[];
       next: string;
@@ -30,6 +33,18 @@ const points = (units: number): string => {
   const value = units / 60;
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 };
+
+/**
+ * A round's own result is on show: every pause between rounds, and the opening of the final pause. Only that pause's
+ * closing MATCH_WINNER_TICKS name the match winner; shown from the start, that name read as the winner of the round.
+ */
+export function showsRoundResult(snapshot: ViewSnapshot): boolean {
+  if (snapshot.phase === "roundOver") return true;
+  return (
+    snapshot.phase === "matchOver" &&
+    (snapshot.phaseEndsAtTick ?? 0) - snapshot.tick > MATCH_WINNER_TICKS
+  );
+}
 
 export function announcementFor(
   snapshot: ViewSnapshot,
@@ -69,7 +84,8 @@ export function announcementFor(
       };
     return { kind: "hidden" };
   }
-  if (snapshot.phase === "roundOver") {
+  const last = snapshot.phase === "matchOver";
+  if (showsRoundResult(snapshot)) {
     const winner = snapshot.players.find(
       (player) => player.id === snapshot.roundWinnerId,
     );
@@ -77,21 +93,28 @@ export function announcementFor(
       ? "DRAW"
       : winner.id === selfId
         ? "YOU WIN THE ROUND"
-        : `${winner.name} WINS`;
+        : `${winner.name} WINS THE ROUND`;
     const placements = snapshot.roundPlacements.map(
       (entry) =>
         `#${entry.place} ${entry.playerId === selfId ? "YOU" : entry.name}  +${points(entry.scoreUnits)}`,
     );
+    const seconds = Math.ceil(
+      (last ? left - MATCH_WINNER_TICKS : left) / TICK_HZ,
+    );
     return {
       kind: "round",
       round: snapshot.round,
+      last,
       title,
       placements,
-      next:
-        left > 0 ? `NEXT ROUND IN ${Math.ceil(left / TICK_HZ)}` : "NEXT ROUND",
+      next: last
+        ? `MATCH RESULT IN ${seconds}`
+        : left > 0
+          ? `NEXT ROUND IN ${seconds}`
+          : "NEXT ROUND",
     };
   }
-  if (snapshot.phase === "matchOver") {
+  if (last) {
     const winner = snapshot.matchStats.find(
       (player) => player.playerId === snapshot.matchWinnerId,
     );
@@ -100,9 +123,14 @@ export function announcementFor(
       title: !winner
         ? "SHARED VICTORY"
         : winner.playerId === selfId
-          ? "YOU RULE THE GRID"
-          : `${winner.name} WINS!`,
-      subtitle: left > 0 ? "FINAL ROUND" : "MATCH COMPLETE",
+          ? "YOU WIN THE MATCH"
+          : `${winner.name} WINS THE MATCH`,
+      subtitle:
+        left > 0
+          ? winner
+            ? "MATCH WINNER"
+            : "MATCH RESULT"
+          : "MATCH COMPLETE",
     };
   }
   return { kind: "hidden" };

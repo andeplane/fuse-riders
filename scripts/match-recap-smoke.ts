@@ -17,6 +17,8 @@ interface RecapSnapshot {
   pauseEndsAt: number | undefined;
   dialogOpen: boolean;
   alive: boolean | undefined;
+  /** The arena announcer as it stood when the snapshot arrived: `round` or `final`, its label and its headline. */
+  banner: { kind: string; small: string; big: string } | undefined;
 }
 interface ViewportResult {
   viewport: { width: number; height: number };
@@ -182,6 +184,22 @@ try {
                 ?.open,
             ),
             alive: detail.players.find((player) => player.id === "solo")?.alive,
+            banner: (() => {
+              const card = document.querySelector<HTMLElement>(
+                ".online-announce:not([hidden])",
+              );
+              if (!card || getComputedStyle(card).display === "none")
+                return undefined;
+              return {
+                kind: card.classList.contains("final")
+                  ? "final"
+                  : card.classList.contains("round")
+                    ? "round"
+                    : "other",
+                small: card.querySelector(".announce-small")?.textContent ?? "",
+                big: card.querySelector("strong")?.textContent ?? "",
+              };
+            })(),
           });
         });
       },
@@ -285,6 +303,26 @@ try {
         paused.length > 0 && paused.every((snapshot) => !snapshot.dialogOpen),
         "the report must stay closed during the final-round pause",
       );
+      // The pause is two beats on every screen: the final round's own result, then the match winner. One card naming the
+      // match winner for the whole pause read as the winner of the round. The card trails its snapshot by one record.
+      const banners = paused.flatMap((snapshot) =>
+          snapshot.banner ? [snapshot.banner] : [],
+        ),
+        firstFinal = banners.findIndex((banner) => banner.kind === "final");
+      assert.ok(
+        firstFinal > 0,
+        `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
+      );
+      for (const [index, banner] of banners.entries())
+        if (index < firstFinal) {
+          assert.equal(banner.kind, "round", JSON.stringify(banner));
+          assert.match(banner.small, /^FINAL ROUND/);
+          assert.match(banner.big, /THE ROUND$|^DRAW$/);
+        } else {
+          assert.equal(banner.kind, "final", JSON.stringify(banner));
+          assert.match(banner.small, /^MATCH (WINNER|RESULT)$/);
+          assert.match(banner.big, /THE MATCH$|^SHARED VICTORY$/);
+        }
       const layout = await assertRecapLayout(page);
       const screenshots = [`artifacts/match-recap-${tag}.png`];
       await page.screenshot({ path: screenshots[0]! });

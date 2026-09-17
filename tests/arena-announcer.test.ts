@@ -3,6 +3,8 @@ import {
   addPlayer,
   startMatch,
   toSnapshot,
+  MATCH_WINNER_TICKS,
+  ROUND_OVER_TICKS,
   SLOT_COLORS,
 } from "../src/shared/game.js";
 import { snapshotMatchStats } from "../src/shared/match-stats.js";
@@ -12,6 +14,7 @@ import {
   announcementFor,
   eliminationLine,
   roundClock,
+  showsRoundResult,
   type Announcement,
 } from "../src/client/arena-announcer.js";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
@@ -76,6 +79,7 @@ test("round result names the winner, calls the local rider YOU and counts down t
   assert.deepEqual(announcementFor(state, "me", false), {
     kind: "round",
     round: 2,
+    last: false,
     title: "YOU WIN THE ROUND",
     placements: ["#1 YOU  +5", "#2 AI Ada  +2.5"],
     next: "NEXT ROUND IN 3",
@@ -85,7 +89,7 @@ test("round result names the winner, calls the local rider YOU and counts down t
       announcementFor({ ...state, roundWinnerId: "ai" }, "me", false),
       "title",
     ),
-    "AI Ada WINS",
+    "AI Ada WINS THE ROUND",
   );
   assert.equal(
     field(
@@ -93,6 +97,51 @@ test("round result names the winner, calls the local rider YOU and counts down t
       "title",
     ),
     "DRAW",
+  );
+});
+
+test("the final round shows its own result first, and only then names the match winner", () => {
+  // The rider who died in the final round can still take the match: the two names must never share a card.
+  const state = view({
+    phase: "matchOver",
+    tick: 500,
+    phaseEndsAtTick: 500 + ROUND_OVER_TICKS + MATCH_WINNER_TICKS,
+    roundWinnerId: "ai",
+    matchWinnerId: "me",
+    roundPlacements: [
+      { playerId: "ai", name: "AI Ada", place: 1, scoreUnits: 300 },
+      { playerId: "me", name: "Anders", place: 2, scoreUnits: 150 },
+    ],
+  });
+  assert.equal(showsRoundResult(state), true);
+  assert.deepEqual(announcementFor(state, "me", false), {
+    kind: "round",
+    round: 2,
+    last: true,
+    title: "AI Ada WINS THE ROUND",
+    placements: ["#1 AI Ada  +5", "#2 YOU  +2.5"],
+    next: "MATCH RESULT IN 3",
+  });
+  const lastRoundFrame = { ...state, tick: 500 + ROUND_OVER_TICKS - 1 };
+  assert.equal(
+    field(announcementFor(lastRoundFrame, "me", false), "next"),
+    "MATCH RESULT IN 1",
+  );
+  const crowned = { ...state, tick: 500 + ROUND_OVER_TICKS };
+  assert.equal(showsRoundResult(crowned), false);
+  assert.deepEqual(announcementFor(crowned, "me", false), {
+    kind: "final",
+    title: "YOU WIN THE MATCH",
+    subtitle: "MATCH WINNER",
+  });
+  assert.deepEqual(announcementFor(crowned, "ai", false), {
+    kind: "final",
+    title: "Anders WINS THE MATCH",
+    subtitle: "MATCH WINNER",
+  });
+  assert.deepEqual(
+    announcementFor({ ...crowned, matchWinnerId: undefined }, "me", false),
+    { kind: "final", title: "SHARED VICTORY", subtitle: "MATCH RESULT" },
   );
 });
 
@@ -117,30 +166,14 @@ test("overtime and the final result surface on the arena; ordinary play is silen
     announcementFor(
       view({
         phase: "matchOver",
-        tick: 10,
+        tick: 80,
         phaseEndsAtTick: 70,
-        matchWinnerId: "ai",
+        matchWinnerId: "me",
       }),
       "me",
       false,
     ),
-    { kind: "final", title: "AI Ada WINS!", subtitle: "FINAL ROUND" },
-  );
-  assert.equal(
-    field(
-      announcementFor(
-        view({
-          phase: "matchOver",
-          tick: 80,
-          phaseEndsAtTick: 70,
-          matchWinnerId: "me",
-        }),
-        "me",
-        false,
-      ),
-      "title",
-    ),
-    "YOU RULE THE GRID",
+    { kind: "final", title: "YOU WIN THE MATCH", subtitle: "MATCH COMPLETE" },
   );
   assert.equal(
     announcementFor(view({ phase: "lobby" }), "me", false).kind,
