@@ -1,4 +1,4 @@
-import type { TickContext } from "../context.js";
+import type { Movement, TickContext } from "../context.js";
 import { DRUNK_DURATION_TICKS } from "../../drunk.js";
 import {
   EPSILON,
@@ -27,12 +27,10 @@ import {
   MAX_POWER_PICKUPS,
   powerTrailLifetimeTicks,
 } from "../../power-progression.js";
-import { type Movement } from "../context.js";
 import { cos, hypot2, sin } from "../../deterministic-math.js";
 import { isClearOfPortalWalls, isSafePortalPosition } from "../portals.js";
 import { nextRandom } from "../../rng.js";
 import { portalBounds } from "../field.js";
-import { recordPickup } from "../../match-stats.js";
 
 /**
  * Each pickup goes to the nearest rider whose step reaches it (seat order breaks a tie) and takes effect at once, so
@@ -40,7 +38,7 @@ import { recordPickup } from "../../match-stats.js";
  * or a black hole draws from the shared random stream as it is placed.
  */
 export function collectPickups(ctx: TickContext): void {
-  const { state, movements, events } = ctx;
+  const { state, movements, events, facts } = ctx;
   const consumed = new Set<number>();
   for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
     const collectors = [...movements.values()]
@@ -94,7 +92,11 @@ export function collectPickups(ctx: TickContext): void {
       playerId: collector.id,
       pickupId: pickup.id,
     });
-    recordPickup(state.matchStats, collector.id, pickup.type);
+    facts.push({
+      kind: "pickupCollected",
+      playerId: collector.id,
+      pickup: pickup.type,
+    });
     if (pickup.type === "stopwatch") {
       collector.fuseLevel = Math.min(2, collector.fuseLevel + 1);
     } else if (pickup.type === "power") {

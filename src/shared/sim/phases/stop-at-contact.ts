@@ -1,7 +1,6 @@
 import type { TickContext } from "../context.js";
 import { hypot2 } from "../../deterministic-math.js";
 import { isInvulnerable } from "../riders.js";
-import { recordSurvivalTick } from "../../match-stats.js";
 
 /**
  * A rider stopped by a trail, another rider or scenery goes no further than the point of contact. The distance every
@@ -9,6 +8,7 @@ import { recordSurvivalTick } from "../../match-stats.js";
  */
 export function stopAtContact(ctx: TickContext): void {
   const {
+    facts,
     state,
     movements,
     bounced,
@@ -34,12 +34,15 @@ export function stopAtContact(ctx: TickContext): void {
     }
     const travelledTo =
       transits.get(movement.player.id)?.entryPoint ?? movement;
-    recordSurvivalTick(
-      state.matchStats,
-      movement.player.id,
-      hypot2(travelledTo.x - movement.oldX, travelledTo.y - movement.oldY),
-      isInvulnerable(movement.player, state.tick),
-      bounced.has(movement.player.id),
-    );
+    facts.push({
+      kind: "survived",
+      playerId: movement.player.id,
+      distance: hypot2(
+        travelledTo.x - movement.oldX,
+        travelledTo.y - movement.oldY,
+      ),
+      invulnerable: isInvulnerable(movement.player, state.tick),
+      bounced: bounced.has(movement.player.id),
+    });
   }
 }

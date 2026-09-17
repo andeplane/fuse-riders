@@ -4,7 +4,6 @@ import {
   type BombActionCommand,
   type BombState,
   type FlightPoint,
-  type GameEvent,
   type GameState,
   type PlayerState,
   sortedBombs,
@@ -23,13 +22,12 @@ import {
 } from "../../launch-modifiers.js";
 import { RIDER_RADIUS, bombFuseTicks } from "../../tuning.js";
 import { SHELL_SPEED } from "../../shell.js";
-import { type Weapon } from "../../shot-log.js";
+import type { Weapon } from "../../shot-log.js";
 import { cos, sin } from "../../deterministic-math.js";
 import { edgesOpen } from "../../arena-map.js";
-import { logShot } from "../recording.js";
 import { powerBlastRadius, powerReloadTicks } from "../../power-progression.js";
-import { recordBombPlaced } from "../../match-stats.js";
 import { wrapCoordinate } from "../../wrap.js";
+import { type TickFact } from "../context.js";
 
 /**
  * Every living rider's bomb commands for the tick — press, release, cancel — run against the board as it was just
@@ -41,12 +39,7 @@ export function launchWeapons(ctx: TickContext): void {
   for (const movement of movements.values()) {
     if (movement.player.alive) {
       const input = inputs.get(movement.player.id);
-      applyBombActions(
-        state,
-        movement.player,
-        input?.bombCommands ?? [],
-        events,
-      );
+      applyBombActions(ctx, movement.player, input?.bombCommands ?? []);
       if (
         movement.player.targetBombArmed &&
         !movement.player.shellArmed &&
@@ -88,10 +81,9 @@ function targetPoint(
 }
 
 function applyBombActions(
-  state: GameState,
+  { state, events, facts }: TickContext,
   player: PlayerState,
   actions: readonly BombActionCommand[],
-  events: GameEvent[],
 ): void {
   for (const command of actions) {
     const { action } = command;
@@ -138,7 +130,7 @@ function applyBombActions(
       // Triple, Five and Extra Bomb fan the projectile out exactly as they fan a lob; the pull spends Triple and Five.
       const angles = volleyAngles(player.angle, bombsPerShot(player));
       const shot = state.nextBombId;
-      logShot(state, player, shot, weapon, angles.length);
+      facts.push(shotFired(state, player, shot, weapon, angles.length));
       for (const angle of angles) {
         const id = state.nextBombId++;
         state.bombs.set(id, {
@@ -161,7 +153,7 @@ function applyBombActions(
             ...(gun ? { gun: true } : {}),
           },
         });
-        recordBombPlaced(state.matchStats, player.id);
+        facts.push({ kind: "bombPlaced", playerId: player.id });
         events.push({
           type: "bombPlaced",
           bombId: id,
@@ -237,7 +229,7 @@ function applyBombActions(
     const weapon: Weapon = target ? "target" : (volley ?? "bomb");
     // Every bomb of the pull names the same shot: the id its first bomb is about to take.
     const shot = state.nextBombId;
-    logShot(state, player, shot, weapon, paths.length);
+    facts.push(shotFired(state, player, shot, weapon, paths.length));
     for (const flightPath of paths) {
       const landing = flightPath[flightPath.length - 1]!;
       const bomb: BombState = {
@@ -259,7 +251,7 @@ function applyBombActions(
         shot,
       };
       state.bombs.set(bomb.id, bomb);
-      recordBombPlaced(state.matchStats, player.id);
+      facts.push({ kind: "bombPlaced", playerId: player.id });
       events.push({ type: "bombPlaced", bombId: bomb.id, playerId: player.id });
     }
     player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
@@ -285,4 +277,29 @@ function createStraightFlightPath(
     y: y + ((landing.y - y) * step) / BOMB_FLIGHT_TICKS,
     angle,
   }));
+}
+
+/** The pull as the shot log will hold it: the shooter's round-long upgrades are read now, at the moment of the pull. */
+function shotFired(
+  state: GameState,
+  shooter: PlayerState,
+  shot: number,
+  weapon: Weapon,
+  bombs: number,
+): TickFact {
+  return {
+    kind: "shotFired",
+    shot: {
+      shot,
+      shooterId: shooter.id,
+      weapon,
+      elapsed: state.tick - (state.roundStartedTick ?? state.tick),
+      bombs,
+      power: shooter.powerPickups,
+      extraBombs: shooter.extraBombs,
+      fuseLevel: shooter.fuseLevel,
+      grip: shooter.grip,
+      kills: [],
+    },
+  };
 }

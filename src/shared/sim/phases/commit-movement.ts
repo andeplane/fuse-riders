@@ -1,7 +1,6 @@
 import type { TickContext } from "../context.js";
 import { boundTrail } from "../../trail-lifecycle.js";
 import { layTrail } from "../field.js";
-import { recordPortalTransit } from "../../match-stats.js";
 import { wrapCoordinate } from "../../wrap.js";
 
 /**
@@ -21,6 +20,7 @@ export function commitMovement(ctx: TickContext): void {
     transits,
     obstacleContactTimes,
     deaths,
+    facts,
     trailHits,
     landingHits,
     shellHits,
@@ -89,7 +89,7 @@ export function commitMovement(ctx: TickContext): void {
     if (transit) {
       movement.player.portalCooldownUntilTick = transit.cooldownUntilTick;
       movement.player.portalGraceUntilTick = transit.graceUntilTick;
-      recordPortalTransit(state.matchStats, movement.player.id);
+      facts.push({ kind: "portalCrossed", playerId: movement.player.id });
     }
     movement.player.angle = movement.angle;
     const laid = layTrail(

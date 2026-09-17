@@ -1,6 +1,4 @@
 import type { DeathFact, TickContext } from "../context.js";
-import { recordDeath } from "../../match-stats.js";
-import { logShotKill } from "../recording.js";
 import { takeOutOfRound } from "../riders.js";
 
 /**
@@ -13,32 +11,19 @@ import { takeOutOfRound } from "../riders.js";
  */
 export const INSTANT_DEATHS_COMMIT_PER_RIDER = true;
 
-/** The one place a rider dies during a tick: every fact in the queue, in the order the detectors stated them. */
+/**
+ * The one place a rider dies during a tick: every fact in the queue, in the order the detectors stated them. The rider
+ * leaves the round here; who is credited with what is for `recordFacts`.
+ */
 export function commitDeaths(ctx: TickContext): void {
   for (const death of ctx.deaths.splice(0)) commitDeath(ctx, death);
 }
 
 function commitDeath(ctx: TickContext, death: DeathFact): void {
-  const { state, events, observations } = ctx;
+  const { state, events, facts, observations } = ctx;
   const { victim, cause, owners } = death;
   takeOutOfRound(state, victim);
-  // A kill is credited only when exactly one rider was behind the winning cause; `recordDeath` and the shot log both
-  // turn a rider's own bomb into a death nobody is credited with.
-  const soleOwner = owners.length === 1 ? owners[0] : undefined;
-  recordDeath(
-    state.matchStats,
-    victim.id,
-    cause,
-    soleOwner,
-    cause === "explosion"
-      ? soleOwner !== undefined
-        ? (state.shots.find((entry) => entry.shot === death.shot)?.weapon ??
-          "unknown")
-        : "unknown"
-      : cause,
-  );
-  if (cause === "explosion")
-    logShotKill(state, victim.id, soleOwner, death.shot);
+  facts.push({ kind: "died", death });
   events.push({ type: "playerEliminated", playerId: victim.id, cause });
   observations.deaths.push({
     victimId: victim.id,

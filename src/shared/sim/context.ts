@@ -4,6 +4,8 @@
  * or another replica needs is in `GameState`.
  */
 import type { ObstacleHitbox } from "../arena-map.js";
+import type { PickupType } from "../pickup-types.js";
+import type { RoundShot } from "../shot-log.js";
 import type { TickObservations } from "../moments.js";
 import type { PortalBounds, PortalTransit } from "../portal.js";
 import type { ShellPoint } from "../shell.js";
@@ -61,6 +63,27 @@ export interface DeathFact {
   landingHit?: PlayerId;
   shellHit?: { ownerId: PlayerId; bounces: number; age: number };
 }
+
+/**
+ * Something that happened this tick which the statistics care about and the physics does not. Phases only state
+ * facts, in the order they happen; `recordFacts` is the one phase that writes match statistics, the shot log and the
+ * highlight moments from them. A fact carries values, not references, so it says what was true when it was stated;
+ * a death names its rider, whose id is all the statistics read.
+ */
+export type TickFact =
+  | { kind: "pickupCollected"; playerId: PlayerId; pickup: PickupType }
+  | { kind: "bombExploded"; ownerId: PlayerId }
+  | {
+      kind: "survived";
+      playerId: PlayerId;
+      distance: number;
+      invulnerable: boolean;
+      bounced: boolean;
+    }
+  | { kind: "portalCrossed"; playerId: PlayerId }
+  | { kind: "shotFired"; shot: RoundShot }
+  | { kind: "bombPlaced"; playerId: PlayerId }
+  | { kind: "died"; death: DeathFact };
 
 export interface TickContext {
   readonly state: GameState;
@@ -124,6 +147,8 @@ export interface TickContext {
 
   /** Deaths found and not yet committed. Detectors push; `commitDeaths` drains. */
   readonly deaths: DeathFact[];
+  /** What the statistics will be told, in the order it happened. Read only by `recordFacts`. */
+  readonly facts: TickFact[];
 }
 
 export function createTickContext(
@@ -158,5 +183,6 @@ export function createTickContext(
     shellHits: new Map(),
     trailHits: new Map(),
     deaths: [],
+    facts: [],
   };
 }
