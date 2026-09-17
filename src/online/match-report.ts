@@ -51,10 +51,7 @@ export function buildMatchReport(
       finishers: match.matchFinishers
         .filter((id) => !id.startsWith(BOT_ID_PREFIX))
         .sort(),
-      players: match.matchStats.map((entry) => ({
-        ...entry,
-        deathsByCause: { ...entry.deathsByCause },
-      })),
+      players: match.matchStats.map((entry) => structuredClone(entry)),
     },
     ...(avatarId === undefined ? {} : { avatarId }),
   };

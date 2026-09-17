@@ -1702,6 +1702,7 @@ test("overlapping blast owners receive no speculative elimination credit", () =>
     state.bombs.set(id, {
       id,
       ownerId,
+      shot: id,
       launchX: 500,
       launchY: 450,
       x: 500,
@@ -1713,9 +1714,23 @@ test("overlapping blast owners receive no speculative elimination credit", () =>
       blastRange: 150,
       flightPath: fixedFlightPath(500, 450),
     });
+    state.shots.push({
+      shot: id,
+      shooterId: ownerId,
+      weapon: "bomb",
+      elapsed: 0,
+      bombs: 1,
+      power: 0,
+      extraBombs: 0,
+      fuseLevel: 0,
+      grip: false,
+      kills: [],
+    });
   }
   step(state, new Map());
   assert.equal(state.matchStats.get("p0")!.deathsByCause.explosion, 1);
+  assert.equal(state.matchStats.get("p0")!.combat!.deaths.unknown, 1);
+  assert.equal(state.matchStats.get("p0")!.combat!.deaths.bomb, 0);
   assert.equal(state.matchStats.get("p1")!.bombsExploded, 1);
   assert.equal(state.matchStats.get("p2")!.bombsExploded, 1);
   assert.equal(state.matchStats.get("p1")!.eliminations, 0);

@@ -995,3 +995,27 @@ test("five riders at the total segment cap remain within checkpoint byte and par
     `saturated checkpoint (${encoded.length} bytes) must restore`,
   );
 });
+
+test("combat detail survives checkpoint replay and rejects references outside the match", () => {
+  const game = playing();
+  const original = game.matchStats.get("p0")!.combat!;
+  original.victims.p1 = 1;
+  original.versus.human.kills.trail = 1;
+  original.kills.trail = 1;
+  const restored = decodeGameState(encodeGameState(game));
+  assert.ok(restored);
+  assert.deepEqual(restored.matchStats.get("p0")!.combat, original);
+  const broken = structuredClone(game);
+  broken.matchStats.get("p0")!.combat!.victims.outsider = 1;
+  assert.equal(decodeGameState(encodeGameState(broken)), undefined);
+  assert.deepEqual(
+    game.matchStats.get("p0")!.combat,
+    original,
+    "rejection does not mutate healthy state",
+  );
+  for (let i = 0; i < 10; i++) {
+    step(game, new Map());
+    step(restored, new Map());
+  }
+  assert.deepEqual(encodeGameState(restored), encodeGameState(game));
+});

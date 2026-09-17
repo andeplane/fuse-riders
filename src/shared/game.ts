@@ -1423,7 +1423,22 @@ export function step(
         movement.player.id,
         cause,
       );
-      recordDeath(state.matchStats, movement.player.id, cause, credited);
+      recordDeath(
+        state.matchStats,
+        movement.player.id,
+        cause,
+        causeOwners.get(movement.player.id)?.get(cause)?.size === 1
+          ? causeOwners.get(movement.player.id)!.get(cause)!.values().next()
+              .value
+          : undefined,
+        cause === "explosion"
+          ? causeOwners.get(movement.player.id)?.get(cause)?.size === 1
+            ? (state.shots.find(
+                (s) => s.shot === shotSources.get(movement.player.id)?.shot,
+              )?.weapon ?? "unknown")
+            : "unknown"
+          : cause,
+      );
       if (cause === "explosion")
         logShotKill(
           state,
@@ -1561,7 +1576,21 @@ export function step(
       recordElimination(state, player.id);
       const owners = new Set(hits.map((blast) => blast.ownerId));
       const credited = owners.size === 1 ? hits[0]!.ownerId : undefined;
-      recordDeath(state.matchStats, player.id, "explosion", credited);
+      recordDeath(
+        state.matchStats,
+        player.id,
+        "explosion",
+        credited,
+        owners.size === 1
+          ? (state.shots.find(
+              (s) =>
+                s.shot ===
+                hits.reduce((first, hit) =>
+                  hit.bombId < first.bombId ? hit : first,
+                ).shot,
+            )?.weapon ?? "unknown")
+          : "unknown",
+      );
       logShotKill(
         state,
         player.id,
@@ -3155,6 +3184,8 @@ function logShot(
   weapon: Weapon,
   bombs: number,
 ): void {
+  const combat = state.matchStats.get(shooter.id)?.combat;
+  if (combat) combat.uses[weapon] += 1;
   recordShot(state.shots, {
     shot,
     shooterId: shooter.id,
