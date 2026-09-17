@@ -153,6 +153,8 @@ The soundtrack is **Fuse Riders Radio**: it plays for as long as the page is ope
 
 The game ships two visual styles. **Neon Pixel** (the default) draws a chunky brick boundary wall with corner brackets and warning studs, a 30px grid and dotted trail cores; **Clean Neon** draws a thin glowing rim with a smooth outer stroke, a 50px grid and hairline trails. The style is a per-device choice stored in `localStorage` and never sent to other players: switch it under the room's **SETTINGS** button or with a `?theme=neon-pixel` / `?theme=clean-neon` URL. Switching applies immediately, mid-round included, and only changes graphics — never hitboxes or timing.
 
+Online rooms offer opt-in **VOICE** chat: join with a microphone or listen only, mute/deafen, select a microphone and silence individual peers. Voice starts off on every device and uses the existing WebRTC mesh. See [voice chat](docs/online/VOICE-CHAT.md) for controls and verification limits. Run `ONLY=voice scripts/ci-local.sh` against a current build for the Chromium voice smoke.
+
 Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?** and device preferences (music, effects, radio, visual style, fullscreen) under **SETTINGS**. The arena fits the remaining viewport without changing its aspect ratio. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
 
 The end-of-match report (podium, totals, highlight reel, awards and rider comparison) is built by the pure [`src/shared/match-recap.ts`](src/shared/match-recap.ts) module from the authoritative `matchStats` and `moments`; the online `MATCH RESULTS` dialog renders it, so ties, empty rosters and formatting are covered once by `tests/match-recap.test.ts`. The highlight reel lists the plays worth replaying and is detected inside the shared simulation by [`src/shared/moments.ts`](src/shared/moments.ts) so every device agrees on them.
@@ -206,24 +208,29 @@ signed in still get the match recorded. It runs on what the game already had —
 database in `andershaf-87` — plus **Firebase Authentication**. There is no Postgres, no Functions, Storage or Realtime
 Database, Firebase Hosting serves nothing but the sign-in handler, and nothing here costs money at this game's scale.
 
-On the landing page the top bar has **SIGN IN**; once signed in it shows **your global rank and Elo** and opens your
-stats dashboard, username settings and past matches. The adjacent **LEADERBOARD** opens the public top 50. Sign in before entering a room: the room screen has no sign-in of its own, and a match can only be linked to
-an account by a device that was in the room when it ended.
+The shared top bar has **SIGN IN** on home, lobby and gameplay screens. Once signed in, the account button shows
+**your rider nickname above Elo** and opens stats, username settings and past full games. The adjacent
+**LEADERBOARD** button shows your global rank and opens the public top 50. Sign in before a round ends to have that
+round linked to your account; already settled rounds are not rewritten by a later sign-in.
 
 ### Player stats and human Elo
 
 The stats dashboard leads with current **Rider Elo**, global rank, peak rating and a dated graph of the latest 100
-rated matches. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
-players start at 1,000 and remain unranked until their first rated match. Equal rounded Elo values share a rank.
-The public leaderboard exposes rider names, avatars, Elo and rated-match counts, never account IDs or emails.
+rated results. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
+players start at 1,000 and remain unranked until their first rated round. Equal rounded Elo values share a rank.
+The public leaderboard exposes rider names, avatars, Elo and individual-round counts, never account IDs or emails.
 
-- Elo compares each human's final score (then round wins) with the other humans, using all pre-match ratings at once
-  and averaging the K=32 pairwise changes. Ties split the outcome. **AI never awards or deducts Elo**, including in
-  mixed games. One human against bots cannot enter or climb the leaderboard.
-- Every human participant must report, link a distinct signed-in account, play every round and stay to the finish.
-  Guest games, departures and partial participation remain career history without rating. A late sign-in/report
-  can complete eligibility; the graph uses server settlement time. This is a community ladder with peer-confirmed
-  results, not an anti-cheat system; colluding accounts can fabricate results.
+- Elo settles **after each individual round**, comparing round scores among signed-in human finishers only.
+  It uses all pre-round ratings at once and averages K=32 pairwise changes. Ties split the outcome. Guests and bots
+  never award or deduct Elo; every signed-in finisher records a round. With no other signed-in human, Elo stays unchanged.
+- Joining late or leaving between rounds does not cancel completed rounds' Elo. A rider who leaves during a round
+  is excluded from that round. Settlement waits for the frozen human finishers to report, then removes guests from
+  the comparison. A missing report can delay settlement; failed signed-in token lookups retry rather than count as
+  guests. Late sign-in can complete an unsettled round but does not rewrite an already settled rating field.
+- Whole-game recap reports still credit career history and rivalries once, but no longer award Elo. Existing ratings
+  and older whole-game graph entries are retained; new round counts are shown separately from earlier full-game rating counts. This is a community
+  ladder with peer-confirmed results, not anti-cheat; colluding accounts can fabricate results and leaving mid-round
+  avoids a loss. Graph dates are server settlement times.
 - All time / Last 20 controls the expanded stats. A shared opponent filter separates humans-only, mixed human/AI,
   and AI/solo practice games. Combat has an additional human/AI target filter, so mixed games can be broken down.
   Distance, time and placements belong to a whole game and are filtered by game composition, not assigned to targets.
@@ -239,7 +246,7 @@ The public leaderboard exposes rider names, avatars, Elo and rated-match counts,
 `GET /api/leaderboard` is public (300 requests/address/hour), with optional identity for the caller's highlighted row.
 `GET /api/me` adds rating/rank and career buckets; match history adds per-match rating receipts and the caller's top
 rivalries. Atomic transactions keep profiles, Elo, per-match receipts and rivalry credits together; retries do not
-re-credit them. A room-incarnation/match-id claim prevents conflicting result variants from rating twice.
+re-credit them. A room-incarnation/match-id/round claim prevents conflicting round variants from rating twice.
 
 **Deployment prerequisite:** apply the new ranked/Elo indexes in `firestore.indexes.json` and wait for readiness before
 shipping the gateway. [Issue #261](https://github.com/andeplane/fuse-riders/issues/261) owns automated configuration CD.
@@ -264,6 +271,19 @@ shows it and is not editable there. It is changed under **Account settings** in 
   is what friends call you. Nothing stops a guest typing someone's username either — a room is a table of friends.
 - It is a client-side convention: joining a room is peer-to-peer and the gateway never sees the join, so it cannot
   force a signed-in rider's in-game name to match. Each stored match keeps the name it was actually played under.
+
+Signed-in PLAY SOLO records each round at `POST /api/me/round-results`, with zero Elo change. This authenticated
+endpoint accepts one human only; bots cannot move Elo. Guest solo play sends no account report. The account button
+shows nickname and Elo; the leaderboard button shows global rank. These controls are available in home, lobby and
+play, with a compact account button during phone play. Round completion coalesces profile refreshes at most once
+per 15 seconds rather than polling continuously.
+
+Individual rounds post to `POST /api/rooms/<CODE>/round-results` as soon as their decision tick is confirmed.
+Standings and finishers are frozen in the deterministic decided-round snapshot and survive the next round starting.
+The body uses the result schema below with `round` and `length: 1`; these records are rating receipts, excluded from
+career history and rivalry credits. Settlement claims are scoped to room incarnation, match ID and round number.
+Round submissions have separate hourly limits: 600 per rider, 3,000 per address and 600 account links; account-limit
+or identity-verification failures retry without registering a guest vote. The final-game endpoint retains its limits.
 
 ### How a match gets recorded
 

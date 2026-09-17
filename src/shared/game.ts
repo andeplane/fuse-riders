@@ -1773,6 +1773,9 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ? {
           decidedRound: {
             ...state.decidedRound,
+            ...(state.decidedRound.rating
+              ? { rating: structuredClone(state.decidedRound.rating) }
+              : {}),
             shots: state.decidedRound.shots.map((shot) => ({
               ...shot,
               kills: shot.kills.map((kill) => ({ ...kill })),
@@ -3161,6 +3164,17 @@ function resolveRound(
     state.shots,
     inFlight,
   );
+  state.decidedRound.rating = {
+    finishers: [...state.roundParticipants.keys()]
+      .filter(
+        (id) => state.players.get(id)?.connected && !id.startsWith("bot:"),
+      )
+      .sort(),
+    standings: state.roundPlacements.map((placement) => {
+      const identity = state.matchStats.get(placement.playerId)!;
+      return { ...placement, slot: identity.slot, color: identity.color };
+    }),
+  };
   if (matchWinnerId !== undefined || fixedEnd) {
     state.matchFinishers = [...state.players.values()]
       .filter((player) => player.connected && state.matchStats.has(player.id))

@@ -116,14 +116,14 @@ export async function signOut(): Promise<void> {
   await auth.signOut(instance);
 }
 
-/** A fresh ID token for the room service, or undefined for a guest. Never throws: a failed sign-in is a guest. */
-export async function identityToken(): Promise<string | undefined> {
+/** A fresh ID token for the room service, or undefined for a guest. Throws when a signed-in browser cannot get one just now. */
+export async function signedInToken(): Promise<string | undefined> {
   if (!remembersSignIn()) return undefined;
-  try {
-    return await (await firebase()).instance.currentUser?.getIdToken();
-  } catch {
-    return undefined;
-  }
+  return (await firebase()).instance.currentUser?.getIdToken();
+}
+/** The same, but never throws: a failed sign-in is a guest. */
+export async function identityToken(): Promise<string | undefined> {
+  return signedInToken().catch(() => undefined);
 }
 
 export function signInFailure(error: unknown): string {

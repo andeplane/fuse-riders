@@ -1,6 +1,6 @@
 # ADR 031: Room boundaries and operations
 
-> **Superseded (2026-09-15).** The host-star snapshot protocol this decision describes was replaced by the peer-to-peer input log; see [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md).
+> **Superseded by [ADR 047](047-p2p-input-log-lockstep-rollback.md).** The host-star snapshot protocol this decision describes was replaced by the peer-to-peer input log on 2026-09-15.
 
 Date: 2026-09-14. Status: **historical proposal; Cloudflare hosting and gameplay-relay recommendations superseded for the current deployment**.
 
