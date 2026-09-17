@@ -454,7 +454,10 @@ test("bots ride through open edges rather than turning away from them, and survi
   let crossings = 0;
   for (let i = 0; i < 460 && game.phase !== "roundOver"; i += 1) {
     const before = new Map(
-      [...game.players.values()].map((player) => [player.id, player.x]),
+      [...game.players.values()].map((player) => [
+        player.id,
+        { x: player.x, y: player.y },
+      ]),
     );
     step(
       game,
@@ -463,7 +466,8 @@ test("bots ride through open edges rather than turning away from them, and survi
     for (const player of game.players.values())
       if (
         player.alive &&
-        Math.abs(player.x - before.get(player.id)!) > ARENA_WIDTH / 2
+        (Math.abs(player.x - before.get(player.id)!.x) > ARENA_WIDTH / 2 ||
+          Math.abs(player.y - before.get(player.id)!.y) > ARENA_HEIGHT / 2)
       )
         crossings += 1;
     for (const player of game.players.values()) {

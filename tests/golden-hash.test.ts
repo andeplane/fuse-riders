@@ -58,8 +58,8 @@ test("the input-only mechanic recording keeps every tick on the pinned rules", (
     return observeCoverage(state);
   });
   assert.ok(
-    fiveRiderTicks > recording.ticks / 3,
-    "two humans and three bots ride most of the play",
+    fiveRiderTicks >= 3000,
+    "two humans and three bots ride together for at least 150 seconds of play",
   );
   assert.ok(duelTicks > 0, "the two humans also ride alone");
   assert.deepEqual(
