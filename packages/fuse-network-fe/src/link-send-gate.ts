@@ -3,16 +3,27 @@
  * as a console error, not a thrown exception, so try/catch cannot see it. Record every closing signal we
  * get earlier than the DOM state and refuse to send once one is recorded. State is monotonic and scoped to
  * one link instance: a replacement link starts with a fresh gate. */
-export interface SendChannelFacts { readyState:RTCDataChannelState;bufferedAmount:number }
-export const GAMEPLAY_BUFFER_LIMIT=64000;
-export const PROBE_BUFFER_LIMIT=4096;
+export interface SendChannelFacts {
+  readyState: RTCDataChannelState;
+  bufferedAmount: number;
+}
+export const GAMEPLAY_BUFFER_LIMIT = 64000;
+export const PROBE_BUFFER_LIMIT = 4096;
 export class LinkSendGate {
-  private drained=false;
+  private drained = false;
   /** Monotonic: nothing revives a drained link; a replacement link gets a new gate. */
-  drain():void { this.drained=true; }
-  get draining():boolean { return this.drained; }
+  drain(): void {
+    this.drained = true;
+  }
+  get draining(): boolean {
+    return this.drained;
+  }
   /** A permitted send means queued in the browser, never applied by the peer. */
-  permits(channel:SendChannelFacts|undefined,bufferLimit:number):boolean {
-    return !this.draining&&channel?.readyState==='open'&&channel.bufferedAmount<bufferLimit;
+  permits(channel: SendChannelFacts | undefined, bufferLimit: number): boolean {
+    return (
+      !this.draining &&
+      channel?.readyState === "open" &&
+      channel.bufferedAmount < bufferLimit
+    );
   }
 }

@@ -55,11 +55,7 @@
     "packages/fuse-network-protocol/src/ice-servers.ts",
     "packages/fuse-network-fe/src/room-api.ts"
   ],
-  "reporter": [
-    "text",
-    "html",
-    "json-summary"
-  ],
+  "reporter": ["text", "html", "json-summary"],
   "check-coverage": true,
   "lines": 95,
   "statements": 95,

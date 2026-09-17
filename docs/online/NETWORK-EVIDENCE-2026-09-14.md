@@ -4,11 +4,11 @@ The isolated local run completed at 2026-09-13 23:49:20 UTC against `http://loca
 
 **The narrow consistency/transport checks passed; performance acceptance did not.** This is application-send impairment over real local WebRTC, not physical-network loss or phone acceptance.
 
-| Profile | Model (per sender; host budget is 4× guest) | Observed frame p95 across contexts | Largest sampled correction |
-| --- | --- | --- | --- |
-| Direct | 0 delay/loss; 10 Mbps guest budget | 84.1–85.4 ms | 15 units |
-| Regional | 40 ms delay, ±10 ms jitter, 1% app-message loss/reorder, 2 Mbps guest | 83.7–84.4 ms | 60 units |
-| Poor asymmetric | 75 ms delay, ±30 ms jitter, 3% app-message loss, 5% reorder, 0.5 Mbps guest, 3-second guest outbound blackout | 81.9–83.4 ms | 300 units |
+| Profile         | Model (per sender; host budget is 4× guest)                                                                   | Observed frame p95 across contexts | Largest sampled correction |
+| --------------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------- |
+| Direct          | 0 delay/loss; 10 Mbps guest budget                                                                            | 84.1–85.4 ms                       | 15 units                   |
+| Regional        | 40 ms delay, ±10 ms jitter, 1% app-message loss/reorder, 2 Mbps guest                                         | 83.7–84.4 ms                       | 60 units                   |
+| Poor asymmetric | 75 ms delay, ±30 ms jitter, 3% app-message loss, 5% reorder, 0.5 Mbps guest, 3-second guest outbound blackout | 81.9–83.4 ms                       | 300 units                  |
 
 All profiles observed real intercepted RTC sends, no browser errors, zero forbidden WSS gameplay relay attempts, no accepted snapshot tick regression within one authority scope, and healthy direct links for every guest/display at the end. Injection queue peaks were 190,060 / 160,769 / 149,980 bytes respectively, below the harness's 256 KiB bound. No application diagnostic trace was truncated. The poor profile visibly entered failure/retry states and recovered by the final sample, but this run does not prove the required recovery deadline.
 
@@ -48,12 +48,12 @@ Splitting preserved raw snapshots by phase exposed an instrumentation defect: co
 
 Filtering **only playing snapshots where the local rider is alive**, and pooling the five player contexts (excluding display), gives:
 
-| Run/profile | Samples | p95 | p99 | Maximum |
-| --- | ---: | ---: | ---: | ---: |
-| Six views/direct | 358 | 0 | 0 | 2.093 |
-| Six views/regional | 339 | 0 | 30 | 60 |
-| Six views/poor | 270 | 0 | 15 | 300 |
-| Single view/direct | 639 | 0 | 1.049 | 2.098 |
+| Run/profile        | Samples | p95 |   p99 | Maximum |
+| ------------------ | ------: | --: | ----: | ------: |
+| Six views/direct   |     358 |   0 |     0 |   2.093 |
+| Six views/regional |     339 |   0 |    30 |      60 |
+| Six views/poor     |     270 |   0 |    15 |     300 |
+| Single view/direct |     639 |   0 | 1.049 |   2.098 |
 
 These are reconciliation values sampled on accepted snapshots, with many zero-correction samples, not hardware-response measurements. Poor-profile outliers remain real recorded presentation deviations and are not erased by the inactive-phase correction finding. Whether an outlier reflects loss/resync, a previously unknown obstacle or another transition requires causal traces; this run does not establish that distinction.
 
@@ -65,14 +65,14 @@ The harness now requires every guest and display to have accepted a world snapsh
 
 **The stronger freshness assertion failed.** End-of-run accepted-world ages were:
 
-| View | Age |
-| --- | ---: |
-| Host | 59.9 ms |
-| Guest 1 (deliberate outbound blackout) | 85.4 ms |
-| Guest 2 | 1,907.7 ms |
-| Guest 3 | **2,089.3 ms** |
-| Guest 4 | 1,938.6 ms |
-| Display | **2,305.7 ms** |
+| View                                   |            Age |
+| -------------------------------------- | -------------: |
+| Host                                   |        59.9 ms |
+| Guest 1 (deliberate outbound blackout) |        85.4 ms |
+| Guest 2                                |     1,907.7 ms |
+| Guest 3                                | **2,089.3 ms** |
+| Guest 4                                |     1,938.6 ms |
+| Display                                | **2,305.7 ms** |
 
 The deliberately affected guest accepted a progressing world **751.5 ms** after its three-second outbound blackout ended. Other peers still had stale worlds while reporting healthy direct links and permitted authority in the last periodic metrics. Therefore healthy RTC connection counts alone are insufficient recovery evidence. The exact cause of these stale streams has not been proven; chained delta loss/resync behavior is a hypothesis requiring instrumentation, not an established diagnosis.
 
@@ -122,14 +122,14 @@ Each context accepted 18,005 snapshots; whole-run counters recorded zero accepte
 
 Delivered JSON payload traffic, using complete recorded one-second windows and excluding each sender's first/last partial windows, was:
 
-| Sender | Average Mbps | p95 one-second Mbps |
-| --- | ---: | ---: |
-| Host, all five outgoing edges combined | 0.994 | 1.640 |
-| Guest 1 uplink | 0.0352 | 0.0613 |
-| Guest 2 uplink | 0.0368 | 0.0646 |
-| Guest 3 uplink | 0.0361 | 0.0643 |
-| Guest 4 uplink | 0.0368 | 0.0646 |
-| TV uplink | 0.0215 | 0.0240 |
+| Sender                                 | Average Mbps | p95 one-second Mbps |
+| -------------------------------------- | -----------: | ------------------: |
+| Host, all five outgoing edges combined |        0.994 |               1.640 |
+| Guest 1 uplink                         |       0.0352 |              0.0613 |
+| Guest 2 uplink                         |       0.0368 |              0.0646 |
+| Guest 3 uplink                         |       0.0361 |              0.0643 |
+| Guest 4 uplink                         |       0.0368 |              0.0646 |
+| TV uplink                              |       0.0215 |              0.0240 |
 
 These exclude SCTP/DTLS/IP overhead and are delivered, not attempted bytes. Whole-run per-view downlink is **unavailable** because bounded per-edge packet traces retain only the first 12,000 sends; host aggregate must not be divided by five as proof of each view's traffic. Recent raw guest-1 hook events evicted 18,000 earlier events; whole-run snapshot/regression counters were preserved separately. Packet omissions are explicit in the report.
 
@@ -142,23 +142,23 @@ The following exclusive 30-second run also **passed** the unchanged assertions. 
 Alive-player correction samples only include accepted snapshots where phase is playing and the local rider is alive. Rider radius is 7 units. Every guest's p95 was below that proposed radius budget in this run; large tails remain visible:
 
 | Local player | Samples | Nonzero corrections (>1e-6) | p95 units | p99 units | Maximum units |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Host | 99 | 0 | 0 | 0 | 0 |
-| Guest 1 | 102 | 23 | 2.098 | 3.141 | 27.923 |
-| Guest 2 | 128 | 25 | 2.093 | 2.098 | 15.856 |
-| Guest 3 | 139 | 31 | 2.098 | 15.541 | 30.000 |
-| Guest 4 | 128 | 31 | 3.141 | 30.000 | 31.928 |
+| ------------ | ------: | --------------------------: | --------: | --------: | ------------: |
+| Host         |      99 |                           0 |         0 |         0 |             0 |
+| Guest 1      |     102 |                          23 |     2.098 |     3.141 |        27.923 |
+| Guest 2      |     128 |                          25 |     2.093 |     2.098 |        15.856 |
+| Guest 3      |     139 |                          31 |     2.098 |    15.541 |        30.000 |
+| Guest 4      |     128 |                          31 |     3.141 |    30.000 |        31.928 |
 
 The visible guest's frame p95/p99/max were **17.1/17.4/21.7 ms**. Final remote snapshot ages were **31.9–59.5 ms**. Complete, untruncated delivered host packet traces yield these downlink figures over **29 complete one-second windows**, excluding partial boundary windows and including zero-byte windows:
 
 | Host destination edge | Average Mbps | p95 one-second Mbps |
-| --- | ---: | ---: |
-| Edge 1 | 0.229 | 0.449 |
-| Edge 2 | 0.214 | 0.312 |
-| Edge 3 | 0.222 | 0.406 |
-| Edge 4 | 0.220 | 0.427 |
-| Edge 5 | 0.182 | 0.272 |
-| Host total | 1.067 | 1.660 |
+| --------------------- | -----------: | ------------------: |
+| Edge 1                |        0.229 |               0.449 |
+| Edge 2                |        0.214 |               0.312 |
+| Edge 3                |        0.222 |               0.406 |
+| Edge 4                |        0.220 |               0.427 |
+| Edge 5                |        0.182 |               0.272 |
+| Host total            |        1.067 |               1.660 |
 
 Edges are local trace ordinals, not asserted player identities. These are application payload figures; all five per-view averages and p95 windows satisfy the proposed payload budgets in this **short regional** run, but wire overhead and sustained per-view downlink are still unmeasured. This evidence complements the soak and earlier negative reports; it does not close physical-phone, real packet-loss, true changed-pose response or full outcome-consistency acceptance.
 
@@ -168,45 +168,45 @@ Both exclusive 30-second profiles passed the unchanged freshness, recovery, queu
 
 Regional host playing snapshots had 311 same-scope successive increments, all exactly **one tick**, confirming every-tick publication in that observed window. All remote playing snapshots selected **two-tick delay**: regional counts 269/281/268/250/292 and poor 67/95/96/113/112; none selected one tick. Host zero-RTT samples selected one tick 305/314 regional and 294/303 poor. Thus nearby classification did not incorrectly shorten the impaired remote buffer.
 
-| Profile | Visible frame p95 / p99 / max ms | Final remote accepted-world ages ms | Post-blackout world ms | Maximum injection queue bytes |
-| --- | --- | --- | ---: | ---: |
-| Regional | 17.1 / 18.2 / 26.4 | 2.9–54.2 | No blackout | 201435 |
-| Poor | 16.9 / 17.2 / 21.0 | 469.4–1319.6 | 1418.5 | 261863 |
+| Profile  | Visible frame p95 / p99 / max ms | Final remote accepted-world ages ms | Post-blackout world ms | Maximum injection queue bytes |
+| -------- | -------------------------------- | ----------------------------------- | ---------------------: | ----------------------------: |
+| Regional | 17.1 / 18.2 / 26.4               | 2.9–54.2                            |            No blackout |                        201435 |
+| Poor     | 16.9 / 17.2 / 21.0               | 469.4–1319.6                        |                 1418.5 |                        261863 |
 
 Poor-profile queue occupancy approached its 262,144-byte cap and corrections remain substantial. Passing safe recovery does not establish smooth play under this adversarial pre-SCTP loss/reorder profile.
 
 Alive-and-playing local correction samples (nonzero means >1e-6):
 
-| Profile/player | Samples | Nonzero | p95 units | p99 units | Max units |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| regional/host | 259 | 0 | 0.000 | 0.000 | 0.000 |
-| regional/guest 1 | 237 | 31 | 1.049 | 1.049 | 67.500 |
-| regional/guest 2 | 281 | 30 | 1.049 | 2.093 | 7.500 |
-| regional/guest 3 | 221 | 28 | 1.049 | 1.049 | 67.500 |
-| regional/guest 4 | 200 | 25 | 1.049 | 8.847 | 75.000 |
-| poor/host | 241 | 0 | 0.000 | 0.000 | 0.000 |
-| poor/guest 1 | 53 | 10 | 37.500 | 45.000 | 112.500 |
-| poor/guest 2 | 75 | 19 | 45.000 | 52.500 | 135.000 |
-| poor/guest 3 | 96 | 28 | 37.500 | 60.000 | 75.000 |
-| poor/guest 4 | 85 | 15 | 29.634 | 37.500 | 45.000 |
+| Profile/player   | Samples | Nonzero | p95 units | p99 units | Max units |
+| ---------------- | ------: | ------: | --------: | --------: | --------: |
+| regional/host    |     259 |       0 |     0.000 |     0.000 |     0.000 |
+| regional/guest 1 |     237 |      31 |     1.049 |     1.049 |    67.500 |
+| regional/guest 2 |     281 |      30 |     1.049 |     2.093 |     7.500 |
+| regional/guest 3 |     221 |      28 |     1.049 |     1.049 |    67.500 |
+| regional/guest 4 |     200 |      25 |     1.049 |     8.847 |    75.000 |
+| poor/host        |     241 |       0 |     0.000 |     0.000 |     0.000 |
+| poor/guest 1     |      53 |      10 |    37.500 |    45.000 |   112.500 |
+| poor/guest 2     |      75 |      19 |    45.000 |    52.500 |   135.000 |
+| poor/guest 3     |      96 |      28 |    37.500 |    60.000 |    75.000 |
+| poor/guest 4     |      85 |      15 |    29.634 |    37.500 |    45.000 |
 
 Regional guest p95 values remain below the seven-unit rider radius; max corrections reach 75 units. Poor guest p95 values 29.6–45 units and maximum 135 units are reported without applying the 80 ms regional target to a different profile or hiding tails.
 
 Delivered host JSON payload, using untruncated traces and complete one-second windows (30 regional, 29 poor; zero windows included, partial boundaries excluded):
 
 | Profile/destination | Average Mbps | p95 one-second Mbps |
-| --- | ---: | ---: |
-| regional/host total | 1.809 | 2.630 |
-| regional/edge 1 | 0.374 | 0.640 |
-| regional/edge 2 | 0.367 | 0.590 |
-| regional/edge 3 | 0.376 | 0.603 |
-| regional/edge 4 | 0.386 | 0.600 |
-| regional/edge 5 | 0.306 | 0.516 |
-| poor/host total | 1.583 | 2.053 |
-| poor/edge 1 | 0.273 | 0.488 |
-| poor/edge 2 | 0.312 | 0.461 |
-| poor/edge 3 | 0.337 | 0.636 |
-| poor/edge 4 | 0.350 | 0.617 |
-| poor/edge 5 | 0.310 | 0.567 |
+| ------------------- | -----------: | ------------------: |
+| regional/host total |        1.809 |               2.630 |
+| regional/edge 1     |        0.374 |               0.640 |
+| regional/edge 2     |        0.367 |               0.590 |
+| regional/edge 3     |        0.376 |               0.603 |
+| regional/edge 4     |        0.386 |               0.600 |
+| regional/edge 5     |        0.306 |               0.516 |
+| poor/host total     |        1.583 |               2.053 |
+| poor/edge 1         |        0.273 |               0.488 |
+| poor/edge 2         |        0.312 |               0.461 |
+| poor/edge 3         |        0.337 |               0.636 |
+| poor/edge 4         |        0.350 |               0.617 |
+| poor/edge 5         |        0.310 |               0.567 |
 
 All per-edge averages/p95 windows remained below the proposed 0.5/1 Mbps payload limits in these short runs. Host aggregate regional average increased from 1.067 Mbps in the prior 10 Hz run to 1.809 Mbps here; these independently randomized rounds are not an identical simulation replay, so the ratio is observational rather than an isolated encoding-cost estimate. No SCTP/DTLS/IP overhead is included. The regional result protects the conservative buffering/traffic contract; it does not prove that the nearby one-tick policy activated on the TV response benchmark or that its latency target passed.

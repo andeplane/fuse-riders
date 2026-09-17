@@ -27,31 +27,31 @@ Read [AGENTS.md](../../AGENTS.md), [README](../../README.md), [roadmap](../onlin
 
 ## What is established, and what is only a hypothesis
 
-| Observation | Evidence | Interpretation and limitation |
-| --- | --- | --- |
-| Phaser 3.90 already selects WebGL, with Canvas fallback | [arena.ts](../../src/client/phaser/arena.ts), [presentation.ts](../../src/client/phaser/presentation.ts) | Three.js is not needed to obtain GPU acceleration. Verify the actual backend on an affected device. |
-| Original Canvas render CPU p95 was 0.6–1 ms; Phaser was about 4–5 ms | [Recorded renderer measurements](../PHASER.md) | Different visual implementations on an M4 Max. This is not an equal-quality engine comparison or a phone measurement. |
-| The mobile-sized board retained a 1600×900 backing while displayed at about 390×219 CSS pixels | [Mobile-sized evidence](../PHASER.md#mobile-sized-viewport-evidence) | Resolution scaling could reduce pixel work. Its benefit and acceptable sharpness are unmeasured. |
-| Trail cache includes `s.tick`, and interpolation supplies fractional ticks; local prediction can create a new trail array | [arena.ts](../../src/client/phaser/arena.ts), [prediction.ts](../../src/online/prediction.ts) | Cache invalidation can happen every rendered frame. Cost attributable to this needs profiling. |
-| Ink redraws a Canvas texture and calls `refresh()` each active frame | [arena.ts](../../src/client/phaser/arena.ts) | Full-surface drawing/upload is a candidate cost, not a confirmed bottleneck. |
-| Transport serializes an envelope for byte accounting and again for sending; encoding repeats per recipient | [peer-transport.ts](../../src/online/peer-transport.ts), [runtime.ts](../../src/online/runtime.ts), [world-codec.ts](../../src/online/world-codec.ts) | Avoidable work exists; impact on the host's frame/tick scheduling is unmeasured. |
-| Fixed response batch: local p95 27.6 ms, TV p95 88.2 ms; longer capture had 3.41% repeated TV tick intervals and hold maximum 51.2 ms | [Response report](../online/RESPONSE-BENCHMARK.md) | Desktop submitted-heading measurements, not scanout or physical touch-to-photon. Motion holds can persist with fast rendering. |
-| Four bot decisions measured p95 about 0.44 ms at 4,000 trails | [AI report](../online/AI-RIDERS.md) | Historical Node measurement of controller work only; evidence for lower initial priority, not a mobile guarantee. |
+| Observation                                                                                                                           | Evidence                                                                                                                                              | Interpretation and limitation                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Phaser 3.90 already selects WebGL, with Canvas fallback                                                                               | [arena.ts](../../src/client/phaser/arena.ts), [presentation.ts](../../src/client/phaser/presentation.ts)                                              | Three.js is not needed to obtain GPU acceleration. Verify the actual backend on an affected device.                            |
+| Original Canvas render CPU p95 was 0.6–1 ms; Phaser was about 4–5 ms                                                                  | [Recorded renderer measurements](../PHASER.md)                                                                                                        | Different visual implementations on an M4 Max. This is not an equal-quality engine comparison or a phone measurement.          |
+| The mobile-sized board retained a 1600×900 backing while displayed at about 390×219 CSS pixels                                        | [Mobile-sized evidence](../PHASER.md#mobile-sized-viewport-evidence)                                                                                  | Resolution scaling could reduce pixel work. Its benefit and acceptable sharpness are unmeasured.                               |
+| Trail cache includes `s.tick`, and interpolation supplies fractional ticks; local prediction can create a new trail array             | [arena.ts](../../src/client/phaser/arena.ts), [prediction.ts](../../src/online/prediction.ts)                                                         | Cache invalidation can happen every rendered frame. Cost attributable to this needs profiling.                                 |
+| Ink redraws a Canvas texture and calls `refresh()` each active frame                                                                  | [arena.ts](../../src/client/phaser/arena.ts)                                                                                                          | Full-surface drawing/upload is a candidate cost, not a confirmed bottleneck.                                                   |
+| Transport serializes an envelope for byte accounting and again for sending; encoding repeats per recipient                            | [peer-transport.ts](../../src/online/peer-transport.ts), [runtime.ts](../../src/online/runtime.ts), [world-codec.ts](../../src/online/world-codec.ts) | Avoidable work exists; impact on the host's frame/tick scheduling is unmeasured.                                               |
+| Fixed response batch: local p95 27.6 ms, TV p95 88.2 ms; longer capture had 3.41% repeated TV tick intervals and hold maximum 51.2 ms | [Response report](../online/RESPONSE-BENCHMARK.md)                                                                                                    | Desktop submitted-heading measurements, not scanout or physical touch-to-photon. Motion holds can persist with fast rendering. |
+| Four bot decisions measured p95 about 0.44 ms at 4,000 trails                                                                         | [AI report](../online/AI-RIDERS.md)                                                                                                                   | Historical Node measurement of controller work only; evidence for lower initial priority, not a mobile guarantee.              |
 
 ## Agent organization and execution order
 
 The coordinator owns this brief, experiment registration, baseline selection, integration and the benchmark schedule. Assign each agent one workstream and a separate branch/worktree based on the same agreed baseline. Use `codex/perf-<track>` branch names when branches are created. Agents sharing a checkout must agree on exact files before editing; separate worktrees do not prevent CPU/GPU contention or port conflicts.
 
-| Track | Suggested ownership | Dependencies and priority |
-| --- | --- | --- |
-| A — Measurement and reproducible workloads | Benchmark scripts and opt-in diagnostic interfaces; coordinate any runtime hooks | First. Shared foundation for all comparisons. |
-| B — Retained trails | Trail rendering helpers and regression fixtures; integration in `arena.ts` | High. May research alongside C/D; serialize edits to shared renderer files. |
-| C — Resolution and quality controls | Presentation sizing, quality configuration and UI wiring | High for physical phones. Share coordinate contract with B/D. |
-| D — Effects and ink | Effect helpers, textures, ink path and visual fixtures | Medium. Split ink and decorative effects into separate candidates. |
-| E — Host encoding and allocation | `peer-transport.ts`, `world-codec.ts`, publication/checkpoint profiling | High for phone-host scenarios. Preserve protocol. |
-| F — AI and simulation cost | `bot-controller.ts`, AI benchmark; simulation profiling initially read-only | Conditional on profiles; no balance changes. |
-| G — Motion continuity and response | `prediction.ts`, `prediction-clock.ts`, response diagnostics | Separate design review for policy changes; coordinate with B's predicted tip. |
-| H — Alternative renderer prototype | Experimental adapter/fixture, isolated from default application entry | Last, if measured Phaser costs remain material. |
+| Track                                      | Suggested ownership                                                              | Dependencies and priority                                                     |
+| ------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| A — Measurement and reproducible workloads | Benchmark scripts and opt-in diagnostic interfaces; coordinate any runtime hooks | First. Shared foundation for all comparisons.                                 |
+| B — Retained trails                        | Trail rendering helpers and regression fixtures; integration in `arena.ts`       | High. May research alongside C/D; serialize edits to shared renderer files.   |
+| C — Resolution and quality controls        | Presentation sizing, quality configuration and UI wiring                         | High for physical phones. Share coordinate contract with B/D.                 |
+| D — Effects and ink                        | Effect helpers, textures, ink path and visual fixtures                           | Medium. Split ink and decorative effects into separate candidates.            |
+| E — Host encoding and allocation           | `peer-transport.ts`, `world-codec.ts`, publication/checkpoint profiling          | High for phone-host scenarios. Preserve protocol.                             |
+| F — AI and simulation cost                 | `bot-controller.ts`, AI benchmark; simulation profiling initially read-only      | Conditional on profiles; no balance changes.                                  |
+| G — Motion continuity and response         | `prediction.ts`, `prediction-clock.ts`, response diagnostics                     | Separate design review for policy changes; coordinate with B's predicted tip. |
+| H — Alternative renderer prototype         | Experimental adapter/fixture, isolated from default application entry            | Last, if measured Phaser costs remain material.                               |
 
 Suggested waves:
 
@@ -74,15 +74,15 @@ For G, register a continuity improvement target together with response limits; a
 
 ### Workload matrix
 
-| Workload | Required coverage |
-| --- | --- |
-| Renderer replay | Five riders; short and long trails; baseline 800-segment/24-projectile/five-burst fixture; calm and heavy effects; ink separately; both themes. Add stress cases within validated world limits. |
-| Snapshot reuse | Identical snapshot repeated; fractional interpolation between 20 Hz arrivals; local predicted tip changing while old geometry stays stable; additions, removals and clipped segments. |
-| Full online game | Five connected player roles plus separate TV, host and guest metrics, shared-TV and individual-screen modes; record alive-rider count over time. |
-| AI host | One human plus four bots, separately from the five-human-plus-TV case. Bots are not RTC participants. |
-| Lifecycle | Death, round/match reset, theme change, shrinking arena, portal transitions, resize/rotation, context loss/restore/fallback and repeated mount/destroy. |
-| Network | Direct, regional and poor-asymmetric application profiles; delivery/encoding/timing candidates include recovery, stale-state and correction measurements. |
-| Real devices | Named iPhone/Safari and Android/Chrome devices, browser/OS versions, screen refresh, power mode, orientation, CSS/backing size and thermal conditions. If unavailable, mark physical acceptance unverified. |
+| Workload         | Required coverage                                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Renderer replay  | Five riders; short and long trails; baseline 800-segment/24-projectile/five-burst fixture; calm and heavy effects; ink separately; both themes. Add stress cases within validated world limits.             |
+| Snapshot reuse   | Identical snapshot repeated; fractional interpolation between 20 Hz arrivals; local predicted tip changing while old geometry stays stable; additions, removals and clipped segments.                       |
+| Full online game | Five connected player roles plus separate TV, host and guest metrics, shared-TV and individual-screen modes; record alive-rider count over time.                                                            |
+| AI host          | One human plus four bots, separately from the five-human-plus-TV case. Bots are not RTC participants.                                                                                                       |
+| Lifecycle        | Death, round/match reset, theme change, shrinking arena, portal transitions, resize/rotation, context loss/restore/fallback and repeated mount/destroy.                                                     |
+| Network          | Direct, regional and poor-asymmetric application profiles; delivery/encoding/timing candidates include recovery, stale-state and correction measurements.                                                   |
+| Real devices     | Named iPhone/Safari and Android/Chrome devices, browser/OS versions, screen refresh, power mode, orientation, CSS/backing size and thermal conditions. If unavailable, mark physical acceptance unverified. |
 
 Distinguish desktop six-view contention from six separate devices. Keep the all-visible case and single-visible diagnostic separate. For finalists, include a 30-minute run on declared hardware to assess sustained frame times, allocation/resource growth and thermal degradation. A connected-player soak does not establish continuous five-alive simulation stress; retain a separate deterministic dense replay and the live activity trace.
 
