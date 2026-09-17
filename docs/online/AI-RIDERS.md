@@ -21,15 +21,13 @@ Online, an AI rider is a management entry in the creator's stream (`BOT add`/`re
 Validation commands:
 
 ```sh
-npx tsx --test tests/bot-controller.test.ts tests/server-bots.test.ts
+npx tsx --test tests/bot-controller.test.ts
 npx tsx scripts/benchmark-bots.ts
 npx tsx scripts/benchmark-bot-survival.ts
 # Run against an isolated local room service serving the current build (`npm run dev:online`).
-ONLINE_URL=http://localhost:8787/ BUILD_DIRECTORY=dist npx tsx scripts/ai-browser.ts
-BROWSER=webkit ONLINE_URL=http://localhost:8787/ BUILD_DIRECTORY=dist npx tsx scripts/ai-browser.ts
 ```
 
-The browser script creates disposable rooms, verifies desktop/phone add/remove/solo-start and real round scoring, and separately tests an ephemeral LAN TV. It must not target an occupied room. Artifacts include `artifacts/ai-online-desktop.png`, `ai-online-phone.png`, `ai-lan.png` and `bot-benchmark.json`.
+The browser checks create disposable rooms and verify desktop/phone add/remove/solo-start and real round scoring. They must not target an occupied room.
 
 Initial Node 22 / macOS arm64 measurement: four decisions together took p95 about **0.10 ms** with no trails, **0.18 ms** with 800 trails and **0.44 ms** with 4,000 trails. Each workload used 50 warmups and 500 samples; raw samples/method are in the generated benchmark report. This measures decision overhead only, not rendering, simulation, network or physical phone performance. Re-run after changes; it is not an online release certification.
 

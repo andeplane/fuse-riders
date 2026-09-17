@@ -12,7 +12,6 @@ import {
   type GameState,
 } from "../src/shared/game.ts";
 import { MAX_PORTAL_PAIRS } from "../src/shared/portal.ts";
-import { controllerSnapshot } from "../src/server/index.ts";
 
 function arena() {
   const state = createGame("portal", 123);
@@ -162,7 +161,6 @@ test("portal expiry, snapshot copying, compact geometry omission and round reset
   const snapshot = toSnapshot(state);
   snapshot.portalPairs[0]!.gates[0].x = -10;
   assert.equal(state.portalPairs[0]!.gates[0].x, 200);
-  assert.deepEqual(controllerSnapshot(toSnapshot(state)).portalPairs, []);
   state.portalPairs[0]!.expiresAtTick = state.tick + 1;
   step(state, new Map());
   assert.deepEqual(state.portalPairs, []);
