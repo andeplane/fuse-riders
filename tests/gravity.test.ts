@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { GRAVITY_BEND, GRAVITY_FIELD_TICKS, GRAVITY_MAX_HOLES_PER_PICKUP, GRAVITY_MAX_RADIUS, GRAVITY_MIN_RADIUS, INITIAL_BOUNDARY_INSET, MAX_GRAVITY_FIELDS, SLOT_COLORS,
+import { GRAVITY_BEND, GRAVITY_CORE_SPAWN_CLEARANCE, STAR_DURATION_TICKS, gravityCoreRadius, GRAVITY_FIELD_TICKS, GRAVITY_MAX_HOLES_PER_PICKUP, GRAVITY_MAX_RADIUS, GRAVITY_MIN_RADIUS, INITIAL_BOUNDARY_INSET, MAX_GRAVITY_FIELDS, SLOT_COLORS,
   addPlayer, createGame, eliminatePlayer, gravityBend, riderMotionStep, startMatch, startNextRound, step, toSnapshot, type GameState } from '../src/shared/game.js';
 import { controllerSnapshot } from '../src/server/index.js';
 
@@ -92,7 +92,7 @@ test('however many holes overlap, the bend stays under the rider\'s own steering
   // Steering flat out against a hole still turns the rider away from it.
   const state = playing();
   const rider = state.players.get('p0')!;
-  hole(state, rider.x, rider.y + 5, 300); hole(state, rider.x, rider.y + 5, 300);
+  hole(state, rider.x, rider.y + 60, 300); hole(state, rider.x, rider.y + 60, 300);
   step(state, new Map([['p0', { left: true, right: false, bomb: false }]]) as never);
   assert.ok(rider.angle > Math.PI, 'a left turn won against two holes on the right');
 });
@@ -129,4 +129,36 @@ test('a LAN phone is never sent the hole geometry it cannot draw', () => {
   const full = toSnapshot(state);
   assert.equal(full.gravityFields.length, 1, 'the fixture carries a hole, so the strip below is not vacuous');
   assert.deepEqual(controllerSnapshot(full).gravityFields, [], 'the LAN server strips it');
+});
+
+test('a rider that falls into the core dies an ownerless wall death; skimming the hole outside it does not', () => {
+  const state = playing();
+  const rider = state.players.get('p0')!;
+  hole(state, rider.x + gravityCoreRadius(200) + 4, rider.y, 200);
+  const result = step(state, new Map());
+  assert.equal(rider.alive, false);
+  assert.deepEqual(result.events.filter(event => event.type === 'playerEliminated'), [{ type: 'playerEliminated', playerId: 'p0', cause: 'wall' }]);
+  assert.equal(state.matchStats.get('p0')!.deathsByCause.wall, 1);
+  const safe = playing();
+  hole(safe, safe.players.get('p0')!.x, safe.players.get('p0')!.y + gravityCoreRadius(200) + 20, 200);
+  step(safe, new Map());
+  assert.equal(safe.players.get('p0')!.alive, true);
+});
+test('a Star rides through the core', () => {
+  const state = playing();
+  const rider = state.players.get('p0')!;
+  rider.invulnerableUntilTick = state.tick + STAR_DURATION_TICKS;
+  hole(state, rider.x + 10, rider.y, 200);
+  step(state, new Map());
+  assert.equal(rider.alive, true);
+});
+test('a hole never opens with its core under a rider', () => {
+  for (let seed = 1; seed <= 200; seed += 1) {
+    const state = playing(seed);
+    collect(state);
+    for (const field of state.gravityFields) for (const player of state.players.values()) {
+      assert.ok(Math.hypot(field.x - player.x, field.y - player.y) >= GRAVITY_CORE_SPAWN_CLEARANCE - 1e-9, `seed ${seed}`);
+    }
+    assert.ok([...state.players.values()].every(player => player.alive));
+  }
 });

@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, RIDER_SPEED, gravityBend, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, RIDER_SPEED, gravityBend, gravityCoreRadius, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -114,6 +114,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
         for(let index=0;index<future-1;index++)if(hitsTrail(path[index]!))return true;
         return false;
       }))break;
+      if(fields.some(field=>distanceToSegmentSquared(field.x,field.y,{x1:previous.x,y1:previous.y,x2:x,y2:y,createdTick:tick,expiresAtTick:tick})<squared(gravityCoreRadius(field.radius)+SAFETY_MARGIN)))break;
       if(game.blasts.some(blast=>blast.expiresAtTick>tick&&distanceToSegmentSquared(blast.circle.x,blast.circle.y,{x1:previous.x,y1:previous.y,x2:x,y2:y,createdTick:tick,expiresAtTick:tick})<squared(blast.circle.radius+RIDER_RADIUS)))break;
       if(bombs.some(bomb=>bomb.shell
         ?segmentDistanceSquared(previous.x,previous.y,x,y,bomb.x+bomb.shell.vx*(future-1)/TICK_HZ,bomb.y+bomb.shell.vy*(future-1)/TICK_HZ,bomb.x+bomb.shell.vx*future/TICK_HZ,bomb.y+bomb.shell.vy*future/TICK_HZ)<squared(RIDER_RADIUS+18)

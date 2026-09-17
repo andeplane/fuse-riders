@@ -31,7 +31,7 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   grip: ['GRIP', '43% tighter turn radius for this round; collect once, leave later drops for rivals'],
   nitro: ['NITRO', `${NITRO_SPEED}× speed for ${seconds(NITRO_DURATION_TICKS)}; every pickup stacks, so two run at ${NITRO_SPEED * NITRO_SPEED}×`],
   snail: ['SNAIL', `rivals crawl at ${SNAIL_SPEED}× speed for ${seconds(SNAIL_DURATION_TICKS)}; stacks, and cancels a Nitro one for one`],
-  gravity: ['GRAVITY', `opens 1–${GRAVITY_MAX_HOLES_PER_PICKUP} black holes for ${seconds(GRAVITY_FIELD_TICKS)}; space curves there, so every rider's path bends around them`],
+  gravity: ['GRAVITY', `opens 1–${GRAVITY_MAX_HOLES_PER_PICKUP} black holes for ${seconds(GRAVITY_FIELD_TICKS)}; space curves there, so every rider's path bends around them, and falling into a core kills`],
 };
 
 const defaultSpawns = new Set(PICKUP_WEIGHTS.map(row => row.type));

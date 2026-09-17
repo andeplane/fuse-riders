@@ -102,6 +102,10 @@ export const MAX_GRAVITY_FIELDS = 6;
 export const GRAVITY_MIN_RADIUS = 110;
 /** The largest hole curves almost the whole arena across its short side. */
 export const GRAVITY_MAX_RADIUS = ARENA_HEIGHT * 0.47;
+/** The black core at a hole's centre. A rider whose centre crosses into it is gone: an ownerless death, recorded as `wall`. */
+export function gravityCoreRadius(radius: number): number { return Math.min(30, radius * 0.16); }
+/** A hole never opens with its core this close to a living rider's centre; the hole is slid away instead. */
+export const GRAVITY_CORE_SPAWN_CLEARANCE = 140;
 /** Peak bend at the centre, as a share of the tick's own steering. Under 1, so a rider can always steer out of an orbit. */
 export const GRAVITY_BEND = 0.85;
 
@@ -676,6 +680,11 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     if (!isHazardImmune(movement.player, state.tick) && (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom)) {
       markCause(causes, causeOwners, movement.player.id, 'wall');
     }
+    // Falling into a black hole's core is the arena's kill, like the wall: nobody owns it.
+    if (!isHazardImmune(movement.player, state.tick) && state.gravityFields.some(field =>
+      segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, { x: field.x, y: field.y, radius: gravityCoreRadius(field.radius) }))) {
+      markCause(causes, causeOwners, movement.player.id, 'wall');
+    }
 
     for (const owner of state.players.values()) {
       if (isHazardImmune(movement.player, state.tick)) break;
@@ -1086,7 +1095,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
     } else if (pickup.type === 'gravity') {
-      openBlackHoles(state);
+      openBlackHoles(state, movements);
     } else if (pickup.type === 'shell') {
       collector.shellArmed = true;
     } else if (pickup.type === 'target') {
@@ -1482,13 +1491,27 @@ export function gravityBend(fields: ReadonlyArray<Pick<GravityField, 'x' | 'y' |
 }
 
 /** One to three holes anywhere on the field. Every hole costs the same three draws, so replicas stay in step whatever the sizes. */
-function openBlackHoles(state: GameState): void {
+function openBlackHoles(state: GameState, movements: ReadonlyMap<PlayerId, Movement>): void {
   const bounds = portalBounds(state);
   const count = 1 + Math.floor(nextRandom(state) * GRAVITY_MAX_HOLES_PER_PICKUP);
   for (let hole = 0; hole < count; hole += 1) {
     const radius = GRAVITY_MIN_RADIUS + nextRandom(state) * (GRAVITY_MAX_RADIUS - GRAVITY_MIN_RADIUS);
-    const x = bounds.minX + nextRandom(state) * (bounds.maxX - bounds.minX);
-    const y = bounds.minY + nextRandom(state) * (bounds.maxY - bounds.minY);
+    let x = bounds.minX + nextRandom(state) * (bounds.maxX - bounds.minX);
+    let y = bounds.minY + nextRandom(state) * (bounds.maxY - bounds.minY);
+    // The core kills, so it never opens under a rider: slide the hole straight away from anyone too close, in seat order.
+    for (const { id, alive, angle } of sortedPlayers(state)) {
+      // Riders have moved this tick but not yet landed in the state: measure from where they are about to be.
+      const player = movements.get(id);
+      if (!alive || !player) continue;
+      const awayX = x - player.x, awayY = y - player.y, distance = hypot2(awayX, awayY);
+      if (distance >= GRAVITY_CORE_SPAWN_CLEARANCE) continue;
+      const ux = distance === 0 ? cos(angle + Math.PI) : awayX / distance, uy = distance === 0 ? sin(angle + Math.PI) : awayY / distance;
+      x = player.x + ux * GRAVITY_CORE_SPAWN_CLEARANCE; y = player.y + uy * GRAVITY_CORE_SPAWN_CLEARANCE;
+      // Against a wall the slide goes the other way on that axis, which keeps the full clearance where a clamp would not.
+      if (x < bounds.minX || x > bounds.maxX) x = player.x - ux * GRAVITY_CORE_SPAWN_CLEARANCE;
+      if (y < bounds.minY || y > bounds.maxY) y = player.y - uy * GRAVITY_CORE_SPAWN_CLEARANCE;
+    }
+    x = Math.max(bounds.minX, Math.min(bounds.maxX, x)); y = Math.max(bounds.minY, Math.min(bounds.maxY, y));
     state.gravityFields.push({ x, y, radius, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
   }
   state.gravityFields = state.gravityFields.slice(Math.max(0, state.gravityFields.length - MAX_GRAVITY_FIELDS));

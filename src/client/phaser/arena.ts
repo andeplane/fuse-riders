@@ -1,6 +1,6 @@
 import { powerCountText, POWER_COLOR, POWER_ICON_SIZE, POWER_ICON_GAP } from '../power-indicator.js';
 import { assetUrl } from '../asset-url.js';
-import { GRAVITY_FIELD_TICKS, PICKUP_TYPES } from '../../shared/game.js';
+import { GRAVITY_FIELD_TICKS, PICKUP_TYPES, gravityCoreRadius } from '../../shared/game.js';
 import Phaser from 'phaser';
 import type { ViewSnapshot } from '../snapshot-stream.js';
 import { themes, type ThemeDefinition } from '../themes.js';
@@ -378,7 +378,7 @@ class ArenaScene extends Phaser.Scene {
     for(const field of s.gravityFields) {
       // The bent floor grid shows the hole's reach; only the black core is drawn here.
       const left=field.expiresAtTick-(s.presentationTick??s.tick), fade=clamp(left/20,0,1)*clamp((GRAVITY_FIELD_TICKS-left)/6,0,1);
-      g.fillStyle(0x000000,fade).fillCircle(field.x,field.y,Math.min(30,field.radius*.16));
+      g.fillStyle(0x000000,fade).fillCircle(field.x,field.y,gravityCoreRadius(field.radius));
     }
     for(const blast of s.blasts) {
       const frame=blastFrame(blast,s.presentationTick??s.tick), {x,y,radius}=blast.circle;

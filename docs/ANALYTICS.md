@@ -136,7 +136,7 @@ exactly one — which is what turns kills back into pulls for a miss rate.
 Two consequences of chain reactions, both inherited from how eliminations have always been credited: a bomb set
 off by someone else's blast still belongs to its owner, so a rider whose Five bomb a rival detonates is credited
 the kill; and where a rider's own older plain bomb chains alongside its Target, the lowest-id rule credits `bomb`.
-What cannot be seen at all: a black hole that bends a rider into a wall is a `wall` death with no owner. And a
+What cannot be seen at all: a black hole that bends a rider into a wall, or swallows one in its core, is a `wall` death with no owner. And a
 pull whose only effect was uncredited — an own goal, a blast shared with another rider, or setting off someone
 else's bomb — is a `Miss`, because no kill is credited to it.
 
