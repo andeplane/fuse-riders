@@ -1736,6 +1736,35 @@
 .online-join > input {
   min-width: 0;
 }
+.lobby-join-title {
+  display: none;
+}
+.room-riders .online-join {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.875rem;
+  border: 0.125rem solid #00d9ff;
+  background: #091b32;
+  box-shadow: 0 0 1.25rem #00d9ff20;
+}
+.room-riders .lobby-join-title {
+  display: block;
+  margin: 0 0 0.25rem;
+  color: #16e7ff;
+  font-size: 0.8125rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+.room-riders .online-join > button:not(.avatar-current) {
+  min-height: 2.75rem;
+  background: #00d9ff;
+  color: #061126;
+  font-weight: bold;
+}
+@media (max-width: 600px) {
+  .room-lobby .room-riders:has(.online-join:not([hidden])) {
+    grid-column: 1 / -1;
+  }
+}
 .online-join .avatar-picker {
   grid-column: 1/-1;
   padding: 0;
