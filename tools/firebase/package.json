@@ -1,0 +1,8 @@
+{
+  "name": "fuse-riders-firebase-deployer",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "firebase-tools": "15.30.1"
+  }
+}

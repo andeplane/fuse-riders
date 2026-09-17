@@ -145,6 +145,8 @@ Use dedicated runtime and build accounts. Neither needs project Owner, Editor, F
 - **Cloud Run service agent:** retain the provider-managed artifact-pull/service-agent role; do not use it as the application runtime account.
 - **GitHub Actions:** `pages.yml` deploys Pages only and needs no GCP access. `backend.yml` impersonates `fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com` through workload identity federation; no service-account key exists in the repository. The deployer holds build submission, Artifact Registry read, source-bucket object access plus bucket metadata read (`roles/storage.legacyBucketReader`, which `gcloud builds submit` needs for its bucket existence check), Service Account User on the build/runtime accounts, `roles/run.admin` on the single `fuse-riders-gateway` service, and metadata-only read on the signalling topic and the `fuse-riders` database for the script's prerequisite checks. It can write no room data.
 
+The backend workflow also applies and verifies versioned Firestore, Auth and web-key configuration before the gateway build. See [configuration CD](CONFIGURATION-CD.md) for the committed configuration, existing-identity IAM bootstrap and failure recovery. This does not run document migrations or provision new services.
+
 Role bindings/resource creation are deliberately not embedded in the deploy script. Record actual custom role definitions and scopes in the release inventory after review.
 
 ## Verification and rollback

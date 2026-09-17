@@ -387,21 +387,18 @@ the shared `andeplane.github.io` origin noted in the review.
 
 ### Changing the configuration
 
+The backend CD workflow now applies the committed rules, indexes and TTL policies to the named `fuse-riders`
+database, plus Auth domains/provider flags and web-key restrictions from [`deploy/firebase-config.json`](deploy/firebase-config.json),
+before rolling out the gateway. It verifies the OAuth redirect and waits for required indexes and TTL policies.
+See [configuration CD](docs/online/CONFIGURATION-CD.md) for the one-time IAM bootstrap, read-only plan and recovery steps.
+No personal token or new GitHub secret is needed: deployments use the existing workload identity.
+
 ```bash
-firebase deploy --only firestore --project andershaf-87
+npm run config:check
+npm run config:plan -- --account YOUR_AUTHORIZED_GOOGLE_ACCOUNT
 ```
 
-deploys the rules, indexes and TTL policies. **`--only firestore:rules` is a silent no-op** with a named-database `firebase.json`: it prints
-"Deploy complete" and releases nothing. Confirm a release with:
-
-```bash
-curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: andershaf-87" https://firebaserules.googleapis.com/v1/projects/andershaf-87/releases
-```
-
-Rules are not deployed by CI; the deployer service account has no Firebase roles, deliberately. Auth settings live at
-`https://identitytoolkit.googleapis.com/admin/v2/projects/andershaf-87/config` (PATCH with an `updateMask`), and the key
-is managed with `gcloud services api-keys update 06d6ec38-6348-4b7b-865d-1ea58a9b7d91 --project andershaf-87`. Always
-pass the project explicitly; a developer machine's default gcloud project is usually something else. Two things about
+Two things about
 that key bite:
 
 - **A referrer pattern with a scheme does not match a port.** `http://localhost:*/*` is accepted and then blocks
