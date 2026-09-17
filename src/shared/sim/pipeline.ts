@@ -24,6 +24,8 @@ import { portalTransit } from "./phases/portal-transit.js";
 import { stopAtContact } from "./phases/stop-at-contact.js";
 import { commitMovement } from "./phases/commit-movement.js";
 import { launchWeapons } from "./phases/launch-weapons.js";
+import { fireGuns } from "./phases/fire-guns.js";
+import { explodeInstant } from "./phases/explode.js";
 
 export interface Phase {
   readonly name: string;
@@ -58,6 +60,8 @@ export const PHASES: readonly Phase[] = [
   { name: "stopAtContact", when: "playing", run: stopAtContact },
   { name: "commitMovement", when: "playing", run: commitMovement },
   { name: "launchWeapons", when: "playing", run: launchWeapons },
+  { name: "fireGuns", when: "playing", run: fireGuns },
+  { name: "explodeInstant", when: "playing", run: explodeInstant },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */
