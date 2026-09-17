@@ -22,6 +22,46 @@ test("architecture imports match the exact shrinking migration allowlist", () =>
   );
 });
 
+test("rendering is done migrating: only the engine's view and view-kit, and no allowlisted exception", () => {
+  const allowed: string[] = JSON.parse(
+    readFileSync(
+      new URL("./fixtures/layer-allowlist.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(
+    allowed.filter((edge) => edge.startsWith("src/render/")),
+    [],
+    "src/render/ may not be given an exception again: publish the value in the view, or add a kernel to view-kit",
+  );
+  for (const specifier of [
+    "../engine/game.js",
+    "../engine/tuning.js",
+    "../engine/index.js",
+    "../shared/avatars.js",
+    "../shared/protocol.js",
+    "../online/rollback.js",
+    "../online/room-runtime.js",
+    "../client/safe-storage.js",
+  ])
+    assert.ok(forbiddenEdge("src/render/scene.ts", specifier), specifier);
+  for (const specifier of [
+    "../engine/view.js",
+    "../engine/view-kit.js",
+    "./themes.js",
+    "phaser",
+  ])
+    assert.equal(
+      forbiddenEdge("src/render/scene.ts", specifier),
+      undefined,
+      specifier,
+    );
+  assert.equal(
+    forbiddenEdge("src/render/time/present.ts", "../../engine/view-kit.js"),
+    undefined,
+  );
+});
+
 test("the boundary guard covers target directories, re-exports, type imports and dynamic imports", () => {
   for (const specifier of [
     "fuse-network-fe",

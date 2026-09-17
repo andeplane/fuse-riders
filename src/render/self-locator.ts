@@ -1,8 +1,7 @@
-import { TICK_HZ } from "../engine/game.js";
 import type { WorldView } from "../engine/view.js";
 
 /** The locator fades out over the end of the countdown, so it is gone by the time the riders move. */
-export const SELF_LOCATOR_FADE_TICKS = TICK_HZ;
+export const SELF_LOCATOR_FADE_SECONDS = 1;
 /** Room the arrow and its "YOU" caption need on the side of the rider they are drawn on, caption glyphs included. */
 export const SELF_LOCATOR_REACH = 125;
 const RING_PERIOD_MS = 1500;
@@ -19,7 +18,10 @@ export function selfLocatorStrength(snapshot: WorldView): number {
     return 0;
   const left =
     snapshot.phaseEndsAtTick - (snapshot.presentationTick ?? snapshot.tick);
-  return Math.max(0, Math.min(1, left / SELF_LOCATOR_FADE_TICKS));
+  return Math.max(
+    0,
+    Math.min(1, left / (SELF_LOCATOR_FADE_SECONDS * snapshot.rules.tickHz)),
+  );
 }
 
 /** -1 draws the arrow above the rider, 1 below: it flips when the top boundary leaves no room for it. */

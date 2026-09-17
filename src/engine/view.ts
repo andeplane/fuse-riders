@@ -2,9 +2,24 @@ import { BOMB_MAX_CHARGE_TICKS } from "./bomb-launch.js";
 import {
   type AvatarId,
   type GameState,
+  type PlayerState,
   sortedBombs,
   sortedPlayers,
 } from "./state.js";
+import {
+  BLAST_VISIBLE_TICKS,
+  GRAVITY_FIELD_TICKS,
+  TICK_HZ,
+  TRAIL_WIDTH,
+  gravityCoreRadius,
+  riderMotionStep,
+} from "./tuning.js";
+import { edgesOpen } from "./arena-map.js";
+import {
+  MAX_VOLLEY_BOMBS,
+  bombsPerShot,
+  volleyAngles,
+} from "./launch-modifiers.js";
 import { snapshotMatchStats } from "./match-stats.js";
 import { sortedLeaderboard } from "./leaderboard.js";
 import type { PortalPair } from "./portal.js";
@@ -34,8 +49,88 @@ export type {
   TrailSegment,
 } from "./primitives.js";
 
-/** The public snapshot of one tick: everything a screen, the HUD and the recap read. Plain data, derived from `GameState`, never sent. */
-export interface GameSnapshot {
+/**
+ * Rule values a screen needs, as data. A renderer never imports a balance constant: what it must know about the
+ * rules is either here, or already worked out per rider, bomb or field below.
+ */
+export interface ViewRules {
+  /** Simulation ticks per second. */
+  tickHz: number;
+  /** How long a blast stays in `blasts`: with `expiresAtTick` it gives a blast's age. */
+  blastVisibleTicks: number;
+  /** The width a trail collides at, which is the width it is drawn and burnt at. */
+  trailWidth: number;
+}
+
+/** One rider as a screen sees it. */
+export interface RiderView {
+  id: PlayerId;
+  name: string;
+  slot: number;
+  color: string;
+  connected: boolean;
+  avatarId: AvatarId;
+  x: number;
+  y: number;
+  angle: number;
+  alive: boolean;
+  roundWins: number;
+  matchScoreUnits: number;
+  roundScoreUnits: number;
+  waitingForNextRound?: boolean;
+  bombReadyAtTick: number;
+  bombChargeStartedTick?: number;
+  aimSlowTicks: number;
+  aimSlowSpentTicks: number;
+  trail: ReadonlyArray<TrailSegment>;
+  extraBombs: number;
+  fuseLevel: number;
+  powerPickups: number;
+  reloadDurationTicks: number;
+  invulnerableUntilTick: number;
+  nitroUntilTicks: ReadonlyArray<number>;
+  snailUntilTicks: ReadonlyArray<number>;
+  grip: boolean;
+  drunkUntilTick: number;
+  inkUntilTick: number;
+  gunArmed?: boolean;
+  shellArmed?: boolean;
+  targetBombArmed: boolean;
+  bombTarget?: AimPoint;
+  tripleShotArmed: boolean;
+  fiveShotArmed: boolean;
+  shielded: boolean;
+  shieldGraceUntilTick: number;
+  portalCooldownUntilTick: number;
+  portalGraceUntilTick: number;
+  /**
+   * World units this rider covers on the next tick, with everything that changes pace already in it: the round's
+   * ramp, every Nitro and Snail in force on that tick and the aiming slowdown. A screen bounds a trail tip or leads
+   * the local rider with this instead of rebuilding it from constants.
+   */
+  speed: number;
+  /** Radians this rider may turn on the next tick (the ramp and Grip included). */
+  turn: number;
+  /**
+   * Where the next volley's bombs would go, as offsets from the rider's heading in radians (one entry per bomb).
+   * Offsets rather than angles, so presentation can turn the rider between ticks and the fan turns with it.
+   */
+  nextVolleyAngles: ReadonlyArray<number>;
+  /** Presentation only: the fractional tick this rider is drawn at when it is led ahead of the world. Never set by `toView`. */
+  presentationTick?: number;
+}
+
+/**
+ * THE contract between the simulation and whatever draws it: everything a screen, the HUD and the recap read of one
+ * tick. Plain data derived locally from `GameState` by `toView`; it is never sent, stored in a checkpoint or hashed.
+ */
+export interface WorldView {
+  /** The simulated tick; presentation may hand a renderer a fractional one between two simulated ticks. */
+  tick: number;
+  round: number;
+  /** Presentation only: optional fractional world time for cosmetics. Never set by `toView`. */
+  presentationTick?: number;
+  rules: ViewRules;
   matchLength: number;
   bombChargeTicks: number;
   aimBounce: boolean;
@@ -48,47 +143,9 @@ export interface GameSnapshot {
   /** The round's ground, and the scenery standing on it: lethal to touch, and cleared by a blast. */
   map: ArenaMapId;
   obstacles: ReadonlyArray<Obstacle>;
-  players: ReadonlyArray<{
-    id: PlayerId;
-    name: string;
-    slot: number;
-    color: string;
-    connected: boolean;
-    avatarId: AvatarId;
-    x: number;
-    y: number;
-    angle: number;
-    alive: boolean;
-    roundWins: number;
-    matchScoreUnits: number;
-    roundScoreUnits: number;
-    waitingForNextRound?: boolean;
-    bombReadyAtTick: number;
-    bombChargeStartedTick?: number;
-    aimSlowTicks: number;
-    aimSlowSpentTicks: number;
-    trail: ReadonlyArray<TrailSegment>;
-    extraBombs: number;
-    fuseLevel: number;
-    powerPickups: number;
-    reloadDurationTicks: number;
-    invulnerableUntilTick: number;
-    nitroUntilTicks: ReadonlyArray<number>;
-    snailUntilTicks: ReadonlyArray<number>;
-    grip: boolean;
-    drunkUntilTick: number;
-    inkUntilTick: number;
-    gunArmed?: boolean;
-    shellArmed?: boolean;
-    targetBombArmed: boolean;
-    bombTarget?: AimPoint;
-    tripleShotArmed: boolean;
-    fiveShotArmed: boolean;
-    shielded: boolean;
-    shieldGraceUntilTick: number;
-    portalCooldownUntilTick: number;
-    portalGraceUntilTick: number;
-  }>;
+  /** Whether the board's edges are open right now (a wrapping map whose overtime walls have not come in yet). */
+  openEdges: boolean;
+  players: ReadonlyArray<RiderView>;
   bombs: ReadonlyArray<{
     id: number;
     ownerId: PlayerId;
@@ -114,6 +171,10 @@ export interface GameSnapshot {
     y: number;
     radius: number;
     expiresAtTick: number;
+    /** How long a hole lasts, so a screen can ease it in from `expiresAtTick`. */
+    durationTicks: number;
+    /** The black core: a rider whose centre crosses into it is gone. */
+    coreRadius: number;
   }>;
   pickups: ReadonlyArray<{
     id: number;
@@ -148,24 +209,18 @@ export type GameEvent =
   | { type: "roundEnded"; winnerId?: PlayerId }
   | { type: "matchEnded"; winnerId?: PlayerId };
 
-/** Per-rider presentation time is local rendering metadata, never authoritative state. */
-export type ViewPlayer = GameSnapshot["players"][number] & {
-  presentationTick?: number;
-};
-/**
- * What rendering is given: a snapshot placed in time. `tick` is fractional between two simulated ticks;
- * `presentationTick` is optional fractional world time for cosmetics.
- */
-export type WorldView = Omit<GameSnapshot, "players"> & {
-  tick: number;
-  round: number;
-  players: readonly ViewPlayer[];
-  presentationTick?: number;
-};
+const RULES_VIEW: ViewRules = Object.freeze({
+  tickHz: TICK_HZ,
+  blastVisibleTicks: BLAST_VISIBLE_TICKS,
+  trailWidth: TRAIL_WIDTH,
+});
 
-/** What a screen is given of the state: the public snapshot. Read-only over `GameState`; callers ask for it when they need one. */
-export function toSnapshot(state: GameState): GameSnapshot {
+/** What a screen is given of the state. Read-only over `GameState`; callers ask for it when they need one. */
+export function toView(state: GameState): WorldView {
   return {
+    tick: state.tick,
+    round: state.round,
+    rules: RULES_VIEW,
     matchLength: state.settings?.length ?? 5,
     bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
     aimBounce: state.settings?.aimBounce ?? false,
@@ -181,6 +236,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
     boundaryInset: state.boundaryInset,
     map: state.map,
     obstacles: state.obstacles.map((obstacle) => ({ ...obstacle })),
+    openEdges: edgesOpen(state),
     players: sortedPlayers(state).map((player) => ({
       id: player.id,
       name: player.name,
@@ -227,6 +283,11 @@ export function toSnapshot(state: GameState): GameSnapshot {
       portalCooldownUntilTick: player.portalCooldownUntilTick,
       portalGraceUntilTick: player.portalGraceUntilTick,
       trail: player.trail.map((segment) => ({ ...segment })),
+      ...nextStep(player, state),
+      nextVolleyAngles: volleyAngles(
+        0,
+        Math.max(1, Math.min(MAX_VOLLEY_BOMBS, bombsPerShot(player))),
+      ),
     })),
     bombs: sortedBombs(state).map((bomb) => ({
       id: bomb.id,
@@ -251,7 +312,11 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ...pair,
       gates: [{ ...pair.gates[0] }, { ...pair.gates[1] }] as const,
     })),
-    gravityFields: state.gravityFields.map((field) => ({ ...field })),
+    gravityFields: state.gravityFields.map((field) => ({
+      ...field,
+      durationTicks: GRAVITY_FIELD_TICKS,
+      coreRadius: gravityCoreRadius(field.radius),
+    })),
     pickups: state.pickups.map((pickup) => ({ ...pickup })),
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({
@@ -289,4 +354,17 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ? {}
       : { matchWinnerId: state.matchWinnerId }),
   };
+}
+
+/** The step the simulation will give this rider on the next tick, from the state as it stands (`moveRiders` reads the same). */
+function nextStep(
+  player: PlayerState,
+  state: GameState,
+): Pick<RiderView, "speed" | "turn"> {
+  const { distance, turn } = riderMotionStep(
+    player,
+    state.tick + 1,
+    state.roundStartedTick,
+  );
+  return { speed: distance, turn };
 }

@@ -5,7 +5,7 @@ import {
   rankMoments,
   type MomentCard,
 } from "../engine/match-recap.js";
-import { interpolateWorld } from "../online/prediction.js";
+import { interpolateWorld } from "../render/time/present.js";
 
 /**
  * Instant replay (ADR 044): presentation only. Every screen already receives one authoritative world snapshot per

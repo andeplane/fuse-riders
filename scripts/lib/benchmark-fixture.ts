@@ -1,7 +1,7 @@
 import {
   createGame,
   addPlayer,
-  toSnapshot,
+  toView,
   SLOT_COLORS,
 } from "../../src/engine/game.js";
 import { AVATARS } from "../../src/shared/avatars.js";
@@ -17,7 +17,7 @@ export function visualFixture(tick: number): WorldView {
       color: SLOT_COLORS[p],
       avatarId: AVATARS[p].id,
     });
-  const state = toSnapshot(game);
+  const state = toView(game);
   const phase = tick / 20;
   return {
     ...state,

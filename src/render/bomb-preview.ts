@@ -1,12 +1,12 @@
-import {
-  BOMB_MAX_CHARGE_TICKS,
-  bombLaunchDistance,
-} from "../engine/bomb-launch.js";
+import { bombLaunchDistance } from "../engine/view-kit.js";
 
-/** Interpolate the authoritative distances for display; actual releases still use whole ticks. */
+/**
+ * Interpolate the authoritative distances for display; actual releases still use whole ticks.
+ * `maxChargeTicks` and `bounce` are the view's `bombChargeTicks` and `aimBounce`.
+ */
 export function bombPreviewDistance(
   chargeTicks: number,
-  maxChargeTicks = BOMB_MAX_CHARGE_TICKS,
+  maxChargeTicks: number,
   bounce = false,
 ): number {
   // Without bounce the ramp is clamped, so ages past the top interpolate between two identical distances and sit still.

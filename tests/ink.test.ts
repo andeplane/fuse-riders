@@ -6,7 +6,7 @@ import {
   startMatch,
   step,
   INK_DURATION_TICKS,
-  toSnapshot,
+  toView,
   eliminatePlayer,
   startNextRound,
 } from "../src/engine/game.js";
@@ -63,7 +63,7 @@ test("Ink affects only other living riders, refreshes three seconds and snapshot
       [ordinary.x, ordinary.y, ordinary.angle, ordinary.alive],
     );
     assert.equal(
-      toSnapshot(game).players.find((entry) => entry.id === id)!.inkUntilTick,
+      toView(game).players.find((entry) => entry.id === id)!.inkUntilTick,
       player.inkUntilTick,
     );
   }
@@ -97,7 +97,5 @@ test("Ink clears at the next round", () => {
   step(game, new Map());
   game.tick = game.phaseEndsAtTick!;
   startNextRound(game);
-  assert.ok(
-    toSnapshot(game).players.every((player) => player.inkUntilTick === 0),
-  );
+  assert.ok(toView(game).players.every((player) => player.inkUntilTick === 0));
 });

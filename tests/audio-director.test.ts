@@ -13,7 +13,7 @@ import {
   ROUND_OVER_TICKS,
   addPlayer,
   createGame,
-  toSnapshot,
+  toView,
 } from "../src/engine/game.ts";
 import { beginMatchParticipant } from "../src/engine/match-stats.ts";
 import type { GameEvent, ServerMessage } from "../src/shared/protocol.ts";
@@ -74,7 +74,7 @@ function fixture(stored: Partial<RadioState> = {}) {
       matchId: game.matchId,
       round: game.round,
       tick,
-      state: toSnapshot(game),
+      state: toView(game),
     };
   };
   const event = (tick: number, event: GameEvent): ServerMessage => ({

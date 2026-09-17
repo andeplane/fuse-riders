@@ -6,7 +6,7 @@ import {
   type RoomState,
   type StreamEntries,
 } from "../engine/apply-tick.js";
-import { toSnapshot } from "../engine/game.js";
+import { toView } from "../engine/game.js";
 import { LEAVE, PRESENCE } from "../engine/input-log.js";
 import type { GameEvent, WorldView } from "../engine/view.js";
 import { ROLLBACK_TICKS, StreamLog, type ReceiveResult } from "./stream.js";
@@ -81,9 +81,7 @@ export class World {
   }
   private frame(state: RoomState): Frame {
     return {
-      ...toSnapshot(state.game),
-      tick: state.game.tick,
-      round: state.game.round,
+      ...toView(state.game),
       matchId: state.game.matchId,
     };
   }

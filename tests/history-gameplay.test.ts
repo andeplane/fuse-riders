@@ -14,7 +14,7 @@ import {
   type Entry,
 } from "../src/engine/input-log.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
-import { toSnapshot } from "../src/engine/game.js";
+import { toView } from "../src/engine/game.js";
 import {
   decodeGameState,
   encodeGameState,
@@ -80,7 +80,7 @@ async function fixture(riders = 2, length = 1) {
   }
   const report = () => {
     const value = buildMatchReport(
-      { ...toSnapshot(state.game), matchId: state.game.matchId },
+      { ...toView(state.game), matchId: state.game.matchId },
       creator,
     );
     assert.ok(value);
@@ -188,7 +188,7 @@ test("online leave and presence determine finishers, frozen across recap changes
     assert.ok(restored);
     assert.deepEqual(
       buildMatchReport(
-        { ...toSnapshot(restored), matchId: restored.matchId },
+        { ...toView(restored), matchId: restored.matchId },
         f.ids[0]!,
       )!.result,
       before,

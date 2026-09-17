@@ -6,7 +6,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   OVERTIME_START_TICK,
   PICKUP_RADIUS,
   RIDER_OBSTACLE_RADIUS,
@@ -382,7 +382,7 @@ test("a blast clears the scenery it covers and leaves the rest standing", () => 
     "the rock in the blast is gone, the distant one stands",
   );
   assert.equal(
-    toSnapshot(game).obstacles.length,
+    toView(game).obstacles.length,
     1,
     "and the board every device draws agrees",
   );
@@ -679,7 +679,7 @@ test("the room setting picks the board, and rotate gives each round a different 
 
 test("the board travels in snapshots and checkpoints, and a controller is not sent one", () => {
   const game = scene([boulder(), boulder({ id: 2, x: 1200, y: 300 })]);
-  const snapshot = toSnapshot(game);
+  const snapshot = toView(game);
   assert.equal(snapshot.map, game.map);
   assert.deepEqual(
     snapshot.obstacles.map((obstacle) => obstacle.id),

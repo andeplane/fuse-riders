@@ -5,17 +5,11 @@ import {
   POWER_ICON_GAP,
 } from "../power-indicator.js";
 import { assetUrl } from "../asset-url.js";
-import {
-  GRAVITY_FIELD_TICKS,
-  PICKUP_TYPES,
-  gravityCoreRadius,
-} from "../../engine/game.js";
 import Phaser from "phaser";
 import type { WorldView } from "../../engine/view.js";
 import { themes, type ThemeDefinition } from "../themes.js";
-import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
+import { AVATAR_ATLAS } from "../avatar-atlas.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
-import { bombsPerShot, volleyAngles } from "../../engine/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
@@ -23,8 +17,7 @@ import { TrailHistoryCache, trailTip, type TrailPoint } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
 import { crossViews, edgeGhosts } from "../arena-views.js";
-import { edgesOpen } from "../../engine/arena-map.js";
-import { wrapCoordinate } from "../../engine/wrap.js";
+import { PICKUP_TYPES, wrapCoordinate } from "../../engine/view-kit.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
@@ -306,7 +299,7 @@ class ArenaScene extends Phaser.Scene {
     loader.reset();
   }
   preload(): void {
-    this.load.image("avatars", assetUrl(AVATAR_ATLAS_URL));
+    this.load.image("avatars", assetUrl(AVATAR_ATLAS.url));
     for (const theme of Object.values(themes)) {
       this.load.svg(`${theme.id}:rider`, assetUrl(theme.sprites.rider), {
         width: 64,
@@ -339,14 +332,15 @@ class ArenaScene extends Phaser.Scene {
     if (this.textures.exists("avatars")) {
       const texture = this.textures.get("avatars");
       const source = texture.getSourceImage();
-      AVATARS.forEach((avatar, index) =>
+      const { columns, rows, frames } = AVATAR_ATLAS;
+      frames.forEach((id, index) =>
         texture.add(
-          avatar.id,
+          id,
           0,
-          ((index % 5) * source.width) / 5,
-          (Math.floor(index / 5) * source.height) / 2,
-          source.width / 5,
-          source.height / 2,
+          ((index % columns) * source.width) / columns,
+          (Math.floor(index / columns) * source.height) / rows,
+          source.width / columns,
+          source.height / rows,
         ),
       );
     }
@@ -627,7 +621,7 @@ class ArenaScene extends Phaser.Scene {
     const f = this.front.clear();
     const { width: w, height: h, boundaryInset: b } = s;
     const ground = mapGround(s.map, theme);
-    const open = edgesOpen(s);
+    const open = s.openEdges;
     const ghosts = (x: number, y: number, reach: number) =>
       open ? edgeGhosts(w, h, x, y, reach) : NO_GHOSTS;
     const backgroundKey = `${w}:${h}:${theme.id}:${s.map}`;
@@ -667,7 +661,7 @@ class ArenaScene extends Phaser.Scene {
           pull:
             (Math.round(
               clamp(left / 20, 0, 1) *
-                clamp((GRAVITY_FIELD_TICKS - left) / 6, 0, 1) *
+                clamp((field.durationTicks - left) / 6, 0, 1) *
                 20,
             ) /
               20) *
@@ -748,7 +742,7 @@ class ArenaScene extends Phaser.Scene {
       };
       for (let x = 0; x <= w; x += ground.gridSize) gridLine(x, 0, x, h);
       for (let y = 0; y <= h; y += ground.gridSize) gridLine(0, y, w, y);
-      if (edgesOpen(s)) {
+      if (open) {
         // No wall to draw. A dashed rim marks where the board repeats, in place of one that would say "stop".
         this.floor.lineStyle(2, color(theme.palette.rim), 0.35);
         for (let x = 0; x < w; x += 28) {
@@ -994,15 +988,19 @@ class ArenaScene extends Phaser.Scene {
       const left = field.expiresAtTick - (s.presentationTick ?? s.tick),
         fade =
           clamp(left / 20, 0, 1) *
-          clamp((GRAVITY_FIELD_TICKS - left) / 6, 0, 1);
+          clamp((field.durationTicks - left) / 6, 0, 1);
       g.fillStyle(0x000000, fade).fillCircle(
         field.x,
         field.y,
-        gravityCoreRadius(field.radius),
+        field.coreRadius,
       );
     }
     for (const blast of s.blasts) {
-      const frame = blastFrame(blast, s.presentationTick ?? s.tick),
+      const frame = blastFrame(
+          blast,
+          s.presentationTick ?? s.tick,
+          s.rules.blastVisibleTicks,
+        ),
         { x, y, radius } = blast.circle;
       const tints = {
         outer: color(theme.palette.blast),
@@ -1210,7 +1208,8 @@ class ArenaScene extends Phaser.Scene {
             s.bombChargeTicks,
             s.aimBounce,
           );
-          for (const a of volleyAngles(p.angle, bombsPerShot(p))) {
+          for (const offset of p.nextVolleyAngles) {
+            const a = p.angle + offset;
             const x = open
                 ? p.x + Math.cos(a) * distance
                 : clamp(p.x + Math.cos(a) * distance, b + 20, w - b - 20),

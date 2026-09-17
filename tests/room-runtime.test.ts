@@ -12,6 +12,8 @@ import {
 } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS } from "../src/engine/game.js";
+import { presentFrames } from "../src/render/time/present.js";
+import type { WorldView } from "../src/engine/view.js";
 import { roomHash, packMessage } from "../src/online/packet.js";
 import { RULES } from "../src/engine/apply-tick.js";
 import { hashRoomState } from "../src/engine/apply-tick.js";
@@ -505,7 +507,7 @@ test("solo runs a room with no peers: one human, four AI, a paused clock while h
     reliableMs: 0,
   });
   const recorded: string[] = [];
-  let frame: ReturnType<RoomRuntime["view"]>;
+  let frame: WorldView | undefined;
   const runtime = new RoomRuntime(
     "SOLO",
     { ...settings, mode: "shared" },
@@ -542,7 +544,7 @@ test("solo runs a room with no peers: one human, four AI, a paused clock while h
   );
   net.step(50);
   assert.notEqual(frame!.players[0]!.bombChargeStartedTick, undefined);
-  const view = runtime.view()!;
+  const view = presentFrames(runtime.presentation()!);
   assert.equal(view.players[0]!.presentationTick! > frame!.tick - 1, true);
   net.setHidden("solo", true);
   const paused = frame!.tick;

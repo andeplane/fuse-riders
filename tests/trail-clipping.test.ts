@@ -6,7 +6,7 @@ import {
   createGame,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   COUNTDOWN_TICKS,
   INITIAL_BOUNDARY_INSET,
   OVERTIME_START_TICK,
@@ -128,7 +128,7 @@ test("overtime trims dead and living trails before collision and snapshot, retai
     },
   ]);
   assert.deepEqual(
-    toSnapshot(state).players.find((player) => player.id === "p1")!.trail,
+    toView(state).players.find((player) => player.id === "p1")!.trail,
     owner.trail,
   );
   step(state, new Map());

@@ -2,7 +2,7 @@ import {
   createGame,
   addPlayer,
   startMatch,
-  toSnapshot,
+  toView,
   MATCH_WINNER_TICKS,
   ROUND_OVER_TICKS,
   SLOT_COLORS,
@@ -33,7 +33,7 @@ const view = (overrides: Partial<ScoredView>): ScoredView => {
     addPlayer(game, { id, name, slot, color: SLOT_COLORS[slot] });
   startMatch(game);
   return {
-    ...toSnapshot(game),
+    ...toView(game),
     phase: "playing",
     tick: 100,
     round: 2,

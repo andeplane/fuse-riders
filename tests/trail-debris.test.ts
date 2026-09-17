@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TrailDebris } from "../src/render/trail-debris.js";
-import { createGame, addPlayer, toSnapshot } from "../src/engine/game.js";
+import { createGame, addPlayer, toView } from "../src/engine/game.js";
 import type { WorldView } from "../src/engine/view.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 
@@ -25,7 +25,7 @@ function frame(
 ): WorldView {
   const game = createGame("debris");
   addPlayer(game, { id: "rider", name: "Rider", slot: 0, color: "#22d3ee" });
-  const snapshot = toSnapshot(game);
+  const snapshot = toView(game);
   return {
     ...snapshot,
     tick,

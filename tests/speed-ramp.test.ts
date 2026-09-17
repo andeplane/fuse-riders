@@ -15,14 +15,14 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type GameState,
 } from "../src/engine/game.js";
 import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { presentWorld } from "../src/online/prediction.js";
+import { presentWorld } from "../src/render/time/present.js";
 
 function playing(seed = 31, pickups = false): GameState {
   const game = createGame("speed-ramp", seed);
@@ -128,7 +128,7 @@ test("a local rider shown ahead late in the round lands where the next simulated
   const controls = { left: true, right: false };
   const shown = presentWorld(
     undefined,
-    { ...toSnapshot(game), tick: game.tick, round: game.round },
+    { ...toView(game), tick: game.tick, round: game.round },
     game.tick,
     { id: "p0", controls, lead: 1 },
   ).players.find((p) => p.id === "p0")!;

@@ -6,7 +6,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   SLOT_COLORS,
   riderMotionStep,
   TRAIL_WIDTH,
@@ -19,7 +19,7 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { presentWorld } from "../src/online/prediction.js";
+import { presentWorld } from "../src/render/time/present.js";
 import { powerLabel } from "../src/render/power-indicator.js";
 
 function playing() {
@@ -110,7 +110,7 @@ test("GRIP increases left/right steering by 75% from the next tick without chang
       step(game, new Map([["p0", controls]]));
       assert.equal(p.angle, angle);
     }
-    assert.equal(toSnapshot(game).players[0]!.grip, true);
+    assert.equal(toView(game).players[0]!.grip, true);
     assert.equal(game.players.get("p1")!.grip, false);
   }
 });
@@ -241,7 +241,7 @@ test("local presentation uses the upgraded steering and the HUD reports GRIP", (
   const game = playing();
   drop(game);
   step(game, new Map());
-  const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const snapshot = { ...toView(game), tick: game.tick, round: game.round };
   const shown = presentWorld(undefined, snapshot, snapshot.tick, {
     id: "p0",
     controls: steering(true),

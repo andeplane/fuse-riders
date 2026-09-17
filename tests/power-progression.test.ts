@@ -18,7 +18,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type InputIntent,
 } from "../src/engine/game.js";
 import {
@@ -324,7 +324,7 @@ test("each pickup improves a shot; shortened fuses allow firing at the upgraded 
     assert.equal(bomb.explodeAtTick - bomb.launchedTick, 20);
     const ticks = powerReloadTicks(count);
     const snapshot = {
-      ...toSnapshot(game),
+      ...toView(game),
       tick: game.tick,
       round: game.round,
     };
@@ -357,7 +357,7 @@ test("power and a running reload restore and replay exactly; the ring uses the l
   ];
   step(game, new Map());
   assert.equal(player.powerPickups, 5);
-  const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const snapshot = { ...toView(game), tick: game.tick, round: game.round };
   assert.equal(
     reloadRemaining(snapshot.players[0]!, snapshot),
     (powerReloadTicks(4) - 1) / powerReloadTicks(4),

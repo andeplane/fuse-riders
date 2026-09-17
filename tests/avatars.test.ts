@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AVATARS, avatarCell, isAvatarId } from "../src/shared/avatars.ts";
 import { parseClientMessage } from "../src/shared/protocol.ts";
-import { addPlayer, createGame, toSnapshot } from "../src/engine/game.ts";
+import { addPlayer, createGame, toView } from "../src/engine/game.ts";
 
 test("ten distinct avatar ids address exactly ten atlas cells", () => {
   assert.equal(AVATARS.length, 10);
@@ -55,7 +55,7 @@ test("default and selected heads appear in authoritative snapshots without chang
     color: "#ff4fa3",
     avatarId: "dragon",
   });
-  const [a, b] = toSnapshot(state).players;
+  const [a, b] = toView(state).players;
   assert.equal(a!.avatarId, "robot");
   assert.equal(b!.avatarId, "dragon");
   assert.equal(b!.color, "#ff4fa3");

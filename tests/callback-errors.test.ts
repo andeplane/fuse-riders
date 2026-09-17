@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { RoomRuntime, type Callbacks } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { presentFrames } from "../src/render/time/present.js";
 import { FakeNetwork, FakeTransport } from "./fixtures/fake-room.js";
 
 function solo(callbacks: Callbacks) {
@@ -158,8 +159,8 @@ test("online consumer exceptions do not interrupt peer input delivery or converg
     assert.equal(guest.metrics().mismatches, 0);
     assert.equal(guest.metrics().streams.host!.gap, false);
     assert.deepEqual(
-      host.view(),
-      guest.view(),
+      presentFrames(host.presentation()!),
+      presentFrames(guest.presentation()!),
       "replicas converge despite every host presentation callback failing",
     );
   } finally {

@@ -103,7 +103,6 @@ const network = new Set([
   "endpoints",
   "net-stats",
   "packet",
-  "prediction",
   "rollback",
   "room-runtime",
   "snapshot",

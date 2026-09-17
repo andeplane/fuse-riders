@@ -8,7 +8,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   COUNTDOWN_TICKS,
   type GameState,
 } from "../src/engine/game.ts";
@@ -168,7 +168,7 @@ test("portal grace is defensive for both riders, protects trails/walls and does 
 
 test("portal expiry, snapshot copying, compact geometry omission and round reset", () => {
   const state = arena();
-  const snapshot = toSnapshot(state);
+  const snapshot = toView(state);
   snapshot.portalPairs[0]!.gates[0].x = -10;
   assert.equal(state.portalPairs[0]!.gates[0].x, 200);
   state.portalPairs[0]!.expiresAtTick = state.tick + 1;
@@ -208,7 +208,7 @@ test("portal pickup adds a deterministic pair, records stats, keeps the old pair
     assert.equal(player.portalCooldownUntilTick, 200);
     assert.equal(state.matchStats.get("p0")!.portalPickups, 1);
     state.phase = "matchOver";
-    assert.equal(toSnapshot(state).matchStats[0]!.portalPickups, 1);
+    assert.equal(toView(state).matchStats[0]!.portalPickups, 1);
   }
   assert.deepEqual(states[0]!.portalPairs, states[1]!.portalPairs);
 });
@@ -333,7 +333,7 @@ test("authoritative overtime shrinks portal wall length and removes reclaimed wa
   const first = state.portalPairs[0]!.gates[0];
   Object.assign(first, { y: 200, halfLength: 140 });
   step(state, new Map());
-  const snapshot = toSnapshot(state);
+  const snapshot = toView(state);
   const gate = snapshot.portalPairs[0]!.gates[0];
   assert.equal(gate.y - gate.halfLength, state.boundaryInset + 12);
   assert.ok(gate.halfLength <= (state.height - state.boundaryInset * 2) / 6);
@@ -341,7 +341,7 @@ test("authoritative overtime shrinks portal wall length and removes reclaimed wa
   // The snapshot and current pair are independent copies.
   state.portalPairs[0]!.gates[0].x = 50;
   step(state, new Map());
-  assert.deepEqual(toSnapshot(state).portalPairs, []);
+  assert.deepEqual(toView(state).portalPairs, []);
 });
 
 test("compressed linked wall reserves an exit for the first rider rather than overlapping arrivals", () => {
@@ -408,7 +408,7 @@ test("a reclaimed wall removes just its own pair, leaving the rest open", () => 
   state.portalPairs[0]!.gates[0].x = 50;
   step(state, new Map());
   assert.deepEqual(
-    toSnapshot(state).portalPairs.map((pair) => pair.id),
+    toView(state).portalPairs.map((pair) => pair.id),
     ["second"],
   );
 });

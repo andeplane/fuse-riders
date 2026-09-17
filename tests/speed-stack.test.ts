@@ -17,12 +17,12 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type GameState,
   type InputIntent,
   type PickupType,
 } from "../src/engine/game.js";
-import { presentWorld } from "../src/online/prediction.js";
+import { presentWorld } from "../src/render/time/present.js";
 import {
   decodeGameState,
   encodeGameState,
@@ -324,7 +324,7 @@ test("speed deadlines stay sorted, are bounded, and are cleared by a new round",
       "a full stack drops the extra rather than growing without bound",
     );
   assert.deepEqual(rider.snailUntilTicks, []);
-  const shown = toSnapshot(game).players;
+  const shown = toView(game).players;
   assert.deepEqual(
     shown.find((player) => player.id === "p0")!.nitroUntilTicks,
     rider.nitroUntilTicks,
@@ -429,7 +429,7 @@ test("local prediction runs the Nitro rider at its stacked speed from the snapsh
   drop(game, "p0", "nitro");
   drop(game, "p0", "nitro");
   step(game, new Map());
-  const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const snapshot = { ...toView(game), tick: game.tick, round: game.round };
   const shown = presentWorld(undefined, snapshot, snapshot.tick, {
     id: "p0",
     controls: LEFT,

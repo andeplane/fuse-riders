@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EffectTransitions, bombPose } from "../src/render/phaser/effects.js";
-import { createGame, addPlayer, toSnapshot } from "../src/engine/game.js";
+import { createGame, addPlayer, toView } from "../src/engine/game.js";
 import type { WorldView } from "../src/engine/view.js";
 const frame = (): WorldView => {
   const game = createGame("visual-test");
   addPlayer(game, { id: "p", name: "P", slot: 0, color: "#22d3ee" });
-  return { ...toSnapshot(game), tick: 10, round: 1 };
+  return { ...toView(game), tick: 10, round: 1 };
 };
 test("effects do not replay on repeated snapshots or across authority/match reset", () => {
   const effects = new EffectTransitions();

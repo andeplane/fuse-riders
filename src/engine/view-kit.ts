@@ -1,0 +1,33 @@
+/**
+ * The few pure kernels presentation legitimately runs itself, and the only engine module besides `view.ts` that
+ * `src/render/` may import (`tests/layer-boundaries.test.ts`). Everything else a screen needs of the rules travels as
+ * data in the `WorldView`: if a renderer wants a constant from here, publish the value in the view instead.
+ *
+ * An entry earns its place by being a function of its arguments alone (no state, no tuning a screen would have to keep
+ * in step) that presentation must evaluate at a time or place the simulation never did:
+ */
+
+// Between two ticks: the local rider is led ahead with the turn-then-move kernel, bent by the holes it is inside of,
+// taking its `speed` and `turn` from the view. The simulation and the bots run the same two functions.
+export { advanceRiderPose, type MotionControls } from "./rider-motion.js";
+export { gravityBend } from "./gravity.js";
+
+// The charge marker is drawn at a fractional charge age; the engine only ever evaluates whole ticks.
+export { bombLaunchDistance } from "./bomb-launch.js";
+
+// A board with open edges: fold a point back onto it, take the short way round, and list where something near an
+// edge has to be drawn a second time. Plain arithmetic on a width and a height.
+export {
+  wrapCoordinate,
+  wrapDelta,
+  wrapImages,
+  type WrapOffset,
+} from "./wrap.js";
+
+// Debris is what a blast removed, so a screen has to tell "burnt" from "aged away": it ages the trail it kept from
+// the tick before exactly as the simulation would have, and tests what is missing against the blast's disk.
+export { advanceTrail } from "./trail-lifecycle.js";
+export { segmentIntersectsDisk } from "./blast-geometry.js";
+
+// The pickup vocabulary as a list: the scene preloads one sprite per type before any view exists.
+export { PICKUP_TYPES } from "./pickup-types.js";

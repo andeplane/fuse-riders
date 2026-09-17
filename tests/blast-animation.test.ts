@@ -9,7 +9,11 @@ const blast = {
   expiresAtTick: 108,
 };
 const at = (age: number) =>
-  blastFrame(blast, blast.expiresAtTick - BLAST_VISIBLE_TICKS * (1 - age));
+  blastFrame(
+    blast,
+    blast.expiresAtTick - BLAST_VISIBLE_TICKS * (1 - age),
+    BLAST_VISIBLE_TICKS,
+  );
 
 test("blast bloom grows, separates and shrinks before clearing at authoritative expiry", () => {
   const pop = at(0),
@@ -57,9 +61,14 @@ test("cosmetic offsets are stable across replay and vary between bombs without m
   at(0.9);
   at(0.01);
   assert.deepEqual(at(0.3), bloom, "no frame order or retained random state");
-  assert.notDeepEqual(blastFrame({ ...blast, bombId: 43 }, 102.4), bloom);
+  assert.notDeepEqual(
+    blastFrame({ ...blast, bombId: 43 }, 102.4, BLAST_VISIBLE_TICKS),
+    bloom,
+  );
   const volley = [42, 43, 44, 45, 46].map((bombId) =>
-    JSON.stringify(blastFrame({ ...blast, bombId }, 102.4)),
+    JSON.stringify(
+      blastFrame({ ...blast, bombId }, 102.4, BLAST_VISIBLE_TICKS),
+    ),
   );
   assert.equal(
     new Set(volley).size,
@@ -79,7 +88,7 @@ test("all blast lobes, sparks and shock rings stay inside the supplied radius th
     for (const bombId of [0, 1, 42, 9999]) {
       const source = { ...blast, bombId, circle: { ...blast.circle, radius } };
       for (let tick = 100; tick < 108; tick += 0.125) {
-        const frame = blastFrame(source, tick);
+        const frame = blastFrame(source, tick, BLAST_VISIBLE_TICKS);
         assert.ok(frame.circles.length <= 10 && frame.sparks.length <= 6);
         assert.ok(frame.ring.radius <= radius && frame.ring.radius >= 0);
         for (const circle of frame.circles) {

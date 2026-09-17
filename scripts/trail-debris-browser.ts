@@ -33,10 +33,9 @@ try {
       const { themes } = (await import(
         String("/src/render/themes.ts")
       )) as typeof import("../src/render/themes.js");
-      const { createGame, addPlayer, startMatch, toSnapshot, step } =
-        (await import(
-          String("/src/engine/game.ts")
-        )) as typeof import("../src/engine/game.js");
+      const { createGame, addPlayer, startMatch, toView, step } = (await import(
+        String("/src/engine/game.ts")
+      )) as typeof import("../src/engine/game.js");
       const game = createGame("trail-debris-browser", 42);
       for (let p = 0; p < 3; p++) {
         addPlayer(game, {
@@ -87,14 +86,14 @@ try {
         flightPath: [],
       });
       const before = {
-        ...toSnapshot(game),
+        ...toView(game),
         tick: game.tick,
         round: game.round,
         bombs: [],
       };
       step(game, new Map());
       const after = {
-        ...toSnapshot(game),
+        ...toView(game),
         tick: game.tick,
         round: game.round,
         pickups: [],

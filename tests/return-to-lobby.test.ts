@@ -7,7 +7,7 @@ import {
   step,
   COUNTDOWN_TICKS,
   returnToLobby,
-  toSnapshot,
+  toView,
   type GamePhase,
 } from "../src/engine/game.ts";
 for (const phase of [
@@ -84,7 +84,7 @@ for (const phase of [
     assert.equal(game.matchWinnerId, undefined);
     assert.equal(game.roundStartedTick, undefined);
     assert.equal(game.phaseEndsAtTick, undefined);
-    const snapshot = toSnapshot(game);
+    const snapshot = toView(game);
     assert.deepEqual(snapshot.bombs, []);
     assert.deepEqual(snapshot.blasts, []);
     assert.deepEqual(snapshot.pickups, []);

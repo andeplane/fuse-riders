@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addPlayer, createGame, toSnapshot } from "../src/engine/game.js";
+import { addPlayer, createGame, toView } from "../src/engine/game.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 import {
   TrailHistoryCache,
@@ -26,7 +26,7 @@ const rider = () => {
   const game = createGame("trail-test", 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
   return {
-    ...toSnapshot(game).players[0]!,
+    ...toView(game).players[0]!,
     alive: true,
     x: 25,
     y: 10,
@@ -156,25 +156,26 @@ test("head interpolation never extends a stale, destroyed, teleported or dead tr
   assert.deepEqual(
     trailTip({ ...player, x: 60 }, 10.5, "playing"),
     original,
-    "farther than a fully ramped stride",
+    "farther than one stride",
   );
-  // A plain rider's longest stride is 7.5 × 1.5 ramp = 11.25 units: the tip follows up to it and no further.
-  assert.deepEqual(trailTip({ ...player, x: 31.2 }, 10.5, "playing").at(-1), {
-    x: 31.2,
+  // The view says how far the rider goes on the next tick (7.5 units as a round opens): the tip follows up to it and no further.
+  assert.equal(player.speed, 7.5);
+  assert.deepEqual(trailTip({ ...player, x: 27.4 }, 10.5, "playing").at(-1), {
+    x: 27.4,
     y: 10,
   });
-  assert.deepEqual(trailTip({ ...player, x: 31.4 }, 10.5, "playing"), original);
-  // The cap follows the rider's own speed pickups on the tick the segment was drawn: 45 units on two Nitros.
-  const nitro = { ...player, nitroUntilTicks: [20, 20] };
-  assert.deepEqual(trailTip({ ...nitro, x: 64.9 }, 10.5, "playing").at(-1), {
-    x: 64.9,
+  assert.deepEqual(trailTip({ ...player, x: 27.6 }, 10.5, "playing"), original);
+  // Whatever changes the pace is already in that number. The renderer does not know what a Nitro is.
+  const fast = { ...player, speed: 30 };
+  assert.deepEqual(trailTip({ ...fast, x: 49.9 }, 10.5, "playing").at(-1), {
+    x: 49.9,
     y: 10,
   });
-  assert.deepEqual(trailTip({ ...nitro, x: 65.2 }, 10.5, "playing"), original);
+  assert.deepEqual(trailTip({ ...fast, x: 50.2 }, 10.5, "playing"), original);
   assert.deepEqual(
-    trailTip({ ...player, nitroUntilTicks: [10], x: 40.3 }, 10.5, "playing"),
+    trailTip({ ...fast, nitroUntilTicks: [20, 20], x: 50.2 }, 10.5, "playing"),
     original,
-    "a Nitro spent on the drawing tick does not stretch the cap",
+    "rule fields are not read: only the published speed bounds the tip",
   );
   assert.deepEqual(
     trailTip({ ...player, portalCooldownUntilTick: 25 }, 10.5, "playing"),
@@ -214,4 +215,25 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
     { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 30 } },
   ];
   assert.equal(trailPaths(crossing).length, 2);
+});
+
+test("a Snail that ends on the next tick no longer clips the tip: the cap is the step the simulation will take", () => {
+  const game = createGame("trail-tip-snail", 42);
+  addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
+  const state = game.players.get("p")!;
+  state.snailUntilTicks = [game.tick + 1];
+  const player = {
+    ...toView(game).players[0]!,
+    alive: true,
+    y: 10,
+    portalCooldownUntilTick: 0,
+    trail: [segment(game.tick, 10, 0, 20, 10)],
+  };
+  // The Snail still counts on the drawing tick and is spent on the next, which moves a whole 7.5 units. The bound the
+  // renderer used to build from constants read the drawing tick (3.75 x 1.5 ramp = 5.6) and dropped the tip at 7.
+  assert.equal(player.speed, 7.5);
+  assert.deepEqual(
+    trailTip({ ...player, x: 27 }, game.tick + 0.9, "playing").at(-1),
+    { x: 27, y: 10 },
+  );
 });

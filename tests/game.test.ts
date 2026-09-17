@@ -45,7 +45,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type GameState,
   type InputIntent,
 } from "../src/engine/game.ts";
@@ -136,7 +136,7 @@ test("replaying the same accepted inputs produces the same snapshots and events"
     );
     assert.deepEqual(step(first, current), step(second, current));
   }
-  assert.deepEqual(toSnapshot(first), toSnapshot(second));
+  assert.deepEqual(toView(first), toView(second));
   assert.deepEqual(first.moments, second.moments);
 });
 
@@ -460,7 +460,7 @@ test("fatal trail ends at the nearest contact regardless of trail array order", 
       })),
     });
     step(state, new Map());
-    const dead = toSnapshot(state).players.find(
+    const dead = toView(state).players.find(
       (player) => player.id === rider.id,
     )!;
     assert.equal(dead.alive, false);
@@ -728,7 +728,7 @@ test("quick bomb action bursts launch at minimum range and cancel paths never la
     launched.events.filter((event) => event.type === "bombPlaced").length,
     1,
   );
-  assert.equal(toSnapshot(state).bombs[0]!.launchedTick, state.tick);
+  assert.equal(toView(state).bombs[0]!.launchedTick, state.tick);
 
   state.bombs.clear();
   owner.bombReadyAtTick = state.tick;
@@ -737,7 +737,7 @@ test("quick bomb action bursts launch at minimum range and cancel paths never la
     inputs(["p0", { bomb: true, bombCommands: [{ action: "press" }] }]),
   );
   assert.equal(
-    toSnapshot(state).players.find((player) => player.id === owner.id)!
+    toView(state).players.find((player) => player.id === owner.id)!
       .bombChargeStartedTick,
     state.tick,
   );
@@ -813,7 +813,7 @@ test("bomb uses the configured aim time while steering and follows the release h
     assert.ok(
       Math.abs(bomb.y - (owner.y + Math.sin(owner.angle) * distance)) < 1e-8,
     );
-    assert.equal(toSnapshot(state).bombChargeTicks, bombChargeTicks ?? 8);
+    assert.equal(toView(state).bombChargeTicks, bombChargeTicks ?? 8);
     assert.equal(owner.bombChargeStartedTick, undefined);
   }
 });
@@ -919,9 +919,9 @@ test("Triple Shot releases one deterministic straight three-bomb volley", () => 
   assert.equal(owner.tripleShotArmed, false);
   assert.equal(state.matchStats.get("p0")!.bombsPlaced, 3);
   assert.equal(owner.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
-  const snapshot = toSnapshot(state).bombs;
+  const snapshot = toView(state).bombs;
   snapshot[0]!.flightPath[0]!.x = -1;
-  assert.notEqual(toSnapshot(state).bombs[0]!.flightPath[0]!.x, -1);
+  assert.notEqual(toView(state).bombs[0]!.flightPath[0]!.x, -1);
 });
 
 test("invalid release and cancellation preserve launch modifiers", () => {
@@ -966,7 +966,7 @@ test("points score once, five rounds end the default match, and rematch resets m
   }
   assert.equal(state.phase, "matchOver");
   assert.equal(state.matchWinnerId, "p0");
-  const matchStats = toSnapshot(state).matchStats;
+  const matchStats = toView(state).matchStats;
   assert.equal(matchStats.length, 2);
   assert.deepEqual(
     matchStats.map((entry) => [
@@ -1012,7 +1012,7 @@ test("points score once, five rounds end the default match, and rematch resets m
     "new match starts fresh stats",
   );
   assert.deepEqual(
-    toSnapshot(state).matchStats,
+    toView(state).matchStats,
     [],
     "stats table is exposed only at match over",
   );
@@ -1087,7 +1087,7 @@ test("lifecycle commands enforce phase, capacity, identity, and connected-player
   addPlayer(state, { id: "b", name: "B", slot: 1, color: SLOT_COLORS[1] });
   setPlayerConnected(state, "b", false);
   assert.equal(
-    toSnapshot(state).players.find((player) => player.id === "b")!.connected,
+    toView(state).players.find((player) => player.id === "b")!.connected,
     false,
   );
   assert.throws(() => startMatch(state), /requires 2-5/);
@@ -1475,7 +1475,7 @@ test("drunk wobble expires at the strict tick boundary and resets between rounds
   assert.equal(player.drunkStartedTick, 0);
   assert.equal(player.drunkHeadingOffset, 0);
   assert.equal(
-    toSnapshot(state).players.find((candidate) => candidate.id === player.id)!
+    toView(state).players.find((candidate) => candidate.id === player.id)!
       .drunkUntilTick,
     0,
   );
@@ -1683,7 +1683,7 @@ test("countdown leave is stamped, scored once, and a later join receives no prio
     state.leaderboard.has("p1"),
     "seat departure preserves session history",
   );
-  assert.ok(toSnapshot(state).leaderboard.some((entry) => entry.id === "p1"));
+  assert.ok(toView(state).leaderboard.some((entry) => entry.id === "p1"));
 });
 
 test("overlapping blast owners receive no speculative elimination credit", () => {
@@ -1745,14 +1745,14 @@ test("match-over recap is frozen and deeply detached from engine state", () => {
   state.round = 5;
   eliminatePlayer(state, "p1");
   step(state, new Map());
-  const before = toSnapshot(state).matchStats;
+  const before = toView(state).matchStats;
   eliminatePlayer(state, "p0");
   setPlayerConnected(state, "p0", false);
-  const after = toSnapshot(state).matchStats;
+  const after = toView(state).matchStats;
   assert.deepEqual(after, before);
   assert.equal(state.players.get("p0")!.alive, true);
   after[0]!.deathsByCause.wall = 99;
-  assert.notEqual(toSnapshot(state).matchStats[0]!.deathsByCause.wall, 99);
+  assert.notEqual(toView(state).matchStats[0]!.deathsByCause.wall, 99);
 });
 
 test("Five Shot survives Triple collection and cancellation, then launches five with one cooldown", () => {
@@ -1776,7 +1776,7 @@ test("Five Shot survives Triple collection and cancellation, then launches five 
     ];
     step(state, new Map());
   }
-  assert.equal(toSnapshot(state).players[0]!.fiveShotArmed, true);
+  assert.equal(toView(state).players[0]!.fiveShotArmed, true);
   assert.equal(state.matchStats.get("p0")!.fivePickups, 1);
   step(
     state,
@@ -2146,7 +2146,7 @@ test("shell persists beyond five seconds and permits another shot after cooldown
   assert.equal(owner.shellArmed, false);
   assert.equal(owner.fiveShotArmed, false);
   assert.equal(owner.targetBombArmed, true);
-  const snap = toSnapshot(state).bombs[0]!;
+  const snap = toView(state).bombs[0]!;
   assert.equal(snap.shell!.vx, 450);
   snap.shell!.vx = -2;
   assert.equal(shell.shell!.vx, 450);
@@ -2293,7 +2293,7 @@ test("power changes only future shots, preserves fuse timing and resets next rou
     BOMB_BLAST_RANGE,
   );
   assert.equal(
-    toSnapshot(state).players.find((player) => player.id === owner.id)!
+    toView(state).players.find((player) => player.id === owner.id)!
       .powerPickups,
     6,
   );
@@ -2453,7 +2453,7 @@ test("a fixed-rounds match ends on the standings leader even when another rider 
     for (let tick = 0; tick < 5; tick += 1) step(state, new Map());
   });
   assert.equal(state.phase, "matchOver");
-  assert.equal(toSnapshot(state).matchWinnerId, "p0");
+  assert.equal(toView(state).matchWinnerId, "p0");
 });
 
 test("a drawn final round still awards the fixed-rounds match to the standings leader", () => {
@@ -2572,20 +2572,20 @@ test("a tied match shares victory and credits both champions once", () => {
 test("the snapshot carries the room aim-bounce flag, in both directions and without settings", () => {
   const state = createGame("aim-bounce-wire");
   assert.equal(
-    toSnapshot(state).aimBounce,
+    toView(state).aimBounce,
     false,
     "a game with no settings yet must not claim the room bounces",
   );
   // defaultRoomSettings() already bounces, so the true case has to come from the settings object to mean anything.
   state.settings = { ...defaultRoomSettings(), aimBounce: true };
   assert.equal(
-    toSnapshot(state).aimBounce,
+    toView(state).aimBounce,
     true,
     "a room with bouncing on must reach the preview",
   );
   state.settings = { ...defaultRoomSettings(), aimBounce: false };
   assert.equal(
-    toSnapshot(state).aimBounce,
+    toView(state).aimBounce,
     false,
     "a host who turned bouncing off must reach the preview",
   );

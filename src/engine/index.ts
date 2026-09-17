@@ -4,8 +4,8 @@
  * `src/engine/` except wire type names from `src/shared/protocol.ts` (through `state.ts`; issue #254 moves them in).
  *
  * App and net code should come through here; tests may deep-import. What rendering may read is a narrower contract,
- * `view.ts` (and the view-kit of issue #254), not this file. Existing importers still reach into the modules directly:
- * moving them is left to the layer work in #254/#255 so that this change stays a refactor of the engine alone.
+ * `view.ts` and `view-kit.ts` (docs/design/render-boundary.md), not this file. App and net importers still reach into
+ * the modules directly: moving them is left to the layer work in #255.
  */
 
 // The world: plain-data state, the commands that change it between ticks, and `step`, which is a loop over PHASES.
@@ -27,3 +27,5 @@ export type { DeathFact, TickContext, TickFact } from "./sim/context.js";
 export type { MatchPlayerStats, MatchStatsState } from "./match-stats.js";
 export type { DecidedRound, RoundShot, ShotKill, Weapon } from "./shot-log.js";
 export type { Moment, MomentKind } from "./moments.js";
+// What a screen is given: `toView(state)` (exported with the world above) builds it.
+export type { RiderView, ViewRules, WorldView } from "./view.js";

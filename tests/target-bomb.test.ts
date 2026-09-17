@@ -14,7 +14,7 @@ import {
   BOMB_COOLDOWN_TICKS,
   BOMB_BLAST_RANGE,
   RIDER_RADIUS,
-  toSnapshot,
+  toView,
   eliminatePlayer,
   startNextRound,
   type InputIntent,
@@ -60,7 +60,7 @@ test("target collection arms one normal-strength bomb and preserves volley upgra
     bombCommands: [{ action: "press", aim: { x: 0.25, y: 0.5 } }],
   });
   assert.deepEqual(player.bombTarget, { x: 400, y: 450 });
-  const snapshot = toSnapshot(game);
+  const snapshot = toView(game);
   snapshot.players[0]!.bombTarget!.x = 10;
   assert.equal(player.bombTarget!.x, 400);
   input({ bomb: true, aim: { x: 0.75, y: 0.25 } });

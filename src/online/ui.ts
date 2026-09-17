@@ -6,6 +6,7 @@ import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { mountArenaPresentation } from "../render/phaser/presentation.js";
+import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { createAccountPanel } from "./account-panel.js";
 import {
@@ -2225,7 +2226,8 @@ export async function startOnline(): Promise<void> {
       inputAt = 0;
       if (inputTimes.length > 100) inputTimes.shift();
     }
-    const predicted = runtime.view();
+    const frames = runtime.presentation();
+    const predicted = frames && presentFrames(frames);
     if (replayFrame(now, predicted)) {
       requestAnimationFrame(frame);
       return;

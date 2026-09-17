@@ -6,18 +6,5 @@
   "src/engine/state.ts -> src/shared/protocol.ts",
   "src/online/room-runtime.ts -> src/online/status-notices.ts",
   "src/online/room-runtime.ts -> src/shared/avatars.ts",
-  "src/online/room-runtime.ts -> src/shared/uuid.ts",
-  "src/render/arena-views.ts -> src/engine/wrap.ts",
-  "src/render/blast-animation.ts -> src/engine/game.ts",
-  "src/render/bomb-preview.ts -> src/engine/bomb-launch.ts",
-  "src/render/phaser/arena.ts -> src/engine/arena-map.ts",
-  "src/render/phaser/arena.ts -> src/engine/game.ts",
-  "src/render/phaser/arena.ts -> src/engine/launch-modifiers.ts",
-  "src/render/phaser/arena.ts -> src/engine/wrap.ts",
-  "src/render/phaser/arena.ts -> src/shared/avatars.ts",
-  "src/render/phaser/trails.ts -> src/engine/game.ts",
-  "src/render/self-locator.ts -> src/engine/game.ts",
-  "src/render/trail-debris.ts -> src/engine/blast-geometry.ts",
-  "src/render/trail-debris.ts -> src/engine/game.ts",
-  "src/render/trail-debris.ts -> src/engine/trail-lifecycle.ts"
+  "src/online/room-runtime.ts -> src/shared/uuid.ts"
 ]

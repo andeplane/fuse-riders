@@ -13,7 +13,7 @@ import {
   eliminatePlayer,
   setPlayerConnected,
   startNextRound,
-  toSnapshot,
+  toView,
   SLOT_COLORS,
 } from "../src/engine/game.js";
 import {
@@ -230,7 +230,7 @@ test("round reports use frozen confirmed standings, survive the next round and e
   for (let i = 0; i < 60; i++) step(game, new Map());
   eliminatePlayer(game, OTHER);
   step(game, new Map());
-  const decided = toSnapshot(game).decidedRound!;
+  const decided = toView(game).decidedRound!;
   assert.ok(decided.rating);
   assert.equal(buildRoundReport(decided, RIDER, decided.tick - 1), undefined);
   assert.equal(buildRoundReport(decided, "spectator", decided.tick), undefined);
@@ -244,7 +244,7 @@ test("round reports use frozen confirmed standings, survive the next round and e
   );
   setPlayerConnected(game, OTHER, false);
   assert.deepEqual(
-    buildRoundReport(toSnapshot(game).decidedRound, RIDER, game.tick),
+    buildRoundReport(toView(game).decidedRound, RIDER, game.tick),
     report,
     "a departure after the decision cannot rewrite it",
   );
@@ -253,12 +253,12 @@ test("round reports use frozen confirmed standings, survive the next round and e
   while (game.tick < game.phaseEndsAtTick!) step(game, new Map());
   if (game.phase === "roundOver") startNextRound(game);
   assert.deepEqual(
-    buildRoundReport(toSnapshot(game).decidedRound, RIDER, game.tick),
+    buildRoundReport(toView(game).decidedRound, RIDER, game.tick),
     report,
   );
   decided.rating!.finishers.length = 0;
   assert.deepEqual(
-    buildRoundReport(toSnapshot(game).decidedRound, RIDER, game.tick),
+    buildRoundReport(toView(game).decidedRound, RIDER, game.tick),
     report,
     "snapshots cannot mutate the frozen simulation result",
   );

@@ -1,9 +1,3 @@
-import {
-  RIDER_SPEED,
-  SPEED_RAMP_MAX,
-  TICK_HZ,
-  riderSpeedMultiplier,
-} from "../../engine/game.js";
 import type { TrailSegment, WorldView } from "../../engine/view.js";
 
 type Rider = WorldView["players"][number];
@@ -139,12 +133,8 @@ export function trailTip(
     last.createdTick === Math.floor(tick) &&
     player.portalCooldownUntilTick <= tick &&
     distance > 1e-6 &&
-    distance <=
-      (RIDER_SPEED *
-        riderSpeedMultiplier(player, last.createdTick) *
-        SPEED_RAMP_MAX) /
-        TICK_HZ +
-        1e-6
+    // One step at most: the view says how far this rider goes on the next tick, whatever is speeding or slowing it.
+    distance <= player.speed + 1e-6
   ) {
     points.push({ x: player.x, y: player.y });
   }

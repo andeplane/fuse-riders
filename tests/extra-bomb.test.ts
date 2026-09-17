@@ -8,7 +8,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type InputIntent,
   type PickupType,
 } from "../src/engine/game.js";
@@ -89,7 +89,7 @@ test("each pickup adds one bomb, every subsequent shot retains it, and a new rou
     step(game, fire);
     assert.equal(rider.extraBombs, upgrades);
     assert.equal(game.bombs.size, upgrades + 1);
-    assert.equal(toSnapshot(game).players[0]!.extraBombs, upgrades);
+    assert.equal(toView(game).players[0]!.extraBombs, upgrades);
     const ids = game.nextBombId;
     step(game, fire);
     assert.equal(

@@ -1,6 +1,4 @@
-import { BLAST_VISIBLE_TICKS, TRAIL_WIDTH } from "../engine/game.js";
-import { advanceTrail } from "../engine/trail-lifecycle.js";
-import { segmentIntersectsDisk } from "../engine/blast-geometry.js";
+import { advanceTrail, segmentIntersectsDisk } from "../engine/view-kit.js";
 import type { TrailSegment, WorldView } from "../engine/view.js";
 
 export interface DebrisStroke {
@@ -76,7 +74,8 @@ export class TrailDebris {
           (blast) =>
             !this.blasts.has(blast.bombId) &&
             blast.expiresAtTick > snapshot.tick &&
-            blast.expiresAtTick - BLAST_VISIBLE_TICKS > Math.floor(this.tick),
+            blast.expiresAtTick - snapshot.rules.blastVisibleTicks >
+              Math.floor(this.tick),
         );
     if (fresh.length) {
       const incoming: Fragment[] = [];
@@ -119,7 +118,7 @@ export class TrailDebris {
                 segment.x2,
                 segment.y2,
                 blast.circle,
-                TRAIL_WIDTH / 2,
+                snapshot.rules.trailWidth / 2,
               )
             )
               continue;

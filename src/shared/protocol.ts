@@ -1,9 +1,9 @@
 import { isAvatarId, type AvatarId } from "./avatars.js";
-import type { GameEvent, GameSnapshot } from "../engine/view.js";
+import type { GameEvent, WorldView } from "../engine/view.js";
 
 export type { AvatarId } from "./avatars.js";
 // The engine publishes what a screen sees and what a tick reports; the LAN wire only names them.
-export type { GameEvent, GameSnapshot } from "../engine/view.js";
+export type { GameEvent, WorldView } from "../engine/view.js";
 export type {
   ArenaMapId,
   Obstacle,
@@ -91,7 +91,7 @@ export type ServerMessage =
       matchId: string;
       round: number;
       tick: number;
-      state: GameSnapshot;
+      state: WorldView;
     }
   | {
       type: "event";
