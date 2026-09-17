@@ -72,16 +72,18 @@ export class SocketClient {
     });
     socket.addEventListener("message", (event) => {
       if (socket !== this.socket || typeof event.data !== "string") return;
+      let message: ServerMessage;
       try {
-        const message = JSON.parse(event.data) as ServerMessage;
-        if (message.type === "pong") {
-          this.onRoundTrip?.(performance.now() - message.sentAt);
-          return;
-        }
-        this.onMessage(message);
+        message = JSON.parse(event.data) as ServerMessage;
       } catch {
-        // Ignore malformed server frames; the next complete snapshot repairs the view.
+        // Ignore malformed JSON; application exceptions belong to the browser error boundary.
+        return;
       }
+      if (message?.type === "pong") {
+        this.onRoundTrip?.(performance.now() - message.sentAt);
+        return;
+      }
+      this.onMessage(message);
     });
     socket.addEventListener("close", (event) => {
       if (socket !== this.socket) return;
