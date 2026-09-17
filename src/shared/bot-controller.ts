@@ -1,5 +1,5 @@
 import { hypot2, sin, cos, atan2 } from './deterministic-math.js';
-import { RIDER_RADIUS, BOOST_SPEED, RIDER_SPEED, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
+import { RIDER_RADIUS, RIDER_SPEED, gravityBend, SPEED_RAMP_MAX, riderMotionStep, riderSpeedMultiplier, SELF_TRAIL_GRACE_TICKS, TRAIL_WIDTH, TICK_HZ, OVERTIME_START_TICK, OVERTIME_INSET_PER_TICK, segmentDistanceSquared, type GameState, type InputIntent, type PlayerState } from './game.js';
 import { BOMB_MAX_CHARGE_TICKS, BOMB_MIN_LAUNCH_DISTANCE, BOMB_MAX_LAUNCH_DISTANCE } from './bomb-launch.js';
 import { advanceRiderPose } from './rider-motion.js';
 import { drunkHeadingOffset } from './drunk.js';
@@ -56,9 +56,8 @@ const TRAIL_CLEARANCE=RIDER_RADIUS+TRAIL_WIDTH/2+SAFETY_MARGIN;
 /** Replan every tick, but evaluate short turns followed by straight escape paths. */
 function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:PlayerState[],target:{x:number;y:number}|undefined,random:number,lookahead:number):number {
   // The fastest anyone here could go inside the lookahead: a Snail wearing off, or a rival's stacked Nitros, must not
-  // put a trail past the horizon that is about to be reachable. The boost stays the floor, so the horizon a bot has
-  // always planned with is unchanged until a Nitro is actually in play.
-  let fastest=BOOST_SPEED;
+  // put a trail past the horizon that is about to be reachable. The floor keeps a quarter of slack over base speed.
+  let fastest=1.25;
   for(const rider of [player,...enemies])for(let future=1;future<=lookahead;future++)fastest=Math.max(fastest,riderSpeedMultiplier(rider,game.tick+future));
   const reach=lookahead*RIDER_SPEED*fastest*SPEED_RAMP_MAX/TICK_HZ+TRAIL_CLEARANCE;
   const trails=[...game.players.values()].flatMap(owner=>owner.trail.map(trail=>({trail,own:owner.id===player.id,distance:distanceToSegmentSquared(player.x,player.y,trail)})))
@@ -66,15 +65,19 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
     .sort((a,b)=>a.distance-b.distance).slice(0,BOT_MAX_NEARBY_TRAILS);
   // Assume visible opponents continue straight; never inspect their queued inputs.
   // Their predicted trail remains dangerous after their head has passed a crossing.
+  // Holes that close inside the lookahead are planned as if they stayed: a bot expects the curve a moment too long, never too short.
+  const fields=game.gravityFields;
   const enemyPaths=enemies.filter(enemy=>squared(enemy.x-player.x)+squared(enemy.y-player.y)<squared(reach*2)).map(enemy=>{
     let pose={x:enemy.x,y:enemy.y,angle:enemy.angle,drunkHeadingOffset:enemy.drunkHeadingOffset};
     const path=Array.from({length:lookahead},(_,index)=>{
       const tick=game.tick+index+1,previous=pose;
-      pose=advanceRiderPose(previous,NEUTRAL,{...riderMotionStep(enemy,tick,game.roundStartedTick),
+      const motion=riderMotionStep(enemy,tick,game.roundStartedTick);
+      pose=advanceRiderPose({...previous,angle:previous.angle+gravityBend(fields,previous,motion.turn)},NEUTRAL,{...motion,
         drunkHeadingOffset:drunkHeadingOffset(game.seed,enemy.id,tick,enemy.drunkStartedTick,enemy.drunkUntilTick)});
       return {x1:previous.x,y1:previous.y,x2:pose.x,y2:pose.y,createdTick:tick,expiresAtTick:tick+lookahead};
     });
-    return {path,straight:enemy.drunkUntilTick<=game.tick&&enemy.drunkHeadingOffset===0};
+    // A black hole curves a coasting rider too, so its path is only one straight trail on a field without any.
+    return {path,straight:enemy.drunkUntilTick<=game.tick&&enemy.drunkHeadingOffset===0&&fields.length===0};
   });
   const directions=random<.5?[-1,1]:[1,-1];
   const plans:SteeringPlan[]=[{direction:0,turnTicks:0},...directions.flatMap(direction=>TURN_DURATIONS.filter(turnTicks=>turnTicks<=lookahead).map(turnTicks=>({direction,turnTicks})))];
@@ -86,7 +89,7 @@ function chooseSteering(game:Readonly<GameState>,player:PlayerState,enemies:Play
     for(let future=1;future<=lookahead;future++){
       const tick=game.tick+future,previous=pose;
       const {distance,turn}=riderMotionStep(player,tick,game.roundStartedTick);
-      pose=advanceRiderPose(previous,{left:plan.direction<0&&future<=plan.turnTicks,right:plan.direction>0&&future<=plan.turnTicks},
+      pose=advanceRiderPose({...previous,angle:previous.angle+gravityBend(fields,previous,turn)},{left:plan.direction<0&&future<=plan.turnTicks,right:plan.direction>0&&future<=plan.turnTicks},
         {distance,turn,drunkHeadingOffset:drunkHeadingOffset(game.seed,player.id,tick,player.drunkStartedTick,player.drunkUntilTick)});
       const {x,y}=pose;
       const elapsed=game.tick-(game.roundStartedTick??game.tick);

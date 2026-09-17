@@ -219,7 +219,7 @@ test('following riders survive when their swept paths are close but their bodies
       const ahead = reversed ? 'p0' : 'p1';
       for (const [id, x] of [[behind, 500], [ahead, 520]] as const) {
         Object.assign(state.players.get(id)!, {
-          x, y: 350, angle: 0, trail: [], boostUntilTick: boosted ? state.tick + 10 : 0,
+          x, y: 350, angle: 0, trail: [], nitroUntilTicks: boosted ? [state.tick + 10] : [],
         });
       }
       const result = step(state, new Map());

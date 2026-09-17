@@ -26,11 +26,6 @@ const artwork: Record<string, string> = {
     <path d="m9 35 9 13 10-13" fill="none" stroke="#effff1" stroke-width="5"/>
     <path d="M46 48v-9" stroke="#effff1" stroke-width="3"/>
   `,
-  'pickup-boost': `
-    <circle cx="32" cy="32" r="21" fill="url(#body)" stroke="#5cf0ff" stroke-width="2.5"/>
-    <path d="M35 11 19 35h11l-3 18 18-26H34z" fill="url(#cyan)" stroke="#e4fdff" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M8 25h9M6 33h11M9 41h8" fill="none" stroke="#8ff8ff" stroke-width="3" stroke-linecap="round" opacity=".75"/>
-  `,
   'pickup-nitro': `
     <circle cx="32" cy="32" r="22" fill="url(#body)" stroke="#ffb14a" stroke-width="2.5"/>
     <path d="m14 18 15 14-15 14Z" fill="url(#orange)" stroke="#fff0c4" stroke-width="2" stroke-linejoin="round"/>

@@ -538,7 +538,6 @@ function startController(): void {
   const matchPoints = element('span', 'power-chip points-power', 'PTS · 0');
   powerStrip.append(countPower, starPower, nitroPower, slowedPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, matchPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
-  const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -610,7 +609,6 @@ function startController(): void {
       y: clamp((player.y + Math.sin(player.angle) * 100) / snapshot.height, 0, 1),
     } : undefined);
     targetPower.textContent = player.targetBombArmed ? 'TARGET · ARMED' : 'TARGET · --';
-    gravityPower.textContent = player.gravityArmed ? 'SINGULARITY · ARMED' : 'SINGULARITY · --';
     const scored = snapshot as ScoredSnapshot;
     liveAvatarPicker.sync(player.avatarId);
     root.style.setProperty('--player-color', escapeColor(player.color));

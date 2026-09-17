@@ -15,9 +15,8 @@ The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` sup
 | `pickup-five.svg` | Rare five-bomb fan; gold frame distinguishes it from Triple. |
 | `pickup-triple.svg` | Triple Shot. |
 | `pickup-orbitShield.svg`, `pickup-portal.svg` | Orbit Shield and Portal. |
-| `pickup-boost.svg` | Speed boost: a quarter faster for three seconds. |
 | `pickup-nitro.svg`, `pickup-snail.svg` | Nitro: double speed for five seconds. Snail: rivals at half speed for five seconds. Both stack per pickup. |
-| `pickup-gravity.svg` | Singularity: the next bomb leaves a field that drags riders inward for four seconds. |
+| `pickup-gravity.svg` | Gravity: opens one to three black holes that bend every rider's path for eight seconds. |
 
 All sprites have transparent 32×32 SVG viewboxes. The rider points right at angle zero, centered at `[16,16]`. Recoloring preserves white highlights and dark interiors. Bombs keep a dark body with a procedural fuse ring. Pickup icons use `[16,16]` anchors; flame source art uses `[16,27]`. Bombs and pickups rasterize at 128×128 in Phaser and use smooth image scaling in both Phaser backends and the legend. Countdown arcs have rounded highlights; blast discs and radius outlines follow the supplied radius without grid snapping. Charge indicators, bomb flight/release effects, shield orbits, gravity fields, and linked portal walls are rendered procedurally using the active palette. Art never changes server hitboxes.
 

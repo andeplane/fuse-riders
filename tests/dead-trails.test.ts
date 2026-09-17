@@ -145,7 +145,7 @@ for (const weapon of ['bomb', 'target', 'gun'] as const) {
     assert.ok(rider.trail[0]!.detached, 'older cut-off piece decays');
     assert.equal(rider.trail.at(-1)!.detached, undefined, 'newest tail remains active');
     const start = rider.trail[0]!.detached!.decayStartTick;
-    rider.boostUntilTick = game.tick + 60;
+    rider.nitroUntilTicks = [game.tick + 60];
     advanceWithSurvivors(game, 330);
     assert.equal(rider.trail.length, 320, 'full Power-adjusted moving trail returns');
     assert.ok(rider.trail.every(s => !s.detached));

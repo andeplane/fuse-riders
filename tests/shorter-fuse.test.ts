@@ -58,18 +58,17 @@ test('collecting Fuse leaves launched bombs and active reloads unchanged', () =>
   assert.equal(rider.powerPickups, 0);
 });
 
-test('held and cancelled input preserves Fuse; shortened volleys retain Power and Singularity', () => {
+test('held and cancelled input preserves Fuse; shortened volleys retain Power', () => {
   for (const temporary of ['triple', 'five'] as const) {
     const game = playing(), rider = game.players.get('p0')!;
     step(game, commands('press'));
     collect(game, 'stopwatch'); step(game, commands('cancel'));
     assert.equal(rider.fuseLevel, 1); assert.equal(game.bombs.size, 0);
     step(game, commands('press'));
-    collect(game, 'stopwatch', 'extraBomb', 'power', 'gravity', temporary); step(game, commands('release'));
+    collect(game, 'stopwatch', 'extraBomb', 'power', temporary); step(game, commands('release'));
     const bombs = [...game.bombs.values()];
     assert.equal(bombs.length, temporary === 'triple' ? 4 : 6);
     assert.ok(bombs.every(bomb => bomb.explodeAtTick - bomb.launchedTick === 20 && bomb.blastRange === powerBlastRadius(1)));
-    assert.equal(bombs.filter(bomb => bomb.gravity).length, 1);
     assert.equal(rider.reloadDurationTicks, powerReloadTicks(1));
   }
 });

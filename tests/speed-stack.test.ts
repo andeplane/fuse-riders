@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  BOOST_DURATION_TICKS, BOOST_SPEED, MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, NITRO_SPEED, RIDER_SPEED, SNAIL_DURATION_TICKS, SNAIL_SPEED, TICK_HZ,
+  MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, NITRO_SPEED, RIDER_SPEED, SNAIL_DURATION_TICKS, SNAIL_SPEED, TICK_HZ,
   SLOT_COLORS, addPlayer, createGame, eliminatePlayer, riderMotionStep, riderSpeedMultiplier, startMatch, startNextRound, step, toSnapshot, type GameState, type InputIntent, type PickupType,
 } from '../src/shared/game.js';
 import { presentWorld } from '../src/online/prediction.js';
@@ -114,11 +114,8 @@ test('Snails stack on a rival, and a Snail cancels a Nitro one for one, with the
   close(ratio(game, control, 'p1'), SNAIL_SPEED, 'one Nitro cancels one of two Snails');
   drop(game, 'p1', 'nitro'); step(game, new Map()); step(control, new Map());
   close(ratio(game, control, 'p1'), 1, 'two Nitros against two Snails is exactly ordinary speed');
-  drop(game, 'p1', 'boost'); step(game, new Map()); step(control, new Map());
-  assert.equal(rival.boostUntilTick, game.tick + BOOST_DURATION_TICKS);
-  close(ratio(game, control, 'p1'), BOOST_SPEED, 'the boost is one more factor in the same product');
-  assert.equal(riderSpeedMultiplier({ boostUntilTick: 0, nitroUntilTicks: [10, 10, 10], snailUntilTicks: [10] }, 5), 4, 'three Nitros and a Snail multiply to four');
-  assert.equal(riderSpeedMultiplier({ boostUntilTick: 0, nitroUntilTicks: [5], snailUntilTicks: [6] }, 5), SNAIL_SPEED, 'a deadline equal to the tick has expired; a later one has not');
+  assert.equal(riderSpeedMultiplier({ nitroUntilTicks: [10, 10, 10], snailUntilTicks: [10] }, 5), 4, 'three Nitros and a Snail multiply to four');
+  assert.equal(riderSpeedMultiplier({ nitroUntilTicks: [5], snailUntilTicks: [6] }, 5), SNAIL_SPEED, 'a deadline equal to the tick has expired; a later one has not');
 });
 
 test('speed deadlines stay sorted, are bounded, and are cleared by a new round', () => {
