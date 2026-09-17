@@ -169,10 +169,13 @@ try {
               },
             });
             const app = document.querySelector(".online-app")!;
-            const landing = document.createElement("div");
-            landing.className = "landing-top";
+            const landing = app.querySelector(".landing-top-end")!;
+            for (const control of landing.querySelectorAll(".landing-account"))
+              control.remove();
+            for (const dialog of app.querySelectorAll(".stats-dialog"))
+              dialog.remove();
             landing.append(panel.leaderboardButton, panel.button);
-            app.replaceChildren(landing, panel.dialog);
+            app.append(panel.dialog);
           },
           { api },
         );
@@ -180,6 +183,16 @@ try {
         await page
           .getByRole("button", { name: expected, exact: true })
           .waitFor();
+        assert.equal(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth > window.innerWidth + 1,
+          ),
+          false,
+          "signed-in landing fits",
+        );
+        await page.screenshot({
+          path: `artifacts/player-landing-${name}-${viewport.width}.png`,
+        });
         await page.getByRole("button", { name: expected, exact: true }).click();
         await page.locator(".rating-chart").waitFor();
         assert.equal(
@@ -223,10 +236,10 @@ try {
           .getByLabel("Game opponents", { exact: true })
           .selectOption("all");
         const overflow = await page
-          .locator(".dialog-body")
+          .locator(".stats-dialog .dialog-body")
           .evaluate((e) => e.scrollWidth > e.clientWidth + 1);
         assert.equal(overflow, false, "no horizontal overflow");
-        await page.locator(".dialog-body").evaluate((e) => {
+        await page.locator(".stats-dialog .dialog-body").evaluate((e) => {
           e.scrollTop = 0;
         });
         await page.screenshot({
@@ -252,10 +265,13 @@ try {
         await page.getByText("Account settings", { exact: true }).click();
         await page
           .getByLabel("USERNAME", { exact: true })
-          .fill("Renamed Rider");
+          .fill(`Rider ${viewport.width}`);
         await page.getByRole("button", { name: "SAVE", exact: true }).click();
         await page
-          .getByRole("heading", { name: "Renamed Rider", exact: true })
+          .getByRole("heading", {
+            name: `Rider ${viewport.width}`,
+            exact: true,
+          })
           .waitFor();
         await page
           .getByRole("button", { name: "SIGN OUT", exact: true })
