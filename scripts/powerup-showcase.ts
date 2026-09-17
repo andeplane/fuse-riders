@@ -132,11 +132,9 @@ try {
         },
         { backend, themeId, types },
       );
-      await page
-        .locator('canvas[data-ready="true"]')
-        .screenshot({
-          path: `${output}/${browserName}-${backend}-${themeId}.png`,
-        });
+      await page.locator('canvas[data-ready="true"]').screenshot({
+        path: `${output}/${browserName}-${backend}-${themeId}.png`,
+      });
       await page.evaluate(() =>
         window.dispatchEvent(new Event("showcase-dispose")),
       );

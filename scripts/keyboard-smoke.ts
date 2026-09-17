@@ -117,22 +117,20 @@ for (const [name, type] of [
         );
         console.error(
           `keyboard-smoke ${name}: last scheduled inputs (snapshotTick = authority tick known when the input was sent):`,
-          inputs
-            .slice(-12)
-            .map((i) => ({
-              seq: i.seq,
-              bomb: i.bomb,
-              bombAction: i.bombAction,
-              scheduled: i.scheduled,
-              intendedTick: i.intendedTick,
-              sent: i.sent,
-              estimateTick:
-                i.estimate === undefined
-                  ? undefined
-                  : Number(i.estimate.tick.toFixed(2)),
-              snapshotTick: i.snapshotTick,
-              pending: i.pending,
-            })),
+          inputs.slice(-12).map((i) => ({
+            seq: i.seq,
+            bomb: i.bomb,
+            bombAction: i.bombAction,
+            scheduled: i.scheduled,
+            intendedTick: i.intendedTick,
+            sent: i.sent,
+            estimateTick:
+              i.estimate === undefined
+                ? undefined
+                : Number(i.estimate.tick.toFixed(2)),
+            snapshotTick: i.snapshotTick,
+            pending: i.pending,
+          })),
         );
       }
       assert.ok(

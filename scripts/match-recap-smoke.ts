@@ -57,9 +57,7 @@ async function inside(page: Page, locator: Locator): Promise<void> {
     `Element outside ${view.width}x${view.height}: ${JSON.stringify(box)}`,
   );
 }
-async function assertRecapLayout(
-  page: Page,
-): Promise<{
+async function assertRecapLayout(page: Page): Promise<{
   podium: number;
   awards: number;
   totals: number;

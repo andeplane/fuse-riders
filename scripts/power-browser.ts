@@ -45,27 +45,25 @@ try {
         throw Error("WebGL did not start");
       await document.fonts.ready;
       const fixture = visualFixture(100);
-      const players = fixture.players
-        .slice(0, 3)
-        .map((p, i) => ({
-          ...p,
-          name: ["ADA", "BO", "CY"][i]!,
-          x: 400 + 400 * i,
-          y: 450,
-          color: ["#22d3ee", "#ff55bb", "#77ff66"][i]!,
-          powerPickups: [0, 1, 12][i]!,
-          alive: true,
-          trail: [],
-          shielded: false,
-          drunkUntilTick: 0,
-          invulnerableUntilTick: 0,
-          portalGraceUntilTick: 0,
-          shieldGraceUntilTick: 0,
-          inkUntilTick: 0,
-          bombChargeStartedTick: undefined,
-          bombReadyAtTick: 130,
-          reloadDurationTicks: 80,
-        }));
+      const players = fixture.players.slice(0, 3).map((p, i) => ({
+        ...p,
+        name: ["ADA", "BO", "CY"][i]!,
+        x: 400 + 400 * i,
+        y: 450,
+        color: ["#22d3ee", "#ff55bb", "#77ff66"][i]!,
+        powerPickups: [0, 1, 12][i]!,
+        alive: true,
+        trail: [],
+        shielded: false,
+        drunkUntilTick: 0,
+        invulnerableUntilTick: 0,
+        portalGraceUntilTick: 0,
+        shieldGraceUntilTick: 0,
+        inkUntilTick: 0,
+        bombChargeStartedTick: undefined,
+        bombReadyAtTick: 130,
+        reloadDurationTicks: 80,
+      }));
       const snapshot = {
         ...fixture,
         players,

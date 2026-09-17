@@ -1585,10 +1585,9 @@
 }
 .match-recap-report .comparison-row {
   min-width: 51.25rem;
-  grid-template-columns: minmax(9.375rem, 1.55fr) repeat(
-      7,
-      minmax(3.25rem, 1fr)
-    ) minmax(14.375rem, 2.4fr) repeat(2, minmax(3.25rem, 1fr));
+  grid-template-columns:
+    minmax(9.375rem, 1.55fr) repeat(7, minmax(3.25rem, 1fr))
+    minmax(14.375rem, 2.4fr) repeat(2, minmax(3.25rem, 1fr));
 }
 .match-recap-report .recap-empty {
   margin: 0;

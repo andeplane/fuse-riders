@@ -73,16 +73,14 @@ test("entry collision is resolved before transit, and shield remains independent
     const state = arena();
     const player = state.players.get("p0")!;
     player.shielded = shielded;
-    state.players
-      .get("p1")!
-      .trail.push({
-        x1: 188,
-        y1: 100,
-        x2: 188,
-        y2: 250,
-        createdTick: 0,
-        expiresAtTick: 500,
-      });
+    state.players.get("p1")!.trail.push({
+      x1: 188,
+      y1: 100,
+      x2: 188,
+      y2: 250,
+      createdTick: 0,
+      expiresAtTick: 500,
+    });
     step(state, new Map());
     assert.equal(player.alive, shielded);
     assert.equal(state.matchStats.get("p0")!.portalTransits, shielded ? 1 : 0);
@@ -249,16 +247,14 @@ test("portal defensive grace expires exactly at the authoritative tick", () => {
     const player = state.players.get("p0")!;
     state.portalPairs = [];
     player.portalGraceUntilTick = state.tick + remaining;
-    state.players
-      .get("p1")!
-      .trail.push({
-        x1: 188,
-        y1: 100,
-        x2: 188,
-        y2: 250,
-        createdTick: 0,
-        expiresAtTick: 500,
-      });
+    state.players.get("p1")!.trail.push({
+      x1: 188,
+      y1: 100,
+      x2: 188,
+      y2: 250,
+      createdTick: 0,
+      expiresAtTick: 500,
+    });
     step(state, new Map());
     assert.equal(player.alive, remaining === 2);
   }
