@@ -8,6 +8,9 @@ import { installRoomLifecycle } from './room-lifecycle.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
+import { createAccountPanel } from './account-panel.js';
+import { identityToken } from './account.js';
+import { buildMatchReport, sendMatchReport } from './match-report.js';
 import { ControllerInputState } from '../client/controller-state.js';
 import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
 import { ControllerPointerBindings } from '../client/controller-pointers.js';
@@ -123,6 +126,9 @@ export async function startOnline():Promise<void>{
     landingSettings.onclick=()=>{showRoomSettings(landingBody,loadRoomSettings(localStorage),true,labels,draft=>{if(!parseRoomSettings(draft))return false; // no room authority behind this save: a draft the loader would reject later must never reach storage, or every setting resets on the next load
       save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
     card.querySelector('.landing-top-end')!.append(landingSettings);card.append(landingDialog);
+    // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
+    const accountPanel=createAccountPanel({historyUrl:before=>apiUrl(`/api/me/matches${before===undefined?'':`?before=${before}`}`),fetch:(input,init)=>fetch(input,init),track});
+    card.querySelector('.landing-top-end')!.append(accountPanel.button);card.append(accountPanel.dialog);window.addEventListener('pagehide',accountPanel.dispose,{once:true});
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
   if(!solo&&!validRoomCode(code)){app.textContent='Invalid room code';return;}
@@ -344,7 +350,11 @@ export async function startOnline():Promise<void>{
         // Only this match's own start time is a duration: a device that saw match 1 begin and missed match 2's
         // start would otherwise report match 1's clock as match 2's length, which is worse than reporting none.
         const sawStart=startedMatch===matchStartKey(matchId,'countdown',1);
-        track('Match Ended',{...matchEndedProps(state.matchStats,id),...(sawStart&&matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});}
+        track('Match Ended',{...matchEndedProps(state.matchStats,id),...(sawStart&&matchStartedAt?{durationSeconds:Math.round((Date.now()-matchStartedAt)/1000)}:{})});
+        // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
+        // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
+        const report=solo?undefined:buildMatchReport({matchId,matchLength:state.matchLength,...(state.matchWinnerId===undefined?{}:{matchWinnerId:state.matchWinnerId}),matchStats:state.matchStats,players:state.players},id);
+        if(report)void sendMatchReport(apiUrl(`/api/rooms/${code}/results`),report,{fetch:(input,init)=>fetch(input,init),roomToken:token,identityToken});}
       inputState.configureTargetAim(player?.targetBombArmed&&!player.gunArmed&&!player.shellArmed?{x:player.x/state.width,y:player.y/state.height}:undefined);
       powerStatus.hidden=!player||displayOnly||!['playing','countdown'].includes(state.phase);
       powerStatus.textContent=player?powerLabel(player.powerPickups, player.extraBombs, player.grip):'';

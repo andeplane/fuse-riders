@@ -1,0 +1,19 @@
+.landing-top .landing-account{font-size:10px;letter-spacing:1px;color:#a8bad2;border:1px solid #43536b;background:#040b19b0;white-space:nowrap;max-width:22ch;overflow:hidden;text-overflow:ellipsis}
+.landing-top .landing-account[data-signed-in=true]{color:#9ff5ff;border-color:#16e7ff}
+.account-panel{display:grid;gap:14px}
+.account-panel .account-note{margin:0;color:#b6cce3;font-size:13px;line-height:1.5}
+.account-panel .account-error{margin:0;color:#ffa6c9;font-size:13px;min-height:1em}
+.account-panel .account-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0}
+.account-panel .account-totals div{padding:10px 6px;border:1px solid #2b3a52;text-align:center}
+.account-panel .account-totals dt{font-size:10px;letter-spacing:1px;color:#9cbad4}
+.account-panel .account-totals dd{margin:6px 0 0;font:14px 'Press Start 2P',monospace;color:#eefaff}
+.account-panel .account-matches{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.account-panel .account-match{padding:10px 12px;border:1px solid #2b3a52;display:grid;gap:6px}
+.account-panel .account-match[data-won=true]{border-color:#a3e635}
+.account-panel .account-match header{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#9cbad4}
+.account-panel .account-match header strong{color:#eefaff}
+.account-panel .account-riders{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:#b6cce3}
+.account-panel .account-riders li[data-you=true]{color:#eefaff;font-weight:700}
+.account-panel .account-riders i{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%}
+.account-panel .account-actions{display:flex;flex-wrap:wrap;gap:10px}
+@media (max-width:520px){.account-panel .account-totals{grid-template-columns:repeat(2,minmax(0,1fr))}}

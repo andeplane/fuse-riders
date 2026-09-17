@@ -52,6 +52,7 @@ super property on every event. `mode` and `solo` are registered only on the room
 | `Settings Changed` | a draft the runtime accepted | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `powerupTypes` |
 | `Connect Failed` | 20s with no link to the host | `status` (the status line, `null` if none yet), `secondsWaiting` |
 | `Boot Failed` | the boot-failure card is shown | `message` |
+| `Signed In` | a Google sign-in from the landing page's account dialog succeeded | — |
 
 `matchNumber` counts matches within a page load, so a rematch is the same signal a separate `Rematch` event
 would carry, with one fewer event to reconcile. `played` is false on a shared-TV display or for a spectator,
@@ -157,6 +158,9 @@ reported as `matchLength` for exactly this reason.
 - **Bots.** They are counted in `botCount` and never identified as users.
 - **Identity beyond Mixpanel's own anonymous device id.** The `fuse-peer-*` and `fuse-room-*` values are room
   authentication tokens and never leave the browser.
+- **Accounts.** `Signed In` says that a sign-in happened and nothing about whose: the Firebase `uid`, the Google
+  name and the ID token are never event properties, and Mixpanel is never `identify`-ed with them. Match history
+  lives in the game's own database (README, "Login and match history"), not here.
 - **The page URL.** A room page is `?room=AB42` and that code is the whole join credential, so `$current_url`,
   `$referrer` and `$initial_referrer` — which Mixpanel would otherwise attach to every event — are blacklisted at
   `init`. Sending them would hand a live, joinable invite to a third party on every seat, match and setting

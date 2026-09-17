@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRoomServer, type RoomServer } from './http.js';
-import { LocalRoomBus, MemoryRoomDatabase } from './memory-database.js';
+import { LocalRoomBus, MemoryHistoryDatabase, MemoryRoomDatabase } from './memory-database.js';
+import { HistoryStore } from './history.js';
+import { createIdentityVerifier, type IdentityVerifier } from './identity.js';
+import { FIREBASE_PROJECT_ID } from '../shared/firebase-config.js';
 import { RoomGateway } from './gateway.js';
 import { RoomStore } from './room-store.js';
 
@@ -12,6 +15,8 @@ export interface DevRoomServiceOptions {
   /** Extra page origins allowed besides same-origin loopback pages. */
   allowedOrigins?: readonly string[];
   now?: () => number;
+  /** Defaults to real Firebase verification, so a local sign-in works; tests pass a fake. */
+  identity?: IdentityVerifier;
 }
 export interface DevRoomService { server: RoomServer; gateway: RoomGateway; close(): Promise<void> }
 
@@ -37,8 +42,9 @@ export function createDevRoomService(options: DevRoomServiceOptions = {}): DevRo
     error: (kind, error) => console.error(JSON.stringify({ kind, errorType: error instanceof Error ? error.name : 'unknown' })),
   });
   const extra = new Set((options.allowedOrigins ?? []).map(value => new URL(value).origin));
+  const history = new HistoryStore(new MemoryHistoryDatabase(), store, now);
   const server = createRoomServer({
-    store, gateway, now,
+    store, gateway, now, history, identity: options.identity ?? createIdentityVerifier(FIREBASE_PROJECT_ID),
     allowOrigin: (origin, req) => extra.has(origin) || sameLoopbackOrigin(origin, req),
     clientAddress: req => req.socket.remoteAddress ?? 'local',
     ...(options.staticDirectory ? { staticDirectory: options.staticDirectory } : {}),

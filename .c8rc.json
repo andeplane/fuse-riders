@@ -51,7 +51,10 @@
     "src/online/packet.ts",
     "src/online/snapshot.ts",
     "src/online/room-runtime.ts",
-    "src/online/prediction.ts"
+    "src/online/prediction.ts",
+    "src/service/history.ts",
+    "src/service/identity.ts",
+    "src/online/match-report.ts"
   ],
   "reporter": [
     "text",

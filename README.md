@@ -177,7 +177,7 @@ request whose properties it dropped, so a bad payload looks exactly like a good 
 
 ## Hosting and deployment status
 
-The online beta is deployed on **GitHub Pages, Cloud Run, Firestore room metadata and Pub/Sub signalling only**; the deployed client additionally reports [product analytics](docs/ANALYTICS.md) to Mixpanel, which carries no gameplay and no room credentials. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
+The online beta is deployed on **GitHub Pages, Cloud Run, Firestore (room metadata and [match history](#login-and-match-history)), Pub/Sub signalling and Firebase Authentication only**; the deployed client additionally reports [product analytics](docs/ANALYTICS.md) to Mixpanel, which carries no gameplay and no room credentials. See the [verified GCP inventory](docs/online/GCP-INVENTORY.md). `dev:online` and CI run the same room service code locally with in-memory rooms. It requires no provisioned always-running game simulation server. Gameplay requires WebRTC; the service does not relay gameplay traffic. Failed direct connections show a retry state. The GCP target does not provision TURN. Some networks cannot establish a direct connection; the UI must report that failure instead of silently relaying the game.
 
 A temporary experimental preview was reported at **https://fuse-riders.vagabond-walk.workers.dev**. This is not a declared production endpoint: current reachability, account ownership, claim status and expiry must be verified before relying on it. The supported beta uses the GitHub Pages and Cloud Run endpoints in the verified inventory; the old Cloudflare preview is not its backend. Local server processes and LAN addresses are ephemeral; read startup output rather than reusing a recorded PID or IP.
 
@@ -185,12 +185,90 @@ See [GCP deployment instructions](docs/online/GCP-DEPLOY.md) and [the direct-onl
 
 Release only through the GCP/Pages flow above. Complete the roadmap's review and verification requirements first, deploy a preview of the tested artifact, and verify it before promoting anything to production. See [the browser-hosted topology and the local stack](docs/online/DEPLOYMENT.md). Verify current provider quotas/pricing before enabling paid services. Keep claim URLs, room/host capabilities, cloud credentials and raw secret-bearing logs out of git, copied invites and public diagnostics.
 
-## Firebase
+## Login and match history
 
-Firebase is configured on the same GCP project as the gateway (`andershaf-87`) as the groundwork for **player login and
-permanent match history**. It is configuration only so far: no client or gateway code uses it yet, and guests keep
-playing exactly as before. Firebase contributes two things — **Firebase Authentication** (Google sign-in) and the
-versioned **Firestore security rules**. There is no Firebase Hosting, Functions, Storage or Realtime Database.
+Players can **sign in with Google** and get a **permanent history of every match they finish** plus career totals, on
+any device. It is optional: a guest plays exactly as before, never downloads the sign-in SDK, and their friends who are
+signed in still get the match recorded. It runs on what the game already had — the Cloud Run gateway and its Firestore
+database in `andershaf-87` — plus **Firebase Authentication**. There is no Postgres, no Firebase Hosting, Functions,
+Storage or Realtime Database, and nothing here costs money at this game's scale.
+
+On the landing page the top bar has **SIGN IN**; once signed in it reads **MY GAMES** and opens totals and past
+matches. Sign in before entering a room: the room screen has no sign-in of its own, and a match can only be linked to
+an account by a device that was in the room when it ended.
+
+### How a match gets recorded
+
+Gameplay is peer-to-peer, so the gateway never sees a match. Every device computes the same final stats, so:
+
+1. When the recap opens, each rider's device sends the result it computed to
+   `POST /api/rooms/<CODE>/results`, with its **room token** as the bearer credential and, if signed in, its Firebase ID
+   token in `X-Fuse-Identity` ([`match-report.ts`](src/online/match-report.ts)).
+2. A rider's in-game id *is* the digest of their room token, so the token proves which seat is speaking. The gateway
+   binds the verified account to that seat and to no other. Nothing in the request body can name an account.
+3. A result is stored under a key derived from its own content (and the room's incarnation). It becomes **confirmed**
+   once a **majority of the human riders who stayed to the end** have reported exactly that result
+   ([`history.ts`](src/service/history.ts)). Bots do not vote, and neither does a rider the stats say quit mid-match —
+   they are gone before the recap and would otherwise leave the match pending forever. A rider alone with bots
+   confirms alone.
+4. On confirmation, each signed-in rider's totals are incremented in the same transaction. A rider who reports after
+   confirmation is linked and credited then — once.
+
+Because a result is keyed by its content, two devices that disagree create two records instead of fighting over one.
+A forged result cannot displace or block the honest one; without a majority of its own riders it stays pending and
+expires. The `result` holds only what every device computes identically **and the match froze when it began** — the
+match id, its length, the winner and the final stats. Devices open the recap at different moments (a backgrounded phone
+is late), so anything that can still change while it is up stays out: the room's live settings are not reported at all,
+and a rider's avatar travels beside the result, self-reported. The client retries a report that lost the write race
+(every rider reports in the same instant) or went in before its sign-in could be verified.
+
+| Record | Kept for |
+|---|---|
+| Pending (no majority yet) | 24 hours |
+| Confirmed, no signed-in rider | 30 days |
+| Confirmed, at least one signed-in rider | forever |
+
+What this does **not** cover: LAN `/display` games and PLAY SOLO (neither has a room on the gateway), and a rider who
+signs in only after leaving the room.
+
+### API
+
+| Route | Credential | Notes |
+|---|---|---|
+| `POST /api/rooms/<CODE>/results` | `Authorization: Bearer <room token>`, optional `X-Fuse-Identity: <ID token>` | Body `{ result, avatarId? }`, at most 32 kB, unknown fields refused. The sender must be a live member of the room and a rider in the result; that is checked from the room token before the body is read or a sign-in verified. 40 reports per rider and 240 per address per hour, and an account can be linked to 30 matches per hour — past that a report still counts, as a guest's. An identity that fails verification is a guest's report, never a refusal |
+| `GET /api/me/matches[?before=<endedAt>]` | `Authorization: Bearer <ID token>` | The caller's profile totals and 20 confirmed matches, newest first; `before` pages back. Shows every rider's stats and which seat was the caller's — never another rider's account id. 300 requests per account per hour |
+
+Both routes sit behind the gateway's existing `ALLOWED_ORIGINS` check, and both answer 404 on a service started without
+history (none is, today).
+
+### Data (Firestore database `fuse-riders`)
+
+| Collection | Document | Contents |
+|---|---|---|
+| `fuse-production-matches` | hash of room incarnation + result | `status`, `result` (per-rider stats), `attesters`, `uidByPlayer`, `avatars`, `participantUids`, `createdAt`, `endedAt`, and `expiresAt`/`cleanupAt` while it can still expire |
+| `fuse-production-users` | Firebase `uid` | last rider `name`, `avatarId`, `updatedAt`, `totals` (matches, wins, round wins, eliminations, bombs, pickups, survival ticks, distance) |
+
+The personal data stored is the Firebase `uid`, the rider name the player typed and their avatar. **No email address,
+Google display name or profile photo reaches the gateway or the database**: the display name is shown in the player's
+own browser only. To erase a player, delete their Authentication user, their `fuse-production-users` document, and
+remove their `uid` from `uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
+
+[`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index
+(`participantUids` array-contains + `endedAt` desc), the `cleanupAt` TTL policies for rooms, creation limits and
+matches, and an index exemption for the bulky `result` map. It lists the pre-existing TTL policies on purpose: the file
+is the whole truth for the database, so leaving one out invites the next deploy to remove it.
+
+### Running it locally
+
+`npm run dev:online` serves the same routes over in-memory storage, so history lasts until the process exits. Sign-in
+works from `localhost` against the real Firebase project (it is an authorized domain and an allowed key referrer), and
+the local service verifies real ID tokens. Tests never touch Google: they inject a verifier, or sign tokens with a
+throwaway key ([`tests/match-history.test.ts`](tests/match-history.test.ts)).
+[`tests/match-report.test.ts`](tests/match-report.test.ts) feeds stats produced by the real simulation through the
+gateway's parser — the parser refuses unknown fields, so a stat added to `MatchPlayerStats` without being added to
+`COUNTERS` in `history.ts` fails that test instead of silently costing every player their history.
+
+### Firebase
 
 ### The shape of it
 
@@ -202,10 +280,14 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 - **Browsers never talk to Firestore.** Accounts and match history are read and written only by the gateway, which
   authenticates with IAM and bypasses security rules. [`firestore.rules`](firestore.rules) is therefore deny-all and
   must stay that way: the web API key is public, so anything the rules allow is allowed to the whole internet.
-- **The gateway needs no Firebase credentials.** It verifies ID tokens against Google's public keys
+- **The gateway needs no Firebase credentials.** [`identity.ts`](src/service/identity.ts) verifies ID tokens with
+  `jose` against Google's public keys
   (`https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`), so the runtime service
   account keeps exactly its current roles (`roles/datastore.user` conditioned on the `fuse-riders` database, plus the
-  signalling role). Do not add `firebase-admin` or grant it `firebaseauth.*`.
+  signalling role). Do not add `firebase-admin` or grant it `firebaseauth.*`. The project id it checks tokens against
+  is `GOOGLE_CLOUD_PROJECT`, overridable with `FIREBASE_PROJECT_ID`; no new deploy configuration was needed.
+- **Guests never load Firebase.** [`account.ts`](src/online/account.ts) imports the SDK on the first tap of SIGN IN,
+  and afterwards only in a browser that remembers having signed in. It is a separate ~47 kB (gzipped) chunk.
 - Postgres was considered and rejected: Cloud SQL's smallest instance is roughly $10/month and never scales to zero,
   while match history (a handful of writes per match) fits inside Firestore's free tier in the database the gateway
   already uses.
@@ -223,12 +305,13 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 | Key: API restriction | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only |
 | Key: referrer restriction | `https://andeplane.github.io/*`, `https://andershaf-87.firebaseapp.com/*`, `http://localhost:*/*`, `http://127.0.0.1:*/*` |
 | Firestore rules | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json)) |
+| Firestore indexes and TTL | [`firestore.indexes.json`](firestore.indexes.json), deployed with the rules |
 | Firestore delete protection | enabled on `fuse-riders`, because it will hold history that no TTL cleans up |
 
 The `(default)` database in this project is Datastore-mode and unrelated; security rules do not apply to it.
 
-The client config, for when login is implemented. **None of it is secret** — a Firebase web API key only identifies the
-project, and the restrictions above are what protect it. Reprint it with
+The client config lives in [`src/shared/firebase-config.ts`](src/shared/firebase-config.ts). **None of it is secret** —
+a Firebase web API key only identifies the project, and the restrictions above are what protect it. Reprint it with
 `firebase apps:sdkconfig WEB 1:867594018708:web:4444ada96e29685f063981`.
 
 ```ts
@@ -242,7 +325,8 @@ const firebaseConfig = {
 
 ### One manual step: enable the Google provider
 
-Enabling Google sign-in needs an OAuth client, which the console creates in one click and no CLI can. Open
+**Until this is done, SIGN IN answers "Sign-in is not switched on yet" and everything else works.** Enabling Google
+sign-in needs an OAuth client, which the console creates in one click and no CLI can. Open
 [Authentication → Sign-in method](https://console.firebase.google.com/project/andershaf-87/authentication/providers),
 choose **Google**, enable it, set the public-facing name to "Fuse Riders" and pick a support email. Leave every other
 provider off. Afterwards, in the [OAuth client](https://console.cloud.google.com/apis/credentials?project=andershaf-87)
@@ -254,7 +338,7 @@ it created, the authorized JavaScript origins should be only the domains in the 
 firebase deploy --only firestore --project andershaf-87
 ```
 
-deploys the rules. **`--only firestore:rules` is a silent no-op** with a named-database `firebase.json`: it prints
+deploys the rules, indexes and TTL policies. **`--only firestore:rules` is a silent no-op** with a named-database `firebase.json`: it prints
 "Deploy complete" and releases nothing. Confirm a release with:
 
 ```bash
@@ -268,7 +352,7 @@ pass the project explicitly; a developer machine's default gcloud project is usu
 
 ### Security review (2026-09-17)
 
-Verified from outside, with the public web key:
+The Firebase configuration, verified from outside with the public web key:
 
 | Probe | Result |
 |---|---|
@@ -297,16 +381,48 @@ Findings and accepted risks:
   database being dropped, not a bad write. Revisit once history is worth more than the backup bill.
 - **MFA is off**, which is right for a game whose only factor is a Google account that carries its own.
 
-Requirements the gateway must meet when login is implemented — a token that fails any of these is a guest, never an
-error that blocks play:
+How the implementation holds the line:
 
-- Verify the signature with a maintained JOSE library against the JWKS above, algorithm pinned to `RS256`.
-- Require `iss == https://securetoken.google.com/andershaf-87`, `aud == andershaf-87`, a non-empty `sub`, unexpired
-  `exp`, and `firebase.sign_in_provider == 'google.com'`.
-- Take the `uid` for a seat only from the verified token at join time, never from a request body or from another peer.
-  Match results are attributed using the gateway's own seat records.
-- Send the ID token only in the `Authorization` header to the gateway origin. Never put it in a URL, a room invite, a
-  WebRTC message, a log line or a Mixpanel property. Extend the existing `ALLOWED_ORIGINS` check to the new endpoints.
-- Store the minimum: `uid`, display name, avatar. Do not persist email addresses.
+- **Tokens.** [`identity.ts`](src/service/identity.ts) pins `RS256` and requires
+  `iss == https://securetoken.google.com/andershaf-87`, `aud == andershaf-87`, an unexpired `exp`, a past `auth_time`,
+  a `sub` that is a safe document id, and `firebase.sign_in_provider == 'google.com'`. Every failure — including Google's
+  keys being unreachable — yields a guest, never an error that blocks play and never an accepted token. Revocation is
+  not checked, so a token stays good for its hour; nothing here is worth more than that.
+- **Accounts come only from the verified header.** The body schema refuses unknown fields, so no request can name a
+  `uid`. An account binds to the seat the sender's own room token proves, one account per seat and one seat per
+  account per match. History responses show which seat was the caller's and never anyone else's account id.
+- **Credentials stay in headers**, to the gateway origin only: never a URL, an invite, a WebRTC message, a log line or
+  a Mixpanel property. The gateway logs an error's name and code, nothing from the request. Authenticated responses
+  are `no-store`.
+- **Stored data is re-validated on the way out** as well as on the way in, and the account dialog writes everything
+  with `textContent`; a colour is applied only if it is `#rrggbb`.
+- **Minimum data.** `uid`, rider name, avatar, stats, room code. No email, Google name or photo leaves the browser.
+
+An independent review of the implementation (2026-09-17) found no way to credit another account, read another
+player's history, or have a failed verification accepted. What it did find, and what was done:
+
+| Finding | Resolution |
+|---|---|
+| **High.** Room tokens are free to mint, so the per-rider limit could not stop one signed-in attacker creating unlimited permanent records, each adding up to 10⁹ to their own totals | Linking is limited per account (30/hour) and reporting per address (240/hour); past the account limit a report is a guest's and its record expires. Stats are bounded to what a match could plausibly produce (per-round counts by the match length, placement by the rider count, the rest by generous ceilings) |
+| **Medium.** The report included the room's *live* `mode`, which the host can change while the recap is up, so a late device could hash a different result | Room settings are no longer part of the result |
+| **Medium.** Riders who quit mid-match counted towards the majority but can never report | The majority is of riders with no early exit |
+| **Medium.** One attempt, while every rider writes the same record at once | Jittered retries on 5xx/408/429/network, and when a signed-in report went in unlinked |
+| **Low.** A sign-in was verified and the body read before the room token was checked; no body timeout | Room token, membership and limits first; 10-second body timeout |
+| **Low.** A tap on SIGN IN WITH GOOGLE while the SDK was still downloading could be popup-blocked (Safari) | The button is disabled until the SDK is ready |
+| **Low.** Names with a lone surrogate or untrimmed; a `uid` shaped like Firestore's reserved `__x__`; paging that differed between the two storage backends | All refused or aligned, with tests |
+
+Accepted, not fixed:
+
+- **A lone rider's report is believed.** One human with bots confirms alone, so a modified client can forge its own
+  match and inflate its *own* totals within the bounds above. It cannot touch anyone else's. Do not build a public
+  leaderboard on `totals` without first requiring, say, two attesting humans; `attesters` is stored for that.
+- **A whole room colluding can forge a result** for themselves. Re-simulating the input log server-side is the fix and
+  is out of proportion for a game among friends.
+- **The index and TTL policies name the `fuse-production` prefix.** A gateway run with another `ROOM_COLLECTION_PREFIX`
+  needs its own entries in `firestore.indexes.json`, or `/api/me/matches` fails and its pending records never expire.
+- **A browser that remembers a sign-in downloads the SDK when its first recap opens** (to fetch a token). Guarded, so
+  it cannot disturb the recap; it costs a signed-in player ~47 kB once per page load.
+- **A request with no `Origin` header skips the origin check**, as on every other route. Origin checks stop other
+  websites, not scripts; the credentials are what authenticate.
 
 Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.

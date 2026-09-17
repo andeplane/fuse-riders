@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { Firestore } from '@google-cloud/firestore';
 import { PubSub } from '@google-cloud/pubsub';
 import { RoomStore } from './room-store.js';
-import { FirestoreRoomDatabase } from './firestore-store.js';
+import { FirestoreHistoryDatabase, FirestoreRoomDatabase } from './firestore-store.js';
+import { HistoryStore } from './history.js';
+import { createIdentityVerifier } from './identity.js';
 import { PubSubRoomBus } from './pubsub-bus.js';
 import { RoomGateway } from './gateway.js';
 import { createRoomServer } from './http.js';
@@ -24,7 +26,9 @@ const store=new RoomStore(database,{now:()=>Date.now(),id:randomUUID});
 const bus=new PubSubRoomBus(pubsub,topic,gatewayId,prefix);
 // Never log requests, query strings, room tokens or raw transport frames.
 const gateway=new RoomGateway(gatewayId,store,bus,{now:()=>Date.now(),id:randomUUID,error:(kind,error)=>console.error(JSON.stringify({kind,errorType:error instanceof Error?error.name:'unknown'}))});
-const server=createRoomServer({store,gateway,allowOrigin:origin=>origins.has(origin),
+// Sign-ins are verified against Google's public keys for this same project; no Firebase credential or role is involved.
+const history=new HistoryStore(new FirestoreHistoryDatabase(firestore,prefix),store,()=>Date.now());
+const server=createRoomServer({store,gateway,history,identity:createIdentityVerifier(process.env.FIREBASE_PROJECT_ID??projectId),allowOrigin:origin=>origins.has(origin),
   // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
   clientAddress:req=>{const forwarded=req.headers['x-forwarded-for'];return (typeof forwarded==='string'?forwarded.split(',').at(-1)?.trim():undefined)??req.socket.remoteAddress??'unknown';}});
 const port=Number(process.env.PORT??8080);server.listen(port,'0.0.0.0',()=>{const address=server.address();console.log(JSON.stringify({service:'fuse-riders-gateway',port:address&&typeof address==='object'?address.port:port,region,projectId,database:process.env.FIRESTORE_DATABASE_ID??'(default)'}));});
