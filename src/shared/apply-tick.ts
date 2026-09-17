@@ -9,6 +9,7 @@ import {
   startMatch,
   startNextRound,
   step,
+  sortedPlayers,
   type GameState,
   type InputIntent,
 } from "./game.js";
@@ -32,7 +33,7 @@ import {
 import type { GameEvent } from "./protocol.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-24"; // 24: Boost removed (Nitro covers it); Gravity opens black holes that bend headings instead of arming a bomb.
+export const RULES = "fuse-p2p-25"; // 25: stable player/bomb/weight ordering and locale-free deterministic comparisons.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
@@ -65,8 +66,7 @@ export const reclaimable = (game: GameState): boolean =>
   (RECLAIMABLE_PHASES as readonly string[]).includes(game.phase);
 export function freeSlot(game: GameState): number {
   return SLOT_COLORS.findIndex(
-    (_, slot) =>
-      ![...game.players.values()].some((player) => player.slot === slot),
+    (_, slot) => !sortedPlayers(game).some((player) => player.slot === slot),
   );
 }
 
@@ -74,7 +74,7 @@ export function freeSlot(game: GameState): number {
 export function successionOrder(state: RoomState, creatorId: string): string[] {
   return [
     creatorId,
-    ...[...state.game.players.values()]
+    ...sortedPlayers(state.game)
       .filter(
         (player) =>
           player.connected &&
@@ -123,7 +123,7 @@ export function permitted(
 }
 
 function pruneDisconnected(state: RoomState): void {
-  for (const player of [...state.game.players.values()])
+  for (const player of sortedPlayers(state.game))
     if (!player.connected) {
       removePlayer(state.game, player.id);
       state.folds.delete(player.id);
@@ -273,7 +273,7 @@ export function applyTick(
     }
   }
   const inputs = new Map<string, InputIntent>();
-  for (const player of game.players.values()) {
+  for (const player of sortedPlayers(game)) {
     if (state.bots.has(player.id)) {
       inputs.set(player.id, bots.input(game, player.id));
       continue;
@@ -309,10 +309,7 @@ export function applyTick(
     game.tick >= game.phaseEndsAtTick
   ) {
     pruneDisconnected(state);
-    if (
-      [...game.players.values()].filter((player) => player.connected).length >=
-      2
-    ) {
+    if (sortedPlayers(game).filter((player) => player.connected).length >= 2) {
       // Format stays fixed for a match; powerup changes apply at round boundaries.
       game.settings = {
         ...state.settings,
@@ -324,7 +321,7 @@ export function applyTick(
     }
   }
   if (game.phase !== "playing")
-    for (const player of game.players.values()) {
+    for (const player of sortedPlayers(game)) {
       player.bombChargeStartedTick = undefined;
       player.bombTarget = undefined;
     }

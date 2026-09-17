@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
 import { chromium, webkit } from "playwright";
@@ -10,10 +10,20 @@ import {
 } from "../tests/fixtures/replay-log.ts";
 
 // Phase 0 gate: the same seeded five-rider log folds to the same state hash on every tick in Node, Chromium and WebKit.
-const ticks = Number(process.env.REPLAY_TICKS ?? 3000),
-  seed = Number(process.env.REPLAY_SEED ?? 20260915);
-const started = performance.now(),
-  recording = makeRecording(seed, ticks);
+const seed = Number(process.env.REPLAY_SEED ?? 20260915);
+const started = performance.now();
+const custom =
+  process.env.REPLAY_TICKS !== undefined ||
+  process.env.REPLAY_SEED !== undefined;
+const recording: Recording = custom
+  ? makeRecording(seed, Number(process.env.REPLAY_TICKS ?? 3000))
+  : JSON.parse(
+      await readFile(
+        new URL("../tests/fixtures/mechanics-recording.json", import.meta.url),
+        "utf8",
+      ),
+    );
+const ticks = recording.ticks;
 const node = replayHashes(recording);
 console.log(
   `node: ${ticks} ticks, ${Object.values(recording.entries).reduce((sum, list) => sum + list.length, 0)} entries, ${Math.round(performance.now() - started)} ms`,

@@ -1,6 +1,8 @@
 import { hypot2, sin, cos, atan2 } from "./deterministic-math.js";
 import {
   RIDER_RADIUS,
+  sortedPlayers,
+  sortedBombs,
   RIDER_SPEED,
   gravityBend,
   gravityCoreRadius,
@@ -143,7 +145,7 @@ function chooseSteering(
   const reach =
     (lookahead * RIDER_SPEED * fastest * SPEED_RAMP_MAX) / TICK_HZ +
     TRAIL_CLEARANCE;
-  const trails = [...game.players.values()]
+  const trails = sortedPlayers(game)
     .flatMap((owner) =>
       owner.trail.map((trail) => ({
         trail,
@@ -224,7 +226,7 @@ function chooseSteering(
       ),
     ),
   ];
-  const bombs = [...game.bombs.values()].filter((bomb) => !bomb.shell?.gun);
+  const bombs = sortedBombs(game).filter((bomb) => !bomb.shell?.gun);
   let chosen = 0,
     bestSurvived = -1,
     bestScore = -Infinity;
@@ -441,7 +443,7 @@ export class BotController {
     const player = game.players.get(id);
     if (game.phase !== "playing" || !player?.alive || !player.connected)
       return { ...NEUTRAL };
-    const enemies = [...game.players.values()].filter(
+    const enemies = sortedPlayers(game).filter(
       (candidate) => candidate.id !== id && candidate.alive,
     );
     const nearest = enemies.reduce<PlayerState | undefined>(
@@ -453,7 +455,8 @@ export class BotController {
           : best,
       undefined,
     );
-    const pickup = game.pickups
+    const pickup = [...game.pickups]
+      .sort((a, b) => a.id - b.id)
       .filter((candidate) => candidate.type !== "grip" || !player.grip)
       .reduce<GameState["pickups"][number] | undefined>(
         (best, candidate) =>

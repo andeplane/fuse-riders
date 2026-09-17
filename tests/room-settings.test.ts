@@ -20,8 +20,8 @@ test("room settings reject malformed values, restore safe defaults and allow all
     undefined,
   );
   assert.equal(roomPickup(0.5, {}), undefined);
-  assert.equal(roomPickup(0.1, { shell: 1, gun: 3 }), "shell");
-  assert.equal(roomPickup(0.9, { shell: 1, gun: 3 }), "gun");
+  assert.equal(roomPickup(0.1, { shell: 1, gun: 3 }), "gun");
+  assert.equal(roomPickup(0.9, { shell: 1, gun: 3 }), "shell");
   assert.deepEqual(loadRoomSettings({ getItem: () => "{broken" }), defaults);
 });
 test("bomb aim time, chain reaction and aim bounce validate, and older saved preferences get the defaults", () => {

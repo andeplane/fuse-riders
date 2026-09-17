@@ -239,7 +239,7 @@ export function snapshotMatchStats(
     (a, b) =>
       compareMatchScores(a, b) ||
       a.slot - b.slot ||
-      a.playerId.localeCompare(b.playerId),
+      (a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0),
   );
   let prior: MatchPlayerStatsState | undefined;
   let placement = 0;

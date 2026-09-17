@@ -121,7 +121,9 @@ export function roomPickup(
   roll: number,
   weights: RoomSettings["weights"],
 ): PickupType | undefined {
-  const entries = Object.entries(weights) as [PickupType, number][];
+  const entries = PICKUP_TYPES.map(
+    (type) => [type, weights[type] ?? 0] as const,
+  );
   const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
   if (!total) return;
   let remaining = roll * total;
