@@ -119,7 +119,6 @@ const rendering = new Set([
   "ink-renderer",
   "portal-palettes",
   "reload-ring",
-  "render-snapshot",
   "self-locator",
   "themes",
   "trail-debris",
@@ -137,9 +136,7 @@ export function layer(file: string): Layer {
   if (
     file.startsWith("src/net/") ||
     (file.startsWith("src/online/") && network.has(base)) ||
-    ["src/client/socket-client.ts", "src/client/snapshot-stream.ts"].includes(
-      file,
-    ) ||
+    file === "src/client/snapshot-stream.ts" ||
     file.startsWith("packages/")
   )
     return "net";

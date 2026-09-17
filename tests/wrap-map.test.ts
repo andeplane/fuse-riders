@@ -34,7 +34,6 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { renderedSnapshot } from "../src/client/render-snapshot.js";
 import { interpolateWorld } from "../src/online/prediction.js";
 import { trailPaths } from "../src/client/phaser/trails.js";
 import {
@@ -533,17 +532,6 @@ test("presentation follows a rider through the edge instead of sweeping it back 
   assert.ok(
     half.x > 1597 && half.x < 1605,
     `half way is half a step on, not mid-board: ${half.x}`,
-  );
-  const projected = renderedSnapshot(
-    [
-      { snapshot: older, matchId: "m", round: 1, receivedAt: 0 },
-      { snapshot: newer, matchId: "m", round: 1, receivedAt: 50 },
-    ],
-    75,
-  )!.players[0]!;
-  assert.ok(
-    projected.x > newer.players[0]!.x && projected.x < newer.players[0]!.x + 10,
-    `projected forwards by part of a step: ${projected.x}`,
   );
 });
 
