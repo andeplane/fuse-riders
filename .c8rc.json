@@ -40,6 +40,7 @@
     "packages/fuse-network-fe/src/link-diagnostics.ts",
     "packages/fuse-network-fe/src/endpoints.ts",
     "packages/fuse-network-be/src/signal.ts",
+    "packages/fuse-network-be/src/socket-auth.ts",
     "packages/fuse-network-be/src/room-store.ts",
     "packages/fuse-network-be/src/gateway.ts",
     "packages/fuse-network-be/src/room-bus.ts",

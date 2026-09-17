@@ -19,5 +19,6 @@ export {
   ROOM_PROTOCOL_VERSION,
   CLOSE_AUTHORITY_REPLACED,
   CLOSE_ROOM_ENDED,
+  CLOSE_UNAUTHENTICATED,
   type AuthorityGrant,
 } from "fuse-network-protocol";

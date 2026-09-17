@@ -4,6 +4,7 @@ import {
   createRoomServer,
   type RoomServer,
   type HttpExtension,
+  type RoomHttpOptions,
 } from "./http.js";
 import { LocalRoomBus, MemoryRoomDatabase } from "./memory-database.js";
 import { RoomGateway } from "./gateway.js";
@@ -16,6 +17,10 @@ export interface DevRoomServiceOptions {
   /** Extra page origins allowed besides same-origin loopback pages. */
   allowedOrigins?: readonly string[];
   now?: () => number;
+  /** Socket authentication deadline scheduler, operational log and the deprecated `?token=` window; see `RoomHttpOptions`. */
+  schedule?: RoomHttpOptions["schedule"];
+  log?: RoomHttpOptions["log"];
+  legacyQueryToken?: boolean;
   /** Room capacity and its refusal text; see `RoomStoreDependencies`. */
   maxGuests?: number;
   fullMessage?: string;
@@ -81,6 +86,9 @@ export function createDevRoomService(
     store,
     gateway,
     now,
+    ...(options.schedule ? { schedule: options.schedule } : {}),
+    ...(options.log ? { log: options.log } : {}),
+    ...(options.legacyQueryToken ? { legacyQueryToken: true } : {}),
     extension: options.httpExtension?.(store),
     allowOrigin: (origin, req) =>
       extra.has(origin) || sameLoopbackOrigin(origin, req),

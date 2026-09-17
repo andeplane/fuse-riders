@@ -4,7 +4,11 @@ import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
-import { isAuthorityGrant, type AuthorityGrant } from "fuse-network-be";
+import {
+  authFrame,
+  isAuthorityGrant,
+  type AuthorityGrant,
+} from "fuse-network-be";
 interface Frame {
   type?: string;
   [key: string]: unknown;
@@ -50,12 +54,15 @@ class Peer {
     url: string,
     origin: string,
     private timeout: number,
+    token: string,
   ) {
     this.socket = new WebSocket(url, {
       origin,
       handshakeTimeout: timeout,
       maxPayload: 64_000,
     });
+    // The token is the socket's first frame and never part of its URL (docs/online/TOKEN-TRANSPORT.md).
+    this.socket.once("open", () => this.socket.send(authFrame(token)));
     this.socket.on("message", (raw) => {
       if (this.frames.length >= 256) {
         this.overflow = true;
@@ -159,8 +166,7 @@ export async function runPublicSmoke(
   const open = (code: string, token: string) => {
     const u = new URL(`/api/rooms/${code}/ws`, origin);
     u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
-    u.searchParams.set("token", token);
-    const peer = new Peer(u.href, browserOrigin, timeout);
+    const peer = new Peer(u.href, browserOrigin, timeout, token);
     peers.push(peer);
     return peer;
   };
@@ -228,12 +234,21 @@ export async function runPublicSmoke(
     );
     checked("joined identity ICE endpoint");
     assert.equal(
-      (await request(`/api/rooms/${room.code}/ice?token=invalid`)).status,
+      (
+        await request(`/api/rooms/${room.code}/ice`, {
+          headers: { Authorization: "Bearer invalid" },
+        })
+      ).status,
       401,
     );
-    const ice = await request(
-      `/api/rooms/${room.code}/ice?token=${guestToken}`,
+    // A member token in the query string is not a credential; only the bearer header is.
+    assert.equal(
+      (await request(`/api/rooms/${room.code}/ice?token=${guestToken}`)).status,
+      401,
     );
+    const ice = await request(`/api/rooms/${room.code}/ice`, {
+      headers: { Authorization: `Bearer ${guestToken}` },
+    });
     assert.equal(ice.status, 200);
     assert.equal(
       ((await ice.json()) as { relayConfigured: boolean }).relayConfigured,

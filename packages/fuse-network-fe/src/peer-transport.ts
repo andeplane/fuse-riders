@@ -14,6 +14,7 @@ import {
   type AuthorityGrant,
 } from "fuse-network-protocol";
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from "./ice-config.js";
+import { fetchIceServers, openRoomSocket } from "./room-api.js";
 import { candidateType, sameCertificate } from "./ice-signal.js";
 import { RemoteSignal } from "./remote-signal.js";
 import { LinkRestartPolicy } from "./link-restart.js";
@@ -168,10 +169,12 @@ export class PeerTransport implements RoomTransport {
       this.timeInterval = setInterval(() => this.sampleTime(), 2000);
       document.addEventListener("visibilitychange", this.visibility);
     }
-    const url = new URL(this.apiUrl(`/api/rooms/${this.code}/ws`));
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("token", this.token);
-    const ws = new WebSocket(url);
+    const ws = openRoomSocket(
+      this.apiUrl,
+      this.code,
+      this.token,
+      (url) => new WebSocket(url),
+    );
     this.socket = ws;
     ws.onmessage = async (event) => {
       if (ws !== this.socket) return;
@@ -206,10 +209,7 @@ export class PeerTransport implements RoomTransport {
           // Offers and signals can arrive during this fetch; link() awaits the ICE config so no peer connection is built without STUN (#27).
           await this.ice.load(
             (signal) =>
-              fetch(
-                this.apiUrl(`/api/rooms/${this.code}/ice?token=${this.token}`),
-                { signal },
-              ).then((response) => response.json()),
+              fetchIceServers(this.apiUrl, this.code, this.token, signal),
             AbortSignal.timeout(ICE_FETCH_TIMEOUT_MS),
           );
           if (ws !== this.socket) return;

@@ -90,6 +90,10 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
     store,
     gateway,
     extension: options.httpExtension?.({ store, firestore, prefix, projectId }),
+    // DEPRECATED rollout window (#256 S3, docs/online/TOKEN-TRANSPORT.md): pages built before the first-frame
+    // handshake still send `?token=`. Delete this line and `legacyQueryToken` once the
+    // `deprecated-query-token` log line has been absent for a week.
+    legacyQueryToken: true,
     allowOrigin: (origin) => origins.has(origin),
     // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
     clientAddress: (req) => {

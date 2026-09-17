@@ -9,6 +9,8 @@ import {
   MemoryRoomDatabase,
   RoomGateway,
   RoomStore,
+  authToken,
+  validToken,
 } from "fuse-network-be";
 async function fixture(brokenCors = false) {
   const database = new MemoryRoomDatabase(),
@@ -59,7 +61,9 @@ async function fixture(brokenCors = false) {
       return;
     }
     if (url.pathname.endsWith("/ice")) {
-      if (url.searchParams.get("token") === "invalid") {
+      if (
+        !validToken(req.headers.authorization?.replace(/^Bearer /, "") ?? "")
+      ) {
         res.writeHead(401);
         res.end();
       } else res.end('{"relayConfigured":false}');
@@ -72,21 +76,31 @@ async function fixture(brokenCors = false) {
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url!, "http://fixture");
     sockets.handleUpgrade(req, socket, head, (ws) => {
-      let id: string | undefined;
+      let id: string | undefined,
+        authenticated = false;
       const pending: string[] = [];
-      ws.on("message", (raw) => {
+      ws.on("message", (raw, binary) => {
         if (id) void gateway.receive(id, raw.toString());
-        else pending.push(raw.toString());
+        else if (authenticated) pending.push(raw.toString());
+        else {
+          // The first frame is the credential; the request URL carries none.
+          const token = authToken(raw.toString(), binary);
+          if (!token) {
+            ws.close(4401, "Authentication required");
+            return;
+          }
+          authenticated = true;
+          void gateway
+            .connect(url.pathname.split("/")[3], token, ws)
+            .then((value) => {
+              id = value;
+              for (const frame of pending) void gateway.receive(id, frame);
+            });
+        }
       });
       ws.on("close", () => {
         if (id) void gateway.disconnect(id);
       });
-      void gateway
-        .connect(url.pathname.split("/")[3], url.searchParams.get("token")!, ws)
-        .then((value) => {
-          id = value;
-          for (const raw of pending) void gateway.receive(id, raw);
-        });
     });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

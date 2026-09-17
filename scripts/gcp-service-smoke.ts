@@ -7,6 +7,7 @@ import { Firestore } from "@google-cloud/firestore";
 import { PubSub } from "@google-cloud/pubsub";
 import WebSocket from "ws";
 import { OAuth2Client } from "google-auth-library";
+import { authFrame } from "fuse-network-be";
 
 const projectId = process.env.GOOGLE_CLOUD_PROJECT ?? "andershaf-87";
 const databaseId = process.env.FIRESTORE_DATABASE_ID ?? "fuse-riders";
@@ -163,8 +164,10 @@ class Peer {
   frames: Frame[] = [];
   closed?: number;
   private listeners = new Set<() => void>();
-  constructor(url: string) {
+  constructor(url: string, token: string) {
     this.socket = new WebSocket(url, { origin: "http://localhost" });
+    // The token is the socket's first frame and never part of its URL (docs/online/TOKEN-TRANSPORT.md).
+    this.socket.once("open", () => this.socket.send(authFrame(token)));
     this.socket.on("message", (raw) => {
       this.frames.push(JSON.parse(raw.toString()));
       this.notify();
@@ -223,9 +226,7 @@ class Peer {
   }
 }
 const open = (origin: string, code: string, token: string) =>
-  new Peer(
-    `${origin.replace("http:", "ws:")}/api/rooms/${code}/ws?token=${token}`,
-  );
+  new Peer(`${origin.replace("http:", "ws:")}/api/rooms/${code}/ws`, token);
 let passed = false;
 let failure: string | undefined;
 try {

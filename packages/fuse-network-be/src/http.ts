@@ -18,7 +18,12 @@ import {
   type RoomStore,
 } from "./room-store.js";
 import type { RoomGateway } from "./gateway.js";
-import { DEFAULT_ICE_SERVERS } from "fuse-network-protocol";
+import { AUTH_DEADLINE_MS, authToken } from "./socket-auth.js";
+import {
+  CLOSE_ROOM_ENDED,
+  CLOSE_UNAUTHENTICATED,
+  DEFAULT_ICE_SERVERS,
+} from "fuse-network-protocol";
 
 /** Optional game-owned HTTP routes, behind the common Origin and error boundaries. */
 export interface HttpExtension {
@@ -39,6 +44,16 @@ export interface RoomHttpOptions {
   /** Rate-limit identity for room creation and admission failures. */
   clientAddress: (req: IncomingMessage) => string;
   now?: () => number;
+  /** Runs the socket authentication deadline; returns its cancellation. Defaults to an unreferenced timer. */
+  schedule?: (callback: () => void, delayMs: number) => () => void;
+  /** Structured operational log. Entries never carry a request URL, a token or a frame. */
+  log?: (entry: Record<string, unknown>) => void;
+  /**
+   * DEPRECATED rollout window (#256 S3, docs/online/TOKEN-TRANSPORT.md): also admit a room socket whose token is in
+   * `?token=`, as clients built before the first-frame handshake send it. Off unless the deployment asks for it.
+   * Remove this option, its block in the upgrade handler and its tests once no client sends the old form.
+   */
+  legacyQueryToken?: boolean;
   /** Local development only: serve this built frontend with single-page fallback. Production serves no files. */
   staticDirectory?: string;
 }
@@ -57,15 +72,8 @@ const MIME: Record<string, string> = {
   ".woff2": "font/woff2",
   ".ico": "image/x-icon",
 };
-// Never log requests, query strings, room tokens or raw transport frames.
-const logFailure = (kind: string, error: unknown) =>
-  console.error(
-    JSON.stringify({
-      kind,
-      errorType: error instanceof Error ? error.name : "unknown",
-      code: (error as { code?: unknown })?.code,
-    }),
-  );
+const bearer = (req: IncomingMessage): string =>
+  req.headers.authorization?.replace(/^Bearer /, "") ?? "";
 
 async function serveStatic(
   root: string,
@@ -109,6 +117,23 @@ export interface RoomServer extends Server {
 export function createRoomServer(options: RoomHttpOptions): RoomServer {
   const { store, gateway } = options,
     now = options.now ?? Date.now;
+  const schedule =
+    options.schedule ??
+    ((callback: () => void, delayMs: number) => {
+      const timer = setTimeout(callback, delayMs);
+      timer.unref();
+      return () => clearTimeout(timer);
+    });
+  // Never log requests, query strings, room tokens or raw transport frames.
+  const log =
+    options.log ??
+    ((entry: Record<string, unknown>) => console.error(JSON.stringify(entry)));
+  const logFailure = (kind: string, error: unknown) =>
+    log({
+      kind,
+      errorType: error instanceof Error ? error.name : "unknown",
+      code: (error as { code?: unknown })?.code,
+    });
   const admissions = new AdmissionGate(store.database, now);
   const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -137,6 +162,8 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
           ...(options.extension?.headers ?? []),
         ].join(", "),
       );
+      // `/ice` carries `Authorization`, so a cross-origin page preflights it on every admission without this.
+      res.setHeader("Access-Control-Max-Age", "600");
       res.writeHead(204);
       res.end();
       return;
@@ -180,15 +207,13 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
       }
       const route = url.pathname.match(ROOM_ROUTE);
       if (route?.[2] === "end" && req.method === "POST") {
-        await store.end(
-          route[1]!,
-          req.headers.authorization?.replace(/^Bearer /, "") ?? "",
-        );
+        await store.end(route[1]!, bearer(req));
         json({ ok: true });
         return;
       }
       if (route?.[2] === "ice") {
-        const token = url.searchParams.get("token") ?? "";
+        // The token is a bearer credential: a query string would put it in every access log on the way here.
+        const token = bearer(req);
         if (!validToken(token)) {
           json({ error: "Invalid identity" }, 401);
           return;
@@ -230,6 +255,20 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
       );
     }
   });
+  let legacyUses = 0,
+    legacyLoggedAt = Number.NEGATIVE_INFINITY;
+  // DEPRECATED rollout window — see `legacyQueryToken`. At most one line a minute, and only a count.
+  const deprecatedQueryToken = () => {
+    legacyUses++;
+    if (now() - legacyLoggedAt < 60_000) return;
+    legacyLoggedAt = now();
+    log({
+      kind: "deprecated-query-token",
+      severity: "WARNING",
+      uses: legacyUses,
+    });
+    legacyUses = 0;
+  };
   const sockets = new WebSocketServer({
     noServer: true,
     maxPayload: 32_000,
@@ -248,19 +287,29 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
       return;
     }
     const origin = req.headers.origin,
-      route = url.pathname.match(ROOM_ROUTE),
-      token = url.searchParams.get("token") ?? "";
+      route = url.pathname.match(ROOM_ROUTE);
     if (
       !origin ||
       !options.allowOrigin(origin, req) ||
       route?.[2] !== "ws" ||
-      !validCode(route[1]!) ||
-      !validToken(token)
+      !validCode(route[1]!)
     ) {
       forbidden();
       return;
     }
     const code = route[1]!;
+    // The request carries no credential: the socket authenticates with its first frame, inside the admission
+    // slot taken below, so unauthenticated sockets are bounded per address and in total like any other admission.
+    let queryToken: string | undefined;
+    // DEPRECATED rollout window — see `legacyQueryToken`. Delete this block with the option.
+    if (options.legacyQueryToken && url.searchParams.has("token")) {
+      queryToken = url.searchParams.get("token") ?? "";
+      if (!validToken(queryToken)) {
+        forbidden();
+        return;
+      }
+      deprecatedQueryToken();
+    }
     let upgraded: WebSocket | undefined;
     socket.on("error", () => socket.destroy());
     void admissions
@@ -282,8 +331,50 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
               upgraded = ws;
               let connectionId: string | undefined,
                 closed = false,
-                pending: string[] = [];
+                pending: string[] = [],
+                // "auth": only an `auth` frame is read. "rejected": nothing is read again.
+                phase: "auth" | "admitted" | "rejected" =
+                  queryToken === undefined ? "auth" : "admitted",
+                cancelDeadline: (() => void) | undefined;
+              const refuse = (error: RoomError) => {
+                phase = "rejected";
+                cancelDeadline?.();
+                reject(error);
+              };
+              const admit = (token: string) => {
+                phase = "admitted";
+                cancelDeadline?.();
+                void gateway
+                  .connect(code, token, ws)
+                  .then((id) => {
+                    connectionId = id;
+                    if (closed) {
+                      void gateway.disconnect(id);
+                      resolve();
+                      return;
+                    }
+                    for (const data of pending) void gateway.receive(id, data);
+                    pending = [];
+                    resolve();
+                  })
+                  .catch(reject);
+              };
+              if (phase === "auth")
+                cancelDeadline = schedule(() => {
+                  if (phase === "auth")
+                    refuse(new RoomError(401, "Authentication timed out"));
+                }, AUTH_DEADLINE_MS);
               ws.on("message", (raw, binary) => {
+                if (phase === "rejected") return;
+                if (phase === "auth") {
+                  // Whatever arrives first is the authentication attempt; it is never handed to the gateway.
+                  const token = authToken(raw.toString(), binary);
+                  if (token === undefined)
+                    // Nothing about the frame is echoed or logged.
+                    refuse(new RoomError(401, "Authentication required"));
+                  else admit(token);
+                  return;
+                }
                 if (binary) {
                   ws.close(1003, "Text frames required");
                   return;
@@ -296,25 +387,15 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
               ws.on("close", () => {
                 closed = true;
                 pending = [];
+                // Leaving before authenticating spends the budget too, or a slot could be held for free forever.
+                if (phase === "auth")
+                  refuse(new RoomError(401, "Closed before authentication"));
                 if (connectionId) void gateway.disconnect(connectionId);
               });
               ws.on("error", () => {
                 ws.close();
               });
-              void gateway
-                .connect(code, token, ws)
-                .then((id) => {
-                  connectionId = id;
-                  if (closed) {
-                    void gateway.disconnect(id);
-                    resolve();
-                    return;
-                  }
-                  for (const data of pending) void gateway.receive(id, data);
-                  pending = [];
-                  resolve();
-                })
-                .catch(reject);
+              if (queryToken !== undefined) admit(queryToken);
             });
           }),
       )
@@ -322,7 +403,13 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         logFailure("admission", error);
         if (upgraded)
           upgraded.close(
-            error instanceof RoomError && error.status === 404 ? 4004 : 4000,
+            !(error instanceof RoomError)
+              ? 4000
+              : error.status === 404
+                ? CLOSE_ROOM_ENDED
+                : error.status === 401
+                  ? CLOSE_UNAUTHENTICATED
+                  : 4000,
             error instanceof RoomError
               ? error.message
               : "Room service unavailable",

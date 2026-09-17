@@ -28,6 +28,12 @@ past the budget check can exceed the hourly failure limit by the bounded local
 in-flight count on each active gateway. This is an abuse limit, not authentication:
 room codes and the trusted-member mesh model are unchanged.
 
+Since the token moved out of the socket URL (#256 S3,
+[token transport](../online/TOKEN-TRANSPORT.md)), a pending admission also covers
+the wait for the socket's first (`auth`) frame. The same four-per-IP and 128-total
+bounds therefore cap unauthenticated sockets, and a missing, late, malformed or
+oversized `auth` frame spends the failure budget like a wrong room code.
+
 The protocol envelopes and database room records do not change. Existing room
 creation limits retain their keys and accounting. The Firestore allowance
 collection retains its existing name; admission uses distinct hashed keys.
