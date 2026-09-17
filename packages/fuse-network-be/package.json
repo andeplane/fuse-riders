@@ -1,0 +1,30 @@
+{
+  "name": "fuse-network-be",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node room service for Fuse rooms: room codes, membership, authority leases and WebRTC signalling. Never relays gameplay.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./gcp": "./src/gcp/index.ts"
+  },
+  "dependencies": {
+    "fuse-network-protocol": "0.1.0",
+    "ws": "^8.18.3"
+  },
+  "peerDependencies": {
+    "@google-cloud/firestore": "^9.1.0",
+    "@google-cloud/pubsub": "^6.0.1"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/firestore": {
+      "optional": true
+    },
+    "@google-cloud/pubsub": {
+      "optional": true
+    }
+  }
+}

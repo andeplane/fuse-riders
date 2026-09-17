@@ -29,7 +29,7 @@ Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host d
 
 `npm start` builds the latest browser assets before starting the server. For development, use `PORT=3030 npm run dev`: Vite serves current browser code and updates it as you edit, with no separate build needed. Changes to server code or its shared dependencies automatically restart the Node process. Each restart clears the in-memory game and session scores; open the new printed host link and refresh/rejoin phones. Production does not watch files or automatically refresh; stop and run `npm start` again between matches to pick up changes. The default port is 3000 when `PORT` is omitted; if that port is taken the server walks upward (3001, 3002, …) and prints the links for the port it actually got, so parallel worktrees and stale processes never collide. Vite's HMR shares the same port instead of its fixed 24678.
 
-`npm run dev` also starts the local room service in the same process (the production `src/service` protocol over in-memory rooms, on 127.0.0.1:8787 or the next free port) and proxies `/api` to it, so the home page's CREATE ROOM and JOIN ROOM work on the same LAN address as `/display` and `/controller`; set `ROOM_API=http://host:port` to use another room service instead. To run only the built app with that room service, use the following command.
+`npm run dev` also starts the local room service in the same process (the production `fuse-network-be` protocol over in-memory rooms, on 127.0.0.1:8787 or the next free port) and proxies `/api` to it, so the home page's CREATE ROOM and JOIN ROOM work on the same LAN address as `/display` and `/controller`; set `ROOM_API=http://host:port` to use another room service instead. To run only the built app with that room service, use the following command.
 
 ## Try online rooms locally
 
@@ -102,9 +102,12 @@ The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript
 | `src/shared/input-log.ts`, `apply-tick.ts` | Log entry types and validation, the gesture fold, and the deterministic per-tick reducer over management and player entries |
 | `src/online/stream.ts`, `rollback.ts`, `clock.ts` | Per-stream receive buffers with repair and retention, the speculative world with snapshots and rollback, and the slewed tick clock |
 | `src/online/packet.ts`, `snapshot.ts`, `checkpoint.ts` | Bounded MessagePack packet and nack codec, chunked validated world snapshots, and replica state validation |
-| `src/online/room-runtime.ts`, `peer-transport.ts` | One runtime for solo and online rooms (roles, cadence, creator duties, presentation) and the full WebRTC mesh with reliable and unreliable channels |
+| `src/online/room-runtime.ts` | One runtime for solo and online rooms (roles, cadence, creator duties, presentation), over the `fuse-network-fe` transport |
 | `src/online/prediction.ts`, `net-stats.ts`, `ui.ts` | Fractional presentation with immediate local steering, the per-device link quality overlay, and the room UI |
-| `src/service/` | Room API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`) with Firestore transactions and Pub/Sub signalling in production (`index.ts`) and in-memory metadata for local development and CI (`dev.ts`) |
+| `packages/fuse-network-fe/` | Game-agnostic browser library: the full WebRTC mesh with reliable and unreliable channels (`peer-transport.ts`), link health, ICE restarts, diagnostics and the room API client ([README](packages/fuse-network-fe/README.md)) |
+| `packages/fuse-network-be/` | Game-agnostic room service: API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`), in-memory metadata (`dev.ts`) and Firestore transactions with Pub/Sub signalling (`gcp/`) ([README](packages/fuse-network-be/README.md)) |
+| `packages/fuse-network-protocol/` | The wire contract both libraries share: room codes, authority lease, STUN defaults, protocol version |
+| `src/service/` | The game's entry points into `fuse-network-be`: production (`index.ts`), local development and CI (`dev.ts`), and the room capacity |
 | `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines |
 | `tests/`, `scripts/` | Deterministic tests, browser checks and benchmark runners |
 

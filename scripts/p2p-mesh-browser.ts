@@ -15,7 +15,7 @@ const response = await fetch(new URL('/api/rooms', url), { method: 'POST' });
 assert.ok(response.ok, `room creation failed: ${response.status}`);
 const room = await response.json() as { code: string; token: string };
 const bundle = await build({ stdin: { contents: `
-import { PeerTransport } from './src/online/peer-transport.ts';
+import { PeerTransport } from 'fuse-network-fe';
 import { encodePacket, decodePacket, roomHash } from './src/online/packet.ts';
 globalThis.startMesh = (code, token) => {
   let linkDrops = 0; const peers = new Set(), links = new Set(), received = new Map(), messages = [], errors = [], statuses = [];
@@ -35,7 +35,7 @@ globalThis.startMesh = (code, token) => {
     fast: (id, bytes) => { const decoded = decodePacket(bytes); if (decoded && 'packet' in decoded) received.set(id, (received.get(id) ?? 0) + 1); },
     status: text => { statuses.push(text); if (statuses.length > 40) statuses.shift(); },
     revoked: () => errors.push('revoked'), ended: () => errors.push('ended'), terminated: text => errors.push('terminated: ' + text),
-  });
+  }, { apiUrl: path => new URL(path, location.origin).href });
   transport.connect();
   let seq = 0;
   globalThis.mesh = {

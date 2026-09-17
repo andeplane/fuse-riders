@@ -29,7 +29,7 @@ step() {  # step <name>[:variant] cmd...
   fi
 }
 
-# The production room protocol (src/service) over in-memory metadata, serving dist/.
+# The production room protocol (packages/fuse-network-be) over in-memory metadata, serving dist/.
 start_room_service() {
   mkdir -p artifacts
   if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN > /dev/null 2>&1; then echo "FAIL port $PORT already in use; pick another with PORT=<port>"; exit 1; fi

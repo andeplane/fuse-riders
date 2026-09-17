@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import WebSocket from 'ws';
-import { isAuthorityGrant, type AuthorityGrant } from '../src/online/authority.js';
+import { isAuthorityGrant, type AuthorityGrant } from 'fuse-network-fe';
 interface Frame {type?:string;[key:string]:unknown}
 interface Check {name:string;milliseconds:number}
 export interface PublicSmokeOptions {origin:string;browserOrigin?:string;allowLoopback?:boolean;timeoutMs?:number}
