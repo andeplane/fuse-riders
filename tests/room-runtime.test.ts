@@ -75,8 +75,8 @@ test("the creator opens a fresh world, seats joiners, adds bots and starts; ever
     .players.find((p) => p.id.startsWith("bot:"))!.name;
   assert.match(
     botName,
-    /^AI \w+ · (Easy|Medium|Hard)$/,
-    "an added AI carries the difficulty it was rolled, so every roster shows it",
+    /^AI \w+$/,
+    "an added AI has no difficulty label in the replicated roster",
   );
   assert.equal(
     host.command({ type: "action", action: "start" }),
@@ -1158,4 +1158,43 @@ test("reordered packets do not reset the hidden guest's reading of the authority
   );
   f.host.stop();
   f.guest.stop();
+});
+
+test("a name carrying a control character is refused at the join and the rider is not seated; the characters either side of the range are kept", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  // NUL, the unit separator and DEL bound the join's pattern; a tab sits inside its range.
+  for (const [index, code] of [0x00, 0x1f, 0x7f, 0x09].entries()) {
+    const id = GUESTS[index]!;
+    join(id, `Bad${String.fromCharCode(code)}name`);
+    net.step(900);
+    assert.ok(
+      net.recorded
+        .get(id)!
+        .statuses.includes("Choose a name (1–20 characters)"),
+      `character ${code}`,
+    );
+  }
+  assert.deepEqual(
+    net.frame(HOST)!.players.map((player) => player.name),
+    ["Host"],
+  );
+  // The pattern stops at DEL. A tilde (0x7E) sits just below it and 0x80 just above, in the C1 range the join has
+  // never refused: both are seated unchanged, so a pattern widened to either side fails here.
+  const edges = "Ok~\x80name";
+  join(TV, edges);
+  net.step(900);
+  assert.deepEqual(
+    net.recorded
+      .get(TV)!
+      .statuses.filter((status) => /Choose a name/.test(status)),
+    [],
+  );
+  assert.deepEqual(
+    net.frame(HOST)!.players.map((player) => player.name),
+    ["Host", edges],
+  );
+  for (const runtime of net.runtimes.values()) runtime.stop();
+  host.stop();
 });

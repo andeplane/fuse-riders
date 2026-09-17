@@ -187,6 +187,13 @@ plus `selectstart`/`contextmenu` prevention while `.mobile-play` is active.
 `scripts/mobile-landscape-smoke.ts` asserts this with a 650 ms **CDP**
 synthetic touch per third in Chromium — not a real touchscreen gesture, and
 WebKit's own long-press/callout behavior is emulator-only there too.
+The smoke records the hold result inside the page and retries only when a
+benchmark snapshot proves the round phase changed during the attempt. It
+requires a complete 650 ms hold within one playing phase for every third;
+a lost hold in a stable phase or any selected text remains a failure.
+Run `MOBILE_HOLD_PHASE_RACE=1 HOME_URL=http://localhost:8787/ npx tsx scripts/mobile-landscape-smoke.ts`
+to force the first gesture to span a real round transition and verify that
+it is retried before a complete hold passes in both engines.
 
 **Devices/network**: iPhone Safari (WebKit's real long-press gesture is the
 primary risk named in #14's own root-cause note) and Android Chrome. Either

@@ -30,7 +30,7 @@ import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
 import { TrailDebris } from "../trail-debris.js";
 import {
-  selfLocatorRings,
+  selfLocatorRing,
   selfLocatorSide,
   selfLocatorStrength,
 } from "../self-locator.js";
@@ -1048,33 +1048,33 @@ class ArenaScene extends Phaser.Scene {
             : rider;
         const tint = color(p.color);
         const self = p.id === selfId;
-        // On a rider's own screen the round opens by pointing them out: a glow, rings closing in and a big arrow.
+        // On a rider's own screen the countdown points them out: a faint glow, a ring closing in and an arrow.
         if (self && locate > 0 && p === rider) {
-          g.fillStyle(tint, 0.16 * locate).fillCircle(p.x, p.y, 70);
-          for (const ring of selfLocatorRings(now))
-            f.lineStyle(4, tint, ring.alpha * locate).strokeCircle(
-              p.x,
-              p.y,
-              ring.radius,
-            );
+          g.fillStyle(tint, 0.1 * locate).fillCircle(p.x, p.y, 52);
+          const ring = selfLocatorRing(now);
+          f.lineStyle(2, tint, ring.alpha * 0.7 * locate).strokeCircle(
+            p.x,
+            p.y,
+            ring.radius,
+          );
           const side = selfLocatorSide(p.y, b),
-            tip = p.y + side * (48 + Math.abs(Math.sin(now / 200)) * 14),
-            neck = tip + side * 34,
-            tail = neck + side * 30;
-          f.fillStyle(tint, locate)
-            .lineStyle(4, 0xffffff, locate)
+            tip = p.y + side * (46 + Math.abs(Math.sin(now / 320)) * 6),
+            neck = tip + side * 22,
+            tail = neck + side * 18;
+          f.fillStyle(tint, 0.9 * locate)
+            .lineStyle(2, 0xffffff, 0.8 * locate)
             .beginPath()
             .moveTo(p.x, tip)
-            .lineTo(p.x + 32, neck)
-            .lineTo(p.x + 12, neck)
-            .lineTo(p.x + 12, tail)
-            .lineTo(p.x - 12, tail)
-            .lineTo(p.x - 12, neck)
-            .lineTo(p.x - 32, neck)
+            .lineTo(p.x + 20, neck)
+            .lineTo(p.x + 7, neck)
+            .lineTo(p.x + 7, tail)
+            .lineTo(p.x - 7, tail)
+            .lineTo(p.x - 7, neck)
+            .lineTo(p.x - 20, neck)
             .closePath()
             .fillPath()
             .strokePath();
-          this.label("YOU", p.x, tail + side * 24, "#ffffff", 30, 8).setAlpha(
+          this.label("YOU", p.x, tail + side * 16, "#ffffff", 18, 8).setAlpha(
             locate,
           );
         }

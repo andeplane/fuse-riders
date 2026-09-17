@@ -106,6 +106,30 @@ try {
           body: JSON.stringify({ result }),
         });
         assert.equal(response.status, 200, await response.text());
+        const roundResponse = await call(
+          `/api/rooms/${created.code}/round-results`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${tokens[i]}`,
+              "X-Fuse-Identity": `smoke:user${i}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              result: {
+                ...result,
+                round: 1,
+                length: 1,
+                players: players.map((p) => ({
+                  ...p,
+                  roundsPlayed: 1,
+                  roundWins: p.roundWins ? 1 : 0,
+                })),
+              },
+            }),
+          },
+        );
+        assert.equal(roundResponse.status, 200, await roundResponse.text());
       }
   }
   const initial = (await (
@@ -115,8 +139,8 @@ try {
   };
   assert.equal(
     initial.profile.rating.games,
-    7,
-    "AI-only match does not alter Elo",
+    8,
+    "a lone signed-in human records a zero-change round",
   );
   await mkdir("artifacts", { recursive: true });
   for (const [name, launcher] of [
@@ -181,7 +205,12 @@ try {
           },
           { api },
         );
-        const expected = `#${initial.profile.rank} · ${Math.round(initial.profile.rating.value).toLocaleString()} ELO`;
+        const current = (await (
+          await call("/api/me", {
+            headers: { Authorization: "Bearer smoke:user0" },
+          })
+        ).json()) as { profile: { username?: string; name?: string } };
+        const expected = `${current.profile.username ?? current.profile.name ?? "Neon Rider"} ${Math.round(initial.profile.rating.value).toLocaleString()} ELO`;
         await page
           .getByRole("button", { name: expected, exact: true })
           .waitFor();
@@ -201,7 +230,7 @@ try {
           await page.locator('[data-testid="elo-value"]').textContent(),
           Math.round(initial.profile.rating.value).toLocaleString(),
         );
-        assert.equal(await page.locator(".rating-chart circle").count(), 8);
+        assert.equal(await page.locator(".rating-chart circle").count(), 9);
         assert.equal(
           await page.locator(".stats-primary dd").first().textContent(),
           "8",
