@@ -462,31 +462,6 @@ export function step(
   const { sceneryReached } = ctx;
   const { transits } = ctx;
   for (const movement of movementList) {
-    if (causes.has(movement.player.id)) continue;
-    const transit = findPortalTransit({
-      pairs: state.portalPairs,
-      tick: state.tick,
-      from: { x: movement.oldX, y: movement.oldY },
-      to: movement,
-      heading: movement.angle,
-      cooldownUntilTick: movement.player.portalCooldownUntilTick,
-      bounds: portalBounds(state),
-      riderRadius: RIDER_RADIUS,
-      isSafeExit: (point, radius, pairId) =>
-        isSafePortalPosition(
-          state,
-          point,
-          radius,
-          movements,
-          movement.player.id,
-          causes,
-          transits,
-        ) && isClearOfPortalWalls(state, point, radius, pairId),
-    });
-    if (transit) transits.set(movement.player.id, transit);
-  }
-
-  for (const movement of movementList) {
     const cause = causes.get(movement.player.id);
     const contactTime =
       cause === "trail"

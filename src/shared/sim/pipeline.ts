@@ -20,6 +20,7 @@ import { detectHazards } from "./phases/detect-hazards.js";
 import { detectRiderContacts } from "./phases/detect-rider-contacts.js";
 import { settleSceneryContacts } from "./phases/settle-scenery-contacts.js";
 import { resolveDefences } from "./phases/resolve-defences.js";
+import { portalTransit } from "./phases/portal-transit.js";
 
 export interface Phase {
   readonly name: string;
@@ -50,6 +51,7 @@ export const PHASES: readonly Phase[] = [
     run: settleSceneryContacts,
   },
   { name: "resolveDefences", when: "playing", run: resolveDefences },
+  { name: "portalTransit", when: "playing", run: portalTransit },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */
