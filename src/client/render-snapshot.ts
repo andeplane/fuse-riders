@@ -1,5 +1,5 @@
 import { advanceShell, SHELL_RADIUS } from '../shared/shell.js';
-import { obstacleEdges } from '../shared/arena-map.js';
+import { obstacleDistanceSquared, obstacleEdges } from '../shared/arena-map.js';
 import type { ViewSnapshot } from './snapshot-stream.js';
 
 export const VISUAL_PROJECTION_LIMIT_MS = 50;
@@ -32,8 +32,6 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
   if (projectionDuration === 0) return newer.snapshot;
   const factor = projectionDuration / authoritativeDuration;
   const oldById = new Map(older.snapshot.players.map((player) => [player.id, player]));
-  // Built once per projected frame rather than once per shell: the edges are the same board for every bomb.
-  const obstacleWalls = newer.snapshot.obstacles.flatMap(obstacleEdges);
   return {
     ...newer.snapshot,
     // Cosmetic world effects use the same bounded fractional time as rider presentation.
@@ -43,6 +41,8 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
       const dt = projectionDuration / 1000;
       if (bomb.shell.gun) return bomb;
       const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx * dt * 20, vy: bomb.shell.vy * dt * 20 };
+      // As in the simulation: the obstacle a shell is inside of does not hold it.
+      const obstacleWalls = newer.snapshot.obstacles.filter(obstacle => obstacleDistanceSquared(obstacle, bomb.x, bomb.y) > 0).flatMap(obstacleEdges);
       advanceShell(motion, { left: newer.snapshot.boundaryInset + SHELL_RADIUS,
         right: newer.snapshot.width - newer.snapshot.boundaryInset - SHELL_RADIUS,
         top: newer.snapshot.boundaryInset + SHELL_RADIUS,

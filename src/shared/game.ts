@@ -570,7 +570,6 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
   // One run per portal hop. The gap between runs is travel the shell never made, so the sweep below
   // must not read across it: a rider standing between two gates is not in the way of a teleport.
   const shellPaths = new Map<number, ShellPoint[][]>();
-  const obstacleWalls = state.obstacles.flatMap(obstacleEdges);
   for (const bomb of state.bombs.values()) {
     if (!bomb.shell) continue;
     // Gun damage was resolved on press; these are stationary, harmless tracers.
@@ -582,6 +581,9 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
       right: state.width - state.boundaryInset - SHELL_RADIUS, top: state.boundaryInset + SHELL_RADIUS,
       bottom: state.height - state.boundaryInset - SHELL_RADIUS };
     // Scenery reflects a shell exactly as a trail does; it is the one surface a shell meets that it cannot cut.
+    // An edge reflects from either side, so a shell fired by an immune rider from inside an obstacle would rattle
+    // between its walls for ever. The obstacle a shell is inside of lets it out, as it lets the rider out.
+    const obstacleWalls = state.obstacles.filter(obstacle => obstacleDistanceSquared(obstacle, bomb.x, bomb.y) > 0).flatMap(obstacleEdges);
     const trails: ShellTrail[] = [...obstacleWalls,
       ...[...state.players.values()].flatMap(player => player.id === bomb.ownerId && state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS ? [] : player.trail)];
     const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx, vy: bomb.shell.vy, bounces: bomb.shell.bounces ?? 0 };
@@ -712,7 +714,10 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
         movement.oldX + (movement.x - movement.oldX) * time,
         movement.oldY + (movement.y - movement.oldY) * time, RIDER_RADIUS);
       const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
-      if (!touches(previous)) continue;
+      // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
+      // there. A rider that starts its step already overlapping an obstacle is let out of that one rather than
+      // killed on the spot by a rock it had every right to be inside; any other obstacle is as solid as ever.
+      if (!touches(previous) || touches(0)) continue;
       obstacleContactTimes.set(movement.player.id, firstContactTime(touches, previous));
     }
 
@@ -776,10 +781,13 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
    * later in the tick must not take a kill away from the trail or the rider that actually stopped it first.
    * A rider already dead by explosion still keeps its contact, which is what the shield below bounces off.
    */
+  // What the shield below bounces off: every scenery contact of the tick, whichever cause ends up winning it.
+  const sceneryReached = new Map(obstacleContactTimes);
   for (const movement of movementList) {
     const contact = obstacleContactTimes.get(movement.player.id);
     if (contact === undefined) continue;
-    const reachedFirst = Math.min(trailContactTimes.get(movement.player.id) ?? 1, riderContactTimes.get(movement.player.id) ?? 1);
+    // No trail or rider contact is no contact at all, not one at the end of the step: a rock met exactly there still counts.
+    const reachedFirst = Math.min(trailContactTimes.get(movement.player.id) ?? Infinity, riderContactTimes.get(movement.player.id) ?? Infinity);
     if (reachedFirst <= contact) { obstacleContactTimes.delete(movement.player.id); continue; }
     markCause(causes, causeOwners, movement.player.id, 'wall');
   }
@@ -790,7 +798,7 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     movement.player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
     // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
     // blast must not leave it inside the rock, riding out its grace ticks in there.
-    const obstacleTime = obstacleContactTimes.get(movement.player.id);
+    const obstacleTime = sceneryReached.get(movement.player.id);
     if (obstacleTime !== undefined && reflectAtObstacle(state, movement, obstacleTime)) bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
     causes.delete(movement.player.id);
@@ -1074,7 +1082,9 @@ function prepareRound(state: GameState): void {
   });
   // The layout is laid around riders already standing on the board, so nobody starts inside a rock or facing one
   // with no room to turn. Drawn from the round's own stream, after every participant has a pose.
-  state.map = chooseArenaMap(state.settings?.map ?? 'rotate', state.seed, state.round);
+  // A game with no room settings — LAN play, which has no settings screen — keeps the arena it has always had, like
+  // every other settings fallback. `rotate` is the default of a room that has settings, and so a way to turn it off.
+  state.map = chooseArenaMap(state.settings?.map ?? 'classic', state.seed, state.round);
   const keepClear: ClearCapsule[] = participants.map((player) => ({
     x1: player.x, y1: player.y,
     x2: player.x + cos(player.angle) * SPAWN_CORRIDOR_LENGTH,
