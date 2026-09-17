@@ -10,10 +10,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # One group per pushed commit: a shared main group lets only one run wait, so every further
+  # merge cancelled the waiting run, and on a busy day most commits never got a CI conclusion
+  # or a deployment. Push runs now overlap instead and each one completes.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   # Cancel superseded pull-request runs, but never a push run: a cancelled CI run has no
-  # success conclusion, so cancelling main's run silently withholds every deployment for
-  # that commit. Pending push runs still collapse to the newest, so no backlog forms.
+  # success conclusion, so cancelling main's run silently withholds that commit's deployment.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   # The gate a pull request waits on: type checks, unit coverage and the build, about a
