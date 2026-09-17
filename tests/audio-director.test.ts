@@ -8,7 +8,13 @@ import {
   type SynthNote,
 } from "../src/client/audio-director.ts";
 import { defaultRadio, type RadioState } from "../src/client/radio.ts";
-import { addPlayer, createGame, toSnapshot } from "../src/shared/game.ts";
+import {
+  MATCH_WINNER_TICKS,
+  ROUND_OVER_TICKS,
+  addPlayer,
+  createGame,
+  toSnapshot,
+} from "../src/shared/game.ts";
 import { beginMatchParticipant } from "../src/shared/match-stats.ts";
 import type { GameEvent, ServerMessage } from "../src/shared/protocol.ts";
 function fixture(stored: Partial<RadioState> = {}) {
@@ -167,7 +173,16 @@ test("authoritative effects coalesce volleys, reject stale events and baseline r
   );
   f.director.message(f.event(12, { type: "roundEnded" }));
   f.director.message(f.event(12, { type: "matchEnded", winnerId: "p" }));
+  assert.equal(f.notes.length, 7, "the round's sting, not yet the match's");
+  // The final pause opens on the round's own result: the match sting waits for the card that names the match winner.
+  f.game.phaseEndsAtTick = 12 + ROUND_OVER_TICKS + MATCH_WINNER_TICKS;
+  f.director.message(f.snapshot(12 + ROUND_OVER_TICKS - 1, "matchOver"));
+  assert.equal(f.notes.length, 7);
+  f.director.message(f.snapshot(12 + ROUND_OVER_TICKS, "matchOver"));
   assert.equal(f.notes.length, 9);
+  f.director.message(f.snapshot(13 + ROUND_OVER_TICKS, "matchOver"));
+  assert.equal(f.notes.length, 9, "once");
+  f.game.phaseEndsAtTick = undefined;
   f.director.message(f.snapshot(100));
   f.director.message(f.event(90, launch));
   assert.equal(f.notes.length, 9);

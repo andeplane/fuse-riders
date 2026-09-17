@@ -88,6 +88,8 @@ Fold rules `fuse-p2p-27` added the `wrap` and `cross` arena maps (#248). `cross`
 
 Fold rules `fuse-p2p-28` reshaped the Beer wobble ([ADR 046](../adr/046-drunk-stagger-and-lurch.md)): `drunkHeadingOffset` is a fast side-to-side stagger over a slow aimless lurch, bounded by 45 degrees instead of a 15 degree sine. It remains a pure function of seed, rider, tick and the effect's start and end, and the stored `drunkHeadingOffset` keeps its checkpoint bounds, so no state shape changed; rule equality rejects older peers and snapshots. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
 
+Fold rules `fuse-p2p-30`, the current rules, lengthened the pause that ends a match. `matchOver` used to last 60 ticks (plus `REPLAY_PAUSE_TICKS` after a highlight) and every screen named the match winner for all of it, which riders read as the winner of the round they had just watched. It now lasts `ROUND_OVER_TICKS`, plus `REPLAY_PAUSE_TICKS` after a highlight, plus `MATCH_WINNER_TICKS` (60): screens show the final round's own result and replay first, exactly as between rounds, and name the match winner only for the closing `MATCH_WINNER_TICKS` (`showsRoundResult` in `src/client/arena-announcer.ts`). Only `phaseEndsAtTick` moved, so no state shape changed and checkpoints validate as before; rule equality rejects older peers and snapshots. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
+
 ## Grip steering pickup
 
 Fold rules `fuse-p2p-12` introduced GRIP; `fuse-p2p-13` softened steering from 2× to 1.75×. Riders and LAN snapshots require a boolean `grip`; checkpoint decoding rejects missing or non-boolean values. Collection sets it for the remainder of the round and increases the turn rate by 75% through the same fixed-step movement kernel, without changing speed or collision geometry. Collection arbitration excludes riders who already have GRIP before distance/slot ordering, leaving later drops available to eligible rivals. Round reset clears the flag. Bots and local presentation use the same upgraded turn rate. The flag is included in state hashes, rollback and peer snapshots, and default spawn weights include `grip`. Rule equality rejects older peers and snapshots; refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
@@ -98,7 +100,7 @@ Fold rules `fuse-p2p-16` introduced the current active-tail tuning. Living rider
 
 ## Individual-round Elo
 
-Current fold rules `fuse-p2p-29` add optional `decidedRound.rating` with frozen `finishers` (human IDs) and
+Fold rules `fuse-p2p-29` add optional `decidedRound.rating` with frozen `finishers` (human IDs) and
 `standings` (`playerId`, `name`, `slot`, `color`, `place`, `scoreUnits`). Both arrays are bounded to five riders;
 standings have at least two unique IDs, finishers are unique human members of those standings, places fit the roster,
 colors are hex RGB and scores are bounded to 300. The decision retains these values after later joins/departures.
