@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import type { WorldView } from "../src/engine/view.js";
 
 const server = await createServer({
   server: { port: 0, host: "127.0.0.1", hmr: false },
@@ -113,7 +113,7 @@ try {
         resolution: "world",
       });
       await arena.ready;
-      const paint = (snapshot: ViewSnapshot, now: number) => {
+      const paint = (snapshot: WorldView, now: number) => {
         arena.render(snapshot, now, themes["neon-pixel"], "debris");
       };
       paint(before, 1000);

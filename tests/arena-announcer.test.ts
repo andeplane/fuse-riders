@@ -19,8 +19,8 @@ import {
   showsRoundResult,
   type Announcement,
 } from "../src/client/arena-announcer.js";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
-type ScoredView = ViewSnapshot;
+import type { WorldView } from "../src/engine/view.js";
+type ScoredView = WorldView;
 const field = (announcement: Announcement, key: string) =>
   (announcement as unknown as Record<string, unknown>)[key];
 

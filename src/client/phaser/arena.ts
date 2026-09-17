@@ -11,7 +11,7 @@ import {
   gravityCoreRadius,
 } from "../../engine/game.js";
 import Phaser from "phaser";
-import type { ViewSnapshot } from "../snapshot-stream.js";
+import type { WorldView } from "../../engine/view.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
@@ -57,7 +57,7 @@ export interface ArenaMetrics {
 export interface PhaserArena {
   ready: Promise<void>;
   render(
-    snapshot: ViewSnapshot,
+    snapshot: WorldView,
     now: number,
     theme: ThemeDefinition,
     matchId: string,
@@ -523,8 +523,8 @@ class ArenaScene extends Phaser.Scene {
   }
   /** Scenery is static until a blast clears it, so it is baked into the floor pass rather than redrawn each frame. */
   private drawObstacles(
-    obstacles: ViewSnapshot["obstacles"],
-    map: ViewSnapshot["map"],
+    obstacles: WorldView["obstacles"],
+    map: WorldView["map"],
   ): void {
     for (const obstacle of obstacles)
       for (const part of obstacleParts(obstacle, map)) {
@@ -614,7 +614,7 @@ class ArenaScene extends Phaser.Scene {
     return label;
   }
   paint(
-    s: ViewSnapshot,
+    s: WorldView,
     now: number,
     theme: ThemeDefinition,
     matchId: string,

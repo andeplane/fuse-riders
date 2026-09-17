@@ -1,8 +1,4 @@
-import type {
-  ArenaMapId,
-  Obstacle,
-  ObstacleKind,
-} from "../engine/arena-map.js";
+import type { ArenaMapId, Obstacle, ObstacleKind } from "../engine/view.js";
 import type { ThemeDefinition } from "./themes.js";
 
 /**

@@ -1,12 +1,168 @@
 import { BOMB_MAX_CHARGE_TICKS } from "./bomb-launch.js";
 import {
-  type GameSnapshot,
+  type AvatarId,
   type GameState,
   sortedBombs,
   sortedPlayers,
 } from "./state.js";
 import { snapshotMatchStats } from "./match-stats.js";
 import { sortedLeaderboard } from "./leaderboard.js";
+import type { PortalPair } from "./portal.js";
+import type { ArenaMapId, Obstacle } from "./arena-map.js";
+import type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
+import type { MatchPlayerStats } from "./match-stats.js";
+import type { FlightPoint } from "./launch-modifiers.js";
+import type { PickupType } from "./pickup-types.js";
+import type { Moment } from "./moments.js";
+import type { DecidedRound } from "./shot-log.js";
+import type {
+  AimPoint,
+  BlastCircle,
+  PlayerId,
+  TrailSegment,
+} from "./primitives.js";
+
+// The vocabulary the view is written in, so a screen needs no other engine module to name what it draws.
+export type { ArenaMapId, Obstacle, ObstacleKind } from "./arena-map.js";
+export type { FlightPoint } from "./launch-modifiers.js";
+export type { PickupType } from "./pickup-types.js";
+export type { PortalPair } from "./portal.js";
+export type {
+  AimPoint,
+  BlastCircle,
+  PlayerId,
+  TrailSegment,
+} from "./primitives.js";
+
+/** The public snapshot of one tick: everything a screen, the HUD and the recap read. Plain data, derived from `GameState`, never sent. */
+export interface GameSnapshot {
+  matchLength: number;
+  bombChargeTicks: number;
+  aimBounce: boolean;
+  phase: "lobby" | "countdown" | "playing" | "roundOver" | "matchOver";
+  phaseEndsAtTick?: number;
+  roundStartedTick?: number;
+  width: number;
+  height: number;
+  boundaryInset: number;
+  /** The round's ground, and the scenery standing on it: lethal to touch, and cleared by a blast. */
+  map: ArenaMapId;
+  obstacles: ReadonlyArray<Obstacle>;
+  players: ReadonlyArray<{
+    id: PlayerId;
+    name: string;
+    slot: number;
+    color: string;
+    connected: boolean;
+    avatarId: AvatarId;
+    x: number;
+    y: number;
+    angle: number;
+    alive: boolean;
+    roundWins: number;
+    matchScoreUnits: number;
+    roundScoreUnits: number;
+    waitingForNextRound?: boolean;
+    bombReadyAtTick: number;
+    bombChargeStartedTick?: number;
+    aimSlowTicks: number;
+    aimSlowSpentTicks: number;
+    trail: ReadonlyArray<TrailSegment>;
+    extraBombs: number;
+    fuseLevel: number;
+    powerPickups: number;
+    reloadDurationTicks: number;
+    invulnerableUntilTick: number;
+    nitroUntilTicks: ReadonlyArray<number>;
+    snailUntilTicks: ReadonlyArray<number>;
+    grip: boolean;
+    drunkUntilTick: number;
+    inkUntilTick: number;
+    gunArmed?: boolean;
+    shellArmed?: boolean;
+    targetBombArmed: boolean;
+    bombTarget?: AimPoint;
+    tripleShotArmed: boolean;
+    fiveShotArmed: boolean;
+    shielded: boolean;
+    shieldGraceUntilTick: number;
+    portalCooldownUntilTick: number;
+    portalGraceUntilTick: number;
+  }>;
+  bombs: ReadonlyArray<{
+    id: number;
+    ownerId: PlayerId;
+    launchX: number;
+    launchY: number;
+    x: number;
+    y: number;
+    launchedTick: number;
+    landsAtTick: number;
+    explodeAtTick: number;
+    blastRange: number;
+    shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
+    flightPath: ReadonlyArray<FlightPoint>;
+  }>;
+  blasts: ReadonlyArray<{
+    bombId: number;
+    circle: Readonly<BlastCircle>;
+    expiresAtTick: number;
+  }>;
+  portalPairs: ReadonlyArray<PortalPair>;
+  gravityFields: ReadonlyArray<{
+    x: number;
+    y: number;
+    radius: number;
+    expiresAtTick: number;
+  }>;
+  pickups: ReadonlyArray<{
+    id: number;
+    type: PickupType;
+    x: number;
+    y: number;
+    expiresAtTick: number;
+  }>;
+  leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
+  roundPlacements: ReadonlyArray<RoundPlacement>;
+  matchStats: ReadonlyArray<MatchPlayerStats>;
+  matchFinishers?: readonly string[];
+  /** Highlight moments of the match; like `matchStats`, present only once the match is over (ADR 043). */
+  moments: ReadonlyArray<Moment>;
+  /** The most recently decided round's trigger pulls and whom each killed, kept until the next round is decided. */
+  decidedRound?: DecidedRound;
+  roundWinnerId?: PlayerId;
+  matchWinnerId?: PlayerId;
+}
+
+/** What a tick reports, in order. Cosmetics and sound key off these; nothing in the simulation reads them back. */
+export type GameEvent =
+  | { type: "pickupCollected"; playerId: PlayerId; pickupId: number }
+  | { type: "bombPlaced"; bombId: number; playerId: PlayerId; gun?: boolean }
+  | { type: "explosion"; bombId: number }
+  | {
+      type: "playerEliminated";
+      playerId: PlayerId;
+      cause: "wall" | "trail" | "explosion" | "rider";
+    }
+  | { type: "moment"; moment: Moment }
+  | { type: "roundEnded"; winnerId?: PlayerId }
+  | { type: "matchEnded"; winnerId?: PlayerId };
+
+/** Per-rider presentation time is local rendering metadata, never authoritative state. */
+export type ViewPlayer = GameSnapshot["players"][number] & {
+  presentationTick?: number;
+};
+/**
+ * What rendering is given: a snapshot placed in time. `tick` is fractional between two simulated ticks;
+ * `presentationTick` is optional fractional world time for cosmetics.
+ */
+export type WorldView = Omit<GameSnapshot, "players"> & {
+  tick: number;
+  round: number;
+  players: readonly ViewPlayer[];
+  presentationTick?: number;
+};
+
 /** What a screen is given of the state: the public snapshot. Read-only over `GameState`; callers ask for it when they need one. */
 export function toSnapshot(state: GameState): GameSnapshot {
   return {

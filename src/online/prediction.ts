@@ -6,14 +6,14 @@ import {
 import { atan2, cos, hypot2, sin } from "../engine/deterministic-math.js";
 import { edgesOpen } from "../engine/arena-map.js";
 import { wrapDelta } from "../engine/wrap.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
+import type { WorldView } from "../engine/view.js";
 
 /** All discrete state belongs to the earlier tick; never expose future trail/death state. */
 export function interpolateWorld(
-  older: ViewSnapshot | undefined,
-  newer: ViewSnapshot,
+  older: WorldView | undefined,
+  newer: WorldView,
   fraction: number,
-): ViewSnapshot {
+): WorldView {
   if (
     !older ||
     older.round !== newer.round ||
@@ -80,11 +80,11 @@ export interface LocalRider {
  * while the simulation catches up. Deaths, pickups and scores come from the newest tick as simulated.
  */
 export function presentWorld(
-  older: ViewSnapshot | undefined,
-  newer: ViewSnapshot,
+  older: WorldView | undefined,
+  newer: WorldView,
   presentationTick: number,
   local?: LocalRider,
-): ViewSnapshot {
+): WorldView {
   const shown =
     older && presentationTick < newer.tick
       ? interpolateWorld(older, newer, presentationTick - older.tick)

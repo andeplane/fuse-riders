@@ -14,9 +14,9 @@ import {
   selfLocatorSide,
   selfLocatorStrength,
 } from "../src/client/self-locator.js";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import type { WorldView } from "../src/engine/view.js";
 
-const view = (overrides: Partial<ViewSnapshot>): ViewSnapshot => {
+const view = (overrides: Partial<WorldView>): WorldView => {
   const game = createGame("self-locator");
   addPlayer(game, { id: "me", name: "Anders", slot: 0, color: SLOT_COLORS[0] });
   addPlayer(game, { id: "ai", name: "AI Ada", slot: 1, color: SLOT_COLORS[1] });

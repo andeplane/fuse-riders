@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EffectTransitions, bombPose } from "../src/client/phaser/effects.js";
 import { createGame, addPlayer, toSnapshot } from "../src/engine/game.js";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
-const frame = (): ViewSnapshot => {
+import type { WorldView } from "../src/engine/view.js";
+const frame = (): WorldView => {
   const game = createGame("visual-test");
   addPlayer(game, { id: "p", name: "P", slot: 0, color: "#22d3ee" });
   return { ...toSnapshot(game), tick: 10, round: 1 };

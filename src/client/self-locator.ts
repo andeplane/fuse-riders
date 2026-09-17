@@ -1,5 +1,5 @@
 import { TICK_HZ } from "../engine/game.js";
-import type { ViewSnapshot } from "./snapshot-stream.js";
+import type { WorldView } from "../engine/view.js";
 
 /** The locator fades out over the end of the countdown, so it is gone by the time the riders move. */
 export const SELF_LOCATOR_FADE_TICKS = TICK_HZ;
@@ -14,7 +14,7 @@ const RING_NEAR = 30;
  * over its end, and never there once play has started. Snapshot time keeps it in step with pauses, reconnects and
  * rollback.
  */
-export function selfLocatorStrength(snapshot: ViewSnapshot): number {
+export function selfLocatorStrength(snapshot: WorldView): number {
   if (snapshot.phase !== "countdown" || snapshot.phaseEndsAtTick === undefined)
     return 0;
   const left =

@@ -43,7 +43,7 @@ import {
   type RoomSettings,
 } from "../engine/room-settings.js";
 import type { PickupType } from "../engine/game.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
+import type { WorldView } from "../engine/view.js";
 import type { MatchPlayerStats } from "../engine/match-stats.js";
 import type { Moment } from "../engine/moments.js";
 import {
@@ -463,7 +463,7 @@ export async function startOnline(): Promise<void> {
     isHost = false,
     joined = false,
     settings = loadRoomSettings(localStorage),
-    snapshot: ViewSnapshot | undefined;
+    snapshot: WorldView | undefined;
   startAnalytics({ role, mode: settings.mode, solo });
   track("App Opened");
   // Funnel bookkeeping, per page load: a seat is reported once, and a match only where this device saw it begin.
@@ -669,7 +669,7 @@ export async function startOnline(): Promise<void> {
   let lastAnnouncement = "";
   const touchInput =
     navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches;
-  const showAnnouncement = (state: ViewSnapshot, visible: boolean) => {
+  const showAnnouncement = (state: WorldView, visible: boolean) => {
     const announcement = announcementFor(state, id, touchInput);
     const key = JSON.stringify(announcement) + visible + isHost;
     if (key === lastAnnouncement) return;
@@ -2167,10 +2167,7 @@ export async function startOnline(): Promise<void> {
   }, 1000);
   // `id` marks the local rider in the arena (the YOU ring); every render path passes it as the last argument, replays included.
   /** A running replay takes over the arena: its clip renders under a scope of its own, the overlay dresses it, and live play returns on `done`. */
-  function replayFrame(
-    now: number,
-    predicted: ViewSnapshot | undefined,
-  ): boolean {
+  function replayFrame(now: number, predicted: WorldView | undefined): boolean {
     const update = replay.frame(now);
     if (!update) return false;
     // The arena left the screen under a replay (MAIN MENU, a controller-only seat): take the dressing down and forget the clip.

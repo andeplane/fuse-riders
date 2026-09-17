@@ -5,9 +5,9 @@ import {
   SLOT_COLORS,
 } from "../../engine/game.js";
 import { AVATARS } from "../../shared/avatars.js";
-import type { ViewSnapshot } from "../snapshot-stream.js";
+import type { WorldView } from "../../engine/view.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
-export function visualFixture(tick: number): ViewSnapshot {
+export function visualFixture(tick: number): WorldView {
   const game = createGame("renderer-fixture", 42);
   for (let p = 0; p < 5; p++)
     addPlayer(game, {
@@ -74,7 +74,7 @@ export function visualFixture(tick: number): ViewSnapshot {
     pickups: ["power", "triple", "five", "beer", "target", "shell"].map(
       (type, i) => ({
         id: i,
-        type: type as ViewSnapshot["pickups"][number]["type"],
+        type: type as WorldView["pickups"][number]["type"],
         x: 180 + i * 240,
         y: 780,
         expiresAtTick: tick + 100,

@@ -136,7 +136,6 @@ export function layer(file: string): Layer {
   if (
     file.startsWith("src/net/") ||
     (file.startsWith("src/online/") && network.has(base)) ||
-    file === "src/client/snapshot-stream.ts" ||
     file.startsWith("packages/")
   )
     return "net";

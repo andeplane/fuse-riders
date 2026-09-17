@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_AVATAR } from "../src/shared/avatars.ts";
 import type { Moment } from "../src/engine/moments.ts";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.ts";
+import type { WorldView } from "../src/engine/view.ts";
 import {
   BARS_IN_MS,
   BARS_OUT_MS,
@@ -35,8 +35,8 @@ function world(
   tick: number,
   round: number,
   riders: Rider[],
-  phase: ViewSnapshot["phase"] = "playing",
-): ViewSnapshot {
+  phase: WorldView["phase"] = "playing",
+): WorldView {
   return {
     tick,
     round,

@@ -1,7 +1,7 @@
 import { BLAST_VISIBLE_TICKS } from "../engine/game.js";
-import type { ViewSnapshot } from "./snapshot-stream.js";
+import type { WorldView } from "../engine/view.js";
 
-type Blast = ViewSnapshot["blasts"][number];
+type Blast = WorldView["blasts"][number];
 export type BlastTone = "outer" | "warm" | "core";
 export interface BlastCircleFrame {
   x: number;

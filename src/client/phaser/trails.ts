@@ -4,10 +4,9 @@ import {
   TICK_HZ,
   riderSpeedMultiplier,
 } from "../../engine/game.js";
-import type { TrailSegment } from "../../shared/protocol.js";
-import type { ViewSnapshot } from "../snapshot-stream.js";
+import type { TrailSegment, WorldView } from "../../engine/view.js";
 
-type Rider = ViewSnapshot["players"][number];
+type Rider = WorldView["players"][number];
 export interface TrailPoint {
   x: number;
   y: number;
@@ -124,7 +123,7 @@ export class TrailHistoryCache {
 export function trailTip(
   player: Rider,
   tick: number,
-  phase: ViewSnapshot["phase"],
+  phase: WorldView["phase"],
 ): readonly TrailPoint[] {
   const last = player.trail.at(-1);
   if (!last) return [];

@@ -45,7 +45,7 @@ try {
       const { RELOAD_RING_RADIUS } = (await import(
         String("/src/client/reload-ring.ts")
       )) as typeof import("../src/client/reload-ring.js");
-      type Snapshot = import("../src/client/snapshot-stream.js").ViewSnapshot;
+      type Snapshot = import("../src/engine/view.js").WorldView;
       document.body.replaceChildren();
       document.body.style.cssText = "margin:0;background:#020715";
       const canvas = document.createElement("canvas");

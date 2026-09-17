@@ -1,4 +1,4 @@
-import type { GameSnapshot } from "../shared/protocol.js";
+import type { GameSnapshot } from "../engine/view.js";
 
 let layer: HTMLCanvasElement | undefined;
 

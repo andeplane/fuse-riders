@@ -49,8 +49,8 @@ import {
 } from "../engine/room-settings.js";
 import { botDisplayName, BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../engine/game.js";
-import type { AimPoint, GameEvent } from "../shared/protocol.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
+import type { AimPoint } from "../engine/primitives.js";
+import type { GameEvent, WorldView } from "../engine/view.js";
 import { uuid } from "../shared/uuid.js";
 import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
@@ -1409,7 +1409,7 @@ export class RoomRuntime {
       this.lastFrameTick = frame.tick;
   }
   /** The frame to draw now: one tick behind the clock, the local rider led by its held controls. */
-  view(): ViewSnapshot | undefined {
+  view(): WorldView | undefined {
     const frames = this.world?.view();
     if (!frames?.length) return undefined;
     const [newer, older] = frames,
