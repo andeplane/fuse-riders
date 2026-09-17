@@ -51,7 +51,7 @@ The target is `engine` (pure rules), `net` (simulation coordination), `render` (
 
 Direct-link failure must surface an explicit retry state. A partial mesh and browser timer throttling remain tracked risks in [#258](https://github.com/andeplane/fuse-riders/issues/258); general mesh tests are not proof of every phone or network condition. Protocol details and security boundaries are in [PROTOCOL.md](online/PROTOCOL.md).
 
-At this revision, the service still renews room lifetime from the creator alone. Delegated game management therefore does not yet mean indefinite room survival after creator departure. The intended contract is that any remaining rider keeps the room alive; [#258](https://github.com/andeplane/fuse-riders/issues/258) tracks that discrepancy. An explicit creator-authorized end is different from an ordinary disconnect. Room incarnation and connection fencing prevent old callbacks from affecting reused codes or replacement sockets.
+The service renews room lifetime on any member's admission or valid heartbeat, so a remaining connected rider keeps the room alive after creator departure. A current member's departure starts a 90-second reconnect grace. The creator retains its identity and explicit-end capability; guest renewal does not renew the creator authority grant. Returning devices recover the live world from a peer. Room incarnation and connection fencing reject old callbacks for reused codes or replacement sockets. See the [lifetime design](design/member-kept-room-lifetime.md); partition elections and browser suspension remain separate #258 risks.
 
 ## Simulation and time
 
