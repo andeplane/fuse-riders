@@ -8,9 +8,9 @@ import {
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SELF_LOCATOR_LINGER_TICKS,
+  SELF_LOCATOR_FADE_TICKS,
   SELF_LOCATOR_REACH,
-  selfLocatorRings,
+  selfLocatorRing,
   selfLocatorSide,
   selfLocatorStrength,
 } from "../src/client/self-locator.js";
@@ -24,37 +24,49 @@ const view = (overrides: Partial<ViewSnapshot>): ViewSnapshot => {
   return { ...toSnapshot(game), tick: game.tick, round: 1, ...overrides };
 };
 
-test("the locator is at full strength for the whole countdown", () => {
+const countdown = (tick: number, presentationTick?: number) =>
+  selfLocatorStrength(
+    view({ phase: "countdown", phaseEndsAtTick: 60, tick, presentationTick }),
+  );
+
+test("the locator opens the countdown at full strength", () => {
   assert.equal(selfLocatorStrength(view({})), 1);
+  assert.equal(countdown(0), 1);
+  assert.equal(countdown(60 - SELF_LOCATOR_FADE_TICKS), 1);
+});
+
+test("the locator fades out over the end of the countdown", () => {
+  assert.equal(countdown(60 - SELF_LOCATOR_FADE_TICKS / 2), 0.5);
+  assert.equal(countdown(60), 0);
+  // Rendering between ticks fades smoothly instead of stepping at the tick rate.
+  assert.equal(countdown(40, 60 - SELF_LOCATOR_FADE_TICKS / 4), 0.25);
+  // A view presented past the end of the countdown never goes negative.
+  assert.equal(countdown(60, 63), 0);
+});
+
+test("the locator is gone once play has started", () => {
+  for (const tick of [60, 61, 80, 600])
+    assert.equal(
+      selfLocatorStrength(
+        view({ phase: "playing", roundStartedTick: 60, tick }),
+      ),
+      0,
+    );
+  // A rolled-back view may briefly present a tick from before the round started.
   assert.equal(
     selfLocatorStrength(
-      view({ phase: "countdown", tick: 59, phaseEndsAtTick: 60 }),
+      view({ phase: "playing", roundStartedTick: 60, tick: 58 }),
     ),
-    1,
+    0,
   );
 });
 
-test("the locator fades over the first moments of play and then stays gone", () => {
-  const playing = (tick: number, presentationTick?: number) =>
-    selfLocatorStrength(
-      view({ phase: "playing", roundStartedTick: 60, tick, presentationTick }),
-    );
-  assert.equal(playing(60), 1);
-  assert.equal(playing(60 + SELF_LOCATOR_LINGER_TICKS / 2), 0.5);
-  assert.equal(playing(60 + SELF_LOCATOR_LINGER_TICKS), 0);
-  assert.equal(playing(60 + SELF_LOCATOR_LINGER_TICKS * 10), 0);
-  // Rendering between ticks fades smoothly instead of stepping at the tick rate.
-  assert.equal(playing(60, 60 + SELF_LOCATOR_LINGER_TICKS / 4), 0.75);
-  // A rolled-back view may briefly present a tick from before the round started.
-  assert.equal(playing(58), 1);
-});
-
-test("the locator stays off outside the opening of a round", () => {
+test("the locator stays off outside the countdown", () => {
   for (const phase of ["lobby", "roundOver", "matchOver"] as const)
     assert.equal(selfLocatorStrength(view({ phase })), 0);
   assert.equal(
     selfLocatorStrength(
-      view({ phase: "playing", roundStartedTick: undefined, tick: 60 }),
+      view({ phase: "countdown", phaseEndsAtTick: undefined }),
     ),
     0,
   );
@@ -64,19 +76,17 @@ test("the arrow sits above the rider unless the top boundary leaves no room", ()
   assert.equal(selfLocatorSide(450, 0), -1);
   assert.equal(selfLocatorSide(SELF_LOCATOR_REACH, 0), -1);
   assert.equal(selfLocatorSide(SELF_LOCATOR_REACH - 1, 0), 1);
-  assert.equal(selfLocatorSide(200, 80), 1);
+  assert.equal(selfLocatorSide(SELF_LOCATOR_REACH + 79, 80), 1);
+  assert.equal(selfLocatorSide(SELF_LOCATOR_REACH + 80, 80), -1);
 });
 
-test("rings close in on the rider, brightening as they arrive, with one always on its way", () => {
-  const [first, second] = selfLocatorRings(0);
-  assert.deepEqual(first, { radius: 230, alpha: 0 });
-  assert.deepEqual(second, { radius: 130, alpha: 0.5 });
-  const later = selfLocatorRings(550);
-  assert.deepEqual(later[0], { radius: 130, alpha: 0.5 });
-  assert.deepEqual(later[1], { radius: 230, alpha: 0 });
-  for (const now of [-400, 123, 9_999_999])
-    for (const ring of selfLocatorRings(now)) {
-      assert.ok(ring.radius > 30 && ring.radius <= 230);
-      assert.ok(ring.alpha >= 0 && ring.alpha < 1);
-    }
+test("the ring closes in on the rider, brightening as it arrives, over and over", () => {
+  assert.deepEqual(selfLocatorRing(0), { radius: 120, alpha: 0 });
+  assert.deepEqual(selfLocatorRing(750), { radius: 75, alpha: 0.5 });
+  assert.deepEqual(selfLocatorRing(1500), { radius: 120, alpha: 0 });
+  for (const now of [-400, 123, 9_999_999]) {
+    const ring = selfLocatorRing(now);
+    assert.ok(ring.radius > 30 && ring.radius <= 120);
+    assert.ok(ring.alpha >= 0 && ring.alpha < 1);
+  }
 });
