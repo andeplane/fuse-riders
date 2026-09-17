@@ -30,9 +30,12 @@ import {
   BOT,
   JOIN,
   STEER,
-  MAX_NAME_LENGTH,
   type Entry,
 } from "../src/engine/input-log.js";
+import {
+  MAX_LOGGED_NAME_UNITS,
+  validRiderName,
+} from "../src/engine/rider-name.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 function fixture() {
   const game = createGame("bot-fixture", classicSettings());
@@ -482,7 +485,7 @@ test("Explicit tiers in existing names retain their deterministic controller set
         `${name} must read back its own tier`,
       );
       assert.ok(
-        name.length <= MAX_NAME_LENGTH,
+        name.length <= MAX_LOGGED_NAME_UNITS && validRiderName(name),
         `${name} must fit the rider name the log accepts`,
       );
     }

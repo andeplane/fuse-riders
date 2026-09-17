@@ -9,6 +9,7 @@ import {
   type GestureControls,
 } from "./bomb-gesture.js";
 import type { InputIntent } from "./state.js";
+import { loggedRiderName } from "./rider-name.js";
 
 /** Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's. */
 export const STEER = 0,
@@ -25,7 +26,6 @@ export const JOIN = 10,
   BOT = 15;
 export const UINT16_MAX = 0xffff,
   UINT32_MAX = 0xffff_ffff;
-export const MAX_NAME_LENGTH = 20;
 export type RoomAction = "start" | "rematch" | "lobby";
 export type Entry =
   | [seq: number, tick: number, kind: 0, flags: number]
@@ -84,11 +84,6 @@ const uint16 = (value: unknown): value is number =>
 const slot = (value: unknown): value is number => uint32(value) && value <= 4;
 export const memberId = (value: unknown): value is string =>
   typeof value === "string" && /^[\w:.-]{1,64}$/.test(value);
-const name = (value: unknown): value is string =>
-  typeof value === "string" &&
-  value.trim().length > 0 &&
-  value.length <= MAX_NAME_LENGTH &&
-  !/[\x00-\x1f\x7f]/.test(value);
 const matchId = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= 64;
 
@@ -129,7 +124,7 @@ export function isEntry(raw: unknown): raw is Entry {
       return (
         raw.length === 8 &&
         memberId(raw[3]) &&
-        name(raw[4]) &&
+        loggedRiderName(raw[4]) &&
         slot(raw[5]) &&
         isAvatarId(raw[6]) &&
         uint32(raw[7])
@@ -153,7 +148,10 @@ export function isEntry(raw: unknown): raw is Entry {
       );
     case BOT:
       return raw[3] === "add"
-        ? raw.length === 7 && memberId(raw[4]) && name(raw[5]) && slot(raw[6])
+        ? raw.length === 7 &&
+            memberId(raw[4]) &&
+            loggedRiderName(raw[5]) &&
+            slot(raw[6])
         : raw[3] === "remove" && raw.length === 5 && memberId(raw[4]);
     default:
       return false;

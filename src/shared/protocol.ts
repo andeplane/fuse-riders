@@ -1,4 +1,5 @@
 import { isAvatarId, type AvatarId } from "./avatars.js";
+import { trimmedRiderName } from "../engine/rider-name.js";
 import type { PortalPair } from "../engine/portal.js";
 import type { ArenaMapId, Obstacle } from "../engine/arena-map.js";
 import type {
@@ -238,17 +239,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "join":
       if (
         !keys("type", "name", "playerToken", "avatarId") ||
-        typeof v.name !== "string" ||
-        !v.name.trim() ||
-        Array.from(v.name.trim()).length > 18 ||
-        /[\u0000-\u001f\u007f]/.test(v.name) ||
+        trimmedRiderName(v.name) === undefined ||
         (v.playerToken !== undefined && !token(v.playerToken)) ||
         (v.avatarId !== undefined && !isAvatarId(v.avatarId))
       )
         return null;
       return {
         type: "join",
-        name: v.name.trim(),
+        name: trimmedRiderName(v.name)!,
         ...(v.playerToken ? { playerToken: v.playerToken as string } : {}),
         ...(isAvatarId(v.avatarId) ? { avatarId: v.avatarId } : {}),
       };

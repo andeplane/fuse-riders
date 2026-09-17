@@ -40,6 +40,7 @@ import {
   type Obstacle,
 } from "../arena-map.js";
 import { parseRoomSettings, type RoomSettings } from "../room-settings.js";
+import { loggedRiderName } from "../rider-name.js";
 import type { MatchPlayerStatsState } from "../match-stats.js";
 import { MAX_ROUND_SHOTS, WEAPONS, type RoundShot } from "../shot-log.js";
 import {
@@ -75,8 +76,8 @@ const count =
     integer(v) && (v as number) <= max;
 const text: Guard = (v) =>
   typeof v === "string" && v.length > 0 && v.length <= 128;
-const name: Guard = (v) =>
-  typeof v === "string" && v.trim().length > 0 && v.length <= 20;
+/** The log's own bound: a name reaches a state only through a JOIN or BOT entry, so a checkpoint admits what those do. */
+const name: Guard = loggedRiderName;
 const boolean: Guard = (v) => typeof v === "boolean";
 const optional =
   (guard: Guard): Guard =>
