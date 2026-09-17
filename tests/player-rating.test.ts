@@ -37,8 +37,8 @@ function result(ids: string[], matchId = "match-1"): MatchResult {
   );
   const players = snapshotMatchStats(map).map((p, i) => ({
     ...p,
-    roundsPlayed: 3,
-    roundWins: i === 0 ? 2 : 0,
+    roundsPlayed: 1,
+    roundWins: i === 0 ? 1 : 0,
     matchScoreUnits: (ids.length - i) * 60,
     matchPlacement: i + 1,
     survivalTicks: 100,
@@ -47,7 +47,8 @@ function result(ids: string[], matchId = "match-1"): MatchResult {
   }));
   return {
     matchId,
-    length: 3,
+    length: 1,
+    round: 1,
     players,
     finishers: ids.filter((id) => !id.startsWith("bot:")).sort(),
   };
@@ -79,7 +80,12 @@ async function fixture(count = 2) {
       uid: string | null = `user${i}`,
     ) =>
       history.submit(
-        await history.admit(code, tokens[i]!, `request-${request++}`),
+        await history.admit(
+          code,
+          tokens[i]!,
+          `request-${request++}`,
+          match.round !== undefined,
+        ),
         { result: match },
         uid ?? undefined,
       ),
@@ -151,7 +157,8 @@ test("human Elo settles exactly once, graph and public rank agree, AI positions 
   assert.equal(first.rating!.value, 1016);
   assert.equal(first.rank, 1);
   assert.equal((await f.history.profile("user1"))!.rating!.value, 984);
-  assert.equal(first.career!.mixed.matches, 1);
+  assert.equal(first.career, undefined);
+  assert.equal(first.totals.matches, 0);
   assert.equal(first.rating!.points[0]!.after, first.rating!.value);
   await Promise.all([f.report(0, match), f.report(1, match)]);
   assert.deepEqual((await f.history.profile("user0"))!.rating, first.rating);
@@ -165,11 +172,11 @@ test("human Elo settles exactly once, graph and public rank agree, AI positions 
   );
   assert.equal(JSON.stringify(board).includes("user0"), false);
   const history = await f.history.history("user0", undefined);
-  assert.equal(history.matches[0]!.rating!.after, 1016);
+  assert.equal(history.matches.length, 0);
   const onlyAI = result([f.ids[0]!, "bot:1"], "ai-game");
   await f.report(0, onlyAI);
   assert.equal((await f.history.profile("user0"))!.rating!.games, 1);
-  assert.equal((await f.history.profile("user0"))!.career!.practice.matches, 1);
+  assert.equal((await f.history.profile("user0"))!.career, undefined);
   await f.history.rename("user0", { username: "New name" });
   assert.equal((await f.history.leaderboard("board-ip"))[0]!.name, "New name");
   assert.equal((await f.history.profile("user0"))!.rating!.value, 1016);
@@ -181,7 +188,7 @@ test("late identity completes rating and rivals once; guests, departures and par
   match.players[0]!.combat!.victims[f.ids[1]!] = 2;
   await f.report(0, match);
   await f.report(1, match, null);
-  assert.equal((await f.history.profile("user0"))!.rating, undefined);
+  assert.equal((await f.history.profile("user0"))?.rating, undefined);
   assert.deepEqual(await f.database.rivals("user0"), { nemeses: [], prey: [] });
   f.advance();
   await f.report(1, match);
@@ -191,20 +198,59 @@ test("late identity completes rating and rivals once; guests, departures and par
     1_800_000_001_000,
   );
   const rivals = await f.database.rivals("user0");
-  assert.equal(rivals.prey[0]!.kills, 2);
+  assert.equal(rivals.prey.length, 0);
   assert.equal((await f.history.profile("user1"))!.name, "Rider 2");
   await f.report(0, match);
-  assert.equal((await f.database.rivals("user0")).prey[0]!.kills, 2);
+  assert.equal((await f.database.rivals("user0")).prey.length, 0);
   const variants = ["departure", "partial"] as const;
   for (const mode of variants) {
     const g = await fixture(),
       m = result(g.ids);
     if (mode === "departure") m.finishers = [g.ids[0]!];
-    else m.players[1]!.roundsPlayed = 1;
+    else m.players[1]!.roundsPlayed = 0;
     await g.report(0, m);
     await g.report(1, m);
-    assert.equal((await g.history.profile("user0"))!.rating, undefined);
+    assert.equal((await g.history.profile("user0"))?.rating, undefined);
   }
+});
+
+test("a rider who left, joined late or played as a guest is left out instead of voiding the match", async () => {
+  const variants = ["departure", "partial", "guest"] as const;
+  for (const mode of variants) {
+    const f = await fixture(3),
+      match = result(f.ids);
+    if (mode === "departure") match.finishers = [f.ids[0]!, f.ids[1]!].sort();
+    if (mode === "partial") match.players[2]!.roundsPlayed = 0;
+    await f.report(0, match);
+    await f.report(1, match);
+    // Only a rider who stayed is waited for: they may be about to report signed in.
+    assert.equal(
+      (await f.history.profile("user0"))?.rating?.games,
+      mode === "guest" ? undefined : 1,
+      mode,
+    );
+    if (mode !== "departure")
+      await f.report(2, match, mode === "guest" ? null : "user2");
+    assert.equal((await f.history.profile("user0"))!.rating!.value, 1016, mode);
+    assert.equal((await f.history.profile("user1"))!.rating!.value, 984, mode);
+    const third = await f.history.profile("user2");
+    assert.equal(third?.rating, undefined, mode);
+    assert.equal(third?.totals.matches, undefined);
+  }
+  const f = await fixture(3),
+    match = result(f.ids);
+  await f.report(0, match);
+  await f.report(1, match);
+  assert.equal((await f.history.profile("user0"))?.rating, undefined);
+  await f.report(2, match);
+  assert.deepEqual(
+    await Promise.all(
+      [0, 1, 2].map(
+        async (i) => (await f.history.profile(`user${i}`))!.rating!.value,
+      ),
+    ),
+    [1016, 1000, 984],
+  );
 });
 
 test("conflicting reports for the same match cannot rate twice; concurrent matches read fresh ratings", async () => {
@@ -304,7 +350,6 @@ test("storage rejects corrupt combat/rating data before it can change the ladder
   assert.equal(parseProfile(undefined), undefined);
   assert.throws(() => parseProfile({ rating: {} }));
   assert.throws(() => parseProfile({ career: {} }));
-  assert.equal(parseMatchRecord({}), undefined);
 });
 
 test("rating graphs retain the latest 100 points without resetting current Elo or old receipts", async () => {
@@ -381,4 +426,46 @@ test("combat JSON ordering is canonical across reporters, including target maps"
     JSON.stringify(parseCombat(reversed(combat))),
     JSON.stringify(parseCombat(combat)),
   );
+});
+
+test("rounds settle separately before game completion; final game credits career once without more Elo", async () => {
+  const f = await fixture(3);
+  const first = result(f.ids.slice(0, 2));
+  await f.report(1, first);
+  await f.report(0, first);
+  assert.equal((await f.history.profile("user0"))!.rating!.games, 1);
+  // The next round includes a newcomer, and its score reverses the first round.
+  const second = result(f.ids);
+  second.round = 2;
+  second.players[0]!.matchScoreUnits = 0;
+  await f.report(2, second);
+  await f.report(0, second);
+  await f.report(1, second);
+  assert.equal((await f.history.profile("user0"))!.rating!.games, 2);
+  assert.equal((await f.history.profile("user2"))!.rating!.games, 1);
+  const before = (await f.history.profile("user0"))!.rating;
+  const fullGame = result(f.ids);
+  delete fullGame.round;
+  fullGame.length = 2;
+  fullGame.players[0]!.roundsPlayed = fullGame.players[1]!.roundsPlayed = 2;
+  fullGame.players[0]!.combat!.victims[f.ids[1]!] = 2;
+  for (const i of [0, 1, 2, 0]) await f.report(i, fullGame);
+  assert.deepEqual((await f.history.profile("user0"))!.rating, before);
+  assert.equal((await f.history.profile("user0"))!.totals.matches, 1);
+  assert.equal((await f.history.history("user0", undefined)).matches.length, 1);
+  assert.equal((await f.database.rivals("user0")).prey[0]!.kills, 2);
+  for (const i of [0, 1]) await f.report(i, first);
+  assert.deepEqual((await f.history.profile("user0"))!.rating, before);
+});
+test("round numbers and round roster bounds reject malformed reports", async () => {
+  const f = await fixture();
+  for (const round of [0, -1, 1.5, 1000001, "1", null]) {
+    await assert.rejects(() =>
+      f.history.submit(
+        { code: "AB12", rider: f.ids[0]!, incarnation: "r" },
+        { result: { ...result(f.ids), round } },
+        "user0",
+      ),
+    );
+  }
 });

@@ -884,6 +884,39 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
       "one signed-in human and a guest do not rate",
     );
     assert.equal((await report(guest, result, "id:bob")).status, 200);
+    const roundResult = {
+      ...result,
+      round: 1,
+      length: 1,
+      players: result.players.map((p) => ({
+        ...p,
+        roundsPlayed: 1,
+        roundWins: 0,
+        roundsDrawn: 0,
+      })),
+    };
+    const roundReport = (seat: string, identity: string) =>
+      call(`/api/rooms/${created.code}/round-results`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${seat}`,
+          "x-fuse-identity": identity,
+        },
+        body: JSON.stringify({ result: roundResult }),
+      });
+    assert.equal(
+      (await report(created.token, roundResult, "id:alice")).status,
+      400,
+      "rounds cannot use the career endpoint",
+    );
+    assert.equal((await roundReport(created.token, "id:alice")).status, 200);
+    assert.equal(
+      (await roundReport(guest, "forged-token")).status,
+      503,
+      "a failed identity does not attest as a guest",
+    );
+    assert.equal((await roundReport(guest, "id:bob")).status, 200);
+
     const board = (await (
       await call("/api/leaderboard", {
         headers: { authorization: "Bearer id:alice" },

@@ -325,7 +325,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       body.replaceChildren(
         el(
           "p",
-          "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account. Your rider name, avatar and Elo appear on the public leaderboard after a rated match; your email is never shown.",
+          "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account. Your rider name, avatar and Elo appear on the public leaderboard after a rated round; your email is never shown.",
           "account-note",
         ),
         enter,

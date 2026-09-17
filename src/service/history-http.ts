@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import { RoomError, type HttpExtension } from "fuse-network-be";
-import type { HistoryStore } from "./history.js";
+import { parseMatchResult, type HistoryStore } from "./history.js";
 import type { IdentityVerifier } from "./identity.js";
 
 const MAX_BODY_BYTES = 256_000,
@@ -43,7 +43,7 @@ export function createHistoryHttp(
     async handle(req, res, clientAddress) {
       const url = new URL(req.url ?? "/", "http://gateway");
       const route = url.pathname.match(
-        /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(results)$/,
+        /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(results|round-results)$/,
       );
       const json = (value: unknown, status = 200) => {
         res.writeHead(status, { "Content-Type": "application/json" });
@@ -51,16 +51,29 @@ export function createHistoryHttp(
       };
       // The room token says which seat is reporting; the optional identity header says whose account that seat is.
       // An identity that does not verify is a guest's report, never a refusal: signing in must not be able to cost a rider their result.
-      if (route?.[2] === "results" && req.method === "POST") {
+      if (route && req.method === "POST") {
         // The room token is checked first, so a stranger can buy neither a body read nor a signature verification.
         const reporter = await history.admit(
             route[1]!,
             bearer(req),
             clientAddress,
+            route[2] === "round-results",
           ),
           body = await readJson(req);
         const header = req.headers["x-fuse-identity"],
           uid = typeof header === "string" ? await identity(header) : undefined;
+        // A temporarily unverifiable signed-in round reporter must not be settled as a guest.
+        const result =
+          body && typeof body === "object" && "result" in body
+            ? parseMatchResult(body.result)
+            : undefined;
+        if (
+          !result ||
+          (route[2] === "round-results") !== (result.round !== undefined)
+        )
+          throw new RoomError(400, "Wrong result kind");
+        if (header && !uid && result.round !== undefined)
+          throw new RoomError(503, "Identity unavailable; retry round report");
         json(await history.submit(reporter, body, uid));
         return true;
       }

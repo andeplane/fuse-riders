@@ -46,6 +46,8 @@ export type StoredPlayer = MatchPlayerStats;
 /** Exactly what every device computes identically. Anything a rider can still change on the recap screen stays out, or honest reports would differ. */
 export interface MatchResult {
   matchId: string;
+  /** Present only for rating receipts; these never credit whole-game career history. */
+  round?: number;
   length: number;
   winnerId?: string;
   finishers: string[];
@@ -283,11 +285,33 @@ export function parseMatchResult(raw: unknown): MatchResult | undefined {
   if (
     !plain(raw) ||
     !Object.keys(raw).every((key) =>
-      ["matchId", "length", "winnerId", "finishers", "players"].includes(key),
+      [
+        "matchId",
+        "round",
+        "length",
+        "winnerId",
+        "finishers",
+        "players",
+      ].includes(key),
     )
   )
     return;
-  const { matchId, length, winnerId, finishers, players: rawPlayers } = raw;
+  const {
+    matchId,
+    round,
+    length,
+    winnerId,
+    finishers,
+    players: rawPlayers,
+  } = raw;
+  if (
+    round !== undefined &&
+    (!Number.isSafeInteger(round) ||
+      (round as number) < 1 ||
+      (round as number) > 1_000_000 ||
+      length !== 1)
+  )
+    return;
   if (typeof matchId !== "string" || !/^[\x21-\x7e]{1,128}$/.test(matchId))
     return;
   if (
@@ -299,7 +323,8 @@ export function parseMatchResult(raw: unknown): MatchResult | undefined {
   if (
     !Array.isArray(rawPlayers) ||
     rawPlayers.length < 1 ||
-    rawPlayers.length > MAX_MATCH_PARTICIPANTS
+    rawPlayers.length > MAX_MATCH_PARTICIPANTS ||
+    (round !== undefined && rawPlayers.length > 5)
   )
     return;
   const players: StoredPlayer[] = [];
@@ -338,6 +363,7 @@ export function parseMatchResult(raw: unknown): MatchResult | undefined {
   players.sort((a, b) => a.slot - b.slot || (a.playerId < b.playerId ? -1 : 1));
   return {
     matchId,
+    ...(round === undefined ? {} : { round: round as number }),
     length: length as number,
     finishers: [...finishers].sort(),
     ...(winnerId === undefined ? {} : { winnerId }),
@@ -523,7 +549,12 @@ export class HistoryStore {
    * Who is reporting, decided from the room token alone and before anything costly: the HTTP layer reads the body and
    * verifies a sign-in only for a caller this has accepted. Room tokens are free to mint, so the address is limited too.
    */
-  async admit(code: string, token: string, address: string): Promise<Reporter> {
+  async admit(
+    code: string,
+    token: string,
+    address: string,
+    roundReport = false,
+  ): Promise<Reporter> {
     if (!validCode(code) || !validToken(token))
       throw new RoomError(401, "Invalid identity");
     const room = await this.rooms.get(code),
@@ -533,14 +564,16 @@ export class HistoryStore {
       throw new RoomError(403, "Join the room first");
     const allowed =
       (await this.rooms.database.allowance(
-        digest(`results:${code}:${rider}`),
+        digest(`${roundReport ? "round-results" : "results"}:${code}:${rider}`),
         this.now(),
-        SUBMISSIONS_PER_HOUR,
+        roundReport ? 600 : SUBMISSIONS_PER_HOUR,
       )) &&
       (await this.rooms.database.allowance(
-        digest(`results-address:${address}`),
+        digest(
+          `${roundReport ? "round-results" : "results"}-address:${address}`,
+        ),
         this.now(),
-        SUBMISSIONS_PER_ADDRESS_PER_HOUR,
+        roundReport ? 3000 : SUBMISSIONS_PER_ADDRESS_PER_HOUR,
       ));
     if (!allowed) throw new RoomError(429, "Too many results; try later");
     return { code, rider, incarnation: room.incarnation };
@@ -572,12 +605,18 @@ export class HistoryStore {
     const account =
       uid !== undefined &&
       (await this.rooms.database.allowance(
-        digest(`link:${uid}`),
+        digest(`${result.round === undefined ? "link" : "round-link"}:${uid}`),
         this.now(),
-        LINKS_PER_HOUR,
+        result.round === undefined ? LINKS_PER_HOUR : 600,
       ))
         ? uid
         : undefined;
+    if (
+      result.round !== undefined &&
+      uid !== undefined &&
+      account === undefined
+    )
+      throw new RoomError(429, "Too many rated rounds; try later");
     const id = matchRecordId(reporter.incarnation, result),
       player = result.players.find((entry) => entry.playerId === rider)!;
     return this.database.transactMatch(id, (current) => {
@@ -587,7 +626,13 @@ export class HistoryStore {
         : {
             version: 1,
             ratingScope: createHash("sha256")
-              .update(JSON.stringify([reporter.incarnation, result.matchId]))
+              .update(
+                JSON.stringify([
+                  reporter.incarnation,
+                  result.matchId,
+                  result.round ?? "game",
+                ]),
+              )
               .digest("hex")
               .slice(0, 40),
             id,
@@ -637,9 +682,13 @@ export class HistoryStore {
             match.result.players,
           ),
         );
+      if (result.round !== undefined) credits.length = 0;
       if (match.status === "confirmed") {
         match.participantUids = [...new Set(Object.values(match.uidByPlayer))];
-        if (match.participantUids.length) delete match.expiresAt;
+        const hasAccounts = match.participantUids.length > 0;
+        // Round receipts remain durable and idempotent, but do not appear as career games.
+        if (result.round !== undefined) match.participantUids = [];
+        if (hasAccounts) delete match.expiresAt;
         else match.expiresAt = (match.endedAt ?? now) + GUEST_MATCH_TTL_MS;
       }
       return {

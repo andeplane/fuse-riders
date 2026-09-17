@@ -104,6 +104,30 @@ try {
           body: JSON.stringify({ result }),
         });
         assert.equal(response.status, 200, await response.text());
+        const roundResponse = await call(
+          `/api/rooms/${created.code}/round-results`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${tokens[i]}`,
+              "X-Fuse-Identity": `smoke:user${i}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              result: {
+                ...result,
+                round: 1,
+                length: 1,
+                players: players.map((p) => ({
+                  ...p,
+                  roundsPlayed: 1,
+                  roundWins: p.roundWins ? 1 : 0,
+                })),
+              },
+            }),
+          },
+        );
+        assert.equal(roundResponse.status, 200, await roundResponse.text());
       }
   }
   const initial = (await (

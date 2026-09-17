@@ -80,6 +80,11 @@ try {
   });
   a.setDefaultTimeout(smokeTimeout(30000));
   const host = await a.newPage();
+  const roundReports: Array<{ round: number; length: number }> = [];
+  host.on("request", (request) => {
+    if (request.url().endsWith("/round-results") && request.method() === "POST")
+      roundReports.push(request.postDataJSON().result);
+  });
   // WebKit reports a send on a channel whose transport just died as a page error (the transport gates on connection state, but the last task hop can still race),
   // and a spurious same-origin access-control failure from Phaser's asset loader that Chromium never raises.
   const benign = (error: Error) =>
@@ -311,7 +316,17 @@ try {
     hostRound && guestRound && hostRound.matchId === guestRound.matchId,
     "one match on every device",
   );
-  console.log("Three rounds played on the shared log");
+  assert.ok(
+    roundReports.some((r) => r.round === 1 && r.length === 1),
+    "round one reported before the full game recap",
+  );
+  assert.ok(
+    roundReports.some((r) => r.round === 2 && r.length === 1),
+    "round two reported independently",
+  );
+  console.log(
+    "Three rounds played on the shared log; completed rounds reported independently",
+  );
   // The first match may have ended by now: the results dialog opens on its own and must be closed before the room actions.
   const closeRecap = async (page: Page) => {
     if (await page.locator("dialog[open]").count())

@@ -119,7 +119,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     head,
     element(
       "p",
-      `${rating.games < 10 ? "Provisional · " : ""}${number(rating.games)} rated matches · Peak ${number(rating.peak)}`,
+      `${rating.games < 10 ? "Provisional · " : ""}${number(rating.games)} rated results · Peak ${number(rating.peak)}`,
       "stats-muted",
     ),
   );
@@ -127,7 +127,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     card.append(
       element(
         "p",
-        "Your graph starts after your first rated match. Finish a match with at least one other signed-in human; all humans must report their result.",
+        "Your graph starts after your first rated round. Finish a round against at least one other signed-in human. Guests and bots do not affect Elo.",
         "stats-empty",
       ),
     );
@@ -223,7 +223,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     }
     card.append(chart);
     const data = details(
-        `Rating history · latest ${points.length} rated matches`,
+        `Rating history · latest ${points.length} rated results`,
       ),
       table = element("table");
     const header = element("tr");
@@ -246,7 +246,7 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
   rules.append(
     element(
       "p",
-      "Start at 1,000. Your final score and round wins are compared with each other human’s result and rating. Ties split the result. Bots are ignored, including in mixed games. Every human must sign in, report, play every round and stay to the finish. Guest games and departures remain unrated. Ratings update when reports settle; a late report can update the graph later. This community ladder uses peer-confirmed results.",
+      "Start at 1,000. Elo updates after each individual round, comparing only signed-in human finishers with each other. At least two are needed. Guests and bots are excluded; ties split the result. You can join late or leave between rounds and keep the Elo from rounds you completed. Reports must agree before ratings settle, and a missing finisher report can delay settlement. Earlier whole-game ratings remain in your history. This community ladder uses peer-confirmed results.",
     ),
   );
   card.append(rules);

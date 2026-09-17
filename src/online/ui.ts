@@ -10,10 +10,14 @@ import { createAccountPanel } from "./account-panel.js";
 import {
   accountUsername,
   fetchUsername,
-  identityToken,
+  signedInToken,
   remembersSignIn,
 } from "./account.js";
-import { buildMatchReport, sendMatchReport } from "./match-report.js";
+import {
+  buildMatchReport,
+  buildRoundReport,
+  sendMatchReport,
+} from "./match-report.js";
 import { ControllerInputState } from "../client/controller-state.js";
 import { ControllerKeyboardBindings } from "../client/controller-keyboard.js";
 import { ControllerPointerBindings } from "../client/controller-pointers.js";
@@ -464,6 +468,7 @@ export async function startOnline(): Promise<void> {
   const inputTimes: number[] = [];
   let previousFrame = performance.now(),
     inputAt = 0;
+  let lastRatedRound = "";
   let lastRecap = "",
     rejoinPending = false;
   const benchmark = url.searchParams.get("benchmark") === "1";
@@ -1271,6 +1276,28 @@ export async function startOnline(): Promise<void> {
           host: isHost,
         });
       }
+      const roundReport = solo
+        ? undefined
+        : buildRoundReport(state.decidedRound, id, runtime.confirmedTick());
+      const ratingKey = roundReport
+        ? JSON.stringify([
+            roundReport.result.matchId,
+            roundReport.result.round,
+            id,
+          ])
+        : "";
+      if (roundReport && ratingKey !== lastRatedRound) {
+        lastRatedRound = ratingKey;
+        void sendMatchReport(
+          apiUrl(`/api/rooms/${code}/round-results`),
+          roundReport,
+          {
+            fetch: (input, init) => fetch(input, init),
+            roomToken: token,
+            identityToken: signedInToken,
+          },
+        );
+      }
       const shotReport = decidedRoundReport(
         state.decidedRound,
         id,
@@ -1477,7 +1504,7 @@ export async function startOnline(): Promise<void> {
           void sendMatchReport(apiUrl(`/api/rooms/${code}/results`), report, {
             fetch: (input, init) => fetch(input, init),
             roomToken: token,
-            identityToken,
+            identityToken: signedInToken,
           });
       }
       inputState.configureTargetAim(
