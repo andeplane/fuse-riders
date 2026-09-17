@@ -227,6 +227,12 @@ import {
   wallReach,
 } from "./sim/field.js";
 import { isClearOfPortalWalls, isSafePortalPosition } from "./sim/portals.js";
+import {
+  isHazardImmune,
+  isInvulnerable,
+  reflectAtBoundary,
+  reflectAtObstacle,
+} from "./sim/riders.js";
 
 export interface TickResult {
   snapshot: GameSnapshot;
@@ -445,15 +451,6 @@ export function step(
   const { movements } = ctx;
 
   const { bounced } = ctx;
-  for (const movement of movements.values()) {
-    if (
-      isHazardImmune(movement.player, state.tick) &&
-      reflectAtBoundary(state, movement)
-    ) {
-      bounced.add(movement.player.id);
-    }
-  }
-
   // One run per portal hop. The gap between runs is travel the shell never made, so the sweep below
   // must not read across it: a rider standing between two gates is not in the way of a teleport.
   const { shellPaths } = ctx;
@@ -1430,64 +1427,6 @@ function findShellPortalEntry(
     };
   }
   return undefined;
-}
-
-function isInvulnerable(player: PlayerState, tick: number): boolean {
-  return player.invulnerableUntilTick > tick;
-}
-
-function isHazardImmune(player: PlayerState, tick: number): boolean {
-  return (
-    isInvulnerable(player, tick) ||
-    player.shieldGraceUntilTick > tick ||
-    player.portalGraceUntilTick > tick
-  );
-}
-
-function reflectAtBoundary(state: GameState, movement: Movement): boolean {
-  // An open edge is not a surface: the rider carries on through it.
-  if (edgesOpen(state)) return false;
-  const reach = wallReach(state);
-  const left = state.boundaryInset + reach;
-  const right = state.width - state.boundaryInset - reach;
-  const top = state.boundaryInset + reach;
-  const bottom = state.height - state.boundaryInset - reach;
-  const hitX = movement.x < left || movement.x > right;
-  const hitY = movement.y < top || movement.y > bottom;
-  if (!hitX && !hitY) return false;
-  movement.x = Math.max(left, Math.min(right, movement.x));
-  movement.y = Math.max(top, Math.min(bottom, movement.y));
-  if (hitX) {
-    movement.angle = normalizeAngle(Math.PI - movement.angle);
-    movement.player.drunkHeadingOffset *= -1;
-  }
-  if (hitY) {
-    movement.angle = normalizeAngle(-movement.angle);
-    movement.player.drunkHeadingOffset *= -1;
-  }
-  return true;
-}
-
-/**
- * An absorbed crash leaves the rider against the face it hit, turned away from it: the same deal the boundary gives a
- * shielded rider, and without it a shield would only buy the ticks of grace it takes to die inside the same obstacle.
- */
-function reflectAtObstacle(
-  hit: ObstacleHitbox,
-  movement: Movement,
-  contactTime: number,
-): boolean {
-  movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
-  movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
-  const { nx, ny } = hitboxBounceNormal(hit, movement.x, movement.y);
-  const heading = { x: cos(movement.angle), y: sin(movement.angle) };
-  const approach = heading.x * nx + heading.y * ny;
-  if (approach >= 0) return false; // already turned away from the face by this tick's steering
-  movement.angle = normalizeAngle(
-    atan2(heading.y - 2 * approach * ny, heading.x - 2 * approach * nx),
-  );
-  movement.player.drunkHeadingOffset *= -1;
-  return true;
 }
 
 function targetPoint(
