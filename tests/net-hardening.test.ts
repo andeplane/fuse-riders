@@ -15,6 +15,7 @@ import { defaultRoomSettings } from "../src/shared/room-settings.js";
 import { COUNTDOWN_TICKS } from "../src/shared/game.js";
 import { ACTION, PRESENCE, STEER } from "../src/shared/input-log.js";
 import { plainStatus } from "../src/online/status-copy.js";
+import { connectHint } from "../src/online/connect-hint.js";
 
 // Hostile members here are scripted peers: they hold the room's DTLS-bound identity like anyone else, speak the wire
 // protocol, and send what a modified client would. Every assertion reads a runtime's public surface.
@@ -155,7 +156,8 @@ test("an inflated lastSeq opens no gap: replicas resync at the stalled-gap pace 
   // held against the sender at first: the rider stays seated and each replica tries the snapshot that would fix it.
   net.step(3000);
   const seated = () =>
-    net.frame(HOST)!.players.find((player) => player.id === HOSTILE)!.connected;
+    net.frame(HOST)!.players.find((player) => player.id === HOSTILE)
+      ?.connected ?? false;
   assert.equal(seated(), true);
   for (const runtime of honest) {
     const stream = runtime.metrics().streams[HOSTILE]!;
@@ -185,23 +187,54 @@ test("an inflated lastSeq opens no gap: replicas resync at the stalled-gap pace 
       )
       .map((message) => message.at);
     assert.ok(requests.length >= 1, `${id} tried a resync`);
-    for (const [index, at] of requests.entries()) {
-      assert.ok(at <= attackAt + WINDOW_GRACE_MS + STALLED_GAP_MS, `${id}`);
+    for (const [index, at] of requests.entries())
       if (index > 0)
         assert.ok(
           at - requests[index - 1]! >= STALLED_GAP_MS,
           `${id} asked again after ${at - requests[index - 1]!} ms`,
         );
-    }
   }
-  // Honest packets again: the creator hears it and restores the seat.
+  // The asking backs off with the grace but never stops (a replica that could not send a request inside the grace
+  // must still get one out): from here the attack costs each replica one snapshot request per grace period.
+  const backedOffFrom = net.now;
+  net.step(3 * WINDOW_GRACE_MS);
+  for (const id of ids) {
+    const late = net.reliableLog
+      .filter(
+        (message) =>
+          message.at >= backedOffFrom &&
+          message.from === id &&
+          message.type === "snapshotRequest",
+      )
+      .map((message) => message.at);
+    assert.ok(
+      late.length >= 1 && late.length <= 3,
+      `${id} sent ${late.length} requests in three grace periods`,
+    );
+    for (const [index, at] of late.entries())
+      if (index > 0)
+        assert.ok(
+          at - late[index - 1]! >= WINDOW_GRACE_MS,
+          `${id} asked again after ${at - late[index - 1]!} ms`,
+        );
+  }
+  assert.equal(seated(), false);
+  for (const runtime of honest) assert.equal(runtime.metrics().mismatches, 0);
+  // Honest packets again: the creator hears it, and gives it a seat when it asks (a round ending in the meantime
+  // dropped the absent rider's).
   hostile.script = (peer) => peer.heartbeat();
+  hostile.askForSeat();
   assertOneWorld(net, ids, () => net.step(2000));
   assert.equal(seated(), true);
   for (const runtime of honest) runtime.stop();
 });
 
-test("a replica cut off while its peer logs more entries than the seq bound resyncs once it hears it again, and nobody is left absent", () => {
+/**
+ * Two riders on one page and generation each. The guest stops hearing anything while the host logs more entries than the
+ * seq bound, then hears it again; for `unhealthyMs` after that its link to the host delivers but does not report as
+ * sendable, so no snapshot request can go out. Returns how the guest recovered.
+ */
+function outOfReach(unhealthyMs: number) {
   const { net, join } = room();
   const host = join(HOST, "Host");
   net.step(200);
@@ -209,9 +242,9 @@ test("a replica cut off while its peer logs more entries than the seq bound resy
   net.step(900);
   assert.equal(host.command({ type: "action", action: "start" }), true);
   net.step(COUNTDOWN_TICKS * 50 + 300);
-  const ids = [HOST, GUESTS[0]!];
-  // Same page, same generation: the guest stops hearing anything while the host keeps playing hard.
-  net.transports.get(GUESTS[0]!)!.deaf = true;
+  const ids = [HOST, GUESTS[0]!],
+    transport = net.transports.get(GUESTS[0]!)!;
+  transport.deaf = true;
   const from = host.metrics().streams[HOST]!.lastSeq;
   for (
     let step = 0;
@@ -228,19 +261,21 @@ test("a replica cut off while its peer logs more entries than the seq bound resy
       });
     net.step(50);
   }
-  const behind = guest.metrics().streams[HOST]!;
   assert.ok(
-    host.metrics().streams[HOST]!.lastSeq > behind.contiguous + SEQ_AHEAD,
+    host.metrics().streams[HOST]!.lastSeq >
+      guest.metrics().streams[HOST]!.contiguous + SEQ_AHEAD,
     "the host is out of the guest's reach",
   );
-  net.transports.get(GUESTS[0]!)!.deaf = false;
+  transport.deaf = false;
+  if (unhealthyMs > 0) transport.unhealthy.add(HOST);
   const healedAt = net.now;
   let caughtUpAt: number | undefined;
   for (
     let elapsed = 0;
-    elapsed < 10_000 && caughtUpAt === undefined;
+    elapsed < unhealthyMs + 10_000 && caughtUpAt === undefined;
     elapsed += 50
   ) {
+    if (elapsed >= unhealthyMs) transport.unhealthy.delete(HOST);
     net.step(50);
     const seen = guest.metrics().streams[HOST]!;
     if (
@@ -250,12 +285,10 @@ test("a replica cut off while its peer logs more entries than the seq bound resy
     )
       caughtUpAt = net.now;
   }
+  assert.ok(caughtUpAt !== undefined, "the guest caught the host's stream up");
   const requests = net.reliableLog.filter(
     (message) => message.at >= healedAt && message.type === "snapshotRequest",
-  );
-  assert.ok(caughtUpAt !== undefined, "the guest caught the host's stream up");
-  assert.ok(caughtUpAt - healedAt <= 2 * STALLED_GAP_MS + 1000);
-  assert.ok(requests.length >= 1 && requests.length <= 2, `${requests.length}`);
+  ).length;
   assertOneWorld(net, ids, () => net.step(4000));
   for (const id of ids)
     assert.deepEqual(
@@ -273,6 +306,27 @@ test("a replica cut off while its peer logs more entries than the seq bound resy
   );
   host.stop();
   guest.stop();
+  return { requests, recoveredMs: caughtUpAt - healedAt };
+}
+
+test("a replica cut off while its peer logs more entries than the seq bound resyncs once it hears it again, and nobody is left absent", () => {
+  const { requests, recoveredMs } = outOfReach(0);
+  assert.ok(recoveredMs <= 2 * STALLED_GAP_MS + 1000, `${recoveredMs} ms`);
+  assert.ok(requests >= 1 && requests <= 2, `${requests} requests`);
+});
+
+test("the same replica still resyncs when no link could carry a snapshot request until after the grace had run out", () => {
+  // Past the grace the host counts as silent and the asking has backed off, but it has not stopped: the first tick
+  // with a link fit to carry the request sends it.
+  for (const unhealthyMs of [12_000, 20_000]) {
+    assert.ok(unhealthyMs > WINDOW_GRACE_MS);
+    const { requests, recoveredMs } = outOfReach(unhealthyMs);
+    assert.ok(
+      recoveredMs <= unhealthyMs + 1000,
+      `${unhealthyMs} ms unhealthy: recovered after ${recoveredMs} ms`,
+    );
+    assert.equal(requests, 1, `${unhealthyMs} ms unhealthy`);
+  }
 });
 
 test("a peer announcing different rules is refused at the handshake and at packet ingest, and each side is told who has to reload", () => {
@@ -341,10 +395,11 @@ test("a peer announcing different rules is refused at the handshake and at packe
 });
 
 test("a page refused by the whole room keeps saying which side is out of date, and stops asking the creator it refused for a seat", () => {
-  for (const [rules, expected] of [
-    ["fuse-p2p-9999", RULES_MISMATCH.stale],
-    ["fuse-p2p-1", RULES_MISMATCH.staleRoom],
-    ["some-other-game", RULES_MISMATCH.unknown],
+  for (const [rules, expected, reload] of [
+    // Only the page that is behind gets the reload button; all three stay on screen verbatim.
+    ["fuse-p2p-9999", RULES_MISMATCH.stale, true],
+    ["fuse-p2p-1", RULES_MISMATCH.staleRoom, false],
+    ["some-other-game", RULES_MISMATCH.unknown, true],
   ] as const) {
     const { net, join } = room();
     // The room's creator runs other rules; this page is the one joining.
@@ -358,10 +413,15 @@ test("a page refused by the whole room keeps saying which side is out of date, a
       expected,
       "still on screen long after the hello's notice would have expired",
     );
-    assert.deepEqual(
-      { tone: plainStatus(expected).tone, retry: plainStatus(expected).retry },
-      { tone: "bad", retry: true },
-      "the header shows it as something to act on",
+    assert.deepEqual(plainStatus(expected), {
+      tone: "bad",
+      text: expected,
+      retry: reload,
+    });
+    assert.equal(
+      connectHint(expected, 60_000),
+      expected,
+      "the boot card shows it instead of its network hint",
     );
     const joins = net.reliableLog.filter(
       (message) => message.from === GUESTS[0] && message.type === "join",
@@ -371,6 +431,29 @@ test("a page refused by the whole room keeps saying which side is out of date, a
       `${joins.length} joins sent to a refused creator`,
     );
     assert.deepEqual(guest.metrics().refused, [HOST]);
+    guest.stop();
+  }
+});
+
+test("with older and newer builds both refused, this page is the stale one whichever was heard first", () => {
+  for (const newerFirst of [true, false]) {
+    const { net, join } = room();
+    const peers = [
+      new ScriptedPeer(net, HOST, { rules: "fuse-p2p-1" }),
+      new ScriptedPeer(net, HOSTILE, { rules: "fuse-p2p-9999" }),
+    ];
+    for (const peer of newerFirst ? [...peers].reverse() : peers) {
+      peer.connect();
+      net.step(400);
+    }
+    const guest = join(GUESTS[0]!, "Guest");
+    net.step(8000);
+    assert.deepEqual(guest.metrics().refused, [HOST, HOSTILE]);
+    assert.equal(
+      net.recorded.get(GUESTS[0]!)!.statuses.at(-1),
+      RULES_MISMATCH.stale,
+      "a build ahead of this one exists, so reloading this page is what helps",
+    );
     guest.stop();
   }
 });
@@ -493,7 +576,10 @@ test("heavy loss, duplication and reordering never trip the hardening checks, th
     assert.equal(host.command({ type: "action", action: "start" }), true);
     net.step(COUNTDOWN_TICKS * 50 + 300);
     let seq = playHard(net, 3000);
-    // A tab in the background for three seconds: it keeps sending, simulates nothing and logs no input.
+    // A tab in the background for three seconds: it keeps sending, simulates nothing and logs no input. This exercises
+    // the runtime's hidden-state path only. FakeNetwork keeps ticking a hidden runtime every 10 ms, so real
+    // background-timer throttling (about one tick a second) is NOT modelled here: that is #258 N4, with a reproducer
+    // on codex/arch-hidden-policy.
     net.setHidden("d-guest", true);
     seq = playHard(net, 3000, seq);
     net.setHidden("d-guest", false);

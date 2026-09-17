@@ -151,18 +151,19 @@ interface Member {
   presence?: { connected: boolean; tick: number; at: number };
 }
 /**
- * What a rules mismatch tells each side. Reloading only helps the page that is behind, so the text names it; every line
- * carries a phrase the header already treats as actionable ("reload this page", "incompatible").
+ * What a rules mismatch tells each side. Reloading only helps the page that is behind, so only its lines say "reload this
+ * page", which the header turns into a reload button. `staleRoom` and `replyToNewer` are for the page that is current
+ * and stuck: "start a new room" keeps them on screen verbatim (the boot card would otherwise swap in its network hint)
+ * without offering a reload that does nothing. `staleRider` is a passing notice on a page that has nothing to do.
  */
 export const RULES_MISMATCH = {
   stale: "This page is out of date — reload this page",
   staleRider: "A rider is on an older game version — they must reload",
   staleRoom:
-    "Incompatible room: it runs an older game version — start a new room, or have its riders reload",
+    "This room is on an older game version — start a new room, or have its riders reload",
   unknown: "A rider is on a different game version — reload this page",
   replyToStale: "This room runs a newer game version — reload this page",
-  replyToNewer:
-    "Incompatible room: it runs an older game version — start a new room",
+  replyToNewer: "This room is on an older game version — start a new room",
   replyToUnknown: "This room runs a different game version — reload this page",
 } as const;
 const rulesNumber = (rules: unknown): number | undefined => {
@@ -457,7 +458,7 @@ export class RoomRuntime {
             this.snapshotRequest = undefined;
             this.assembler = undefined;
           }
-          this.status.notice(this.mismatchStatus(member));
+          this.status.notice(this.mismatchStatus());
           return;
         }
         member.refused = false;
@@ -641,12 +642,20 @@ export class RoomRuntime {
     for (const member of this.members.values()) member.helloed = false;
     if (this.pendingJoin) this.sendJoin();
   }
-  /** `waiting`: this page has no world and nobody compatible to get one from, so the refused member stands for the room. */
-  private mismatchStatus(member: Member, waiting = false): string {
-    const age = rulesAge(member.rules);
-    return age === "newer"
+  /**
+   * One line for every refused member together, whatever order they arrived in: any of them ahead of this build makes
+   * this page the stale one, and reloading it is the thing to do; otherwise an older one is named; otherwise the rules
+   * do not compare. `waiting`: this page has no world and nobody compatible to get one from, so the older members are the room.
+   */
+  private mismatchStatus(waiting = false): string {
+    const ages = new Set(
+      [...this.members.values()]
+        .filter((member) => member.refused)
+        .map((member) => rulesAge(member.rules)),
+    );
+    return ages.has("newer")
       ? RULES_MISMATCH.stale
-      : age === "older"
+      : ages.has("older")
         ? waiting
           ? RULES_MISMATCH.staleRoom
           : RULES_MISMATCH.staleRider
@@ -1321,7 +1330,7 @@ export class RoomRuntime {
       ) {
         // Nobody compatible can serve the game and a linked member was refused for its rules: that is why this page
         // waits, and it stays on screen (the notice at the hello is gone after a few seconds).
-        const refused = [...this.members].find(
+        const refused = [...this.members].some(
           ([id, member]) => member.refused && this.transport!.linked(id),
         );
         this.status.recurring(
@@ -1329,7 +1338,7 @@ export class RoomRuntime {
             !candidates.some(
               (id) => this.transport!.linked(id) && !this.saidNoWorld(id),
             )
-            ? this.mismatchStatus(refused[1], true)
+            ? this.mismatchStatus(true)
             : `Waiting for the game — ${this.transport!.explain(this.hostId)}`,
         );
       }
@@ -1403,9 +1412,13 @@ export class RoomRuntime {
       for (const [id, member] of this.members) {
         const stream = world.streams.get(id);
         // A stream whose owner is out of reach (`ahead`) has no gap to nack, but needs the same snapshot: it takes the
-        // same throttled path, for as long as the member still counts as heard.
-        const ahead =
-          stream?.ahead === true && now - member.windowSince <= WINDOW_GRACE_MS;
+        // same throttled path. Once the member no longer counts as heard the asking backs off, but never stops: a
+        // replica whose links could not carry a request inside the grace would otherwise be wedged for good.
+        const ahead = stream?.ahead === true,
+          pace =
+            !stream?.gap && now - member.windowSince > WINDOW_GRACE_MS
+              ? WINDOW_GRACE_MS
+              : STALLED_GAP_MS;
         if (!stream?.gap && !ahead) {
           member.gapSince = -Infinity;
           continue;
@@ -1413,12 +1426,10 @@ export class RoomRuntime {
         if (member.gapSince === -Infinity) member.gapSince = now;
         // Nack repairs a gap within a round trip. One that outlives the owner's retained window (an entry logged
         // before that peer's links could carry packets) can only be closed by a snapshot from a peer that has it.
-        else if (
-          now - member.gapSince > STALLED_GAP_MS &&
-          !this.snapshotRequest
-        ) {
-          member.gapSince = now;
+        else if (now - member.gapSince > pace && !this.snapshotRequest) {
           this.requestSnapshot();
+          // Only a request that went out uses up the wait: with no link fit to carry one, the next tick tries again.
+          if (this.snapshotRequest) member.gapSince = now;
           continue;
         }
         if (

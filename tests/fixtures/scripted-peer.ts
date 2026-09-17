@@ -83,6 +83,14 @@ export class ScriptedPeer {
   join(name: string): void {
     this.joinName = name;
   }
+  /** Ask again now, as a page does when the room has dropped its seat. */
+  askForSeat(): void {
+    if (this.joinName !== undefined)
+      this.transport.send(this.net.hostId, {
+        type: "join",
+        name: this.joinName,
+      });
+  }
   /**
    * The room clock as the creator's latest packet showed it, projected to now. It never steps back: under jitter a late
    * packet would otherwise lower the reading, and a heartbeat built on it would break its own earlier `through`.

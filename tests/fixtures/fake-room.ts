@@ -307,8 +307,13 @@ export class FakeTransport implements RoomTransport {
     if (sent) this.sentBytes += bytes.byteLength;
     return sent;
   }
+  /**
+   * Links that deliver but do not report as sendable, like a WebRTC link whose `input` channel carries packets while the
+   * reliable channel or its health probes are not there yet. Empty unless a test fills it.
+   */
+  readonly unhealthy = new Set<string>();
   linked(id: string): boolean {
-    return this.links.has(id);
+    return this.links.has(id) && !this.unhealthy.has(id);
   }
   linkedWith(id: string): boolean {
     return this.links.has(id);
