@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRoomServer, type RoomServer } from './http.js';
+import { listenFree } from './listen-free.js';
 import { LocalRoomBus, MemoryHistoryDatabase, MemoryRoomDatabase } from './memory-database.js';
 import { HistoryStore } from './history.js';
 import { createIdentityVerifier, type IdentityVerifier } from './identity.js';
@@ -66,6 +67,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const port = Number(argument('port') ?? process.env.PORT ?? 8787), host = argument('host') ?? '127.0.0.1';
   const staticDirectory = argument('static') ?? fileURLToPath(new URL('../../dist', import.meta.url));
   const service = createDevRoomService({ staticDirectory });
-  service.server.listen(port, host, () => console.log(`Local room service: http://${host === '127.0.0.1' ? 'localhost' : host}:${port}/ (in-memory rooms, serving ${staticDirectory})`));
+  // The port asked for is where the search starts, not a demand: another worktree's service may already hold it.
+  const actual = await listenFree(service.server, port, host);
+  if (actual !== port) console.log(`Port ${port} is in use; using ${actual} instead.`);
+  console.log(`Local room service: http://${host === '127.0.0.1' ? 'localhost' : host}:${actual}/ (in-memory rooms, serving ${staticDirectory})`);
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => { void service.close().finally(() => process.exit(0)); });
 }
