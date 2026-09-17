@@ -1160,7 +1160,7 @@ test("reordered packets do not reset the hidden guest's reading of the authority
   f.guest.stop();
 });
 
-test("a name carrying a control character is refused at the join, and the rider is not seated", () => {
+test("a name carrying a control character is refused at the join and the rider is not seated; the characters either side of the range are kept", () => {
   const { net, join } = room();
   const host = join(HOST, "Host");
   net.step(200);
@@ -1179,6 +1179,21 @@ test("a name carrying a control character is refused at the join, and the rider 
   assert.deepEqual(
     net.frame(HOST)!.players.map((player) => player.name),
     ["Host"],
+  );
+  // The pattern stops at DEL. A tilde (0x7E) sits just below it and 0x80 just above, in the C1 range the join has
+  // never refused: both are seated unchanged, so a pattern widened to either side fails here.
+  const edges = "Ok~\x80name";
+  join(TV, edges);
+  net.step(900);
+  assert.deepEqual(
+    net.recorded
+      .get(TV)!
+      .statuses.filter((status) => /Choose a name/.test(status)),
+    [],
+  );
+  assert.deepEqual(
+    net.frame(HOST)!.players.map((player) => player.name),
+    ["Host", edges],
   );
   for (const runtime of net.runtimes.values()) runtime.stop();
   host.stop();
