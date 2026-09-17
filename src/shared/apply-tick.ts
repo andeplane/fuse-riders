@@ -5,7 +5,7 @@ import { ACTION, AVATAR, BOT, JOIN, LEAVE, PRESENCE, SETTINGS, foldPlayerEntries
 import type { GameEvent } from './protocol.js';
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = 'fuse-p2p-21'; // 21: round-long pickups destroyed inside the inner 60% of bomb blasts.
+export const RULES = 'fuse-p2p-23'; // 23: Nitro and Snail, stacking speed pickups with per-collection deadlines.
 export const RECLAIMABLE_PHASES = ['lobby', 'roundOver', 'matchOver'] as const;
 export const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Nova', 'Byte'] as const;
 

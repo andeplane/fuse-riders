@@ -15,7 +15,7 @@ function world(tick: number, round: number, riders: Rider[], phase: ViewSnapshot
     players: riders.map((rider, index) => ({
       id: rider.id, name: rider.name ?? rider.id.toUpperCase(), slot: rider.slot ?? index, color: rider.color ?? `#00000${index}`, connected: true, avatarId: DEFAULT_AVATAR,
       x: rider.x, y: rider.y ?? 450, angle: 0, alive: true, roundWins: 0, matchScoreUnits: 0, roundScoreUnits: 0, bombReadyAtTick: 0, trail: [], extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: 80, invulnerableUntilTick: 0, drunkUntilTick: 0, inkUntilTick: 0,
-      targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false, gravityArmed: false, boostUntilTick: 0, grip: false, shielded: false, shieldGraceUntilTick: 0, portalCooldownUntilTick: 0, portalGraceUntilTick: 0,
+      targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false, gravityArmed: false, boostUntilTick: 0, nitroUntilTicks: [], snailUntilTicks: [], grip: false, shielded: false, shieldGraceUntilTick: 0, portalCooldownUntilTick: 0, portalGraceUntilTick: 0,
     })),
     bombs: [], blasts: [], pickups: [], portalPairs: [], gravityFields: [], leaderboard: [], roundPlacements: [], matchStats: [], moments: [],
   };

@@ -46,7 +46,7 @@ export interface GameSnapshot {
     id: PlayerId; name: string; slot: number; color: string; connected: boolean; avatarId: AvatarId;
     x: number; y: number; angle: number; alive: boolean; roundWins: number; matchScoreUnits: number; roundScoreUnits: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
-    extraBombs: number; fuseLevel: number; powerPickups: number; reloadDurationTicks: number; invulnerableUntilTick: number; boostUntilTick: number; grip: boolean; drunkUntilTick: number; inkUntilTick: number;
+    extraBombs: number; fuseLevel: number; powerPickups: number; reloadDurationTicks: number; invulnerableUntilTick: number; boostUntilTick: number; nitroUntilTicks: ReadonlyArray<number>; snailUntilTicks: ReadonlyArray<number>; grip: boolean; drunkUntilTick: number; inkUntilTick: number;
     gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; gravityArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{

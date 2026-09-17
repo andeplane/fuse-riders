@@ -15,7 +15,7 @@ function arena() {
 }
 
 /** A plain rider's travel on the tick just stepped; riders speed up through the round. */
-const stride = (state: GameState) => riderMotionStep({ boostUntilTick: 0, grip: false }, state.tick, state.roundStartedTick).distance;
+const stride = (state: GameState) => riderMotionStep({ boostUntilTick: 0, nitroUntilTicks: [], snailUntilTicks: [], grip: false }, state.tick, state.roundStartedTick).distance;
 
 test('portal transits survivors, breaks trail, preserves heading/charge, counts actual movement', () => {
   const state = arena();

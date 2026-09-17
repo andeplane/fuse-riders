@@ -97,6 +97,26 @@ test('AI avoids the trail a crossing rider will leave, including active and expi
   }
 });
 
+test('AI survives its own stacked Nitro and a crossing rider on Nitro, and keeps its horizon as a Snail wears off',()=>{
+  // On Nitro the turning circle doubles, so the crossing rider starts further out than in the boost case; the bot's
+  // lookahead must reach the trails it can now hit within it.
+  const fast=steeringFixture();
+  fast.players.get('bot:1')!.nitroUntilTicks=[fast.tick+240];
+  Object.assign(fast.players.get('human')!,{x:700,y:400,angle:Math.PI/2,nitroUntilTicks:[fast.tick+240]});
+  steerFor(fast,120);
+  // Two Nitros are four times speed: a rival's wall 600 units ahead is inside the lookahead, and the bot must plan for
+  // it from here. With the horizon sized for boost speed, as before Nitro, this bot dies into the wall on tick 89.
+  const stacked=steeringFixture();
+  Object.assign(stacked.players.get('bot:1')!,{x:200,y:450,angle:0,nitroUntilTicks:[stacked.tick+240,stacked.tick+240]});
+  Object.assign(stacked.players.get('human')!,{x:1200,y:850,trail:[{x1:800,y1:100,x2:800,y2:800,createdTick:stacked.tick-5,expiresAtTick:stacked.tick+400}]});
+  steerFor(stacked,120);
+  // A Snail expiring mid-lookahead doubles the stride part way through the plan; the bot must plan for the faster half.
+  const slowed=steeringFixture();
+  slowed.players.get('bot:1')!.snailUntilTicks=[slowed.tick+6];
+  Object.assign(slowed.players.get('human')!,{x:500,y:400,angle:Math.PI/2});
+  steerFor(slowed,120);
+});
+
 test('steering replay from a restored world needs no hidden planner state',()=>{
   const game=steeringFixture();
   Object.assign(game.players.get('human')!,{x:500,y:410,angle:Math.PI/2});

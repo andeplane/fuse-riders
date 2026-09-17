@@ -2,7 +2,7 @@ import { MAX_TRAIL_SEGMENTS, TRAIL_DECAY_PAUSE_TICKS, trailSegmentsConnect } fro
 import { POINT_UNIT } from '../shared/leaderboard.js';
 import { MAX_EXTRA_BOMBS, MAX_VOLLEY_BOMBS } from '../shared/launch-modifiers.js';
 import { MAX_BOARD_PICKUPS, MAX_POWER_PICKUPS, POWER_TUNING } from '../shared/power-progression.js';
-import { ARENA_WIDTH, ARENA_HEIGHT, PICKUP_TYPES, SLOT_COLORS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
+import { ARENA_WIDTH, ARENA_HEIGHT, MAX_SPEED_EFFECT_STACK, NITRO_DURATION_TICKS, PICKUP_TYPES, SLOT_COLORS, SNAIL_DURATION_TICKS, type GameState, type PlayerState, type BombState, type BlastState, type PickupState } from '../shared/game.js';
 import { isAvatarId } from '../shared/avatars.js';
 import { MAX_PORTAL_PAIRS } from '../shared/portal.js';
 import { parseRoomSettings, type RoomSettings } from '../shared/room-settings.js';
@@ -33,7 +33,7 @@ const playerFields = {
   id: text, name, slot: count(4), color: v => SLOT_COLORS.includes(v as typeof SLOT_COLORS[number]), avatarId: isAvatarId,
   connected: boolean, x: position, y: position, angle: range(-Math.PI * 2, Math.PI * 2), alive: boolean,
   roundWins: integer, bombReadyAtTick: integer, bombChargeStartedTick: optional(integer), gunArmed: optional(boolean), shellArmed: optional(boolean), targetBombArmed: boolean,
-  bombTarget: optional(shape({ x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT) })), gravityArmed: boolean, extraBombs: count(MAX_EXTRA_BOMBS), fuseLevel: count(2), powerPickups: count(MAX_POWER_PICKUPS), reloadDurationTicks: v => integer(v) && range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v), invulnerableUntilTick: integer, boostUntilTick: integer, grip: boolean, drunkUntilTick: integer, inkUntilTick: integer,
+  bombTarget: optional(shape({ x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT) })), gravityArmed: boolean, extraBombs: count(MAX_EXTRA_BOMBS), fuseLevel: count(2), powerPickups: count(MAX_POWER_PICKUPS), reloadDurationTicks: v => integer(v) && range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v), invulnerableUntilTick: integer, boostUntilTick: integer, nitroUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK), snailUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK), grip: boolean, drunkUntilTick: integer, inkUntilTick: integer,
   drunkStartedTick: integer, drunkHeadingOffset: range(-Math.PI, Math.PI), tripleShotArmed: boolean, fiveShotArmed: boolean,
   shielded: boolean, shieldGraceUntilTick: integer, portalCooldownUntilTick: integer, portalGraceUntilTick: integer, trail: array(trail, MAX_CHECKPOINT_TRAILS),
 } satisfies Record<keyof PlayerState, Guard>;
@@ -42,7 +42,7 @@ const bombFields = {
   id: integer, ownerId: text, launchX: position, launchY: position, x: position, y: position,
   launchedTick: integer, landsAtTick: integer, placedTick: integer, explodeAtTick: integer, blastRange: range(0, 1000),
   flightPath: array(shape({ x: position, y: position, angle: number }), 32),
-  gravity: optional(boolean), shot: optional(v => integer(v) && v !== 0),
+  gravity: optional(boolean), shot: optional(v => integer(v) && v !== 0), portalCooldownUntilTick: optional(integer),
   shell: optional(shape({ vx: range(-1000, 1000), vy: range(-1000, 1000), gun: optional(boolean), bounces: optional(v => count(1_000_000)(v) && v !== 0) })),
 } satisfies Record<keyof BombState, Guard>;
 const bomb = shape(bombFields);
@@ -110,6 +110,8 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
   return result;
 }
 
+const speedDeadlines = (deadlines: readonly number[], latest: number): boolean =>
+  deadlines.every((until, index) => until <= latest && (index === 0 || until >= deadlines[index - 1]!));
 function gameInvariants(game: GameState): boolean {
   const slots = new Set<number>();
   const pieceIds = new Set<number>();
@@ -119,6 +121,9 @@ function gameInvariants(game: GameState): boolean {
     if (p.alive && (!game.roundParticipants.has(id) || !game.matchStats.has(id))) return false;
     if (p.bombChargeStartedTick !== undefined && p.bombChargeStartedTick > game.tick) return false;
     if (p.drunkStartedTick > game.tick || p.trail.some(t => t.createdTick > game.tick)) return false;
+    // Speed deadlines are appended in tick order and never further out than one duration, so a list the rules could
+    // not have produced is refused rather than left to expire on a schedule no other replica shares.
+    if (!speedDeadlines(p.nitroUntilTicks, game.tick + NITRO_DURATION_TICKS) || !speedDeadlines(p.snailUntilTicks, game.tick + SNAIL_DURATION_TICKS)) return false;
     let active = false;
     for (let i = 0; i < p.trail.length; i++) {
       const segment = p.trail[i]!, previous = p.trail[i - 1];
