@@ -1159,3 +1159,27 @@ test("reordered packets do not reset the hidden guest's reading of the authority
   f.host.stop();
   f.guest.stop();
 });
+
+test("a name carrying a control character is refused at the join, and the rider is not seated", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  // NUL, the unit separator and DEL bound the join's pattern; a tab sits inside its range.
+  for (const [index, code] of [0x00, 0x1f, 0x7f, 0x09].entries()) {
+    const id = GUESTS[index]!;
+    join(id, `Bad${String.fromCharCode(code)}name`);
+    net.step(900);
+    assert.ok(
+      net.recorded
+        .get(id)!
+        .statuses.includes("Choose a name (1–20 characters)"),
+      `character ${code}`,
+    );
+  }
+  assert.deepEqual(
+    net.frame(HOST)!.players.map((player) => player.name),
+    ["Host"],
+  );
+  for (const runtime of net.runtimes.values()) runtime.stop();
+  host.stop();
+});

@@ -21,10 +21,12 @@ const sources = (directory: string): string[] =>
 test("the networking libraries stay game-agnostic: no import reaches the game or an undeclared package", () => {
   for (const [name, allowed] of Object.entries(ALLOWED)) {
     const root = path.resolve("packages", name, "src");
+    let imports = 0;
     for (const file of sources(root))
       for (const match of readFileSync(file, "utf8").matchAll(
-        /from '([^']+)'/g,
+        /\bfrom\s+["']([^"']+)["']/g,
       )) {
+        imports++;
         const specifier = match[1]!;
         assert.match(specifier, allowed, `${file} imports ${specifier}`);
         if (specifier.startsWith("."))
@@ -35,5 +37,7 @@ test("the networking libraries stay game-agnostic: no import reaches the game or
             `${file} leaves its package via ${specifier}`,
           );
       }
+    // The scan once matched single quotes only and went blind when the formatter switched to double quotes.
+    assert.ok(imports > 0, `${name}: the scan found no imports to check`);
   }
 });

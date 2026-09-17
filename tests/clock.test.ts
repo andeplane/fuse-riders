@@ -91,9 +91,14 @@ test("slewing backwards never rewinds the reported tick and old samples age out 
     previous < 100 + (500 + 1600) / 50,
     "the clock ran slower than real time while slewing back",
   );
-  assert.equal(f.clock.freeRunning(), false);
+  // No usable sample for two seconds: the clock keeps running at its own rate rather than pausing.
+  const before = f.clock.tick();
   f.advance(SAMPLE_WINDOW_MS + 1);
-  assert.equal(f.clock.freeRunning(), true);
+  const ran = f.clock.tick() - before;
+  assert.ok(
+    ran >= SAMPLE_WINDOW_MS / 50 - 3 && ran <= SAMPLE_WINDOW_MS / 50 + 1,
+    `free-ran ${ran} ticks`,
+  );
   f.clock.sample(NaN, 0);
   f.clock.sample(1, -1);
   assert.equal(f.clock.diagnostics().samples, 1);
@@ -106,11 +111,9 @@ test("pausing while hidden removes the paused time on resume", () => {
   assert.equal(f.clock.tick(), 20);
   f.clock.pause();
   f.clock.pause();
-  assert.equal(f.clock.paused, true);
   f.advance(5000);
   assert.equal(f.clock.tick(), 20);
   f.clock.resume();
-  assert.equal(f.clock.paused, false);
   assert.equal(f.clock.tick(), 20);
   f.advance(50);
   assert.equal(f.clock.tick(), 21);

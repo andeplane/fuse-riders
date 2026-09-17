@@ -1646,7 +1646,6 @@ export async function startOnline(): Promise<void> {
             new PeerTransport(code, token, events, {
               apiUrl,
               maxFastBytes: MAX_PACKET_BYTES,
-              disableDirect: new URLSearchParams(location.search).has("relay"),
               copy: TRANSPORT_COPY,
             }),
           displayOnly,
