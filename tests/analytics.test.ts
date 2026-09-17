@@ -1,13 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  EVENT_PREFIX,
+  MIXPANEL_CONFIG,
+  OPT_OUT_KEY,
   analyticsEnabled,
   analyticsOverride,
+  analyticsStatus,
+  createAnalytics,
+  doNotTrackOn,
   matchEndedProps,
   matchStartKey,
   decidedRoundReport,
   roundShotEvents,
+  type AnalyticsEnvironment,
+  type MixpanelLike,
 } from "../src/online/analytics.js";
+import {
+  ANALYTICS_NOTICE,
+  consentView,
+} from "../src/online/analytics-consent.js";
+import {
+  createMemoryStorage,
+  safeStorage,
+  type SafeStorage,
+} from "../src/client/safe-storage.js";
 import type { DecidedRound, RoundShot } from "../src/shared/shot-log.js";
 import { BOT_ID_PREFIX } from "../src/shared/bot-controller.js";
 import type { MatchPlayerStats } from "../src/shared/match-stats.js";
@@ -460,4 +477,380 @@ test("each kill is its own event and a double kill marks exactly one of them as 
       false,
       "a length property silently drops the bag",
     );
+});
+
+/**
+ * A typed stand-in for Mixpanel's SDK with the one behaviour that matters to opting out: `track` only queues,
+ * and the queue reaches the transport on a later flush (the real SDK flushes every five seconds and on unload).
+ * `opt_out_tracking` stops that and empties the queue, as `stop_batch_senders` does in mixpanel-browser 2.83.
+ */
+function fakeSdk(transport: { url: string; events: string[] }[]) {
+  let optedOut = false;
+  let queue: string[] = [];
+  const calls: string[] = [];
+  const registered: Record<string, unknown>[] = [];
+  const tracked: { event: string; properties?: Record<string, unknown> }[] = [];
+  let config: Partial<import("mixpanel-browser").Config> | undefined;
+  const sdk: MixpanelLike = {
+    init(_token, initConfig) {
+      calls.push("init");
+      config = initConfig;
+    },
+    register(properties) {
+      registered.push(properties);
+    },
+    track(event, properties) {
+      if (optedOut) return;
+      tracked.push(properties ? { event, properties } : { event });
+      queue.push(event);
+    },
+    has_opted_out_tracking: () => optedOut,
+    opt_out_tracking() {
+      calls.push("opt_out");
+      optedOut = true;
+      queue = [];
+    },
+    clear_opt_in_out_tracking() {
+      calls.push("clear_opt");
+      optedOut = false;
+    },
+  };
+  return {
+    sdk,
+    calls,
+    registered,
+    tracked,
+    config: () => config,
+    /** The SDK's batch timer or unload handler firing. */
+    flush() {
+      if (optedOut || !queue.length) return;
+      transport.push({
+        url: `https://api-js.mixpanel.com/track/?ip=${config?.ip ? 1 : 0}`,
+        events: queue,
+      });
+      queue = [];
+    },
+    rememberOptOut() {
+      optedOut = true;
+    },
+  };
+}
+
+/** Lets every reaction already attached to a settled promise run. No timers. */
+const settle = async () => {
+  for (let turn = 0; turn < 8; turn++) await Promise.resolve();
+};
+
+function page(
+  options: {
+    search?: string;
+    port?: string;
+    doNotTrack?: boolean;
+    storage?: SafeStorage;
+  } = {},
+) {
+  const transport: { url: string; events: string[] }[] = [];
+  const fake = fakeSdk(transport);
+  let loads = 0;
+  const environment: AnalyticsEnvironment = {
+    load: () => {
+      loads += 1;
+      return Promise.resolve(fake.sdk);
+    },
+    storage: options.storage ?? createMemoryStorage(),
+    search: () => options.search ?? "",
+    port: () => options.port ?? "",
+    doNotTrack: () => options.doNotTrack ?? false,
+  };
+  return {
+    analytics: createAnalytics(environment),
+    environment,
+    transport,
+    fake,
+    loads: () => loads,
+  };
+}
+
+test("Mixpanel is initialised without IP geolocation, page URLs, pageviews, autocapture or a parent-domain cookie", async () => {
+  const { analytics, fake } = page();
+  analytics.start({ role: "landing" });
+  await settle();
+  assert.deepEqual(fake.config(), MIXPANEL_CONFIG);
+  assert.deepEqual(MIXPANEL_CONFIG, {
+    persistence: "localStorage",
+    cross_subdomain_cookie: false,
+    ip: false,
+    ignore_dnt: false,
+    track_pageview: false,
+    autocapture: false,
+    property_blacklist: ["$current_url", "$referrer", "$initial_referrer"],
+  });
+});
+
+test("every event carries the one prefix, in call order, and only the first start loads the SDK", async () => {
+  const { analytics, fake, loads } = page();
+  analytics.track("Too Early");
+  analytics.start({ role: "host", mode: "shared", solo: false });
+  analytics.track("App Opened");
+  analytics.track("Seat Taken", { avatarId: "fox", playerCount: 2 });
+  analytics.start({});
+  await settle();
+  assert.equal(EVENT_PREFIX, "FlowRiders.");
+  assert.deepEqual(fake.tracked, [
+    { event: "FlowRiders.App Opened" },
+    {
+      event: "FlowRiders.Seat Taken",
+      properties: { avatarId: "fox", playerCount: 2 },
+    },
+  ]);
+  assert.equal(loads(), 1);
+  assert.deepEqual(fake.registered.at(-1), {
+    role: "host",
+    mode: "shared",
+    solo: false,
+  });
+});
+
+test("off for the address, the flag or Do Not Track means the SDK is never even downloaded", async () => {
+  for (const [options, status] of [
+    [{ port: "8831" }, "addressOff"],
+    [{ search: "?analytics=0" }, "flagOff"],
+    [{ doNotTrack: true }, "doNotTrack"],
+    [{ doNotTrack: true, search: "?analytics=1", port: "8831" }, "doNotTrack"],
+  ] as const) {
+    const { analytics, loads, transport, fake } = page(options);
+    analytics.start({ role: "landing" });
+    analytics.track("App Opened");
+    analytics.setOptOut(false);
+    await settle();
+    fake.flush();
+    assert.equal(analytics.status(), status);
+    assert.equal(loads(), 0, status);
+    assert.deepEqual(transport, [], status);
+  }
+  assert.equal(
+    page({ port: "8831", search: "?analytics=1" }).analytics.status(),
+    "on",
+  );
+});
+
+test("switching analytics off in SETTINGS stops every request at once, including the batch already queued", async () => {
+  const { analytics, transport, fake, environment } = page({
+    search: "?room=AB42",
+  });
+  analytics.start({ role: "joiner" });
+  analytics.track("App Opened");
+  await settle();
+  fake.flush();
+  assert.equal(transport.length, 1);
+  assert.match(transport[0]!.url, /[?&]ip=0\b/);
+
+  analytics.track("Seat Taken");
+  await settle(); // accepted by the SDK, and waiting in its batch for the next flush
+  analytics.setOptOut(true);
+  analytics.track("Match Started");
+  await settle();
+  fake.flush();
+  assert.equal(analytics.status(), "optedOut");
+  assert.equal(environment.storage.getItem(OPT_OUT_KEY), "1");
+  assert.equal(transport.length, 1, "nothing after the opt-out");
+  assert.deepEqual(
+    fake.tracked.map((entry) => entry.event),
+    ["FlowRiders.App Opened", "FlowRiders.Seat Taken"],
+  );
+
+  // And back on, in the same page: the SDK is told, and events flow again.
+  analytics.setOptOut(false);
+  analytics.track("Match Ended");
+  await settle();
+  fake.flush();
+  assert.equal(environment.storage.getItem(OPT_OUT_KEY), null);
+  assert.deepEqual(transport[1]?.events, ["FlowRiders.Match Ended"]);
+});
+
+test("an opt-out that lands while the SDK is still downloading wins over the calls made before it", async () => {
+  const { analytics, transport, fake } = page();
+  analytics.start({ role: "landing" });
+  analytics.track("App Opened");
+  analytics.setOptOut(true); // before a single microtask has run
+  await settle();
+  fake.flush();
+  assert.deepEqual(fake.tracked, []);
+  assert.deepEqual(transport, []);
+  assert.ok(fake.calls.includes("opt_out"));
+});
+
+test("the choice survives a reload: a page that loads opted out never downloads the SDK, and can be switched back on", async () => {
+  const storage = createMemoryStorage();
+  const before = page({ storage });
+  before.analytics.start({ role: "landing" });
+  before.analytics.setOptOut(true);
+  await settle();
+
+  const reloaded = page({ storage });
+  // Mixpanel remembers the opt-out in its own storage too; model that on the fresh SDK.
+  reloaded.fake.rememberOptOut();
+  reloaded.analytics.start({ role: "host", mode: "shared" });
+  reloaded.analytics.track("App Opened");
+  await settle();
+  assert.equal(reloaded.analytics.status(), "optedOut");
+  assert.equal(reloaded.loads(), 0);
+
+  reloaded.analytics.setOptOut(false);
+  reloaded.analytics.track("Recap Reopened");
+  await settle();
+  reloaded.fake.flush();
+  assert.equal(reloaded.loads(), 1);
+  assert.deepEqual(reloaded.fake.calls, ["init", "clear_opt"]);
+  assert.deepEqual(reloaded.fake.registered, [
+    { role: "host", mode: "shared" },
+  ]);
+  assert.deepEqual(reloaded.transport[0]?.events, [
+    "FlowRiders.Recap Reopened",
+  ]);
+
+  // Switching on a page that never asked for analytics to start does not start it.
+  const idle = page({ storage });
+  idle.analytics.setOptOut(false);
+  await settle();
+  assert.equal(idle.loads(), 0);
+});
+
+test("a browser that refuses storage, and an SDK that cannot start in it, never break boot", async () => {
+  const refused = (): Storage => {
+    throw new DOMException("The operation is insecure.", "SecurityError");
+  };
+  const { environment } = page({ storage: safeStorage(refused) });
+  let rejected = 0;
+  const analytics = createAnalytics({
+    ...environment,
+    load: () =>
+      Promise.resolve<MixpanelLike>({
+        ...fakeSdk([]).sdk,
+        init() {
+          rejected += 1;
+          throw new DOMException("The operation is insecure.", "SecurityError");
+        },
+      }),
+  });
+  assert.doesNotThrow(() => {
+    analytics.start({ role: "landing" });
+    analytics.track("App Opened");
+    analytics.setOptOut(true);
+    analytics.setOptOut(false);
+    analytics.reportBootFailure(new Error("boom"));
+  });
+  await settle();
+  assert.equal(rejected, 1, "init ran, threw, and nobody heard about it");
+
+  // The same when the SDK chunk itself fails to download.
+  const offline = createAnalytics({
+    ...environment,
+    load: () => Promise.reject(new Error("chunk failed")),
+  });
+  offline.start({ role: "landing" });
+  offline.track("App Opened");
+  offline.setOptOut(true);
+  await settle();
+});
+
+test("a boot failure leaves as a class, a code and a scrubbed message, without relabelling the room's later events", async () => {
+  const { analytics, fake } = page({ search: "?room=AB42" });
+  analytics.start({ role: "host" });
+  analytics.reportBootFailure(
+    new TypeError(
+      `Failed to fetch dynamically imported module: https://fuse.example/assets/ui.js?room=AB42 ${"x".repeat(5000)}`,
+    ),
+  );
+  await settle();
+  assert.deepEqual(fake.tracked, [
+    {
+      event: "FlowRiders.Boot Failed",
+      properties: {
+        name: "TypeError",
+        code: "module-load",
+        message: "Failed to fetch dynamically imported module: [url]",
+        role: "boot",
+      },
+    },
+  ]);
+  assert.deepEqual(fake.registered.at(-1), { role: "host" });
+});
+
+test("free text in any event is scrubbed of this page's room code on the way out", async () => {
+  const { analytics, fake } = page({ search: "?room=ab42" });
+  analytics.start({ role: "joiner", note: "room AB42" });
+  analytics.track("Connect Failed", {
+    status: "Room AB42: no link to https://fuse.example/?room=AB42",
+    secondsWaiting: 20,
+  });
+  await settle();
+  assert.deepEqual(fake.registered, [
+    { role: "joiner", note: "room [redacted]" },
+  ]);
+  assert.deepEqual(fake.tracked[0]?.properties, {
+    status: "Room [redacted]: no link to [url]",
+    secondsWaiting: 20,
+  });
+  // A `room` parameter that is not a code is not treated as a secret to hunt for.
+  const odd = page({ search: "?room=the+whole+sentence" });
+  odd.analytics.start({});
+  odd.analytics.track("Connect Failed", { status: "the link failed" });
+  await settle();
+  assert.equal(odd.fake.tracked[0]?.properties?.status, "the link failed");
+});
+
+test("the reason analytics is off is decided in a fixed order", () => {
+  const base = { override: null, port: "", doNotTrack: false, optedOut: false };
+  assert.equal(analyticsStatus(base), "on");
+  assert.equal(analyticsStatus({ ...base, optedOut: true }), "optedOut");
+  assert.equal(
+    analyticsStatus({ ...base, optedOut: true, doNotTrack: true }),
+    "doNotTrack",
+  );
+  assert.equal(
+    analyticsStatus({
+      ...base,
+      port: "8831",
+      optedOut: true,
+      doNotTrack: true,
+    }),
+    "addressOff",
+  );
+  assert.equal(analyticsStatus({ ...base, override: "0" }), "flagOff");
+  assert.equal(
+    analyticsStatus({ ...base, override: "1", port: "8831", optedOut: true }),
+    "optedOut",
+    "?analytics=1 overrides the address, never the rider's own choice",
+  );
+});
+
+test("Do Not Track is read exactly as Mixpanel's SDK reads it", () => {
+  for (const on of [true, 1, "1", "yes"])
+    assert.equal(doNotTrackOn([undefined, on]), true, String(on));
+  for (const off of [undefined, null, "0", "no", "unspecified", 0, false])
+    assert.equal(doNotTrackOn([off, off, off]), false, String(off));
+});
+
+test("SETTINGS says what is true for each status, and only offers a switch that does something", () => {
+  assert.deepEqual(consentView("on"), {
+    label: "ANALYTICS ON",
+    on: true,
+    locked: false,
+    reason: "",
+  });
+  assert.deepEqual(consentView("optedOut"), {
+    label: "ANALYTICS OFF",
+    on: false,
+    locked: false,
+    reason: "Off on this device. Nothing is sent.",
+  });
+  for (const status of ["addressOff", "flagOff", "doNotTrack"] as const) {
+    const view = consentView(status);
+    assert.equal(view.label, "ANALYTICS OFF");
+    assert.equal(view.locked, true, status);
+    assert.match(view.reason, /Nothing is sent\.$/);
+  }
+  assert.match(ANALYTICS_NOTICE, /Mixpanel/);
+  assert.ok(!ANALYTICS_NOTICE.includes("\n"), "one line");
 });

@@ -185,7 +185,8 @@ for the event list and what is deliberately not tracked.
 `HOME_URL=http://127.0.0.1:8899/ npx tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
 `artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
-request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game.
+request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
+by switching analytics off in SETTINGS and asserting that no further request is made, before or after a reload.
 
 ## Hosting and deployment status
 

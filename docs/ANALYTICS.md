@@ -1,6 +1,6 @@
 # Product analytics
 
-[`src/online/analytics.ts`](../src/online/analytics.ts) reports eleven product events to Mixpanel. It answers two
+[`src/online/analytics.ts`](../src/online/analytics.ts) reports twelve product events to Mixpanel. It answers two
 questions — do riders get from the landing page into a match and what happened when they did, and which powerups
 kill and how often they miss — and nothing else.
 It is unrelated to [`src/online/telemetry.ts`](../src/online/telemetry.ts), which posts raw runtime diagnostics
@@ -33,9 +33,70 @@ The project token is a write-only public identifier. Every browser bundle that r
 ships one; it is not a credential and grants no read access, so it is checked in rather than plumbed through the
 build environment.
 
+### The switch in SETTINGS, and Do Not Track
+
+The address rule above decides whether analytics _may_ run. Two things can still switch it off on a device, and
+in every "off" case the Mixpanel bundle is never downloaded and nothing is sent:
+
+| Status       | When                                                                               | SETTINGS shows                             |
+| ------------ | ---------------------------------------------------------------------------------- | ------------------------------------------ |
+| `on`         | the address rule says on, and neither of the two below                             | `ANALYTICS ON`, a working switch           |
+| `optedOut`   | this device switched it off in SETTINGS (`fuse-analytics-opt-out` = `1`)           | `ANALYTICS OFF`, a working switch          |
+| `doNotTrack` | the browser sends Do Not Track (`navigator.doNotTrack` of `1` / `yes`, as the SDK) | `ANALYTICS OFF`, disabled, with the reason |
+| `addressOff` | a ported address without `?analytics=1`                                            | `ANALYTICS OFF`, disabled, with the reason |
+| `flagOff`    | `?analytics=0`, now or remembered                                                  | `ANALYTICS OFF`, disabled, with the reason |
+
+The reasons win from the bottom up: the address and the flag first, then Do Not Track, then the device's own
+choice. `?analytics=1` overrides the address and nothing else — it never overrides a rider who switched analytics
+off, nor Do Not Track.
+
+The switch is a PRIVACY row with a one-line notice — "Anonymous play stats (matches, powerups) go to Mixpanel to
+help tune the game. No names, room codes or location." — in the two per-device SETTINGS dialogs: the room's
+(beside MUSIC, SOUND and VISUAL STYLE) and the landing page's (a disclosure under the room-settings draft). It is
+deliberately not in ROOM SETTINGS, which the whole room shares. Where the switch could do nothing it is shown
+disabled with the reason rather than hidden, so the row never claims a choice that is not there.
+
+Switching off takes effect at once and guarantees no further request: `track` stops handing events to the SDK
+(checked again when the SDK finishes loading, so a switch flipped during the download still wins), and
+`opt_out_tracking()` stops the SDK's batch sender, empties the batch it had queued, disables its unload flush and
+deletes what it had stored, device id included. The choice is stored under `fuse-analytics-opt-out` on the device
+and survives a reload, where an opted-out page never downloads the SDK at all. Switching back on clears the SDK's
+own opt-out flag (`clear_opt_in_out_tracking()`, which — unlike `opt_in_tracking()` — sends no `$opt_in` event of
+its own) and resumes: under a fresh device id if a page load came in between, under the one still in memory if
+not. Events from the time in between are not replayed. There is no consent
+prompt: the default is unchanged — on for the deployed site — and that default is the project owner's to weigh.
+
+Do Not Track is honoured because Mixpanel's SDK honours it by default (`ignore_dnt: false`, pinned in the init
+options); the game applies the SDK's own test one step earlier so that such a browser does not download the SDK
+just to be told to send nothing. Global Privacy Control (`navigator.globalPrivacyControl`) is **not** consulted,
+by the SDK or by the game.
+
+### What Mixpanel is initialised with
+
+`MIXPANEL_CONFIG` in `analytics.ts`, checked by `tests/analytics.test.ts`:
+
+| Option                   | Value                                            | Why                                                                                                                                                                                           |
+| ------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ip`                     | `false`                                          | Every request carries `ip=0`, which tells Mixpanel not to derive `$city`, `$region` or `mp_country_code` from the connection. The request still arrives from an address, as any request does. |
+| `persistence`            | `"localStorage"`                                 | The game stores everything else there too, and a batch that outlives a navigation is what lets CREATE ROOM report before the page it triggers replaces this one.                              |
+| `cross_subdomain_cookie` | `false`                                          | Where local storage is refused the SDK falls back to a cookie; this keeps that cookie on this host rather than the SDK's default of the parent domain.                                        |
+| `ignore_dnt`             | `false`                                          | The SDK default, pinned (above).                                                                                                                                                              |
+| `track_pageview`         | `false`                                          | A pageview event carries the page's URL, path and query.                                                                                                                                      |
+| `autocapture`            | `false`                                          | No clicks, inputs or page content.                                                                                                                                                            |
+| `property_blacklist`     | `$current_url`, `$referrer`, `$initial_referrer` | See "The page URL" below.                                                                                                                                                                     |
+
+Everything else is the SDK default for the pinned `mixpanel-browser` 2.83: session recording off
+(`record_sessions_percent: 0`), no feature flags, and UTM parameters and ad click ids in the landing URL kept as
+`utm_*` properties (`track_marketing`) — none of which is a room code.
+
+Storage is only ever reached through `safeStorage`, and Mixpanel's `init` runs inside the promise every caller
+already ignores: Safari with "Block all cookies" throws on merely evaluating `localStorage`, and neither that nor
+a Mixpanel that cannot start may break boot.
+
 ## The events
 
-Every name is prefixed `FlowRiders.`. `role` (`landing` / `solo` / `display` / `host` / `joiner` / `boot`) is a
+Every name is prefixed `FlowRiders.` — one constant, `EVENT_PREFIX`. It is the game's former name and it stays
+until the project owner decides otherwise: renaming it would split the Mixpanel project's history in two. `role` (`landing` / `solo` / `display` / `host` / `joiner` / `boot`) is a
 super property on every event. `mode` and `solo` are registered only on the room path, so the landing page's
 `App Opened` and `Room Created` and the boot path's `Boot Failed` carry `role` alone.
 
@@ -51,8 +112,16 @@ super property on every event. `mode` and `solo` are registered only on the room
 | `Recap Reopened`   | the RESULTS button                                                                                | —                                                                                                                                                                                                                                                                                                                                                              |
 | `Settings Changed` | a draft the runtime accepted                                                                      | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `map`, `powerupTypes`                                                                                                                                                                                                                                                         |
 | `Connect Failed`   | 20s with no link to the host                                                                      | `status` (the status line, `null` if none yet), `secondsWaiting`                                                                                                                                                                                                                                                                                               |
-| `Boot Failed`      | the boot-failure card is shown                                                                    | `message`                                                                                                                                                                                                                                                                                                                                                      |
+| `Boot Failed`      | the boot-failure card is shown                                                                    | `name`, `code`, `message`                                                                                                                                                                                                                                                                                                                                      |
 | `Signed In`        | a Google sign-in from the landing page's account dialog succeeded                                 | —                                                                                                                                                                                                                                                                                                                                                              |
+
+When `Match Started`, `Kill` / `Miss`, `Seat Taken` and `Match Ended` fire is
+[`src/online/funnel.ts`](../src/online/funnel.ts): the room UI hands it every snapshot it renders and the funnel
+does the once-only bookkeeping, outside the render callback and under test (`tests/funnel.test.ts`).
+
+`Boot Failed` reports the error's class (`name`, e.g. `TypeError`), a stable `code` to count by (`module-load`,
+`storage`, `webgl`, `network` or `unknown`) and a `message` to read. The message is the one place an event carries
+text the game did not write, so it is bounded and scrubbed — see "Free text" below.
 
 `matchNumber` counts matches within a page load, so a rematch is the same signal a separate `Rematch` event
 would carry, with one fewer event to reconcile. `played` is false on a shared-TV display or for a spectator,
@@ -165,6 +234,16 @@ reported as `matchLength` for exactly this reason.
   `init`. Sending them would hand a live, joinable invite to a third party on every seat, match and setting
   change. `$referring_domain` and `$initial_referring_domain` survive: they answer where players come from and
   carry no room code.
+- **Location.** `ip: false` at `init`: Mixpanel is told not to geolocate the request, so no event carries a city,
+  region or country.
+- **Free text.** Every string property of every event and super property passes through `sanitizeText`
+  ([`analytics-text.ts`](../src/online/analytics-text.ts)) inside `track`, so a call site cannot forget to: one
+  line, at most 200 characters, with URLs (`[url]`), query strings (`[query]`), `room=` / `token=` style pairs,
+  e-mail addresses, JWTs, UUIDs and any long hex or base64 run (`[token]` — the `fuse-peer-*` and `fuse-room-*`
+  tokens are 64 hex characters) removed, and this page's own room code removed wherever it appears. Today that
+  matters for two properties, `Boot Failed`'s `message` and `Connect Failed`'s `status`; a browser's "Failed to
+  fetch dynamically imported module: https://…?room=AB42" would otherwise name a live invite. Anything that is not
+  a string, number, boolean, `null` or an array of those is reported as its type, never serialised.
 
 ## Cost
 

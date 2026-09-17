@@ -28,16 +28,19 @@ interface Reported {
 }
 
 await mkdir("artifacts", { recursive: true });
-const browser = await (browserName === "webkit" ? webkit : chromium).launch({
-  headless: true,
-});
+const browser = await (browserName === "webkit"
+  ? webkit.launch({ headless: true })
+  : // Headless Chromium still plays the soundtrack through the machine's speakers.
+    chromium.launch({ headless: true, args: ["--mute-audio"] }));
 const context = await browser.newContext({
   viewport: { width: 1280, height: 800 },
 });
 const page = await context.newPage();
 const reported: Reported[] = [];
+const requestUrls: string[] = [];
 // Intercepted, never delivered: a smoke must not write into the production project.
 await page.route("**/*mixpanel.com/**", async (route) => {
+  requestUrls.push(route.request().url());
   try {
     for (const event of JSON.parse(
       new URLSearchParams(route.request().postData() ?? "").get("data")!,
@@ -77,6 +80,44 @@ await page.waitForFunction(
   () => document.querySelectorAll("dialog[open]").length > 0,
 );
 await page.waitForTimeout(6000);
+
+// Switching analytics off in SETTINGS stops every request at once — the SDK's queued batch and its unload flush
+// included — and the choice survives a reload, where the SDK is not even downloaded.
+const closeDialog = () =>
+  page
+    .getByRole("dialog")
+    .getByRole("button", { name: /^(CLOSE|BACK TO LOBBY)$/ })
+    .first()
+    .click();
+await closeDialog();
+await page.getByRole("button", { name: "SETTINGS", exact: true }).click();
+const analyticsToggle = page.locator(".settings-privacy > button");
+assert.equal(await analyticsToggle.textContent(), "ANALYTICS ON");
+await analyticsToggle.focus();
+await page.keyboard.press("Enter");
+assert.equal(await analyticsToggle.textContent(), "ANALYTICS OFF");
+const requestsAtOptOut = requestUrls.length;
+await closeDialog();
+await page.getByRole("button", { name: "RESULTS", exact: true }).click(); // would be a second Recap Reopened
+await page.waitForTimeout(6000);
+const sdkFetches: string[] = [];
+page.on("request", (request) => {
+  if (/mixpanel/i.test(request.url())) sdkFetches.push(request.url());
+});
+await page.reload();
+await page.getByRole("button", { name: "SETTINGS", exact: true }).click();
+assert.equal(
+  await page.locator(".settings-privacy > button").textContent(),
+  "ANALYTICS OFF",
+  "the opt-out survives a reload",
+);
+await page.waitForTimeout(6000);
+assert.equal(
+  requestUrls.length,
+  requestsAtOptOut,
+  "no request reaches Mixpanel after the opt-out, before or after a reload",
+);
+assert.deepEqual(sdkFetches, [], "an opted-out page never downloads the SDK");
 await browser.close();
 
 const named = (name: string) =>
@@ -164,6 +205,11 @@ for (const kill of named("Kill")) {
 }
 only("Seat Taken");
 only("Recap Reopened");
+
+// `ip: false` at init becomes `ip=0` on every request: Mixpanel derives no city, region or country from it.
+assert.ok(requestUrls.length > 0);
+for (const url of requestUrls)
+  assert.match(url, /[?&]ip=0(&|$)/, `geolocation is not switched off: ${url}`);
 
 // A room page is `?room=CODE` and that code is the join credential: no event may carry a page URL.
 const payload = JSON.stringify(reported);
