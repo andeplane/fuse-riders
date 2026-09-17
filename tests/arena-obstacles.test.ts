@@ -46,6 +46,8 @@ const boulder = (overrides: Partial<Obstacle> = {}): Obstacle => ({
 });
 
 /** A started round with whatever scenery the test asks for, and no drops of its own. */
+/** The default rotation also visits the obstacle-free classic arena, so a test about scenery names its map. */
+const SCENERY_MAPS = ["desert", "forest", "city"] as const;
 function scene(
   obstacles: Obstacle[] = [boulder()],
   riders = 2,
@@ -533,7 +535,10 @@ test("every round lays a board that leaves each rider a clear start", () => {
   for (const riders of [2, 3, 5])
     for (let seed = 1; seed <= 25; seed += 1) {
       const game = createGame(`spawn-${riders}-${seed}`, seed);
-      game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
+      game.settings = {
+        ...defaultRoomSettings(),
+        map: SCENERY_MAPS[seed % 3]!,
+      };
       for (let slot = 0; slot < riders; slot += 1)
         addPlayer(game, {
           id: `p${slot}`,
@@ -687,7 +692,7 @@ test("bots ride around scenery instead of into it", () => {
   let survived = 0;
   for (let seed = 1; seed <= 12; seed += 1) {
     const game = createGame(`bot-map-${seed}`, seed);
-    game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
+    game.settings = { ...defaultRoomSettings(), map: SCENERY_MAPS[seed % 3]! };
     addPlayer(game, {
       id: "bot:1",
       name: "AI Rider · Hard",

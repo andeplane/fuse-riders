@@ -32,7 +32,7 @@ import {
 import type { GameEvent } from "./protocol.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-27"; // 27: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through. 26: arena maps. 25: history agreement metadata.
+export const RULES = "fuse-p2p-28"; // 28: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 27: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through. 26: arena maps. 25: history agreement metadata.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
