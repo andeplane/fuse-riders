@@ -2116,6 +2116,17 @@
 .online-announce.countdown strong {
   font-size: clamp(3.5rem, 14vw, 7.5rem);
 }
+/* Riders spawn under this card, and the countdown is when each one looks for theirs: keep it see-through. */
+.online-announce.countdown {
+  background: #02071557;
+}
+.online-announce.countdown .announce-small,
+.online-announce.countdown .announce-hint {
+  text-shadow:
+    0 0 0.25rem #020715,
+    0 0 0.5rem #020715,
+    0 0.0625rem 0 #020715;
+}
 .online-announce .announce-rows {
   display: flex;
   flex-wrap: wrap;
