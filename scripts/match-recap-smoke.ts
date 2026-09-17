@@ -69,7 +69,7 @@ async function assertRecapLayout(page: Page): Promise<{
   await page.locator(".match-recap-report").waitFor({ state: "visible" });
   assert.ok(
     await page
-      .locator("dialog.game-dialog")
+      .locator("dialog.game-dialog[open]")
       .evaluate((element) => element.classList.contains("recap-dialog")),
     "recap uses the wide dialog variant",
   );
@@ -88,7 +88,7 @@ async function assertRecapLayout(page: Page): Promise<{
   );
   assert.ok(
     await page
-      .locator(".dialog-body")
+      .locator("dialog[open] .dialog-body")
       .evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
     "dialog body must not scroll horizontally",
   );
@@ -178,8 +178,9 @@ try {
             tick: detail.tick,
             pauseEndsAt: detail.phaseEndsAtTick,
             dialogOpen: Boolean(
-              document.querySelector<HTMLDialogElement>("dialog.game-dialog")
-                ?.open,
+              document.querySelector<HTMLDialogElement>(
+                "dialog.game-dialog:not(.stats-dialog)",
+              )?.open,
             ),
             alive: detail.players.find((player) => player.id === "solo")?.alive,
           });
@@ -288,7 +289,7 @@ try {
       const layout = await assertRecapLayout(page);
       const screenshots = [`artifacts/match-recap-${tag}.png`];
       await page.screenshot({ path: screenshots[0]! });
-      await page.locator(".dialog-body").evaluate((element) => {
+      await page.locator("dialog[open] .dialog-body").evaluate((element) => {
         element.scrollTop = element.scrollHeight;
       });
       await inside(
@@ -301,7 +302,9 @@ try {
       await page.getByRole("dialog").waitFor({ state: "hidden" });
       // `close` is fired from a queued task, so the ordinary width/title/name are restored just after the dialog stops rendering.
       await page.waitForFunction(() => {
-        const element = document.querySelector("dialog.game-dialog")!;
+        const element = document.querySelector(
+          "dialog.game-dialog:not(.stats-dialog)",
+        )!;
         return (
           !element.classList.contains("recap-dialog") &&
           element.getAttribute("aria-label") === "Game menu"
@@ -317,7 +320,7 @@ try {
       await assertRecapLayout(page);
       assert.equal(
         await page
-          .locator(".dialog-body")
+          .locator("dialog[open] .dialog-body")
           .evaluate((element) => element.scrollTop),
         0,
         "reopening starts at the podium, not where the reader left off",

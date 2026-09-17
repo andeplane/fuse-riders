@@ -1,0 +1,306 @@
+# ADR-047: Peer-to-peer input-log lockstep with rollback
+
+- Status: Accepted (describes what `main` implements; it proposes nothing)
+- Date: 2026-09-17
+- Supersedes: [ADR 028](028-online-authority-and-lifecycle.md), [029](029-online-simulation-time.md), [030](030-online-delivery-and-replication.md), [031](031-online-rooms-and-operations.md), [032](032-online-acceptance.md), [041](041-input-log-and-rollback-core.md), [042](042-controller-only-phones.md), and the protocol text of [035](035-direct-gameplay-only.md), whose direct-only policy (no gameplay relay, no TURN) this ADR carries forward unchanged
+- Replaces [P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md) as the description of the model. The brief keeps the original goals, the measurements and the review history.
+
+The code is the source of truth. Every rule and number below was read from source and is cited as a path plus a symbol name. Where the reason for a number is not written down in the code or an existing document, this ADR says "rationale not recorded" instead of inventing one. `tests/p2p-adr-constants.test.ts` fails when an exported constant in the table below stops matching its source.
+
+## Context
+
+Fuse Riders is a small game for two to five friends. `AGENTS.md` sets the constraints this model answers to: responsive play, consistent outcomes, low hosting cost, no always-running simulation server where practical, a room service that "does not simulate or relay gameplay", and no silently added gameplay relay or paid service. [ADR 035](035-direct-gameplay-only.md) had already removed the gameplay relay and declined to provision TURN, accepting a visible connection failure when WebRTC cannot connect.
+
+The earlier online design (ADRs 028–032, then the host-anchored log of ADR 041/042) made one browser the authority. [ROLLBACK-PLAN.md](../online/ROLLBACK-PLAN.md) §0 records why that failed in play: the host decided when an input applied, so scope changes and freshness rules dropped presses and releases. The peer-to-peer brief replaced it on 2026-09-15 with a model in which nobody decides when another member's input applies. Until this ADR that model had no decision record, and the brief had drifted from the code (issue [#258](https://github.com/andeplane/fuse-riders/issues/258), finding T6).
+
+## Decision
+
+### 1. Every member simulates one shared log
+
+State at tick T is a pure fold of the seed and every log entry stamped with a tick ≤ T (`src/shared/apply-tick.ts` `RoomState`, `applyTick`). Every member of a room runs that fold locally, including a display-only TV and a controller phone in shared mode, which merely does not draw the arena (`src/online/room-runtime.ts` `RoomRuntime`). Solo play is the same runtime with no transport. Bots are not logged: `applyTick` calls `BotController.input` on every replica, so bots are part of the deterministic fold.
+
+Lockstep only works if that fold is bit-identical on every JavaScript engine in the room, because replicas exchange inputs, never state. Today that is kept by convention in `src/shared/`: trigonometry comes from the pinned pure-JavaScript `sin`, `cos` and `atan2` of `src/shared/deterministic-math.ts` and distances from its `hypot2` (no `Math.sin`, `Math.cos`, `Math.atan2` or `Math.hypot`), randomness comes from the seeded stream in the game state, and nothing under `src/shared/` reads `Date.now` or `performance`; `scripts/determinism-replay.ts` replays one seeded log in Node, Chromium and WebKit. Nothing on `main` enforces the convention: [PR #267](https://github.com/andeplane/fuse-riders/pull/267), in review and not merged, adds AST source guards and a cross-engine golden hash.
+
+The simulation runs at `TICK_HZ` = 20 (`src/shared/game.ts`), one tick per `TICK_MS` = 50 ms of clock time (`src/online/clock.ts`). `RoomRuntime.start` schedules `tickLoop` every 10 ms.
+
+### 2. Streams, sequence numbers and generations
+
+Each member owns one append-only stream (`src/online/stream.ts` `StreamLog`). An entry is `[seq, tick, kind, ...args]` (`src/shared/input-log.ts` `Entry`, `isEntry`): `seq` starts at 1 and increases by one; `tick` is absolute and never decreases within a stream. Player kinds are `STEER`, `PRESS`, `RELEASE`, `CANCEL`, `AVATAR` (kind 1, Target Bomb's `AIM`, was retired in `fuse-p2p-30` and is refused); management kinds are `JOIN`, `LEAVE`, `PRESENCE`, `SETTINGS`, `ACTION`, `BOT`. Press gesture ids must strictly increase along a stream (`StreamLog.append`, `StreamLog.receive`).
+
+A member stamps its own entries `max(floor(clock) + 1, lastOwnTick)` (`RoomRuntime.ownTick`), so its own input applies on the next tick with no round trip. Input is edge-filtered: an unchanged frame produces no entry (`RoomRuntime.input`).
+
+A stream is identified by member id and generation. The generation is the page load, in 100 ms units since 2020-09-13 (`pageGeneration`), so a reload starts a new stream at seq 1. A packet from an older generation than the one already seen is dropped (`RoomRuntime.fast`). The stream a newer generation replaces is kept as retired until nothing it holds can be replayed (`src/online/rollback.ts` `World.stream`, `World.retain`); the reducer takes a rider's player entries from the generation its fold currently holds, and management entries from every generation (`applyTick`).
+
+### 3. The per-tick packet
+
+Every member sends one packet to every other member whenever its clock reaches a new tick. A new own entry triggers another: immediately for input and avatar entries, on the next 10 ms loop pass for the rest (`RoomRuntime.tickLoop`, `sendPackets`, `input`, `append`). It travels on the unreliable channel as a MessagePack array of twelve fields (`src/online/packet.ts` `Packet`, `encodePacket`):
+
+`[PACKET_VERSION, room, from, generation, through, lastSeq, entries, sentAt, echoSentAt, echoHeld, clockTick, hash]`
+
+- `room` is a 32-bit FNV-1a hash of `code:creatorId` (`roomHash`, `RoomRuntime.welcome`); `from` is the sender's member id.
+- `entries` holds **the sender's own entries only**, at most `PACKET_ENTRIES` = 6: the two newest plus a rotating share of the retained window, so every retained entry recurs with no acknowledgement (`StreamLog.packetEntries`). Nobody forwards anybody else's entries.
+- `lastSeq` is the highest seq the sender has issued; `through` is `max(own through, floor(clock))`, the sender's claim that its stream is complete up to that tick (`RoomRuntime.sendPacket`).
+- `sentAt`, `echoSentAt` and `echoHeld` make every packet a round-trip sample; `clockTick` is the sender's fractional clock.
+- `hash` is `[tick, hash]` or null (§8).
+
+A packet is at most `MAX_PACKET_BYTES` = 1100 bytes, "one datagram under the 1,280-byte IPv6 minimum MTU with DTLS/SCTP headers to spare; a SETTINGS entry is ~230 bytes" (`packet.ts`). `encodePacketTrimmed` drops the oldest entries until the packet fits; `decodePacket` refuses anything larger before decoding, and the transport refuses it again in both directions (`packages/fuse-network-fe/src/peer-transport.ts` `maxFastBytes`, set to `MAX_PACKET_BYTES` by `src/online/ui.ts`).
+
+A sender retains its own entries stamped within the last `RETAINED_TICKS` = 40 ticks of its `through`, at most `RETAINED_ENTRIES` = 64 (`StreamLog.retained`).
+
+### 4. The tick clock and its authority
+
+`TickClock` (`src/online/clock.ts`) computes `tick = base + (now − t0) · rate / TICK_MS` plus a slewed offset, from an injected monotonic clock, and never steps backwards.
+
+The **time authority** is the creator for as long as the room service lists the creator as a member; otherwise it is the lowest id among this member and the members it has heard within `CREATOR_SILENCE_MS` (`RoomRuntime.authority`). Each replica computes this from its own observations; it is not a log entry. An authority that opens a fresh world starts its clock at 0 (`RoomRuntime.createWorld`); a returning creator is the time authority as soon as the roster lists it, and starts its clock when it installs a peer's snapshot, from the freshest peer `clockTick` projected to now, else from the snapshot tick plus half the request round trip (`RoomRuntime.acceptSnapshotChunk`, `TickClock.started`). Once started, the authority never adjusts its clock: it takes no samples. A follower feeds every authority packet's `clockTick` and measured RTT to `TickClock.sample`, which assumes the authority is `rtt / 2` further on, keeps the lowest-RTT sample of the last `SAMPLE_WINDOW_MS`, and slews toward it at no more than `SLEW_TICKS_PER_SECOND`; an offset beyond `SNAP_TICKS` snaps instead. A follower with no fresh sample free-runs. Packets from members other than the authority feed only per-link RTT.
+
+The time authority is a different role from the acting creator of §9: the first is chosen from the service roster and local silence, the second from the log, and the two can be different members at the same time.
+
+### 5. `completeTick()`, speculation and the stall rule
+
+For a stream, `StreamLog.completeThrough` is the owner's declared `through`, capped one tick before the first entry waiting behind a gap. `StreamLog.confirmedThrough` is stricter: with a gap open it is the highest `through` declared while the stream had no gap, or one tick before the last contiguous entry, whichever is later.
+
+`World.completeTick` is the minimum `confirmedThrough` over every connected human rider. Ticks up to it are final on this replica; it gates the desync hash, snapshot serving and `RoomRuntime.confirmedTick` (used by analytics).
+
+Simulation does not wait for completeness. The world advances toward `floor(clock)`, at most `CATCHUP_TICKS` = 8 ticks per loop pass, predicting that a rider whose entries have not arrived keeps its held controls. It may run at most `STALL_TICKS` = 40 ticks past the least complete connected remote human (`World.stallBound`, which uses `completeThrough`); beyond that it stops and shows "Waiting for <name>". A disconnect already logged for that rider (`World.pendingDisconnect`) lets the bound move to the disconnect tick. Deaths, pickups and scores are rendered from this speculative world; events are emitted once per `(matchId, round, tick, index)` across rollbacks (`World.simulate`).
+
+Presentation draws one tick behind the clock, interpolating the two newest simulated ticks, with the local rider led by up to one tick of its held controls (`RoomRuntime.view`, `src/online/prediction.ts` `presentWorld`).
+
+### 6. Rollback, retention and bounds
+
+`World` clones the state every `SNAPSHOT_INTERVAL` = 4 ticks and keeps `SNAPSHOTS_RETAINED` = 12 of them; applied entries and event keys at or before the oldest retained snapshot are pruned (`World.retain`, `StreamLog.prune`). A newly contiguous entry stamped at or before the current tick restores the newest snapshot before it and re-simulates to the current tick (`World.rollback`).
+
+`StreamLog.receive` validates a whole packet before touching the stream and rejects the whole packet on any fault: more than `PACKET_ENTRIES` entries, a malformed entry, a seq above `max(lastSeq, known lastSeq)`, an entry stamped more than `FUTURE_TICKS` = 400 ticks past the receiver's clock, a changed entry under a known seq, ticks or press gestures out of order, or more than `BUFFERED_ENTRIES` = 256 entries waiting behind a gap. `FUTURE_TICKS` is deliberately wide: "clocks converge by slewing, so a live peer may legitimately stamp a few seconds ahead for a while; the bound only keeps an absurd tick from parking entries forever" (`stream.ts`).
+
+An entry is `unrepairable` when it is at or before the stream's base tick, when it is `ROLLBACK_TICKS` = 40 or more ticks behind the current tick, or when no retained snapshot precedes it. That forces a resync (§7).
+
+### 7. Gaps, NACK, repair and resync
+
+A gap is `contiguous < lastSeq`. The receiver sends a NACK `[NACK_VERSION, room, from, firstMissingSeq]` on the unreliable channel, at most once per `NACK_INTERVAL_MS` per stream, from both the receive path and the tick loop. The owner answers with up to `PACKET_ENTRIES` retained entries from that seq (`StreamLog.repairEntries`), or nothing when the seq has left its retained window.
+
+A member asks a peer for the world (`RoomRuntime.requestSnapshot`) when:
+
+1. it has no world (join, reload);
+2. a received entry is `unrepairable`;
+3. a gap has stayed open longer than `STALLED_GAP_MS`;
+4. it is more than `BEHIND_TICKS` = 400 ticks behind: in the tick loop, measured as the backlog the stall rule lets it reach (`min(clock, stallBound) − world tick`), and on returning from a hidden tab as the raw `clock − world tick`;
+5. its state hash differs from the authority's (§8).
+
+One request is tracked at a time, on the reliable channel. The tick-loop triggers (1, 3 and the first half of 4) wait for a tracked request to finish; an `unrepairable` entry, a hash mismatch and the return from a hidden tab call `requestSnapshot` without checking, which discards the transfer being assembled and may rotate to another peer. The target is the peer that just greeted, else the time authority, else the linked peers in rotation, skipping for `SNAPSHOT_RETRY_MS` any that answered `noWorld`. A request is retried after `SNAPSHOT_RETRY_MS` with the next peer; `SNAPSHOT_FAILURES` = 3 failures show "Could not load the game — reload this page" and the retries continue. A peer serves at most one snapshot per requester per `SNAPSHOT_SERVE_MS`.
+
+The served state is `World.servable`: the newest retained snapshot no later than `completeTick()`, or the current state when everything is complete or the server is itself stalled. `src/online/snapshot.ts` `encodeSnapshot` packs `[RULES, room, tick, game, settings, folds, bots, streams, hash]`, where each stream carries its base seq, base gesture and up to `MAX_SNAPSHOT_ENTRIES` entries after the tick (retired generations first), and splits the base64 text into chunks of `ceil(SNAPSHOT_CHUNK_BYTES × 4 / 3)` = 21,334 characters, which is `SNAPSHOT_CHUNK_BYTES` = 16,000 bytes of snapshot per chunk. `SnapshotAssembler` accepts chunks in order from the one peer asked and enforces `MAX_SNAPSHOT_BYTES`, as `encodeSnapshot` does on the serving side. `decodeSnapshot` checks the bounded MessagePack preflight (whose own size cap is `MAX_MESSAGE_BYTES`), `RULES` equality, the room hash, the game state's shape and invariants (`src/online/checkpoint.ts` `decodeGameState`), folds and bots against the seated riders, the state hash and stream ordering — all before `World.install` replaces the world. The installer keeps its own stream's seq numbering and re-applies its own entries after the snapshot tick (`RoomRuntime.acceptSnapshotChunk`).
+
+A creator opens a fresh world only when the roster is empty or every linked member has answered `noWorld`; a member that is not the creator never opens one (`RoomRuntime.tickLoop`).
+
+### 8. The desync hash
+
+`hashRoomState` (`apply-tick.ts`) hashes the canonical JSON of the whole room state — game, settings, folds and bots, with map entries and object keys sorted — with two 32-bit FNV-1a lanes, as 16 hex characters. It is a diagnostic, not a proof.
+
+Every member attaches a hash to its packets when its clock tick is a multiple of `HASH_INTERVAL` = 20 and `tick − HASH_LAG` (40) is at or before its `completeTick()`; the hash is of the retained snapshot at `tick − HASH_LAG` (`RoomRuntime.sendPacket`, `World.hashAt`). Only the time authority's hash is compared (`RoomRuntime.fast`, `compareHash`). The comparison is skipped when the tick is past the receiver's `completeTick()`, when any stream has a gap, or when the receiver no longer retains a snapshot at that tick.
+
+On a mismatch the replica logs both hashes with `console.warn`, shows "Simulation corrected · resyncing" and requests a snapshot. `DIVERGENCE_LIMIT` = 3 mismatches within `DIVERGENCE_WINDOW_MS` set `outOfSync` and show "Simulation out of sync — reload this page" instead of requesting a snapshot. That holds only while three mismatches sit inside the window: once they age out, a later mismatch requests a snapshot again, although `outOfSync` is never cleared. The replica keeps simulating throughout.
+
+### 9. Membership, seats, presence and succession
+
+**Service.** The room service admits members by token, derives the member id from the token (`packages/fuse-network-be/src/room-store.ts` `peerId`), names the creator (`hostId` in `welcome`), publishes roster changes and forwards validated SDP/ICE (`packages/fuse-network-be/src/gateway.ts`, `signal.ts` `validSignal`). It answers a `relay` frame with an error. It holds no game state. A room admits its creator plus `ROOM_LIMITS.maxGuests` = 5 others (`src/service/room-limits.ts`): five riders and a display. Admission and every valid `time` heartbeat, from any member, extend the room by `ROOM_TTL_MS` = 90 s and the member's connection by `CONNECTION_TTL_MS` = 30 s (`RoomStore.admit`, `RoomStore.time`); a member's departure also extends the room by `ROOM_TTL_MS` when its own connection lease and the room are still live (`RoomStore.leave`); the client sends that heartbeat every 2 s (`PeerTransport.connect`). Only the creator's token can end a room (`RoomStore.end`). Since [#262](https://github.com/andeplane/fuse-riders/pull/262) a room therefore lives while any member keeps its socket, not only while its creator does ([design note](../design/member-kept-room-lifetime.md)). The authority lease (`packages/fuse-network-protocol/src/authority.ts`) only fences a duplicate creator tab (close code `CLOSE_AUTHORITY_REPLACED`); gameplay does not consult it.
+
+**Handshake.** On a confirmed link each side sends `hello` with its generation, whether it is a full view, its `RULES` and whether it holds a world (`RoomRuntime.greet`). A member that wants a seat sends `join` to the manager and retries every `JOIN_RETRY_MS`.
+
+**Seats.** The manager validates the name, claims one of five slots — between rounds it may first free a disconnected rider's seat with `LEAVE` — and appends `JOIN` carrying the joiner's generation (`RoomRuntime.join`, `claimSlot`).
+
+**Presence.** The manager logs `PRESENCE false` for a seated rider it has not heard for `DISCONNECT_MS` = 1000 ms, unless its own loop stalled for more than half of that, and `PRESENCE true` when a rider logged absent is heard again (`creatorDuties`, `ensurePresence`, `logPresence`). A rider that arrives with a new generation is re-logged present at once only by the creator (`RoomRuntime.ensureStream` checks `this.creator`); an acting creator does it when that rider's `join` reaches it, or through `creatorDuties` once the rider has been logged absent. A service `peer` offline event is logged as `LEAVE`, which removes the rider between rounds and marks it disconnected during play (`RoomRuntime.peer`, `applyManagement`). A disconnected rider folds neutral controls and is pruned at the next round or match boundary (`applyTick`, `pruneDisconnected`).
+
+**Creator and acting creator.** `successionOrder` is the creator, then the connected human riders sorted by id. `permitted` applies a management entry when it comes from the creator; from the acting creator (`actingCreator`: the second in that order, whenever the creator is not a connected seated rider — logged disconnected, or never seated, as when the creator drives a TV from an unjoined page; in that case the creator and the lowest-id connected rider both run `creatorDuties` and joiners send `join` to the rider); or, for `PRESENCE false` alone, from any ranked rider about someone ahead of it. When a rider has not heard the creator for `CREATOR_SILENCE_MS` = 5000 ms and is the first rider in the order still heard within `DISCONNECT_MS`, it marks absent everyone ahead of it that is connected and silent for five seconds (`actingCreatorDuties`). Delegation is re-evaluated per entry, so a seated creator's own return revokes it (`applyTick`).
+
+A creator that never takes a seat has no player record, so `actingCreator` names the lowest-id connected rider for as long as that lasts. `RoomRuntime.manager` is then true on two members at once: the creator (always) and that rider. Both log presence and leaves, each tracking only its own pending seat claims (`RoomRuntime.pending`); `RoomRuntime.managerId` sends a joiner's `join` to the creator until the joiner holds a world and to the rider afterwards; and `permitted` accepts every management kind from that rider's stream. Its silence-based duties (`actingCreatorDuties`) stay idle while the creator is heard.
+
+The acting creator carries the log duties — joins, presence, leaves. Room commands do not move: `RoomRuntime.command` refuses settings, start/rematch/lobby and bot changes from anyone but the creator, whatever the log says. Rounds still progress on their own inside a match (`applyTick`).
+
+### 10. `RULES`
+
+`RULES` names the simulation rules; see `RULES` in `src/shared/apply-tick.ts` for the current value. It changes with every simulation change, so it is neither quoted here nor in the checked table. It travels in `hello` and in every snapshot chunk and payload.
+
+On `main` today a mismatch does this and no more: a `hello` with different `RULES` shows "A rider is on a different game version — everyone should reload" and its generation, `full` and `world` flags are ignored (`RoomRuntime.message`); a snapshot chunk or payload with different `RULES` is refused (`SnapshotAssembler.accept`, `decodeSnapshot`). The mismatched peer's per-tick packets are still decoded and folded, it is still sent packets, and its `join` is still seated — `RoomRuntime.fast` and the `join` handler do not consult `RULES`.
+
+### 11. Game speed when only AI survive
+
+`simulationTimeScale` (`game.ts`) returns `BOTS_ONLY_TIME_SCALE` = 3 while a round is playing, at least one human is seated, every human is dead and a bot is alive; otherwise 1. Tick rules are untouched. The speed-up is implemented by changing the **rate of the shared clock**: on every loop pass each member sets `TickClock.rate` from its own current, speculative world (`RoomRuntime.paceClock`). No log entry marks the change. `TickClock.rate` re-bases so ticks already counted are kept.
+
+A follower also measures the authority's rate from the `sentAt` and `clockTick` of its packets over at least `RATE_WINDOW_MS`, classifying it as 3 above the midpoint of 2 ticks per 50 ms (`observeRate`). Two equal consecutive readings count as steady. A follower whose own answer has disagreed with a steady authority for more than `RATE_DEFER_MS` adopts the authority's rate. A hidden online member cannot read its frozen world: a hidden follower takes a steady authority's rate, else 1; a hidden authority keeps 1.
+
+Every tick-denominated bound therefore shrinks threefold in wall time at 3× — `STALL_TICKS`, `ROLLBACK_TICKS`, `RETAINED_TICKS` and the hash margin — while the millisecond bounds do not (couplings C5, C6).
+
+### 12. Hidden tabs
+
+`RoomRuntime.visibilityChanged` runs on `visibilitychange`.
+
+- **On hide**, a seated member appends `STEER 0` if it held a turn and `CANCEL` for an active gesture, so a held charge never fires. Solo then folds those entries, pauses the clock and publishes; time spent hidden is removed on resume.
+- **While hidden online**, `tickLoop` runs whenever the browser fires its timer. It still raises the member's own `through`, sends its packets and runs creator or acting-creator duties, and received packets are still validated and stored. Its hellos, tick-loop NACKs and snapshot requests stop about 600 ms after hiding, because they need `transport.linked(id)`, which lapses with link health (below); only the NACK sent from the receive path (`RoomRuntime.fast`) still leaves. It does **not** advance the world, and `RoomRuntime.input` refuses commands.
+- **On show**, solo resumes its clock. An online member more than `BEHIND_TICKS` behind its clock requests a snapshot; otherwise it catches up at `CATCHUP_TICKS` per loop pass.
+
+In the transport, `PeerTransport.checkLinks` returns early while `document.hidden`: a hidden page sends no link probes and starts no ICE restart, so its own `LinkHealth` lapses, `linked()` turns false and `send()` refuses reliable messages. A hidden member therefore sends no `hello`, `join` or snapshot, although it still answers the other side's probes (the pong is deferred through a `MessageChannel`, which background timer throttling does not delay) and still sends per-tick packets, because `sendFast` does not consult link health. The transport's own visibility handler invalidates the authority-lease clock and samples service time on return.
+
+On `pagehide` the runtime stops; a page restored from the back/forward cache reloads instead of reviving (`packages/fuse-network-fe/src/room-lifecycle.ts` `installRoomLifecycle`).
+
+Browser timer throttling of hidden tabs is not modelled anywhere: `tests/fixtures/fake-room.ts` `FakeNetwork.step` runs every runtime every 10 ms, hidden or not.
+
+### 13. Transport
+
+`PeerTransport` builds a full mesh: one `RTCPeerConnection` per member pair, negotiated through the room service; the member with the smaller id offers and owns any ICE restart (`initiator`). Each link has two data channels:
+
+| Channel | Options                               | Carries                                                                                                                                           |
+| ------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `game`  | default: reliable, ordered            | JSON envelopes `{id, data, sender, receiver}`: `hello`, `join`, `snapshotRequest`, `noWorld`, `snapshot`, `error`, and the transport's own probes |
+| `input` | `ordered: false`, `maxRetransmits: 0` | binary per-tick packets and NACKs                                                                                                                 |
+
+`sendFast` skips a send once `FAST_BUFFER_LIMIT` bytes are queued ("a stale packet is worse than none"). `send` refuses above `GAMEPLAY_BUFFER_LIMIT`, or above `SNAPSHOT_BUFFER_LIMIT` for snapshot chunks, and requires a healthy link.
+
+Link health is path-specific: `checkLinks` probes every 200 ms on the `game` channel; two consecutive acknowledgements, each within 600 ms, make a link healthy (`packages/fuse-network-fe/src/link-health.ts` `LinkHealth`). After 8 s of continuous ill health the initiator restarts ICE on the same connection, at most four times per link with the budget restored by fresh health (`link-restart.ts` `LinkRestartPolicy`). A link opening is only a hint, so the runtime retries hellos, joins and snapshot requests from its tick loop.
+
+WebKit/libwebrtc workarounds, in summary: a monotonic per-link send gate that drains on the first closing signal, because WebKit reports a dead channel as open for a task hop and fails the send as a console error rather than an exception (`link-send-gate.ts` `LinkSendGate`); `sendFast` also checking the peer connection state; the probe pong deferred by one macrotask so a queued closing state change runs first; a `linkBye` farewell with a 150 ms grace when a page leaves on purpose; a restart recognised by its unchanged DTLS fingerprint, with a drained link replaced instead of restarted (`ice-signal.ts` `sameCertificate`); and early trickle candidates buffered per link (`remote-signal.ts` `RemoteSignal`).
+
+ICE is STUN only: `DEFAULT_ICE_SERVERS` (`packages/fuse-network-protocol/src/ice-servers.ts`) lists two STUN hosts, the service's `/ice` route returns the same list with `relayConfigured: false`, the fetch is bounded by `ICE_FETCH_TIMEOUT_MS`, and `parseIceServers` drops any URL that is not `stun:` or `stuns:`. There is no TURN and no gameplay relay: two members that cannot reach each other directly do not get a link.
+
+### 14. Trust model
+
+Every member is trusted with the shared log (`AGENTS.md`). The mechanisms below bound accidents and malformed input; they are not cheat resistance.
+
+- **Sender identity is bound to the link.** A member's connection is negotiated through the service for one member id and connection id, and DTLS secures it. `RoomRuntime.fast` drops a packet or NACK whose `room` or `from` differs from the link it arrived on, so a member can write only its own stream. Reliable envelopes are checked against the service-issued connection ids and de-duplicated (`PeerTransport.receive`).
+- **Whole-packet rejection.** `StreamLog.receive` validates every entry before changing anything; a rejected packet changes no stream or world state. `RoomRuntime.fast` has by then already taken the sender's last-heard time, RTT, clock sample and generation from any well-formed packet for the right room and link.
+- **Bounded decoding.** `decodePacket` applies the byte cap and then MessagePack limits (strings ≤ 128, arrays ≤ 16, maps ≤ 32, no binary or extension types). Snapshots go through `unpackMessage`, whose `preflight` walks the bytes before anything is allocated (depth ≤ 32, ≤ 200,000 nodes, arrays ≤ 4,096, maps ≤ 64, ≤ `MAX_MESSAGE_BYTES`).
+- **Snapshots validate before install**, exhaustively (§7), and a rejected one leaves the healthy world untouched.
+- **Scope.** Packets carry the room hash; stale generations are dropped; events carry match, round and tick.
+- What a member may write in its own stream is limited only by `permitted`, which trusts any ranked rider's claim that someone ahead of it is absent (see presence forgery below).
+
+## Constants
+
+The first table is parsed by `tests/p2p-adr-constants.test.ts`, which imports each module and compares the value; it also fails when `stream.ts`, `rollback.ts`, `clock.ts`, `packet.ts`, `snapshot.ts` or `room-runtime.ts` exports a numeric constant this table does not list. Values are plain integers so the test can read them. `Cn` refers to the couplings listed below the tables.
+
+<!-- adr-047-constants:start -->
+
+| Constant                  | Value   | Unit       | Defined in                                        | Role and couplings                                                                                   |
+| ------------------------- | ------- | ---------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `TICK_HZ`                 | 20      | ticks/s    | `src/shared/game.ts`                              | Simulation rate. `TICK_MS × TICK_HZ = 1000`, not linked in code (C5).                                |
+| `BOTS_ONLY_TIME_SCALE`    | 3       | ×          | `src/shared/game.ts`                              | Clock rate when only AI survive (§11). C5, C6, C10.                                                  |
+| `TICK_MS`                 | 50      | ms         | `src/online/clock.ts`                             | Clock time per tick at rate 1. `room-runtime.ts` also writes a literal 50 (see findings).            |
+| `SAMPLE_WINDOW_MS`        | 2000    | ms         | `src/online/clock.ts`                             | Window for the lowest-RTT clock sample. Rationale not recorded.                                      |
+| `SLEW_TICKS_PER_SECOND`   | 1       | ticks/s    | `src/online/clock.ts`                             | Follower slew limit. C7.                                                                             |
+| `SNAP_TICKS`              | 200     | ticks      | `src/online/clock.ts`                             | Offset beyond which a follower snaps. Must stay below `FUTURE_TICKS` (C7).                           |
+| `ROLLBACK_TICKS`          | 40      | ticks      | `src/online/stream.ts`                            | Oldest tick a late entry may still change. C1, C2.                                                   |
+| `FUTURE_TICKS`            | 400     | ticks      | `src/online/stream.ts`                            | Furthest ahead of the receiver's clock an entry may be stamped. C7.                                  |
+| `RETAINED_ENTRIES`        | 64      | entries    | `src/online/stream.ts`                            | Own entries kept for resending. Rationale not recorded.                                              |
+| `RETAINED_TICKS`          | 40      | ticks      | `src/online/stream.ts`                            | Own entries kept for resending, by age. Same value as `ROLLBACK_TICKS`, not linked (C1).             |
+| `PACKET_ENTRIES`          | 6       | entries    | `src/online/stream.ts`                            | Entries per packet and per repair. Must equal `MAX_PACKET_ENTRIES` (C4).                             |
+| `BUFFERED_ENTRIES`        | 256     | entries    | `src/online/stream.ts`                            | Entries allowed to wait behind a gap. Rationale not recorded.                                        |
+| `SNAPSHOT_INTERVAL`       | 4       | ticks      | `src/online/rollback.ts`                          | Rollback snapshot spacing. C2, C3.                                                                   |
+| `SNAPSHOTS_RETAINED`      | 12      | snapshots  | `src/online/rollback.ts`                          | Rollback ring size. C2, C3.                                                                          |
+| `STALL_TICKS`             | 40      | ticks      | `src/online/rollback.ts`                          | Speculation limit past a rider's completeness. Defined as `ROLLBACK_TICKS` (C1). C5, C6.             |
+| `PACKET_VERSION`          | 1       | —          | `src/online/packet.ts`                            | First field of a packet.                                                                             |
+| `NACK_VERSION`            | 2       | —          | `src/online/packet.ts`                            | First field of a NACK; what tells the two apart on the `input` channel.                              |
+| `MAX_PACKET_BYTES`        | 1100    | bytes      | `src/online/packet.ts`                            | Packet cap, encode and decode. Must equal the transport's fast cap (C4).                             |
+| `MAX_PACKET_ENTRIES`      | 6       | entries    | `src/online/packet.ts`                            | Decoder's entry cap. Must equal `PACKET_ENTRIES` (C4).                                               |
+| `MAX_MESSAGE_BYTES`       | 2000000 | bytes      | `src/online/packet.ts`                            | `unpackMessage` cap. C9.                                                                             |
+| `SNAPSHOT_CHUNK_BYTES`    | 16000   | bytes      | `src/online/snapshot.ts`                          | Snapshot bytes per chunk (the chunk is its base64 text). C9.                                         |
+| `MAX_SNAPSHOT_BYTES`      | 2000000 | bytes      | `src/online/snapshot.ts`                          | Snapshot cap, encode and decode. C9.                                                                 |
+| `MAX_SNAPSHOT_ENTRIES`    | 512     | entries    | `src/online/snapshot.ts`                          | Entries per stream in a snapshot. Rationale not recorded.                                            |
+| `MAX_CHECKPOINT_BYTES`    | 2000000 | chars      | `src/online/checkpoint.ts`                        | Encoded game state cap inside a snapshot. C9.                                                        |
+| `DISCONNECT_MS`           | 1000    | ms         | `src/online/room-runtime.ts`                      | Silence before the manager logs a rider absent. C5, C6.                                              |
+| `CREATOR_SILENCE_MS`      | 5000    | ms         | `src/online/room-runtime.ts`                      | Creator silence that opens succession; also who may be time authority. C6.                           |
+| `LAG_INDICATOR_MS`        | 250     | ms         | `src/online/room-runtime.ts`                      | Silence before "<name> lagging". C6.                                                                 |
+| `SNAPSHOT_RETRY_MS`       | 2000    | ms         | `src/online/room-runtime.ts`                      | Snapshot request retry; also how long a `noWorld` answer is remembered. C6.                          |
+| `SNAPSHOT_FAILURES`       | 3       | failures   | `src/online/room-runtime.ts`                      | Failures before the reload notice.                                                                   |
+| `JOIN_RETRY_MS`           | 1000    | ms         | `src/online/room-runtime.ts`                      | `join` retry. Rationale not recorded.                                                                |
+| `SNAPSHOT_BUFFER_LIMIT`   | 4000000 | bytes      | `src/online/room-runtime.ts`                      | `bufferedAmount` allowed while serving a snapshot. C9.                                               |
+| `STALLED_GAP_MS`          | 1500    | ms         | `src/online/room-runtime.ts`                      | Gap age that forces a resync. C6.                                                                    |
+| `SNAPSHOT_SERVE_MS`       | 500     | ms         | `src/online/room-runtime.ts`                      | Minimum interval between snapshots served to one peer. Below `SNAPSHOT_RETRY_MS`.                    |
+| `HASH_INTERVAL`           | 20      | ticks      | `src/online/room-runtime.ts`                      | Hash cadence. Must be a multiple of `SNAPSHOT_INTERVAL` (C3).                                        |
+| `HASH_LAG`                | 40      | ticks      | `src/online/room-runtime.ts`                      | Age of the hashed tick. Multiple of `SNAPSHOT_INTERVAL`, inside the ring (C3).                       |
+| `CATCHUP_TICKS`           | 8       | ticks/pass | `src/online/room-runtime.ts`                      | Ticks simulated per 10 ms loop pass. C8.                                                             |
+| `BEHIND_TICKS`            | 400     | ticks      | `src/online/room-runtime.ts`                      | Backlog that forces a resync instead of catch-up. C8.                                                |
+| `NACK_INTERVAL_MS`        | 100     | ms         | `src/online/room-runtime.ts`                      | Minimum interval between NACKs per stream. Rationale not recorded.                                   |
+| `DIVERGENCE_WINDOW_MS`    | 60000   | ms         | `src/online/room-runtime.ts`                      | Window for counting hash mismatches. C11.                                                            |
+| `DIVERGENCE_LIMIT`        | 3       | mismatches | `src/online/room-runtime.ts`                      | Mismatches in the window that set `outOfSync`. C11.                                                  |
+| `FRESH_WORLD_WAIT_MS`     | 3000    | ms         | `src/online/room-runtime.ts`                      | Delay before a world-less creator with peers shows "Recovering the room". Status only.               |
+| `RATE_WINDOW_MS`          | 500     | ms         | `src/online/room-runtime.ts`                      | Span of one reading of the authority's clock rate. C10.                                              |
+| `RATE_DEFER_MS`           | 1500    | ms         | `src/online/room-runtime.ts`                      | Disagreement after which a follower adopts the authority's rate. C10.                                |
+| `DEFAULT_MAX_FAST_BYTES`  | 1100    | bytes      | `packages/fuse-network-fe/src/peer-transport.ts`  | Transport's default fast-payload cap. Must equal `MAX_PACKET_BYTES` (C4).                            |
+| `FAST_BUFFER_LIMIT`       | 16000   | bytes      | `packages/fuse-network-fe/src/peer-transport.ts`  | Queued bytes above which a per-tick send is skipped. About 14 full packets; rationale not recorded.  |
+| `GAMEPLAY_BUFFER_LIMIT`   | 64000   | bytes      | `packages/fuse-network-fe/src/link-send-gate.ts`  | Default reliable-send buffer limit. C9.                                                              |
+| `PROBE_BUFFER_LIMIT`      | 4096    | bytes      | `packages/fuse-network-fe/src/link-send-gate.ts`  | Buffer limit for link probes. Rationale not recorded.                                                |
+| `ICE_FETCH_TIMEOUT_MS`    | 3000    | ms         | `packages/fuse-network-fe/src/ice-config.ts`      | Bound on the `/ice` fetch before the default STUN list is used.                                      |
+| `ROOM_RECONNECT_GRACE_MS` | 90000   | ms         | `packages/fuse-network-protocol/src/room-code.ts` | Room lifetime after the last renewal. C12.                                                           |
+| `ROOM_TTL_MS`             | 90000   | ms         | `packages/fuse-network-be/src/room-store.ts`      | Defined as `ROOM_RECONNECT_GRACE_MS`. C12.                                                           |
+| `CONNECTION_TTL_MS`       | 30000   | ms         | `packages/fuse-network-be/src/room-store.ts`      | Member connection lease, renewed by each `time` heartbeat. C12.                                      |
+| `DEFAULT_MAX_GUESTS`      | 5       | members    | `packages/fuse-network-be/src/room-store.ts`      | Members besides the creator; the game passes the same value as `ROOM_LIMITS.maxGuests`.              |
+| `LEASE_MS`                | 10000   | ms         | `packages/fuse-network-protocol/src/authority.ts` | Creator-tab lease; fences duplicate creator tabs only. C12.                                          |
+| `LEASE_GUARD_MS`          | 250     | ms         | `packages/fuse-network-protocol/src/authority.ts` | Gap before a replacement lease becomes valid.                                                        |
+| `ROOM_PROTOCOL_VERSION`   | 2       | —          | `packages/fuse-network-protocol/src/wire.ts`      | `welcome.protocol`; any other value terminates the page with a reload notice. Separate from `RULES`. |
+
+<!-- adr-047-constants:end -->
+
+Literals that are not exported, and so are not machine-checked:
+
+| Literal                                       | Value                                      | Where                                          | Note                                                                         |
+| --------------------------------------------- | ------------------------------------------ | ---------------------------------------------- | ---------------------------------------------------------------------------- |
+| Tick loop interval                            | 10 ms                                      | `RoomRuntime.start`                            | Bounds own-input latency and the send cadence. C8.                           |
+| Presence re-log interval                      | 500 ms                                     | `RoomRuntime.logPresence`                      | The same presence is not logged again sooner.                                |
+| Own-loop stall guard                          | `DISCONNECT_MS / 2`                        | `RoomRuntime.creatorDuties`                    | A manager whose loop just stalled marks nobody absent. C6.                   |
+| Snapshot replay future allowance              | 60 ticks                                   | `RoomRuntime.acceptSnapshotChunk`              | Local tick passed to `StreamLog.receive` on install. Rationale not recorded. |
+| RTT sanity bound                              | 10000 ms                                   | `RoomRuntime.fast`                             | Larger samples are ignored.                                                  |
+| Pace baseline reset                           | 5000 ms                                    | `RoomRuntime.observeRate`                      | A reading this far from the baseline starts over.                            |
+| Steady-rate streak                            | 2 readings                                 | `RoomRuntime.paceClock`                        | C10.                                                                         |
+| Peer clock reading freshness                  | 2000 ms                                    | `RoomRuntime.acceptSnapshotChunk`              | For starting a clock that has no samples.                                    |
+| Seats                                         | 5 (slots 0–4)                              | `RoomRuntime.claimSlot`, `input-log.ts` `slot` |                                                                              |
+| Link probe interval                           | 200 ms                                     | `PeerTransport.connect`                        | C6.                                                                          |
+| Probe acknowledgement window, acks for health | 600 ms, 2                                  | `LinkHealth`                                   | C6.                                                                          |
+| Ill health before an ICE restart              | 8000 ms                                    | `LinkHealth.shouldRestart`                     | C6.                                                                          |
+| ICE restarts per link, interval               | 4, 8000 ms                                 | `RESTART_ATTEMPTS`, `LinkRestartPolicy`        |                                                                              |
+| Farewell grace                                | 150 ms                                     | `LINK_BYE_GRACE_MS`                            |                                                                              |
+| Service `time` heartbeat                      | 2000 ms                                    | `PeerTransport.connect`                        | C12.                                                                         |
+| Room socket reconnect delay                   | 1500 ms                                    | `PeerTransport.connect`                        |                                                                              |
+| Reliable frame cap                            | 200000 chars                               | `PeerTransport.channel`                        | C9.                                                                          |
+| Reliable envelope de-duplication              | 1000 ids per peer                          | `PeerTransport.receive`                        |                                                                              |
+| Early ICE candidates buffered                 | 64 per link                                | `RemoteSignal`                                 |                                                                              |
+| Signalling rate limit                         | 32 burst, 5 per s                          | `RoomGateway` (`gateway.ts`)                   |                                                                              |
+| Packet decode limits                          | str 128, array 16, map 32                  | `decodePacket`                                 | §14.                                                                         |
+| Preflight limits                              | depth 32, 200000 nodes, array 4096, map 64 | `packet.ts` `preflight`                        | §14.                                                                         |
+
+### Couplings
+
+These are the relations the code establishes. The test asserts the ones marked ✔.
+
+- **C1 — rollback reach.** `STALL_TICKS` is defined as `ROLLBACK_TICKS` ✔: speculating further past a rider than the rollback window would turn that rider's late entry into an unrepairable one. `RETAINED_TICKS` has the same value but is not linked: resending an entry older than `ROLLBACK_TICKS` is useless, because the receiver would find it unrepairable. A stream first seen from a hello or a packet is based at `world.tick − STALL_TICKS` (`RoomRuntime.ensureStream`).
+- **C2 — the snapshot ring must cover the rollback window.** With world tick W, `StreamLog.receive` accepts a late entry only at tick W − `ROLLBACK_TICKS` + 1 or later, and `World.rollback` needs a retained snapshot strictly before it, so at or before W − `ROLLBACK_TICKS`. The oldest retained snapshot is at `floor(W / SNAPSHOT_INTERVAL) × SNAPSHOT_INTERVAL − SNAPSHOT_INTERVAL × (SNAPSHOTS_RETAINED − 1)`, which is latest when W is a multiple of the interval, so the condition is `SNAPSHOT_INTERVAL × (SNAPSHOTS_RETAINED − 1) ≥ ROLLBACK_TICKS`: 44 ≥ 40 ✔. The margin is one snapshot (4 ticks): 11 retained would still cover the window, 10 would not. Nothing in the source asserts this.
+- **C3 — hashes exist only at retained snapshot ticks.** `World.hashAt` reads the ring, so `HASH_INTERVAL` and `HASH_LAG` must both be multiples of `SNAPSHOT_INTERVAL` ✔, and `HASH_LAG` must lie inside the ring ✔. With world tick W the oldest retained snapshot is `floor(W / 4) × 4 − 44`, so a hash for tick H can be checked only while W ≤ H + 47. The authority sends it at clock tick H + 40, leaving 7 ticks — 350 ms at 1×, about 117 ms at 3× — for one-way delay plus clock offset. Beyond that the comparison is skipped without a trace (N6).
+- **C4 — one cap, three constants.** `MAX_PACKET_ENTRIES` = `PACKET_ENTRIES` ✔ and `DEFAULT_MAX_FAST_BYTES` = `MAX_PACKET_BYTES` ✔ are separate constants with equal values; `ui.ts` also passes `MAX_PACKET_BYTES` to the transport. The byte cap was raised from 512 so SETTINGS entries fit (brief, review fixes of 2026-09-16).
+- **C5 — tick bounds against millisecond bounds at 3×.** `TICK_MS × TICK_HZ = 1000` ✔. At 1×, `STALL_TICKS` is 2000 ms; at 3× it is about 667 ms, while `DISCONNECT_MS` stays 1000 ms (60 ticks at 3×). At 1× a silent rider is logged absent before anyone stalls on it; at 3× everyone stalls on it first, until the `PRESENCE false` entry arrives. `RETAINED_TICKS`, `ROLLBACK_TICKS` and the C3 margin shrink the same way.
+- **C6 — the liveness ladder**, in wall time: `LAG_INDICATOR_MS` 250 < link-probe acknowledgement 600 < `DISCONNECT_MS` 1000 < `STALLED_GAP_MS` 1500 < `STALL_TICKS` at 1× 2000 = `SNAPSHOT_RETRY_MS` 2000 < `CREATOR_SILENCE_MS` 5000 < ICE restart 8000 < `CONNECTION_TTL_MS` 30000 < `ROOM_TTL_MS` 90000. A silent creator stalls its peers after `STALL_TICKS` and is not logged absent until `CREATOR_SILENCE_MS`, so at 1× the room waits about three seconds. The runtime reads two liveness signals: the per-tick packet, whose only sender is the tick loop, and the service's `peer` offline event, which the manager logs as `LEAVE` (§9).
+- **C7 — clock convergence.** A follower within `SNAP_TICKS` of the authority slews at `SLEW_TICKS_PER_SECOND`, so it can stamp entries up to 200 ticks off for minutes. `FUTURE_TICKS` must exceed `SNAP_TICKS` ✔ or such a peer's entries would be rejected as too far ahead.
+- **C8 — catch-up against resync.** `CATCHUP_TICKS` per 10 ms pass is at most 800 ticks per second, so a backlog just under `BEHIND_TICKS` (20 s of play at 1×) takes at least half a second of loop passes to replay; above it the member fetches a snapshot. `BEHIND_TICKS` and `FUTURE_TICKS` share a value but nothing links them; the choice of 400 is not recorded.
+- **C9 — snapshot sizes.** `MAX_SNAPSHOT_BYTES`, `MAX_MESSAGE_BYTES` and `MAX_CHECKPOINT_BYTES` are three unlinked constants with one value. `SNAPSHOT_BUFFER_LIMIT` must exceed the base64 of a full snapshot (`MAX_SNAPSHOT_BYTES × 4 / 3`, about 2.67 MB) ✔ or serving stops midway; a chunk (about 21,334 characters plus its envelope) must stay under the transport's 200,000-character reliable frame cap, which is an unexported literal and so is not asserted. `SnapshotAssembler` refuses a transfer whose declared chunks exceed `MAX_SNAPSHOT_BYTES × 1.4`.
+- **C10 — pace.** Trusting the authority's rate takes two readings of at least `RATE_WINDOW_MS`, so about a second; a disagreeing follower defers after `RATE_DEFER_MS`. The classifier's threshold is the midpoint `(1 + BOTS_ONLY_TIME_SCALE) / 2`.
+- **C11 — divergence.** Each mismatch below `DIVERGENCE_LIMIT` costs one snapshot transfer; hashes arrive at most every `HASH_INTERVAL` ticks (1 s at 1×).
+- **C12 — service lifetimes.** Heartbeat 2 s against `CONNECTION_TTL_MS` 30 s against `ROOM_TTL_MS` 90 s (= `ROOM_RECONNECT_GRACE_MS` ✔) against `LEASE_MS` 10 s. The heartbeat is a page timer.
+
+## Consequences
+
+**What this buys.** No simulation server and no gameplay traffic through the service: hosting cost is signalling and room metadata. A member's own input applies on the next tick; another member's one network hop later. There is one log, one steady packet and one runtime for solo and online play. Any member can serve the world, so a reload — the creator's included — recovers the running match from a peer, and nothing is persisted. Gameplay packets follow the ICE candidate path, which for players on one LAN is normally that LAN (ADR 035: the application cannot guarantee it). The brief's §15 records measured per-link traffic of about 3–3.6 kB/s on one machine.
+
+**Known limitations.** These describe `main`. The issues hold proposed directions; none is decided here.
+
+- **N2 — game speed changes the shared clock from speculative state** ([#258](https://github.com/andeplane/fuse-riders/issues/258)). Each member derives the clock rate from its own speculative world (§11). A rollback that changes whether a human is alive changes the rate retroactively, and clock time already spent at the other rate is not undone; hidden members cannot judge at all, hence the `observeRate`/`paceClock` heuristics.
+- **N3 — a partially connected mesh deadlocks** (#258). Packets carry only the sender's own entries, nobody forwards, and there is no TURN. If A and B cannot link while both link to the creator, A never receives B's entries: it stalls on B at `STALL_TICKS`, and the creator, which hears B, never logs B absent.
+- **N4 — hidden-tab timer throttling is unmodelled** (#258; unverified on devices). The tick loop is the only sender, and browsers throttle a hidden page's timers. `FakeNetwork` ticks hidden runtimes every 10 ms, so no test exercises this. At one pass per second a hidden member sits at the `DISCONNECT_MS` boundary, and at 3× one packet spans about 60 ticks, more than `STALL_TICKS`. A hidden member also cannot serve snapshots (§12). A reproducer — not a fix — is on branch `codex/arch-hidden-policy` (`docs/reviews/hidden-tabs-reproduction-wip.md`).
+- **N5 — host migration is partial** (#258; owner decision). Since #262 a room outlives its creator for as long as any member renews it, but succession covers only the log duties: nobody but the creator can start, rematch, return to the lobby, change settings or manage bots (§9). Observed on `main`: when the creator is not seated (it drives a TV from an unjoined page), the room has two managers at once — the creator and the lowest-id connected rider both run `creatorDuties`, joiners send `join` to the creator and then to the rider, and every management kind from that rider's stream is permitted (§9). Elections are local: each replica picks the time authority and decides to act as creator from its own silence timers, so two sides of a partition can elect differently and log conflicting presence. A member with no world in a room whose creator is gone and whose peers hold no world waits indefinitely, because only a creator opens a fresh world (§7).
+- **N6 — desync is hard to diagnose in the field** (#258). The check is skipped silently beyond the C3 margin, whenever any stream has a gap, and past `completeTick()`. A mismatch leaves two hashes in `console.warn` and nothing else; telemetry is off in production unless `?telemetry=1` (`src/online/telemetry.ts` `telemetryEndpoint`). `World.install` clears the emitted-event keys, so a resync can re-emit sounds, analytics and moments for ticks still in the replayed window. `outOfSync` is never cleared and the replica keeps simulating.
+- **N7 — ingest hardening gaps** (#258). On `main`, `StreamLog.receive` does not check a new entry against the `through` its owner already declared, so a member can declare completeness ahead and commit input inside ticks others hold final, which also falsifies `completeTick()`. `lastSeq` is bounded only as a uint32, so an inflated value opens a gap no NACK can repair, which pauses hash comparison and triggers a resync every `STALLED_GAP_MS`. A `RULES`-mismatched peer's packets are folded (§10). A packet the stream rejects still counts as hearing its sender (§14), so a member sending only invalid packets is never logged absent. Hardening for these is in review as [PR #278](https://github.com/andeplane/fuse-riders/pull/278) and is not merged.
+- **Presence forgery** (#258 N7; open). `permitted` accepts `PRESENCE false` from any ranked rider about anyone ahead of it and re-evaluates the order per entry, so one packet from the last rider can mark everyone ahead absent, make its sender the acting creator and carry any management entry behind it in the same tick. When the creator is not seated, the lowest-id rider already holds that position with no forgery at all (§9). Absence is a local observation with no evidence in the log, so this belongs to the N5 decision.
+- **No traversal of symmetric NAT or CGNAT** (ADR 035). Two members that cannot connect directly get an explicit failed-link status, not a relay; with N3 that stalls the room.
+
+## Open owner decisions
+
+- **N5 migration model** ([#258](https://github.com/andeplane/fuse-riders/issues/258)): real migration of the creator's role, or pause until the creator returns (which would let most of succession go). Presence forgery and partition elections hang on it.
+- **S2 admission model** ([#256](https://github.com/andeplane/fuse-riders/issues/256), epic [#259](https://github.com/andeplane/fuse-riders/issues/259)): room codes are enumerable by design and every admitted member is a trusted mesh peer whose ICE candidates expose player addresses; whether an invite secret should gate admission is a product decision.
+
+## Validation
+
+`tests/stream.test.ts`, `rollback.test.ts`, `clock.test.ts`, `packet.test.ts`, `snapshot.test.ts`, `input-log.test.ts`, `generation-replay.test.ts`, `room-runtime.test.ts` and `room-lifetime.test.ts` cover the rules above against the deterministic lossy `FakeNetwork`; `scripts/determinism-replay.ts` folds one seeded log to identical hashes in Node, Chromium and WebKit. `tests/p2p-adr-constants.test.ts` keeps the constants table and the ✔ couplings honest. None of this is physical-phone or real-network evidence, and nothing covers N3 or N4.

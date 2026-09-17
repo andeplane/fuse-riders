@@ -1033,3 +1033,53 @@ test("combat detail survives checkpoint replay and rejects references outside th
   }
   assert.deepEqual(encodeGameState(restored), encodeGameState(game));
 });
+
+test("round rating checkpoint standings reject duplicate and foreign identities atomically", () => {
+  const game = playing();
+  const rating = {
+    finishers: ["p0", "p1"],
+    standings: [
+      {
+        playerId: "p0",
+        name: "P0",
+        slot: 0,
+        color: "#123456",
+        place: 1,
+        scoreUnits: 120,
+      },
+      {
+        playerId: "p1",
+        name: "P1",
+        slot: 1,
+        color: "#123456",
+        place: 2,
+        scoreUnits: 0,
+      },
+    ],
+  };
+  for (const bad of [
+    { ...rating, finishers: ["foreign"] },
+    { ...rating, finishers: ["p0", "p0"] },
+    { ...rating, standings: [rating.standings[0], rating.standings[0]] },
+    {
+      ...rating,
+      standings: [
+        { ...rating.standings[0], color: "bad" },
+        rating.standings[1],
+      ],
+    },
+  ])
+    rejected(
+      game,
+      (data) => {
+        data.decidedRound = {
+          matchId: game.matchId,
+          round: 1,
+          tick: game.tick,
+          shots: [],
+          rating: bad,
+        };
+      },
+      "invalid round rating receipt",
+    );
+});

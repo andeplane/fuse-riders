@@ -50,13 +50,15 @@ The target is `engine` (pure rules), `net` (simulation coordination), `render` (
 5. A joiner or refreshed device obtains a world snapshot from a peer. Packet, snapshot and checkpoint boundaries validate runtime data; installation rejects invalid state before replacing a healthy world. Live simulation checkpoints are not persisted locally or in Firestore; optional completed-match history is separate from peer world recovery.
 6. Presentation consumes snapshots, predicted/interpolated positions and scoped events. It never supplies authoritative collisions, pickups, scores or results.
 
-Direct-link failure must surface an explicit retry state. A partial mesh and browser timer throttling remain tracked risks in [#258](https://github.com/andeplane/fuse-riders/issues/258); general mesh tests are not proof of every phone or network condition. Protocol details and security boundaries are in [PROTOCOL.md](online/PROTOCOL.md).
+[ADR 047](adr/047-p2p-input-log-lockstep-rollback.md) records this model in full: packet contents, completeness and the stall rule, rollback bounds, resync triggers, the desync hash, succession, hidden-tab behaviour, the trust model, and a constants table that a test checks against the source.
+
+Direct-link failure must surface an explicit retry state. A partial mesh and browser timer throttling remain tracked risks in [#258](https://github.com/andeplane/fuse-riders/issues/258); general mesh tests are not proof of every phone or network condition. Service protocol details and security boundaries are in [PROTOCOL.md](online/PROTOCOL.md).
 
 The service renews room lifetime on any member's admission or valid heartbeat, so a remaining connected rider keeps the room alive after creator departure. A current member's departure starts a 90-second reconnect grace. The creator retains its identity and explicit-end capability; guest renewal does not renew the creator authority grant. Returning devices recover the live world from a peer. Room incarnation and connection fencing reject old callbacks for reused codes or replacement sockets. See the [lifetime design](design/member-kept-room-lifetime.md); partition elections and browser suspension remain separate #258 risks.
 
 ## Simulation and time
 
-Simulation state uses ticks; clocks schedule work and rendering samples presentation time. The current online clock changes pace when only bots survive, using `simulationTimeScale` and runtime pacing logic. Moving this acceleration into deterministic shared tick execution is proposed in #258. Do not describe the clock as fixed-rate across every current mode.
+Simulation state uses ticks; clocks schedule work and rendering samples presentation time. The current online clock changes pace when only bots survive, using `simulationTimeScale` and runtime pacing logic ([ADR 047 §11](adr/047-p2p-input-log-lockstep-rollback.md#11-game-speed-when-only-ai-survive)). Moving this acceleration into deterministic shared tick execution is proposed in #258. Do not describe the clock as fixed-rate across every current mode.
 
 `src/shared/rider-motion.ts` applies steering before movement at a fixed simulation step. Bots emit ordinary inputs through `BotController`; they do not receive special collision or movement rules. Seeded RNG and pinned deterministic trigonometry live in shared modules. Room settings, pickup definitions and game constants are the sources for balance; this guide intentionally does not duplicate numeric balance tables.
 
