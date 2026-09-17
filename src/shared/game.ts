@@ -463,11 +463,6 @@ export function step(
   const { sceneryReached } = ctx;
   const { transits } = ctx;
   const { instantBlasts } = ctx;
-  for (const moment of detectMoments(state, elapsed, observations))
-    events.push({
-      type: "moment",
-      moment: { ...moment, targetIds: [...moment.targetIds] },
-    });
   resolveRound(state, events, elapsed);
   return { snapshot: toSnapshot(state), events };
 }
