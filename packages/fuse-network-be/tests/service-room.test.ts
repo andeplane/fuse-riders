@@ -486,20 +486,19 @@ test("short-code transactional collisions preserve the live room and retry only 
   assert.equal(attempts, 12);
   assert.deepEqual(await f.store.get("AB42"), original);
 });
-test("guest keepalives never extend host-session lifetime and exact expiry rejects admission", async () => {
+test("guest keepalives extend room lifetime and exact final expiry rejects admission", async () => {
   const f = fixture();
   await f.store.create("AB42", HOST);
   await f.store.admit("AB42", HOST, "a");
   const guest = await f.store.admit("AB42", GUEST, "b");
-  const deadline = guest.room.expiresAt;
-  for (let i = 0; i < 4; i++) {
+  let deadline = guest.room.expiresAt;
+  for (let i = 0; i < 6; i++) {
     f.advance(20_000);
-    assert.equal(
-      (await f.store.time("AB42", guest.member, undefined)).expiresAt,
-      deadline,
-    );
+    const renewed = await f.store.time("AB42", guest.member, undefined);
+    assert.equal(renewed.expiresAt, deadline + 20_000);
+    deadline = renewed.expiresAt;
   }
-  f.advance(10_000);
+  f.advance(90_000);
   await assert.rejects(f.store.get("AB42"), /expired/);
   await assert.rejects(
     f.store.time("AB42", guest.member, undefined),
@@ -507,7 +506,7 @@ test("guest keepalives never extend host-session lifetime and exact expiry rejec
   );
   await assert.rejects(f.store.admit("AB42", HOST, "a"), /expired/);
 });
-test("only the current host extends reconnect grace and replacement close cannot shorten it", async () => {
+test("current host extends reconnect grace and replacement close cannot shorten it", async () => {
   const f = fixture();
   await f.store.create("AB42", HOST);
   const first = await f.store.admit("AB42", HOST, "a");
@@ -559,7 +558,7 @@ test("cached signalling refuses expired rooms before asynchronous TTL deletion",
       JSON.stringify({ type: "time", id: i, sentAt: i }),
     );
   }
-  f.advance(10_000);
+  f.advance(90_000);
   await f.b.receive(guestConnection, signal(peerId(HOST), hostConnection));
   assert.ok(guest.closes.length);
   assert.equal(f.bBus.published.length, 0);

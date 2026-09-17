@@ -30,3 +30,11 @@ so stored metadata validation uses the admission limit; `startGcpRoomService` do
 be non-negative safe integers below `Number.MAX_SAFE_INTEGER`. The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
 
 Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.
+
+Room lifetime follows active membership: admission and valid member heartbeats
+extend the 90-second reconnect grace, including when the creator has left. A
+current member leaving starts that grace too. The creator retains the reserved
+seat and exclusive explicit-end capability; guests cannot renew its authority
+grant. No game state is stored: returning devices recover it from another peer.
+See [the lifetime design](../../docs/design/member-kept-room-lifetime.md) for
+expiry, verification and rollout boundaries.

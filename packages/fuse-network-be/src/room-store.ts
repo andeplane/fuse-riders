@@ -70,6 +70,7 @@ export interface RoomStoreDependencies {
   fullMessage?: string;
 }
 export const CONNECTION_TTL_MS = 30_000;
+/** Any admitted member renews the room; an empty room has this long to reconnect. */
 export const ROOM_TTL_MS = ROOM_RECONNECT_GRACE_MS;
 export const digest = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
@@ -183,7 +184,7 @@ export class RoomStore {
       };
       room.members[id] = member;
       room.revision++;
-      if (host) room.expiresAt = now + ROOM_TTL_MS;
+      room.expiresAt = now + ROOM_TTL_MS;
       if (host)
         room.grant = reserveAuthority(
           room.grant,
@@ -213,7 +214,7 @@ export class RoomStore {
         if (updated) room.grant = updated;
       }
       stored.expiresAt = now + CONNECTION_TTL_MS;
-      if (stored.host) room.expiresAt = now + ROOM_TTL_MS;
+      room.expiresAt = now + ROOM_TTL_MS;
       room.revision++;
       return { room, result: clone(room) };
     });
@@ -227,7 +228,7 @@ export class RoomStore {
         return { result: undefined };
       const room = clone(current);
       delete room.members[member.id];
-      if (member.host && room.expiresAt > this.dependencies.now())
+      if (room.expiresAt > this.dependencies.now())
         room.expiresAt = this.dependencies.now() + ROOM_TTL_MS;
       room.revision++;
       return { room, result: undefined };
