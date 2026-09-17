@@ -121,7 +121,10 @@ export class PeerTransport implements RoomTransport {
             : {}),
         }),
       );
-    } catch {}
+    } catch {
+      // Best effort: the socket can close between the readyState check and the send. The probe expires
+      // above and the next sample, or the reconnect, takes over.
+    }
   }
   private socket?: WebSocket;
   private links = new Map<string, Link>();
@@ -431,7 +434,10 @@ export class PeerTransport implements RoomTransport {
       }
       try {
         this.receive(id, JSON.parse(event.data), true);
-      } catch {}
+      } catch {
+        // A peer's malformed frame is dropped. Deliberately unchanged here: this also swallows whatever
+        // receive() and the message callback throw; narrowing it to the parser belongs to #258.
+      }
     };
     channel.onopen = () => {
       if (current()) {
@@ -613,7 +619,9 @@ export class PeerTransport implements RoomTransport {
         link.game!.send(text);
         this.sentBytes += text.length;
         return true;
-      } catch {}
+      } catch {
+        // The channel died between the gate check and the send: report it unsent, as below.
+      }
     }
     return false;
   }
@@ -804,7 +812,9 @@ export class PeerTransport implements RoomTransport {
             };
           }
         });
-      } catch {}
+      } catch {
+        // Diagnostics only: a closed connection rejects getStats, and the summary stands without a selected pair.
+      }
       links.push(summary);
     }
     const socketStates = ["connecting", "open", "closing", "closed"];

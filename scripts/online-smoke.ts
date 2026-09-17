@@ -593,7 +593,9 @@ try {
               savedMode = JSON.parse(
                 localStorage.getItem("fuse-riders-room-settings-v1") ?? "{}",
               ).mode;
-            } catch {}
+            } catch {
+              // Failure diagnostics only: unreadable saved settings are reported as an undefined mode.
+            }
             return {
               body: document.body.innerText,
               metrics:

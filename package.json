@@ -17,6 +17,7 @@
     "dev:online": "npm run build && tsx src/service/dev.ts --port 8787",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint": "eslint .",
     "config:check": "tsx scripts/deploy-configuration.ts --check",
     "config:plan": "tsx scripts/deploy-configuration.ts --plan"
   },
@@ -42,11 +43,14 @@
     "@types/qrcode": "^1.5.5",
     "@types/ws": "^8.18.1",
     "c8": "^12.0.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.10.0",
     "google-auth-library": "^11.0.2",
     "playwright": "^1.55.0",
     "prettier": "3.9.7",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
+    "typescript-eslint": "8.70.0",
     "vite": "^7.1.5"
   },
   "workspaces": [

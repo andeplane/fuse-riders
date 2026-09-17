@@ -158,7 +158,9 @@ const read = (key: string) => {
 const save = (key: string, value: string) => {
   try {
     localStorage.setItem(key, value);
-  } catch {}
+  } catch {
+    // Storage can be blocked or full (private browsing); the preference then lasts for this page only.
+  }
 };
 /** The transport's player-facing wording, in the game's voice. */
 const TRANSPORT_COPY = {
@@ -1983,7 +1985,9 @@ export async function startOnline(): Promise<void> {
       try {
         const m = JSON.parse(app.dataset.metrics ?? "{}");
         path = m.direct ? "direct" : m.relayed ? "relay" : "none";
-      } catch {}
+      } catch {
+        // Display only: unreadable metrics show as path "none".
+      }
       statsPanel.textContent = formatNetStats(netStats.summary(), path);
     }, 500);
   setInterval(() => {

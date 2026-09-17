@@ -8,10 +8,13 @@ The `verify` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) inst
 
 ```sh
 npm run format:check
+npm run lint
 npm run typecheck
 npm run test:coverage
 npm run build
 ```
+
+`npm run lint` is ESLint with a deliberately small type-aware rule set ([eslint.config.js](../eslint.config.js)): no floating or misused promises, and no empty block — a `catch` that swallows on purpose says why in a comment. Prettier owns formatting.
 
 `npm test` runs the same unit-test file globs without coverage instrumentation: `tests/*.test.ts` and `packages/*/tests/*.test.ts`. Use focused tests during iteration and the broader checks at integration milestones. Add a regression for a confirmed bug; test the observable contract and failure/recovery boundaries rather than copying implementation logic.
 
