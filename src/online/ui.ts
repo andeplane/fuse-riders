@@ -16,6 +16,7 @@ import { applyThemeProperties, selectedTheme, storeTheme, themes, type ThemeDefi
 import { createGameAudio, type GameAudio } from '../client/game-audio.js';
 import { defaultRoomSettings, loadRoomSettings, parseRoomSettings, SETTINGS_KEY, type RoomSettings } from '../shared/room-settings.js';
 import type { PickupType } from '../shared/game.js';
+import { ARENA_HEIGHT, ARENA_WIDTH } from '../shared/game.js';
 import type { ViewSnapshot } from '../client/snapshot-stream.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
 import type { Moment } from '../shared/moments.js';
@@ -260,8 +261,17 @@ export async function startOnline():Promise<void>{
   const updateDesktopLayout=()=>{
     const desktop=desktopQuery.matches&&!app.classList.contains('mobile-play')&&!app.classList.contains('controller-only')&&!app.classList.contains('joining')&&sharedLobby.hidden;
     app.classList.toggle('desktop-game',desktop);
-    const rosterParent=desktop?header:scoreboard;
-    if(roster.parentElement!==rosterParent){if(desktop)header.insertBefore(roster,results);else scoreboard.append(roster);}
+    // The arena keeps its aspect, so a wide window leaves a gutter beside it. When the gutter fits the standings they leave the bar and stack there;
+    // the arena never gives up space for them. Entering needs more room than staying: taking the roster out of the bar can shorten it, which grows the arena and narrows the gutter.
+    const rem=parseFloat(getComputedStyle(document.documentElement).fontSize),box=canvas.getBoundingClientRect();
+    // An unmounted canvas still has the 300x150 HTML default, which is not the arena's shape.
+    const aspect=canvas.width===300&&canvas.height===150?ARENA_WIDTH/ARENA_HEIGHT:canvas.width/canvas.height;
+    const gutter=desktop&&!canvas.hidden?(box.width-Math.min(box.width,box.height*aspect))/2:0;
+    const side=gutter>=(app.classList.contains('side-standings')?7.5:10)*rem;
+    app.classList.toggle('side-standings',side);
+    if(side){app.style.setProperty('--standings-top',`${header.getBoundingClientRect().bottom-app.getBoundingClientRect().top}px`);app.style.setProperty('--standings-width',`${gutter}px`);}
+    const rosterParent=side?app:desktop?header:scoreboard;
+    if(roster.parentElement!==rosterParent){if(side)app.append(roster);else if(desktop)header.insertBefore(roster,results);else scoreboard.append(roster);}
     const actionsParent=!sharedLobby.hidden?lobbyFooter:desktop?header:footer;
     if(hostControls.parentElement!==actionsParent){if(desktop)header.insertBefore(hostControls,results);else actionsParent.append(hostControls);}
     const noticeParent=desktop?header:scoreboard;
@@ -355,10 +365,13 @@ export async function startOnline():Promise<void>{
       if(player){app.style.setProperty('--player-color',player.color);const remaining=Math.max(0,player.bombReadyAtTick-state.tick);fireButton.textContent=remaining?`${Math.ceil(remaining/20)}s RECHARGE`:player.gunArmed?'TAP TO FIRE GUN':player.targetBombArmed?'SLIDE TO AIM':player.shellArmed?'FIRE SHELL':inputState.isHeld('bomb')?'RELEASE!':'HOLD TO FIRE';}
       notice.textContent=state.phase==='lobby'?(joined&&!isHost?'Waiting for the host to start':'Join your friends, then start the race'):state.phase==='countdown'?`READY · ${Math.max(0,Math.ceil(((state.phaseEndsAtTick??state.tick)-state.tick)/20))}`:state.phase==='roundOver'?(state.roundWinnerId===id?'You win this round':`${state.players.find(p=>p.id===state.roundWinnerId)?.name??'Nobody'} wins this round`):state.phase==='matchOver'?`${state.matchStats.find(p=>p.playerId===state.matchWinnerId)?.name??'Shared victory'} · MATCH COMPLETE`:player?.waitingForNextRound?'You’re in — joining next round':!player?.alive&&joined?'Eliminated — next round soon':'';
       for(const [playerId,row] of rosterEntries)if(!state.players.some(p=>p.id===playerId)){row.entry.remove();rosterEntries.delete(playerId);}
+      // Standings: cards are ordered by match score (this round's points break ties) with CSS `order`, so the DOM and its handlers stay put. The leader is marked once somebody has scored.
+      const ranked=[...state.players].sort((a,b)=>b.matchScoreUnits-a.matchScoreUnits||b.roundScoreUnits-a.roundScoreUnits),topScore=ranked[0]?.matchScoreUnits??0;
       for(const p of state.players){
         let row=rosterEntries.get(p.id);
         if(!row){const entry=node('span','','online-score-card'),label=node('span'),head=createAvatarPortrait(p.avatarId),remove=node('button','×');entry.append(head,label,remove);remove.onclick=()=>runtime.command({type:'bot',action:'remove',id:p.id});row={entry,label,head,avatar:p.avatarId,remove};rosterEntries.set(p.id,row);roster.append(entry);}
         const name=`${p.name}${p.waitingForNextRound?' · next round':p.connected?'':' · offline'}`,points=`${p.matchScoreUnits/60} PTS · +${p.roundScoreUnits/60}`;if(row.label.textContent!==`${name}${points}`){row.label.className='online-score-label';row.label.replaceChildren(node('span',name,'online-score-name'),node('span',points,'online-score-points'));}row.label.title=`${p.name} · ${p.matchScoreUnits/60} PTS · +${p.roundScoreUnits/60} this round`;row.label.setAttribute('aria-label',row.label.title);row.entry.style.color=p.color;row.entry.style.setProperty('--rider-color',p.color);row.entry.classList.toggle('out',!p.alive&&!['lobby','countdown'].includes(state.phase));
+        const rank=ranked.indexOf(p)+1;row.entry.style.order=String(rank);row.entry.dataset.rank=String(rank);row.entry.classList.toggle('leader',topScore>0&&p.matchScoreUnits===topScore);row.entry.style.setProperty('--lead',topScore>0?String(p.matchScoreUnits/topScore):'0');
         if(row.avatar!==p.avatarId){const head=createAvatarPortrait(p.avatarId);row.head.replaceWith(head);row.head=head;row.avatar=p.avatarId;}
         const removeParent=sharedLobby.hidden?row.entry:lobbyEntries.get(p.id)!.entry;if(row.remove.parentElement!==removeParent)removeParent.append(row.remove);
         row.remove.hidden=!isHost||!p.id.startsWith(BOT_ID_PREFIX);row.remove.disabled=!['lobby','roundOver','matchOver'].includes(state.phase);row.remove.setAttribute('aria-label',`Remove ${p.name}`);row.remove.title=row.remove.disabled?'Remove AI between rounds or return to menu':'Remove AI rider';

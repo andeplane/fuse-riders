@@ -257,3 +257,24 @@
 .online-power-status { position: fixed; z-index: 8; left: 50%; bottom: max(.625rem, env(safe-area-inset-bottom)); transform: translateX(-50%); padding: .5rem .75rem; border: .0625rem solid #ffdf55; background: #071022e8; color: #ffdf55; font: .625rem/1.4 'Press Start 2P', monospace; white-space: nowrap; pointer-events: none; }
 .online-power-status[hidden] { display: none; }
 .settings-list{display:grid;gap:.5rem}.settings-list>button{width:100%;min-height:2.75rem}.settings-list>button[data-muted="true"]{color:#8ba3c0;border-color:#365477}.settings-list .settings-group{margin:.625rem 0 0;font-size:.75rem;letter-spacing:.0625rem;color:#16e7ff}.settings-style{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}.settings-style button[aria-pressed="true"]{color:#02131a;background:#16e7ff;border-color:#a6f7ff}
+
+/* Standings: every score card carries its rank, and the leader wears gold. */
+.online-score-card{position:relative}
+.online-score-card::before{content:attr(data-rank);font:.5rem/1 'Press Start 2P',ui-monospace,monospace;color:#7c93b8;flex:0 0 auto}
+.online-score-card.leader::before{content:'👑';font-size:.75rem}
+.online-roster .online-score-card.leader{border-color:#ffe46b;box-shadow:0 0 .75rem #ffe46b55,inset 0 0 .75rem #ffe46b1f}
+.controller-only .online-score-card::before{display:none}
+/* Wide desktop windows: the standings stack in the gutter left of the arena instead of crowding the game bar. Each card's underline shows its score against the leader's. */
+.online-app.desktop-game{position:relative}
+.side-standings>.online-roster{position:absolute;left:0;top:calc(var(--standings-top) + .75rem);width:var(--standings-width);box-sizing:border-box;padding:0 .75rem;margin:0;display:flex;flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;gap:.5rem;z-index:5}
+.side-standings>.online-roster::before{content:'STANDINGS';font-size:.625rem;letter-spacing:.16em;color:#16e7ff;font-weight:900;order:0;padding:0 0 .25rem;border-bottom:.0625rem solid #18305a}
+.side-standings>.online-roster .online-score-card{display:flex;align-items:center;gap:.5rem;padding:.5rem .625rem .6875rem;transition:transform .2s}
+.side-standings>.online-roster .online-score-card::after{content:'';position:absolute;left:0;bottom:0;height:.1875rem;width:calc(var(--lead,0)*100%);background:var(--rider-color);box-shadow:0 0 .5rem var(--rider-color);transition:width .4s}
+.side-standings>.online-roster .online-score-card.leader{transform:scale(1.03)}
+.side-standings>.online-roster .online-score-card .avatar-portrait{width:1.75rem;height:1.75rem;flex-basis:1.75rem}
+.side-standings>.online-roster .online-score-card>span:not(.avatar-portrait){flex:1 1 auto;max-width:none;font-size:.6875rem}
+.side-standings>.online-roster .online-score-label{display:grid;gap:.125rem}
+.side-standings>.online-roster .online-score-points{color:#eefaff;font-size:.625rem}
+@media(prefers-reduced-motion:reduce){.side-standings>.online-roster .online-score-card,.side-standings>.online-roster .online-score-card::after{transition:none}}
+.side-standings>.online-roster .online-score-card button{min-width:1.25rem;min-height:1.25rem;padding:0 .1875rem;font-size:.6875rem;flex:0 0 auto}
+.side-standings>.online-roster{padding:0 .5rem}.side-standings>.online-roster .online-score-card{gap:.375rem;padding-inline:.5rem}
