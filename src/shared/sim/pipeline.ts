@@ -15,6 +15,7 @@ import { bounceImmuneRiders } from "./phases/bounce-immune-riders.js";
 import { moveShells } from "./phases/move-shells.js";
 import { explodeFuses } from "./phases/explode.js";
 import { hitProjectiles } from "./phases/hit-projectiles.js";
+import { burnTrails } from "./phases/burn-trails.js";
 
 export interface Phase {
   readonly name: string;
@@ -36,6 +37,7 @@ export const PHASES: readonly Phase[] = [
   { name: "moveShells", when: "playing", run: moveShells },
   { name: "explodeFuses", when: "playing", run: explodeFuses },
   { name: "hitProjectiles", when: "playing", run: hitProjectiles },
+  { name: "burnTrails", when: "playing", run: burnTrails },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */

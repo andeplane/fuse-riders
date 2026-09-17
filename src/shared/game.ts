@@ -461,30 +461,6 @@ export function step(
   // Id order: each contact bisection starts from the one before it, and the last to shorten it is what a shield
   // turns away from, so the order obstacles are visited in is part of the outcome.
   const obstacleHitboxes = sortedObstacles(state).map(obstacleHitbox);
-  if (newBlasts.length > 0) {
-    captureOrigins(ctx);
-    for (const player of sortedPlayers(state)) {
-      player.trail = cutTrail(
-        player.trail,
-        state.tick,
-        (segment) =>
-          newBlasts.some((blast) =>
-            segmentIntersectsDisk(
-              segment.x1,
-              segment.y1,
-              segment.x2,
-              segment.y2,
-              blast.circle,
-              TRAIL_WIDTH / 2,
-            ),
-          )
-            ? []
-            : [segment],
-        () => state.nextTrailPieceId++,
-      );
-    }
-  }
-
   for (const movement of movements.values()) {
     // A rider overhanging an open edge, or whose step ends past it, is also in reach of a blast on the far side.
     for (const blast of newBlasts) {
