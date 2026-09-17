@@ -226,6 +226,7 @@ import {
   portalBounds,
   wallReach,
 } from "./sim/field.js";
+import { isClearOfPortalWalls, isSafePortalPosition } from "./sim/portals.js";
 
 export interface TickResult {
   snapshot: GameSnapshot;
@@ -442,7 +443,6 @@ export function step(
   const { elapsed, open, trailBounds } = ctx;
 
   const { movements } = ctx;
-  collectPickups(state, movements, events);
 
   const { bounced } = ctx;
   for (const movement of movements.values()) {
@@ -1391,151 +1391,6 @@ function prepareRound(state: GameState): void {
   });
 }
 
-function collectPickups(
-  state: GameState,
-  movements: ReadonlyMap<PlayerId, Movement>,
-  events: GameEvent[],
-): void {
-  const consumed = new Set<number>();
-  for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
-    const collectors = [...movements.values()]
-      .filter(({ player }) => pickup.type !== "grip" || !player.grip)
-      .map((movement) => ({
-        movement,
-        distance: pointSegmentDistanceSquared(
-          pickup.x,
-          pickup.y,
-          movement.oldX,
-          movement.oldY,
-          movement.x,
-          movement.y,
-        ),
-      }))
-      .filter(
-        ({ distance }) =>
-          distance <= square(RIDER_RADIUS + PICKUP_RADIUS) + EPSILON,
-      )
-      .sort(
-        (a, b) =>
-          a.distance - b.distance ||
-          a.movement.player.slot - b.movement.player.slot,
-      );
-    const collector = collectors[0]?.movement.player;
-    if (!collector) continue;
-    if (pickup.type === "portal") {
-      // Safety disks conservatively cover the entire portal wall plus rider clearance.
-      const pair = createPortalPair({
-        id: `${state.round}:${pickup.id}:${state.tick}`,
-        tick: state.tick,
-        bounds: portalBounds(state),
-        riderRadius: RIDER_RADIUS,
-        random: () => nextRandom(state),
-        isSafe: (point, radius) =>
-          isSafePortalPosition(state, point, radius, movements) &&
-          isClearOfPortalWalls(state, point, radius),
-      });
-      if (!pair) continue;
-      // Pairs accumulate and expire on their own schedules; only the cap retires one early.
-      state.portalPairs = [
-        ...state.portalPairs.slice(
-          Math.max(0, state.portalPairs.length + 1 - MAX_PORTAL_PAIRS),
-        ),
-        pair,
-      ];
-    }
-    consumed.add(pickup.id);
-    events.push({
-      type: "pickupCollected",
-      playerId: collector.id,
-      pickupId: pickup.id,
-    });
-    recordPickup(state.matchStats, collector.id, pickup.type);
-    if (pickup.type === "stopwatch") {
-      collector.fuseLevel = Math.min(2, collector.fuseLevel + 1);
-    } else if (pickup.type === "power") {
-      const previousLifetime = powerTrailLifetimeTicks(collector.powerPickups);
-      collector.powerPickups = Math.min(
-        MAX_POWER_PICKUPS,
-        collector.powerPickups + 1,
-      );
-      const extension =
-        powerTrailLifetimeTicks(collector.powerPickups) - previousLifetime;
-      // Retain the existing tail while the rider grows into the extra capacity.
-      // Expired or destroyed trail is never recreated.
-      for (const segment of collector.trail)
-        if (!segment.detached) segment.expiresAtTick += extension;
-    } else if (pickup.type === "gun") {
-      collector.gunArmed = true;
-    } else if (pickup.type === "gravity") {
-      openBlackHoles(state, movements);
-    } else if (pickup.type === "shell") {
-      collector.shellArmed = true;
-    } else if (pickup.type === "target") {
-      collector.targetBombArmed = true;
-    } else if (pickup.type === "star") {
-      collector.invulnerableUntilTick = Math.max(
-        collector.invulnerableUntilTick,
-        state.tick + STAR_DURATION_TICKS,
-      );
-    } else if (pickup.type === "grip") {
-      collector.grip = true;
-    } else if (pickup.type === "nitro") {
-      addSpeedEffect(
-        collector.nitroUntilTicks,
-        state.tick + NITRO_DURATION_TICKS,
-      );
-    } else if (pickup.type === "snail") {
-      for (const player of sortedPlayers(state)) {
-        if (player.alive && player.id !== collector.id)
-          addSpeedEffect(
-            player.snailUntilTicks,
-            state.tick + SNAIL_DURATION_TICKS,
-          );
-      }
-    } else if (pickup.type === "ink") {
-      for (const player of sortedPlayers(state)) {
-        if (player.alive && player.id !== collector.id)
-          player.inkUntilTick = Math.max(
-            player.inkUntilTick,
-            state.tick + INK_DURATION_TICKS,
-          );
-      }
-    } else if (pickup.type === "beer") {
-      for (const player of sortedPlayers(state)) {
-        if (player.alive && player.id !== collector.id) {
-          if (player.drunkUntilTick <= state.tick)
-            player.drunkStartedTick = state.tick;
-          player.drunkUntilTick = Math.max(
-            player.drunkUntilTick,
-            state.tick + DRUNK_DURATION_TICKS,
-          );
-        }
-      }
-    } else if (pickup.type === "five") {
-      collector.fiveShotArmed = true;
-    } else if (pickup.type === "extraBomb") {
-      collector.extraBombs = Math.min(
-        MAX_EXTRA_BOMBS,
-        collector.extraBombs + 1,
-      );
-    } else if (pickup.type === "triple") {
-      collector.tripleShotArmed = true;
-    } else if (pickup.type === "orbitShield") {
-      collector.shielded = true;
-    }
-  }
-  if (consumed.size > 0)
-    state.pickups = state.pickups.filter((pickup) => !consumed.has(pickup.id));
-}
-
-/** Deadlines stay sorted, so the earliest to expire is always first and replicas hold identical lists. */
-function addSpeedEffect(deadlines: number[], untilTick: number): void {
-  if (deadlines.length >= MAX_SPEED_EFFECT_STACK) return;
-  let index = deadlines.length;
-  while (index > 0 && deadlines[index - 1]! > untilTick) index -= 1;
-  deadlines.splice(index, 0, untilTick);
-}
-
 /**
  * The first gate a shell's swept path meets this tick, as a fraction of the tick, or nothing.
  * Projectiles are held only to portal-wall clearance at the exit, not to the rider rule: a shell has
@@ -1575,122 +1430,6 @@ function findShellPortalEntry(
     };
   }
   return undefined;
-}
-
-/**
- * Clearance from live portal walls, for two callers with different exemptions. Placement passes no
- * exemption, so a new pair is never laid over a running one. A transit exempts the pair being used,
- * whose own gate the exit deliberately hugs at PORTAL_WALL_HALF_WIDTH + RIDER_RADIUS + 1, and so
- * covers the foreign walls that placement clearance alone does not put out of an exit's reach.
- */
-function isClearOfPortalWalls(
-  state: GameState,
-  point: PortalPoint,
-  radius: number,
-  exemptPairId?: string,
-): boolean {
-  return state.portalPairs.every(
-    (pair) =>
-      pair.id === exemptPairId ||
-      pair.gates.every(
-        (gate) =>
-          pointSegmentDistanceSquared(
-            point.x,
-            point.y,
-            gate.x,
-            gate.y - gate.halfLength,
-            gate.x,
-            gate.y + gate.halfLength,
-          ) > square(radius + PORTAL_WALL_HALF_WIDTH),
-      ),
-  );
-}
-
-function isSafePortalPosition(
-  state: GameState,
-  point: PortalPoint,
-  radius: number,
-  movements: ReadonlyMap<PlayerId, Movement>,
-  ignoredPlayerId?: PlayerId,
-  deaths: ReadonlyMap<PlayerId, EliminationCause> = new Map(),
-  transits: ReadonlyMap<PlayerId, PortalTransit> = new Map(),
-): boolean {
-  for (const player of sortedPlayers(state)) {
-    const movement = movements.get(player.id);
-    const transit = transits.get(player.id);
-    if (
-      player.id !== ignoredPlayerId &&
-      player.alive &&
-      !deaths.has(player.id)
-    ) {
-      const position = transit?.exitPoint ?? movement ?? player;
-      if (
-        hypot2(position.x - point.x, position.y - point.y) <=
-        radius + RIDER_RADIUS
-      )
-        return false;
-    }
-    for (const trail of player.trail) {
-      if (
-        pointSegmentDistanceSquared(
-          point.x,
-          point.y,
-          trail.x1,
-          trail.y1,
-          trail.x2,
-          trail.y2,
-        ) <= square(radius + TRAIL_WIDTH / 2)
-      )
-        return false;
-    }
-    // Include this tick's pending trail, which has not yet been committed.
-    if (
-      movement &&
-      !deaths.has(player.id) &&
-      pointSegmentDistanceSquared(
-        point.x,
-        point.y,
-        movement.oldX,
-        movement.oldY,
-        transit?.entryPoint.x ?? movement.x,
-        transit?.entryPoint.y ?? movement.y,
-      ) <= square(radius + TRAIL_WIDTH / 2)
-    )
-      return false;
-  }
-  // A gate laid across scenery, or an exit inside it, would drop a rider straight into a lethal wall.
-  if (
-    state.obstacles.some((obstacle) =>
-      obstacleTouchesCircle(obstacle, point.x, point.y, radius),
-    )
-  )
-    return false;
-  // Reserve both current flight location and landing site of live projectiles.
-  for (const bomb of sortedBombs(state)) {
-    if (bomb.shell?.gun) continue;
-    const flight =
-      bomb.flightPath[
-        Math.max(
-          0,
-          Math.min(bomb.flightPath.length - 1, state.tick - bomb.launchedTick),
-        )
-      ];
-    if (
-      hypot2(point.x - bomb.x, point.y - bomb.y) <= radius + 14 ||
-      (flight && hypot2(point.x - flight.x, point.y - flight.y) <= radius + 14)
-    )
-      return false;
-  }
-  return !state.blasts.some((blast) =>
-    segmentIntersectsDisk(
-      point.x,
-      point.y,
-      point.x,
-      point.y,
-      blast.circle,
-      radius,
-    ),
-  );
 }
 
 function isInvulnerable(player: PlayerState, tick: number): boolean {
@@ -2236,53 +1975,6 @@ function resolveGunShots(
       );
     }
   return hits;
-}
-
-/** One to three holes anywhere on the field. Every hole costs the same three draws, so replicas stay in step whatever the sizes. */
-function openBlackHoles(
-  state: GameState,
-  movements: ReadonlyMap<PlayerId, Movement>,
-): void {
-  const bounds = portalBounds(state);
-  const count =
-    1 + Math.floor(nextRandom(state) * GRAVITY_MAX_HOLES_PER_PICKUP);
-  for (let hole = 0; hole < count; hole += 1) {
-    const radius =
-      GRAVITY_MIN_RADIUS +
-      nextRandom(state) * (GRAVITY_MAX_RADIUS - GRAVITY_MIN_RADIUS);
-    let x = bounds.minX + nextRandom(state) * (bounds.maxX - bounds.minX);
-    let y = bounds.minY + nextRandom(state) * (bounds.maxY - bounds.minY);
-    // The core kills, so it never opens under a rider: slide the hole straight away from anyone too close, in seat order.
-    for (const { id, alive, angle } of sortedPlayers(state)) {
-      // Riders have moved this tick but not yet landed in the state: measure from where they are about to be.
-      const player = movements.get(id);
-      if (!alive || !player) continue;
-      const awayX = x - player.x,
-        awayY = y - player.y,
-        distance = hypot2(awayX, awayY);
-      if (distance >= GRAVITY_CORE_SPAWN_CLEARANCE) continue;
-      const ux = distance === 0 ? cos(angle + Math.PI) : awayX / distance,
-        uy = distance === 0 ? sin(angle + Math.PI) : awayY / distance;
-      x = player.x + ux * GRAVITY_CORE_SPAWN_CLEARANCE;
-      y = player.y + uy * GRAVITY_CORE_SPAWN_CLEARANCE;
-      // Against a wall the slide goes the other way on that axis, which keeps the full clearance where a clamp would not.
-      if (x < bounds.minX || x > bounds.maxX)
-        x = player.x - ux * GRAVITY_CORE_SPAWN_CLEARANCE;
-      if (y < bounds.minY || y > bounds.maxY)
-        y = player.y - uy * GRAVITY_CORE_SPAWN_CLEARANCE;
-    }
-    x = Math.max(bounds.minX, Math.min(bounds.maxX, x));
-    y = Math.max(bounds.minY, Math.min(bounds.maxY, y));
-    state.gravityFields.push({
-      x,
-      y,
-      radius,
-      expiresAtTick: state.tick + GRAVITY_FIELD_TICKS,
-    });
-  }
-  state.gravityFields = state.gravityFields.slice(
-    Math.max(0, state.gravityFields.length - MAX_GRAVITY_FIELDS),
-  );
 }
 
 function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
