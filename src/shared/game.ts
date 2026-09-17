@@ -35,7 +35,7 @@ import {
   sortedPlayers,
 } from "./state.js";
 import { toSnapshot } from "./view.js";
-import { recordElimination } from "./sim/recording.js";
+import { takeOutOfRound } from "./sim/riders.js";
 export { segmentDistanceSquared } from "./geometry.js";
 export { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
 export { pickupPacing } from "./power-progression.js";
@@ -167,10 +167,7 @@ export function eliminatePlayer(state: GameState, playerId: PlayerId): void {
   const player = requirePlayer(state, playerId);
   if (state.phase !== "countdown" && state.phase !== "playing") return;
   if (!player.alive) return;
-  player.alive = false;
-  player.bombChargeStartedTick = undefined;
-  player.bombTarget = undefined;
-  recordElimination(state, playerId);
+  takeOutOfRound(state, player);
   if (state.roundParticipants.has(playerId))
     recordEarlyExit(state.matchStats, playerId);
 }

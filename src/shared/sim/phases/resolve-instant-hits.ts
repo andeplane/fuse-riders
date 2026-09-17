@@ -3,10 +3,12 @@ import { RIDER_RADIUS, SHIELD_GRACE_TICKS, TRAIL_WIDTH } from "../../tuning.js";
 import { captureOrigins } from "../marks.js";
 import { cutTrail } from "../../trail-lifecycle.js";
 import { isHazardImmune } from "../riders.js";
-import { logShotKill, recordElimination } from "../recording.js";
-import { recordDeath } from "../../match-stats.js";
 import { segmentIntersectsDisk } from "../../blast-geometry.js";
 import { sortedPlayers } from "../../state.js";
+import {
+  INSTANT_DEATHS_COMMIT_PER_RIDER,
+  commitDeaths,
+} from "./commit-deaths.js";
 
 /**
  * Pressed Guns and released Target Bombs take effect in the tick they are fired, after every rider has launched — and so
@@ -16,8 +18,7 @@ import { sortedPlayers } from "../../state.js";
  * movement instead (`explodeFuses`), so what they clear is gone before anyone rides into it.
  */
 export function resolveInstantHits(ctx: TickContext): void {
-  const { state, events, observations } = ctx;
-  const { gunHits, instantBlasts } = ctx;
+  const { state, deaths, gunHits, instantBlasts } = ctx;
   if (instantBlasts.length || gunHits.size) {
     captureOrigins(ctx);
     for (const player of sortedPlayers(state)) {
@@ -59,47 +60,21 @@ export function resolveInstantHits(ctx: TickContext): void {
         player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
         continue;
       }
-      player.alive = false;
-      player.bombChargeStartedTick = undefined;
-      player.bombTarget = undefined;
-      recordElimination(state, player.id);
-      const owners = new Set(hits.map((blast) => blast.ownerId));
-      const credited = owners.size === 1 ? hits[0]!.ownerId : undefined;
-      recordDeath(
-        state.matchStats,
-        player.id,
-        "explosion",
-        credited,
-        owners.size === 1
-          ? (state.shots.find(
-              (s) =>
-                s.shot ===
-                hits.reduce((first, hit) =>
-                  hit.bombId < first.bombId ? hit : first,
-                ).shot,
-            )?.weapon ?? "unknown")
-          : "unknown",
-      );
-      logShotKill(
-        state,
-        player.id,
-        credited,
-        hits.reduce((first, blast) =>
-          blast.bombId < first.bombId ? blast : first,
-        ).shot,
-      );
-      events.push({
-        type: "playerEliminated",
-        playerId: player.id,
+      // The shot is the lowest bomb id among the hits, whether or not that bomb names one: the sweep instead takes
+      // the lowest bomb id among the sources that do (`markShot`). Engine-made bombs always name their shot, so the
+      // two rules only part on a bomb restored without one. Kept as they were; see the design note.
+      const shot = hits.reduce((first, hit) =>
+        hit.bombId < first.bombId ? hit : first,
+      ).shot;
+      deaths.push({
+        victim: player,
         cause: "explosion",
-      });
-      observations.deaths.push({
-        victimId: player.id,
-        cause: "explosion",
-        owners: [...owners],
+        owners: [...new Set(hits.map((hit) => hit.ownerId))],
+        ...(shot === undefined ? {} : { shot }),
         x: player.x,
         y: player.y,
       });
+      if (INSTANT_DEATHS_COMMIT_PER_RIDER) commitDeaths(ctx);
     }
   }
 }

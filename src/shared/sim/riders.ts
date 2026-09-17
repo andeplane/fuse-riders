@@ -8,6 +8,7 @@ import {
 import { atan2, cos, sin } from "../deterministic-math.js";
 import { normalizeAngle } from "../geometry.js";
 import { wallReach } from "./field.js";
+import { detachTrail } from "../trail-lifecycle.js";
 /** What a rider is proof against this tick, and how a wall or a piece of scenery turns one back. */
 
 export function isInvulnerable(player: PlayerState, tick: number): boolean {
@@ -69,4 +70,22 @@ export function reflectAtObstacle(
   );
   movement.player.drunkHeadingOffset *= -1;
   return true;
+}
+
+/**
+ * A rider leaves the round, by dying or by being eliminated from outside the tick: no longer alive, no charge held,
+ * its trail detached into debris that decays on its own clock, and the tick stamped for the round's ranking.
+ */
+export function takeOutOfRound(state: GameState, player: PlayerState): void {
+  player.alive = false;
+  player.bombChargeStartedTick = undefined;
+  player.bombTarget = undefined;
+  player.trail = detachTrail(
+    player.trail,
+    state.tick,
+    () => state.nextTrailPieceId++,
+  );
+  const participant = state.roundParticipants.get(player.id);
+  if (participant && participant.eliminatedAtTick === undefined)
+    participant.eliminatedAtTick = state.tick;
 }

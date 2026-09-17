@@ -30,6 +30,7 @@ import { resolveInstantHits } from "./phases/resolve-instant-hits.js";
 import { observeDodges } from "./phases/observe-dodges.js";
 import { recordFacts } from "./phases/record-facts.js";
 import { resolveRound } from "./phases/resolve-round.js";
+import { commitDeaths } from "./phases/commit-deaths.js";
 
 export interface Phase {
   readonly name: string;
@@ -63,10 +64,12 @@ export const PHASES: readonly Phase[] = [
   { name: "portalTransit", when: "playing", run: portalTransit },
   { name: "stopAtContact", when: "playing", run: stopAtContact },
   { name: "commitMovement", when: "playing", run: commitMovement },
+  { name: "commitSweepDeaths", when: "playing", run: commitDeaths },
   { name: "launchWeapons", when: "playing", run: launchWeapons },
   { name: "fireGuns", when: "playing", run: fireGuns },
   { name: "explodeInstant", when: "playing", run: explodeInstant },
   { name: "resolveInstantHits", when: "playing", run: resolveInstantHits },
+  { name: "commitInstantDeaths", when: "playing", run: commitDeaths },
   { name: "observeDodges", when: "playing", run: observeDodges },
   { name: "recordFacts", when: "playing", run: recordFacts },
   { name: "resolveRound", when: "playing", run: resolveRound },

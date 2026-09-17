@@ -1,11 +1,5 @@
-import {
-  type EliminationCause,
-  type GameState,
-  type PlayerId,
-  type PlayerState,
-} from "../state.js";
+import type { GameState, PlayerId, PlayerState } from "../state.js";
 import { type Weapon, recordShot, recordShotKill } from "../shot-log.js";
-import { detachTrail } from "../trail-lifecycle.js";
 /** Scaffolding while step() is being split: the statistics and elimination helpers both death paths still call directly. */
 
 export const roundElapsed = (state: GameState): number =>
@@ -48,31 +42,4 @@ export function logShotKill(
   if (creditedId === undefined || creditedId === victimId || shot === undefined)
     return;
   recordShotKill(state.shots, shot, { victimId, elapsed: roundElapsed(state) });
-}
-
-export function recordElimination(state: GameState, playerId: PlayerId): void {
-  const player = state.players.get(playerId);
-  if (!player) throw new Error(`unknown player: ${playerId}`);
-  player.trail = detachTrail(
-    player.trail,
-    state.tick,
-    () => state.nextTrailPieceId++,
-  );
-  const participant = state.roundParticipants.get(playerId);
-  if (participant && participant.eliminatedAtTick === undefined)
-    participant.eliminatedAtTick = state.tick;
-}
-
-export function soleCreditedOwner(
-  causeOwners: ReadonlyMap<
-    PlayerId,
-    ReadonlyMap<EliminationCause, ReadonlySet<PlayerId>>
-  >,
-  victimId: PlayerId,
-  cause: EliminationCause,
-): PlayerId | undefined {
-  const owners = causeOwners.get(victimId)?.get(cause);
-  if (!owners || owners.size !== 1) return undefined;
-  const ownerId = owners.values().next().value as PlayerId | undefined;
-  return ownerId === victimId ? undefined : ownerId;
 }

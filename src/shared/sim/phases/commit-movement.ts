@@ -1,13 +1,8 @@
 import type { TickContext } from "../context.js";
 import { boundTrail } from "../../trail-lifecycle.js";
 import { layTrail } from "../field.js";
-import { recordDeath, recordPortalTransit } from "../../match-stats.js";
+import { recordPortalTransit } from "../../match-stats.js";
 import { wrapCoordinate } from "../../wrap.js";
-import {
-  logShotKill,
-  recordElimination,
-  soleCreditedOwner,
-} from "../recording.js";
 
 /**
  * Every step becomes the rider's new place, and lays its trail. A survivor lands where its step ended, or at the far
@@ -19,14 +14,13 @@ export function commitMovement(ctx: TickContext): void {
     state,
     open,
     trailBounds,
-    events,
     movements,
     causes,
     causeOwners,
     shotSources,
     transits,
     obstacleContactTimes,
-    observations,
+    deaths,
     trailHits,
     landingHits,
     shellHits,
@@ -64,51 +58,19 @@ export function commitMovement(ctx: TickContext): void {
             ...laid,
           ]);
       }
-      movement.player.alive = false;
-      movement.player.bombChargeStartedTick = undefined;
-      movement.player.bombTarget = undefined;
-      recordElimination(state, movement.player.id);
-      const credited = soleCreditedOwner(
-        causeOwners,
-        movement.player.id,
-        cause,
-      );
-      recordDeath(
-        state.matchStats,
-        movement.player.id,
-        cause,
-        causeOwners.get(movement.player.id)?.get(cause)?.size === 1
-          ? causeOwners.get(movement.player.id)!.get(cause)!.values().next()
-              .value
-          : undefined,
-        cause === "explosion"
-          ? causeOwners.get(movement.player.id)?.get(cause)?.size === 1
-            ? (state.shots.find(
-                (s) => s.shot === shotSources.get(movement.player.id)?.shot,
-              )?.weapon ?? "unknown")
-            : "unknown"
-          : cause,
-      );
-      if (cause === "explosion")
-        logShotKill(
-          state,
-          movement.player.id,
-          credited,
-          shotSources.get(movement.player.id)?.shot,
-        );
-      events.push({
-        type: "playerEliminated",
-        playerId: movement.player.id,
-        cause,
-      });
       const trailHit =
         cause === "trail" ? trailHits.get(movement.player.id) : undefined;
       const landingHit = landingHits.get(movement.player.id),
         shellHit = shellHits.get(movement.player.id);
-      observations.deaths.push({
-        victimId: movement.player.id,
+      const shot =
+        cause === "explosion"
+          ? shotSources.get(movement.player.id)?.shot
+          : undefined;
+      deaths.push({
+        victim: movement.player,
         cause,
         owners: [...(causeOwners.get(movement.player.id)?.get(cause) ?? [])],
+        ...(shot === undefined ? {} : { shot }),
         x: movement.x,
         y: movement.y,
         ...(trailHit ? { trailAge: trailHit.age } : {}),
