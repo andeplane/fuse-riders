@@ -144,6 +144,7 @@ import {
 import { PHASES, runPhases } from "./sim/pipeline.js";
 export * from "./state.js";
 export { toSnapshot } from "./view.js";
+export { gravityBend } from "./gravity.js";
 export * from "./tuning.js";
 import {
   ARENA_HEIGHT,
@@ -441,46 +442,6 @@ export function step(
   const { elapsed, open, trailBounds } = ctx;
 
   const { movements } = ctx;
-  for (const player of sortedPlayers(state))
-    expireSpeedEffects(player, state.tick);
-  for (const player of sortedPlayers(state).filter(
-    (candidate) => candidate.alive,
-  )) {
-    const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
-    const offset = drunkHeadingOffset(
-      state.seed,
-      player.id,
-      state.tick,
-      player.drunkStartedTick,
-      player.drunkUntilTick,
-    );
-    const { distance, turn, aimSlowTicks, aimSlowSpentTicks } = riderMotionStep(
-      player,
-      state.tick,
-      state.roundStartedTick,
-    );
-    player.aimSlowTicks = aimSlowTicks;
-    player.aimSlowSpentTicks = aimSlowSpentTicks;
-    // Curved space turns the rider before the kernel does, so steering and the hole add up inside one ordinary turn-then-move step.
-    const pose = advanceRiderPose(
-      {
-        ...player,
-        angle: player.angle + gravityBend(state.gravityFields, player, turn),
-      },
-      input,
-      { distance, turn, drunkHeadingOffset: offset },
-    );
-    player.drunkHeadingOffset = pose.drunkHeadingOffset;
-    movements.set(player.id, {
-      player,
-      oldX: player.x,
-      oldY: player.y,
-      x: pose.x,
-      y: pose.y,
-      angle: pose.angle,
-    });
-  }
-
   collectPickups(state, movements, events);
 
   const { bounced } = ctx;
@@ -1574,18 +1535,6 @@ function addSpeedEffect(deadlines: number[], untilTick: number): void {
   while (index > 0 && deadlines[index - 1]! > untilTick) index -= 1;
   deadlines.splice(index, 0, untilTick);
 }
-/** Drops spent deadlines before movement, so state carries only the effects still in force. */
-function expireSpeedEffects(player: PlayerState, tick: number): void {
-  const spent = (until: number) => until <= tick;
-  if (player.nitroUntilTicks.some(spent))
-    player.nitroUntilTicks = player.nitroUntilTicks.filter(
-      (until) => !spent(until),
-    );
-  if (player.snailUntilTicks.some(spent))
-    player.snailUntilTicks = player.snailUntilTicks.filter(
-      (until) => !spent(until),
-    );
-}
 
 /**
  * The first gate a shell's swept path meets this tick, as a fraction of the tick, or nothing.
@@ -2289,32 +2238,6 @@ function resolveGunShots(
   return hits;
 }
 
-/**
- * How far curved space turns a heading this tick, in radians. Each hole bends by the part of its pull that lies across
- * the heading, as a sideways force would: a rider aimed at the centre or straight away from it rides on unbent, one
- * crossing the hole swings around it. `turn` is the tick's own steering, so the bend ramps and grips with the rider,
- * and the sum is capped below it. Bots plan with the same function.
- */
-export function gravityBend(
-  fields: ReadonlyArray<Pick<GravityField, "x" | "y" | "radius">>,
-  pose: { x: number; y: number; angle: number },
-  turn: number,
-): number {
-  if (fields.length === 0) return 0;
-  const headingX = cos(pose.angle),
-    headingY = sin(pose.angle);
-  let bend = 0;
-  for (const field of fields) {
-    const toX = field.x - pose.x,
-      toY = field.y - pose.y;
-    const away = hypot2(toX, toY);
-    if (away === 0 || away >= field.radius) continue;
-    bend +=
-      ((1 - away / field.radius) * (headingX * toY - headingY * toX)) / away;
-  }
-  return Math.max(-1, Math.min(1, bend)) * GRAVITY_BEND * turn;
-}
-
 /** One to three holes anywhere on the field. Every hole costs the same three draws, so replicas stay in step whatever the sizes. */
 function openBlackHoles(
   state: GameState,
@@ -2717,9 +2640,3 @@ function soleCreditedOwner(
   const ownerId = owners.values().next().value as PlayerId | undefined;
   return ownerId === victimId ? undefined : ownerId;
 }
-
-const NEUTRAL_INPUT: InputIntent = Object.freeze({
-  left: false,
-  right: false,
-  bomb: false,
-});
