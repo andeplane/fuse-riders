@@ -18,6 +18,7 @@ import { hitProjectiles } from "./phases/hit-projectiles.js";
 import { burnTrails } from "./phases/burn-trails.js";
 import { detectHazards } from "./phases/detect-hazards.js";
 import { detectRiderContacts } from "./phases/detect-rider-contacts.js";
+import { settleSceneryContacts } from "./phases/settle-scenery-contacts.js";
 
 export interface Phase {
   readonly name: string;
@@ -42,6 +43,11 @@ export const PHASES: readonly Phase[] = [
   { name: "burnTrails", when: "playing", run: burnTrails },
   { name: "detectHazards", when: "playing", run: detectHazards },
   { name: "detectRiderContacts", when: "playing", run: detectRiderContacts },
+  {
+    name: "settleSceneryContacts",
+    when: "playing",
+    run: settleSceneryContacts,
+  },
 ];
 
 /** Walks the phases in order. False when the tick ended early because no round is in play. */
