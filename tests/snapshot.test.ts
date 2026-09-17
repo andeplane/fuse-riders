@@ -185,6 +185,50 @@ test("large snapshots are chunked at 16 KB and reassembled only in order", () =>
   );
 });
 
+test("foreign rules on any snapshot chunk discard the transfer and allow a fresh retry", () => {
+  const [snapshot] = encodeSnapshot(playingWorld(), ROOM);
+  assert.ok(snapshot);
+  assert.equal(snapshot.total, 1);
+  // Split a real payload into three chunks so the first, middle and final
+  // envelope guards are tested independently of decodeSnapshot's rules guard.
+  const span = Math.ceil(snapshot.data.length / 3);
+  const chunks = Array.from({ length: 3 }, (_, chunk) => ({
+    ...snapshot,
+    chunk,
+    total: 3,
+    data: snapshot.data.slice(chunk * span, (chunk + 1) * span),
+  }));
+  const expected = new SnapshotAssembler(ROOM).accept(snapshot);
+  assert.ok(expected);
+
+  for (const foreignIndex of [0, 1, 2]) {
+    const assembler = new SnapshotAssembler(ROOM);
+    for (const [index, chunk] of chunks.entries()) {
+      assert.equal(
+        assembler.accept(
+          index === foreignIndex ? { ...chunk, rules: "other" } : chunk,
+        ),
+        undefined,
+        `foreign rules on chunk ${foreignIndex} must prevent completion`,
+      );
+    }
+    if (foreignIndex > 0) {
+      for (const chunk of chunks.slice(foreignIndex)) {
+        assert.equal(
+          assembler.accept(chunk),
+          undefined,
+          "corrected continuation cannot revive a discarded transfer",
+        );
+      }
+    }
+    for (const chunk of chunks.slice(0, -1))
+      assert.equal(assembler.accept(chunk), undefined);
+    const complete = assembler.accept(chunks.at(-1));
+    assert.deepEqual(complete, expected, "a fresh retry reassembles exactly");
+    assert.ok(decodeSnapshot(complete!.bytes, ROOM));
+  }
+});
+
 test("snapshot validation rejects foreign rules and rooms, corrupt state, inconsistent folds, bots, streams and hashes", () => {
   const w = playingWorld(),
     bytes = new SnapshotAssembler(ROOM).accept(
