@@ -135,6 +135,21 @@ export const SPEED_RAMP_MAX = 1.5;
 export function roundSpeedMultiplier(elapsedTicks: number): number {
   return 1 + (SPEED_RAMP_MAX - 1) * Math.max(0, Math.min(SPEED_RAMP_TICKS, elapsedTicks)) / SPEED_RAMP_TICKS;
 }
+/**
+ * Once every human rider is out, the rest of the round is bots racing each other: the clock that drives the
+ * simulation runs this many times faster until the round ends. Tick rules are untouched, so outcomes are the same.
+ */
+export const BOTS_ONLY_TIME_SCALE = 3;
+export function simulationTimeScale(state: Pick<GameState, 'phase' | 'players'>, bots: ReadonlySet<string>): number {
+  if (state.phase !== 'playing') return 1;
+  let humans = 0, botsAlive = 0;
+  for (const player of state.players.values()) {
+    if (!bots.has(player.id)) { if (player.alive) return 1; humans++; }
+    else if (player.alive) botsAlive++;
+  }
+  // A room with no human rider at all is a showcase, not a wait: it keeps its pace.
+  return humans > 0 && botsAlive > 0 ? BOTS_ONLY_TIME_SCALE : 1;
+}
 export interface SpeedEffects { boostUntilTick: number; nitroUntilTicks: ReadonlyArray<number>; snailUntilTicks: ReadonlyArray<number> }
 /** Every speed pickup in force on `tick`, multiplied together: boost, then one factor per unexpired Nitro or Snail deadline. */
 export function riderSpeedMultiplier(player: SpeedEffects, tick: number): number {

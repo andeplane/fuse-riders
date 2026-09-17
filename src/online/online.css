@@ -233,6 +233,7 @@
 /* Recap and standings: the local rider is outlined so a table of five reads at a glance. */
 .match-recap-report .podium-card.is-you{outline:.125rem solid #fff;outline-offset:.1875rem}
 .match-recap-report .comparison-row.is-you{background:#ffffff12;box-shadow:inset .1875rem 0 0 #fff}
+.exit-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.625rem;margin:0 0 1rem}.exit-choices button{width:100%}.exit-choices .exit-confirm{border-color:#ff2d8a;color:#ffd6e8}
 .session-board{display:grid;gap:.375rem;margin-bottom:.875rem}
 .session-board h2{margin:0 0 .25rem;font-size:.9375rem}
 .session-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.25rem .625rem;align-items:center;padding:.375rem .5rem;border:.0625rem solid #20365f;background:#040d24;font-size:.8125rem}
