@@ -264,6 +264,16 @@ function chooseSteering(
     (obstacle) =>
       obstacleDistanceSquared(obstacle, player.x, player.y) < reach * reach,
   );
+  // The sway ahead is the same whichever way the bot steers, so every plan reads one forecast of it.
+  const sway = Array.from({ length: lookahead }, (_, future) =>
+    drunkHeadingOffset(
+      game.seed,
+      player.id,
+      game.tick + future + 1,
+      player.drunkStartedTick,
+      player.drunkUntilTick,
+    ),
+  );
   let chosen = 0,
     bestSurvived = -1,
     bestScore = -Infinity;
@@ -293,13 +303,7 @@ function chooseSteering(
         {
           distance,
           turn,
-          drunkHeadingOffset: drunkHeadingOffset(
-            game.seed,
-            player.id,
-            tick,
-            player.drunkStartedTick,
-            player.drunkUntilTick,
-          ),
+          drunkHeadingOffset: sway[future - 1]!,
         },
       );
       const shiftX = open ? wrapCoordinate(next.x, game.width) - next.x : 0,
