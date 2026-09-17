@@ -332,14 +332,16 @@ test("authoritative overtime shrinks portal wall length and removes reclaimed wa
   state.nextPickupSpawnTick = state.tick + 100;
   const first = state.portalPairs[0]!.gates[0];
   Object.assign(first, { y: 200, halfLength: 140 });
-  const { snapshot } = step(state, new Map());
+  step(state, new Map());
+  const snapshot = toSnapshot(state);
   const gate = snapshot.portalPairs[0]!.gates[0];
   assert.equal(gate.y - gate.halfLength, state.boundaryInset + 12);
   assert.ok(gate.halfLength <= (state.height - state.boundaryInset * 2) / 6);
   first.x = 50;
   // The snapshot and current pair are independent copies.
   state.portalPairs[0]!.gates[0].x = 50;
-  assert.deepEqual(step(state, new Map()).snapshot.portalPairs, []);
+  step(state, new Map());
+  assert.deepEqual(toSnapshot(state).portalPairs, []);
 });
 
 test("compressed linked wall reserves an exit for the first rider rather than overlapping arrivals", () => {
@@ -404,8 +406,9 @@ test("a reclaimed wall removes just its own pair, leaving the rest open", () => 
   for (const pair of state.portalPairs) pair.expiresAtTick = state.tick + 200;
   state.nextPickupSpawnTick = state.tick + 100;
   state.portalPairs[0]!.gates[0].x = 50;
+  step(state, new Map());
   assert.deepEqual(
-    step(state, new Map()).snapshot.portalPairs.map((pair) => pair.id),
+    toSnapshot(state).portalPairs.map((pair) => pair.id),
     ["second"],
   );
 });

@@ -108,7 +108,7 @@ test("blast destruction is strictly inside 60% of the actual radius, using cente
     bomb(game, 800, 400, radius);
     const result = step(game, new Map());
     assert.deepEqual(
-      result.snapshot.pickups.map((p) => p.id),
+      toSnapshot(game).pickups.map((p) => p.id),
       [boundary, fringe, diagonal, outside],
     );
     assert.equal(
@@ -165,7 +165,7 @@ test("Target blasts destroy pickups on their release tick", () => {
     ]),
   );
   assert.equal(result.events.filter((e) => e.type === "explosion").length, 1);
-  assert.deepEqual(result.snapshot.pickups, []);
+  assert.deepEqual(toSnapshot(game).pickups, []);
 });
 
 test("collection wins before a same-tick explosion and destruction frees a spawn slot", () => {

@@ -26,7 +26,6 @@ import {
 import {
   type GameEvent,
   type GamePhase,
-  type GameSnapshot,
   type GameState,
   type InputIntent,
   type PlayerId,
@@ -45,8 +44,8 @@ export { toSnapshot } from "./view.js";
 export { gravityBend } from "./gravity.js";
 export * from "./tuning.js";
 
+/** What a tick reports. A caller that wants the public snapshot asks `toSnapshot(state)` for it. */
 export interface TickResult {
-  snapshot: GameSnapshot;
   events: GameEvent[];
 }
 
@@ -246,7 +245,7 @@ export function step(
     if (phase.when === "playing" && state.phase !== "playing") break;
     phase.run(ctx);
   }
-  return { snapshot: toSnapshot(state), events: ctx.events };
+  return { events: ctx.events };
 }
 
 function prepareRound(state: GameState): void {

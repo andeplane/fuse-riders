@@ -459,8 +459,10 @@ test("fatal trail ends at the nearest contact regardless of trail array order", 
         expiresAtTick: state.tick + 100,
       })),
     });
-    const { snapshot } = step(state, new Map());
-    const dead = snapshot.players.find((player) => player.id === rider.id)!;
+    step(state, new Map());
+    const dead = toSnapshot(state).players.find(
+      (player) => player.id === rider.id,
+    )!;
     assert.equal(dead.alive, false);
     assert.ok(Math.abs(dead.x - 505) < 1e-6);
     assert.equal(dead.y, 350);
