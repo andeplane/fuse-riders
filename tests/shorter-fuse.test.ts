@@ -148,25 +148,20 @@ test("held and cancelled input preserves Fuse; shortened volleys retain Power", 
   }
 });
 
-test("Target still explodes instantly and Shell/Gun retain their projectile/tracer lifetimes", () => {
-  for (const special of ["target", "shell", "gun"] as const) {
+test("Shell and Gun retain their projectile/tracer lifetimes", () => {
+  for (const special of ["shell", "gun"] as const) {
     const game = playing(),
       rider = game.players.get("p0")!;
     collect(game, "stopwatch", "stopwatch", special);
     step(game, fire);
     assert.equal(rider.fuseLevel, 2);
-    if (special === "target") {
-      assert.equal(game.bombs.size, 0);
-      assert.equal(game.blasts.length, 1);
-    } else {
-      const bomb = [...game.bombs.values()][0]!;
-      assert.equal(
-        bomb.explodeAtTick,
-        special === "shell"
-          ? Number.MAX_SAFE_INTEGER
-          : game.tick + GUN_TRACER_TICKS,
-      );
-    }
+    const bomb = [...game.bombs.values()][0]!;
+    assert.equal(
+      bomb.explodeAtTick,
+      special === "shell"
+        ? Number.MAX_SAFE_INTEGER
+        : game.tick + GUN_TRACER_TICKS,
+    );
   }
 });
 

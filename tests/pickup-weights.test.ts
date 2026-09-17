@@ -28,12 +28,14 @@ test("weighted table gives Five one third Triple probability with deterministic 
     assert.throws(() => pickupTypeForRoll(invalid));
 });
 
-test("Power is abundant while special drops remain optional", () => {
+test("Power is abundant while Star and the other specials stay occasional", () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const power = PICKUP_WEIGHTS.find((row) => row.type === "power")!.weight;
   assert.ok(power / total > 0.7 && power / total < 0.8);
+  // Star ships enabled like every other special; a host can still switch any of them off in room settings.
+  assert.equal(PICKUP_WEIGHTS.find((row) => row.type === "star")?.weight, 160);
   assert.equal(
-    PICKUP_WEIGHTS.some((row) => row.type === "star"),
+    PICKUP_WEIGHTS.map((row): string => row.type).includes("target"),
     false,
   );
 });

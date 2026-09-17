@@ -71,7 +71,7 @@ export function visualFixture(tick: number): ViewSnapshot {
       circle: { x: 220 + i * 270, y: 450, radius: 70 + i * 12 },
       expiresAtTick: tick + 8 - (tick % 12),
     })).filter((b) => b.expiresAtTick > tick),
-    pickups: ["power", "triple", "five", "beer", "target", "shell"].map(
+    pickups: ["power", "triple", "five", "beer", "star", "shell"].map(
       (type, i) => ({
         id: i,
         type: type as ViewSnapshot["pickups"][number]["type"],

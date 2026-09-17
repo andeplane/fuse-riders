@@ -356,12 +356,8 @@ test("AI presses, holds and releases ordinary bombs through the same charge/cool
   assert.equal(bot.input(game, player.id).bomb, false);
 });
 
-test("AI target/gun/shell shots use normal input actions and target aim is bounded", () => {
-  for (const powerup of [
-    "targetBombArmed",
-    "gunArmed",
-    "shellArmed",
-  ] as const) {
+test("AI gun/shell shots use normal input actions", () => {
+  for (const powerup of ["gunArmed", "shellArmed"] as const) {
     const game = fixture(),
       bot = new BotController(),
       player = game.players.get("bot:1")!;
@@ -369,19 +365,6 @@ test("AI target/gun/shell shots use normal input actions and target aim is bound
     player[powerup] = true;
     const press = bot.input(game, player.id);
     assert.equal(press.bombCommands?.[0]?.action, "press");
-    if (powerup === "targetBombArmed") {
-      const aim = press.aim!;
-      assert.ok(
-        aim.x >= 0 && aim.x <= 1 && aim.y >= 0 && aim.y <= 1,
-        "aim stays inside the arena",
-      );
-      const error = BOT_TIERS[botDifficulty(player.name)].aimError;
-      assert.ok(
-        Math.abs(aim.x * game.width - 600) <= error &&
-          Math.abs(aim.y * game.height - 450) <= error,
-        "aim misses by at most this tier's error",
-      );
-    }
     step(game, new Map([[player.id, press]]));
     if (powerup === "gunArmed") {
       assert.equal(player.gunArmed, false);
@@ -486,12 +469,8 @@ test("Every AI is rolled a difficulty that shows in its name and steers its own 
   const [easy, medium, hard] = BOT_DIFFICULTIES.map(
     (difficulty) => BOT_TIERS[difficulty],
   );
-  assert.ok(
-    easy!.aimError > medium!.aimError && medium!.aimError > hard!.aimError,
-    "a harder AI aims better",
-  );
   assert.equal(
-    hard!.aimError,
+    hard!.blunderRate,
     0,
     "the top tier is exactly the shipped controller, never a quiet downgrade of it",
   );

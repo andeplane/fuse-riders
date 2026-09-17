@@ -41,20 +41,18 @@ export const BOT_BLUNDER_WINDOW = 4;
 export type BotDifficulty = "easy" | "medium" | "hard";
 export const BOT_DIFFICULTIES = ["easy", "medium", "hard"] as const;
 /**
- * lookaheadTicks is how far the rider plans, aimError how badly it throws a target bomb, and blunderRate how often it
- * stops steering well for a moment, the way a distracted human does. Every knob must be a pure function of folded
+ * lookaheadTicks is how far the rider plans, and blunderRate how often it stops steering well for a moment, the way a distracted human does. Every knob must be a pure function of folded
  * state: the controller runs inside the fold on every device, and a rollback replays it without restoring anything it
  * kept for itself, so a remembered decision would replay differently than it was first played and diverge the room.
  */
 export interface BotTier {
   lookaheadTicks: number;
-  aimError: number;
   blunderRate: number;
 }
 export const BOT_TIERS: Record<BotDifficulty, BotTier> = {
-  easy: { lookaheadTicks: 8, aimError: 260, blunderRate: 0.35 },
-  medium: { lookaheadTicks: 16, aimError: 110, blunderRate: 0.1 },
-  hard: { lookaheadTicks: BOT_LOOKAHEAD_TICKS, aimError: 0, blunderRate: 0 },
+  easy: { lookaheadTicks: 8, blunderRate: 0.35 },
+  medium: { lookaheadTicks: 16, blunderRate: 0.1 },
+  hard: { lookaheadTicks: BOT_LOOKAHEAD_TICKS, blunderRate: 0 },
 };
 const DIFFICULTY_LABELS: Record<BotDifficulty, string> = {
   easy: "Easy",
@@ -562,40 +560,10 @@ export class BotController {
         : nearest.y - player.y;
     const distance = hypot2(towardX, towardY);
     const bearing = atan2(towardY, towardX);
-    const aimed =
-      player.targetBombArmed && !player.gunArmed && !player.shellArmed;
-    // One fixed miss per shot: the cooldown stamp is stable while charging, so a weak rider commits to its bad aim.
-    const scatter = (axis: string) =>
-      (Math.max(
-        0,
-        Math.min(
-          1,
-          this.dependencies.random(
-            game.seed,
-            id + axis,
-            player.bombReadyAtTick,
-          ),
-        ),
-      ) *
-        2 -
-        1) *
-      tier.aimError;
-    const aim = aimed
-      ? {
-          x: Math.max(
-            0,
-            Math.min(1, (nearest.x + scatter(":aimX")) / game.width),
-          ),
-          y: Math.max(
-            0,
-            Math.min(1, (nearest.y + scatter(":aimY")) / game.height),
-          ),
-        }
-      : undefined;
     const maxChargeTicks =
       game.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS;
     const wantedCharge =
-      aimed || player.gunArmed || player.shellArmed
+      player.gunArmed || player.shellArmed
         ? 1
         : Math.max(
             1,
@@ -613,21 +581,17 @@ export class BotController {
       return {
         ...intent,
         bomb: !release,
-        ...(aim ? { aim } : {}),
-        ...(release
-          ? { bombCommands: [{ action: "release", ...(aim ? { aim } : {}) }] }
-          : {}),
+        ...(release ? { bombCommands: [{ action: "release" }] } : {}),
       };
     }
     if (
-      aimed ||
-      (distance < 500 && Math.abs(angleDifference(bearing, player.angle)) < 0.6)
+      distance < 500 &&
+      Math.abs(angleDifference(bearing, player.angle)) < 0.6
     ) {
       return {
         ...intent,
         bomb: true,
-        ...(aim ? { aim } : {}),
-        bombCommands: [{ action: "press", ...(aim ? { aim } : {}) }],
+        bombCommands: [{ action: "press" }],
       };
     }
     return intent;

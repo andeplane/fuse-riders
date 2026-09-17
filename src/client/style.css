@@ -1624,16 +1624,6 @@ details.audio-controls > .audio-panel.radio {
   min-height: 2.125rem;
 }
 
-.control-button.bomb.target-armed {
-  border-color: #75ffe0;
-  background-image: radial-gradient(
-    circle,
-    transparent 30%,
-    #75ffe030 31%,
-    transparent 33%
-  );
-}
-
 /* Match the authoritative rider color across the whole connected controller. */
 .controller-shell {
   --player-color: #00d9ff;

@@ -51,23 +51,19 @@ test("overflow cancels the bounded queue and a later fresh press can recover", (
   assert.deepEqual(buffer.drain(), ["press"]);
 });
 
-test("target input preserves per-release aim despite later packets and caller mutation", () => {
+test("commands drain as bare actions in order across held resends, and a cancel replaces the queue", () => {
   const buffer = new BombInputBuffer();
-  const first = { x: 0.1, y: 0.2 };
-  buffer.accept(true, "press", first);
-  first.x = 1;
-  buffer.accept(true, undefined, { x: 0.3, y: 0.4 });
-  buffer.accept(false, "release", { x: 0.5, y: 0.6 });
-  buffer.accept(true, "press", { x: 0.7, y: 0.8 });
+  buffer.accept(true, "press");
+  buffer.accept(true);
+  buffer.accept(false, "release");
+  buffer.accept(true, "press");
   assert.deepEqual(buffer.drainCommands(), [
-    { action: "press", aim: { x: 0.1, y: 0.2 } },
-    { action: "release", aim: { x: 0.5, y: 0.6 } },
-    { action: "press", aim: { x: 0.7, y: 0.8 } },
+    { action: "press" },
+    { action: "release" },
+    { action: "press" },
   ]);
   buffer.accept(false, "release");
-  assert.deepEqual(buffer.drainCommands(), [
-    { action: "release", aim: { x: 0.7, y: 0.8 } },
-  ]);
+  assert.deepEqual(buffer.drainCommands(), [{ action: "release" }]);
   buffer.accept(true, "press");
   assert.deepEqual(buffer.drainCommands(), [{ action: "press" }]);
   buffer.cancel();

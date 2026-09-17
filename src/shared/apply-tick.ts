@@ -32,7 +32,7 @@ import {
 import type { GameEvent } from "./protocol.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-27"; // 27: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through. 26: arena maps. 25: history agreement metadata.
+export const RULES = "fuse-p2p-28"; // 28: Target Bomb and the aim input are gone; Star drops by default. 27: the wrap and cross arena maps — open edges carry riders, shells, bullets, bombs and blasts through. 26: arena maps. 25: history agreement metadata.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
@@ -138,10 +138,7 @@ function pruneOrphans(state: RoomState): void {
     if (!state.game.players.has(id)) state.bots.delete(id);
 }
 function resetGestures(state: RoomState): void {
-  for (const fold of state.folds.values()) {
-    fold.activeGesture = 0;
-    fold.aim = undefined;
-  }
+  for (const fold of state.folds.values()) fold.activeGesture = 0;
 }
 
 /** Every management entry is applied defensively: an inapplicable entry is a no-op on every replica alike. */
@@ -324,10 +321,8 @@ export function applyTick(
     }
   }
   if (game.phase !== "playing")
-    for (const player of game.players.values()) {
+    for (const player of game.players.values())
       player.bombChargeStartedTick = undefined;
-      player.bombTarget = undefined;
-    }
   return result.events;
 }
 

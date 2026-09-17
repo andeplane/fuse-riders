@@ -37,10 +37,6 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   ],
   triple: ["TRIPLE", "next ordinary shot adds 2 bombs"],
   five: ["FIVE", "next ordinary shot adds 4 bombs (overrides Triple)"],
-  target: [
-    "TARGET",
-    "next bomb lands where you aim and blasts instantly, smaller radius",
-  ],
   shell: [
     "SHELL",
     "next shot bounces off walls and trails, and through portal gates, until it hits a rider, you included",

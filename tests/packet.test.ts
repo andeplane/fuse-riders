@@ -13,13 +13,7 @@ import {
   wrapMs,
   type Packet,
 } from "../src/online/packet.js";
-import {
-  AIM,
-  PRESS,
-  RELEASE,
-  STEER,
-  type Entry,
-} from "../src/shared/input-log.js";
+import { PRESS, RELEASE, STEER, type Entry } from "../src/shared/input-log.js";
 
 const packet = (): Packet => ({
   room: roomHash("AB42:host"),
@@ -29,7 +23,7 @@ const packet = (): Packet => ({
   lastSeq: 9,
   entries: [
     [8, 121, STEER, 1],
-    [9, 121, AIM, 65535, 0],
+    [9, 121, PRESS, 4],
   ],
   sentAt: 123456,
   echoSentAt: 120000,
@@ -108,6 +102,8 @@ test("malformed, oversized and out-of-range packets decode to nothing", () => {
     [1, 5, "", 3, 120, 9, [], 1, 0, 0, 1, null],
     [1, 5, "x", 3.5, 120, 9, [], 1, 0, 0, 1, null],
     [1, 5, "x", 3, 120, 9, [[1, 2, 99, 0]], 1, 0, 0, 1, null],
+    [1, 5, "x", 3, 120, 9, [[1, 2, 1, 65535, 0]], 1, 0, 0, 1, null], // retired aim kind
+    [1, 5, "x", 3, 120, 9, [[1, 2, RELEASE, 1, 65535, 0]], 1, 0, 0, 1, null], // retired release-with-aim form
     [1, 5, "x", 3, 120, 9, "entries", 1, 0, 0, 1, null],
     [1, 5, "x", 3, 120, 9, [], -1, 0, 0, 1, null],
     [1, 5, "x", 3, 120, 9, [], 1, 0, 0, NaN, null],

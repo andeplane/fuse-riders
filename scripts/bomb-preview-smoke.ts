@@ -55,7 +55,6 @@ try {
         drunkUntilTick: 0,
         inkUntilTick: 0,
         bombChargeStartedTick: 40,
-        targetBombArmed: false,
         tripleShotArmed: false,
         fiveShotArmed: false,
         shellArmed: false,

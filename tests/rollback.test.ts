@@ -663,7 +663,7 @@ test("late reordered inputs converge through GRIP collection and do not consume 
   assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
 });
 
-test("late duplicated and reordered Target releases converge through debris decay and peer recovery", async () => {
+test("late duplicated and reordered bomb releases converge through debris decay and peer recovery", async () => {
   const { eliminatePlayer } = await import("../src/shared/game.js");
   const { encodeSnapshot, decodeSnapshot, SnapshotAssembler } =
     await import("../src/online/snapshot.js");
@@ -686,17 +686,17 @@ test("late duplicated and reordered Target releases converge through debris deca
     expiresAtTick: start + 1,
   }));
   eliminatePlayer(game, "c");
-  game.players.get("b")!.targetBombArmed = true;
+  // A one-tick lob straight up from below the debris lands on its middle, and the shortest fuse bursts it at
+  // start + 22: after the debris has begun to decay and well before `end`.
+  Object.assign(guest(fixture), {
+    x: 500,
+    y: 337.5,
+    angle: -Math.PI / 2,
+    fuseLevel: 2,
+  });
   const entries: Entry[] = [
     [1, start + 1, PRESS, 1],
-    [
-      2,
-      start + 2,
-      RELEASE,
-      1,
-      Math.round((500 / game.width) * 65535),
-      Math.round((200 / game.height) * 65535),
-    ],
+    [2, start + 2, RELEASE, 1],
   ];
   const replica = () => {
     const w = new World(structuredClone(fixture.state), "creator", "creator");

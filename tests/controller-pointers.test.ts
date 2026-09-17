@@ -341,16 +341,18 @@ test("held drag enters, switches and exits buttons without tapping; hovering doe
   fire(f.terminal, "pointermove", 1);
   assert.equal(f.state.hasHeld(), false);
 });
-test("Target aim keeps its thumb while sliding across other controls", () => {
+test("sliding off a held bomb onto steering cancels the charge instead of firing", () => {
   const f = fixture(true);
-  f.state.configureTargetAim({ x: 0.5, y: 0.5 });
   fire(f.bomb, "pointerdown", 1);
   f.hover(f.left);
   fire(f.terminal, "pointermove", 1);
-  assert.equal(f.bomb.active, true);
-  assert.equal(f.left.active, false);
+  assert.equal(f.bomb.active, false);
+  assert.equal(f.left.active, true);
   fire(f.terminal, "pointerup", 1);
-  assert.equal(f.messages.at(-1)!.bombAction, "release");
+  assert.deepEqual(
+    f.messages.map((message) => message.bombAction).filter(Boolean),
+    ["press", "cancel"],
+  );
 });
 
 test("cancelled or cleared contacts cannot slide-reactivate before lifting", () => {

@@ -361,9 +361,23 @@ test("players, trails, history and statistics are bounded and internally consist
     (data) => {
       let deep: unknown = 0;
       for (let i = 0; i < 20; i++) deep = { next: deep };
-      object(mapped(data.players)[0]![1]).bombTarget = deep;
+      object(mapped(data.players)[0]![1]).trail = deep;
     },
     "nesting past the decoder budget",
+  );
+  rejected(
+    game,
+    (data) => {
+      object(mapped(data.players)[0]![1]).targetBombArmed = false;
+    },
+    "a retired Target Bomb flag",
+  );
+  rejected(
+    game,
+    (data) => {
+      object(mapped(data.players)[0]![1]).bombTarget = { x: 800, y: 450 };
+    },
+    "a retired Target Bomb aim point",
   );
   rejected(
     game,

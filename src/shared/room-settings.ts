@@ -101,7 +101,7 @@ export function loadRoomSettings(
       saved.match === "wins"
         ? { ...saved, match: "rounds", length: 5 }
         : saved;
-    // A pickup retired since the save (Boost) would fail the whole parse and reset every other preference with it.
+    // A pickup retired since the save (Boost, Target Bomb) would fail the whole parse and reset every other preference with it.
     if (
       migrated &&
       typeof migrated === "object" &&

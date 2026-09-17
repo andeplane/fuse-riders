@@ -70,7 +70,6 @@ import {
   type WrapOffset,
 } from "./wrap.js";
 import type {
-  AimPoint,
   BombActionCommand,
   BlastCircle,
   BombAction,
@@ -311,7 +310,6 @@ export const PICKUP_TYPES = [
   "stopwatch",
   "gun",
   "shell",
-  "target",
   "star",
   "beer",
   "ink",
@@ -340,7 +338,6 @@ export interface InputIntent {
   right: boolean;
   bomb: boolean;
   bombCommands?: readonly BombActionCommand[];
-  aim?: AimPoint;
 }
 
 export interface PlayerState extends Required<PlayerIdentity> {
@@ -353,8 +350,6 @@ export interface PlayerState extends Required<PlayerIdentity> {
   bombChargeStartedTick?: number;
   gunArmed?: boolean;
   shellArmed?: boolean;
-  targetBombArmed: boolean;
-  bombTarget?: AimPoint;
   /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
   extraBombs: number;
   fuseLevel: number;
@@ -577,7 +572,6 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     grip: false,
     drunkUntilTick: 0,
     inkUntilTick: 0,
-    targetBombArmed: false,
     tripleShotArmed: false,
     fiveShotArmed: false,
     drunkStartedTick: 0,
@@ -621,7 +615,6 @@ export function eliminatePlayer(state: GameState, playerId: PlayerId): void {
   if (!player.alive) return;
   player.alive = false;
   player.bombChargeStartedTick = undefined;
-  player.bombTarget = undefined;
   recordElimination(state, playerId);
   if (state.roundParticipants.has(playerId))
     recordEarlyExit(state.matchStats, playerId);
@@ -1416,7 +1409,6 @@ export function step(
       }
       movement.player.alive = false;
       movement.player.bombChargeStartedTick = undefined;
-      movement.player.bombTarget = undefined;
       recordElimination(state, movement.player.id);
       const credited = soleCreditedOwner(
         causeOwners,
@@ -1496,74 +1488,24 @@ export function step(
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movementList) {
     if (movement.player.alive) {
-      const input = inputs.get(movement.player.id);
       applyBombActions(
         state,
         movement.player,
-        input?.bombCommands ?? [],
+        inputs.get(movement.player.id)?.bombCommands ?? [],
         events,
       );
-      if (
-        movement.player.targetBombArmed &&
-        !movement.player.shellArmed &&
-        !movement.player.gunArmed &&
-        movement.player.bombChargeStartedTick !== undefined
-      )
-        movement.player.bombTarget = targetPoint(
-          state,
-          movement.player,
-          input?.aim,
-          movement.player.bombTarget,
-        );
     }
   }
 
   // Resolve every gun against the same committed board before applying cuts or deaths.
   const gunHits = resolveGunShots(state);
 
-  /**
-   * Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched — and so after
-   * the sweep above. A rider that crashed into scenery earlier in this tick died against a board that was still
-   * standing when it got there, and a Target Bomb landing afterwards then clears that same rock: chronological
-   * within the tick, and the same order in which a pickup collected this tick survives a blast opened by it.
-   * Ordinary fuses run before movement instead (`newBlasts`), so what they clear is gone before anyone rides into it.
-   */
-  const instantBlasts = resolveExplosions(state, events);
-  if (instantBlasts.length || gunHits.size) {
-    captureOrigins();
+  // Pressed Guns land in this same tick, after every rider has launched — and so after the sweep above. Fuses run
+  // before movement instead (`newBlasts`), so what they clear is gone before anyone rides into it.
+  if (gunHits.size) {
     for (const player of sortedPlayers(state)) {
-      player.trail = cutTrail(
-        player.trail,
-        state.tick,
-        (segment) =>
-          instantBlasts.some((blast) =>
-            segmentIntersectsDisk(
-              segment.x1,
-              segment.y1,
-              segment.x2,
-              segment.y2,
-              blast.circle,
-              TRAIL_WIDTH / 2,
-            ),
-          )
-            ? []
-            : [segment],
-        () => state.nextTrailPieceId++,
-      );
       if (!player.alive || isHazardImmune(player, state.tick)) continue;
-      const hits = [
-        ...instantBlasts.filter((blast) =>
-          segmentIntersectsDisk(
-            player.x,
-            player.y,
-            player.x,
-            player.y,
-            blast.circle,
-            RIDER_RADIUS,
-          ),
-        ),
-        ...(gunHits.get(player.id) ?? []),
-      ];
+      const hits = gunHits.get(player.id) ?? [];
       if (!hits.length) continue;
       if (player.shielded) {
         player.shielded = false;
@@ -1572,7 +1514,6 @@ export function step(
       }
       player.alive = false;
       player.bombChargeStartedTick = undefined;
-      player.bombTarget = undefined;
       recordElimination(state, player.id);
       const owners = new Set(hits.map((blast) => blast.ownerId));
       const credited = owners.size === 1 ? hits[0]!.ownerId : undefined;
@@ -1616,12 +1557,11 @@ export function step(
   // A dodge is having been inside a blast's radius before it went off and being alive outside it now; the owner's
   // own retreat and any immune rider do not count. One per rider per tick, against the first such blast in id order.
   if (origins) {
-    const blasts = [...newBlasts, ...instantBlasts];
     for (const player of sortedPlayers(state)) {
       const origin = origins.get(player.id);
       if (!origin || !player.alive || isHazardImmune(player, state.tick))
         continue;
-      for (const blast of blasts) {
+      for (const blast of newBlasts) {
         if (
           blast.ownerId === player.id ||
           square(origin.x - blast.circle.x) +
@@ -1703,8 +1643,6 @@ export function toSnapshot(state: GameState): GameSnapshot {
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed,
       shellArmed: player.shellArmed,
-      targetBombArmed: player.targetBombArmed,
-      ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}),
       tripleShotArmed: player.tripleShotArmed,
       fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
@@ -1817,7 +1755,6 @@ function prepareRound(state: GameState): void {
     player.alive = false;
     player.trail = [];
     player.bombChargeStartedTick = undefined;
-    player.bombTarget = undefined;
     player.bombReadyAtTick = state.tick;
     player.extraBombs = 0;
     player.fuseLevel = 0;
@@ -1833,7 +1770,6 @@ function prepareRound(state: GameState): void {
     player.inkUntilTick = 0;
     player.gunArmed = false;
     player.shellArmed = false;
-    player.targetBombArmed = false;
     player.tripleShotArmed = false;
     player.fiveShotArmed = false;
     player.shielded = false;
@@ -2034,8 +1970,6 @@ function collectPickups(
       openBlackHoles(state, movements);
     } else if (pickup.type === "shell") {
       collector.shellArmed = true;
-    } else if (pickup.type === "target") {
-      collector.targetBombArmed = true;
     } else if (pickup.type === "star") {
       collector.invulnerableUntilTick = Math.max(
         collector.invulnerableUntilTick,
@@ -2406,30 +2340,6 @@ function reflectAtObstacle(
   return true;
 }
 
-function targetPoint(
-  state: GameState,
-  player: PlayerState,
-  aim?: AimPoint,
-  previous?: AimPoint,
-): AimPoint {
-  const x = aim
-    ? aim.x * state.width
-    : (previous?.x ?? player.x + cos(player.angle) * 100);
-  const y = aim
-    ? aim.y * state.height
-    : (previous?.y ?? player.y + sin(player.angle) * 100);
-  return {
-    x: Math.max(
-      state.boundaryInset + RIDER_RADIUS,
-      Math.min(state.width - state.boundaryInset - RIDER_RADIUS, x),
-    ),
-    y: Math.max(
-      state.boundaryInset + RIDER_RADIUS,
-      Math.min(state.height - state.boundaryInset - RIDER_RADIUS, y),
-    ),
-  };
-}
-
 function applyBombActions(
   state: GameState,
   player: PlayerState,
@@ -2440,7 +2350,6 @@ function applyBombActions(
     const { action } = command;
     if (action === "cancel") {
       player.bombChargeStartedTick = undefined;
-      player.bombTarget = undefined;
       continue;
     }
     if (action === "press") {
@@ -2453,19 +2362,13 @@ function applyBombActions(
         player.bombReadyAtTick <= state.tick
       ) {
         player.bombChargeStartedTick = state.tick;
-        if (player.targetBombArmed && !player.shellArmed && !player.gunArmed)
-          player.bombTarget = targetPoint(state, player, command.aim);
       }
       // Guns consume the press immediately. Release/cancel cannot fire a second shot.
       if (!player.gunArmed) continue;
     }
 
-    const target = player.targetBombArmed
-      ? targetPoint(state, player, command.aim, player.bombTarget)
-      : undefined;
     const chargeStartedTick = player.bombChargeStartedTick;
     player.bombChargeStartedTick = undefined;
-    player.bombTarget = undefined;
     if (chargeStartedTick === undefined) continue;
     const ownsBomb = [...state.bombs.values()].some(
       (bomb) => bomb.ownerId === player.id && !bomb.shell,
@@ -2547,9 +2450,8 @@ function applyBombActions(
       : player.tripleShotArmed
         ? "triple"
         : undefined;
-    const paths = target
-      ? [[{ ...target, angle: player.angle }]]
-      : bombsPerShot(player) > 1
+    const paths =
+      bombsPerShot(player) > 1
         ? createVolleyFlightPaths(
             player,
             player.angle,
@@ -2566,18 +2468,11 @@ function applyBombActions(
               bounds,
             ),
           ];
-    if (target) player.targetBombArmed = false;
-    else {
-      player.tripleShotArmed = false;
-      player.fiveShotArmed = false;
-    }
-    /**
-     * One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
-     * is why they outrank everything (a Triple or Five they fan out is spent under their label), and why a rider
-     * holding Target as well keeps it armed for the next pull.
-     * Among the launches that do reach here, Target comes first, because it is the only one the others cannot combine with.
-     */
-    const weapon: Weapon = target ? "target" : (volley ?? "bomb");
+    player.tripleShotArmed = false;
+    player.fiveShotArmed = false;
+    // One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
+    // is why they outrank everything (a Triple or Five they fan out is spent under their label).
+    const weapon: Weapon = volley ?? "bomb";
     // Every bomb of the pull names the same shot: the id its first bomb is about to take.
     const shot = state.nextBombId;
     logShot(state, player, shot, weapon, paths.length);
@@ -2593,11 +2488,9 @@ function applyBombActions(
         y: open ? wrapCoordinate(landing.y, state.height) : landing.y,
         placedTick: state.tick,
         launchedTick: state.tick,
-        landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
-        explodeAtTick: target
-          ? state.tick
-          : state.tick + bombFuseTicks(player.fuseLevel),
-        blastRange: powerBlastRadius(player.powerPickups) * (target ? 0.7 : 1),
+        landsAtTick: state.tick + BOMB_FLIGHT_TICKS,
+        explodeAtTick: state.tick + bombFuseTicks(player.fuseLevel),
+        blastRange: powerBlastRadius(player.powerPickups),
         flightPath,
         shot,
       };

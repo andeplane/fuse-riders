@@ -9,7 +9,6 @@ import {
 } from "../../src/shared/apply-tick.ts";
 import {
   ACTION,
-  AIM,
   BOT,
   CANCEL,
   JOIN,
@@ -81,28 +80,11 @@ export function makeRecording(seed: number, ticks: number): Recording {
     for (const member of players) {
       const gesture = gestures[member]!;
       if (random() < 0.12) log(member, tick, STEER, Math.floor(random() * 4));
-      if (random() < 0.05)
-        log(
-          member,
-          tick,
-          AIM,
-          Math.floor(random() * 65536),
-          Math.floor(random() * 65536),
-        );
       if (!gesture.active && random() < 0.04) {
         gesture.active = ++gesture.latest;
         log(member, tick, PRESS, gesture.active);
       } else if (gesture.active && random() < 0.08) {
-        const aimed = random() < 0.5;
-        log(
-          member,
-          tick,
-          RELEASE,
-          gesture.active,
-          ...(aimed
-            ? [Math.floor(random() * 65536), Math.floor(random() * 65536)]
-            : []),
-        );
+        log(member, tick, RELEASE, gesture.active);
         gesture.active = 0;
       } else if (gesture.active && random() < 0.01) {
         log(member, tick, CANCEL, gesture.active);

@@ -68,20 +68,20 @@ device that loads into a match already past round 1 reports `Match Ended` but no
 
 `Kill` and `Miss` are the one place analytics reports per occurrence rather than per match: one `Kill` per rider
 killed and one `Miss` per trigger pull that killed nobody. `weapon` is what the pull fired — `bomb` (the ordinary
-lobbed bomb every rider has, the baseline), `triple`, `five`, `target`, `gun` or `shell`.
+lobbed bomb every rider has, the baseline), `triple`, `five`, `gun` or `shell`.
 
 The point is histograms, so both events carry every dimension an outcome might be broken down by:
 
-| Property                                   | On     | Meaning                                                                                                        |
-| ------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------- |
-| `weapon`                                   | both   | what the pull fired                                                                                            |
-| `bombs`                                    | both   | bombs the pull put in the air — 1 for Target, more for a volley or with Extra Bomb (Gun and Shell fan out too) |
-| `power`, `extraBombs`, `fuseLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                            |
-| `round`, `secondsIntoRound`                | both   | when the trigger was pulled, to a tenth of a second                                                            |
-| `riders`, `bots`                           | both   | the room when the round was reported                                                                           |
-| `victimBot`                                | `Kill` | whether the rider killed was an AI                                                                             |
-| `secondsToKill`                            | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target and Gun                    |
-| `shotKills`, `firstKillOfShot`             | `Kill` | how many riders the pull killed, and one `true` per pull                                                       |
+| Property                                   | On     | Meaning                                                                                                 |
+| ------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------- |
+| `weapon`                                   | both   | what the pull fired                                                                                     |
+| `bombs`                                    | both   | bombs the pull put in the air — more than 1 for a volley or with Extra Bomb (Gun and Shell fan out too) |
+| `power`, `extraBombs`, `fuseLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                     |
+| `round`, `secondsIntoRound`                | both   | when the trigger was pulled, to a tenth of a second                                                     |
+| `riders`, `bots`                           | both   | the room when the round was reported                                                                    |
+| `victimBot`                                | `Kill` | whether the rider killed was an AI                                                                      |
+| `secondsToKill`                            | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Gun                        |
+| `shotKills`, `firstKillOfShot`             | `Kill` | how many riders the pull killed, and one `true` per pull                                                |
 
 | Reading                       | Mixpanel                                                       |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -119,11 +119,11 @@ A **pull** is one trigger press: a volley is one pull however many bombs it puts
 names the pull. A rider can hold several weapons at once and a pull spends only some of them, so it is labelled
 with the first of these that it spent:
 
-`gun` → `shell` → `target` → `five` → `triple` → `bomb`
+`gun` → `shell` → `five` → `triple` → `bomb`
 
 Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
-under their label, and a rider holding Target as well keeps it armed for the next pull. Below them Target wins because it is the only one the others cannot
-combine with. Rules before `fuse-p2p-24` also reported `gravity`, for the Singularity bomb that Gravity used to arm. The
+under their label. Rules before `fuse-p2p-28` also reported `target`, for the Target Bomb, and rules before
+`fuse-p2p-24` reported `gravity`, for the Singularity bomb that Gravity used to arm. The
 round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse and GRIP sharpen every pull rather than
 being spent by one.
 
@@ -136,7 +136,7 @@ exactly one — which is what turns kills back into pulls for a miss rate.
 
 Two consequences of chain reactions, both inherited from how eliminations have always been credited: a bomb set
 off by someone else's blast still belongs to its owner, so a rider whose Five bomb a rival detonates is credited
-the kill; and where a rider's own older plain bomb chains alongside its Target, the lowest-id rule credits `bomb`.
+the kill; and where a rider's own older plain bomb chains alongside its volley, the lowest-id rule credits `bomb`.
 What cannot be seen at all: a black hole that bends a rider into a wall, or swallows one in its core, is a `wall` death with no owner. And a
 pull whose only effect was uncredited — an own goal, a blast shared with another rider, or setting off someone
 else's bomb — is a `Miss`, because no kill is credited to it.

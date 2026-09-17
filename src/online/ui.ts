@@ -137,7 +137,6 @@ const labels: Record<PickupType, string> = {
   five: "Five shot",
   gun: "Gun",
   shell: "Shell",
-  target: "Target bomb",
   beer: "Beer",
   ink: "Ink",
   orbitShield: "Shield",
@@ -1480,11 +1479,6 @@ export async function startOnline(): Promise<void> {
             identityToken,
           });
       }
-      inputState.configureTargetAim(
-        player?.targetBombArmed && !player.gunArmed && !player.shellArmed
-          ? { x: player.x / state.width, y: player.y / state.height }
-          : undefined,
-      );
       powerStatus.hidden =
         !player ||
         displayOnly ||
@@ -1499,13 +1493,11 @@ export async function startOnline(): Promise<void> {
           ? `${Math.ceil(remaining / 20)}s RECHARGE`
           : player.gunArmed
             ? "TAP TO FIRE GUN"
-            : player.targetBombArmed
-              ? "SLIDE TO AIM"
-              : player.shellArmed
-                ? "FIRE SHELL"
-                : inputState.isHeld("bomb")
-                  ? "RELEASE!"
-                  : "HOLD TO FIRE";
+            : player.shellArmed
+              ? "FIRE SHELL"
+              : inputState.isHeld("bomb")
+                ? "RELEASE!"
+                : "HOLD TO FIRE";
       }
       notice.textContent =
         state.phase === "lobby"

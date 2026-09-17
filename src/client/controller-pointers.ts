@@ -47,10 +47,7 @@ export class ControllerPointerBindings {
         // A new contact with a recycled ID terminates any stale capture first.
         this.finish(pointer.pointerId, true);
         this.owners.set(pointer.pointerId, button);
-        this.state.pointerDown(pointer.pointerId, control, {
-          x: pointer.clientX,
-          y: pointer.clientY,
-        });
+        this.state.pointerDown(pointer.pointerId, control);
         try {
           button.setPointerCapture(pointer.pointerId);
         } catch {
@@ -71,11 +68,7 @@ export class ControllerPointerBindings {
       (event) => {
         const pointer = event as PointerEvent;
         if (this.interrupted.has(pointer.pointerId)) return;
-        if (
-          this.buttonAtPoint &&
-          pointer.buttons === 1 &&
-          !this.state.isTargetAiming(pointer.pointerId)
-        ) {
+        if (this.buttonAtPoint && pointer.buttons === 1) {
           const candidate = this.buttonAtPoint(
             pointer.clientX,
             pointer.clientY,
@@ -88,10 +81,7 @@ export class ControllerPointerBindings {
             if (binding) {
               const [button, control] = binding;
               this.owners.set(pointer.pointerId, button);
-              this.state.pointerDown(pointer.pointerId, control, {
-                x: pointer.clientX,
-                y: pointer.clientY,
-              });
+              this.state.pointerDown(pointer.pointerId, control);
               try {
                 button.setPointerCapture(pointer.pointerId);
               } catch {
@@ -101,11 +91,6 @@ export class ControllerPointerBindings {
             }
           }
         }
-        if (!this.owners.has(pointer.pointerId)) return;
-        this.state.pointerMove(pointer.pointerId, {
-          x: pointer.clientX,
-          y: pointer.clientY,
-        });
       },
       { capture: true },
     );
@@ -118,10 +103,7 @@ export class ControllerPointerBindings {
           else this.interrupted.delete(pointer.pointerId);
           if (!this.owners.has(pointer.pointerId)) return;
           pointer.preventDefault();
-          this.finish(pointer.pointerId, name === "pointercancel", {
-            x: pointer.clientX,
-            y: pointer.clientY,
-          });
+          this.finish(pointer.pointerId, name === "pointercancel");
         },
         { capture: true },
       );
@@ -170,16 +152,12 @@ export class ControllerPointerBindings {
     this.sync();
   }
 
-  private finish(
-    id: number,
-    cancel: boolean,
-    point?: { x: number; y: number },
-  ): void {
+  private finish(id: number, cancel: boolean): void {
     const button = this.owners.get(id);
     if (!button) return;
     this.owners.delete(id);
     if (cancel) this.state.pointerCancel(id);
-    else this.state.pointerRelease(id, point);
+    else this.state.pointerRelease(id);
     this.releaseCapture(button, id);
     this.sync();
   }

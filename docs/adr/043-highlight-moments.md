@@ -34,7 +34,7 @@ Shell bounces are counted in `BombState.shell.bounces`, incremented by `advanceS
 ## State, bounds and compatibility
 
 - `GameState.moments: Moment[]`, cleared with match statistics (`createGame`, `resetMatch`, `returnToLobby`), kept across rounds. Each kind keeps at most `MAX_MOMENTS_PER_KIND = 8`, first come first kept; nothing in state depends on a tunable score. Bots are riders: their plays count.
-- Both elimination sites in `step` (the movement sweep and the same-tick Target Bomb resolution) feed one observation record; detection runs once per tick before round resolution, so aggregates such as `multiKill` see every death of the tick.
+- Both elimination sites in `step` (the movement sweep and the same-tick Gun resolution; Target Bomb shared the latter until it was removed in `fuse-p2p-28`) feed one observation record; detection runs once per tick before round resolution, so aggregates such as `multiKill` see every death of the tick.
 - Per-tick cost: no new geometry on ordinary ticks, only a few empty containers. Death ticks scan the victim's own trail once (`boxedIn`); blast ticks scan each rider's own trail once (`bombDodge`).
 - Determinism: squared distances, `hypot2`, integer rounding of deterministic values. No `Math.hypot`, no wall clock, no randomness.
 - `toSnapshot` emits `moments` only at `matchOver`, next to `matchStats`. The LAN server's slim controller snapshot strips it like `matchStats`; the online controller status keeps it (it is what a phone shows in its recap).

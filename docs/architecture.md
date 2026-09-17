@@ -66,7 +66,7 @@ The current `step` in [game.ts](../src/shared/game.ts) performs these broad stag
 2. Age and clip trails, fit portals to the shrinking field, and attempt scheduled pickup spawning.
 3. Compute candidate rider motion, collect pickups, advance projectiles and resolve due explosions.
 4. Determine swept hazards, resolve defences and portal transit, then commit deaths, positions and trail segments.
-5. Apply weapon inputs using committed positions; resolve instant gun/target effects in a second pass, including a second death path.
+5. Apply weapon inputs using committed positions; resolve instant gun effects in a second pass, including a second death path.
 6. Record moment observations, resolve the round and project a snapshot.
 
 This is a summary of the current function, not a new phase API. #253 will introduce an explicit `TickContext` and ordered `PHASES`, consolidate death/fact handling and remove snapshots discarded by rollback. Until then, inspect `step` and its focused tests before changing ordering. Simultaneity, deterministic tie-breaking and the agreement between applied ticks and snapshots must survive the refactor.

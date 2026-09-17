@@ -164,25 +164,24 @@ test("Triple/Five add their temporary bonus; Power applies to upgraded volleys",
   }
 });
 
-test("Shell and Gun fan out with the volley and spend it; Target fires one and preserves it", () => {
-  for (const special of ["target", "shell", "gun"] as const) {
+test("Shell and Gun fan out with the volley and spend it", () => {
+  for (const special of ["shell", "gun"] as const) {
     const game = playing(),
       rider = game.players.get("p0")!;
     collect(game, "extraBomb", "extraBomb", "triple", special);
     const events = step(game, fire);
-    const projectile = special !== "target";
     assert.equal(
       events.events.filter((event) => event.type === "bombPlaced").length,
-      projectile ? 5 : 1,
+      5,
     );
     assert.equal(rider.extraBombs, 2);
-    assert.equal(rider.tripleShotArmed, !projectile);
+    assert.equal(rider.tripleShotArmed, false);
     // Shells deliberately remain in flight and do not block the next ordinary shot.
     while (game.tick < rider.bombReadyAtTick) step(game, new Map());
     const followup = step(game, fire);
     assert.equal(
       followup.events.filter((event) => event.type === "bombPlaced").length,
-      projectile ? 3 : 5,
+      3,
     );
   }
 });

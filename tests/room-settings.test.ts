@@ -94,7 +94,7 @@ test("saved preferences that still weigh a retired pickup keep everything else",
   const saved = {
     ...defaults,
     length: 9,
-    weights: { ...defaults.weights, boost: 160, gun: 7 },
+    weights: { ...defaults.weights, boost: 160, target: 165, gun: 7 },
   };
   assert.equal(
     parseRoomSettings(saved),

@@ -1188,7 +1188,6 @@ class ArenaScene extends Phaser.Scene {
         }
         if (
           p.bombChargeStartedTick !== undefined &&
-          !p.targetBombArmed &&
           !p.shellArmed &&
           !p.gunArmed
         ) {
@@ -1209,24 +1208,6 @@ class ArenaScene extends Phaser.Scene {
               .lineStyle(2, tint, 0.9)
               .strokeRect(x - 9, y - 9, 18, 18);
           }
-        }
-        if (
-          p.targetBombArmed &&
-          !p.shellArmed &&
-          !p.gunArmed &&
-          p.bombChargeStartedTick !== undefined &&
-          p.bombTarget
-        ) {
-          const { x, y } = p.bombTarget;
-          f.lineStyle(2, tint, 0.5)
-            .lineBetween(p.x, p.y, x, y)
-            .lineStyle(3, tint)
-            .strokeCircle(x, y, 23)
-            .lineBetween(x - 32, y, x - 11, y)
-            .lineBetween(x + 11, y, x + 32, y)
-            .lineBetween(x, y - 32, x, y - 11)
-            .lineBetween(x, y + 11, x, y + 32);
-          this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
         }
       }
     const inked = s.players.some((p) => p.alive && p.inkUntilTick > s.tick);

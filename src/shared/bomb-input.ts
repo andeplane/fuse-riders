@@ -1,8 +1,4 @@
-import type {
-  AimPoint,
-  BombAction,
-  BombActionCommand,
-} from "../shared/protocol.js";
+import type { BombAction, BombActionCommand } from "../shared/protocol.js";
 
 export const MAX_PENDING_BOMB_ACTIONS = 8;
 
@@ -10,11 +6,9 @@ export const MAX_PENDING_BOMB_ACTIONS = 8;
 export class BombInputBuffer {
   private pending: BombActionCommand[] = [];
   private held = false;
-  private aim?: AimPoint;
   private needsRelease = false;
 
-  accept(held: boolean, action?: BombAction, aim?: AimPoint): void {
-    if (aim) this.aim = { ...aim };
+  accept(held: boolean, action?: BombAction): void {
     if (action === "cancel") {
       this.cancel();
       this.needsRelease = false;
@@ -29,14 +23,12 @@ export class BombInputBuffer {
       this.enqueue("press");
     }
     this.held = held;
-    if (!held) this.aim = undefined;
   }
 
   cancel(requireRelease = false): void {
     this.needsRelease ||= requireRelease || this.held;
     this.held = false;
     this.pending = [{ action: "cancel" }];
-    this.aim = undefined;
   }
 
   drain(): BombAction[] {
@@ -51,10 +43,6 @@ export class BombInputBuffer {
 
   private enqueue(action: BombAction): void {
     if (this.pending.length >= MAX_PENDING_BOMB_ACTIONS) this.cancel(true);
-    else
-      this.pending.push({
-        action,
-        ...(this.aim ? { aim: { ...this.aim } } : {}),
-      });
+    else this.pending.push({ action });
   }
 }

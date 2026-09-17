@@ -18,6 +18,7 @@ import {
   type PlayerState,
 } from "../src/shared/game.js";
 import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
+import { volleyAngles } from "../src/shared/launch-modifiers.js";
 import type { Weapon } from "../src/shared/shot-log.js";
 import {
   defaultRoomSettings,
@@ -148,15 +149,9 @@ test("every launch logs one shot under the powerup it spent, and its bombs name 
     [{ fiveShotArmed: true }, "five", 5],
     // Five wins where both are armed, because that is the volley the launch actually fires.
     [{ tripleShotArmed: true, fiveShotArmed: true }, "five", 5],
-    [{ targetBombArmed: true }, "target", 1],
-    // Target is the only one the others cannot combine with: it leaves triple armed for the next pull.
-    [{ targetBombArmed: true, tripleShotArmed: true }, "target", 1],
     [{ gunArmed: true }, "gun", 1],
     [{ shellArmed: true }, "shell", 1],
     [{ gunArmed: true, shellArmed: true }, "gun", 1],
-    // Gun and Shell launch on their own path, so they outrank Target — which stays armed for the next pull.
-    [{ gunArmed: true, targetBombArmed: true }, "gun", 1],
-    [{ shellArmed: true, targetBombArmed: true }, "shell", 1],
     // Triple, Five and Extra Bomb fan Gun and Shell out too; the pull is still labelled by the projectile.
     [{ gunArmed: true, tripleShotArmed: true }, "gun", 3],
     [{ gunArmed: true, fiveShotArmed: true }, "gun", 5],
@@ -180,29 +175,31 @@ test("every launch logs one shot under the powerup it spent, and its bombs name 
       launched,
       "bombsPlaced still counts bombs, not pulls",
     );
-    // A Target bomb detonates on the release tick, so only the others are still in the air to inspect.
     const bombs = [...game.bombs.values()];
-    assert.equal(bombs.length, weapon === "target" ? 0 : launched);
+    assert.equal(bombs.length, launched);
     for (const bomb of bombs)
       assert.equal(
         bomb.shot,
         game.shots[0]!.shot,
         "every bomb of the pull names the one shot",
       );
-    if (bombs.length)
-      assert.equal(
-        game.shots[0]!.shot,
-        Math.min(...bombs.map((bomb) => bomb.id)),
-        "whose id is its first bomb",
-      );
+    assert.equal(
+      game.shots[0]!.shot,
+      Math.min(...bombs.map((bomb) => bomb.id)),
+      "whose id is its first bomb",
+    );
     assert.equal(
       game.shots[0]!.bombs,
       launched,
       "and the log records how many bombs the pull launched",
     );
-    // Whatever the pull did not spend is still armed, so no later shot goes uncounted.
     if (weapon === "gun" || weapon === "shell") {
-      assert.equal(player.targetBombArmed, armed.targetBombArmed === true);
+      // Whatever the pull did not spend is still armed, so no later shot goes uncounted.
+      assert.equal(
+        player.shellArmed === true,
+        weapon === "gun" && armed.shellArmed === true,
+        "a Gun pull leaves a held Shell armed for the next pull",
+      );
       assert.equal(
         player.tripleShotArmed || player.fiveShotArmed,
         false,
@@ -218,30 +215,6 @@ test("every launch logs one shot under the powerup it spent, and its bombs name 
       );
     }
   }
-});
-
-test("a Target bomb released onto a rider is one shot and one kill for Target, end to end", () => {
-  const { game, player, victim, input } = fixture();
-  player.targetBombArmed = true;
-  victim.trail = [];
-  input({ bomb: true, bombCommands: [{ action: "press" }] });
-  input({
-    bombCommands: [
-      {
-        action: "release",
-        aim: { x: victim.x / game.width, y: victim.y / game.height },
-      },
-    ],
-  });
-  assert.equal(victim.alive, false, "the instant blast caught it");
-  assert.deepEqual(shots(game, "p0"), { target: 1 });
-  assert.deepEqual(kills(game, "p0"), { target: 1 });
-  assert.equal(
-    game.matchStats.get("p0")!.eliminations,
-    1,
-    "a weapon kill is one of the killer eliminations",
-  );
-  assert.equal(game.matchStats.get("p1")!.deathsByCause.explosion, 1);
 });
 
 test("an instant headshot is one shot and one kill for the gun, end to end", () => {
@@ -409,26 +382,22 @@ test("a decided round keeps its log until the next is decided, through a rematch
   const phase = () => String(game.phase);
   const decided = () => toSnapshot(game).decidedRound;
   const strike = () => {
+    // Every round lays out its own scenery, and the bullet below needs a clear line.
+    game.obstacles = [];
     Object.assign(player, { x: 400, y: 450, angle: 0, trail: [] });
-    Object.assign(victim, { x: 900, y: 450, angle: 0, trail: [] });
+    // Head on, so the bullet below reaches the rider before the rider's own trail.
+    Object.assign(victim, { x: 900, y: 450, angle: Math.PI, trail: [] });
     // A plain bomb still in the air when the round ends: interrupted, so neither a kill nor a miss.
     input({ bomb: true, bombCommands: [{ action: "press" }] });
     input({ bombCommands: [{ action: "release" }] });
     player.bombReadyAtTick = game.tick;
-    player.targetBombArmed = true;
+    player.gunArmed = true;
     game.bombs.forEach((bomb) => {
       bomb.ownerId = "p0";
       bomb.shell = { vx: 0, vy: 0 };
     }); // a shell does not block the next pull
+    // The Gun fires on the press and kills at once, while the first bomb is still in the air.
     input({ bomb: true, bombCommands: [{ action: "press" }] });
-    input({
-      bombCommands: [
-        {
-          action: "release",
-          aim: { x: victim.x / game.width, y: victim.y / game.height },
-        },
-      ],
-    });
   };
   assert.equal(
     decided(),
@@ -449,7 +418,7 @@ test("a decided round keeps its log until the next is decided, through a rematch
       shot.weapon,
       shot.kills.map((kill) => kill.victimId),
     ]),
-    [["target", ["p1"]]],
+    [["gun", ["p1"]]],
     "the bomb still in the air is left out: the round ended on it, it did not miss",
   );
   game.tick = game.phaseEndsAtTick!;
@@ -510,7 +479,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     length: 1,
   });
   const third = game.players.get("p2")!;
-  // A harmless bomb, then a Target kill, then a resolved gun miss with a visible tracer.
+  // A harmless bomb, then a Gun kill, then another rider's resolved gun miss with a visible tracer.
   Object.assign(player, { x: 100, y: 450, angle: 0 });
   input({ bomb: true, bombCommands: [{ action: "press" }] });
   input({ bombCommands: [{ action: "release" }] });
@@ -526,7 +495,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
   assert.equal(game.bombs.size, 0, "it went off");
   assert.equal(game.matchStats.get("p0")!.bombsExploded, 1);
   player.bombReadyAtTick = game.tick;
-  player.targetBombArmed = true;
+  player.gunArmed = true;
   // Upgrades held at this pull, which must be what the Kill reports even though they change afterwards.
   Object.assign(player, {
     powerPickups: 3,
@@ -534,16 +503,17 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     fuseLevel: 2,
     grip: true,
   });
-  input({ bomb: true, bombCommands: [{ action: "press" }] });
-  input({
-    bombCommands: [
-      {
-        action: "release",
-        aim: { x: victim.x / game.width, y: victim.y / game.height },
-      },
-    ],
+  // Extra Bomb fans the Gun out into two bullets either side of the heading, so the victim stands on the first
+  // one's line, facing the shooter: the bullet reaches the rider before the rider's own trail.
+  const line = volleyAngles(player.angle, 2)[0]!;
+  Object.assign(victim, {
+    x: player.x + Math.cos(line) * 300,
+    y: player.y + Math.sin(line) * 300,
+    angle: line + Math.PI,
+    trail: [],
   });
-  assert.equal(victim.alive, false);
+  input({ bomb: true, bombCommands: [{ action: "press" }] });
+  assert.equal(victim.alive, false, "the press killed immediately");
   Object.assign(player, {
     powerPickups: 9,
     extraBombs: 4,
@@ -606,10 +576,10 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     bots: 0,
   });
   assert.deepEqual(mine[1]!.properties, {
-    weapon: "target",
+    weapon: "gun",
     round: 1,
     secondsIntoRound: mine[1]!.properties.secondsIntoRound,
-    bombs: 1,
+    bombs: 2,
     power: 3,
     extraBombs: 1,
     fuseLevel: 2,

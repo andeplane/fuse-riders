@@ -21,13 +21,8 @@ export type { DecidedRound, RoundShot, ShotKill, Weapon } from "./shot-log.js";
 
 export type PlayerId = string;
 export type PlayerToken = string;
-export interface AimPoint {
-  x: number;
-  y: number;
-}
 export interface BombActionCommand {
   action: BombAction;
-  aim?: AimPoint;
 }
 export type BombAction = "press" | "release" | "cancel";
 export type ClientMessage =
@@ -44,7 +39,6 @@ export type ClientMessage =
       right: boolean;
       bomb: boolean;
       bombAction?: BombAction;
-      aim?: AimPoint;
     }
   | { type: "setAvatar"; avatarId: AvatarId }
   | { type: "heartbeat" }
@@ -111,8 +105,6 @@ export interface GameSnapshot {
     inkUntilTick: number;
     gunArmed?: boolean;
     shellArmed?: boolean;
-    targetBombArmed: boolean;
-    bombTarget?: AimPoint;
     tripleShotArmed: boolean;
     fiveShotArmed: boolean;
     shielded: boolean;
@@ -245,28 +237,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       };
     case "input":
       if (
-        !keys("type", "seq", "left", "right", "bomb", "bombAction", "aim") ||
+        !keys("type", "seq", "left", "right", "bomb", "bombAction") ||
         !Number.isSafeInteger(v.seq) ||
         (v.seq as number) < 0 ||
         !["left", "right", "bomb"].every((k) => typeof v[k] === "boolean")
       )
         return null;
-      if (v.aim !== undefined) {
-        if (!v.aim || typeof v.aim !== "object" || Array.isArray(v.aim))
-          return null;
-        const aim = v.aim as Record<string, unknown>;
-        if (
-          Object.keys(aim).some((key) => key !== "x" && key !== "y") ||
-          ![aim.x, aim.y].every(
-            (value) =>
-              typeof value === "number" &&
-              Number.isFinite(value) &&
-              value >= 0 &&
-              value <= 1,
-          )
-        )
-          return null;
-      }
       if (
         v.bombAction !== undefined &&
         !["press", "release", "cancel"].includes(v.bombAction as string)

@@ -58,9 +58,9 @@ Each member has one stream identified by `(memberId, generation)`. Entries are M
 
 player kinds (any member, own stream only):
  0 steer    [seq, tick, 0, flags]                 left=1, right=2
- 1 aim      [seq, tick, 1, x, y]                  0..65535 each, meaning 0..1 of arena width/height
+ 1 (retired) carried Target Bomb aim until fuse-p2p-28; refused like any unknown kind
  2 press    [seq, tick, 2, gestureId]             gestureId increases by 1 per press
- 3 release  [seq, tick, 3, gestureId, x?, y?]     fires the active gesture with this final aim
+ 3 release  [seq, tick, 3, gestureId]             fires the active gesture
  4 cancel   [seq, tick, 4, gestureId]
  5 avatar   [seq, tick, 5, avatarId]
 
@@ -79,7 +79,7 @@ Reducer `applyTick(state, T, entriesByStream)` in `src/shared/`:
 2. For each player, fold its entries stamped T in seq order into held controls and an ordered bomb command list, reproducing `BombInputBuffer` semantics: a press allocates a gesture and enqueues `press`; a press while one is active enqueues `cancel` then `press`; release or cancel with a matching gesture id enqueues the command; a mismatched id is a no-op; aim updates the held aim.
 3. Build the `InputIntent` map exactly as `HostSession.advance` does today, using held controls for players with no entries, and call `step(game, inputs)`.
 4. Run the automatic round progression from `HostSession.advance`: when `roundOver` expires, prune players with `connected === false`, apply pending powerup settings, and `startNextRound` if at least two connected players remain.
-5. Outside `playing`, clear every player's `bombChargeStartedTick` and `bombTarget`.
+5. Outside `playing`, clear every player's `bombChargeStartedTick`.
 
 Bots are ordinary streams. The creator's device runs `BotController` each tick and logs the resulting edges into a stream per bot. Bot decision code therefore needs no determinism.
 
@@ -124,7 +124,7 @@ Bounds, all fixed: rollback window 40 ticks; snapshots every 4 ticks, 12 retaine
 
 Local clock in `src/online/clock.ts`, injected monotonic `now()`: `tick = base + (now − t0) / 50`. The time authority sets `t0` when it applies the `start` action and includes `base` and its own `sentAt` in every packet; followers estimate the offset from the lowest-RTT sample in the last 2 seconds and slew at most one tick per second. Never step backwards. A follower with no sample for 2 seconds free-runs; it does not pause.
 
-Own input timing: `tick = max(floor(clock) + 1, lastOwnTick)`. Steering, aim, and bomb changes are edge-filtered so an unchanged frame produces no entry. Optional `inputDelayTicks` defaults to 0.
+Own input timing: `tick = max(floor(clock) + 1, lastOwnTick)`. Steering and bomb changes are edge-filtered so an unchanged frame produces no entry. Optional `inputDelayTicks` defaults to 0.
 
 Advance rule for full views: simulate to `floor(clock)`. If any stream whose player is `connected` has `through` more than 40 ticks behind, stop advancing and show "Waiting for <name>". Resume when the gap closes or the creator logs `presence(false)`.
 

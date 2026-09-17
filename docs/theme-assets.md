@@ -11,7 +11,6 @@ The runtime registry is `src/client/themes.ts`. Each typed `ThemeDefinition` sup
 | `pickup-stopwatch.svg`, `pickup-gun.svg`, `pickup-shell.svg` | Shorter fuse, gun and bouncing shell.                                                                                           |
 | `pickup-beer.svg`                                            | Opponent wobble.                                                                                                                |
 | `pickup-ink.svg`                                             | Three-second rival ink clouds, with clear zones around unaffected riders.                                                       |
-| `pickup-target.svg`                                          | Target Bomb reticle; phone Fire becomes a trackpad for one release.                                                             |
 | `pickup-five.svg`                                            | Rare five-bomb fan; gold frame distinguishes it from Triple.                                                                    |
 | `pickup-triple.svg`                                          | Triple Shot.                                                                                                                    |
 | `pickup-orbitShield.svg`, `pickup-portal.svg`                | Orbit Shield and Portal.                                                                                                        |
