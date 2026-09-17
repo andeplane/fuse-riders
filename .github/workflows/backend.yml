@@ -42,13 +42,25 @@ jobs:
       # Resolving the target here means a replaced or skipped run never loses a deployment.
       - name: Resolve the newest CI-verified main revision
         id: target
+        env:
+          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGER_RUN: ${{ github.event.workflow_run.run_number }}
         run: |
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
             sha="$GITHUB_SHA"
           else
-            sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].head_sha')"
+            # Start from the run that triggered this, which is known to have passed, and only move forward to a
+            # later passing run whose commit descends from it. The runs API's `status` filter is eventually
+            # consistent and has answered with a months-old run right after a completion, so it is not used,
+            # and whatever the listing says can never select something older than the trigger.
+            sha="$TRIGGER_SHA"
+            newer="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&per_page=50" --jq "[.workflow_runs[] | select(.conclusion == \"success\" and .run_number > $TRIGGER_RUN)] | max_by(.run_number) | .head_sha // empty" || true)"
+            if [[ "$newer" =~ ^[a-f0-9]{40}$ && "$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...$newer" --jq .status || true)" == ahead ]]; then
+              sha="$newer"
+            fi
           fi
           [[ "$sha" =~ ^[a-f0-9]{40}$ ]] || { echo 'No CI-verified main revision found.' >&2; exit 1; }
+          echo "Deploying $sha (triggered by ${TRIGGER_SHA:-manual dispatch})" | tee -a "$GITHUB_STEP_SUMMARY"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:

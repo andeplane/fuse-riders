@@ -73,7 +73,8 @@ let the existing operation finish and rerun the backend workflow at the current 
 when readiness times out. Partial configuration changes can remain after failure, so keep schema changes compatible
 with the currently running gateway. Firestore document migrations/backfills are not implemented by this workflow.
 
-A queued old revision cannot overwrite newer configuration: if it needs a change and is behind main, it stops.
+A queued old revision cannot overwrite newer configuration: if it needs a change and `main` holds different
+configuration files, it stops. Being behind `main` alone does not stop it, because `main` moves faster than CI.
 Use a reviewed revert on current main to roll configuration back. An application traffic rollback does not revert
 rules, TTLs or indexes, and deleting data through TTL cannot be undone by reverting configuration.
 
