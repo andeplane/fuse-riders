@@ -19,11 +19,12 @@ import {
 import {
   HistoryStore,
   parseMatchRecord,
+  parseMatchResult,
   parseProfile,
   type MatchResult,
 } from "../src/service/history.js";
 import { MemoryHistoryDatabase } from "../src/service/memory-history.js";
-import { MemoryRoomDatabase, RoomStore, peerId } from "fuse-network-be";
+import { MemoryRoomDatabase, RoomStore, peerId, digest } from "fuse-network-be";
 
 function result(ids: string[], matchId = "match-1"): MatchResult {
   const map: MatchStatsState = new Map();
@@ -468,4 +469,72 @@ test("round numbers and round roster bounds reject malformed reports", async () 
       ),
     );
   }
+});
+
+test("a guest winning the round does not change the signed-in humans' pairwise Elo", async () => {
+  const f = await fixture(3);
+  const round = result([f.ids[2]!, f.ids[0]!, f.ids[1]!]);
+  await f.report(2, round, null);
+  await f.report(1, round);
+  await f.report(0, round);
+  assert.equal((await f.history.profile("user0"))!.rating!.value, 1016);
+  assert.equal((await f.history.profile("user1"))!.rating!.value, 984);
+  assert.equal(await f.history.profile("user2"), undefined);
+});
+test("round parser enforces its roster and single-round bounds at report and storage boundaries", () => {
+  const tooMany = result(
+    Array.from({ length: 6 }, (_, i) => String(i + 1).repeat(24)),
+  );
+  tooMany.players.forEach((p, i) => {
+    p.slot = i % 5;
+  });
+  tooMany.finishers = tooMany.finishers.slice(0, 5);
+  assert.equal(parseMatchResult(tooMany), undefined);
+  assert.equal(
+    parseMatchResult({
+      ...result(["a".repeat(24), "b".repeat(24)]),
+      length: 2,
+    }),
+    undefined,
+  );
+});
+
+test("account round quota exhaustion cannot register a guest vote and can recover", async () => {
+  class LimitedDatabase extends MemoryRoomDatabase {
+    limited = true;
+    override async allowance(
+      key: string,
+      now: number,
+      limit: number,
+    ): Promise<boolean> {
+      if (this.limited && key === digest("round-link:user2")) return false;
+      return super.allowance(key, now, limit);
+    }
+  }
+  const db = new LimitedDatabase();
+  const rooms = new RoomStore(db, { now: () => 1000, id: () => "quota-room" });
+  const history = new HistoryStore(
+    new MemoryHistoryDatabase(() => 1000),
+    rooms,
+    () => 1000,
+  );
+  const tokens = ["1".repeat(64), "2".repeat(64), "3".repeat(64)];
+  const code = await rooms.createAvailable(tokens[0]!);
+  for (const token of tokens) await rooms.admit(code, token, "gateway");
+  const round = result(tokens.map(peerId));
+  const report = async (i: number) =>
+    history.submit(
+      await history.admit(code, tokens[i]!, `ip-${i}`, true),
+      { result: round },
+      `user${i}`,
+    );
+  await report(0);
+  await report(1);
+  await assert.rejects(report(2), { status: 429 });
+  assert.equal((await history.profile("user0"))?.rating, undefined);
+  db.limited = false;
+  await report(2);
+  assert.equal((await history.profile("user0"))!.rating!.value, 1016);
+  assert.equal((await history.profile("user1"))!.rating!.value, 1000);
+  assert.equal((await history.profile("user2"))!.rating!.value, 984);
 });
