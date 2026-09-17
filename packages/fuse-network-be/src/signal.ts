@@ -6,7 +6,8 @@ export function validSignal(raw: unknown): boolean {
   if (signal.description && typeof signal.description === "object") {
     const d = signal.description as Record<string, unknown>;
     return (
-      ["offer", "answer"].includes(String(d.type)) &&
+      typeof d.type === "string" &&
+      ["offer", "answer"].includes(d.type) &&
       typeof d.sdp === "string" &&
       d.sdp.length <= 30_000 &&
       Object.keys(d).every((k) => ["type", "sdp"].includes(k))
