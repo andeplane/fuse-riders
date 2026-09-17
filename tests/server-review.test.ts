@@ -62,7 +62,11 @@ test("a reconnect cancels prior charge and accepts a fresh explicit press-releas
   });
   const peers: ReviewPeer[] = [];
   const connect = async (): Promise<ReviewPeer> => {
-    const peer = new ReviewPeer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`));
+    const peer = new ReviewPeer(
+      new WebSocket(`ws://127.0.0.1:${app.port}/ws`, {
+        origin: `http://127.0.0.1:${app.port}`,
+      }),
+    );
     peers.push(peer);
     await once(peer.socket, "open");
     await peer.take("snapshot");
@@ -158,7 +162,11 @@ test("match rematch resets scope and wins, then round-over automatically starts 
   });
   const peers: ReviewPeer[] = [];
   const connect = async (): Promise<ReviewPeer> => {
-    const peer = new ReviewPeer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`));
+    const peer = new ReviewPeer(
+      new WebSocket(`ws://127.0.0.1:${app.port}/ws`, {
+        origin: `http://127.0.0.1:${app.port}`,
+      }),
+    );
     peers.push(peer);
     await once(peer.socket, "open");
     await peer.take("snapshot");
