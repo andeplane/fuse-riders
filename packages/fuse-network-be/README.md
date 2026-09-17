@@ -30,3 +30,9 @@ so stored metadata validation uses the admission limit; `startGcpRoomService` do
 be non-negative safe integers below `Number.MAX_SAFE_INTEGER`. The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
 
 Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.
+
+Signalling abuse is isolated per room: a 32-frame ICE burst refills at five frames
+per second per member, and bus retry IDs use a bounded room-local window.
+Admission uses a separate 30-failures/hour/IP budget plus bounded pending work;
+successful joins do not consume it. See [abuse isolation](../../docs/design/signalling-abuse-isolation.md)
+for ordering, limits and multi-instance concurrency boundaries.

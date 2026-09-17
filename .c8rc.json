@@ -21,6 +21,7 @@
     "src/client/powerup-guide.ts",
     "packages/fuse-network-be/src/memory-database.ts",
     "packages/fuse-network-be/src/http.ts",
+    "packages/fuse-network-be/src/admission-gate.ts",
     "packages/fuse-network-be/src/dev.ts",
     "src/client/phaser/effects.ts",
     "src/client/phaser/trails.ts",
