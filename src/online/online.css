@@ -264,9 +264,9 @@
 .online-score-card.leader::before{content:'👑';font-size:.75rem}
 .online-roster .online-score-card.leader{border-color:#ffe46b;box-shadow:0 0 .75rem #ffe46b55,inset 0 0 .75rem #ffe46b1f}
 .controller-only .online-score-card::before{display:none}
-/* Wide desktop windows: the standings stack in the gutter left of the arena instead of crowding the game bar. Each card's underline shows its score against the leader's. */
+/* Wide desktop windows: the standings stack in the gutter right of the arena instead of crowding the game bar. Each card's underline shows its score against the leader's. */
 .online-app.desktop-game{position:relative}
-.side-standings>.online-roster{position:absolute;left:0;top:calc(var(--standings-top) + .75rem);width:var(--standings-width);box-sizing:border-box;padding:0 .75rem;margin:0;display:flex;flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;gap:.5rem;z-index:5}
+.side-standings>.online-roster{position:absolute;right:0;top:calc(var(--standings-top) + .75rem);width:var(--standings-width);box-sizing:border-box;padding:0 .75rem;margin:0;display:flex;flex-direction:column;flex-wrap:nowrap;align-items:stretch;justify-content:flex-start;gap:.5rem;z-index:5}
 .side-standings>.online-roster::before{content:'STANDINGS';font-size:.625rem;letter-spacing:.16em;color:#16e7ff;font-weight:900;order:0;padding:0 0 .25rem;border-bottom:.0625rem solid #18305a}
 .side-standings>.online-roster .online-score-card{display:flex;align-items:center;gap:.5rem;padding:.5rem .625rem .6875rem;transition:transform .2s}
 .side-standings>.online-roster .online-score-card::after{content:'';position:absolute;left:0;bottom:0;height:.1875rem;width:calc(var(--lead,0)*100%);background:var(--rider-color);box-shadow:0 0 .5rem var(--rider-color);transition:width .4s}
