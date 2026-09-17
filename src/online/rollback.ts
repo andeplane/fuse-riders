@@ -23,7 +23,8 @@ export interface WorldEvent {
 }
 /**
  * A tick threw while it was being simulated. The world has been put back to the newest snapshot it retained from
- * before that tick, so its state is whole again, and it simulates no further until `install` replaces it.
+ * before that tick, so its state is whole again, and it simulates no further until the fault is cleared: by `install`,
+ * by a late entry at or before the tick (the inputs it threw under were a misprediction), or by `retry`.
  */
 export interface WorldFault {
   /** The tick that could not be simulated. */
@@ -209,8 +210,16 @@ export class World {
       localTick,
       this.tick,
     );
-    // A faulted world keeps logging what it is sent, so a snapshot that replaces it finds the streams current; it
-    // does not re-simulate, because the state it would re-simulate from is only a stand-in until that snapshot.
+    // The tick threw under inputs that have just changed: what it threw under was a misprediction, or at least is no
+    // longer the log. The stand-in state is a whole snapshot from before the tick, so the ordinary rollback below, or
+    // the next `advance`, simply tries again with the entries as they now are.
+    if (
+      this.fault &&
+      result.status === "accepted" &&
+      result.added.some((entry) => entry[1] <= this.fault!.tick)
+    )
+      this.fault = undefined;
+    // Otherwise a faulted world only logs what it is sent, so that whatever replaces it finds the streams current.
     if (
       result.status !== "accepted" ||
       result.rollbackTo === undefined ||
@@ -298,6 +307,14 @@ export class World {
     if (!this.frames.length) this.frames = [this.frame(state)];
     return undefined;
   }
+  /** Whether the tick that threw was simulated from a complete log: every connected rider's stream confirmed past it. */
+  faultConfirmed(): boolean {
+    return this.fault !== undefined && this.completeTick() >= this.fault.tick;
+  }
+  /** Clear the fault so the next `advance` simulates the tick again, from the whole snapshot the world stands on. */
+  retry(): void {
+    this.fault = undefined;
+  }
   private standDown(fault: WorldFault): WorldFault {
     // A snapshot from before the tick always exists: the constructor, `install` and every rollback leave one.
     const base = Math.max(
@@ -358,6 +375,10 @@ export class World {
   }
   /** Diagnostic hash of the retained state at `tick`, if one is kept there. */
   hashAt(tick: number): string | undefined {
+    // A faulted world vouches for nothing: entries that arrived after it stood down were logged but never applied,
+    // so a retained snapshot may no longer be the fold of its log. A hash is also how peers tell that a replica got
+    // past a tick, which a faulted one has not.
+    if (this.fault) return undefined;
     const state = this.snapshots.get(tick);
     return state ? hashRoomState(state) : undefined;
   }
