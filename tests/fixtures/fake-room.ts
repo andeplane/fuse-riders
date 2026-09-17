@@ -15,6 +15,8 @@ export interface NetworkOptions {
   jitterMs: number;
   reliableMs: number;
   oneWayMs?: (from: string, to: string) => number;
+  /** Timer throttling only; packet delivery remains event-driven. Defaults to normal cadence. */
+  hiddenTickMs?: number;
 }
 interface Delivery {
   at: number;
@@ -40,6 +42,7 @@ export class FakeNetwork {
   readonly recorded = new Map<string, Recorded>();
   readonly ticks = new Map<string, () => void>();
   readonly hidden = new Map<string, boolean>();
+  private lastTickAt = new Map<string, number>();
   readonly generations = new Map<string, number>();
   readonly visibility = new Map<string, () => void>();
   private random: () => number;
@@ -130,7 +133,15 @@ export class FakeNetwork {
         .sort((a, b) => a.at - b.at || a.order - b.order);
       this.queue = this.queue.filter((item) => item.at > this.now);
       for (const item of due) item.deliver();
-      for (const tick of this.ticks.values()) tick();
+      for (const [id, tick] of this.ticks) {
+        const interval = this.hidden.get(id)
+          ? (this.options.hiddenTickMs ?? 10)
+          : 10;
+        if (this.now - (this.lastTickAt.get(id) ?? -Infinity) < interval)
+          continue;
+        this.lastTickAt.set(id, this.now);
+        tick();
+      }
     }
   }
   dependencies(id: string): RuntimeDependencies {
@@ -141,9 +152,11 @@ export class FakeNetwork {
       token: () => `${id}-token-${++tokens}`,
       generation: () => this.generations.get(id) ?? 1,
       schedule: (callback) => {
+        this.lastTickAt.set(id, this.now);
         this.ticks.set(id, callback);
         return () => {
           this.ticks.delete(id);
+          this.lastTickAt.delete(id);
         };
       },
       onVisibilityChange: (callback) => {
