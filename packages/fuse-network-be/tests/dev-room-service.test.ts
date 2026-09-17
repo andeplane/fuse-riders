@@ -431,3 +431,48 @@ test(
     }
   },
 );
+
+test("WebSocket admission failures are throttled before upgrade without spending room-creation allowance", async () => {
+  const f = await fixture();
+  try {
+    const attempt = () =>
+      new Promise<number>((resolve, reject) => {
+        const ws = new WebSocket(
+          `ws://127.0.0.1:${f.port}/api/rooms/ZZ99/ws?token=${"a".repeat(64)}`,
+          { origin: f.origin },
+        );
+        ws.on("error", reject);
+        ws.once("close", (code) => resolve(code));
+        ws.once("unexpected-response", (_req, response) => {
+          response.resume();
+          resolve(response.statusCode!);
+          ws.terminate();
+        });
+      });
+    for (let i = 0; i < 30; i++) assert.equal(await attempt(), 4004);
+    assert.equal(await attempt(), 429);
+    assert.equal(await attempt(), 429);
+    const room = await f.create();
+    assert.match(room.code, /^[A-Z]{2}[0-9]{2}$/);
+  } finally {
+    await f.close();
+  }
+});
+
+test("rejected WebSocket handshakes release their pending admission slots", async () => {
+  const f = await fixture();
+  try {
+    const { code, token } = await f.create();
+    for (let i = 0; i < 6; i++) {
+      const reply = await rawExchange(
+        f.port,
+        `GET /api/rooms/${code}/ws?token=${token} HTTP/1.1\r\nHost: 127.0.0.1:${f.port}\r\nOrigin: ${f.origin}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\r\n`,
+      );
+      assert.match(reply.head, /^HTTP\/1.1 400 /);
+    }
+    const { socket } = await f.connect(code, token);
+    socket.close();
+  } finally {
+    await f.close();
+  }
+});

@@ -27,6 +27,8 @@ PORT=3030 npm start
 
 Connect the laptop to the TV and put phones on the same Wi-Fi. Open the **host display URL printed by the server**, then scan its QR code from each phone. The host URL contains a capability needed to start/reset matches; an ordinary `/display` URL does not grant those controls. Phones use `/controller`. Use the printed LAN IP on phones, not `localhost`. Set `HOST_IP` if automatic interface discovery selects the wrong network.
 
+LAN WebSocket connections require an exact same-origin page on the advertised IP, a local interface, localhost or the machine hostname. A custom hostname must be configured as `HOST_IP`. Command-line clients must send the matching `Origin` header. Clients whose send backlog remains above 512 kB for three seconds are closed for reconnect; an unresponsive close is terminated after another second. `/telemetry` accepts writes only in development.
+
 `npm start` builds the latest browser assets before starting the server. For development, use `PORT=3030 npm run dev`: Vite serves current browser code and updates it as you edit, with no separate build needed. Changes to server code or its shared dependencies automatically restart the Node process. Each restart clears the in-memory game and session scores; open the new printed host link and refresh/rejoin phones. Production does not watch files or automatically refresh; stop and run `npm start` again between matches to pick up changes. The default port is 3000 when `PORT` is omitted; if that port is taken the server walks upward (3001, 3002, …) and prints the links for the port it actually got, so parallel worktrees and stale processes never collide. Vite's HMR shares the same port instead of its fixed 24678.
 
 `npm run dev` also starts the local room service in the same process (the production `fuse-network-be` protocol over in-memory rooms, on 127.0.0.1:8787 or the next free port) and proxies `/api` to it, so the home page's CREATE ROOM and JOIN ROOM work on the same LAN address as `/display` and `/controller`; set `ROOM_API=http://host:port` to use another room service instead. To run only the built app with that room service, use the following command.
@@ -169,7 +171,7 @@ PORT=8801 scripts/ci-local.sh
 ONLY=core,keyboard PORT=8801 scripts/ci-local.sh
 ```
 
-Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
+Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across all game and networking source except the [documented exact-file exclusions](docs/coverage-exclusions.md). New modules join the gate automatically. Those thresholds do **not** mean every browser path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
 
 The determinism replay folds one seeded 3,000-tick five-rider log in Node, Chromium and WebKit and compares the state hash on every tick. The mesh harness runs six contexts alternating Chromium and WebKit through fifteen links, thirty send directions, a three-second send blackhole and a closed channel. The measurement script runs five scripted players plus a TV, once locally and once with injected 40 ms delay, 20 ms jitter and 2% loss, and reports wire bytes, rollbacks and input-to-state latencies as p50/p95 into `artifacts/p2p-measure.json`. Opt-in `?benchmark=1` events expose simulated states, inputs and events without capabilities. While `npm run dev` serves a room, every device also posts its runtime metrics and status changes to `artifacts/telemetry/<ROOM>.ndjson`; `npx tsx scripts/telemetry-report.ts <file>` summarises them. Application-message injection is not real IP packet loss, and desktop timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
 
@@ -502,7 +504,7 @@ Accepted, not fixed:
   needs its own entries in `firestore.indexes.json`, or `/api/me/matches` fails and its pending records never expire.
 - **A browser that remembers a sign-in downloads the SDK when its first recap opens** (to fetch a token). Guarded, so
   it cannot disturb the recap; it costs a signed-in player ~47 kB once per page load.
-- **A request with no `Origin` header skips the origin check**, as on every other route. Origin checks stop other
-  websites, not scripts; the credentials are what authenticate.
+- **Account/history HTTP requests without `Origin` skip the origin check.** WebSocket upgrades require an allowed
+  origin. Origin checks stop other websites, not scripts; credentials are what authenticate.
 
 Repository: [andeplane/fuse-riders](https://github.com/andeplane/fuse-riders). Contributions should use coherent atomic commits with relevant checks, documented evidence, and explicit limitations.

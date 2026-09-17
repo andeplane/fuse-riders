@@ -175,7 +175,11 @@ async function fixture() {
   });
   const peers: Peer[] = [];
   async function connect() {
-    const peer = new Peer(new WebSocket(`ws://127.0.0.1:${app.port}/ws`));
+    const peer = new Peer(
+      new WebSocket(`ws://127.0.0.1:${app.port}/ws`, {
+        origin: `http://127.0.0.1:${app.port}`,
+      }),
+    );
     peers.push(peer);
     await once(peer.socket, "open");
     await peer.take("snapshot");
@@ -265,6 +269,14 @@ test("static files serve byte ranges and conditional requests, and cache by whet
   await mkdir(path.join(dir, "assets"), { recursive: true });
   const body = "x".repeat(1000);
   await writeFile(path.join(dir, "song.m4a"), body);
+  const mediaTypes = {
+    "font.woff": "font/woff",
+    "font.woff2": "font/woff2",
+    "image.webp": "image/webp",
+    "favicon.ico": "image/x-icon",
+  };
+  for (const file of Object.keys(mediaTypes))
+    await writeFile(path.join(dir, file), body);
   await writeFile(path.join(dir, "assets", "app-abc123.js"), "console.log(1)");
   await writeFile(path.join(dir, "index.html"), "<html></html>");
   const app = await createGameServer({
@@ -274,6 +286,12 @@ test("static files serve byte ranges and conditional requests, and cache by whet
   });
   try {
     const base = `http://127.0.0.1:${app.port}`;
+    for (const [file, mime] of Object.entries(mediaTypes)) {
+      const response = await fetch(`${base}/${file}`);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("content-type"), mime);
+      await response.arrayBuffer();
+    }
     const full = await fetch(`${base}/song.m4a`);
     assert.equal(full.status, 200);
     assert.equal(full.headers.get("accept-ranges"), "bytes");

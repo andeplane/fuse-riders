@@ -11,7 +11,9 @@ import { BOT_NAMES } from "../shared/apply-tick.js";
 import http from "node:http";
 import { BombInputBuffer } from "../shared/bomb-input.js";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { networkInterfaces } from "node:os";
+import { networkInterfaces, hostname as machineHostname } from "node:os";
+import { LanSendGate } from "./send-gate.js";
+import { allowLanOrigin } from "./lan-origin.js";
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import path from "node:path";
@@ -249,6 +251,17 @@ export async function createGameServer(options: ServerOptions = {}) {
     },
     ...options.dependencies,
   };
+  const sendGate = new LanSendGate(dependencies.now);
+  const ip = options.lanAddress || lanAddress();
+  const localHosts = [
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    ip,
+    machineHostname(),
+    `${machineHostname()}.local`,
+    ...(options.hostname ? [options.hostname] : []),
+  ];
   const game = createGame(dependencies.token());
   const hostToken = dependencies.token();
   const seats = new Map<string, Seat>();
@@ -264,6 +277,11 @@ export async function createGameServer(options: ServerOptions = {}) {
   const server = http.createServer(async (req, res) => {
     // Devices post their runtime telemetry here in development; one NDJSON file per room under artifacts/telemetry.
     if (req.method === "POST" && req.url?.split("?")[0] === "/telemetry") {
+      if (!options.dev) {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
       const chunks: Buffer[] = [];
       let size = 0;
       req.on("data", (chunk: Buffer) => {
@@ -339,6 +357,10 @@ export async function createGameServer(options: ServerOptions = {}) {
         ".json": "application/json",
         ".png": "image/png",
         ".m4a": "audio/mp4",
+        ".woff": "font/woff",
+        ".woff2": "font/woff2",
+        ".webp": "image/webp",
+        ".ico": "image/x-icon",
       };
       // A build-hashed asset's name changes whenever its content does, so it can be cached forever; everything else
       // (index.html, and public/ files like music that keep the same name across edits) must revalidate on every
@@ -403,18 +425,32 @@ export async function createGameServer(options: ServerOptions = {}) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 2048 });
   server.on("upgrade", (req, socket, head) => {
     // Vite's own upgrade listener picks up the rest (it answers only the vite-hmr subprotocol).
-    const pathname = new URL(req.url || "/", "http://local").pathname;
-    if (pathname === "/ws")
+    let pathname: string;
+    try {
+      pathname = new URL(req.url || "/", "http://local").pathname;
+    } catch {
+      socket.destroy();
+      return;
+    }
+    if (pathname === "/ws") {
+      if (
+        !allowLanOrigin(req.headers.origin, req.headers.host, [
+          ...localHosts,
+          req.socket.localAddress ?? "",
+        ])
+      ) {
+        socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+        return;
+      }
       wss.handleUpgrade(req, socket, head, (ws) =>
         wss.emit("connection", ws, req),
       );
-    else if (roomApi && pathname.startsWith("/api/"))
+    } else if (roomApi && pathname.startsWith("/api/"))
       proxyUpgrade(roomApi, req, socket, head);
     else if (!vite) socket.destroy();
   });
   function send(ws: WebSocket, message: ServerMessage) {
-    if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 512_000)
-      ws.send(JSON.stringify(message));
+    if (sendGate.writable(ws)) ws.send(JSON.stringify(message));
   }
   function snapshot(ws?: WebSocket, displayOnly = false) {
     const message: ServerMessage = {
@@ -429,11 +465,7 @@ export async function createGameServer(options: ServerOptions = {}) {
     const deliver = (client: WebSocket) => {
       const host = connections.get(client)?.host;
       if (displayOnly && !host) return;
-      if (
-        client.readyState !== WebSocket.OPEN ||
-        client.bufferedAmount > 512_000
-      )
-        return;
+      if (!sendGate.writable(client)) return;
       const payload = host
         ? (full ??= JSON.stringify(message))
         : (compact ??= JSON.stringify({
@@ -804,11 +836,13 @@ export async function createGameServer(options: ServerOptions = {}) {
       }, 10);
   function checkConnections() {
     const now = dependencies.now();
-    for (const [ws, c] of connections)
+    for (const [ws, c] of connections) {
+      sendGate.writable(ws);
       if (now - c.lastSeen > 6000) {
         detach(ws);
         ws.terminate();
       }
+    }
     for (const [ip, rate] of joins)
       if (now - rate.since > 60_000) joins.delete(ip);
   }
@@ -818,7 +852,6 @@ export async function createGameServer(options: ServerOptions = {}) {
     options.port ?? Number(process.env.PORT || 3000),
     options.hostname ?? "0.0.0.0",
   );
-  const ip = options.lanAddress || lanAddress();
   controllerUrl = `http://${ip}:${port}/controller`;
   return {
     game,
