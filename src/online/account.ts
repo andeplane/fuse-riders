@@ -1,5 +1,6 @@
 import { FIREBASE_WEB_CONFIG } from '../shared/firebase-config.js';
 import { safeStorage } from '../client/safe-storage.js';
+import { validRiderName } from '../shared/rider-name.js';
 
 /**
  * Optional Google sign-in. A guest never downloads the Firebase SDK: it is imported on the first sign-in, and on later
@@ -11,7 +12,7 @@ import { safeStorage } from '../client/safe-storage.js';
 export interface Account { name: string }
 type Listener = (account: Account | undefined) => void;
 
-const REMEMBER_KEY = 'fuse-riders-signed-in';
+const REMEMBER_KEY = 'fuse-riders-signed-in', USERNAME_KEY = 'fuse-riders-username';
 const storage = safeStorage(() => localStorage);
 const listeners = new Set<Listener>();
 let current: Account | undefined;
@@ -21,7 +22,7 @@ async function load() {
   const instance = auth.getAuth(initializeApp(FIREBASE_WEB_CONFIG));
   auth.onAuthStateChanged(instance, user => {
     current = user ? { name: user.displayName?.trim().slice(0, 40) || 'Signed in' } : undefined;
-    if (user) storage.setItem(REMEMBER_KEY, '1'); else storage.removeItem(REMEMBER_KEY);
+    if (user) storage.setItem(REMEMBER_KEY, '1'); else { storage.removeItem(REMEMBER_KEY); storage.removeItem(USERNAME_KEY); }
     for (const listener of listeners) listener(current);
   });
   await instance.authStateReady();
@@ -32,6 +33,24 @@ const firebase = () => loading ??= load().catch(error => { loading = undefined; 
 
 /** Whether this browser signed in before. Reading it costs nothing; acting on it loads the SDK. */
 export const remembersSignIn = (): boolean => storage.getItem(REMEMBER_KEY) === '1';
+/**
+ * The account's username as this browser last saw it, so a room can seat its rider under it without waiting for the
+ * SDK or the network. The room service holds the truth; signing out forgets it.
+ */
+export const accountUsername = (): string | undefined => { const value = remembersSignIn() ? storage.getItem(USERNAME_KEY) : null; return validRiderName(value) ? value : undefined; };
+export const rememberUsername = (username: string): void => { if (validRiderName(username)) storage.setItem(USERNAME_KEY, username); };
+/** The username from the room service, for a signed-in browser that has not cached one yet. Never throws; undefined is "carry on as you were". */
+export async function fetchUsername(profileUrl: string, request: typeof fetch): Promise<string | undefined> {
+  try {
+    const token = await identityToken();
+    if (!token) return undefined;
+    const response = await request(profileUrl, { headers: { Authorization: `Bearer ${token}` } });
+    const username = response.ok ? (await response.json() as { profile?: { username?: unknown } | null }).profile?.username : undefined;
+    if (!validRiderName(username)) return undefined;
+    rememberUsername(username);
+    return username;
+  } catch { return undefined; }
+}
 /** Starts the SDK download ahead of the click, so the sign-in popup opens inside the tap that asked for it. */
 export const warmAccount = (): void => { void firebase().catch(() => undefined); };
 

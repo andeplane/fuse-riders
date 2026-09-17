@@ -84,7 +84,7 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
     if (origin && !options.allowOrigin(origin, req)) { res.writeHead(403); res.end('Origin denied'); return; }
     if (origin) { res.setHeader('Access-Control-Allow-Origin', origin); res.setHeader('Vary', 'Origin'); }
     res.setHeader('Cache-Control', 'no-store');
-    if (req.method === 'OPTIONS') { res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Fuse-Identity'); res.writeHead(204); res.end(); return; }
+    if (req.method === 'OPTIONS') { res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Fuse-Identity'); res.writeHead(204); res.end(); return; }
     const json = (value: unknown, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(value)); };
     try {
       const url = new URL(req.url ?? '/', 'http://gateway');
@@ -105,6 +105,11 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
           const reporter = await history.admit(route[1]!, bearer(req), options.clientAddress(req)), body = await readJson(req);
           const header = req.headers['x-fuse-identity'], uid = typeof header === 'string' ? await identity(header) : undefined;
           json(await history.submit(reporter, body, uid)); return;
+        }
+        if (url.pathname === '/api/me' && (req.method === 'GET' || req.method === 'PUT')) {
+          const uid = await identity(bearer(req));
+          if (!uid) { json({ error: 'Sign in first' }, 401); return; }
+          json(req.method === 'PUT' ? await history.rename(uid, await readJson(req)) : { profile: await history.profile(uid) ?? null }); return;
         }
         if (url.pathname === '/api/me/matches' && req.method === 'GET') {
           const uid = await identity(bearer(req));

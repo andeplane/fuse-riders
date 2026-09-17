@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { isAvatarId, type AvatarId } from '../shared/avatars.js';
 import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import type { MatchDeathCounts, MatchPlayerStats } from '../shared/match-stats.js';
+import { validRiderName } from '../shared/rider-name.js';
 import { validUid } from './identity.js';
 import { RoomError, digest, peerId, validCode, validToken, type RoomStore } from './room-store.js';
 
@@ -35,19 +36,26 @@ export interface MatchRecord {
 export const TOTAL_KEYS = ['matches', 'wins', 'roundWins', 'eliminations', 'bombsPlaced', 'pickupsCollected', 'survivalTicks', 'distanceUnits'] as const;
 export type Totals = Record<typeof TOTAL_KEYS[number], number>;
 export interface Credit { uid: string; name: string; avatarId?: AvatarId; at: number; totals: Totals }
-export interface UserProfile { name: string; avatarId?: AvatarId; updatedAt: number; totals: Totals }
+export interface UserProfile {
+  /** The name the account chose; what its rider is called in every room. Absent until chosen. */
+  username?: string;
+  /** The rider name of the last credited match, from before usernames or from a device that was signed out of one. */
+  name?: string;
+  avatarId?: AvatarId; updatedAt: number; totals: Totals;
+}
 export interface HistoryDatabase {
   /** Like RoomDatabase.transact: the operation is pure and may be retried. Credits commit atomically with the match. */
   transactMatch<T>(id: string, operation: (current: MatchRecord | undefined) => { match?: MatchRecord; credits?: Credit[]; result: T }): Promise<T>;
   /** Confirmed matches of an account, newest first. */
   matchesFor(uid: string, before: number | undefined, limit: number): Promise<MatchRecord[]>;
   profile(uid: string): Promise<UserProfile | undefined>;
+  setUsername(uid: string, username: string, at: number): Promise<void>;
 }
 
 export const PENDING_TTL_MS = 24 * 3_600_000;
 export const GUEST_MATCH_TTL_MS = 30 * 24 * 3_600_000;
 export const HISTORY_PAGE = 20;
-const SUBMISSIONS_PER_HOUR = 40, SUBMISSIONS_PER_ADDRESS_PER_HOUR = 240, LINKS_PER_HOUR = 30, READS_PER_HOUR = 300;
+const RENAMES_PER_HOUR = 20, SUBMISSIONS_PER_HOUR = 40, SUBMISSIONS_PER_ADDRESS_PER_HOUR = 240, LINKS_PER_HOUR = 30, READS_PER_HOUR = 300;
 /**
  * Nothing can check a stat against the match that produced it, so these only keep a forged report from being absurd:
  * a rider who reports alone is believed, and what they can inflate is their own totals, by this much per report.
@@ -76,7 +84,7 @@ function parsePlayer(raw: unknown, rounds: number): StoredPlayer | undefined {
   const { playerId, name, color, deathsByCause: deaths } = raw;
   if (!validPlayerId(playerId)) return;
   // The same rule the room applies to a joining name, so a stored name is one the game could have shown.
-  if (typeof name !== 'string' || !name.trim() || name !== name.trim() || /\p{Cs}/u.test(name) || Array.from(name).length > 18 || /[\u0000-\u001f\u007f]/.test(name)) return;
+  if (!validRiderName(name)) return;
   if (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) return;
   if (!plain(deaths) || Object.keys(deaths).length !== DEATHS.length || !DEATHS.every(cause => counter(deaths[cause]))) return;
   if (!COUNTERS.every(key => counter(raw[key], PER_ROUND.has(key) ? rounds : LIMITS[key]))) return;
@@ -198,6 +206,19 @@ export class HistoryStore {
       }
       return { match, credits, result: { status: match.status, attestations: match.attesters.length, needed, linked: account !== undefined && match.uidByPlayer[rider] === account } };
     });
+  }
+
+  async profile(uid: string): Promise<UserProfile | undefined> {
+    if (!await this.rooms.database.allowance(digest(`history:${uid}`), this.now(), READS_PER_HOUR)) throw new RoomError(429, 'Too many requests; try later');
+    return this.database.profile(uid);
+  }
+
+  /** Usernames are not unique and not reserved: they are what friends call a rider, not an identifier. The account is the identifier. */
+  async rename(uid: string, body: unknown): Promise<{ username: string }> {
+    if (!plain(body) || Object.keys(body).length !== 1 || !validRiderName(body.username)) throw new RoomError(400, 'A username is 1 to 18 characters');
+    if (!await this.rooms.database.allowance(digest(`rename:${uid}`), this.now(), RENAMES_PER_HOUR)) throw new RoomError(429, 'Too many changes; try later');
+    await this.database.setUsername(uid, body.username, this.now());
+    return { username: body.username };
   }
 
   async history(uid: string, before: number | undefined): Promise<{ profile: UserProfile | undefined; matches: HistoryEntry[] }> {

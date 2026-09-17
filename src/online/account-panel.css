@@ -17,3 +17,8 @@
 .account-panel .account-riders i{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%}
 .account-panel .account-actions{display:flex;flex-wrap:wrap;gap:10px}
 @media (max-width:520px){.account-panel .account-totals{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.account-panel .account-username{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px 10px}
+.account-panel .account-username label{font-size:10px;letter-spacing:1px;color:#9cbad4}
+.account-panel .account-username small{grid-column:1/-1;color:#b6cce3;font-size:12px;min-height:1em}
+.online-join .join-account{margin:0;font-size:12px;color:#9ff5ff}
+.online-join input[readonly]{opacity:.85;cursor:default}

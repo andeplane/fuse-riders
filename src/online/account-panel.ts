@@ -1,6 +1,7 @@
 import './account-panel.css';
-import { accountReady, identityToken, signIn, signInFailure, signOut, warmAccount, watchAccount, type Account } from './account.js';
+import { accountReady, identityToken, rememberUsername, signIn, signInFailure, signOut, warmAccount, watchAccount, type Account } from './account.js';
 import type { MatchPlayerStats } from '../shared/match-stats.js';
+import { MAX_RIDER_NAME, suggestRiderName, validRiderName } from '../shared/rider-name.js';
 
 /**
  * The landing page's account button and its dialog: sign in, career totals and past matches. Everything a server or
@@ -8,10 +9,14 @@ import type { MatchPlayerStats } from '../shared/match-stats.js';
  * as markup.
  */
 interface HistoryEntry { id: string; endedAt: number; roomCode: string; you?: string; result: { length: number; winnerId?: string; players: MatchPlayerStats[] } }
-interface HistoryPage { profile?: { totals: Record<string, number> }; matches: HistoryEntry[] }
+interface HistoryPage { profile?: { username?: string; totals: Record<string, number> }; matches: HistoryEntry[] }
 export interface AccountPanelDependencies {
   /** GET the signed-in player's history; `before` pages backwards from an `endedAt`. */
   historyUrl: (before?: number) => string;
+  /** GET the profile, PUT `{ username }`. */
+  profileUrl: string;
+  /** The rider name this browser already uses, the natural first username. */
+  localName: () => string | null;
   fetch: typeof fetch;
   track: (event: string, props?: Record<string, unknown>) => void;
 }
@@ -45,7 +50,16 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): { bu
   actions.append(close); bar.append(el('strong', 'ACCOUNT'), actions); dialog.append(bar, body);
   let account: Account | undefined, generation = 0;
 
-  async function load(list: HTMLUListElement, totals: HTMLElement, more: HTMLButtonElement, note: HTMLElement, before?: number): Promise<void> {
+  async function saveUsername(username: string): Promise<boolean> {
+    const token = await identityToken();
+    if (!token) return false;
+    const response = await dependencies.fetch(dependencies.profileUrl, { method: 'PUT', body: JSON.stringify({ username }), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+    if (!response.ok) return false;
+    rememberUsername(username);
+    return true;
+  }
+
+  async function load(list: HTMLUListElement, totals: HTMLElement, more: HTMLButtonElement, note: HTMLElement, name: HTMLInputElement, before?: number): Promise<void> {
     const mine = generation;
     more.hidden = true; note.textContent = 'Loading your games…';
     try {
@@ -56,6 +70,12 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): { bu
       const page = await response.json() as HistoryPage;
       if (mine !== generation) return; // signed out, or reopened, while this was in flight
       if (before === undefined) {
+        // An account without a username takes the name this browser already rides under, else the first word of the
+        // Google name: the rider should have one from the first room on, and the field right here changes it.
+        let username = page.profile?.username;
+        if (!username) { const stored = dependencies.localName()?.trim(), first = validRiderName(stored) ? stored : suggestRiderName(account?.name ?? ''); if (first && await saveUsername(first)) username = first; }
+        if (mine !== generation) return;
+        if (username) { rememberUsername(username); if (document.activeElement !== name) name.value = username; }
         totals.replaceChildren(...([['GAMES', 'matches'], ['WINS', 'wins'], ['ROUNDS WON', 'roundWins'], ['KILLS', 'eliminations']] as const).map(([label, key]) => { const cell = el('div'); cell.append(el('dt', label), el('dd', count(page.profile?.totals[key]))); return cell; }));
       }
       list.append(...page.matches.map(matchRow));
@@ -63,7 +83,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): { bu
       const last = page.matches.at(-1);
       // A full page means there may be more; the oldest entry is the cursor for the next one.
       more.hidden = page.matches.length < 20 || !last;
-      if (last) more.onclick = () => { void load(list, totals, more, note, last.endedAt); };
+      if (last) more.onclick = () => { void load(list, totals, more, note, name, last.endedAt); };
     } catch { if (mine === generation) note.textContent = 'Could not load your games. Try again in a moment.'; }
   }
 
@@ -83,8 +103,19 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): { bu
     more.type = 'button'; leave.type = 'button'; more.hidden = true;
     leave.onclick = async () => { leave.disabled = true; try { await signOut(); } catch { error.textContent = 'Could not sign out. Try again.'; leave.disabled = false; } };
     row.append(more, leave);
-    body.replaceChildren(el('p', `Signed in as ${account.name}.`, 'account-note'), totals, list, note, row, error);
-    void load(list, totals, more, note);
+    const rename = el('form', '', 'account-username'), label = el('label', 'USERNAME'), name = el('input'), save = el('button', 'SAVE'), saved = el('small');
+    name.maxLength = MAX_RIDER_NAME + 2; name.setAttribute('autocomplete', 'nickname'); name.id = 'account-username'; label.htmlFor = name.id; saved.setAttribute('role', 'status');
+    name.oninput = () => { saved.textContent = ''; };
+    rename.onsubmit = async event => {
+      event.preventDefault();
+      const value = name.value.trim();
+      if (!validRiderName(value)) { saved.textContent = `1 to ${MAX_RIDER_NAME} characters`; return; }
+      save.disabled = true; saved.textContent = 'Saving…';
+      try { saved.textContent = await saveUsername(value) ? 'Saved. This is your name in every room.' : 'Could not save. Try again.'; } catch { saved.textContent = 'Could not save. Try again.'; } finally { save.disabled = false; }
+    };
+    rename.append(label, name, save, saved);
+    body.replaceChildren(el('p', `Signed in as ${account.name}.`, 'account-note'), rename, totals, list, note, row, error);
+    void load(list, totals, more, note, name);
   }
 
   const stop = watchAccount(next => {

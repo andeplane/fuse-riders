@@ -9,7 +9,7 @@ import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
 import { mountArenaPresentation } from '../client/phaser/presentation.js';
 import { apiUrl, appUrl } from './endpoints.js';
 import { createAccountPanel } from './account-panel.js';
-import { identityToken } from './account.js';
+import { accountUsername, fetchUsername, identityToken, remembersSignIn } from './account.js';
 import { buildMatchReport, sendMatchReport } from './match-report.js';
 import { ControllerInputState } from '../client/controller-state.js';
 import { ControllerKeyboardBindings } from '../client/controller-keyboard.js';
@@ -127,7 +127,7 @@ export async function startOnline():Promise<void>{
       save(SETTINGS_KEY,JSON.stringify(draft));track('Settings Changed',{mode:draft.mode,match:draft.match,matchLength:draft.length,bombChargeTicks:draft.bombChargeTicks,chainReaction:draft.chainReaction,aimBounce:draft.aimBounce,powerupTypes:Object.values(draft.weights).filter(weight=>weight>0).length});return true;},()=>landingDialog.close());landingDialog.showModal();};
     card.querySelector('.landing-top-end')!.append(landingSettings);card.append(landingDialog);
     // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
-    const accountPanel=createAccountPanel({historyUrl:before=>apiUrl(`/api/me/matches${before===undefined?'':`?before=${before}`}`),fetch:(input,init)=>fetch(input,init),track});
+    const accountPanel=createAccountPanel({historyUrl:before=>apiUrl(`/api/me/matches${before===undefined?'':`?before=${before}`}`),profileUrl:apiUrl('/api/me'),localName:()=>read('fuse-riders-player-name'),fetch:(input,init)=>fetch(input,init),track});
     card.querySelector('.landing-top-end')!.append(accountPanel.button);card.append(accountPanel.dialog);window.addEventListener('pagehide',accountPanel.dispose,{once:true});
     void startAttract(card.querySelector('canvas')!,card.querySelector('.attract-toggle')!).then(stop=>{if(ended)stop();else cleanup=stop;}).catch(()=>{card.querySelector('.landing-live')?.remove();});return;
   }
@@ -161,7 +161,9 @@ export async function startOnline():Promise<void>{
   const roundChip=node('span','','online-round');roundChip.hidden=true;
   let rawStatus='',replacedHost=false;
   title.append(node('span','FUSE'),node('span','RIDERS'));title.setAttribute('aria-label',`Fuse Riders · ${code}`);results.hidden=true;results.title='Reopen the match results';header.append(title,status,statusAction,roundChip,results);
-  const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}));
+  const joinForm=createJoinForm(storage,(playerName,avatarId)=>runtime.command({type:'join',name:playerName,avatarId}),accountUsername());
+  // Signed in on this browser but never opened MY GAMES here (an invite link on a new phone): learn the username while the form is still up.
+  if(!solo&&remembersSignIn()&&!accountUsername())void fetchUsername(apiUrl('/api/me'),(input,init)=>fetch(input,init)).then(username=>{if(username&&!joined)joinForm.useAccountName(username);});
   const bootNote=node('p','Warming up the arena…','room-boot-note');
   const booting=node('div','','room-boot');booting.setAttribute('role','status');booting.append(node('p','PREPARING ROOM','room-boot-title'),node('strong',code,'shared-room-code'));
   // A joiner never mounts the host's boot card or QR lobby: until it holds a seat its whole page is the join card, with the same connect hint under the form.

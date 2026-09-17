@@ -190,12 +190,28 @@ Release only through the GCP/Pages flow above. Complete the roadmap's review and
 Players can **sign in with Google** and get a **permanent history of every match they finish** plus career totals, on
 any device. It is optional: a guest plays exactly as before, never downloads the sign-in SDK, and their friends who are
 signed in still get the match recorded. It runs on what the game already had — the Cloud Run gateway and its Firestore
-database in `andershaf-87` — plus **Firebase Authentication**. There is no Postgres, no Firebase Hosting, Functions,
-Storage or Realtime Database, and nothing here costs money at this game's scale.
+database in `andershaf-87` — plus **Firebase Authentication**. There is no Postgres, no Functions, Storage or Realtime
+Database, Firebase Hosting serves nothing but the sign-in handler, and nothing here costs money at this game's scale.
 
-On the landing page the top bar has **SIGN IN**; once signed in it reads **MY GAMES** and opens totals and past
-matches. Sign in before entering a room: the room screen has no sign-in of its own, and a match can only be linked to
+On the landing page the top bar has **SIGN IN**; once signed in it reads **MY GAMES** and opens the account's
+username, totals and past matches. Sign in before entering a room: the room screen has no sign-in of its own, and a match can only be linked to
 an account by a device that was in the room when it ended.
+
+### Usernames
+
+An account has one **username**, and a signed-in rider rides under it in every room and on every device: the join form
+shows it and is not editable there. It is changed under MY GAMES. The rule is the rider-name rule everywhere
+([`rider-name.ts`](src/shared/rider-name.ts)): 1–18 characters, trimmed, no control characters.
+
+- The first time an account opens MY GAMES without a username, it takes the rider name that browser already used, or
+  failing that the first word of the Google display name, and the field is right there to change it.
+- The browser caches the username so a room can seat the rider without waiting for anything. A browser that is signed
+  in but has never seen it (an invite link opened on a new phone) fetches it while the join form is up.
+- Signing out forgets it, and the form goes back to the guest name that browser had before.
+- **Usernames are not unique and not reserved.** Two friends may both be "Ace"; the account is the identity, the name
+  is what friends call you. Nothing stops a guest typing someone's username either — a room is a table of friends.
+- It is a client-side convention: joining a room is peer-to-peer and the gateway never sees the join, so it cannot
+  force a signed-in rider's in-game name to match. Each stored match keeps the name it was actually played under.
 
 ### How a match gets recorded
 
@@ -236,6 +252,8 @@ signs in only after leaving the room.
 | Route | Credential | Notes |
 |---|---|---|
 | `POST /api/rooms/<CODE>/results` | `Authorization: Bearer <room token>`, optional `X-Fuse-Identity: <ID token>` | Body `{ result, avatarId? }`, at most 32 kB, unknown fields refused. The sender must be a live member of the room and a rider in the result; that is checked from the room token before the body is read or a sign-in verified. 40 reports per rider and 240 per address per hour, and an account can be linked to 30 matches per hour — past that a report still counts, as a guest's. An identity that fails verification is a guest's report, never a refusal |
+| `GET /api/me` | `Authorization: Bearer <ID token>` | `{ profile }` — username, avatar, totals — or `{ profile: null }` for an account nothing is stored about yet |
+| `PUT /api/me` | `Authorization: Bearer <ID token>` | Body `{ username }` and nothing else. 20 changes per account per hour |
 | `GET /api/me/matches[?before=<endedAt>]` | `Authorization: Bearer <ID token>` | The caller's profile totals and 20 confirmed matches, newest first; `before` pages back. Shows every rider's stats and which seat was the caller's — never another rider's account id. 300 requests per account per hour |
 
 Both routes sit behind the gateway's existing `ALLOWED_ORIGINS` check, and both answer 404 on a service started without
@@ -246,11 +264,12 @@ history (none is, today).
 | Collection | Document | Contents |
 |---|---|---|
 | `fuse-production-matches` | hash of room incarnation + result | `status`, `result` (per-rider stats), `attesters`, `uidByPlayer`, `avatars`, `participantUids`, `createdAt`, `endedAt`, and `expiresAt`/`cleanupAt` while it can still expire |
-| `fuse-production-users` | Firebase `uid` | last rider `name`, `avatarId`, `updatedAt`, `totals` (matches, wins, round wins, eliminations, bombs, pickups, survival ticks, distance) |
+| `fuse-production-users` | Firebase `uid` | `username`, the rider `name` of the last credited match, `avatarId`, `updatedAt`, `totals` (matches, wins, round wins, eliminations, bombs, pickups, survival ticks, distance) |
 
-The personal data stored is the Firebase `uid`, the rider name the player typed and their avatar. **No email address,
-Google display name or profile photo reaches the gateway or the database**: the display name is shown in the player's
-own browser only. To erase a player, delete their Authentication user, their `fuse-production-users` document, and
+The personal data stored is the Firebase `uid`, the username, the rider names matches were played under and the
+avatar. **No email address or profile photo reaches the gateway or the database.** The Google display name is shown in
+the player's own browser only, with one exception the player can see and undo: an account with no username and no
+earlier rider name starts with the *first word* of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, and
 remove their `uid` from `uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
 
 [`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index
@@ -299,11 +318,12 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 | Firebase project | `andershaf-87` (number `867594018708`), see [`.firebaserc`](.firebaserc) |
 | Web app | "Fuse Riders", app ID `1:867594018708:web:4444ada96e29685f063981` |
 | Sign-in providers | **Google only**, enabled 2026-09-17. Email/password, anonymous and phone are disabled |
-| Authorized domains | `localhost`, `andershaf-87.firebaseapp.com` (hosts the popup handler), `andeplane.github.io` |
+| Authorized domains | `localhost`, `andeplane.github.io`, and the two popup-handler hosts `andershaf-87.firebaseapp.com` and `fuse-riders.web.app` |
+| Hosting site | `fuse-riders` → `https://fuse-riders.web.app`. Nothing is deployed to it; it exists so the sign-in handler has a name players recognise (below) |
 | Email enumeration protection | on |
 | Web API key | "Fuse Riders web (Firebase Auth only)", key ID `06d6ec38-6348-4b7b-865d-1ea58a9b7d91` |
 | Key: API restriction | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only |
-| Key: referrer restriction | `https://andeplane.github.io/*`, `https://andershaf-87.firebaseapp.com/*`, `localhost`, `localhost:*`, `127.0.0.1`, `127.0.0.1:*` |
+| Key: referrer restriction | `https://andeplane.github.io/*`, `https://fuse-riders.web.app/*`, `https://andershaf-87.firebaseapp.com/*`, `localhost`, `localhost:*`, `127.0.0.1`, `127.0.0.1:*` |
 | Firestore rules | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json)) |
 | Firestore indexes and TTL | [`firestore.indexes.json`](firestore.indexes.json), deployed with the rules |
 | Firestore delete protection | enabled on `fuse-riders`, because it will hold history that no TTL cleans up |
@@ -330,6 +350,31 @@ can: [Authentication → Sign-in method](https://console.firebase.google.com/pro
 → **Google**. Leave every other provider off. The
 [OAuth client](https://console.cloud.google.com/apis/credentials?project=andershaf-87) it created should list only
 the authorized domains above as JavaScript origins.
+
+### The name on Google's sign-in screen
+
+Google's screen says "to continue to *&lt;authDomain&gt;*" — the host serving Firebase's `/__/auth/handler`. The default,
+`andershaf-87.firebaseapp.com`, names the owner's project rather than the game. Every Hosting site in the project
+serves that handler with nothing deployed, so the `fuse-riders` site gives it a better name for free:
+`fuse-riders.web.app`. It is already an authorized domain and an allowed key referrer.
+
+Switching is two steps, **in this order** — the second breaks sign-in with `redirect_uri_mismatch` without the first:
+
+1. In the [OAuth client](https://console.cloud.google.com/apis/credentials?project=andershaf-87) ("Web client (auto
+   created by Google Service)"), add `https://fuse-riders.web.app/__/auth/handler` to **Authorized redirect URIs** and
+   `https://fuse-riders.web.app` to **Authorized JavaScript origins**. Console only; there is no API for it.
+2. Set `authDomain: 'fuse-riders.web.app'` in [`firebase-config.ts`](src/shared/firebase-config.ts).
+
+Whether step 1 has taken can be checked without signing in. Google redirects a registered URI to
+`…/signin/identifier` and an unregistered one to `…/signin/oauth/error`:
+
+```bash
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' "https://accounts.google.com/o/oauth2/v2/auth?response_type=code&scope=openid&client_id=$(curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: andershaf-87" https://identitytoolkit.googleapis.com/admin/v2/projects/andershaf-87/defaultSupportedIdpConfigs/google.com | python3 -c 'import json,sys;print(json.load(sys.stdin)["clientId"])')&redirect_uri=https://fuse-riders.web.app/__/auth/handler"
+```
+
+To show "Fuse Riders" instead of any domain, the OAuth consent screen's app has to go through Google's brand
+verification, which needs a domain the owner can prove they control. A custom domain would also replace both this and
+the shared `andeplane.github.io` origin noted in the review.
 
 ### Changing the configuration
 

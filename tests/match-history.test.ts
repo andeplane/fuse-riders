@@ -222,6 +222,24 @@ test('a solo rider with bots confirms alone, history pages newest first, and rep
   await assert.rejects(f.report(f.tokens[0]!, { result: resultOf([f.ids[0]!, 'bot:1'], 'later') }, 'alice'), { status: 403 }, 'a lapsed connection is no longer in the room');
 });
 
+test('an account chooses its username; it is not unique, and totals survive a rename', async () => {
+  const f = await room(1);
+  assert.equal(await f.history.profile('alice'), undefined, 'no account document until something is stored');
+  assert.deepEqual(await f.history.rename('alice', { username: 'Ace' }), { username: 'Ace' });
+  assert.equal((await f.history.profile('alice'))!.username, 'Ace');
+  assert.equal((await f.history.profile('alice'))!.totals.matches, 0);
+  await f.report(f.tokens[0]!, { result: resultOf([f.ids[0]!, 'bot:1']) }, 'alice');
+  await f.history.rename('alice', { username: 'Ace 2' });
+  const renamed = (await f.history.history('alice', undefined)).profile!;
+  assert.equal(renamed.username, 'Ace 2');
+  assert.equal(renamed.totals.matches, 1, 'a rename keeps the totals');
+  assert.equal(renamed.name, 'Rider 1', 'the name a match was played under is its own record');
+  assert.deepEqual(await f.history.rename('bob', { username: 'Ace 2' }), { username: 'Ace 2' }, 'friends may share a name; the account is the identity');
+  for (const body of [{}, { username: '' }, { username: ' pad ' }, { username: 'x'.repeat(19) }, { username: 'ok', uid: 'bob' }, { username: 7 }, null, 'Ace']) await assert.rejects(f.history.rename('alice', body), { status: 400 }, JSON.stringify(body));
+  for (let index = 0; index < 18; index++) await f.history.rename('alice', { username: `Ace ${index}` });
+  await assert.rejects(f.history.rename('alice', { username: 'Again' }), { status: 429 });
+});
+
 // ---- results: over HTTP ----
 
 test('the HTTP surface: a report needs a seat, history needs a sign-in, and a bad sign-in is only a guest', async () => {
@@ -248,6 +266,14 @@ test('the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
     assert.deepEqual(await (await report(created.token, result, 'id:alice')).json(), { status: 'pending', attestations: 1, needed: 2, linked: true });
     assert.deepEqual(await (await report(guest, result, 'forged-token')).json(), { status: 'confirmed', attestations: 2, needed: 2, linked: false }, 'an identity that does not verify still reports as a guest');
 
+    const me = (init: RequestInit = {}, identity = 'id:alice') => call('/api/me', { ...init, headers: { authorization: `Bearer ${identity}`, ...init.headers } });
+    assert.equal((await call('/api/me')).status, 401);
+    assert.equal((await me({ method: 'PUT', body: JSON.stringify({ username: 'Mallory' }) }, 'forged')).status, 401);
+    assert.deepEqual(await (await me({}, 'id:nobody')).json(), { profile: null });
+    assert.equal((await me({ method: 'PUT', body: JSON.stringify({ username: ' bad ' }) })).status, 400);
+    assert.deepEqual(await (await me({ method: 'PUT', body: JSON.stringify({ username: 'Ace' }) })).json(), { username: 'Ace' });
+    assert.equal(((await (await me()).json()) as { profile: { username: string } }).profile.username, 'Ace');
+    assert.match((await call('/api/me', { method: 'OPTIONS' })).headers.get('access-control-allow-methods') ?? '', /PUT/);
     assert.equal((await call('/api/me/matches')).status, 401);
     assert.equal((await call('/api/me/matches', { headers: { authorization: 'Bearer forged' } })).status, 401);
     assert.equal((await call('/api/me/matches?before=abc', { headers: { authorization: 'Bearer id:alice' } })).status, 400);

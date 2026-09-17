@@ -71,7 +71,7 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
       const current = this.matches.get(id), next = operation(current && structuredClone(current));
       if (next.match) this.matches.set(id, structuredClone(next.match));
       for (const credit of next.credits ?? []) {
-        const profile = this.profiles.get(credit.uid) ?? { name: credit.name, updatedAt: credit.at, totals: emptyTotals() };
+        const profile = this.profiles.get(credit.uid) ?? { updatedAt: credit.at, totals: emptyTotals() };
         for (const key of TOTAL_KEYS) profile.totals[key] += credit.totals[key];
         profile.name = credit.name; profile.updatedAt = credit.at;
         if (credit.avatarId !== undefined) profile.avatarId = credit.avatarId;
@@ -92,6 +92,10 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
   async profile(uid: string): Promise<UserProfile | undefined> {
     const profile = this.profiles.get(uid);
     return profile && structuredClone(profile);
+  }
+
+  async setUsername(uid: string, username: string, at: number): Promise<void> {
+    this.profiles.set(uid, { ...(this.profiles.get(uid) ?? { totals: emptyTotals() }), username, updatedAt: at });
   }
 }
 
