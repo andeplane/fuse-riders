@@ -1,6 +1,6 @@
 # ADR 035: Direct WebRTC gameplay, signalling-only backend
 
-> **Superseded (2026-09-15).** The host-star snapshot protocol this decision describes was replaced by the peer-to-peer input log; see [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md).
+> **Superseded by [ADR 047](047-p2p-input-log-lockstep-rollback.md)** for the host-star protocol text below, replaced by the peer-to-peer input log on 2026-09-15. The direct-only policy (no gameplay relay, no TURN) still stands; ADR 047 carries it forward.
 
 Date: 2026-09-14. Status: accepted scope decision explicitly requested by the user.
 

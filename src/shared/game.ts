@@ -239,6 +239,11 @@ export const SPAWN_CORRIDOR_RADIUS = 56;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
+/**
+ * The final round ends like any other (its own result, then the replay), and only then names the match winner for this
+ * long before the recap. Without the second beat the match result covered the round's, and read as the round's.
+ */
+export const MATCH_WINNER_TICKS = 60;
 export const OVERTIME_START_TICK = 1200;
 export const OVERTIME_INSET_PER_TICK = 0.5;
 export const ROUND_DRAW_TICK = 1800;
@@ -1845,6 +1850,9 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ? {
           decidedRound: {
             ...state.decidedRound,
+            ...(state.decidedRound.rating
+              ? { rating: structuredClone(state.decidedRound.rating) }
+              : {}),
             shots: state.decidedRound.shots.map((shot) => ({
               ...shot,
               kills: shot.kills.map((kill) => ({ ...kill })),
@@ -3235,13 +3243,25 @@ function resolveRound(
     state.shots,
     inFlight,
   );
+  state.decidedRound.rating = {
+    finishers: [...state.roundParticipants.keys()]
+      .filter(
+        (id) => state.players.get(id)?.connected && !id.startsWith("bot:"),
+      )
+      .sort(),
+    standings: state.roundPlacements.map((placement) => {
+      const identity = state.matchStats.get(placement.playerId)!;
+      return { ...placement, slot: identity.slot, color: identity.color };
+    }),
+  };
   if (matchWinnerId !== undefined || fixedEnd) {
     state.matchFinishers = [...state.players.values()]
       .filter((player) => player.connected && state.matchStats.has(player.id))
       .map((player) => player.id)
       .sort();
     state.phase = "matchOver";
-    state.phaseEndsAtTick = state.tick + 60 + pause;
+    state.phaseEndsAtTick =
+      state.tick + ROUND_OVER_TICKS + pause + MATCH_WINNER_TICKS;
     events.push({
       type: "matchEnded",
       ...(matchWinnerId ? { winnerId: matchWinnerId } : {}),

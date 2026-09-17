@@ -19,6 +19,7 @@ import {
 } from "../src/shared/arena-map.js";
 import {
   mapGround,
+  paintMapGround,
   obstacleParts,
   OBSTACLE_STYLES,
   ARENA_MAP_LABELS,
@@ -484,4 +485,50 @@ test("every obstacle kind draws its whole footprint, and nothing outside it", ()
       .map((part) => part.color)
       .join();
   assert.notEqual(windows(1), windows(2));
+});
+
+test("ground decoration is stable, bounded and absent on classic edge variants", () => {
+  for (const map of ARENA_MAPS) {
+    const draw = () => {
+      const commands: unknown[][] = [];
+      const record =
+        (name: string) =>
+        (...args: unknown[]) => {
+          commands.push([name, ...args]);
+        };
+      const context: Parameters<typeof paintMapGround>[0] = {
+        lineWidth: 0,
+        strokeStyle: "",
+        fillStyle: "",
+        save: record("save"),
+        restore: record("restore"),
+        strokeRect: record("strokeRect"),
+        fillRect: record("fillRect"),
+        beginPath: record("beginPath"),
+        ellipse: record("ellipse"),
+        stroke: record("stroke"),
+        fill: record("fill"),
+        moveTo: record("moveTo"),
+        lineTo: record("lineTo"),
+      };
+      paintMapGround(context, map, 1600, 900);
+      return commands;
+    };
+    const commands = draw();
+    assert.deepEqual(
+      commands,
+      draw(),
+      "texture must not shimmer on regeneration",
+    );
+    if (map === "classic" || map === "wrap" || map === "cross") {
+      assert.equal(commands.length, 0);
+    } else {
+      assert.deepEqual(commands[0], ["save"]);
+      assert.deepEqual(commands.at(-1), ["restore"]);
+      assert.ok(commands.length > 10 && commands.length < 10000);
+      for (const command of commands)
+        for (const value of command.slice(1))
+          if (typeof value === "number") assert.ok(Number.isFinite(value));
+    }
+  }
 });

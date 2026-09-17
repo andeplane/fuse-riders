@@ -74,7 +74,7 @@ export function settleHistory<T>(
     a.localeCompare(b),
   );
   const creditedPairs = new Set(match.rivalryPairs ?? []);
-  for (let i = 0; i < linked.length; i++)
+  for (let i = 0; match.result.round === undefined && i < linked.length; i++)
     for (let j = i + 1; j < linked.length; j++) {
       const [a, aUid] = linked[i]!,
         [b, bUid] = linked[j]!,
@@ -110,23 +110,27 @@ export function settleHistory<T>(
       creditedPairs.add(pair);
     }
   if (creditedPairs.size) match.rivalryPairs = [...creditedPairs];
-  const humans = match.result.players.filter(
-    (p) => !p.playerId.startsWith("bot:"),
+  // Who could be rated is fixed by the agreed result: the humans who completed this individual round. A mid-round
+  // leaver is left out rather than voiding the round for the riders who stayed.
+  const stayed = match.result.players.filter(
+    (p) =>
+      !p.playerId.startsWith("bot:") &&
+      match.result.finishers.includes(p.playerId) &&
+      p.roundsPlayed === match.result.length &&
+      p.earlyExits === 0,
   );
+  // Settling waits for every one of them to report, so a rider is never left out for reporting a moment later
+  // than the rest; one who reports as a guest is then left out too.
+  const humans = stayed.filter((p) => match.uidByPlayer[p.playerId]);
   const eligible =
+    match.result.round !== undefined &&
     !ratingClaimed &&
     !match.ratings &&
     match.ratingScope &&
-    humans.length >= 2 &&
-    humans.every(
-      (p) =>
-        match.uidByPlayer[p.playerId] &&
-        match.attesters.includes(p.playerId) &&
-        match.result.finishers.includes(p.playerId) &&
-        p.roundsPlayed === match.result.length &&
-        p.earlyExits === 0,
-    ) &&
-    new Set(linked.map(([, uid]) => uid)).size === humans.length;
+    stayed.every((p) => match.attesters.includes(p.playerId)) &&
+    humans.length >= 1 &&
+    new Set(humans.map((p) => match.uidByPlayer[p.playerId])).size ===
+      humans.length;
   if (!eligible) return { profiles: updated, rivals, claimed: false };
   const field = humans.map((p) => ({
     id: p.playerId,
@@ -149,12 +153,27 @@ export function settleHistory<T>(
   );
   for (const player of field) {
     const profile = profileFor(match.uidByPlayer[player.id]!);
+    const participant = match.result.players.find(
+      (p) => p.playerId === player.id,
+    )!;
+    if (now >= profile.updatedAt) {
+      profile.name = participant.name;
+      profile.updatedAt = now;
+    }
     const rating = profile.rating ?? newRating(),
       value = calculated.get(player.id)!;
-    const point = { match: match.id, at, before: player.rating, after: value };
+    const point = {
+      match: match.id,
+      at,
+      before: player.rating,
+      after: value,
+      round: match.result.round!,
+      opponents: humans.length - 1,
+    };
     profile.rating = {
       value,
       games: rating.games + 1,
+      rounds: (rating.rounds ?? 0) + 1,
       peak: Math.max(rating.peak, value),
       points: [...rating.points, point].slice(-100),
     };
