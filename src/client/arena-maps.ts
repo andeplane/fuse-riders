@@ -162,8 +162,8 @@ export function obstacleParts(obstacle: Obstacle): ObstaclePart[] {
   const parts: ObstaclePart[] = [];
   if (style.build === "tree") {
     // The crown is an ellipse on the footprint's own half extents, not a circle on the smaller of them: riders die
-    // against the rectangle inscribed in it (`obstacleHitbox`), so a crown drawn any smaller would kill riders that
-    // touched nothing drawn. Tree and bush sizes are rolled per axis, so they are rarely square.
+    // against that same ellipse, a little shrunk (`obstacleHitbox`), so a crown drawn any smaller would kill riders
+    // that touched nothing drawn. Tree and bush sizes are rolled per axis, so they are rarely square.
     parts.push({
       shape: "ellipse",
       x: x + 4,

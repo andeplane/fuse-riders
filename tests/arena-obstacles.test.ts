@@ -21,7 +21,7 @@ import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
 import {
   ARENA_MAPS,
   MAX_OBSTACLES,
-  OBSTACLE_HIT_SCALE,
+  OBSTACLE_HIT_SHAPES,
   OBSTACLE_KINDS,
   obstacleBlocksPath,
   obstacleDistanceSquared,
@@ -130,25 +130,51 @@ test("a rider that rides into scenery dies against its face, not inside it", () 
   );
 });
 
-test("a rider that only brushes a crown rides on, and one that meets its solid part does not", () => {
-  // The footprint's corner is floor: the crown drawn there is an ellipse, and the line along y = 450 - 26 crosses
-  // the footprint without ever coming within a head's width of the crown's solid middle.
-  const tree = (): Obstacle =>
-    boulder({ kind: "tree", halfWidth: 28, halfHeight: 28 });
-  const graze = scene([tree()]);
-  Object.assign(rider(graze), { y: 450 - 26 });
-  assert.equal(ticksToDeath(graze), 70, "through the corner of the footprint");
-  assert.ok(ticksToDeath(scene([tree()])) < 70, "but not through the trunk");
+test("a crown kills as the ellipse it is drawn as, and a rock as the whole block it is", () => {
+  // A diagonal across the corner of the footprint, 23 units in on both axes: inside the rectangle, outside the
+  // ellipse standing in it. Under a crown that corner is floor; on a flat-faced piece it is the piece.
+  const across = (kind: Obstacle["kind"]): number => {
+    const game = scene([boulder({ kind, halfWidth: 28, halfHeight: 28 })]);
+    Object.assign(rider(game), { x: 600, y: 504, angle: -Math.PI / 4 });
+    return ticksToDeath(game);
+  };
+  assert.equal(across("tree"), 70, "past the crown, through its footprint");
+  assert.ok(across("rock") < 70, "but a rock's corner is a rock's corner");
+  const tree = scene([
+    boulder({ kind: "tree", halfWidth: 28, halfHeight: 28 }),
+  ]);
+  assert.ok(ticksToDeath(tree) < 70, "and the middle of a crown is solid");
 });
 
-test("every hitbox sits inside what is drawn, and a crown's inside its ellipse", () => {
+test("a shielded rider is turned away from a crown along the crown's own normal", () => {
+  const game = scene([
+    boulder({ kind: "tree", halfWidth: 28, halfHeight: 28 }),
+  ]);
+  const survivor = rider(game);
+  survivor.shielded = true;
+  for (let tick = 0; tick < 70 && survivor.shielded; tick += 1)
+    step(game, new Map());
+  assert.equal(survivor.alive, true, "the shield absorbed the crash");
+  assert.ok(
+    Math.abs(Math.cos(survivor.angle) + 1) < 1e-6,
+    "met head on, it came away facing back down the lane it arrived on",
+  );
+  const { halfWidth } = obstacleHitbox(game.obstacles[0]!);
+  assert.ok(
+    Math.abs(survivor.x - (700 - halfWidth - RIDER_OBSTACLE_RADIUS)) < 1e-3,
+    `stopped at ${survivor.x}, not at the crown`,
+  );
+});
+
+test("flat-faced scenery is hit where it is drawn, and only the rest gives a little", () => {
   for (const kind of OBSTACLE_KINDS) {
-    const scale = OBSTACLE_HIT_SCALE[kind];
-    assert.ok(scale > 0.5 && scale < 1, `${kind} kills with ${scale}`);
+    const { round, scale } = OBSTACLE_HIT_SHAPES[kind];
+    assert.ok(scale > 0.8 && scale <= 1, `${kind} kills with ${scale}`);
+    if (["rock", "crate", "building"].includes(kind))
+      assert.deepEqual({ round, scale }, { round: false, scale: 1 }, kind);
   }
-  // The corner of the hitbox is the furthest it reaches; on a crown that corner must not leave the ellipse.
   for (const kind of ["tree", "bush"] as const)
-    assert.ok(2 * OBSTACLE_HIT_SCALE[kind] ** 2 <= 1, `${kind} corner`);
+    assert.equal(OBSTACLE_HIT_SHAPES[kind].round, true, kind);
 });
 
 test("a rider steering past scenery is unharmed, and the same line with the rock is fatal", () => {
@@ -198,12 +224,12 @@ test("a shielded rider is turned away from the scenery it crashed into", () => {
 test("scenery further along the step never steals the kill from the trail that stopped the rider first", () => {
   // `wall` outranks `trail`, and unlike the boundary an obstacle can be met anywhere along a step. A rock the
   // rider would only have reached later in the tick must not turn a credited trail kill into an uncredited crash.
-  // One step of about 7.5 units from x=640 meets the trail at x=648.5 first and the face of the rock's hitbox at
+  // One step of about 7.5 units from x=640 meets the trail at x=648.5 first and the face of the rock at
   // x=649 after it, so both contacts fall inside this very tick and only their order can tell them apart.
   const crash = (withRock: boolean) => {
     const game = scene(
       withRock
-        ? [boulder({ x: 703, y: 450, halfWidth: 60, halfHeight: 60 })]
+        ? [boulder({ x: 709, y: 450, halfWidth: 60, halfHeight: 60 })]
         : [],
     );
     const victim = rider(game),
@@ -235,7 +261,7 @@ test("scenery further along the step never steals the kill from the trail that s
   };
   // The fixture is only meaningful if the rock is genuinely in reach of this step: without the trail, it kills.
   const rockOnly = scene([
-    boulder({ x: 703, y: 450, halfWidth: 60, halfHeight: 60 }),
+    boulder({ x: 709, y: 450, halfWidth: 60, halfHeight: 60 }),
   ]);
   Object.assign(rider(rockOnly), { x: 640, y: 450, angle: 0, trail: [] });
   Object.assign(rider(rockOnly, "p1"), { x: 200, y: 100, angle: 0, trail: [] });
