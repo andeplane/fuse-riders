@@ -59,6 +59,8 @@ export interface FunnelOptions {
   /** Wall-clock milliseconds, for `durationSeconds`. */
   now: () => number;
   storage: Pick<SafeStorage, "getItem" | "setItem">;
+  /** Where the first failure is reported, once. Defaults to `console.warn`. */
+  warn?: (message: string, error: unknown) => void;
 }
 
 export type Track = (
@@ -72,7 +74,11 @@ export interface Funnel {
 
 export function createFunnel(
   track: Track,
-  { now, storage }: FunnelOptions,
+  {
+    now,
+    storage,
+    warn = (message, error) => console.warn(message, error),
+  }: FunnelOptions,
 ): Funnel {
   // The in-memory copies are the real guard: storage can refuse, and a round-over snapshot arrives twenty times a second.
   let seatTracked = false,
@@ -80,7 +86,8 @@ export function createFunnel(
     matchNumber = 0,
     startedMatch = "",
     endedRecap = "",
-    reportedShots = storage.getItem(SHOTS_REPORTED_KEY) ?? "";
+    reportedShots = storage.getItem(SHOTS_REPORTED_KEY) ?? "",
+    warned = false;
 
   const frame = (view: FunnelView, device: FunnelDevice) => {
     const botCount = view.players.filter((player) =>
@@ -88,12 +95,12 @@ export function createFunnel(
     ).length;
 
     const startKey = matchStartKey(view.matchId, view.phase, view.round);
+    // Every once-only flag below is set after its event has been handed to `track`, never before: a throw while
+    // the properties are being built must cost a frame, not the event.
     if (startKey && startedMatch !== startKey) {
-      startedMatch = startKey;
-      matchStartedAt = now();
-      matchNumber += 1;
+      const startedAt = now();
       track("Match Started", {
-        matchNumber,
+        matchNumber: matchNumber + 1,
         playerCount: view.players.length,
         botCount,
         mode: device.rules.mode,
@@ -104,6 +111,9 @@ export function createFunnel(
         ).length,
         host: device.host,
       });
+      startedMatch = startKey;
+      matchStartedAt = startedAt;
+      matchNumber += 1;
     }
 
     const shotReport = decidedRoundReport(
@@ -114,6 +124,9 @@ export function createFunnel(
       { riders: view.players.length, bots: botCount },
     );
     if (shotReport) {
+      // The one place the mark comes first, and deliberately: every event of the round was already built by
+      // `decidedRoundReport` above, so nothing is left to fail but `track` itself — and a `track` that threw on
+      // the third event would otherwise re-send the first two on every frame, twenty times a second.
       reportedShots = shotReport.key;
       storage.setItem(SHOTS_REPORTED_KEY, shotReport.key);
       for (const shot of shotReport.events) track(shot.event, shot.properties);
@@ -123,11 +136,11 @@ export function createFunnel(
       (candidate) => candidate.id === device.playerId,
     );
     if (player && !seatTracked) {
-      seatTracked = true;
       track("Seat Taken", {
         avatarId: player.avatarId,
         playerCount: view.players.length,
       });
+      seatTracked = true;
     }
 
     // The final-round pause keeps the arena up until `phaseEndsAtTick`; the recap, and this event, come after it.
@@ -135,7 +148,6 @@ export function createFunnel(
     const recapReady =
       view.phase === "matchOver" && view.tick >= (view.phaseEndsAtTick ?? 0);
     if (recapReady && endedRecap !== String(view.phaseEndsAtTick)) {
-      endedRecap = String(view.phaseEndsAtTick);
       const sawStart =
         startedMatch === matchStartKey(view.matchId, "countdown", 1);
       track("Match Ended", {
@@ -146,17 +158,31 @@ export function createFunnel(
             }
           : {}),
       });
+      endedRecap = String(view.phaseEndsAtTick);
     }
   };
 
   return {
     onFrame(view, device) {
       // This runs inside the callback that renders the room — and, on the host, publishes it. Analytics never
-      // breaks the game: a malformed snapshot costs an event, not the frame.
+      // breaks the game: a malformed snapshot costs this frame's events, not the frame. It is not silent, though:
+      // the first failure is reported, once — a throw that persists would otherwise lose the whole funnel with no
+      // signal at all. Console only: the event list in docs/ANALYTICS.md has no diagnostic event, and a funnel
+      // that cannot build an event is in no position to vouch for another.
       try {
         frame(view, device);
-      } catch {
-        /* dropped */
+      } catch (error) {
+        if (!warned) {
+          warned = true;
+          try {
+            warn(
+              "analytics funnel failed; further failures are not reported",
+              error,
+            );
+          } catch {
+            /* a reporter that throws is still not the game's problem */
+          }
+        }
       }
     },
   };

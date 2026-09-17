@@ -297,15 +297,131 @@ test("one frame reports in a fixed order: started, shots, seat, ended", () => {
   assert.deepEqual(names(), ["Match Started", "Miss", "Seat Taken"]);
 });
 
-test("a malformed frame costs an event, never the render callback it runs in", () => {
+test("a frame that throws never reaches the render callback, and the first failure is reported exactly once", () => {
+  const sent: string[] = [];
+  const warnings: { message: string; error: unknown }[] = [];
+  const funnel = createFunnel(
+    (event) => {
+      sent.push(event);
+      throw new Error("transport exploded");
+    },
+    {
+      now: () => 1,
+      storage: createMemoryStorage(),
+      warn: (message, error) => warnings.push({ message, error }),
+    },
+  );
+  for (let frame = 0; frame < 50; frame++)
+    assert.doesNotThrow(() => funnel.onFrame(view(), device()));
+  assert.equal(
+    warnings.length,
+    1,
+    "a persistent failure is one line in the console, not fifty",
+  );
+  assert.match(warnings[0]!.message, /analytics funnel failed/);
+  assert.match(String(warnings[0]!.error), /transport exploded/);
+
+  // A reporter that itself throws is still not the game's problem.
+  const hostile = createFunnel(
+    () => {
+      throw new Error("x");
+    },
+    {
+      now: () => 1,
+      storage: createMemoryStorage(),
+      warn: () => {
+        throw new Error("console is gone");
+      },
+    },
+  );
+  assert.doesNotThrow(() => hostile.onFrame(view(), device()));
+});
+
+test("a throw while an event is being built costs that frame, not the event: it fires on the next good frame", () => {
+  const warnings: string[] = [];
+  const sent: Sent[] = [];
+  const funnel = createFunnel(
+    (event, properties) => sent.push({ event, properties }),
+    {
+      now: () => 5000,
+      storage: createMemoryStorage(),
+      warn: (message) => warnings.push(message),
+    },
+  );
+  const spectator = device({ playerId: "" });
+  const brokenRules = {
+    ...rules,
+    get weights(): typeof rules.weights {
+      throw new Error("malformed settings");
+    },
+  };
+
+  // Match Started
+  funnel.onFrame(
+    view({ phase: "countdown", round: 1 }),
+    device({ playerId: "", rules: brokenRules }),
+  );
+  assert.equal(sent.length, 0);
+  funnel.onFrame(view({ phase: "countdown", round: 1 }), spectator);
+  assert.deepEqual(
+    sent.map((entry) => [entry.event, entry.properties?.matchNumber]),
+    [["Match Started", 1]],
+    "not consumed by the failed frame, and still match number one",
+  );
+
+  // Seat Taken
+  const brokenSeat = [
+    {
+      id: "me",
+      get avatarId(): string {
+        throw new Error("malformed player");
+      },
+    },
+  ];
+  funnel.onFrame(view({ players: brokenSeat }), device());
+  funnel.onFrame(view(), device());
+  assert.equal(sent.at(-1)?.event, "Seat Taken");
+
+  // Match Ended
+  const over = { phase: "matchOver", tick: 10, phaseEndsAtTick: 10 };
+  const brokenStats = new Proxy<FunnelView["matchStats"]>([], {
+    get() {
+      throw new Error("malformed stats");
+    },
+  });
+  funnel.onFrame(view({ ...over, matchStats: brokenStats }), spectator);
+  assert.notEqual(sent.at(-1)?.event, "Match Ended");
+  funnel.onFrame(view(over), spectator);
+  funnel.onFrame(view(over), spectator);
+  assert.deepEqual(
+    sent.map((entry) => entry.event),
+    ["Match Started", "Seat Taken", "Match Ended"],
+  );
+  assert.equal(sent.at(-1)?.properties?.durationSeconds, 0);
+  assert.equal(warnings.length, 1, "three failures, one report");
+});
+
+test("a round's shots are marked before they are sent, so a transport that throws midway cannot re-send them every frame", () => {
   const sent: string[] = [];
   const funnel = createFunnel(
     (event) => {
       sent.push(event);
-      if (event === "Seat Taken") throw new Error("transport exploded");
+      if (sent.length === 2) throw new Error("transport exploded");
     },
-    { now: () => 1, storage: createMemoryStorage() },
+    { now: () => 1, storage: createMemoryStorage(), warn: () => {} },
   );
-  assert.doesNotThrow(() => funnel.onFrame(view(), device()));
-  assert.deepEqual(sent, ["Seat Taken"]);
+  const frame = view({
+    players: riders("you"),
+    phase: "roundOver",
+    round: 1,
+    decidedRound: {
+      matchId: "m1",
+      round: 1,
+      tick: 10,
+      shots: [pull(1, "me"), pull(2, "me"), pull(3, "me")],
+    },
+  });
+  for (let repeat = 0; repeat < 20; repeat++)
+    funnel.onFrame(frame, device({ confirmedTick: 10 }));
+  assert.deepEqual(sent, ["Miss", "Miss"]);
 });
