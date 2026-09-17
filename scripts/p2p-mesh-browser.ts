@@ -51,7 +51,7 @@ globalThis.startMesh = (code, token) => {
     snapshot: async () => ({ id: transport.id, peers: [...peers], links: [...links], received: Object.fromEntries(received), errors, statuses, stats: await transport.stats(), diagnostics: await transport.diagnostics() }),
     stop: () => transport.close(),
   };
-};`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022', define: { 'import.meta.env.BASE_URL': '"/"', 'import.meta.env.VITE_API_ORIGIN': 'undefined' } });
+};`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2022' });
 interface Snapshot { id: string; peers: string[]; links: string[]; received: Record<string, number>; errors: string[]; statuses: string[]; stats: { direct: number; relayed: number; buffered: number } }
 const mesh = <T>(page: Page, expression: string, argument?: unknown) => page.evaluate(([code, value]) => (0, eval)(`(mesh) => ${code}`)((globalThis as unknown as { mesh: unknown }).mesh, value), [expression, argument] as [string, unknown]) as Promise<T>;
 const browsers = [await chromium.launch({ headless: true }), await webkit.launch({ headless: true })];

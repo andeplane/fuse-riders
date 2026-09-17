@@ -1,4 +1,4 @@
-import { handleRoomSocketClose } from './room-socket-close.js';
+import { ROOM_ENDED_TEXT, handleRoomSocketClose } from './room-socket-close.js';
 import { isCurrentLinkCallback } from './link-callback.js';
 import { LinkHealth } from './link-health.js';
 import { GAMEPLAY_BUFFER_LIMIT, LinkSendGate, PROBE_BUFFER_LIMIT } from './link-send-gate.js';
@@ -14,7 +14,7 @@ export type TransportCallbacks = TransportEvents;
 export const DEFAULT_MAX_FAST_BYTES=1100;
 /** Player-facing wording the transport emits; a game overrides what should speak its own language. */
 export interface TransportCopy { linking:string;protocolChanged:string;roomEnded:string;hostAbsent:string }
-export const DEFAULT_TRANSPORT_COPY:TransportCopy={linking:'Connected · linking peers',protocolChanged:'Room protocol changed — reload this page',roomEnded:'Room ended',hostAbsent:'the host is not in the room yet'};
+export const DEFAULT_TRANSPORT_COPY:TransportCopy={linking:'Connected · linking peers',protocolChanged:'Room protocol changed — reload this page',roomEnded:ROOM_ENDED_TEXT,hostAbsent:'the host is not in the room yet'};
 export interface PeerTransportOptions {
   /** Resolves a room service path (`/api/rooms/…`) to an absolute URL; see `createEndpoints`. */
   apiUrl:(path:string)=>string;

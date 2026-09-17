@@ -1,5 +1,5 @@
 import { chromium, webkit } from 'playwright';
-import { DEFAULT_ICE_SERVERS } from 'fuse-network-fe';
+import { DEFAULT_ICE_SERVERS } from 'fuse-network-be';
 /** Redacted ICE gathering evidence: candidate types per STUN config, never addresses. Issue #12. */
 const browser=await (process.env.BROWSER==='webkit'?webkit:chromium).launch({headless:true});
 const page=await browser.newPage();

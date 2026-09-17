@@ -6,4 +6,7 @@
 !src/
 !src/**
 !packages/
-!packages/**
+!packages/*/
+!packages/*/package.json
+!packages/*/src/
+!packages/*/src/**
