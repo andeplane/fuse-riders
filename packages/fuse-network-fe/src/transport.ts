@@ -1,6 +1,8 @@
 /** What a room runtime needs from a transport; the WebRTC mesh and a test fake both provide it. */
 export interface RoomTransport {
-  readonly id: string; readonly hostId: string; readonly sentBytes: number;
+  readonly id: string;
+  readonly hostId: string;
+  readonly sentBytes: number;
   connect(): void;
   /** `farewell`: the page is leaving on purpose, so the transport may say goodbye on its links first. */
   close(farewell?: boolean): void;
@@ -19,7 +21,9 @@ export interface TransportEvents {
   peer(id: string, online: boolean): void;
   /** The direct link to a member opened or stopped carrying sends. An open link is a hint; `linked()` is the fact. */
   link(id: string, open: boolean): void;
-  message(id: string, data: unknown): void; fast(id: string, bytes: Uint8Array): void; status(text: string): void;
+  message(id: string, data: unknown): void;
+  fast(id: string, bytes: Uint8Array): void;
+  status(text: string): void;
   /** Another tab of the creator holds the authority lease. */
   revoked(): void;
   /** The room expired or its creator ended it. */

@@ -9,8 +9,15 @@
  * this: a map says where the rocks are and what colour the ground is, a style says how walls, trails and sprites draw.
  */
 
-export const ARENA_MAPS = ['classic', 'desert', 'forest', 'city', 'wrap', 'cross'] as const;
-export type ArenaMapId = typeof ARENA_MAPS[number];
+export const ARENA_MAPS = [
+  "classic",
+  "desert",
+  "forest",
+  "city",
+  "wrap",
+  "cross",
+] as const;
+export type ArenaMapId = (typeof ARENA_MAPS)[number];
 /**
  * `rotate` cycles the obstacle maps; `classic` is the obstacle-free arena, and so is how a room turns maps off.
  *
@@ -19,11 +26,18 @@ export type ArenaMapId = typeof ARENA_MAPS[number];
  * classic arena under exactly the classic rules, and differs only in how it is drawn — shifted by half a board, so
  * the outer wall meets in a cross at the middle of the screen and the screen's own edges are open.
  */
-export type ArenaMapChoice = ArenaMapId | 'rotate';
-export const ARENA_MAP_CHOICES = ['rotate', ...ARENA_MAPS] as const;
+export type ArenaMapChoice = ArenaMapId | "rotate";
+export const ARENA_MAP_CHOICES = ["rotate", ...ARENA_MAPS] as const;
 
-export const OBSTACLE_KINDS = ['rock', 'cactus', 'tree', 'bush', 'building', 'crate'] as const;
-export type ObstacleKind = typeof OBSTACLE_KINDS[number];
+export const OBSTACLE_KINDS = [
+  "rock",
+  "cactus",
+  "tree",
+  "bush",
+  "building",
+  "crate",
+] as const;
+export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
 
 /** Axis-aligned and centred, so every test below is a clamp rather than a rotation. */
 export interface Obstacle {
@@ -36,10 +50,26 @@ export interface Obstacle {
 }
 
 /** Bounds the whole obstacle rectangle must sit inside, already inset by the boundary. */
-export interface ObstacleBounds { minX: number; minY: number; maxX: number; maxY: number }
+export interface ObstacleBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
 /** A capsule no obstacle may touch: the spawn point and the road ahead of it. */
-export interface ClearCapsule { x1: number; y1: number; x2: number; y2: number; radius: number }
-export interface ObstacleSegment { x1: number; y1: number; x2: number; y2: number }
+export interface ClearCapsule {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  radius: number;
+}
+export interface ObstacleSegment {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
 
 /** A whole board's worth. Also the checkpoint's array bound, so a hostile layout cannot grow the state. */
 export const MAX_OBSTACLES = 40;
@@ -70,23 +100,29 @@ export const ARENA_MAP_RECIPES: Record<ArenaMapId, ArenaMapRecipe> = {
   desert: {
     spacing: 76,
     species: [
-      { kind: 'rock', min: 7, max: 10, width: [64, 124], height: [44, 86] },
-      { kind: 'cactus', min: 5, max: 8, width: [26, 38], height: [44, 72] },
+      { kind: "rock", min: 7, max: 10, width: [64, 124], height: [44, 86] },
+      { kind: "cactus", min: 5, max: 8, width: [26, 38], height: [44, 72] },
     ],
   },
   forest: {
     spacing: 70,
     species: [
-      { kind: 'tree', min: 11, max: 15, width: [40, 58], height: [40, 58] },
-      { kind: 'bush', min: 4, max: 7, width: [30, 44], height: [26, 38] },
-      { kind: 'rock', min: 2, max: 4, width: [70, 120], height: [50, 88] },
+      { kind: "tree", min: 11, max: 15, width: [40, 58], height: [40, 58] },
+      { kind: "bush", min: 4, max: 7, width: [30, 44], height: [26, 38] },
+      { kind: "rock", min: 2, max: 4, width: [70, 120], height: [50, 88] },
     ],
   },
   city: {
     spacing: 104,
     species: [
-      { kind: 'building', min: 5, max: 7, width: [118, 210], height: [88, 156] },
-      { kind: 'crate', min: 5, max: 8, width: [30, 46], height: [30, 46] },
+      {
+        kind: "building",
+        min: 5,
+        max: 7,
+        width: [118, 210],
+        height: [88, 156],
+      },
+      { kind: "crate", min: 5, max: 8, width: [30, 46], height: [30, 46] },
     ],
   },
   wrap: { species: [], spacing: 0 },
@@ -95,15 +131,18 @@ export const ARENA_MAP_RECIPES: Record<ArenaMapId, ArenaMapRecipe> = {
 
 /** The inset a round starts with. A wrapping board has no wall to inset until overtime brings one in from the edges. */
 export function initialBoundaryInset(map: ArenaMapId, walled: number): number {
-  return map === 'wrap' ? 0 : walled;
+  return map === "wrap" ? 0 : walled;
 }
 
 /**
  * Whether the board's edges are open right now. Overtime closes them: the walls come in from the very edge, and from
  * the first tick they stand the round is an ordinary walled one, which is how a wrapping round is guaranteed to end.
  */
-export function edgesOpen(board: { map: ArenaMapId; boundaryInset: number }): boolean {
-  return board.map === 'wrap' && board.boundaryInset <= 0;
+export function edgesOpen(board: {
+  map: ArenaMapId;
+  boundaryInset: number;
+}): boolean {
+  return board.map === "wrap" && board.boundaryInset <= 0;
 }
 
 export interface ObstacleLayoutOptions {
@@ -123,20 +162,57 @@ export function generateObstacles(options: ObstacleLayoutOptions): Obstacle[] {
   const { bounds, random, keepClear } = options;
   const placed: Obstacle[] = [];
   for (const species of recipe.species) {
-    const count = species.min + Math.floor(random() * (species.max - species.min + 1));
-    for (let index = 0; index < count && placed.length < MAX_OBSTACLES; index += 1) {
-      for (let attempt = 0; attempt < OBSTACLE_PLACEMENT_ATTEMPTS; attempt += 1) {
-        const halfWidth = (species.width[0] + random() * (species.width[1] - species.width[0])) / 2;
-        const halfHeight = (species.height[0] + random() * (species.height[1] - species.height[0])) / 2;
+    const count =
+      species.min + Math.floor(random() * (species.max - species.min + 1));
+    for (
+      let index = 0;
+      index < count && placed.length < MAX_OBSTACLES;
+      index += 1
+    ) {
+      for (
+        let attempt = 0;
+        attempt < OBSTACLE_PLACEMENT_ATTEMPTS;
+        attempt += 1
+      ) {
+        const halfWidth =
+          (species.width[0] +
+            random() * (species.width[1] - species.width[0])) /
+          2;
+        const halfHeight =
+          (species.height[0] +
+            random() * (species.height[1] - species.height[0])) /
+          2;
         const spanX = bounds.maxX - bounds.minX - 2 * halfWidth;
         const spanY = bounds.maxY - bounds.minY - 2 * halfHeight;
         // Two samples are drawn either way, so a board too small for this species does not shift every later roll.
         const x = bounds.minX + halfWidth + random() * Math.max(0, spanX);
         const y = bounds.minY + halfHeight + random() * Math.max(0, spanY);
         if (spanX < 0 || spanY < 0) break;
-        const candidate: Obstacle = { id: placed.length + 1, kind: species.kind, x, y, halfWidth, halfHeight };
-        if (keepClear.some((capsule) => obstacleBlocksPath(candidate, capsule.x1, capsule.y1, capsule.x2, capsule.y2, capsule.radius))) continue;
-        if (placed.some((other) => obstacleGap(candidate, other) < recipe.spacing)) continue;
+        const candidate: Obstacle = {
+          id: placed.length + 1,
+          kind: species.kind,
+          x,
+          y,
+          halfWidth,
+          halfHeight,
+        };
+        if (
+          keepClear.some((capsule) =>
+            obstacleBlocksPath(
+              candidate,
+              capsule.x1,
+              capsule.y1,
+              capsule.x2,
+              capsule.y2,
+              capsule.radius,
+            ),
+          )
+        )
+          continue;
+        if (
+          placed.some((other) => obstacleGap(candidate, other) < recipe.spacing)
+        )
+          continue;
         placed.push(candidate);
         break;
       }
@@ -146,9 +222,15 @@ export function generateObstacles(options: ObstacleLayoutOptions): Obstacle[] {
 }
 
 /** Rotation is by round rather than by roll, so a match visits every obstacle map before it repeats one. */
-export function chooseArenaMap(choice: ArenaMapChoice, seed: number, round: number): ArenaMapId {
-  if (choice !== 'rotate') return choice;
-  const rotation = ARENA_MAPS.filter((map) => ARENA_MAP_RECIPES[map].species.length > 0);
+export function chooseArenaMap(
+  choice: ArenaMapChoice,
+  seed: number,
+  round: number,
+): ArenaMapId {
+  if (choice !== "rotate") return choice;
+  const rotation = ARENA_MAPS.filter(
+    (map) => ARENA_MAP_RECIPES[map].species.length > 0,
+  );
   const offset = (seed >>> 0) % rotation.length;
   // `round` starts at 1 and only ever grows within a match.
   return rotation[(offset + Math.max(0, round - 1)) % rotation.length]!;
@@ -156,8 +238,10 @@ export function chooseArenaMap(choice: ArenaMapChoice, seed: number, round: numb
 
 /** The four walls of an obstacle, for projectiles that bounce off solid geometry rather than die on it. */
 export function obstacleEdges(obstacle: Obstacle): ObstacleSegment[] {
-  const minX = obstacle.x - obstacle.halfWidth, maxX = obstacle.x + obstacle.halfWidth;
-  const minY = obstacle.y - obstacle.halfHeight, maxY = obstacle.y + obstacle.halfHeight;
+  const minX = obstacle.x - obstacle.halfWidth,
+    maxX = obstacle.x + obstacle.halfWidth;
+  const minY = obstacle.y - obstacle.halfHeight,
+    maxY = obstacle.y + obstacle.halfHeight;
   return [
     { x1: minX, y1: minY, x2: maxX, y2: minY },
     { x1: maxX, y1: minY, x2: maxX, y2: maxY },
@@ -167,12 +251,26 @@ export function obstacleEdges(obstacle: Obstacle): ObstacleSegment[] {
 }
 
 /** Whether a swept point of the given radius touches the obstacle anywhere along the step. */
-export function obstacleBlocksPath(obstacle: Obstacle, x1: number, y1: number, x2: number, y2: number, radius: number): boolean {
-  return segmentObstacleDistanceSquared(obstacle, x1, y1, x2, y2) <= radius * radius;
+export function obstacleBlocksPath(
+  obstacle: Obstacle,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  radius: number,
+): boolean {
+  return (
+    segmentObstacleDistanceSquared(obstacle, x1, y1, x2, y2) <= radius * radius
+  );
 }
 
 /** Whether a disk overlaps the obstacle: blast destruction, and clearance for anything spawned on the board. */
-export function obstacleTouchesCircle(obstacle: Obstacle, x: number, y: number, radius: number): boolean {
+export function obstacleTouchesCircle(
+  obstacle: Obstacle,
+  x: number,
+  y: number,
+  radius: number,
+): boolean {
   return obstacleDistanceSquared(obstacle, x, y) <= radius * radius;
 }
 
@@ -180,26 +278,48 @@ export function obstacleTouchesCircle(obstacle: Obstacle, x: number, y: number, 
  * Outward unit normal of the surface nearest a point, for whatever bounces off scenery rather than dying on it.
  * Past a corner the diagonal is the true normal, which is what keeps a bounce off a corner from facing a flat side.
  */
-export function obstacleBounceNormal(obstacle: Obstacle, x: number, y: number): { nx: number; ny: number } {
-  const dx = x - obstacle.x, dy = y - obstacle.y;
-  const outX = Math.abs(dx) - obstacle.halfWidth, outY = Math.abs(dy) - obstacle.halfHeight;
+export function obstacleBounceNormal(
+  obstacle: Obstacle,
+  x: number,
+  y: number,
+): { nx: number; ny: number } {
+  const dx = x - obstacle.x,
+    dy = y - obstacle.y;
+  const outX = Math.abs(dx) - obstacle.halfWidth,
+    outY = Math.abs(dy) - obstacle.halfHeight;
   if (outX > 0 && outY > 0) {
     const length = Math.sqrt(outX * outX + outY * outY);
-    return { nx: Math.sign(dx) * outX / length, ny: Math.sign(dy) * outY / length };
+    return {
+      nx: (Math.sign(dx) * outX) / length,
+      ny: (Math.sign(dy) * outY) / length,
+    };
   }
-  return outX > outY ? { nx: Math.sign(dx) || 1, ny: 0 } : { nx: 0, ny: Math.sign(dy) || 1 };
+  return outX > outY
+    ? { nx: Math.sign(dx) || 1, ny: 0 }
+    : { nx: 0, ny: Math.sign(dy) || 1 };
 }
 
-export function obstacleDistanceSquared(obstacle: Obstacle, x: number, y: number): number {
+export function obstacleDistanceSquared(
+  obstacle: Obstacle,
+  x: number,
+  y: number,
+): number {
   const dx = Math.max(Math.abs(x - obstacle.x) - obstacle.halfWidth, 0);
   const dy = Math.max(Math.abs(y - obstacle.y) - obstacle.halfHeight, 0);
   return dx * dx + dy * dy;
 }
 
 /** Retained only while the whole rectangle is still in play: overtime walls crush what they reach. */
-export function obstacleInsideBounds(obstacle: Obstacle, bounds: ObstacleBounds): boolean {
-  return obstacle.x - obstacle.halfWidth >= bounds.minX && obstacle.x + obstacle.halfWidth <= bounds.maxX &&
-    obstacle.y - obstacle.halfHeight >= bounds.minY && obstacle.y + obstacle.halfHeight <= bounds.maxY;
+export function obstacleInsideBounds(
+  obstacle: Obstacle,
+  bounds: ObstacleBounds,
+): boolean {
+  return (
+    obstacle.x - obstacle.halfWidth >= bounds.minX &&
+    obstacle.x + obstacle.halfWidth <= bounds.maxX &&
+    obstacle.y - obstacle.halfHeight >= bounds.minY &&
+    obstacle.y + obstacle.halfHeight <= bounds.maxY
+  );
 }
 
 /** Shortest distance between two obstacles, zero when they overlap. */
@@ -213,43 +333,87 @@ function obstacleGap(a: Obstacle, b: Obstacle): number {
  * Both shapes are convex, so the closest pair sits either on an endpoint of the segment or on a corner of the
  * rectangle — unless they cross, which the clip below settles first.
  */
-export function segmentObstacleDistanceSquared(obstacle: Obstacle, x1: number, y1: number, x2: number, y2: number): number {
+export function segmentObstacleDistanceSquared(
+  obstacle: Obstacle,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): number {
   if (segmentCrossesObstacle(obstacle, x1, y1, x2, y2)) return 0;
-  let best = Math.min(obstacleDistanceSquared(obstacle, x1, y1), obstacleDistanceSquared(obstacle, x2, y2));
-  const minX = obstacle.x - obstacle.halfWidth, maxX = obstacle.x + obstacle.halfWidth;
-  const minY = obstacle.y - obstacle.halfHeight, maxY = obstacle.y + obstacle.halfHeight;
-  for (const [cx, cy] of [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]] as const) {
+  let best = Math.min(
+    obstacleDistanceSquared(obstacle, x1, y1),
+    obstacleDistanceSquared(obstacle, x2, y2),
+  );
+  const minX = obstacle.x - obstacle.halfWidth,
+    maxX = obstacle.x + obstacle.halfWidth;
+  const minY = obstacle.y - obstacle.halfHeight,
+    maxY = obstacle.y + obstacle.halfHeight;
+  for (const [cx, cy] of [
+    [minX, minY],
+    [maxX, minY],
+    [maxX, maxY],
+    [minX, maxY],
+  ] as const) {
     best = Math.min(best, pointSegmentDistanceSquared(cx, cy, x1, y1, x2, y2));
   }
   return best;
 }
 
 /** Liang-Barsky: the segment survives clipping against all four slabs exactly when it meets the rectangle. */
-function segmentCrossesObstacle(obstacle: Obstacle, x1: number, y1: number, x2: number, y2: number): boolean {
-  const dx = x2 - x1, dy = y2 - y1;
+function segmentCrossesObstacle(
+  obstacle: Obstacle,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): boolean {
+  const dx = x2 - x1,
+    dy = y2 - y1;
   const edges: readonly (readonly [number, number])[] = [
     [-dx, x1 - (obstacle.x - obstacle.halfWidth)],
     [dx, obstacle.x + obstacle.halfWidth - x1],
     [-dy, y1 - (obstacle.y - obstacle.halfHeight)],
     [dy, obstacle.y + obstacle.halfHeight - y1],
   ];
-  let enter = 0, leave = 1;
+  let enter = 0,
+    leave = 1;
   for (const [p, q] of edges) {
     if (p === 0) {
       if (q < 0) return false;
       continue;
     }
     const crossing = q / p;
-    if (p < 0) { if (crossing > leave) return false; if (crossing > enter) enter = crossing; }
-    else { if (crossing < enter) return false; if (crossing < leave) leave = crossing; }
+    if (p < 0) {
+      if (crossing > leave) return false;
+      if (crossing > enter) enter = crossing;
+    } else {
+      if (crossing < enter) return false;
+      if (crossing < leave) leave = crossing;
+    }
   }
   return true;
 }
 
-function pointSegmentDistanceSquared(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
-  const dx = bx - ax, dy = by - ay;
+function pointSegmentDistanceSquared(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
+  const dx = bx - ax,
+    dy = by - ay;
   const lengthSquared = dx * dx + dy * dy;
-  const along = lengthSquared > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared)) : 0;
-  const offsetX = px - (ax + along * dx), offsetY = py - (ay + along * dy);
+  const along =
+    lengthSquared > 0
+      ? Math.max(
+          0,
+          Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared),
+        )
+      : 0;
+  const offsetX = px - (ax + along * dx),
+    offsetY = py - (ay + along * dy);
   return offsetX * offsetX + offsetY * offsetY;
 }

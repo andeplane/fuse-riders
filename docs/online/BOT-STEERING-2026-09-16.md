@@ -19,12 +19,12 @@ For a baseline comparison, use the survival harness from this change with the ba
 
 Each workload uses ten rounds. Early crashes count wall, trail and rider eliminations before ten seconds (not bomb deaths).
 
-| Workload | Baseline observed survival | Updated observed survival | Early crashes before → after |
-| --- | ---: | ---: | ---: |
-| Two bots, steering only | 44.72 s | 37.04 s | 0 → 1 |
-| Two bots, normal combat | 16.03 s | 20.65 s | 0 → 0 |
-| Five bots, steering only | 8.29 s | 47.29 s | 33 → 3 |
-| Five bots, normal combat | 9.17 s | 34.72 s | 30 → 1 |
+| Workload                 | Baseline observed survival | Updated observed survival | Early crashes before → after |
+| ------------------------ | -------------------------: | ------------------------: | ---------------------------: |
+| Two bots, steering only  |                    44.72 s |                   37.04 s |                        0 → 1 |
+| Two bots, normal combat  |                    16.03 s |                   20.65 s |                        0 → 0 |
+| Five bots, steering only |                     8.29 s |                   47.29 s |                       33 → 3 |
+| Five bots, normal combat |                     9.17 s |                   34.72 s |                       30 → 1 |
 
 The crowded-game improvement is substantial, and normal duels improve more modestly. This is not a universal survival improvement: the synthetic two-bot workload without weapons regresses. Opponent pursuit remains enabled, so in that workload it creates risk without its normal opportunity to attack. Removing pursuit was deliberately not part of this steering change. These small, fixed-seed comparisons do not establish player-perceived difficulty or fun.
 
@@ -33,10 +33,10 @@ The crowded-game improvement is substantial, and normal duels improve more modes
 Four bots together, 50 warmups then 500 timed samples for each fixed workload, seed `bot-benchmark`:
 
 | Existing trails | Baseline p95 | Updated p95 | Updated p99 |
-| --- | ---: | ---: | ---: |
-| 0 | 0.13 ms | 1.49 ms | 1.94 ms |
-| 800 | 0.23 ms | 3.23 ms | 3.80 ms |
-| 4,000 | 0.61 ms | 1.14 ms | 1.37 ms |
+| --------------- | -----------: | ----------: | ----------: |
+| 0               |      0.13 ms |     1.49 ms |     1.94 ms |
+| 800             |      0.23 ms |     3.23 ms |     3.80 ms |
+| 4,000           |      0.61 ms |     1.14 ms |     1.37 ms |
 
 The dense synthetic case rejects unsafe plans earlier, explaining its lower cost than 800 trails. This measures controller decisions only, not simulation, rendering, networking or physical phones. More planning costs more CPU; these desktop timings do not establish a mobile performance budget.
 

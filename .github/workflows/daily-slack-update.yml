@@ -5,13 +5,13 @@ on:
     # and a gate job that drops whichever one is an hour off today. Minute 7 rather than 0 is
     # deliberate: scheduled runs share a queue and the top of the hour is the most contended
     # slot — the first run of this workflow was held for five hours and fired at 13:00 UTC.
-    - cron: '7 7 * * *' # 09:07 CEST (summer, UTC+2)
-    - cron: '7 8 * * *' # 09:07 CET  (winter, UTC+1)
+    - cron: "7 7 * * *" # 09:07 CEST (summer, UTC+2)
+    - cron: "7 8 * * *" # 09:07 CET  (winter, UTC+1)
   workflow_dispatch:
     inputs:
       lookback_hours:
         description: Hours to look back for merged PRs
-        default: '24'
+        default: "24"
 permissions:
   contents: read
   pull-requests: read

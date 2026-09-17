@@ -10,8 +10,12 @@ export function createMemoryStorage(): SafeStorage {
   const values = new Map<string, string>();
   return {
     getItem: (key) => (values.has(key) ? values.get(key)! : null),
-    setItem: (key, value) => { values.set(key, value); },
-    removeItem: (key) => { values.delete(key); },
+    setItem: (key, value) => {
+      values.set(key, value);
+    },
+    removeItem: (key) => {
+      values.delete(key);
+    },
   };
 }
 
@@ -26,13 +30,25 @@ export function safeStorage(access: () => Storage): SafeStorage {
   const fallback = createMemoryStorage();
   return {
     getItem(key) {
-      try { return access().getItem(key); } catch { return fallback.getItem(key); }
+      try {
+        return access().getItem(key);
+      } catch {
+        return fallback.getItem(key);
+      }
     },
     setItem(key, value) {
-      try { access().setItem(key, value); } catch { fallback.setItem(key, value); }
+      try {
+        access().setItem(key, value);
+      } catch {
+        fallback.setItem(key, value);
+      }
     },
     removeItem(key) {
-      try { access().removeItem(key); } catch { fallback.removeItem(key); }
+      try {
+        access().removeItem(key);
+      } catch {
+        fallback.removeItem(key);
+      }
     },
   };
 }

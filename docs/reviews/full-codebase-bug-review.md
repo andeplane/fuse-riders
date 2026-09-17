@@ -17,19 +17,32 @@ With room settings `match: 'rounds'`, `resolveRound` derives `matchWinnerId` fro
 **Reproduction.**
 
 ```ts
-import { createGame, addPlayer, startMatch, startNextRound, step, eliminatePlayer, COUNTDOWN_TICKS, ROUND_OVER_TICKS } from './src/shared/game.ts';
-import { defaultRoomSettings } from './src/shared/room-settings.ts';
+import {
+  createGame,
+  addPlayer,
+  startMatch,
+  startNextRound,
+  step,
+  eliminatePlayer,
+  COUNTDOWN_TICKS,
+  ROUND_OVER_TICKS,
+} from "./src/shared/game.ts";
+import { defaultRoomSettings } from "./src/shared/room-settings.ts";
 const inputs = new Map();
-const state = createGame('m1');
-state.settings = { ...defaultRoomSettings(), match: 'rounds', length: 3 };
-addPlayer(state, { id: 'a', name: 'A', slot: 0, color: '#f00' });
-addPlayer(state, { id: 'b', name: 'B', slot: 1, color: '#0f0' });
+const state = createGame("m1");
+state.settings = { ...defaultRoomSettings(), match: "rounds", length: 3 };
+addPlayer(state, { id: "a", name: "A", slot: 0, color: "#f00" });
+addPlayer(state, { id: "b", name: "B", slot: 1, color: "#0f0" });
 startMatch(state);
-for (const loser of ['b', 'b', 'a']) {           // A wins rounds 1-2, B wins round 3
+for (const loser of ["b", "b", "a"]) {
+  // A wins rounds 1-2, B wins round 3
   for (let i = 0; i < COUNTDOWN_TICKS; i++) step(state, inputs);
   eliminatePlayer(state, loser);
-  step(state, inputs);                            // round 3 throws; state.phase stays 'playing'
-  if (state.phase === 'roundOver') { for (let i = 0; i < ROUND_OVER_TICKS; i++) step(state, inputs); startNextRound(state); }
+  step(state, inputs); // round 3 throws; state.phase stays 'playing'
+  if (state.phase === "roundOver") {
+    for (let i = 0; i < ROUND_OVER_TICKS; i++) step(state, inputs);
+    startNextRound(state);
+  }
 }
 ```
 
@@ -57,7 +70,7 @@ for (const loser of ['b', 'b', 'a']) {           // A wins rounds 1-2, B wins ro
 
 Both authorities keep a disconnected player's seat indefinitely unless a round boundary or an explicit return-to-lobby prunes it. In the lobby and at `matchOver` nothing the host can do from the UI clears them.
 
-- **LAN.** `hostAction('start')` checks `connectedCount() < 2` and errors with `not_enough_players` *before* `pruneDisconnected()` runs. `join` counts ghost players toward the 5-seat cap and answers `full`. The display client only sends `hostAction('lobby')` when `phase !== 'lobby'` and disables the menu button in the lobby. Reproduced: 5 phones join, 4 close their tab without `leave`; a newcomer gets `full`, the host's start gets `not_enough_players`, and `game.players.size` stays 5.
+- **LAN.** `hostAction('start')` checks `connectedCount() < 2` and errors with `not_enough_players` _before_ `pruneDisconnected()` runs. `join` counts ghost players toward the 5-seat cap and answers `full`. The display client only sends `hostAction('lobby')` when `phase !== 'lobby'` and disables the menu button in the lobby. Reproduced: 5 phones join, 4 close their tab without `leave`; a newcomer gets `full`, the host's start gets `not_enough_players`, and `game.players.size` stays 5.
 - **Online.** `HostSession.disconnect()` only calls `setPlayerConnected(..., false)`; players are removed only at the end of `roundOver` or by `returnToLobby`. The host UI disables MAIN MENU in the lobby (`reset.disabled = state.phase === 'lobby'`). Reproduced: 5 join, 3 disconnect in the lobby, a later `join` returns `'Room is full (5 players)'`.
 
 **Suggested fix.** LAN: run `pruneDisconnected()` before the `connectedCount() < 2` check in `hostAction`, and let `join` reclaim a disconnected lobby seat when the arena is full. Online: in `disconnect()`, when `game.phase` is `lobby`, `roundOver` or `matchOver`, `removePlayer` and drop the seat (mirroring the LAN server's explicit `leave` path), or prune disconnected players in the slot search used by `join`/`addBot` and on `start`/`rematch`.
@@ -124,7 +137,7 @@ A client can send an unbounded stream of malformed or binary frames; each costs 
 
 **Severity:** low · **File:** `src/shared/game.ts` (~469–475 vs ~517)
 
-The trail-clearing pass runs once using `newBlasts` from the first `resolveExplosions` call. The rider-hit path in the shell/gun sweep calls `detonateGun` and pushes `resolveExplosions(...)` into `newBlasts` *after* that pass, and nothing later filters trails against these blasts (the `instantBlasts` pass only uses its own list). Verified: the same 32-radius blast at (900, 450) removes a trail segment at (905, 470–480) when produced by a landed bomb but leaves it intact when produced by a gun projectile hitting a rider. The visual blast shows trail-burning that does not happen.
+The trail-clearing pass runs once using `newBlasts` from the first `resolveExplosions` call. The rider-hit path in the shell/gun sweep calls `detonateGun` and pushes `resolveExplosions(...)` into `newBlasts` _after_ that pass, and nothing later filters trails against these blasts (the `instantBlasts` pass only uses its own list). Verified: the same 32-radius blast at (900, 450) removes a trail segment at (905, 470–480) when produced by a landed bomb but leaves it intact when produced by a gun projectile hitting a rider. The visual blast shows trail-burning that does not happen.
 
 **Suggested fix.** After the shell/gun sweep loop, run the trail-clearing filter for blasts appended during it, or move the clearing pass after the sweep loop.
 

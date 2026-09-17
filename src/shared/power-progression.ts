@@ -29,19 +29,40 @@ function strength(pickups: number): number {
   return pickups / (pickups + POWER_TUNING.halfStrengthPickups);
 }
 export function powerBlastRadius(pickups: number): number {
-  return POWER_TUNING.baseBlastRadius + (POWER_TUNING.maxBlastRadius - POWER_TUNING.baseBlastRadius) * strength(pickups);
+  return (
+    POWER_TUNING.baseBlastRadius +
+    (POWER_TUNING.maxBlastRadius - POWER_TUNING.baseBlastRadius) *
+      strength(pickups)
+  );
 }
 export function powerReloadTicks(pickups: number): number {
-  return Math.round(POWER_TUNING.baseReloadTicks - (POWER_TUNING.baseReloadTicks - POWER_TUNING.minReloadTicks) * strength(pickups));
+  return Math.round(
+    POWER_TUNING.baseReloadTicks -
+      (POWER_TUNING.baseReloadTicks - POWER_TUNING.minReloadTicks) *
+        strength(pickups),
+  );
 }
 /** Linear trail growth, capped only by the shared trail/checkpoint resource budget. */
 export function powerTrailLifetimeTicks(pickups: number): number {
-  return Math.min(POWER_TUNING.maxTrailLifetimeTicks, POWER_TUNING.baseTrailLifetimeTicks + pickups * POWER_TUNING.trailTicksPerPickup);
+  return Math.min(
+    POWER_TUNING.maxTrailLifetimeTicks,
+    POWER_TUNING.baseTrailLifetimeTicks +
+      pickups * POWER_TUNING.trailTicksPerPickup,
+  );
 }
 /** No elapsed-time ramp. Human and AI riders count equally; waiting/dead seats do not. */
-export function pickupPacing(livingRiders: number): { interval: number; cap: number } {
+export function pickupPacing(livingRiders: number): {
+  interval: number;
+  cap: number;
+} {
   return {
-    interval: Math.max(1, Math.round(POWER_TUNING.spawnTicksPerRider / Math.max(1, livingRiders))),
-    cap: Math.min(MAX_BOARD_PICKUPS, livingRiders * POWER_TUNING.activePickupsPerRider),
+    interval: Math.max(
+      1,
+      Math.round(POWER_TUNING.spawnTicksPerRider / Math.max(1, livingRiders)),
+    ),
+    cap: Math.min(
+      MAX_BOARD_PICKUPS,
+      livingRiders * POWER_TUNING.activePickupsPerRider,
+    ),
   };
 }

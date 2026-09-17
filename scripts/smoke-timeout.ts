@@ -15,4 +15,5 @@
 const raw = Number(process.env.SMOKE_TIMEOUT_SCALE ?? 1);
 export const TIMEOUT_SCALE = Number.isFinite(raw) && raw >= 1 ? raw : 1;
 /** Scale one deadline in milliseconds. */
-export const smokeTimeout = (ms: number): number => Math.round(ms * TIMEOUT_SCALE);
+export const smokeTimeout = (ms: number): number =>
+  Math.round(ms * TIMEOUT_SCALE);

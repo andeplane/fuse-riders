@@ -5,22 +5,38 @@ Browser side of Fuse rooms: a full WebRTC mesh between the members of a room, ne
 peer to peer. There is no TURN relay: a pair that cannot link directly gets an explicit, explained retry state.
 
 ```ts
-import { PeerTransport, createEndpoints, createRoom, memberToken } from 'fuse-network-fe';
+import {
+  PeerTransport,
+  createEndpoints,
+  createRoom,
+  memberToken,
+} from "fuse-network-fe";
 
-const { apiUrl } = createEndpoints({ basePath: '/', apiOrigin: 'https://rooms.example.com' }, location.origin);
-const { code, token } = await createRoom(apiUrl);          // creator; a joiner uses memberToken() and a shared code
+const { apiUrl } = createEndpoints(
+  { basePath: "/", apiOrigin: "https://rooms.example.com" },
+  location.origin,
+);
+const { code, token } = await createRoom(apiUrl); // creator; a joiner uses memberToken() and a shared code
 
-const transport = new PeerTransport(code, token, {
-  welcome: (id, hostId) => {},          // admitted: my id, the creator's id
-  peer: (id, online) => {},             // membership, as the service sees it
-  link: (id, open) => {},               // direct link up or down (a hint; linked(id) is the fact)
-  message: (id, data) => {},            // reliable, ordered JSON
-  fast: (id, bytes) => {},              // unordered, unreliable datagrams (≤ maxFastBytes)
-  status: text => {}, revoked: () => {}, ended: () => {}, terminated: text => {},
-}, { apiUrl });
+const transport = new PeerTransport(
+  code,
+  token,
+  {
+    welcome: (id, hostId) => {}, // admitted: my id, the creator's id
+    peer: (id, online) => {}, // membership, as the service sees it
+    link: (id, open) => {}, // direct link up or down (a hint; linked(id) is the fact)
+    message: (id, data) => {}, // reliable, ordered JSON
+    fast: (id, bytes) => {}, // unordered, unreliable datagrams (≤ maxFastBytes)
+    status: (text) => {},
+    revoked: () => {},
+    ended: () => {},
+    terminated: (text) => {},
+  },
+  { apiUrl },
+);
 transport.connect();
-transport.send(peerId, { type: 'hello' });   // reliable channel
-transport.sendFast(peerId, bytes);           // per-tick channel; skipped, never queued, when backed up
+transport.send(peerId, { type: "hello" }); // reliable channel
+transport.sendFast(peerId, bytes); // per-tick channel; skipped, never queued, when backed up
 ```
 
 What it handles: admission and reconnects to the room socket, ICE config, offer/answer by id order (the smaller
