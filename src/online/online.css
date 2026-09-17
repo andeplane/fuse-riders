@@ -2189,8 +2189,20 @@
   color: #ffb85a;
   text-shadow: none;
 }
+/* The match result follows the final round's own card in the same spot: gold, and a keyframe name of its own so the
+   card pops a second time rather than only changing its words. */
 .online-announce.final {
-  animation: announce-pop 0.4s ease-out;
+  border-color: #ffe46b;
+  box-shadow: 0 0 3rem #ffe46b7a;
+  animation: announce-crown 0.5s ease-out;
+}
+.online-announce.final .announce-small {
+  color: #ffe46b;
+}
+.online-announce.final strong {
+  text-shadow:
+    0.3125rem 0.3125rem 0 #8a6a12,
+    0 0 1.375rem #ffe46b;
 }
 .online-announce.round {
   animation: announce-pop 0.3s ease-out;
@@ -2206,6 +2218,16 @@
   border-color: #fff;
   box-shadow: 0 0 1.125rem
     color-mix(in srgb, var(--player-color) 60%, transparent);
+}
+@keyframes announce-crown {
+  from {
+    transform: translate(-50%, -50%) scale(1.25);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
 }
 @keyframes announce-pop {
   from {

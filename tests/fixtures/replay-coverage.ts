@@ -1,5 +1,7 @@
 import type { RoomState } from "../../src/shared/apply-tick.ts";
 import {
+  AIM_SLOW_MAX_TICKS,
+  AIM_SLOW_RAMP_TICKS,
   BLAST_VISIBLE_TICKS,
   GRAVITY_FIELD_TICKS,
   INK_DURATION_TICKS,
@@ -104,6 +106,10 @@ export interface ReplayCoverage {
   effectFullTerms: Record<TimedEffect, number>;
   /** Rider-ticks a drunk rider's heading was actually pushed off its course. */
   drunkSwayTicks: number;
+  /** Rider-ticks slowed by aiming, those at the slowest level, and those with the slowdown budget spent. */
+  aimSlowedTicks: number;
+  aimSlowestTicks: number;
+  aimSpentTicks: number;
   /** Rider-ticks riding with GRIP, and with a shield up. */
   gripTicks: number;
   shieldedTicks: number;
@@ -174,6 +180,9 @@ export function emptyCoverage(): ReplayCoverage {
     effectTicks: zeroes(TIMED_EFFECTS),
     effectFullTerms: zeroes(TIMED_EFFECTS),
     drunkSwayTicks: 0,
+    aimSlowedTicks: 0,
+    aimSlowestTicks: 0,
+    aimSpentTicks: 0,
     gripTicks: 0,
     shieldedTicks: 0,
     immuneBounces: 0,
@@ -518,6 +527,11 @@ export function coverageObserver(coverage: ReplayCoverage) {
             player.drunkHeadingOffset !== 0
           )
             coverage.drunkSwayTicks++;
+          if (player.aimSlowTicks > 0) coverage.aimSlowedTicks++;
+          if (player.aimSlowTicks === AIM_SLOW_RAMP_TICKS)
+            coverage.aimSlowestTicks++;
+          if (player.aimSlowSpentTicks === AIM_SLOW_MAX_TICKS)
+            coverage.aimSpentTicks++;
           if (player.grip) coverage.gripTicks++;
           if (player.shielded) coverage.shieldedTicks++;
           if (!player.connected) coverage.absentRiderTicks++;
@@ -770,6 +784,14 @@ export const REQUIREMENTS: readonly Requirement[] = [
       (coverage) => coverage.collected.includes(type),
       [type],
     ),
+  ),
+  requirement(
+    "aim:slow",
+    "holding the bomb button eases riders down to the slowest level, and a long hold spends the whole budget",
+    (coverage) =>
+      coverage.aimSlowedTicks >= AIM_SLOW_MAX_TICKS &&
+      coverage.aimSlowestTicks > 0 &&
+      coverage.aimSpentTicks > 0,
   ),
   requirement(
     "bomb",

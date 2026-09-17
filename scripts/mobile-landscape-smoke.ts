@@ -10,7 +10,7 @@ interface HoldPhase {
   generation: number;
 }
 await mkdir("artifacts", { recursive: true });
-// A solo round can end while the hints fade: matchOver opens the tools overlay (pointer-events:none on the thirds) and a phase
+// A solo round can end while the hints fade: the recap that ends matchOver opens the tools overlay (pointer-events:none on the thirds) and a phase
 // change clears held input. Close the overlay and retry the press instead of racing the round clock.
 const press = async (page: Page, x: number, y: number) => {
   for (let attempt = 0; attempt < 6; attempt++) {

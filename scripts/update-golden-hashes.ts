@@ -18,7 +18,7 @@ const previousRecording: Recording = JSON.parse(
 // Only the initial recording generation adapts ordinary input commands to observed
 // play. Later rules updates replay those exact commands, never reshape the workload.
 const recording: Recording = process.argv.includes("--record")
-  ? makeRecording(20260917, 30_000, true)
+  ? makeRecording(20260918, 30_000, true)
   : previousRecording;
 const next: GoldenHashes = { rules: RULES, hashes: replayHashes(recording) };
 const recordingChanged =

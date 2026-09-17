@@ -280,6 +280,8 @@ test("players, trails, history and statistics are bounded and internally consist
     "nitroUntilTicks",
     "snailUntilTicks",
     "grip",
+    "aimSlowTicks",
+    "aimSlowSpentTicks",
   ])
     rejected(
       game,

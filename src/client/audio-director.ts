@@ -1,4 +1,5 @@
 import type { ServerMessage } from "../shared/protocol.js";
+import { showsRoundResult } from "./arena-announcer.js";
 import {
   RESTART_THRESHOLD,
   defaultRadio,
@@ -57,6 +58,8 @@ export class AudioDirector {
   private baselineTick = 0;
   private latestTick = 0;
   private seen = new Set<string>();
+  /** The match ended in this scope and its sting is waiting for the screen to name the match winner. */
+  private stingFor = "";
   private playing = false;
   private background = false;
   private silenced = false;
@@ -239,6 +242,7 @@ export class AudioDirector {
     this.save();
     this.scope = "";
     this.seen.clear();
+    this.stingFor = "";
     this.playing = false;
     this.musicPath = "";
     this.synth.stop();
@@ -255,8 +259,21 @@ export class AudioDirector {
         this.scope = scope;
         this.baselineTick = message.tick;
         this.seen.clear();
+        this.stingFor = "";
       } else if (message.tick < this.latestTick) return;
       this.latestTick = message.tick;
+      // The final pause opens on the round's own result; the match sting belongs to the card that names the match winner.
+      if (
+        this.stingFor === scope &&
+        !showsRoundResult({
+          phase: message.state.phase,
+          tick: message.tick,
+          phaseEndsAtTick: message.state.phaseEndsAtTick,
+        })
+      ) {
+        this.stingFor = "";
+        this.cue("matchEnded");
+      }
       this.playing = true; // Connected lobbies and intermissions also have music.
       return; // The current track plays on across rounds; only its end or the listener changes it.
     }
@@ -271,6 +288,10 @@ export class AudioDirector {
     this.seen.add(key);
     if (this.seen.size > 100)
       this.seen.delete(this.seen.values().next().value!);
+    if (message.event.type === "matchEnded") {
+      this.stingFor = scope;
+      return;
+    }
     this.cue(
       message.event.type === "bombPlaced" && message.event.gun
         ? "cannon"

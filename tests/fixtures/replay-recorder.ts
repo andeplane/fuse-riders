@@ -30,6 +30,7 @@ import {
   type RoomSettings,
 } from "../../src/shared/room-settings.js";
 import {
+  AIM_SLOW_MAX_TICKS,
   OVERTIME_START_TICK,
   TICK_HZ,
   riderMotionStep,
@@ -70,6 +71,8 @@ const MATCH_LENGTH = 2;
 const GUN_PATIENCE_TICKS = 160;
 /** How long a wrap duel is ridden inside its overtime walls before a rider is given to them. */
 const WALLED_TICKS = 40;
+/** Longer than the aiming slowdown's whole budget. */
+const LONG_HOLD_TICKS = AIM_SLOW_MAX_TICKS + 6;
 const GUN_SIGHT = 600;
 const SHELL_SIGHT = 320;
 /** A round this old has tired thumbs: the wandering grows with the square of its age in these. */
@@ -384,6 +387,15 @@ export function makeRecording(
       // The press found no bomb to charge, or the gun took it outright: the thumb comes off.
       log(member, CANCEL, held.gesture);
       held.gesture = 0;
+    } else if (
+      held.gesture &&
+      release &&
+      member === rider &&
+      coverage.aimSpentTicks === 0 &&
+      game.tick - (player.bombChargeStartedTick ?? game.tick) < LONG_HOLD_TICKS
+    ) {
+      // The bots never hold a charge past its reach. Until the aiming slowdown has run out of budget once, the second
+      // rider keeps its thumb down well past that, and lets the aim walk back and forth.
     } else if (held.gesture && release) {
       log(
         member,
