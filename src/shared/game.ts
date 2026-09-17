@@ -91,10 +91,23 @@ export function bombFuseTicks(level = 0): number { return BOMB_FUSE_TICKS - Math
 export const BOMB_COOLDOWN_TICKS = POWER_TUNING.baseReloadTicks;
 export const BOMB_BLAST_RANGE = POWER_TUNING.baseBlastRadius;
 export const BLAST_VISIBLE_TICKS = 8;
-/** A gravity bomb leaves a field behind its blast: four seconds of pull, widening with collected Power like the blast itself (#166). */
-export const GRAVITY_FIELD_TICKS = 80;
-/** Peak pull at the centre, as a share of a tick's travel. Well under 1, so a rider is dragged and slowed, never captured. */
-export const GRAVITY_PULL_PER_TICK = 0.45;
+/**
+ * Gravity opens one to three black holes of random size for eight seconds. Space curves inside one: every rider's
+ * heading bends toward the centre, hardest at the middle and not at all at the rim, so nobody rides a straight line there.
+ */
+export const GRAVITY_FIELD_TICKS = 160;
+export const GRAVITY_MAX_HOLES_PER_PICKUP = 3;
+/** Live holes at once; a pickup past the cap retires the oldest first, as portal pairs do. */
+export const MAX_GRAVITY_FIELDS = 6;
+export const GRAVITY_MIN_RADIUS = 110;
+/** The largest hole curves almost the whole arena across its short side. */
+export const GRAVITY_MAX_RADIUS = ARENA_HEIGHT * 0.47;
+/** The black core at a hole's centre. A rider whose centre crosses into it is gone: an ownerless death, recorded as `wall`. */
+export function gravityCoreRadius(radius: number): number { return Math.min(30, radius * 0.16); }
+/** A hole never opens with its core this close to a living rider's centre; the hole is slid away instead. */
+export const GRAVITY_CORE_SPAWN_CLEARANCE = 140;
+/** Peak bend at the centre, as a share of the tick's own steering. Under 1, so a rider can always steer out of an orbit. */
+export const GRAVITY_BEND = 0.85;
 
 /** Pickups are destroyed strictly inside the inner 60% of a new bomb blast. */
 export const PICKUP_DESTRUCTION_RADIUS_RATIO = 0.6;
@@ -104,13 +117,10 @@ export const PICKUP_SPAWN_MARGIN = 40;
 export const PICKUP_RIDER_BOMB_CLEARANCE = 80;
 export const PICKUP_TRAIL_CLEARANCE = 40;
 export const PICKUP_SEPARATION = 28;
-/** Three seconds a quarter faster (#166). */
-export const BOOST_DURATION_TICKS = 60;
-export const BOOST_SPEED = 1.25;
 /**
- * Nitro doubles the collector's speed and Snail halves every rival's, each for five seconds. Unlike the boost, every
- * pickup is its own deadline: two Nitros run at 4x until the first expires, and a Snail on a Nitro rider cancels to 1x.
- * Only distance changes, as with the boost, so a fast rider turns wide and a slowed one turns tight.
+ * Nitro doubles the collector's speed and Snail halves every rival's, each for five seconds. Every pickup is its own
+ * deadline: two Nitros run at 4x until the first expires, and a Snail on a Nitro rider cancels to 1x.
+ * Only distance changes, so a fast rider turns wide and a slowed one turns tight.
  */
 export const NITRO_DURATION_TICKS = 100;
 export const NITRO_SPEED = 2;
@@ -150,10 +160,10 @@ export function simulationTimeScale(state: Pick<GameState, 'phase' | 'players'>,
   // A room with no human rider at all is a showcase, not a wait: it keeps its pace.
   return humans > 0 && botsAlive > 0 ? BOTS_ONLY_TIME_SCALE : 1;
 }
-export interface SpeedEffects { boostUntilTick: number; nitroUntilTicks: ReadonlyArray<number>; snailUntilTicks: ReadonlyArray<number> }
-/** Every speed pickup in force on `tick`, multiplied together: boost, then one factor per unexpired Nitro or Snail deadline. */
+export interface SpeedEffects { nitroUntilTicks: ReadonlyArray<number>; snailUntilTicks: ReadonlyArray<number> }
+/** Every speed pickup in force on `tick`, multiplied together: one factor per unexpired Nitro or Snail deadline. */
 export function riderSpeedMultiplier(player: SpeedEffects, tick: number): number {
-  let multiplier = player.boostUntilTick > tick ? BOOST_SPEED : 1;
+  let multiplier = 1;
   // Powers of two are exact, so the order of these products never matters to replicas.
   for (const until of player.nitroUntilTicks) if (until > tick) multiplier *= NITRO_SPEED;
   for (const until of player.snailUntilTicks) if (until > tick) multiplier *= SNAIL_SPEED;
@@ -170,7 +180,7 @@ export type GamePhase = 'lobby' | 'countdown' | 'playing' | 'roundOver' | 'match
 export type EliminationCause = 'wall' | 'trail' | 'explosion' | 'rider';
 export const INK_DURATION_TICKS = 60;
 
-export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'boost', 'gravity', 'grip', 'nitro', 'snail'] as const;
+export const PICKUP_TYPES = ['power', 'extraBomb', 'stopwatch', 'gun', 'shell', 'target', 'star', 'beer', 'ink', 'triple', 'five', 'orbitShield', 'portal', 'gravity', 'grip', 'nitro', 'snail'] as const;
 export type PickupType = typeof PICKUP_TYPES[number];
 
 export interface PlayerIdentity {
@@ -199,8 +209,6 @@ export interface PlayerState extends Required<PlayerIdentity> {
   bombReadyAtTick: number;
   bombChargeStartedTick?: number;
   gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean;
-  /** The next ordinary launch leaves a gravity field behind its blast (#166). */
-  gravityArmed: boolean;
   bombTarget?: AimPoint;
   /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
   extraBombs: number;
@@ -209,8 +217,6 @@ export interface PlayerState extends Required<PlayerIdentity> {
   /** Captured at launch so collecting a level never distorts an active reload ring. */
   reloadDurationTicks: number;
   invulnerableUntilTick: number;
-  /** A quarter faster until this tick (#166). Absolute deadline like the other timed pickups, refreshed rather than stacked. */
-  boostUntilTick: number;
   /** One absolute deadline per Nitro collected, unexpired ones only: each doubles speed, so they stack (#240). */
   nitroUntilTicks: number[];
   /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#240). */
@@ -242,7 +248,7 @@ export interface BombState {
   placedTick: number;
   explodeAtTick: number;
   /** `bounces` counts a shell's wall and trail reflections since launch; a gun bullet never bounces and never carries it. */
-  blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
+  blastRange: number; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
   /** A shell's own portal re-entry cooldown, so a gate pair it is aimed down cannot hold it in a loop. */
   portalCooldownUntilTick?: number;
   /**
@@ -253,9 +259,8 @@ export interface BombState {
   shot?: number;
 }
 
+/** A black hole: headings bend toward (x, y) anywhere inside `radius`. */
 export interface GravityField {
-  bombId: number;
-  ownerId: PlayerId;
   x: number;
   y: number;
   radius: number;
@@ -398,9 +403,9 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     bombReadyAtTick: 0,
     extraBombs: 0, fuseLevel: 0, powerPickups: 0, reloadDurationTicks: BOMB_COOLDOWN_TICKS,
     invulnerableUntilTick: 0,
-    boostUntilTick: 0, nitroUntilTicks: [], snailUntilTicks: [], grip: false,
+    nitroUntilTicks: [], snailUntilTicks: [], grip: false,
     drunkUntilTick: 0, inkUntilTick: 0,
-    targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false, gravityArmed: false,
+    targetBombArmed: false, tripleShotArmed: false, fiveShotArmed: false,
     drunkStartedTick: 0,
     drunkHeadingOffset: 0,
 
@@ -540,16 +545,15 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
     const offset = drunkHeadingOffset(state.seed, player.id, state.tick, player.drunkStartedTick, player.drunkUntilTick);
     const { distance, turn } = riderMotionStep(player, state.tick, state.roundStartedTick);
-    const pose = advanceRiderPose(player, input, {distance,turn,drunkHeadingOffset:offset});
-    // Fields pull where the rider lands, inside the same tick, so the swept collision below still tests the path actually taken.
-    const pulled = applyGravity(state, pose.x, pose.y, distance);
+    // Curved space turns the rider before the kernel does, so steering and the hole add up inside one ordinary turn-then-move step.
+    const pose = advanceRiderPose({ ...player, angle: player.angle + gravityBend(state.gravityFields, player, turn) }, input, {distance,turn,drunkHeadingOffset:offset});
     player.drunkHeadingOffset = pose.drunkHeadingOffset;
     movements.set(player.id, {
       player,
       oldX: player.x,
       oldY: player.y,
-      x: pulled.x,
-      y: pulled.y,
+      x: pose.x,
+      y: pose.y,
       angle: pose.angle,
     });
   }
@@ -689,6 +693,11 @@ export function step(state: GameState, inputs: ReadonlyMap<PlayerId, InputIntent
     const top = state.boundaryInset + RIDER_RADIUS;
     const bottom = state.height - state.boundaryInset - RIDER_RADIUS;
     if (!isHazardImmune(movement.player, state.tick) && (movement.x < left || movement.x > right || movement.y < top || movement.y > bottom)) {
+      markCause(causes, causeOwners, movement.player.id, 'wall');
+    }
+    // Falling into a black hole's core is the arena's kill, like the wall: nobody owns it.
+    if (!isHazardImmune(movement.player, state.tick) && state.gravityFields.some(field =>
+      segmentIntersectsDisk(movement.oldX, movement.oldY, movement.x, movement.y, { x: field.x, y: field.y, radius: gravityCoreRadius(field.radius) }))) {
       markCause(causes, causeOwners, movement.player.id, 'wall');
     }
 
@@ -918,10 +927,10 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ...(player.bombChargeStartedTick === undefined ? {} : { bombChargeStartedTick: player.bombChargeStartedTick }),
       extraBombs: player.extraBombs, fuseLevel: player.fuseLevel, powerPickups: player.powerPickups, reloadDurationTicks: player.reloadDurationTicks,
       invulnerableUntilTick: player.invulnerableUntilTick,
-      boostUntilTick: player.boostUntilTick, nitroUntilTicks: [...player.nitroUntilTicks], snailUntilTicks: [...player.snailUntilTicks], grip: player.grip,
+      nitroUntilTicks: [...player.nitroUntilTicks], snailUntilTicks: [...player.snailUntilTicks], grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
-      gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, gravityArmed: player.gravityArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
+      gunArmed: player.gunArmed, shellArmed: player.shellArmed, targetBombArmed: player.targetBombArmed, ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}), tripleShotArmed: player.tripleShotArmed, fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
       shieldGraceUntilTick: player.shieldGraceUntilTick,
       portalCooldownUntilTick: player.portalCooldownUntilTick,
@@ -939,7 +948,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       landsAtTick: bomb.landsAtTick,
       flightPath: bomb.flightPath.map((point) => ({ ...point })),
       explodeAtTick: bomb.explodeAtTick,
-      blastRange: bomb.blastRange, ...(bomb.shell ? { shell: { ...bomb.shell } } : {}), ...(bomb.gravity ? { gravity: true } : {}),
+      blastRange: bomb.blastRange, ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
     })),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,
@@ -999,12 +1008,12 @@ function prepareRound(state: GameState): void {
     player.bombReadyAtTick = state.tick;
     player.extraBombs = 0; player.fuseLevel = 0; player.powerPickups = 0; player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
     player.invulnerableUntilTick = 0;
-    player.boostUntilTick = 0; player.nitroUntilTicks = []; player.snailUntilTicks = []; player.grip = false;
+    player.nitroUntilTicks = []; player.snailUntilTicks = []; player.grip = false;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
     player.drunkHeadingOffset = 0;
     player.inkUntilTick = 0;
-    player.gunArmed = false; player.shellArmed = false; player.targetBombArmed = false; player.gravityArmed = false;
+    player.gunArmed = false; player.shellArmed = false; player.targetBombArmed = false;
     player.tripleShotArmed = false; player.fiveShotArmed = false;
     player.shielded = false;
     player.shieldGraceUntilTick = 0;
@@ -1101,7 +1110,7 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
     } else if (pickup.type === 'gun') {
       collector.gunArmed = true;
     } else if (pickup.type === 'gravity') {
-      collector.gravityArmed = true;
+      openBlackHoles(state, movements);
     } else if (pickup.type === 'shell') {
       collector.shellArmed = true;
     } else if (pickup.type === 'target') {
@@ -1110,8 +1119,6 @@ function collectPickups(state: GameState, movements: ReadonlyMap<PlayerId, Movem
       collector.invulnerableUntilTick = Math.max(collector.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
     } else if (pickup.type === 'grip') {
       collector.grip = true;
-    } else if (pickup.type === 'boost') {
-      collector.boostUntilTick = Math.max(collector.boostUntilTick, state.tick + BOOST_DURATION_TICKS);
     } else if (pickup.type === 'nitro') {
       addSpeedEffect(collector.nitroUntilTicks, state.tick + NITRO_DURATION_TICKS);
     } else if (pickup.type === 'snail') {
@@ -1319,17 +1326,13 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
       : [createStraightFlightPath(player.x, player.y, player.angle, distance, bounds)];
     if (target) player.targetBombArmed = false;
     else { player.tripleShotArmed = false; player.fiveShotArmed = false; }
-    const gravityLaunch = player.gravityArmed && !target;
-    if (gravityLaunch) player.gravityArmed = false;
     /**
      * One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
      * is why they outrank everything (a Triple or Five they fan out is spent under their label), and why a rider
      * holding Target as well keeps it armed for the next pull.
-     * Among the launches that do reach here: Target first, because it is the only one the others cannot combine
-     * with; then Gravity, so a gravity volley is reported as `gravity`. That under-counts `triple` and `five` by
-     * the rare pull that spent both, and the alternative loses Gravity, the harder of the two to judge.
+     * Among the launches that do reach here, Target comes first, because it is the only one the others cannot combine with.
      */
-    const weapon: Weapon = target ? 'target' : gravityLaunch ? 'gravity' : volley ?? 'bomb';
+    const weapon: Weapon = target ? 'target' : volley ?? 'bomb';
     // Every bomb of the pull names the same shot: the id its first bomb is about to take.
     const shot = state.nextBombId;
     logShot(state, player, shot, weapon, paths.length);
@@ -1345,7 +1348,6 @@ function applyBombActions(state: GameState, player: PlayerState, actions: readon
         placedTick: state.tick,
         launchedTick: state.tick,
         landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
-        ...(gravityLaunch && flightPath === paths[0] ? { gravity: true } : {}),
         explodeAtTick: target ? state.tick : state.tick + bombFuseTicks(player.fuseLevel),
         blastRange: powerBlastRadius(player.powerPickups) * (target ? .7 : 1),
         flightPath,
@@ -1485,22 +1487,49 @@ function resolveGunShots(state: GameState): Map<PlayerId, { bombId: number; owne
 }
 
 /**
- * Drag toward every live field's centre, strongest at the middle and nothing at the rim. The sum is capped below one
- * tick of travel, so crossing a field costs ground and control without ever holding a rider in place (#166).
+ * How far curved space turns a heading this tick, in radians. Each hole bends by the part of its pull that lies across
+ * the heading, as a sideways force would: a rider aimed at the centre or straight away from it rides on unbent, one
+ * crossing the hole swings around it. `turn` is the tick's own steering, so the bend ramps and grips with the rider,
+ * and the sum is capped below it. Bots plan with the same function.
  */
-function applyGravity(state: GameState, x: number, y: number, distance: number): { x: number; y: number } {
-  let dx = 0, dy = 0;
-  for (const field of state.gravityFields) {
-    const toX = field.x - x, toY = field.y - y;
+export function gravityBend(fields: ReadonlyArray<Pick<GravityField, 'x' | 'y' | 'radius'>>, pose: { x: number; y: number; angle: number }, turn: number): number {
+  if (fields.length === 0) return 0;
+  const headingX = cos(pose.angle), headingY = sin(pose.angle);
+  let bend = 0;
+  for (const field of fields) {
+    const toX = field.x - pose.x, toY = field.y - pose.y;
     const away = hypot2(toX, toY);
     if (away === 0 || away >= field.radius) continue;
-    const share = (1 - away / field.radius) * GRAVITY_PULL_PER_TICK * distance;
-    dx += toX / away * share;
-    dy += toY / away * share;
+    bend += (1 - away / field.radius) * (headingX * toY - headingY * toX) / away;
   }
-  const drag = hypot2(dx, dy), limit = distance * GRAVITY_PULL_PER_TICK;
-  if (drag > limit) { dx = dx / drag * limit; dy = dy / drag * limit; }
-  return { x: x + dx, y: y + dy };
+  return Math.max(-1, Math.min(1, bend)) * GRAVITY_BEND * turn;
+}
+
+/** One to three holes anywhere on the field. Every hole costs the same three draws, so replicas stay in step whatever the sizes. */
+function openBlackHoles(state: GameState, movements: ReadonlyMap<PlayerId, Movement>): void {
+  const bounds = portalBounds(state);
+  const count = 1 + Math.floor(nextRandom(state) * GRAVITY_MAX_HOLES_PER_PICKUP);
+  for (let hole = 0; hole < count; hole += 1) {
+    const radius = GRAVITY_MIN_RADIUS + nextRandom(state) * (GRAVITY_MAX_RADIUS - GRAVITY_MIN_RADIUS);
+    let x = bounds.minX + nextRandom(state) * (bounds.maxX - bounds.minX);
+    let y = bounds.minY + nextRandom(state) * (bounds.maxY - bounds.minY);
+    // The core kills, so it never opens under a rider: slide the hole straight away from anyone too close, in seat order.
+    for (const { id, alive, angle } of sortedPlayers(state)) {
+      // Riders have moved this tick but not yet landed in the state: measure from where they are about to be.
+      const player = movements.get(id);
+      if (!alive || !player) continue;
+      const awayX = x - player.x, awayY = y - player.y, distance = hypot2(awayX, awayY);
+      if (distance >= GRAVITY_CORE_SPAWN_CLEARANCE) continue;
+      const ux = distance === 0 ? cos(angle + Math.PI) : awayX / distance, uy = distance === 0 ? sin(angle + Math.PI) : awayY / distance;
+      x = player.x + ux * GRAVITY_CORE_SPAWN_CLEARANCE; y = player.y + uy * GRAVITY_CORE_SPAWN_CLEARANCE;
+      // Against a wall the slide goes the other way on that axis, which keeps the full clearance where a clamp would not.
+      if (x < bounds.minX || x > bounds.maxX) x = player.x - ux * GRAVITY_CORE_SPAWN_CLEARANCE;
+      if (y < bounds.minY || y > bounds.maxY) y = player.y - uy * GRAVITY_CORE_SPAWN_CLEARANCE;
+    }
+    x = Math.max(bounds.minX, Math.min(bounds.maxX, x)); y = Math.max(bounds.minY, Math.min(bounds.maxY, y));
+    state.gravityFields.push({ x, y, radius, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
+  }
+  state.gravityFields = state.gravityFields.slice(Math.max(0, state.gravityFields.length - MAX_GRAVITY_FIELDS));
 }
 
 function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
@@ -1529,7 +1558,6 @@ function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
     const blast: BlastState = { bombId: id, ownerId: bomb.ownerId, circle, expiresAtTick: state.tick + BLAST_VISIBLE_TICKS };
     state.blasts.push(blast);
     result.push({ ...blast, ...(bomb.shot === undefined ? {} : { shot: bomb.shot }) });
-    if (bomb.gravity) state.gravityFields.push({ bombId: id, ownerId: bomb.ownerId, x: bomb.x, y: bomb.y, radius: circle.radius, expiresAtTick: state.tick + GRAVITY_FIELD_TICKS });
     recordBombExploded(state.matchStats, bomb.ownerId);
     events.push({ type: 'explosion', bombId: id });
 

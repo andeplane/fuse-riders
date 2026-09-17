@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { SNAPSHOT_INTERVAL } from '../src/online/rollback.js';
 import assert from 'node:assert/strict';
 import { FakeNetwork, type NetworkOptions } from './fixtures/fake-room.js';
 import { RoomRuntime, CREATOR_SILENCE_MS, DISCONNECT_MS, SNAPSHOT_RETRY_MS, SNAPSHOT_SERVE_MS, pageGeneration } from '../src/online/room-runtime.js';
@@ -344,7 +345,10 @@ test('once both humans are out the room runs three ticks per 50 ms on every memb
   assert.equal(net.frame(HOST)!.phase, 'roundOver'); net.step(200);
   const after = net.frame(HOST)!.tick; net.step(500); assert.ok(Math.abs(net.frame(HOST)!.tick - after - 10) <= 2, `normal pace after the round: ${net.frame(HOST)!.tick - after}`);
   net.step(2000); assert.ok(Math.abs(guest.metrics().clockTick - host.metrics().clockTick) < 3);
-  assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  // The clocks may sit a tick apart when sampled, so compare the world both members have already simulated.
+  const hashAt = (runtime: RoomRuntime, tick: number) => (world(runtime) as unknown as { hashAt(tick: number): string | undefined }).hashAt(tick);
+  const shared = Math.floor((Math.min(world(host).tick, world(guest).tick) - 1) / SNAPSHOT_INTERVAL) * SNAPSHOT_INTERVAL;
+  assert.ok(hashAt(host, shared) !== undefined, 'the shared tick is still in history'); assert.equal(hashAt(host, shared), hashAt(guest, shared));
   host.stop(); guest.stop();
 });
 
