@@ -298,12 +298,12 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 |---|---|
 | Firebase project | `andershaf-87` (number `867594018708`), see [`.firebaserc`](.firebaserc) |
 | Web app | "Fuse Riders", app ID `1:867594018708:web:4444ada96e29685f063981` |
-| Sign-in providers | **Google only** (see the manual step below). Email/password, anonymous and phone are disabled |
+| Sign-in providers | **Google only**, enabled 2026-09-17. Email/password, anonymous and phone are disabled |
 | Authorized domains | `localhost`, `andershaf-87.firebaseapp.com` (hosts the popup handler), `andeplane.github.io` |
 | Email enumeration protection | on |
 | Web API key | "Fuse Riders web (Firebase Auth only)", key ID `06d6ec38-6348-4b7b-865d-1ea58a9b7d91` |
 | Key: API restriction | `identitytoolkit.googleapis.com` and `securetoken.googleapis.com` only |
-| Key: referrer restriction | `https://andeplane.github.io/*`, `https://andershaf-87.firebaseapp.com/*`, `http://localhost:*/*`, `http://127.0.0.1:*/*` |
+| Key: referrer restriction | `https://andeplane.github.io/*`, `https://andershaf-87.firebaseapp.com/*`, `localhost`, `localhost:*`, `127.0.0.1`, `127.0.0.1:*` |
 | Firestore rules | deny-all, released to the `fuse-riders` database ([`firebase.json`](firebase.json)) |
 | Firestore indexes and TTL | [`firestore.indexes.json`](firestore.indexes.json), deployed with the rules |
 | Firestore delete protection | enabled on `fuse-riders`, because it will hold history that no TTL cleans up |
@@ -323,14 +323,13 @@ const firebaseConfig = {
 };
 ```
 
-### One manual step: enable the Google provider
+### The Google provider
 
-**Until this is done, SIGN IN answers "Sign-in is not switched on yet" and everything else works.** Enabling Google
-sign-in needs an OAuth client, which the console creates in one click and no CLI can. Open
-[Authentication → Sign-in method](https://console.firebase.google.com/project/andershaf-87/authentication/providers),
-choose **Google**, enable it, set the public-facing name to "Fuse Riders" and pick a support email. Leave every other
-provider off. Afterwards, in the [OAuth client](https://console.cloud.google.com/apis/credentials?project=andershaf-87)
-it created, the authorized JavaScript origins should be only the domains in the table above.
+Enabled by hand in the console, because it needs an OAuth client that the console creates in one click and no CLI
+can: [Authentication → Sign-in method](https://console.firebase.google.com/project/andershaf-87/authentication/providers)
+→ **Google**. Leave every other provider off. The
+[OAuth client](https://console.cloud.google.com/apis/credentials?project=andershaf-87) it created should list only
+the authorized domains above as JavaScript origins.
 
 ### Changing the configuration
 
@@ -348,7 +347,24 @@ curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-
 Rules are not deployed by CI; the deployer service account has no Firebase roles, deliberately. Auth settings live at
 `https://identitytoolkit.googleapis.com/admin/v2/projects/andershaf-87/config` (PATCH with an `updateMask`), and the key
 is managed with `gcloud services api-keys update 06d6ec38-6348-4b7b-865d-1ea58a9b7d91 --project andershaf-87`. Always
-pass the project explicitly; a developer machine's default gcloud project is usually something else.
+pass the project explicitly; a developer machine's default gcloud project is usually something else. Two things about
+that key bite:
+
+- **A referrer pattern with a scheme does not match a port.** `http://localhost:*/*` is accepted and then blocks
+  `http://localhost:8787/`; the forms that work are `localhost` and `localhost:*`. An update replaces the whole
+  restriction, so pass every referrer and both `--api-target`s each time. Changes take a minute or so to apply.
+- **Probing a restricted API makes the next update fail** with `APIKEYS_RESTRICTION_INCOMPATIBLE_WITH_USAGE`: the
+  refused Firestore probe in the review below counts as "usage" for seven days. `--no-check-existing-usage` overrides
+  it, which is safe when the only such usage is a probe you made.
+
+To check what a browser on a given page may do with the key, without signing in:
+
+```bash
+curl -s -X POST -H 'Referer: http://localhost:8787/' -H 'Content-Type: application/json' -d '{"providerId":"google.com","continueUri":"http://localhost:8787/"}' "https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=$(grep -o "AIza[A-Za-z0-9_-]*" src/shared/firebase-config.ts)"
+```
+
+An `authUri` on `accounts.google.com` means a sign-in can start from that page; `Requests from referer … are blocked`
+means the key refuses it.
 
 ### Security review (2026-09-17)
 
@@ -356,7 +372,8 @@ The Firebase configuration, verified from outside with the public web key:
 
 | Probe | Result |
 |---|---|
-| Auth API with a foreign or missing `Referer` | `403` — referrer restriction holds |
+| Auth API with a foreign or missing `Referer`, including look-alikes (`localhost.evil.example`, `evil.example/localhost`) | `403` — referrer restriction holds |
+| Starting a Google sign-in from `andeplane.github.io`, the `firebaseapp.com` handler, `localhost:8787`, `127.0.0.1:3030` | allowed |
 | Anonymous sign-up from an allowed referrer | `400 ADMIN_ONLY_OPERATION` |
 | Email/password sign-up from an allowed referrer | `400 OPERATION_NOT_ALLOWED` |
 | Firestore REST read of the rooms collection with the web key | `403` — the key cannot reach Firestore at all, and the rules would deny it if it could |
