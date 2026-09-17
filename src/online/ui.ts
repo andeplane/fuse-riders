@@ -261,9 +261,8 @@ export async function startOnline():Promise<void>{
     const desktop=desktopQuery.matches&&!app.classList.contains('mobile-play')&&!app.classList.contains('controller-only')&&!app.classList.contains('joining')&&sharedLobby.hidden;
     app.classList.toggle('desktop-game',desktop);
     // Desktop play keeps the standings in a fixed column right of the arena (its width lives in online.css), so the game bar holds actions only.
-    const side=desktop&&!canvas.hidden;
+    const side=desktop&&!canvas.hidden&&!app.classList.contains('booting')&&!app.classList.contains('room-over');
     app.classList.toggle('side-standings',side);
-    if(side)app.style.setProperty('--standings-top',`${header.getBoundingClientRect().bottom-app.getBoundingClientRect().top}px`);
     const rosterParent=side?app:desktop?header:scoreboard;
     if(roster.parentElement!==rosterParent){if(side)app.append(roster);else if(desktop)header.insertBefore(roster,results);else scoreboard.append(roster);}
     const actionsParent=!sharedLobby.hidden?lobbyFooter:desktop?header:footer;
@@ -271,6 +270,8 @@ export async function startOnline():Promise<void>{
     const noticeParent=desktop?header:scoreboard;
     if(notice.parentElement!==noticeParent)noticeParent.append(notice);
   };
+  // The standings column starts under the game bar, whose height changes as its buttons wrap or hide; measured on change, never per snapshot.
+  new ResizeObserver(()=>app.style.setProperty('--standings-top',`${header.offsetTop+header.offsetHeight}px`)).observe(header);
   window.addEventListener('resize',updateDesktopLayout);
   desktopQuery.addEventListener('change',updateDesktopLayout);
 

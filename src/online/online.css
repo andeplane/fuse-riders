@@ -280,3 +280,8 @@
 @media(prefers-reduced-motion:reduce){.side-standings>.online-roster .online-score-card,.side-standings>.online-roster .online-score-card::after{transition:none}}
 .side-standings>.online-roster .online-score-card button{min-width:1.25rem;min-height:1.25rem;padding:0 .1875rem;font-size:.6875rem;flex:0 0 auto}
 .side-standings>.online-roster{padding:0 .5rem}.side-standings>.online-roster .online-score-card{gap:.375rem;padding-inline:.5rem}
+.online-roster:empty::before{display:none}
+/* The column is opaque to the bottom so a replay zoom cannot bleed under it, names keep their ellipsis, and everything centred over the arena follows the arena rather than the window. */
+.side-standings>.online-roster{bottom:0;background:#030919;overflow:auto}
+.side-standings>.online-roster .online-score-label{grid-template-columns:minmax(0,1fr)}
+.side-standings .online-announce,.side-standings .online-feed,.side-standings .key-hint,.side-standings .online-power-status{left:calc(50% - var(--standings-width)/2)}
