@@ -113,7 +113,7 @@ export class TrailHistoryCache {
   }
 }
 
-/** The supplied prediction segment is already the local tip. Remote/LAN interpolation needs at most one step. */
+/** The supplied prediction segment is already the local tip. A remote rider's interpolation needs at most one step. */
 export function trailTip(
   player: Rider,
   tick: number,

@@ -63,13 +63,24 @@ export interface PhaserArena {
   metrics(): ArenaMetrics;
 }
 
+/** The one Phaser release whose boot sequence `guardDefaultTextures` was written against. `package.json` pins it exactly. */
+export const GUARDED_PHASER_VERSION = "3.90.0";
+
 /**
  * A navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still emits READY,
  * and the WebGL renderer then reads `__DEFAULT` and throws (#127). Take over the two READY listeners Phaser 3.90
  * registers (renderer boot, then game start) and run them, in that order, only when the default textures exist.
- * A Phaser whose boot does not match is left untouched.
+ *
+ * This reaches into Phaser internals (`renderer.boot`, `game.texturesReady`) through `as unknown as`, so the compiler
+ * cannot see an upgrade break it. Two things make one fail loudly instead: a Phaser other than the guarded release
+ * throws here, at the first arena (and `tests/phaser-version.test.ts` fails before that, on the dependency bump
+ * itself); and a boot whose listeners are not the two expected is reported on the console and left untouched.
  */
 function guardDefaultTextures(game: Phaser.Game, failed: () => void): void {
+  if (Phaser.VERSION !== GUARDED_PHASER_VERSION)
+    throw new Error(
+      `guardDefaultTextures patches Phaser ${GUARDED_PHASER_VERSION} internals; this is Phaser ${Phaser.VERSION}. Re-verify the READY listeners (renderer.boot, game.texturesReady), then update GUARDED_PHASER_VERSION.`,
+    );
   const textures = game.textures;
   const READY = Phaser.Textures.Events.READY;
   const renderer = game.renderer as unknown as { boot?: () => void } | null;
@@ -80,8 +91,12 @@ function guardDefaultTextures(game: Phaser.Game, failed: () => void): void {
     !renderer ||
     listeners[0] !== renderer.boot ||
     listeners[1] !== internal.texturesReady
-  )
+  ) {
+    console.error(
+      "fuse-riders: Phaser's boot does not match the default-texture guard; the guard is off (#127)",
+    );
     return;
+  }
   textures.off(READY);
   textures.once(READY, () => {
     if (
@@ -478,7 +493,7 @@ class ArenaScene extends Phaser.Scene {
     }
   }
 
-  /** Paints whatever `arenaWall()` chose for this theme; the choice itself lives there, once, for both renderers. */
+  /** Paints whatever `arenaWall()` chose for this theme; the choice itself lives there, once, where it is tested. */
   private drawWall(
     w: number,
     h: number,

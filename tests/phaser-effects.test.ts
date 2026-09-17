@@ -11,36 +11,27 @@ const frame = (): WorldView => {
 test("effects do not replay on repeated snapshots or across authority/match reset", () => {
   const effects = new EffectTransitions();
   const s = frame();
-  const blast = {
-    bombId: 1,
-    circle: { x: 20, y: 30, radius: 40 },
-    expiresAtTick: 18,
+  const live = { ...s, players: s.players.map((p) => ({ ...p, alive: true })) };
+  const dead = {
+    ...s,
+    players: s.players.map((p) => ({ ...p, alive: false })),
   };
-  effects.accept(s, "epoch1:match1");
+  effects.accept(live, "epoch1:match1");
+  assert.equal(effects.accept(dead, "epoch1:match1").deaths.length, 1);
+  assert.equal(effects.accept(dead, "epoch1:match1").deaths.length, 0);
+  // A new authority epoch, a new round and an explicit reset each start from nothing: the rider seen alive under the
+  // old scope does not die again under the new one.
+  effects.accept(live, "epoch1:match1");
+  assert.equal(effects.accept(dead, "epoch2:match1").deaths.length, 0);
+  effects.accept(live, "epoch2:match1");
   assert.equal(
-    effects.accept({ ...s, blasts: [blast] }, "epoch1:match1").explosions
-      .length,
-    1,
-  );
-  assert.equal(
-    effects.accept({ ...s, blasts: [blast] }, "epoch1:match1").explosions
-      .length,
+    effects.accept({ ...dead, round: 2 }, "epoch2:match1").deaths.length,
     0,
   );
-  assert.equal(
-    effects.accept({ ...s, blasts: [blast] }, "epoch2:match1").explosions
-      .length,
-    0,
-  );
-  assert.equal(
-    effects.accept({ ...s, round: 2, blasts: [blast] }, "epoch2:match1")
-      .explosions.length,
-    0,
-  );
+  effects.accept({ ...live, round: 2 }, "epoch2:match1");
   effects.reset();
   assert.equal(
-    effects.accept({ ...s, blasts: [blast] }, "epoch2:match1").explosions
-      .length,
+    effects.accept({ ...dead, round: 2 }, "epoch2:match1").deaths.length,
     0,
   );
 });

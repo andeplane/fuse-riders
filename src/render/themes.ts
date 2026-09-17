@@ -1,5 +1,5 @@
 export type ThemeId = "neon-pixel" | "clean-neon";
-export type SpriteName = "rider" | "bomb" | "flame";
+export type SpriteName = "rider" | "bomb";
 
 export interface ThemeDefinition {
   id: ThemeId;
@@ -42,7 +42,6 @@ export const themes: Record<ThemeId, ThemeDefinition> = {
     sprites: {
       rider: "/themes/neon-pixel/rider.svg",
       bomb: "/themes/neon-pixel/bomb.svg",
-      flame: "/themes/neon-pixel/flame.svg",
     },
   },
   "clean-neon": {
@@ -62,7 +61,6 @@ export const themes: Record<ThemeId, ThemeDefinition> = {
     sprites: {
       rider: "/themes/clean-neon/rider.svg",
       bomb: "/themes/clean-neon/bomb.svg",
-      flame: "/themes/clean-neon/flame.svg",
     },
   },
 };
