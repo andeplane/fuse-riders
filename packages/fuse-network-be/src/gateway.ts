@@ -33,9 +33,53 @@ interface Client {
   bytes: number;
   chain: Promise<void>;
   pending: number;
-  signalTokens: number;
-  signalAt: number;
+  pendingBytes: number;
+  /** One signalling bucket per target member; "" is shared by every target this gateway does not know. */
+  signals: Map<string, Bucket>;
+  /** Spent by each refused frame; running out is what a flood looks like. */
+  refusals: Bucket;
+  refused: number;
+  noticeAt: number;
+  /** This member was closed for flooding moments ago: its links start without the negotiation burst. */
+  flagged: boolean;
+  closed: boolean;
 }
+interface Bucket {
+  tokens: number;
+  at: number;
+}
+function take(
+  bucket: Bucket,
+  now: number,
+  burst: number,
+  perSecond: number,
+): boolean {
+  bucket.tokens = Math.min(
+    burst,
+    bucket.tokens + (Math.max(0, now - bucket.at) * perSecond) / 1000,
+  );
+  bucket.at = now;
+  if (bucket.tokens < 1) return false;
+  bucket.tokens--;
+  return true;
+}
+// docs/design/signalling-abuse-isolation.md carries the arithmetic behind these.
+/** Frames one connection may send per second, of any kind: above the largest honest mesh negotiation (5 links × 67). */
+const FRAMES_PER_SECOND = 400;
+/** Frames and bytes one connection may have waiting on the database or the bus: the memory the old 64 × 32 kB cap allowed. */
+const PENDING_FRAMES = 400,
+  PENDING_BYTES = 2_000_000;
+/** One link's negotiation: a description, the 64 candidates `RemoteSignal` will hold, end markers, and a restart offer on top. */
+const LINK_BURST = 80;
+/** Refills a whole negotiation within the 8 s ICE restart interval. */
+const LINK_PER_SECOND = 10;
+/** Refused frames tolerated before the connection counts as a flood, and how fast that tolerance returns. */
+const FLOOD_BURST = 400,
+  FLOOD_PER_SECOND = 50;
+const NOTICE_INTERVAL_MS = 1000;
+/** How long, and for how many members, a gateway remembers whom it closed for flooding. */
+const FLAG_MS = 60_000,
+  FLAGS = 1024;
 interface View {
   room: RoomRecord;
   stop: () => void;
@@ -54,6 +98,7 @@ export class RoomGateway {
   private activeOperations = 0;
   private busGeneration = 0;
   private stopping = false;
+  private flags = new Map<string, number>();
   constructor(
     readonly id: string,
     readonly store: RoomStore,
@@ -152,8 +197,14 @@ export class RoomGateway {
           bytes: 0,
           chain: Promise.resolve(),
           pending: 0,
-          signalTokens: 32,
-          signalAt: this.deps.now(),
+          pendingBytes: 0,
+          signals: new Map(),
+          refusals: { tokens: FLOOD_BURST, at: this.deps.now() },
+          refused: 0,
+          noticeAt: -Infinity,
+          flagged:
+            (this.flags.get(`${code}:${member.id}`) ?? 0) > this.deps.now(),
+          closed: false,
         };
       this.clients.set(member.connectionId, client);
       this.send(client, {
@@ -183,7 +234,7 @@ export class RoomGateway {
   }
   receive(connectionId: string, raw: string): Promise<void> {
     const client = this.clients.get(connectionId);
-    if (!client) return Promise.resolve();
+    if (!client || client.closed) return Promise.resolve();
     const bytes = Buffer.byteLength(raw);
     if (bytes > 32_000) {
       client.socket.close(1009, "Message too large");
@@ -195,15 +246,18 @@ export class RoomGateway {
       client.count = 0;
       client.bytes = 0;
     }
+    // A guest links to as many peers as the creator does, so the frame allowance no longer depends on the role.
     if (
-      ++client.count > (client.member.host ? 400 : 100) ||
+      ++client.count > FRAMES_PER_SECOND ||
       (client.bytes += bytes) > (client.member.host ? 2_000_000 : 256_000) ||
-      ++client.pending > 64
+      client.pending >= PENDING_FRAMES ||
+      client.pendingBytes + bytes > PENDING_BYTES
     ) {
-      client.socket.close(1008, "Rate limit");
-      void this.disconnect(connectionId);
+      this.refuse(client, now);
       return Promise.resolve();
     }
+    client.pending++;
+    client.pendingBytes += bytes;
     const result = client.chain.then(() => this.handle(client, raw));
     client.chain = result
       .catch((error) => {
@@ -220,12 +274,61 @@ export class RoomGateway {
       })
       .finally(() => {
         client.pending--;
+        client.pendingBytes -= bytes;
       });
     return client.chain;
+  }
+  /**
+   * Every limit drops the frame it refuses and leaves the socket open: a close makes the page reconnect, and a
+   * reconnect tears down every link and negotiates the whole mesh again, which is the largest burst there is. Trickle
+   * ICE survives a lost candidate; a lost description is offered again by the link's restart policy. The sender is
+   * told at most once a second. Only a flood of refused frames ends the connection, and the member it belonged to
+   * then reconnects without the negotiation burst.
+   */
+  private refuse(client: Client, now: number): void {
+    client.refused++;
+    if (!take(client.refusals, now, FLOOD_BURST, FLOOD_PER_SECOND)) {
+      client.closed = true;
+      // Re-inserting keeps the map in expiry order, so the sweep stops at the first entry still in force.
+      const flag = `${client.room}:${client.member.id}`;
+      this.flags.delete(flag);
+      for (const [key, until] of this.flags)
+        if (until <= now || this.flags.size >= FLAGS) this.flags.delete(key);
+        else break;
+      this.flags.set(flag, now + FLAG_MS);
+      client.socket.close(1008, "Signalling flood");
+      void this.disconnect(client.member.connectionId);
+      return;
+    }
+    if (now - client.noticeAt < NOTICE_INTERVAL_MS) return;
+    client.noticeAt = now;
+    this.send(client, {
+      type: "notice",
+      notice: "signal-throttled",
+      dropped: client.refused,
+    });
+    client.refused = 0;
+  }
+  /** Known targets each get their own bucket; every unknown target shares one, so naming strangers mints nothing. */
+  private signalBucket(client: Client, room: RoomRecord, to: string): Bucket {
+    const key = Object.hasOwn(room.members, to) ? to : "";
+    let bucket = client.signals.get(key);
+    if (!bucket) {
+      // A long-lived connection keeps a bucket per current member and one for strangers, never one per member it ever saw.
+      for (const id of client.signals.keys())
+        if (id && !Object.hasOwn(room.members, id)) client.signals.delete(id);
+      bucket = {
+        tokens: client.flagged ? LINK_PER_SECOND : LINK_BURST,
+        at: this.deps.now(),
+      };
+      client.signals.set(key, bucket);
+    }
+    return bucket;
   }
   private async handle(client: Client, raw: string): Promise<void> {
     if (
       this.stateValue !== "ready" ||
+      client.closed ||
       !this.clients.has(client.member.connectionId)
     )
       return;
@@ -285,25 +388,28 @@ export class RoomGateway {
       });
       return;
     }
-    if (m.type !== "signal" || typeof m.to !== "string") return;
+    const to = m.to;
+    if (m.type !== "signal" || typeof to !== "string") return;
     if (!validSignal(m.data)) return;
-    // ICE candidates arrive in bursts across several peers. Bound sustained signalling
-    // without rejecting the initial mesh negotiation (32-frame burst, five per second).
+    // Charged before the target is resolved, so a refused frame never costs a database read or a bus publish.
+    // A rejoin negotiates every link at once: each target has its own allowance rather than a share of one.
     const now = this.deps.now();
-    client.signalTokens = Math.min(
-      32,
-      client.signalTokens + (Math.max(0, now - client.signalAt) * 5) / 1000,
-    );
-    client.signalAt = now;
-    if (client.signalTokens < 1) {
-      client.socket.close(1008, "Signalling rate limit");
-      void this.disconnect(client.member.connectionId);
+    if (
+      !take(
+        this.signalBucket(client, room, to),
+        now,
+        LINK_BURST,
+        LINK_PER_SECOND,
+      )
+    ) {
+      this.refuse(client, now);
       return;
     }
-    client.signalTokens--;
 
+    const member = (from: RoomRecord): Member | undefined =>
+      Object.hasOwn(from.members, to) ? from.members[to] : undefined;
     let current = room,
-      target = current.members[m.to];
+      target = member(current);
     // Only a connection transition needs an authoritative metadata refresh; no database read per input.
     if (
       !target ||
@@ -318,7 +424,7 @@ export class RoomGateway {
       )
         return;
       this.observe(client.room, current);
-      target = current.members[m.to];
+      target = member(current);
     }
     // Any two current members may signal: the gameplay mesh links every pair directly.
     if (
