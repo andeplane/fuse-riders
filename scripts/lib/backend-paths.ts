@@ -46,27 +46,81 @@ export interface DeployDecision {
 export type Run = (file: string, args: string[]) => string;
 
 /**
+ * The commit Cloud Run is actually serving, from `gcloud run services describe --format=json`, or the
+ * reason it cannot be known.
+ *
+ * The service's `commit` label alone is not that: scripts/deploy-cloud.sh writes it in the same update
+ * that creates the new revision, so a rollout that never becomes ready leaves the label naming a commit
+ * nobody is served. The label is trusted only when the revision that update created is the ready one
+ * and carries all of the traffic. Anything else (a failed or unfinished rollout, a traffic split, a
+ * manual rollback) answers with a doubt, and every doubt deploys, as every push did before this filter.
+ */
+export function servedCommit(
+  service: unknown,
+): { commit: string } | { doubt: string } {
+  const { metadata, status } = (service ?? {}) as {
+    metadata?: { labels?: Record<string, unknown> };
+    status?: {
+      latestCreatedRevisionName?: unknown;
+      latestReadyRevisionName?: unknown;
+      traffic?: unknown;
+    };
+  };
+  const commit = metadata?.labels?.commit;
+  if (typeof commit !== "string" || !/^[0-9a-f]{40}$/.test(commit))
+    return { doubt: "the service carries no commit label" };
+  const created = status?.latestCreatedRevisionName,
+    ready = status?.latestReadyRevisionName;
+  if (typeof created !== "string" || created === "" || created !== ready)
+    return {
+      doubt: `the last rollout (${String(created)}) is not the ready revision (${String(ready)})`,
+    };
+  const traffic = Array.isArray(status?.traffic)
+    ? (status.traffic as Array<{
+        revisionName?: unknown;
+        percent?: unknown;
+        latestRevision?: unknown;
+      }>)
+    : [];
+  const serving = traffic.filter((target) => Number(target.percent) > 0);
+  if (
+    serving.length !== 1 ||
+    serving[0]!.percent !== 100 ||
+    (serving[0]!.revisionName !== ready && serving[0]!.latestRevision !== true)
+  )
+    return { doubt: `${ready} does not carry all of the traffic` };
+  return { commit };
+}
+
+/**
  * Deploy unless it is certain that nothing the backend is built from changed between the commit
- * Cloud Run serves (the `commit` label scripts/deploy-cloud.sh sets) and `head`. Comparing with what
- * is served, not with the previous push, means a change whose own run failed or was superseded is
- * still picked up by the next run. Every doubt deploys.
+ * Cloud Run serves (`servedCommit`) and `head`. Comparing with what is served, not with the previous
+ * push, means a change whose own run failed or was superseded is still picked up by the next run.
+ * Every doubt deploys.
  */
 export function decideDeploy(
-  deployed: string,
+  served: { commit: string } | { doubt: string },
   head: string,
   git: Run,
 ): DeployDecision {
-  if (!/^[0-9a-f]{40}$/.test(deployed))
-    return {
-      deploy: true,
-      reason: "the served revision carries no commit label",
-    };
+  if ("doubt" in served) return { deploy: true, reason: served.doubt };
+  const deployed = served.commit;
   if (deployed === head)
     return { deploy: false, reason: `${head} is already served` };
   let files: string[];
   try {
     git("git", ["merge-base", "--is-ancestor", deployed, head]);
-    files = git("git", ["diff", "--name-only", deployed, head])
+    // --no-renames: a file moved out of the backend paths must show its old path, not only its new one.
+    // core.quotePath=false: a non-ASCII path is printed as it is, not quoted and escaped.
+    files = git("git", [
+      "-c",
+      "core.quotePath=false",
+      "diff",
+      "--no-renames",
+      "--name-only",
+      deployed,
+      head,
+    ])
       .split("\n")
       .filter(Boolean);
   } catch {

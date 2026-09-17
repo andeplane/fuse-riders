@@ -84,9 +84,11 @@ jobs:
           echo "action=$action" >> "$GITHUB_OUTPUT"
       # Path filter: a main push that changed nothing the backend is built from (documentation, CI,
       # browser scripts, tests) does not rebuild and roll Cloud Run. The list is
-      # scripts/lib/backend-paths.ts; the comparison is with the commit Cloud Run serves, so a change
-      # whose own run failed or was replaced is deployed by the next one. A manual dispatch always
-      # deploys, and so does any doubt about what is served.
+      # scripts/lib/backend-paths.ts; the comparison is with the commit Cloud Run really serves. The
+      # service's `commit` label alone is not that (a rollout that never became ready has already
+      # written it), so the label counts only when the last created revision is the ready one and
+      # carries all of the traffic; then a change whose own run failed or was replaced is deployed by
+      # the next run. A manual dispatch always deploys, and so does any doubt about what is served.
       - name: Did anything the backend is built from change?
         id: changes
         if: steps.live.outputs.action != 'skip'

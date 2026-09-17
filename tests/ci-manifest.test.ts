@@ -11,6 +11,7 @@ import {
 } from "../scripts/lib/ci-manifest.js";
 import { browserKind } from "../scripts/lib/browser.js";
 import { roomServiceUrl } from "../scripts/lib/server.js";
+import { devBanner } from "../src/service/dev.js";
 
 // scripts/ci-manifest.json is the only list of CI steps. These tests fail when .github/workflows/ci.yml or
 // scripts/ci-local.sh stops reading it, or when the one hand-written copy (the `verify` job) differs from it.
@@ -26,6 +27,14 @@ function job(name: string): string {
   assert.ok(block, `ci.yml has no ${name} job`);
   return block;
 }
+/**
+ * Every command a job runs, whether the step is `- run: x` or a named step with `run: x` on its own line.
+ * A `run: |` block yields "|", which equals no manifest command, so a multi-line step fails the comparison.
+ */
+const runsIn = (jobText: string) =>
+  [...jobText.matchAll(/^ {6}(?:- | {2})run: (.+)$/gm)].map(
+    (match) => match[1]!,
+  );
 const withoutComments = (text: string) =>
   text
     .split("\n")
@@ -36,9 +45,7 @@ const scriptsIn = (text: string) => [
 ];
 
 test("the verify job runs exactly the manifest's verify steps, in order", () => {
-  const runs = [...job("verify").matchAll(/^ {6}- run: (.+)$/gm)].map(
-    (match) => match[1],
-  );
+  const runs = runsIn(job("verify"));
   assert.deepEqual(runs, [
     "npm ci",
     ...manifest.verify.map((step) => step.command),
@@ -47,29 +54,62 @@ test("the verify job runs exactly the manifest's verify steps, in order", () => 
   assert.doesNotMatch(job("verify"), /^ {4}(needs|if):/m);
 });
 
+test("a named or multi-line step in a job is seen, not only `- run:` steps", () => {
+  const text = [
+    "  verify:",
+    "    steps:",
+    "      - uses: actions/checkout@v4",
+    "      - run: npm ci",
+    "      - name: Not in the manifest",
+    "        run: npm run not-in-manifest",
+    "      - name: A block",
+    "        run: |",
+    "          npm run hidden",
+    "      - run: npm run build",
+    "        env:",
+    "          CI: true",
+  ].join("\n");
+  assert.deepEqual(runsIn(text), [
+    "npm ci",
+    "npm run not-in-manifest",
+    "|",
+    "npm run build",
+  ]);
+});
+
 test("the browser matrix is built from the manifest, one job per smoke", () => {
-  assert.ok(
-    job("plan").includes(
-      `run: printf 'smokes=%s\\n' "$(jq -c .smokes scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"`,
-    ),
-  );
-  assert.match(
-    job("plan"),
-    /^ {6}smokes: \$\{\{ steps\.manifest\.outputs\.smokes \}\}$/m,
-  );
+  const plan = job("plan");
+  for (const line of [
+    "      ids: ${{ steps.manifest.outputs.ids }}",
+    "      byId: ${{ steps.manifest.outputs.byId }}",
+    `          printf 'ids=%s\\n' "$(jq -c '[.smokes[].id]' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"`,
+    `          printf 'byId=%s\\n' "$(jq -c '.smokes | map({key: .id, value: .}) | from_entries' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"`,
+  ])
+    assert.ok(plan.split("\n").includes(line), `plan job lost: ${line}`);
   const smoke = job("smoke");
+  const entry = "fromJson(needs.plan.outputs.byId)[matrix.id]";
   for (const line of [
     "    needs: plan",
     "      fail-fast: false",
-    "        smoke: ${{ fromJson(needs.plan.outputs.smokes) }}",
-    "    timeout-minutes: ${{ matrix.smoke.timeoutMinutes }}",
-    "      - run: npx playwright install --with-deps ${{ join(matrix.smoke.browsers, ' ') }}",
-    "      - name: ${{ matrix.smoke.name }}",
-    '        run: npx tsx scripts/ci-run.ts --smoke "${{ matrix.smoke.id }}"',
-    "          name: browser-evidence-${{ matrix.smoke.id }}",
+    "        id: ${{ fromJson(needs.plan.outputs.ids) }}",
+    `    timeout-minutes: \${{ ${entry}.timeoutMinutes }}`,
+    `      - run: npx playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
+    `      - name: \${{ ${entry}.name }}`,
+    '        run: npx tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
+    "          name: browser-evidence-${{ matrix.id }}",
     "      SMOKE_TIMEOUT_SCALE: 3",
   ])
     assert.ok(smoke.split("\n").includes(line), `smoke job lost: ${line}`);
+  // No dynamic job name: a skipped matrix job would show the unexpanded expression as a check.
+  assert.doesNotMatch(smoke, /^ {4}name:/m);
+  // The only commands in these jobs are the ones asserted above.
+  assert.deepEqual(runsIn(plan), ["|"]);
+  assert.deepEqual(runsIn(smoke), [
+    "npm ci",
+    "npm run build",
+    `npx playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
+    'npx tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
+  ]);
   // Evidence is uploaded whether the smoke passed or not.
   assert.match(
     smoke,
@@ -231,11 +271,19 @@ test("a manifest the workflow or the runner would misread is rejected", () => {
   );
 });
 
-test("the room service URL is read from the banner it prints", () => {
+test("the room service URL is read from the banner src/service/dev.ts really prints", () => {
+  const at = {
+    port: 8801,
+    base: "http://localhost:8803",
+    staticDirectory: "/repo/dist",
+  };
+  // Both shapes: the port asked for, and the walk past a busy one.
   assert.equal(
-    roomServiceUrl(
-      "\nFUSE RIDERS — online rooms, locally\n\nPort 8801 is in use; using 8803 instead.\n\nHome:      http://localhost:8803/          (create or join a room)\nPlay solo: http://localhost:8803/?solo=1\n",
-    ),
+    roomServiceUrl(devBanner({ ...at, actual: 8803 })),
+    "http://localhost:8803/",
+  );
+  assert.equal(
+    roomServiceUrl(devBanner({ ...at, port: 8803, actual: 8803 })),
     "http://localhost:8803/",
   );
   assert.equal(

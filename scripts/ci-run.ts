@@ -7,7 +7,7 @@
  *
  * ONLY=core,keyboard selects steps; PORT is where the room service's port search starts (default: a free port).
  */
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
@@ -30,13 +30,46 @@ const { values } = parseArgs({
 process.chdir(fileURLToPath(new URL("..", import.meta.url)));
 const manifest = loadManifest();
 
+/** The step that is running now, so a signal to this process reaches it. */
+let current: ChildProcess | undefined;
 function run(command: string[], env: NodeJS.ProcessEnv): Promise<number> {
   return new Promise((resolve, reject) => {
     const [file, ...args] = command;
-    const child = spawn(file!, args, { stdio: "inherit", env });
+    // Its own process group: scripts/ci-smoke.sh, npx, tsx and the browsers are a tree, and a signal has to
+    // reach all of it. A detached child gets no Ctrl-C from the terminal, so the handler below forwards it.
+    const child = spawn(file!, args, {
+      stdio: ["ignore", "inherit", "inherit"],
+      env,
+      detached: true,
+    });
+    current = child;
     child.once("error", reject);
-    child.once("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
+    child.once("exit", (code, signal) => {
+      if (current === child) current = undefined;
+      resolve(code ?? (signal ? 1 : 0));
+    });
   });
+}
+/** Signal the running step's whole group, wait for it, and kill it if it will not go. */
+async function stopStep(signal: NodeJS.Signals): Promise<void> {
+  const child = current;
+  if (!child?.pid || child.exitCode !== null || child.signalCode !== null)
+    return;
+  const group = -child.pid;
+  const send = (name: NodeJS.Signals) => {
+    try {
+      process.kill(group, name);
+    } catch {
+      /* already gone */
+    }
+  };
+  const gone = new Promise<void>((resolve) =>
+    child.once("exit", () => resolve()),
+  );
+  send(signal);
+  const timer = setTimeout(() => send("SIGKILL"), 5000);
+  await gone;
+  clearTimeout(timer);
 }
 
 let service: LocalServer | undefined;
@@ -57,9 +90,12 @@ async function stopService(): Promise<void> {
   service = undefined;
   await running?.stop();
 }
+// The smoke first, then the service it talks to: neither may outlive the runner.
 for (const signal of ["SIGINT", "SIGTERM"] as const)
   process.once(signal, () => {
-    void stopService().finally(() => process.exit(130));
+    void stopStep(signal)
+      .then(stopService)
+      .finally(() => process.exit(signal === "SIGINT" ? 130 : 143));
   });
 
 /** `retry`: through scripts/ci-smoke.sh, which reruns a failure once and reports the flake to GitHub. */

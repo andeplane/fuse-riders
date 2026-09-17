@@ -107,7 +107,7 @@
       "browsers": ["chromium", "webkit"],
       "env": {},
       "serviceUrlEnv": "HOME_URL",
-      "timeoutMinutes": 20,
+      "timeoutMinutes": 30,
       "retries": 1
     },
     {

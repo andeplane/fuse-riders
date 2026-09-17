@@ -65,25 +65,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      smokes: ${{ steps.manifest.outputs.smokes }}
+      ids: ${{ steps.manifest.outputs.ids }}
+      byId: ${{ steps.manifest.outputs.byId }}
     steps:
       - uses: actions/checkout@v4
       - name: Read the smokes from scripts/ci-manifest.json
         id: manifest
-        run: printf 'smokes=%s\n' "$(jq -c .smokes scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          printf 'ids=%s\n' "$(jq -c '[.smokes[].id]' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
+          printf 'byId=%s\n' "$(jq -c '.smokes | map({key: .id, value: .}) | from_entries' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
 
   smoke:
     needs: plan
-    # A pull request without `full-ci` shows this job once, skipped, with the expression unexpanded.
-    name: "smoke: ${{ matrix.smoke.name }}"
+    # The matrix is the ids alone and the job has no dynamic `name:`, so it reads `smoke (online-webkit)`
+    # when it runs and plain `smoke` when a pull request without `full-ci` skips it. Everything else about
+    # an entry is looked up by id.
     runs-on: ubuntu-latest
     strategy:
       # Every smoke reports, so one run shows everything that is broken rather than the first thing.
       fail-fast: false
       matrix:
-        smoke: ${{ fromJson(needs.plan.outputs.smokes) }}
+        id: ${{ fromJson(needs.plan.outputs.ids) }}
     # Setup plus the smoke, which may run twice (scripts/ci-smoke.sh).
-    timeout-minutes: ${{ matrix.smoke.timeoutMinutes }}
+    timeout-minutes: ${{ fromJson(needs.plan.outputs.byId)[matrix.id].timeoutMinutes }}
     permissions:
       contents: read
       # scripts/ci-smoke.sh comments on the `flaky-test` issue when a smoke on main passes only on retry.
@@ -107,16 +111,16 @@ jobs:
       # Before the browser downloads, so a revision that does not compile fails in
       # seconds rather than after a minute of Playwright installs. The room service serves dist/.
       - run: npm run build
-      - run: npx playwright install --with-deps ${{ join(matrix.smoke.browsers, ' ') }}
+      - run: npx playwright install --with-deps ${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, ' ') }}
       # Starts the local room service on a free port when the smoke needs one (log in
       # artifacts/room-service.log), applies the entry's env and retries once through scripts/ci-smoke.sh.
-      - name: ${{ matrix.smoke.name }}
-        run: npx tsx scripts/ci-run.ts --smoke "${{ matrix.smoke.id }}"
+      - name: ${{ fromJson(needs.plan.outputs.byId)[matrix.id].name }}
+        run: npx tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-evidence-${{ matrix.smoke.id }}
+          name: browser-evidence-${{ matrix.id }}
           path: |
             artifacts/*.png
             artifacts/room-service.log
