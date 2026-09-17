@@ -82,7 +82,10 @@ build_id="$(gcloud builds submit "$build_dir" --project="$PROJECT_ID" --region="
 gcloud builds log "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" --stream
 build_status="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" --format='value(status)')"
 [[ "$build_status" == SUCCESS ]] || { echo "Build $build_id failed: $build_status" >&2; exit 1; }
-image_digest="$(gcloud artifacts docker images describe "$image_tag" --project="$PROJECT_ID" --format='value(image_summary.digest)')"
+# The digest this build pushed, from the build itself. `artifacts docker images describe` also lists Container
+# Analysis occurrences once the deployer can see that API is enabled, which the configuration role allows but
+# the deployer has no permission for.
+image_digest="$(gcloud builds describe "$build_id" --project="$PROJECT_ID" --region="$GCP_REGION" --format='value(results.images[0].digest)')"
 [[ "$image_digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo 'Build did not produce a valid image digest.' >&2; exit 1; }
 image="$image_name@$image_digest"
 previous_revision="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project="$PROJECT_ID" --region="$GCP_REGION" --format='value(status.latestReadyRevisionName)' 2>/dev/null || true)"
