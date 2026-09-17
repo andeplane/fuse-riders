@@ -21,7 +21,7 @@ for (const phase of ['lobby', 'countdown', 'playing', 'roundOver', 'matchOver'] 
     assert.equal(game.matchStats.size, 0); assert.equal(game.roundParticipants.size, 0); assert.equal(game.roundPlacements.length, 0);
     assert.deepEqual(game.portalPairs, []); assert.deepEqual(game.gravityFields, []); assert.equal(game.roundWinnerId, undefined); assert.equal(game.matchWinnerId, undefined); assert.equal(game.roundStartedTick, undefined); assert.equal(game.phaseEndsAtTick, undefined);
     const snapshot = toSnapshot(game); assert.deepEqual(snapshot.bombs, []); assert.deepEqual(snapshot.blasts, []); assert.deepEqual(snapshot.pickups, []);
-    assert.ok(snapshot.players.every(p => p.connected && !p.alive && p.roundWins === 0 && !p.targetBombArmed && !p.fiveShotArmed && !p.gravityArmed && p.bombTarget === undefined && p.bombChargeStartedTick === undefined && p.invulnerableUntilTick === 0 && p.inkUntilTick === 0 && p.trail.length === 0 && !p.waitingForNextRound));
+    assert.ok(snapshot.players.every(p => p.connected && !p.alive && p.roundWins === 0 && !p.targetBombArmed && !p.fiveShotArmed && p.bombTarget === undefined && p.bombChargeStartedTick === undefined && p.invulnerableUntilTick === 0 && p.inkUntilTick === 0 && p.trail.length === 0 && !p.waitingForNextRound));
     startMatch(game); assert.equal(game.phase, 'countdown'); assert.equal(game.matchId, 'after');
   });
 }

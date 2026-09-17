@@ -71,13 +71,12 @@ test('even and large volleys stay symmetric, distinct and within the Five fan', 
   for (const count of [0, -1, 1.5, NaN, Infinity, MAX_VOLLEY_BOMBS + 1]) assert.throws(() => volleyAngles(0, count));
 });
 
-test('Triple/Five add their temporary bonus; Power and Singularity apply to upgraded volleys', () => {
+test('Triple/Five add their temporary bonus; Power applies to upgraded volleys', () => {
   for (const temporary of ['triple', 'five'] as const) {
     const game = playing(), rider = game.players.get('p0')!;
-    collect(game, 'extraBomb', 'extraBomb', 'power', 'gravity', temporary); step(game, fire);
+    collect(game, 'extraBomb', 'extraBomb', 'power', temporary); step(game, fire);
     const bombs = [...game.bombs.values()];
     assert.equal(bombs.length, temporary === 'triple' ? 5 : 7);
-    assert.equal(bombs.filter(bomb => bomb.gravity).length, 1);
     assert.ok(bombs.every(bomb => bomb.blastRange === powerBlastRadius(1)));
     assert.equal(rider.reloadDurationTicks, powerReloadTicks(1));
     assert.equal(rider.tripleShotArmed, false); assert.equal(rider.fiveShotArmed, false);

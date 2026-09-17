@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  COUNTDOWN_TICKS, OVERTIME_START_TICK, RIDER_SPEED, RIDER_TURN_RATE, SLOT_COLORS, SPEED_RAMP_MAX, TICK_HZ,
+  COUNTDOWN_TICKS, NITRO_SPEED, OVERTIME_START_TICK, RIDER_SPEED, RIDER_TURN_RATE, SLOT_COLORS, SPEED_RAMP_MAX, TICK_HZ,
   addPlayer, createGame, roundSpeedMultiplier, startMatch, startNextRound, step, toSnapshot, type GameState,
 } from '../src/shared/game.js';
 import { decodeGameState, encodeGameState } from '../src/online/checkpoint.js';
@@ -46,13 +46,13 @@ test('riders travel faster as the round goes on, with turning circles kept the s
   for (const sample of [early, middle]) assert.ok(Math.abs(sample.distance / sample.turn - late.distance / late.turn) < 1e-6, 'the turn radius never changes');
 });
 
-test('a boost stacks on top of the full ramp', () => {
+test('a Nitro stacks on top of the full ramp', () => {
   const game = playing();
   game.roundStartedTick = game.tick - OVERTIME_START_TICK;
-  game.players.get('p0')!.boostUntilTick = game.tick + 10;
+  game.players.get('p0')!.nitroUntilTicks = [game.tick + 10];
   const boosted = measure(game);
-  assert.ok(Math.abs(boosted.distance - RIDER_SPEED / TICK_HZ * SPEED_RAMP_MAX * 1.25) < 1e-9, `${boosted.distance}`);
-  assert.ok(Math.abs(boosted.turn - RIDER_TURN_RATE / TICK_HZ * SPEED_RAMP_MAX) < 1e-9, 'boost widens turns; only the ramp speeds steering');
+  assert.ok(Math.abs(boosted.distance - RIDER_SPEED / TICK_HZ * SPEED_RAMP_MAX * NITRO_SPEED) < 1e-9, `${boosted.distance}`);
+  assert.ok(Math.abs(boosted.turn - RIDER_TURN_RATE / TICK_HZ * SPEED_RAMP_MAX) < 1e-9, 'Nitro widens turns; only the ramp speeds steering');
 });
 
 test('a local rider shown ahead late in the round lands where the next simulated tick puts it', () => {

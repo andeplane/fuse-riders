@@ -24,11 +24,11 @@ function pickup(game: GameState, x: number, y: number, type: PickupType = 'power
   return id;
 }
 
-function bomb(game: GameState, x: number, y: number, radius: number, delay = 1, gravity = false): void {
+function bomb(game: GameState, x: number, y: number, radius: number, delay = 1): void {
   const id = game.nextBombId++;
   game.bombs.set(id, { id, ownerId: 'p0', x, y, launchX: x, launchY: y,
     launchedTick: game.tick, placedTick: game.tick, landsAtTick: game.tick,
-    explodeAtTick: game.tick + delay, blastRange: radius, flightPath: [{ x, y, angle: 0 }], gravity });
+    explodeAtTick: game.tick + delay, blastRange: radius, flightPath: [{ x, y, angle: 0 }] });
 }
 
 test('spawned pickups survive the old timeout and late round, then reset with the round', () => {
@@ -69,13 +69,13 @@ test('blast destruction is strictly inside 60% of the actual radius, using cente
   }
 });
 
-test('chained and gravity bombs destroy pickups and replay identically from a checkpoint', () => {
+test('chained bombs destroy pickups and replay identically from a checkpoint', () => {
   const game = playing();
   pickup(game, 800, 400);
   pickup(game, 930, 400, 'beer');
   const survivor = pickup(game, 1000, 400);
   bomb(game, 800, 400, 150);
-  bomb(game, 930, 400, 100, 100, true);
+  bomb(game, 930, 400, 100, 100);
   const restored = decodeGameState(encodeGameState(game));
   assert.ok(restored);
   const result = step(game, new Map());
@@ -84,7 +84,7 @@ test('chained and gravity bombs destroy pickups and replay identically from a ch
   assert.deepEqual(step(restored, new Map()), result);
   assert.equal(encodeGameState(restored), encodeGameState(game));
   assert.ok(decodeGameState(encodeGameState(game)));
-  // The blast picture and Singularity field remain, but neither burns later arrivals.
+  // The blast picture remains, but it does not burn later arrivals.
   const later = pickup(game, 930, 400);
   step(game, new Map());
   assert.ok(game.pickups.some(p => p.id === later));

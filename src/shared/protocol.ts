@@ -46,17 +46,17 @@ export interface GameSnapshot {
     id: PlayerId; name: string; slot: number; color: string; connected: boolean; avatarId: AvatarId;
     x: number; y: number; angle: number; alive: boolean; roundWins: number; matchScoreUnits: number; roundScoreUnits: number; waitingForNextRound?: boolean;
     bombReadyAtTick: number; bombChargeStartedTick?: number; trail: ReadonlyArray<TrailSegment>;
-    extraBombs: number; fuseLevel: number; powerPickups: number; reloadDurationTicks: number; invulnerableUntilTick: number; boostUntilTick: number; nitroUntilTicks: ReadonlyArray<number>; snailUntilTicks: ReadonlyArray<number>; grip: boolean; drunkUntilTick: number; inkUntilTick: number;
-    gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; gravityArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
+    extraBombs: number; fuseLevel: number; powerPickups: number; reloadDurationTicks: number; invulnerableUntilTick: number; nitroUntilTicks: ReadonlyArray<number>; snailUntilTicks: ReadonlyArray<number>; grip: boolean; drunkUntilTick: number; inkUntilTick: number;
+    gunArmed?: boolean; shellArmed?: boolean; targetBombArmed: boolean; bombTarget?: AimPoint; tripleShotArmed: boolean; fiveShotArmed: boolean; shielded: boolean; shieldGraceUntilTick: number; portalCooldownUntilTick: number; portalGraceUntilTick: number;
   }>;
   bombs: ReadonlyArray<{
     id: number; ownerId: PlayerId; launchX: number; launchY: number; x: number; y: number;
-    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; gravity?: boolean; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
+    launchedTick: number; landsAtTick: number; explodeAtTick: number; blastRange: number; shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
     flightPath: ReadonlyArray<FlightPoint>;
   }>;
   blasts: ReadonlyArray<{ bombId: number; circle: Readonly<BlastCircle>; expiresAtTick: number }>;
   portalPairs: ReadonlyArray<PortalPair>;
-  gravityFields: ReadonlyArray<{ bombId: number; ownerId: PlayerId; x: number; y: number; radius: number; expiresAtTick: number }>;
+  gravityFields: ReadonlyArray<{ x: number; y: number; radius: number; expiresAtTick: number }>;
   pickups: ReadonlyArray<{ id: number; type: PickupType; x: number; y: number; expiresAtTick: number }>;
   leaderboard: ReadonlyArray<SessionLeaderboardEntry>;
   roundPlacements: ReadonlyArray<RoundPlacement>;

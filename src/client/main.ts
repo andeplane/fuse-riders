@@ -94,7 +94,8 @@ function startDisplay(): void {
   const audio = createGameAudio();
   const root = element('main', 'display-shell');
   const topbar = element('header', 'topbar');
-  const brand = element('div', 'brand');
+  const brand = element('a', 'brand');
+  brand.href = '/'; brand.title = 'Back to the main menu';
   brand.append(element('span', 'brand-cyan', 'FUSE'), document.createTextNode(' '), element('span', 'brand-pink', 'RIDERS'));
   const scores = element('div', 'scores');
   const timer = element('div', 'timer');
@@ -502,7 +503,10 @@ function startController(): void {
   document.body.className = 'controller-page';
   const root = element('main', 'controller-shell');
   const header = element('header', 'controller-header');
-  const logo = element('div', 'controller-logo');
+  const logo = element('a', 'controller-logo');
+  logo.href = '/'; logo.title = 'Back to the main menu';
+  // A stray thumb on the logo mid-round must not drop the rider: leaving a joined game asks first.
+  logo.onclick = (event) => { if (document.querySelector('.controls:not(.hidden)') && !confirm('Leave the game and go to the main menu?')) event.preventDefault(); };
   logo.append(element('span', 'brand-cyan', 'FUSE'), document.createTextNode(' '), element('span', 'brand-pink', 'RIDERS'));
   const socketPill = element('span', 'socket-pill', 'OFFLINE');
   header.append(logo, socketPill);
@@ -538,7 +542,6 @@ function startController(): void {
   const matchPoints = element('span', 'power-chip points-power', 'PTS · 0');
   powerStrip.append(countPower, starPower, nitroPower, slowedPower, wobblePower, inkPower, triplePower, shieldPower, portalPower, matchPoints);
   const targetPower = element('span', 'power-chip', 'TARGET · --'); powerStrip.append(targetPower);
-  const gravityPower = element('span', 'power-chip', 'SINGULARITY · --'); powerStrip.append(gravityPower);
   const pad = element('div', 'control-pad');
   const left = element('button', 'control-button steer', '↶'); left.dataset.control = 'left'; left.type = 'button'; left.setAttribute('aria-label', 'Turn left');
   const bomb = element('button', 'control-button bomb', '✦'); bomb.dataset.control = 'bomb'; bomb.type = 'button'; bomb.setAttribute('aria-label', 'Drop bomb');
@@ -610,7 +613,6 @@ function startController(): void {
       y: clamp((player.y + Math.sin(player.angle) * 100) / snapshot.height, 0, 1),
     } : undefined);
     targetPower.textContent = player.targetBombArmed ? 'TARGET · ARMED' : 'TARGET · --';
-    gravityPower.textContent = player.gravityArmed ? 'SINGULARITY · ARMED' : 'SINGULARITY · --';
     const scored = snapshot as ScoredSnapshot;
     liveAvatarPicker.sync(player.avatarId);
     root.style.setProperty('--player-color', escapeColor(player.color));
@@ -757,8 +759,8 @@ else {
       analytics.track('Boot Failed', { message, role: 'boot' });
     }).catch(() => { /* analytics never breaks the game */ });
     const card = document.createElement('section'); card.className = 'boot-failure'; card.setAttribute('role', 'alert');
-    card.style.cssText = 'position:fixed;inset:0;display:grid;place-content:center;gap:16px;padding:24px;text-align:center;background:#03060f;color:#e8ecff;font:14px/1.6 monospace;z-index:1000';
-    const title = document.createElement('h1'); title.textContent = 'Fuse Riders could not load'; title.style.cssText = 'font-size:16px;margin:0';
+    card.style.cssText = 'position:fixed;inset:0;display:grid;place-content:center;gap:1rem;padding:1.5rem;text-align:center;background:#03060f;color:#e8ecff;font:.875rem/1.6 monospace;z-index:1000';
+    const title = document.createElement('h1'); title.textContent = 'Fuse Riders could not load'; title.style.cssText = 'font-size:1rem;margin:0';
     const detail = document.createElement('p'); detail.textContent = message; detail.style.cssText = 'margin:0;opacity:.8;word-break:break-word;max-width:32ch';
     const reload = document.createElement('button'); reload.textContent = 'RELOAD'; reload.onclick = () => location.reload();
     card.append(title, detail, reload); app.append(card);
