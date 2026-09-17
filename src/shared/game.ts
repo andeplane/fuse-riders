@@ -136,6 +136,11 @@ import {
   type TickObservations,
 } from "./moments.js";
 
+import {
+  createTickContext,
+  type Movement,
+  type NewBlast,
+} from "./sim/context.js";
 export * from "./state.js";
 export { toSnapshot } from "./view.js";
 export * from "./tuning.js";
@@ -213,25 +218,9 @@ import {
 } from "./state.js";
 import { toSnapshot } from "./view.js";
 
-/**
- * A blast opened this tick, carrying the shot of the bomb that made it. The stored `state.blasts` entry is a plain
- * `BlastState`: the shot is only needed while this tick's kills are being attributed, and a bomb is deleted the
- * moment it explodes, so the shot has to travel with the blast rather than be looked up afterwards.
- */
-type NewBlast = BlastState & { shot?: number };
-
 export interface TickResult {
   snapshot: GameSnapshot;
   events: GameEvent[];
-}
-
-interface Movement {
-  player: PlayerState;
-  oldX: number;
-  oldY: number;
-  x: number;
-  y: number;
-  angle: number;
 }
 
 const CAUSE_PRIORITY: Record<EliminationCause, number> = {
@@ -441,7 +430,8 @@ export function step(
   state.gravityFields = state.gravityFields.filter(
     (field) => state.tick < field.expiresAtTick,
   );
-  const events: GameEvent[] = [];
+  const ctx = createTickContext(state, inputs);
+  const { events } = ctx;
 
   state.blasts = state.blasts.filter(
     (blast) => blast.expiresAtTick > state.tick,
@@ -461,6 +451,7 @@ export function step(
     state.nextPickupSpawnTick = state.tick + pickupSchedule.interval;
   }
 
+  ctx.pickupSchedule = pickupSchedule;
   if (state.phase !== "playing") return { snapshot: toSnapshot(state), events };
 
   for (const player of sortedPlayers(state))
@@ -473,6 +464,9 @@ export function step(
   // Decided once per tick: open edges carry riders, shells, bullets, bombs and blasts through to the far side.
   const open = edgesOpen(state);
   const trailBounds = portalBounds(state);
+  ctx.elapsed = elapsed;
+  ctx.open = open;
+  ctx.trailBounds = trailBounds;
   state.portalPairs = state.portalPairs
     .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
     .filter((pair): pair is PortalPair => pair !== undefined);
@@ -503,7 +497,7 @@ export function step(
     maybeSpawnPickup(state, pickupSchedule.cap);
   }
 
-  const movements = new Map<PlayerId, Movement>();
+  const { movements } = ctx;
   for (const player of sortedPlayers(state))
     expireSpeedEffects(player, state.tick);
   for (const player of sortedPlayers(state).filter(
@@ -546,7 +540,7 @@ export function step(
 
   collectPickups(state, movements, events);
 
-  const bounced = new Set<PlayerId>();
+  const { bounced } = ctx;
   for (const movement of movements.values()) {
     if (
       isHazardImmune(movement.player, state.tick) &&
@@ -558,7 +552,7 @@ export function step(
 
   // One run per portal hop. The gap between runs is travel the shell never made, so the sweep below
   // must not read across it: a rider standing between two gates is not in the way of a teleport.
-  const shellPaths = new Map<number, ShellPoint[][]>();
+  const { shellPaths } = ctx;
   for (const bomb of sortedBombs(state)) {
     if (!bomb.shell) continue;
     // Gun damage was resolved on press; these are stationary, harmless tracers.
@@ -664,21 +658,14 @@ export function step(
       ...(motion.bounces ? { bounces: motion.bounces } : {}),
     };
   }
-  const newBlasts = resolveExplosions(state, events);
+  const newBlasts = (ctx.fuseBlasts = resolveExplosions(state, events));
 
   // Highlight observations (ADR 043): what the sweep learns about each death, and where every rider was before a blast.
-  const observations: TickObservations = { deaths: [], dodges: [] };
-  const landingHits = new Map<PlayerId, PlayerId>();
-  const shellHits = new Map<
-    PlayerId,
-    { ownerId: PlayerId; bounces: number; age: number }
-  >();
-  const trailHits = new Map<PlayerId, { ownerId: PlayerId; age: number }>();
-  let origins: Map<PlayerId, { x: number; y: number }> | undefined;
+  const { observations, landingHits, shellHits, trailHits } = ctx;
   /** Where each rider stood DODGE_LOOKBACK_TICKS ago, read from its own trail before this tick's blasts burn that segment away. */
   const captureOrigins = (): void => {
-    if (origins) return;
-    origins = new Map();
+    if (ctx.origins) return;
+    const origins = (ctx.origins = new Map());
     for (const player of sortedPlayers(state)) {
       const segment = player.trail.find(
         (candidate) =>
@@ -688,14 +675,7 @@ export function step(
     }
   };
 
-  const causes = new Map<PlayerId, EliminationCause>();
-  const causeOwners = new Map<PlayerId, Map<EliminationCause, Set<PlayerId>>>();
-  /**
-   * Which shot reached each rider that an explosion marked, for the shot log. The lowest bomb id wins rather than
-   * whichever source happens to be visited first, so every replica logs the same shot however its maps are ordered —
-   * the log is part of the state peers compare.
-   */
-  const shotSources = new Map<PlayerId, { bombId: number; shot: number }>();
+  const { causes, causeOwners, shotSources } = ctx;
   const markShot = (
     victimId: PlayerId,
     bombId: number,
@@ -706,15 +686,15 @@ export function step(
     if (!known || bombId < known.bombId)
       shotSources.set(victimId, { bombId, shot });
   };
-  const trailContactTimes = new Map<PlayerId, number>();
-  const riderContactTimes = new Map<PlayerId, number>();
-  /** Crashing into scenery is `wall`, and only these riders stop against what they hit rather than at the boundary. */
-  const obstacleContactTimes = new Map<PlayerId, number>();
+  const {
+    trailContactTimes,
+    riderContactTimes,
+    obstacleContactTimes,
+    obstaclesReached,
+  } = ctx;
   // Id order: each contact bisection starts from the one before it, and the last to shorten it is what a shield
   // turns away from, so the order obstacles are visited in is part of the outcome.
   const obstacleHitboxes = sortedObstacles(state).map(obstacleHitbox);
-  /** The scenery each of those contacts is with, which is what an absorbed crash turns the rider away from. */
-  const obstaclesReached = new Map<PlayerId, ObstacleHitbox>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of sortedBombs(state)) {
     if (
@@ -1042,7 +1022,7 @@ export function step(
    * A rider already dead by explosion still keeps its contact, which is what the shield below bounces off.
    */
   // What the shield below bounces off: every scenery contact of the tick, whichever cause ends up winning it.
-  const sceneryReached = new Map(obstacleContactTimes);
+  const sceneryReached = (ctx.sceneryReached = new Map(obstacleContactTimes));
   for (const movement of movementList) {
     const contact = obstacleContactTimes.get(movement.player.id);
     if (contact === undefined) continue;
@@ -1079,7 +1059,7 @@ export function step(
     shotSources.delete(movement.player.id);
   }
 
-  const transits = new Map<PlayerId, PortalTransit>();
+  const { transits } = ctx;
   for (const movement of movementList) {
     if (causes.has(movement.player.id)) continue;
     const transit = findPortalTransit({
@@ -1268,7 +1248,7 @@ export function step(
   }
 
   // Resolve every gun against the same committed board before applying cuts or deaths.
-  const gunHits = resolveGunShots(state);
+  const gunHits = (ctx.gunHits = resolveGunShots(state));
 
   /**
    * Resolve pressed Guns and released Target Bombs in this same tick, after every rider has launched — and so after
@@ -1277,7 +1257,7 @@ export function step(
    * within the tick, and the same order in which a pickup collected this tick survives a blast opened by it.
    * Ordinary fuses run before movement instead (`newBlasts`), so what they clear is gone before anyone rides into it.
    */
-  const instantBlasts = resolveExplosions(state, events);
+  const instantBlasts = (ctx.instantBlasts = resolveExplosions(state, events));
   if (instantBlasts.length || gunHits.size) {
     captureOrigins();
     for (const player of sortedPlayers(state)) {
@@ -1364,10 +1344,10 @@ export function step(
   }
   // A dodge is having been inside a blast's radius before it went off and being alive outside it now; the owner's
   // own retreat and any immune rider do not count. One per rider per tick, against the first such blast in id order.
-  if (origins) {
+  if (ctx.origins) {
     const blasts = [...newBlasts, ...instantBlasts];
     for (const player of sortedPlayers(state)) {
-      const origin = origins.get(player.id);
+      const origin = ctx.origins.get(player.id);
       if (!origin || !player.alive || isHazardImmune(player, state.tick))
         continue;
       for (const blast of blasts) {
