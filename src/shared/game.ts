@@ -141,6 +141,7 @@ import {
   type Movement,
   type NewBlast,
 } from "./sim/context.js";
+import { PHASES, runPhases } from "./sim/pipeline.js";
 export * from "./state.js";
 export { toSnapshot } from "./view.js";
 export * from "./tuning.js";
@@ -423,36 +424,12 @@ export function step(
   state: GameState,
   inputs: ReadonlyMap<PlayerId, InputIntent>,
 ): TickResult {
-  state.tick += 1;
-  state.portalPairs = state.portalPairs.filter(
-    (pair) => state.tick < pair.expiresAtTick,
-  );
-  state.gravityFields = state.gravityFields.filter(
-    (field) => state.tick < field.expiresAtTick,
-  );
   const ctx = createTickContext(state, inputs);
   const { events } = ctx;
-
-  state.blasts = state.blasts.filter(
-    (blast) => blast.expiresAtTick > state.tick,
-  );
-
-  const pickupSchedule = pickupPacing(
-    sortedPlayers(state).filter((player) => player.alive).length,
-  );
-  if (
-    state.phase === "countdown" &&
-    state.phaseEndsAtTick !== undefined &&
-    state.tick >= state.phaseEndsAtTick
-  ) {
-    state.phase = "playing";
-    state.phaseEndsAtTick = undefined;
-    state.roundStartedTick = state.tick;
-    state.nextPickupSpawnTick = state.tick + pickupSchedule.interval;
-  }
-
-  ctx.pickupSchedule = pickupSchedule;
+  // Migration scaffold: the phases lifted out so far run from PHASES; the rest of the tick is still inline below.
+  runPhases(ctx, PHASES);
   if (state.phase !== "playing") return { snapshot: toSnapshot(state), events };
+  const { pickupSchedule } = ctx;
 
   for (const player of sortedPlayers(state))
     player.trail = advanceTrail(player.trail, state.tick);
