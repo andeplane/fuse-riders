@@ -36,7 +36,7 @@ export function startGcpRoomService(options:GcpRoomServiceOptions):Server {
   const gatewayId=randomUUID();
   const firestore=new Firestore({projectId,databaseId:process.env.FIRESTORE_DATABASE_ID??'(default)',ignoreUndefinedProperties:true,...(authClient?{authClient}:{})});
   const pubsub=new PubSub({projectId,apiEndpoint:`${region}-pubsub.googleapis.com:443`,...(authClient?{authClient}:{})});
-  const database=new FirestoreRoomDatabase(firestore,prefix);
+  const database=new FirestoreRoomDatabase(firestore,prefix,options.maxGuests);
   const store=new RoomStore(database,{now:()=>Date.now(),id:randomUUID,maxGuests:options.maxGuests,fullMessage:options.fullMessage});
   const bus=new PubSubRoomBus(pubsub,topic,gatewayId,prefix);
   // Never log requests, query strings, room tokens or raw transport frames.

@@ -22,6 +22,8 @@ startGcpRoomService({ serviceName: 'my-game-gateway', defaultPrefix: 'my-game' }
 Pieces, for other hosts: `RoomStore` (rules, over a `RoomDatabase`), `RoomGateway` (sockets, over a `RoomBus`),
 `createRoomServer` (HTTP + upgrade). `MemoryRoomDatabase`/`LocalRoomBus` and `FirestoreRoomDatabase`/`PubSubRoomBus`
 are the two provided pairs. `RoomStoreDependencies.maxGuests` and `fullMessage` set capacity (default: the creator
-plus five). The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
+plus five). When constructing `FirestoreRoomDatabase` directly, pass the same `maxGuests` as its third argument
+so stored metadata validation uses the admission limit; `startGcpRoomService` does this automatically. Limits must
+be non-negative safe integers below `Number.MAX_SAFE_INTEGER`. The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
 
 Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.

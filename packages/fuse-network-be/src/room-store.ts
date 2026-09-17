@@ -12,6 +12,11 @@ export interface RoomDatabase {
 }
 /** A room seats its creator plus this many other members unless the store is told otherwise. */
 export const DEFAULT_MAX_GUESTS=5;
+/** Validate configuration once, keeping admission and stored metadata bounded by the same limit. */
+export function roomGuestLimit(maxGuests:number=DEFAULT_MAX_GUESTS):number {
+  if(!Number.isSafeInteger(maxGuests)||maxGuests<0||maxGuests>=Number.MAX_SAFE_INTEGER)throw new RangeError('maxGuests must be a non-negative safe integer below Number.MAX_SAFE_INTEGER');
+  return maxGuests;
+}
 export interface RoomStoreDependencies {
   now:()=>number;id:()=>string;
   /** Members besides the creator, whose seat is always kept. */
@@ -30,7 +35,8 @@ const clone=(room:RoomRecord):RoomRecord=>structuredClone(room);
 function live(room:RoomRecord|undefined,now:number):RoomRecord { if(!room||room.expiresAt<=now)throw new RoomError(404,'Room expired or not found');return clone(room); }
 function prune(room:RoomRecord,now:number):void {for(const [id,member] of Object.entries(room.members))if(member.expiresAt<=now)delete room.members[id];}
 export class RoomStore {
-  constructor(readonly database:RoomDatabase,private dependencies:RoomStoreDependencies){}
+  private readonly maxGuests:number;
+  constructor(readonly database:RoomDatabase,private dependencies:RoomStoreDependencies){this.maxGuests=roomGuestLimit(dependencies.maxGuests);}
   async createAvailable(token:string,nextCode:()=>string=generateRoomCode):Promise<string>{
     const code=await reserveRoomCode(async candidate=>{try{await this.create(candidate,token);return true;}catch(error){if(error instanceof RoomError&&error.status===409)return false;throw error;}},nextCode);
     if(!code)throw new RoomError(503,'Room codes busy; please try again');return code;
@@ -52,7 +58,7 @@ export class RoomStore {
     const connectionId=this.dependencies.id(),grantId=this.dependencies.id(),id=peerId(token);
     return this.database.transact(code,current=>{
       const now=this.dependencies.now(),room=live(current,now);prune(room,now);
-      const host=digest(token)===room.hostHash,guests=this.dependencies.maxGuests??DEFAULT_MAX_GUESTS,capacity=host||room.members[room.hostId]?guests+1:guests;
+      const host=digest(token)===room.hostHash,guests=this.maxGuests,capacity=host||room.members[room.hostId]?guests+1:guests;
       if(Object.keys(room.members).length>=capacity&&!room.members[id])throw new RoomError(429,this.dependencies.fullMessage??'Room full');
       const member:Member={id,connectionId,gatewayId,host,expiresAt:now+CONNECTION_TTL_MS};
       room.members[id]=member;room.revision++;if(host)room.expiresAt=now+ROOM_TTL_MS;
@@ -79,10 +85,11 @@ export class RoomStore {
   async get(code:string):Promise<RoomRecord>{return live(await this.database.read(code),this.dependencies.now());}
 }
 /** Runtime boundary: reject incompatible/corrupt stored metadata before authority decisions. */
-export function parseRoomRecord(raw:unknown):RoomRecord|undefined {
+export function parseRoomRecord(raw:unknown,maxGuests:number=DEFAULT_MAX_GUESTS):RoomRecord|undefined {
+  const capacity=roomGuestLimit(maxGuests)+1;
   if(!raw||typeof raw!=='object'||Array.isArray(raw))return;
   const r=raw as Record<string,unknown>,members=r.members;
-  if(r.version!==2||typeof r.code!=='string'||!validCode(r.code)||typeof r.incarnation!=='string'||r.incarnation.length>128||typeof r.hostHash!=='string'||!/^[a-f0-9]{64}$/.test(r.hostHash)||typeof r.hostId!=='string'||!/^[a-f0-9]{24}$/.test(r.hostId)||typeof r.expiresAt!=='number'||!Number.isFinite(r.expiresAt)||r.expiresAt<0||!Number.isSafeInteger(r.revision)||Number(r.revision)<1||!members||typeof members!=='object'||Array.isArray(members)||Object.keys(members).length>6||(r.grant!==undefined&&!isAuthorityGrant(r.grant)))return;
+  if(r.version!==2||typeof r.code!=='string'||!validCode(r.code)||typeof r.incarnation!=='string'||r.incarnation.length>128||typeof r.hostHash!=='string'||!/^[a-f0-9]{64}$/.test(r.hostHash)||typeof r.hostId!=='string'||!/^[a-f0-9]{24}$/.test(r.hostId)||typeof r.expiresAt!=='number'||!Number.isFinite(r.expiresAt)||r.expiresAt<0||!Number.isSafeInteger(r.revision)||Number(r.revision)<1||!members||typeof members!=='object'||Array.isArray(members)||Object.keys(members).length>capacity||(r.grant!==undefined&&!isAuthorityGrant(r.grant)))return;
   for(const [id,value] of Object.entries(members)){
     if(!value||typeof value!=='object')return;const m=value as Record<string,unknown>;
     if(id!==m.id||!/^[a-f0-9]{24}$/.test(id)||!['connectionId','gatewayId'].every(key=>typeof m[key]==='string'&&m[key].length>0&&m[key].length<=128)||typeof m.host!=='boolean'||m.host!==(id===r.hostId)||typeof m.expiresAt!=='number'||!Number.isFinite(m.expiresAt)||m.expiresAt<0)return;

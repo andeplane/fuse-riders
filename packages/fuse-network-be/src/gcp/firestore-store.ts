@@ -1,11 +1,12 @@
 import { Firestore, Timestamp } from '@google-cloud/firestore';
-import { parseRoomRecord, type RoomDatabase, type RoomRecord } from '../room-store.js';
+import { parseRoomRecord, roomGuestLimit, type RoomDatabase, type RoomRecord } from '../room-store.js';
 
 /** The operation callback is pure and may be retried by Firestore. */
 export class FirestoreRoomDatabase implements RoomDatabase {
-  constructor(private firestore:Firestore,private prefix:string){}
+  private readonly maxGuests:number;
+  constructor(private firestore:Firestore,private prefix:string,maxGuests?:number){this.maxGuests=roomGuestLimit(maxGuests);}
   private room(code:string){return this.firestore.collection(`${this.prefix}-rooms`).doc(code);}
-  private parse(value:unknown):RoomRecord|undefined{if(value===undefined)return;const room=parseRoomRecord(value);if(!room)throw new Error('Stored room schema is incompatible');return room;}
+  private parse(value:unknown):RoomRecord|undefined{if(value===undefined)return;const room=parseRoomRecord(value,this.maxGuests);if(!room)throw new Error('Stored room schema is incompatible');return room;}
   async read(code:string):Promise<RoomRecord|undefined>{return this.parse((await this.room(code).get()).data());}
   async transact<T>(code:string,operation:(current:RoomRecord|undefined)=>{room?:RoomRecord;result:T}):Promise<T>{
     const ref=this.room(code);
