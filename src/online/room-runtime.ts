@@ -143,7 +143,7 @@ interface Member {
   rules?: string;
   /** Since when every packet from this member has fallen outside this replica's window; -Infinity once one is taken. */
   windowSince: number;
-  /** When this runtime learned of the member: the start of the wait for a link that never comes up. */
+  /** When this runtime learned of the member's current connection: the start of the wait for a link that never comes up. */
   since: number;
   /** When the link to the member's current connection was first seen usable, so its packets could arrive; -Infinity until then. */
   linkedAt: number;
@@ -233,6 +233,8 @@ export class RoomRuntime {
   private readonly members = new Map<string, Member>();
   private readonly generation: number;
   private world?: World;
+  /** When this runtime first held a world: before that it could judge nobody, so no wait for a link starts earlier. */
+  private judgingSince = -Infinity;
   private id = "";
   private hostId = "";
   private room = 0;
@@ -378,9 +380,12 @@ export class RoomRuntime {
     if (online) {
       const known = this.members.get(id);
       // The same member on a new connection (a reload the service saw before the old socket closed): the transport has
-      // dropped the old link, and the new page cannot be heard before its own link is up.
-      if (known) known.linkedAt = -Infinity;
-      else
+      // dropped the old link, and the new page cannot be heard before its own link is up. A member never heard gets
+      // the whole link wait again, for the connection that can now link.
+      if (known) {
+        known.linkedAt = -Infinity;
+        known.since = this.deps.now();
+      } else
         this.members.set(id, {
           generation: 0,
           snapshotServedAt: -Infinity,
@@ -637,6 +642,9 @@ export class RoomRuntime {
       this.id,
     );
     this.world.stream(this.id, this.generation);
+    // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
+    // invariant — "since the first world" — not because anything here could be misjudged.
+    this.judgingSince = this.deps.now();
     this.clock.start(0);
     this.lastOwnTick = 0;
     this.resetHeld();
@@ -726,7 +734,11 @@ export class RoomRuntime {
     const tick = decoded.state.game.tick,
       previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state);
-    else this.world = new World(decoded.state, this.hostId, this.id);
+    else {
+      this.world = new World(decoded.state, this.hostId, this.id);
+      // Not on a resync: a replica that already judged its members keeps the waits it started.
+      this.judgingSince = this.deps.now();
+    }
     for (const stream of decoded.streams) {
       // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
       // its presence switched) install like anyone else's, and the own-stream creation then retires them in order.
@@ -939,14 +951,17 @@ export class RoomRuntime {
    * Whether `member` has been silent for `ms`, counting only time in which this runtime could have heard it: since its
    * last packet, or since the link to its current connection became usable if that is later. A page that has just
    * loaded has heard nobody, and a page that has just loaded cannot be heard — neither is silence. A member never heard
-   * whose link never comes up is given `LINK_WAIT_MS`. Without this a reloaded creator logged every rider it had not
-   * heard YET as absent in its second pass, and a round boundary or lobby reset inside that window took a healthy
-   * rider's seat. The link counts once per connection, so a flapping link cannot stand in for packets.
+   * whose link never comes up is given `LINK_WAIT_MS`, counted from when this runtime learned of its connection or from
+   * when it first held a world, whichever is later: a page whose own first link or snapshot took five seconds has
+   * only then begun to wait for the others. Without this a reloaded creator logged every rider it had not heard YET as
+   * absent in its second pass, and a round boundary or lobby reset inside that window took a healthy rider's seat. The
+   * link counts once per connection, so a flapping link cannot stand in for packets.
    */
   private silent(member: Member, now: number, ms: number): boolean {
     const from = Math.max(member.lastPacketAt, member.linkedAt);
     return from === -Infinity
-      ? now - member.since > Math.max(ms, LINK_WAIT_MS)
+      ? now - Math.max(member.since, this.judgingSince) >
+          Math.max(ms, LINK_WAIT_MS)
       : now - from > ms;
   }
   private creatorDuties(now: number): void {
