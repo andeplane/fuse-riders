@@ -7,7 +7,8 @@ import {
 import { randomBytes } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, type WebSocket } from "ws";
+import { AdmissionGate } from "./admission-gate.js";
 import {
   RoomError,
   digest,
@@ -35,7 +36,7 @@ export interface RoomHttpOptions {
   gateway: RoomGateway;
   /** Decides a request's Origin header; WebSocket upgrades must always carry an allowed one. */
   allowOrigin: (origin: string, req: IncomingMessage) => boolean;
-  /** Rate-limit identity for room creation. */
+  /** Rate-limit identity for room creation and admission failures. */
   clientAddress: (req: IncomingMessage) => string;
   now?: () => number;
   /** Local development only: serve this built frontend with single-page fallback. Production serves no files. */
@@ -108,6 +109,7 @@ export interface RoomServer extends Server {
 export function createRoomServer(options: RoomHttpOptions): RoomServer {
   const { store, gateway } = options,
     now = options.now ?? Date.now;
+  const admissions = new AdmissionGate(store.database, now);
   const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
     if (origin && !options.allowOrigin(origin, req)) {
@@ -259,49 +261,77 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
       return;
     }
     const code = route[1]!;
-    sockets.handleUpgrade(req, socket, head, (ws) => {
-      let connectionId: string | undefined,
-        closed = false,
-        pending: string[] = [];
-      ws.on("message", (raw, binary) => {
-        if (binary) {
-          ws.close(1003, "Text frames required");
-          return;
-        }
-        const data = raw.toString();
-        if (connectionId) void gateway.receive(connectionId, data);
-        else if (pending.length < 4) pending.push(data);
-        else ws.close(1008, "Wait for welcome");
-      });
-      ws.on("close", () => {
-        closed = true;
-        pending = [];
-        if (connectionId) void gateway.disconnect(connectionId);
-      });
-      ws.on("error", () => {
-        ws.close();
-      });
-      void gateway
-        .connect(code, token, ws)
-        .then((id) => {
-          connectionId = id;
-          if (closed) {
-            void gateway.disconnect(id);
-            return;
-          }
-          for (const data of pending) void gateway.receive(id, data);
-          pending = [];
-        })
-        .catch((error) => {
-          logFailure("admission", error);
-          ws.close(
+    let upgraded: WebSocket | undefined;
+    socket.on("error", () => socket.destroy());
+    void admissions
+      .run(
+        options.clientAddress(req),
+        () =>
+          new Promise<void>((resolve, reject) => {
+            if (socket.destroyed) {
+              reject(new RoomError(503, "Connection closed"));
+              return;
+            }
+            // ws can reject malformed upgrade headers without invoking its callback.
+            // Release the pending slot when that rejected connection closes.
+            const aborted = () =>
+              reject(new RoomError(400, "Invalid WebSocket upgrade"));
+            socket.once("close", aborted);
+            sockets.handleUpgrade(req, socket, head, (ws) => {
+              socket.off("close", aborted);
+              upgraded = ws;
+              let connectionId: string | undefined,
+                closed = false,
+                pending: string[] = [];
+              ws.on("message", (raw, binary) => {
+                if (binary) {
+                  ws.close(1003, "Text frames required");
+                  return;
+                }
+                const data = raw.toString();
+                if (connectionId) void gateway.receive(connectionId, data);
+                else if (pending.length < 4) pending.push(data);
+                else ws.close(1008, "Wait for welcome");
+              });
+              ws.on("close", () => {
+                closed = true;
+                pending = [];
+                if (connectionId) void gateway.disconnect(connectionId);
+              });
+              ws.on("error", () => {
+                ws.close();
+              });
+              void gateway
+                .connect(code, token, ws)
+                .then((id) => {
+                  connectionId = id;
+                  if (closed) {
+                    void gateway.disconnect(id);
+                    resolve();
+                    return;
+                  }
+                  for (const data of pending) void gateway.receive(id, data);
+                  pending = [];
+                  resolve();
+                })
+                .catch(reject);
+            });
+          }),
+      )
+      .catch((error) => {
+        logFailure("admission", error);
+        if (upgraded)
+          upgraded.close(
             error instanceof RoomError && error.status === 404 ? 4004 : 4000,
             error instanceof RoomError
               ? error.message
               : "Room service unavailable",
           );
-        });
-    });
+        else if (!socket.destroyed)
+          socket.end(
+            `HTTP/1.1 ${error instanceof RoomError && error.status === 429 ? "429 Too Many Requests" : "503 Service Unavailable"}\r\nConnection: close\r\n\r\n`,
+          );
+      });
   });
   server.on("close", () => {
     sockets.close();
