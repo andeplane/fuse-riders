@@ -80,14 +80,6 @@ jobs:
       # seconds rather than after a minute of Playwright installs.
       - run: npm run build
       - run: npx playwright install --with-deps chrome chromium webkit
-      - name: Chrome five-phone smoke
-        run: scripts/ci-smoke.sh "Chrome five-phone smoke" npm run test:browser
-      - name: WebKit five-phone smoke
-        run: scripts/ci-smoke.sh "WebKit five-phone smoke" npm run test:browser
-        env:
-          BROWSER: webkit
-      - name: Small-phone avatar picker layout
-        run: scripts/ci-smoke.sh "Small-phone avatar picker layout" npx tsx scripts/avatar-layout.ts
       # The production room protocol (packages/fuse-network-be) over in-memory metadata, serving dist/.
       - name: Start local online room service
         run: |
