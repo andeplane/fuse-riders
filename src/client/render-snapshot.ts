@@ -1,5 +1,5 @@
 import { advanceShell, SHELL_RADIUS } from '../shared/shell.js';
-import { edgesOpen, obstacleEdges } from '../shared/arena-map.js';
+import { edgesOpen, obstacleDistanceSquared, obstacleEdges } from '../shared/arena-map.js';
 import { wrapCoordinate, wrapDelta } from '../shared/wrap.js';
 import type { ViewSnapshot } from './snapshot-stream.js';
 
@@ -33,8 +33,6 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
   if (projectionDuration === 0) return newer.snapshot;
   const factor = projectionDuration / authoritativeDuration;
   const oldById = new Map(older.snapshot.players.map((player) => [player.id, player]));
-  // Built once per projected frame rather than once per shell: the edges are the same board for every bomb.
-  const obstacleWalls = newer.snapshot.obstacles.flatMap(obstacleEdges);
   // Over open edges a rider that crossed is a step further on, not a board's width back: velocity is the short way round.
   const open = edgesOpen(newer.snapshot);
   const { width, height } = newer.snapshot;
@@ -47,6 +45,8 @@ export function renderedSnapshot(frames: readonly SnapshotFrame[], now: number):
       const dt = projectionDuration / 1000;
       if (bomb.shell.gun) return bomb;
       const motion = { x: bomb.x, y: bomb.y, vx: bomb.shell.vx * dt * 20, vy: bomb.shell.vy * dt * 20 };
+      // As in the simulation: the obstacle a shell is inside of does not hold it.
+      const obstacleWalls = newer.snapshot.obstacles.filter(obstacle => obstacleDistanceSquared(obstacle, bomb.x, bomb.y) > 0).flatMap(obstacleEdges);
       advanceShell(motion, open ? { left: -width, right: 2 * width, top: -height, bottom: 2 * height } : { left: newer.snapshot.boundaryInset + SHELL_RADIUS,
         right: newer.snapshot.width - newer.snapshot.boundaryInset - SHELL_RADIUS,
         top: newer.snapshot.boundaryInset + SHELL_RADIUS,

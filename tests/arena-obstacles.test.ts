@@ -261,6 +261,7 @@ test('the closing overtime walls crush the scenery they reach', () => {
 test('every round lays a board that leaves each rider a clear start', () => {
   for (const riders of [2, 3, 5]) for (let seed = 1; seed <= 25; seed += 1) {
     const game = createGame(`spawn-${riders}-${seed}`, seed);
+    game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
     for (let slot = 0; slot < riders; slot += 1) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: SLOT_COLORS[slot]! });
     startMatch(game);
     while (game.phase === 'countdown') step(game, new Map());
@@ -332,6 +333,7 @@ test('bots ride around scenery instead of into it', () => {
   let survived = 0;
   for (let seed = 1; seed <= 12; seed += 1) {
     const game = createGame(`bot-map-${seed}`, seed);
+    game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
     addPlayer(game, { id: 'bot:1', name: 'AI Rider · Hard', slot: 0, color: SLOT_COLORS[0]! });
     addPlayer(game, { id: 'bot:2', name: 'AI Other · Hard', slot: 1, color: SLOT_COLORS[1]! });
     startMatch(game);
@@ -343,4 +345,42 @@ test('bots ride around scenery instead of into it', () => {
     if (game.players.get('bot:1')!.alive) survived += 1;
   }
   assert.ok(survived >= 10, `hard bots survived only ${survived} of 12 boards`);
+});
+
+test('a rider whose immunity lapses inside scenery is let out of it instead of dying on the spot', () => {
+  const game = scene([boulder({ halfWidth: 100 })]);
+  rider(game).invulnerableUntilTick = game.tick + 45; // runs out with the rider deep inside the rock
+  const survived = ticksToDeath(game, 90);
+  assert.equal(survived, 90, 'it rides out the far side');
+  assert.ok(rider(game).x > 800);
+  const other = scene([boulder({ halfWidth: 100 }), boulder({ id: 2, x: 1000 })]);
+  rider(other).invulnerableUntilTick = other.tick + 45;
+  assert.ok(ticksToDeath(other, 120) < 120, 'and the next rock along is as solid as ever');
+});
+
+test('a shield spent on a trail in front of scenery still turns the rider away from the scenery', () => {
+  const game = scene([boulder({ x: 660 })]);
+  // p0 rides right from x=300; the trail stands just before the rock's near face at x=600.
+  rider(game, 'p1').trail = [{ x1: 590, y1: 300, x2: 590, y2: 600, createdTick: game.tick - 40, expiresAtTick: game.tick + 4000 }];
+  Object.assign(rider(game), { x: 570, shielded: true });
+  assert.equal(ticksToDeath(game, 30), 30, 'the grace ticks are not spent riding into the rock');
+});
+
+test('a shell fired from inside scenery flies out of it rather than rattling between its walls', () => {
+  const game = scene([boulder()]);
+  Object.assign(rider(game), { x: 700, y: 450, shellArmed: true, invulnerableUntilTick: game.tick + 200 });
+  step(game, new Map([['p0', press]]));
+  step(game, new Map([['p0', { ...neutral, bombCommands: [{ action: 'release' }] }]]));
+  for (let tick = 0; tick < 10; tick += 1) step(game, new Map());
+  const shell = [...game.bombs.values()].find(bomb => bomb.shell && !bomb.shell.gun)!;
+  assert.ok(shell.x > 800, `left the rock behind: ${shell.x}`);
+  assert.equal(shell.shell!.bounces ?? 0, 0);
+});
+
+test('a game without room settings, as on the LAN, keeps the classic arena', () => {
+  const game = createGame('lan', 4);
+  for (let slot = 0; slot < 2; slot += 1) addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: SLOT_COLORS[slot]! });
+  startMatch(game);
+  assert.equal(game.map, 'classic');
+  assert.deepEqual(game.obstacles, []);
 });
