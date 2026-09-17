@@ -7,10 +7,10 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "npm run build && tsx src/service/dev.ts --port 8787",
+    "dev": "npm run build && tsx src/service/dev.ts --port ${PORT:-8787}",
     "build": "tsc --noEmit && vite build",
     "prestart": "npm run build",
-    "start": "npm run build && tsx src/service/dev.ts --port 8787",
+    "start": "npm run build && tsx src/service/dev.ts --port ${PORT:-8787}",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
     "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts",

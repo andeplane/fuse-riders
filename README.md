@@ -16,13 +16,13 @@ _Five AI riders playing an actual match in the real game client — not a staged
 
 Public Chrome and WebKit checks covered phone hosting, AI, guest connections, saved settings, shared-TV play and reset at runtime `6c1673b`; the [public acceptance report](docs/online/PUBLIC-ACCEPTANCE.md) records that tested release. The restored UI (`68bea0d`: neon lobby, landscape touch controls, keyboard controls, short room codes) was first published after local Chrome/WebKit verification; its CI run failed at the desktop keyboard browser check, PRs #9 and #11 fixed that check, and the currently deployed `a4bee00` runtime passed CI 34822503284. No clean public acceptance run for the restored UI is recorded in this repository; see the [release status](docs/online/PUBLIC-BETA-2026-09-14.md#restored-ui-release-68bea0d). Renderer and network benchmarks are documented separately; physical-device performance and arbitrary network reliability are not guaranteed. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The LAN path remains available.
 
-## Run a LAN game
+## Run locally
 
 Requires Node.js **22.12 or newer** and npm. From a fresh checkout:
 
 ```sh
 npm ci
-PORT=3030 npm start
+PORT=3030 npm run dev
 ```
 
 Run the online development service locally with `npm run dev`, or use the deployed room service in production. Create a room and choose shared-screen or individual-device play from the home page.
@@ -145,7 +145,7 @@ The soundtrack is **Fuse Riders Radio**: it plays for as long as the page is ope
 
 The game ships two visual styles. **Neon Pixel** (the default) draws a chunky brick boundary wall with corner brackets and warning studs, a 30px grid and dotted trail cores; **Clean Neon** draws a thin glowing rim with a smooth outer stroke, a 50px grid and hairline trails. The style is a per-device choice stored in `localStorage` and never sent to other players: switch it under the room's **SETTINGS** button or with a `?theme=neon-pixel` / `?theme=clean-neon` URL. Switching applies immediately, mid-round included, and only changes graphics — never hitboxes or timing.
 
-Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?** and device preferences (music, effects, radio, visual style, fullscreen) under **SETTINGS**. The arena fits the remaining viewport without changing its aspect ratio; phone touch thirds and the LAN display/controller layout are preserved. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
+Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?** and device preferences (music, effects, radio, visual style, fullscreen) under **SETTINGS**. The arena fits the remaining viewport without changing its aspect ratio. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
 
 The end-of-match report (podium, totals, highlight reel, awards and rider comparison) is built by the pure [`src/shared/match-recap.ts`](src/shared/match-recap.ts) module from the authoritative `matchStats` and `moments`; the online `MATCH RESULTS` dialog renders it, so ties, empty rosters and formatting are covered once by `tests/match-recap.test.ts`. The highlight reel lists the plays worth replaying and is detected inside the shared simulation by [`src/shared/moments.ts`](src/shared/moments.ts) so every device agrees on them.
 
