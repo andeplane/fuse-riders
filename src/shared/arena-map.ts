@@ -71,6 +71,31 @@ export interface ObstacleSegment {
   y2: number;
 }
 
+/**
+ * How much of its drawn footprint an obstacle kills a rider with, per axis. A crash has to look like one: a crown is
+ * an ellipse, so its solid part is the rectangle that fits inside it, and a cactus is mostly the air between its
+ * arms. Flat-faced pieces give up only a few units, enough that a graze along a wall is a graze. Projectiles, blasts
+ * and placement still use the whole footprint: only the rider's own death is judged in its favour.
+ */
+export const OBSTACLE_HIT_SCALE: Record<ObstacleKind, number> = {
+  rock: 0.9,
+  cactus: 0.75,
+  tree: 0.7,
+  bush: 0.7,
+  building: 0.95,
+  crate: 0.85,
+};
+
+/** The part of an obstacle a rider dies against: the footprint, shrunk about its centre by `OBSTACLE_HIT_SCALE`. */
+export function obstacleHitbox(obstacle: Obstacle): Obstacle {
+  const scale = OBSTACLE_HIT_SCALE[obstacle.kind];
+  return {
+    ...obstacle,
+    halfWidth: obstacle.halfWidth * scale,
+    halfHeight: obstacle.halfHeight * scale,
+  };
+}
+
 /** A whole board's worth. Also the checkpoint's array bound, so a hostile layout cannot grow the state. */
 export const MAX_OBSTACLES = 40;
 /** Obstacles keep clear of the boundary wall, so a rider can always ride the perimeter. */

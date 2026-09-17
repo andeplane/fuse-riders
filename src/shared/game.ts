@@ -53,6 +53,7 @@ import {
   obstacleBounceNormal,
   obstacleDistanceSquared,
   obstacleEdges,
+  obstacleHitbox,
   obstacleInsideBounds,
   obstacleTouchesCircle,
   segmentObstacleDistanceSquared,
@@ -170,6 +171,11 @@ export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
 /** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
 export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
+/**
+ * Scenery is met at the head's visible width too, and against the obstacle's hitbox rather than its whole footprint
+ * (`obstacleHitbox`): a rider that brushed a crown or clipped a corner it never visibly touched did not crash.
+ */
+export const RIDER_OBSTACLE_RADIUS = RIDER_CONTACT_RADIUS;
 export const TRAIL_LIFETIME_TICKS = POWER_TUNING.baseTrailLifetimeTicks;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
@@ -969,6 +975,7 @@ export function step(
   const riderContactTimes = new Map<PlayerId, number>();
   /** Crashing into scenery is `wall`, and only these riders stop against what they hit rather than at the boundary. */
   const obstacleContactTimes = new Map<PlayerId, number>();
+  const obstacleHitboxes = state.obstacles.map(obstacleHitbox);
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of state.bombs.values()) {
     if (
@@ -1145,7 +1152,7 @@ export function step(
     // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
     // Only the contact time is recorded here; the cause is decided below, once the trail and rider contacts of
     // this tick are known and can be compared against it.
-    for (const obstacle of state.obstacles) {
+    for (const obstacle of obstacleHitboxes) {
       if (isHazardImmune(movement.player, state.tick)) break;
       const touches = (time: number): boolean =>
         obstacleBlocksPath(
@@ -1154,7 +1161,7 @@ export function step(
           movement.oldY,
           movement.oldX + (movement.x - movement.oldX) * time,
           movement.oldY + (movement.y - movement.oldY) * time,
-          RIDER_RADIUS,
+          RIDER_OBSTACLE_RADIUS,
         );
       const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
       // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
@@ -1320,7 +1327,7 @@ export function step(
     const obstacleTime = sceneryReached.get(movement.player.id);
     if (
       obstacleTime !== undefined &&
-      reflectAtObstacle(state, movement, obstacleTime)
+      reflectAtObstacle(obstacleHitboxes, movement, obstacleTime)
     )
       bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
@@ -2379,7 +2386,7 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
  * shielded rider, and without it a shield would only buy the ticks of grace it takes to die inside the same obstacle.
  */
 function reflectAtObstacle(
-  state: GameState,
+  hitboxes: readonly Obstacle[],
   movement: Movement,
   contactTime: number,
 ): boolean {
@@ -2387,7 +2394,7 @@ function reflectAtObstacle(
   movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
   let hit: Obstacle | undefined;
   let nearest = Infinity;
-  for (const obstacle of state.obstacles) {
+  for (const obstacle of hitboxes) {
     const distance = obstacleDistanceSquared(obstacle, movement.x, movement.y);
     if (distance < nearest) {
       nearest = distance;

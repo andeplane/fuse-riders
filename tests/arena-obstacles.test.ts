@@ -9,6 +9,7 @@ import {
   toSnapshot,
   OVERTIME_START_TICK,
   PICKUP_RADIUS,
+  RIDER_OBSTACLE_RADIUS,
   RIDER_RADIUS,
   SLOT_COLORS,
   TRAIL_WIDTH,
@@ -20,8 +21,11 @@ import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
 import {
   ARENA_MAPS,
   MAX_OBSTACLES,
+  OBSTACLE_HIT_SCALE,
+  OBSTACLE_KINDS,
   obstacleBlocksPath,
   obstacleDistanceSquared,
+  obstacleHitbox,
   obstacleTouchesCircle,
   type Obstacle,
 } from "../src/shared/arena-map.js";
@@ -44,6 +48,9 @@ const boulder = (overrides: Partial<Obstacle> = {}): Obstacle => ({
   halfHeight: 60,
   ...overrides,
 });
+/** Where a rider heading +x first touches an obstacle: its hitbox's near face, less the rider's own contact radius. */
+const touchX = (obstacle: Obstacle): number =>
+  obstacle.x - obstacleHitbox(obstacle).halfWidth - RIDER_OBSTACLE_RADIUS;
 
 /** A started round with whatever scenery the test asks for, and no drops of its own. */
 function scene(
@@ -99,22 +106,49 @@ test("a rider that rides into scenery dies against its face, not inside it", () 
     ),
     "a crash is reported like any other solid contact",
   );
-  // Stopped exactly where it first touched: the rock's near face is at x = 640, and a rider touches at its own
-  // radius from it. Anything later in the step is the crash being resolved somewhere inside the rock.
+  // Stopped exactly where it first touched: the near face of the rock's hitbox, at the rider's own contact radius
+  // from it. Anything later in the step is the crash being resolved somewhere inside the rock.
   assert.ok(
-    Math.abs(dead.x - (700 - 60 - RIDER_RADIUS)) < 1e-6,
+    Math.abs(dead.x - touchX(boulder())) < 1e-6,
     `stopped at ${dead.x}, not at the face`,
   );
   assert.equal(dead.y, 450, "and on the line it was riding");
   assert.ok(
-    Math.sqrt(obstacleDistanceSquared(game.obstacles[0]!, dead.x, dead.y)) <=
-      RIDER_RADIUS + 1e-6,
+    Math.sqrt(
+      obstacleDistanceSquared(
+        obstacleHitbox(game.obstacles[0]!),
+        dead.x,
+        dead.y,
+      ),
+    ) <=
+      RIDER_OBSTACLE_RADIUS + 1e-6,
   );
   const wreck = dead.trail.at(-1)!;
   assert.ok(
     Math.abs(wreck.x2 - dead.x) < 1e-6,
     "the trail it laid reaches the crash and stops there",
   );
+});
+
+test("a rider that only brushes a crown rides on, and one that meets its solid part does not", () => {
+  // The footprint's corner is floor: the crown drawn there is an ellipse, and the line along y = 450 - 26 crosses
+  // the footprint without ever coming within a head's width of the crown's solid middle.
+  const tree = (): Obstacle =>
+    boulder({ kind: "tree", halfWidth: 28, halfHeight: 28 });
+  const graze = scene([tree()]);
+  Object.assign(rider(graze), { y: 450 - 26 });
+  assert.equal(ticksToDeath(graze), 70, "through the corner of the footprint");
+  assert.ok(ticksToDeath(scene([tree()])) < 70, "but not through the trunk");
+});
+
+test("every hitbox sits inside what is drawn, and a crown's inside its ellipse", () => {
+  for (const kind of OBSTACLE_KINDS) {
+    const scale = OBSTACLE_HIT_SCALE[kind];
+    assert.ok(scale > 0.5 && scale < 1, `${kind} kills with ${scale}`);
+  }
+  // The corner of the hitbox is the furthest it reaches; on a crown that corner must not leave the ellipse.
+  for (const kind of ["tree", "bush"] as const)
+    assert.ok(2 * OBSTACLE_HIT_SCALE[kind] ** 2 <= 1, `${kind} corner`);
 });
 
 test("a rider steering past scenery is unharmed, and the same line with the rock is fatal", () => {
@@ -154,22 +188,22 @@ test("a shielded rider is turned away from the scenery it crashed into", () => {
     "it came away facing back down the lane it arrived on",
   );
   assert.ok(
-    survivor.x < 700 - 60 - RIDER_RADIUS + 1e-6,
+    survivor.x < touchX(boulder()) + 1e-6,
     "and stopped at the rock rather than inside it",
   );
   step(game, new Map());
-  assert.ok(survivor.x < 700 - 60 - RIDER_RADIUS, "and rides away from it");
+  assert.ok(survivor.x < touchX(boulder()), "and rides away from it");
 });
 
 test("scenery further along the step never steals the kill from the trail that stopped the rider first", () => {
   // `wall` outranks `trail`, and unlike the boundary an obstacle can be met anywhere along a step. A rock the
   // rider would only have reached later in the tick must not turn a credited trail kill into an uncredited crash.
-  // One step of about 7.5 units from x=640 meets the trail at x=648.5 first and the rock's face at x=653 after it,
-  // so both contacts fall inside this very tick and only their order can tell them apart.
+  // One step of about 7.5 units from x=640 meets the trail at x=648.5 first and the face of the rock's hitbox at
+  // x=649 after it, so both contacts fall inside this very tick and only their order can tell them apart.
   const crash = (withRock: boolean) => {
     const game = scene(
       withRock
-        ? [boulder({ x: 713, y: 450, halfWidth: 60, halfHeight: 60 })]
+        ? [boulder({ x: 703, y: 450, halfWidth: 60, halfHeight: 60 })]
         : [],
     );
     const victim = rider(game),
@@ -201,7 +235,7 @@ test("scenery further along the step never steals the kill from the trail that s
   };
   // The fixture is only meaningful if the rock is genuinely in reach of this step: without the trail, it kills.
   const rockOnly = scene([
-    boulder({ x: 713, y: 450, halfWidth: 60, halfHeight: 60 }),
+    boulder({ x: 703, y: 450, halfWidth: 60, halfHeight: 60 }),
   ]);
   Object.assign(rider(rockOnly), { x: 640, y: 450, angle: 0, trail: [] });
   Object.assign(rider(rockOnly, "p1"), { x: 200, y: 100, angle: 0, trail: [] });
@@ -243,7 +277,7 @@ test("a shield absorbing a blast still stands the rider against the scenery it h
   ]);
   const survivor = rider(game);
   Object.assign(survivor, {
-    x: 640 - RIDER_RADIUS - 4,
+    x: touchX(boulder()) - 4,
     y: 450,
     angle: 0,
     shielded: true,
@@ -274,7 +308,7 @@ test("a shield absorbing a blast still stands the rider against the scenery it h
   assert.equal(survivor.alive, true, "the shield absorbed it");
   assert.equal(survivor.shielded, false);
   assert.ok(
-    survivor.x <= 700 - 60 - RIDER_RADIUS + 1e-6,
+    survivor.x <= touchX(boulder()) + 1e-6,
     `left at ${survivor.x}, inside the rock`,
   );
   assert.ok(
@@ -331,7 +365,7 @@ test("the scenery a blast just cleared cannot still kill the rider driving throu
   const wall = () => boulder({ x: 680, halfWidth: 80 });
   const approach = (withBomb: boolean): GameState => {
     const game = scene([wall()]);
-    Object.assign(rider(game), { x: 600 - RIDER_RADIUS - 3, y: 450, angle: 0 });
+    Object.assign(rider(game), { x: touchX(wall()) - 3, y: 450, angle: 0 });
     if (withBomb)
       game.bombs.set(1, {
         id: 1,
