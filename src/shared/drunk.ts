@@ -8,6 +8,8 @@ const DRUNK_STAGGER_FLOOR = 0.25;
 /** Slow lurch: an aimless drift under the stagger, so even a rider who holds a line does not travel straight. */
 export const DRUNK_LURCH_KNOT_TICKS = 18;
 export const DRUNK_LURCH_MAX = Math.PI / 12;
+/** Knots sit on a regular grid, each nudged by up to this share of the spacing, so no two waves are the same length. */
+const KNOT_JITTER = 0.25;
 export const DRUNK_MAX_HEADING_OFFSET = DRUNK_STAGGER_MAX + DRUNK_LURCH_MAX;
 
 const STAGGER_CHANNEL = 0x51ed270b;
@@ -33,9 +35,6 @@ function knotValue(rider: number, channel: number, knot: number): number {
 function smoothstep(value: number): number {
   return value * value * (3 - 2 * value);
 }
-
-/** Knots sit on a regular grid, each nudged by up to this share of the spacing, so no two waves are the same length. */
-const KNOT_JITTER = 0.35;
 
 /** Smooth curve through one value per knot, each within [-1, 1]. */
 function noise(

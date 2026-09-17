@@ -38,6 +38,7 @@ test("integrated sway remains within the heading bound and leaves zero heading d
 });
 
 test("a rider holding a line staggers side to side in uneven waves and drifts off it", () => {
+  let strayed = 0;
   for (let seed = 0; seed < 50; seed += 1) {
     const id = `player-${seed % 5}`;
     // Refreshed for ten seconds, so the onset and expiry fades stay out of the picture.
@@ -58,8 +59,11 @@ test("a rider holding a line staggers side to side in uneven waves and drifts of
     }
     assert.ok(swings.length >= 12, `seed ${seed} leans over ${swings.length}x`);
     assert.ok(new Set(swings).size >= 3, `seed ${seed} waves differ in length`);
-    assert.ok(farthest > 6, `seed ${seed} strays ${farthest}px off the line`);
+    assert.ok(farthest > 12, `seed ${seed} strays ${farthest}px off the line`);
+    strayed += farthest;
   }
+  // The stagger alone averages about 33px here: the rest is the slow lurch bending the whole line.
+  assert.ok(strayed / 50 > 55, `riders stray ${strayed / 50}px on average`);
 });
 
 test("refresh preserves the phase, and onset and expiry are smooth", () => {
