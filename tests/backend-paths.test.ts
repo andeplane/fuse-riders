@@ -119,7 +119,7 @@ test("backend.yml asks the filter before it installs or deploys, and a dispatch 
   assert.ok(workflow.includes("          fetch-depth: 0\n"));
   assert.ok(
     workflow.includes(
-      "        id: changes\n        run: npx tsx scripts/backend-changed.ts\n        env:\n          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}\n",
+      "        id: changes\n        if: steps.live.outputs.action != 'skip'\n        run: npx tsx scripts/backend-changed.ts\n        env:\n          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}\n",
     ),
   );
   assert.ok(
