@@ -376,15 +376,9 @@ class ArenaScene extends Phaser.Scene {
       if(airborne) g.lineStyle(2,ownerTint,.6).strokeEllipse(bomb.x,bomb.y,34,15);
     }
     for(const field of s.gravityFields) {
-      // A black hole: rings crowd toward the core the way the bend does, arms swirl inward, and the last second fades it out.
-      const left=field.expiresAtTick-(s.presentationTick??s.tick), fade=clamp(left/20,0,1)*clamp((GRAVITY_FIELD_TICKS-left)/6,0,1), swirl=now/900, core=Math.min(30,field.radius*.16);
-      g.fillStyle(0x784ed6,.1*fade).fillCircle(field.x,field.y,field.radius);
-      g.fillStyle(0x4a2a9c,.14*fade).fillCircle(field.x,field.y,field.radius*.55);
-      for(let ring=1;ring<=5;ring++) { const share=ring/5; g.lineStyle(1.5,0xc9a6ff,(.2+.3*(1-share))*fade).strokeCircle(field.x,field.y,core+(field.radius-core)*share*share); }
-      g.lineStyle(2,0xc9a6ff,.6*fade);
-      for(let arm=0;arm<3;arm++) { const start=swirl*(1+arm*.4)+arm*Math.PI*2/3; g.beginPath(); g.arc(field.x,field.y,core+(field.radius-core)*(.12+.16*arm),start,start+1.4,false); g.strokePath(); }
-      g.fillStyle(0x05030c,.97*fade).fillCircle(field.x,field.y,core);
-      g.lineStyle(2.5,0xffd9a0,.85*fade).strokeCircle(field.x,field.y,core+1.5);
+      // The bent floor grid shows the hole's reach; only the black core is drawn here.
+      const left=field.expiresAtTick-(s.presentationTick??s.tick), fade=clamp(left/20,0,1)*clamp((GRAVITY_FIELD_TICKS-left)/6,0,1);
+      g.fillStyle(0x000000,fade).fillCircle(field.x,field.y,Math.min(30,field.radius*.16));
     }
     for(const blast of s.blasts) {
       const frame=blastFrame(blast,s.presentationTick??s.tick), {x,y,radius}=blast.circle;
