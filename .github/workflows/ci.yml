@@ -87,7 +87,7 @@ jobs:
           BROWSER: webkit
       - name: Small-phone avatar picker layout
         run: scripts/ci-smoke.sh "Small-phone avatar picker layout" npx tsx scripts/avatar-layout.ts
-      # The production room protocol (src/service) over in-memory metadata, serving dist/.
+      # The production room protocol (packages/fuse-network-be) over in-memory metadata, serving dist/.
       - name: Start local online room service
         run: |
           mkdir -p artifacts

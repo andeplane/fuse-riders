@@ -11,6 +11,8 @@ try {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   const base = process.env.ONLINE_URL ?? 'http://127.0.0.1:5179/';
+  // The rider rides unattended while the bar is measured: keep it on the classic board.
+  await page.addInitScript(()=>{if(!localStorage.getItem('fuse-riders-room-settings-v1'))localStorage.setItem('fuse-riders-room-settings-v1',JSON.stringify({version:1,mode:'devices',match:'rounds',length:5,map:'classic',weights:{power:1}}));});
   await page.goto(`${base}?solo=1`);
   const left = page.locator('[aria-keyshortcuts~="ArrowLeft"]');
   const right = page.locator('[aria-keyshortcuts~="ArrowRight"]');
@@ -124,6 +126,8 @@ try {
   const phone = await browser.newPage({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
   phone.setDefaultTimeout(smokeTimeout(30000));
   phone.on('pageerror', error => errors.push(error.message));
+  // The rider rides unattended while the bar is measured: keep it on the classic board.
+  await phone.addInitScript(()=>{if(!localStorage.getItem('fuse-riders-room-settings-v1'))localStorage.setItem('fuse-riders-room-settings-v1',JSON.stringify({version:1,mode:'devices',match:'rounds',length:5,map:'classic',weights:{power:1}}));});
   await phone.goto(`${base}?solo=1`);
   await phone.locator('.online-controls').waitFor({ state: 'visible' });
   const phonePads = await phone.locator('.online-controls').boundingBox();

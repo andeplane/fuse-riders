@@ -4,9 +4,7 @@ import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { runPublicSmoke } from '../scripts/cloud-public-smoke.js';
-import { RoomGateway } from '../src/service/gateway.js';
-import { RoomStore } from '../src/service/room-store.js';
-import { LocalRoomBus, MemoryRoomDatabase } from '../src/service/memory-database.js';
+import { LocalRoomBus, MemoryRoomDatabase, RoomGateway, RoomStore } from 'fuse-network-be';
 async function fixture(brokenCors=false){
  const database=new MemoryRoomDatabase(),store=new RoomStore(database,{now:Date.now,id:randomUUID});const gateway=new RoomGateway('test',store,new LocalRoomBus(),{now:Date.now,id:randomUUID,error:()=>{}});
  const browserOrigin='https://andeplane.github.io';const server=createServer(async(req,res)=>{const url=new URL(req.url!,'http://fixture');if(req.headers.origin!==browserOrigin){res.writeHead(403);res.end();return;}if(!brokenCors)res.setHeader('Access-Control-Allow-Origin',browserOrigin);res.setHeader('Content-Type','application/json');
