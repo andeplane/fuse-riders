@@ -522,9 +522,12 @@ class ArenaScene extends Phaser.Scene {
     }
   }
   /** Scenery is static until a blast clears it, so it is baked into the floor pass rather than redrawn each frame. */
-  private drawObstacles(obstacles: ViewSnapshot["obstacles"]): void {
+  private drawObstacles(
+    obstacles: ViewSnapshot["obstacles"],
+    map: ViewSnapshot["map"],
+  ): void {
     for (const obstacle of obstacles)
-      for (const part of obstacleParts(obstacle)) {
+      for (const part of obstacleParts(obstacle, map)) {
         this.floor.fillStyle(color(part.color), part.alpha ?? 1);
         if (part.shape === "ellipse")
           this.floor.fillEllipse(
@@ -532,6 +535,15 @@ class ArenaScene extends Phaser.Scene {
             part.y,
             part.radiusX * 2,
             part.radiusY * 2,
+          );
+        else if (part.shape === "triangle")
+          this.floor.fillTriangle(
+            part.x1,
+            part.y1,
+            part.x2,
+            part.y2,
+            part.x3,
+            part.y3,
           );
         else this.floor.fillRect(part.x, part.y, part.width, part.height);
       }
@@ -757,7 +769,7 @@ class ArenaScene extends Phaser.Scene {
         this.drawWall(w, h, b, theme);
       }
       // After the boundary band: an obstacle the closing walls have reached is already gone from the state.
-      this.drawObstacles(s.obstacles);
+      this.drawObstacles(s.obstacles, s.map);
       this.maskShape
         .clear()
         .fillStyle(0xffffff)
