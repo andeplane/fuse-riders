@@ -2058,6 +2058,7 @@ export async function startOnline(): Promise<void> {
           ? `${renderScope}:replay:${update.clip.key}`
           : renderScope,
         id,
+        update.snapshot !== undefined,
       );
       replayOverlay.update(update, canvas, {
         width: shown.width,
