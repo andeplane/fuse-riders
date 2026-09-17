@@ -18,7 +18,7 @@ Public Chrome and WebKit checks covered phone hosting, AI, guest connections, sa
 
 ## Run locally
 
-Requires Node.js **22.12 or newer** and npm. From a fresh checkout:
+Requires Node.js **22.13 or newer** and npm. From a fresh checkout:
 
 ```sh
 npm ci
@@ -161,7 +161,7 @@ The end-of-match report (podium, totals, highlight reel, awards and rider compar
 
 [CI](.github/workflows/ci.yml) splits into two jobs. `verify` runs on every pull request: formatting, type checks, unit coverage and the build. `e2e` runs the browser matrix and runs on a push to main, on a manual dispatch, or on a pull request labelled `full-ci`; a push to main deploys only once both pass. Run the affected local smoke when practical and report any untested browser flow. Reserve `full-ci` for explicit requests or changes whose failure would be expensive to unwind; routine PRs do not wait on the full browser matrix.
 
-To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `typecheck`, `coverage`, `build`, `lan`, `avatar`, `keyboard`, `online`, `preview`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to formatting, typecheck, coverage and build) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `lint`, `typecheck`, `coverage`, `build`, `keyboard`, `online`, `preview`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to formatting, lint, typecheck, coverage and build) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh

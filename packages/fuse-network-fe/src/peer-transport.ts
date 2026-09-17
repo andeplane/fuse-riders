@@ -122,8 +122,10 @@ export class PeerTransport implements RoomTransport {
         }),
       );
     } catch {
-      // Best effort: the socket can close between the readyState check and the send. The probe expires
-      // above and the next sample, or the reconnect, takes over.
+      // Best effort. The readyState check above and this send run in one synchronous turn, so a throw
+      // is not a close racing the send: it is the WebSocket implementation refusing the frame, or the
+      // message failing to serialise. Either way the probe expires above and the next sample, or the
+      // reconnect, takes over.
     }
   }
   private socket?: WebSocket;
@@ -620,7 +622,10 @@ export class PeerTransport implements RoomTransport {
         this.sentBytes += text.length;
         return true;
       } catch {
-        // The channel died between the gate check and the send: report it unsent, as below.
+        // The gate check and this send run in one synchronous turn, so the channel cannot close in
+        // between. What throws is `JSON.stringify` on data it cannot serialise (a cycle, a BigInt) or
+        // the channel refusing the message (over the peer's maximum message size, or a full send
+        // buffer). Both are swallowed here and reported unsent, as below; neither reaches the caller.
       }
     }
     return false;

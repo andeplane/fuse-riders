@@ -8,8 +8,10 @@ import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
 import { createDevRoomService } from "../src/dev.js";
+import { RoomGateway } from "../src/gateway.js";
+import { createRoomServer } from "../src/http.js";
 import { LocalRoomBus, MemoryRoomDatabase } from "../src/memory-database.js";
-import type { RoomRecord } from "../src/room-store.js";
+import { RoomStore, type RoomRecord } from "../src/room-store.js";
 import type { RoutedMessage } from "../src/room-bus.js";
 
 const room = (revision: number): RoomRecord => ({
@@ -502,5 +504,47 @@ test("a route that fails after its response started drops that connection and th
     assert.deepEqual(await health.json(), { ok: true });
   } finally {
     await service.close();
+  }
+});
+
+test("a request that fails before its response started is answered 500 without the error, and the service keeps serving", async () => {
+  const now = () => 1_000;
+  const store = new RoomStore(new MemoryRoomDatabase(), {
+    now,
+    id: () => "id",
+  });
+  const gateway = new RoomGateway("test", store, new LocalRoomBus(), {
+    now,
+    id: () => "id",
+    error: () => undefined,
+  });
+  // The Origin decision runs ahead of the handler's own error boundary.
+  const server = createRoomServer({
+    store,
+    gateway,
+    now,
+    allowOrigin: (origin) => {
+      if (origin === "http://throws.example")
+        throw new Error("secret origin failure detail");
+      return true;
+    },
+    clientAddress: () => "test",
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const failed = await fetch(`${base}/api/health?token=secret-query`, {
+      headers: { Origin: "http://throws.example" },
+    });
+    assert.equal(failed.status, 500);
+    const body = await failed.text();
+    assert.deepEqual(JSON.parse(body), { error: "Room service unavailable" });
+    assert.doesNotMatch(body, /secret/);
+    const health = await fetch(`${base}/api/health`);
+    assert.equal(health.status, 200);
+  } finally {
+    await gateway.stop();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });

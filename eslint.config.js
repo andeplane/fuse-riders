@@ -18,6 +18,8 @@ export default defineConfig(
       "**/artifacts/**",
       "docs/**",
       "public/**",
+      // Nested agent worktrees are whole checkouts of this repository; each lints itself.
+      ".claude/**",
     ],
   },
   { linterOptions: { reportUnusedDisableDirectives: "error" } },
