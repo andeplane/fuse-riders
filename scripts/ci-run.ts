@@ -8,6 +8,7 @@
  * ONLY=core,keyboard selects steps; PORT is where the room service's port search starts (default: a free port).
  */
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
   loadManifest,
@@ -25,6 +26,8 @@ const { values } = parseArgs({
     list: { type: "boolean" },
   },
 });
+// Commands, scripts/ci-smoke.sh and artifacts/ are all relative to the repository root.
+process.chdir(fileURLToPath(new URL("..", import.meta.url)));
 const manifest = loadManifest();
 
 function run(command: string[], env: NodeJS.ProcessEnv): Promise<number> {
