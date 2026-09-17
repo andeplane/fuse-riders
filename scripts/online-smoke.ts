@@ -340,15 +340,31 @@ try {
   // A rematch keeps the refresh checks inside a running match whichever rider won three rounds first.
   const ensurePlaying = async () => {
     if ((await latest(host))!.phase === "matchOver") {
-      await closeRecap(host);
-      await host.getByRole("button", { name: "REMATCH", exact: true }).click();
+      // The recap opens by itself a moment into matchOver and carries its own REMATCH (close, then the room's button):
+      // press whichever is in front, since the recap can open over the room's button between the look and the click.
+      for (let tries = 0; ; tries++) {
+        const recap = host
+          .locator("dialog[open]")
+          .getByRole("button", { name: "REMATCH", exact: true });
+        try {
+          await (
+            (await recap.count())
+              ? recap
+              : host.locator("button:not(dialog button)", {
+                  hasText: /^REMATCH$/,
+                })
+          ).click({ timeout: 2000 });
+          break;
+        } catch (error) {
+          if (tries >= 10) throw error;
+        }
+      }
     }
     await waitPhase(host, ["playing"], 60000);
   };
   await ensurePlaying();
-  const running = await latest(host);
+  let running = await latest(host);
   // Guest refresh mid-round: a reload comes back into the running match with the seat it held, without the join card.
-  await guest.reload();
   // The seat is read from the runtime's own snapshots and from the roster text the page keeps current whether or not
   // the layout shows it: the phone play layout hides the roster, so a wait on visible roster text only ended when the
   // match did. Back means listed in the recovered world and no longer marked offline. A recovered world that does not
@@ -374,18 +390,43 @@ try {
       cardCounts,
       { timeout: smokeTimeout(30000) },
     );
-  if ((await (await landed(true)).jsonValue()) === "pruned") {
-    // Absent riders leave at round progression and come back through the join card: legitimate only across a boundary.
+  // Absent riders leave at round progression and come back through the join card, so a reload that straddles a round
+  // boundary legitimately loses the seat, and idle riders crash often enough that one does. That outcome must not be
+  // able to stand in for the proof: after a pruned rejoin the guest reloads again at the start of the next round, with
+  // a whole round ahead of it, and only a kept seat passes. A second boundary inside a reload earns one more attempt.
+  for (let attempt = 1; ; attempt++) {
+    await guest.reload();
+    if ((await (await landed(true)).jsonValue()) === "seated") break;
+    const pruned = (await latest(guest))!;
     assert.ok(
-      (await latest(guest))!.round > running!.round,
+      pruned.round !== running!.round || pruned.matchId !== running!.matchId,
       "a guest that reloads inside one round keeps its seat without the join card",
+    );
+    assert.ok(
+      attempt < 3,
+      "three reloads in a row lost the seat: a reload does not keep it",
     );
     await guest.getByPlaceholder("Your name").fill("Guest");
     await guest
       .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
       .click();
     await landed(false);
-    console.log("Guest seat pruned at a round boundary; rejoined by the card");
+    console.log(
+      `Guest seat pruned at a round boundary (reload ${attempt}); rejoined by the card, reloading again`,
+    );
+    const rejoined = (await latest(host))!;
+    for (const deadline = Date.now() + smokeTimeout(90000); ;) {
+      await ensurePlaying();
+      running = await latest(host);
+      if (
+        running!.phase === "playing" &&
+        (running!.round !== rejoined.round ||
+          running!.matchId !== rejoined.matchId)
+      )
+        break;
+      assert.ok(Date.now() < deadline, "the next round never started");
+      await host.waitForTimeout(100);
+    }
   }
   const afterGuest = await latest(guest);
   assert.equal(
