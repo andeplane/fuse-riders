@@ -29,7 +29,7 @@ export function createDevRoomService(
     ...options,
     httpExtension: (store) =>
       createHistoryHttp(
-        new HistoryStore(new MemoryHistoryDatabase(), store, now),
+        new HistoryStore(new MemoryHistoryDatabase(now), store, now),
         options.identity ?? createIdentityVerifier(FIREBASE_PROJECT_ID),
       ),
   });

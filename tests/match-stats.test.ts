@@ -41,7 +41,9 @@ test("records authoritative actions and returns detached snapshots", () => {
   finalizeMatchStatsRound(stats, ["a", "b"], "a");
 
   const snapshot = snapshotMatchStats(stats);
-  assert.deepEqual(snapshot[0], {
+  const { combat, ...basic } = snapshot[0]!;
+  assert.equal(combat?.kills.unknown, 1);
+  assert.deepEqual(basic, {
     playerId: "a",
     name: "A",
     slot: 0,
@@ -166,4 +168,28 @@ test("never credits self deaths and updates an existing participant identity", (
   assert.equal(entry.eliminations, 0);
   assert.equal(entry.deathsByCause.trail, 1);
   assert.deepEqual([entry.name, entry.slot, entry.color], ["New", 2, "pink"]);
+});
+
+test("combat keeps human and AI attribution separate and snapshots detached", () => {
+  const stats: MatchStatsState = new Map();
+  for (const [slot, id] of ["a", "b", "bot:1"].entries())
+    beginMatchParticipant(stats, identity(id, slot));
+  recordDeath(stats, "bot:1", "explosion", "a", "shell");
+  recordDeath(stats, "b", "trail", "a");
+  recordDeath(stats, "a", "explosion", "bot:1", "bomb");
+  recordDeath(stats, "a", "wall");
+  recordDeath(stats, "a", "trail", "a");
+  finalizeMatchStatsRound(stats, ["a", "b", "bot:1"], "a", [
+    { playerId: "a", name: "A", place: 1, scoreUnits: 60 },
+  ]);
+  const a = snapshotMatchStats(stats).find((p) => p.playerId === "a")!;
+  assert.equal(a.combat!.versus.human.kills.trail, 1);
+  assert.equal(a.combat!.versus.ai.kills.shell, 1);
+  assert.equal(a.combat!.versus.ai.deaths.bomb, 1);
+  assert.equal(a.combat!.selfDeaths, 1);
+  assert.deepEqual(a.combat!.victims, { "bot:1": 1, b: 1 });
+  assert.deepEqual(a.combat!.killers, { "bot:1": 1 });
+  assert.equal(a.combat!.roundPlaces[0], 1);
+  a.combat!.victims.b = 50;
+  assert.equal(stats.get("a")!.combat!.victims.b, 1);
 });

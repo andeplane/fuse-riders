@@ -1,3 +1,4 @@
+import { parseCombat } from "../shared/combat-stats.js";
 import {
   MAX_TRAIL_SEGMENTS,
   TRAIL_DECAY_PAUSE_TICKS,
@@ -211,6 +212,7 @@ const pickup = shape({
   expiresAtTick: integer,
 } satisfies Record<keyof PickupState, Guard>);
 const statsFields = {
+  combat: optional((v) => parseCombat(v) !== undefined),
   playerId: text,
   name,
   slot: count(4),
@@ -474,6 +476,14 @@ function gameInvariants(game: GameState): boolean {
     }
   }
   for (const [id, entry] of game.leaderboard) if (id !== entry.id) return false;
+  for (const entry of game.matchStats.values())
+    if (
+      entry.combat &&
+      Object.keys({ ...entry.combat.victims, ...entry.combat.killers }).some(
+        (id) => !game.matchStats.has(id),
+      )
+    )
+      return false;
   for (const [id, entry] of game.matchStats)
     if (
       id !== entry.playerId ||

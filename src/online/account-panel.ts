@@ -1,4 +1,11 @@
+import { createAvatarPortrait } from "../client/avatar-heads.js";
 import "./account-panel.css";
+import {
+  playerStats,
+  leaderboardTable,
+  type StatsPage,
+} from "./player-stats.js";
+import { newRating, type LeaderboardEntry } from "../shared/rating.js";
 import {
   accountReady,
   identityToken,
@@ -29,20 +36,39 @@ interface HistoryEntry {
   you?: string;
   result: { length: number; winnerId?: string; players: MatchPlayerStats[] };
 }
-interface HistoryPage {
-  profile?: { username?: string; totals: Record<string, number> };
-  matches: HistoryEntry[];
-}
+type HistoryPage = StatsPage;
 export interface AccountPanelDependencies {
   /** GET the signed-in player's history; `before` pages backwards from an `endedAt`. */
   historyUrl: (before?: number) => string;
   /** GET the profile, PUT `{ username }`. */
   profileUrl: string;
+  leaderboardUrl: string;
+  /** Browser smoke tests inject an explicit identity surface, never real credentials. */
+  auth?: AccountPanelAuth;
   /** The rider name this browser already uses, the natural first username. */
   localName: () => string | null;
   fetch: typeof fetch;
   track: (event: string, props?: Record<string, unknown>) => void;
 }
+
+export interface AccountPanelAuth {
+  watch: typeof watchAccount;
+  token: typeof identityToken;
+  ready: typeof accountReady;
+  warm: typeof warmAccount;
+  signIn: typeof signIn;
+  signOut: typeof signOut;
+  remember: typeof rememberUsername;
+}
+const liveAuth: AccountPanelAuth = {
+  watch: watchAccount,
+  token: identityToken,
+  ready: accountReady,
+  warm: warmAccount,
+  signIn,
+  signOut,
+  remember: rememberUsername,
+};
 
 const el = <K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -63,7 +89,8 @@ const count = (value: unknown): string =>
 
 function matchRow(entry: HistoryEntry): HTMLLIElement {
   const row = el("li", "", "account-match"),
-    head = el("header"),
+    detail = el("details"),
+    head = el("summary"),
     riders = el("ul", "", "account-riders");
   const mine = entry.result.players.find(
     (player) => player.playerId === entry.you,
@@ -98,18 +125,23 @@ function matchRow(entry: HistoryEntry): HTMLLIElement {
     );
     riders.append(item);
   }
-  row.append(head, riders);
+  detail.append(head, riders);
+  row.append(detail);
   return row;
 }
 
 export function createAccountPanel(dependencies: AccountPanelDependencies): {
   button: HTMLButtonElement;
+  leaderboardButton: HTMLButtonElement;
   dialog: HTMLDialogElement;
   dispose: () => void;
 } {
+  const auth = dependencies.auth ?? liveAuth;
+  const leaderboardButton = el("button", "LEADERBOARD", "landing-account");
+  leaderboardButton.type = "button";
   const button = el("button", "SIGN IN", "landing-account");
   button.type = "button";
-  const dialog = el("dialog", "", "game-dialog");
+  const dialog = el("dialog", "", "game-dialog stats-dialog");
   dialog.setAttribute("aria-label", "Account");
   const bar = el("header", "", "dialog-bar"),
     close = el("button", "✕  CLOSE"),
@@ -119,13 +151,37 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
   close.setAttribute("aria-label", "CLOSE");
   close.onclick = () => dialog.close();
   actions.append(close);
-  bar.append(el("strong", "ACCOUNT"), actions);
+  bar.append(el("strong", "RIDER STATS"), actions);
   dialog.append(bar, body);
   let account: Account | undefined,
-    generation = 0;
+    generation = 0,
+    view: "stats" | "leaderboard" = "stats";
+  let landingGeneration = 0;
+  async function refreshLanding(): Promise<void> {
+    const mine = ++landingGeneration;
+    if (!account) return;
+    try {
+      const token = await auth.token();
+      if (!token) return;
+      const response = await dependencies.fetch(dependencies.profileUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("profile");
+      const { profile } = (await response.json()) as {
+        profile?: StatsPage["profile"];
+      };
+      if (mine !== landingGeneration || !account) return;
+      const rating = profile?.rating ?? newRating();
+      button.textContent = `${profile?.rank ? `#${profile.rank}` : "UNRANKED"} · ${Math.round(rating.value).toLocaleString()} ELO`;
+      button.title = "Your global rank and Elo · Open player stats";
+    } catch {
+      if (mine === landingGeneration && account)
+        button.textContent = "MY STATS · OFFLINE";
+    }
+  }
 
   async function saveUsername(username: string): Promise<boolean> {
-    const token = await identityToken();
+    const token = await auth.token();
     if (!token) return false;
     const response = await dependencies.fetch(dependencies.profileUrl, {
       method: "PUT",
@@ -136,7 +192,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       },
     });
     if (!response.ok) return false;
-    rememberUsername(username);
+    auth.remember(username);
     return true;
   }
 
@@ -152,7 +208,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     more.hidden = true;
     note.textContent = "Loading your games…";
     try {
-      const token = await identityToken();
+      const token = await auth.token();
       if (!token) throw new Error("signed out");
       const response = await dependencies.fetch(
         dependencies.historyUrl(before),
@@ -174,26 +230,17 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
         }
         if (mine !== generation) return;
         if (username) {
-          rememberUsername(username);
+          const heading = body.querySelector(".stats-player-name");
+          if (heading) {
+            heading.textContent = username;
+            if (page.profile?.avatarId)
+              heading.prepend(createAvatarPortrait(page.profile.avatarId));
+          }
+          auth.remember(username);
           if (document.activeElement !== name) name.value = username;
         }
-        totals.replaceChildren(
-          ...(
-            [
-              ["GAMES", "matches"],
-              ["WINS", "wins"],
-              ["ROUNDS WON", "roundWins"],
-              ["KILLS", "eliminations"],
-            ] as const
-          ).map(([label, key]) => {
-            const cell = el("div");
-            cell.append(
-              el("dt", label),
-              el("dd", count(page.profile?.totals[key])),
-            );
-            return cell;
-          }),
-        );
+        totals.replaceChildren(playerStats(page));
+        void refreshLanding();
       }
       list.append(...page.matches.map(matchRow));
       note.textContent = list.childElementCount
@@ -214,6 +261,37 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
 
   function render(): void {
     generation++;
+    if (view === "leaderboard") {
+      const mine = generation,
+        message = el("p", "Loading leaderboard…", "stats-muted");
+      const back = el("button", "MY STATS");
+      back.type = "button";
+      back.onclick = () => {
+        view = "stats";
+        render();
+      };
+      body.replaceChildren(back, message);
+      void (async () => {
+        try {
+          const token = await auth.token();
+          const response = await dependencies.fetch(
+            dependencies.leaderboardUrl,
+            { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+          );
+          if (!response.ok) throw new Error("leaderboard");
+          const page = (await response.json()) as {
+            players: LeaderboardEntry[];
+          };
+          if (mine === generation)
+            body.replaceChildren(back, leaderboardTable(page.players));
+        } catch {
+          if (mine === generation)
+            message.textContent =
+              "Could not load the leaderboard. Close and try again.";
+        }
+      })();
+      return;
+    }
     const error = el("p", "", "account-error");
     error.setAttribute("role", "alert");
     if (!account) {
@@ -223,7 +301,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
         enter.disabled = true;
         error.textContent = "";
         try {
-          await signIn();
+          await auth.signIn();
           dependencies.track("Signed In");
         } catch (failure) {
           error.textContent = signInFailure(failure);
@@ -234,7 +312,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       // Held until the SDK is in: a tap that had to wait for the download would find its popup blocked, notably in Safari.
       const mine = generation;
       enter.disabled = true;
-      accountReady().then(
+      auth.ready().then(
         () => {
           if (mine === generation) enter.disabled = false;
         },
@@ -247,7 +325,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       body.replaceChildren(
         el(
           "p",
-          "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account, and the game stores only your rider name, avatar and results — not your email.",
+          "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account. Your rider name, avatar and Elo appear on the public leaderboard after a rated match; your email is never shown.",
           "account-note",
         ),
         enter,
@@ -255,7 +333,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       );
       return;
     }
-    const totals = el("dl", "", "account-totals"),
+    const totals = el("div", "", "account-dashboard"),
       list = el("ul", "", "account-matches"),
       note = el("p", "", "account-note"),
       more = el("button", "OLDER GAMES"),
@@ -267,7 +345,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     leave.onclick = async () => {
       leave.disabled = true;
       try {
-        await signOut();
+        await auth.signOut();
       } catch {
         error.textContent = "Could not sign out. Try again.";
         leave.disabled = false;
@@ -296,10 +374,20 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       }
       save.disabled = true;
       saved.textContent = "Saving…";
+      const mine = generation;
       try {
-        saved.textContent = (await saveUsername(value))
+        const success = await saveUsername(value);
+        saved.textContent = success
           ? "Saved. This is your name in every room."
           : "Could not save. Try again.";
+        if (success && mine === generation) {
+          const heading = body.querySelector(".stats-player-name");
+          const portrait = heading?.querySelector(".avatar-portrait");
+          heading?.replaceChildren(
+            ...(portrait ? [portrait] : []),
+            document.createTextNode(value),
+          );
+        }
       } catch {
         saved.textContent = "Could not save. Try again.";
       } finally {
@@ -307,35 +395,56 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       }
     };
     rename.append(label, name, save, saved);
+    const settings = el("details", "", "stats-details");
+    settings.append(el("summary", "Account settings"), rename, leave);
+    const leaderboard = el("button", "GLOBAL LEADERBOARD");
+    leaderboard.type = "button";
+    leaderboard.onclick = () => {
+      view = "leaderboard";
+      render();
+    };
     body.replaceChildren(
-      el("p", `Signed in as ${account.name}.`, "account-note"),
-      rename,
+      el("h2", account.name, "stats-player-name"),
       totals,
+      leaderboard,
+      el("h3", "MATCH HISTORY"),
       list,
       note,
       row,
+      settings,
       error,
     );
     void load(list, totals, more, note, name);
   }
 
-  const stop = watchAccount((next) => {
+  const stop = auth.watch((next) => {
     account = next;
-    button.textContent = next ? "MY GAMES" : "SIGN IN";
+    button.textContent = next ? "MY STATS" : "SIGN IN";
     button.dataset.signedIn = String(Boolean(next));
     button.title = next
       ? `Signed in as ${next.name}`
       : "Sign in to keep your match history";
+    landingGeneration++;
+    if (next) void refreshLanding();
     if (dialog.open) render();
   });
   // The SDK is fetched when the pointer arrives, so the Google popup can open inside the click that asks for it.
-  button.addEventListener("pointerenter", warmAccount, { once: true });
-  button.addEventListener("focus", warmAccount, { once: true });
+  button.addEventListener("pointerenter", auth.warm, { once: true });
+  button.addEventListener("focus", auth.warm, { once: true });
   button.onclick = () => {
-    warmAccount();
+    view = "stats";
+    auth.warm();
     render();
     dialog.showModal();
   };
+  leaderboardButton.onclick = () => {
+    view = "leaderboard";
+    render();
+    dialog.showModal();
+  };
+  dialog.addEventListener("close", () => {
+    generation++;
+  });
   dialog.addEventListener("click", (event) => {
     if (event.target !== dialog) return;
     const r = dialog.getBoundingClientRect();
@@ -347,5 +456,14 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     )
       dialog.close();
   });
-  return { button, dialog, dispose: stop };
+  return {
+    button,
+    leaderboardButton,
+    dialog,
+    dispose: () => {
+      generation++;
+      landingGeneration++;
+      stop();
+    },
+  };
 }
