@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clipTrailSegment } from "../src/shared/trail-clipping.ts";
+import { clipTrailSegment } from "../src/engine/trail-clipping.ts";
 import {
   addPlayer,
   createGame,
@@ -13,7 +13,7 @@ import {
   RIDER_RADIUS,
   SPEED_RAMP_MAX,
   TRAIL_LIFETIME_TICKS,
-} from "../src/shared/game.ts";
+} from "../src/engine/game.ts";
 import type { TrailSegment } from "../src/shared/protocol.ts";
 
 const bounds = { minX: 10, minY: 20, maxX: 90, maxY: 80 };

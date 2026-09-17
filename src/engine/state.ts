@@ -21,7 +21,7 @@ import type {
   BombActionCommand,
   PlayerId,
   TrailSegment,
-} from "./protocol.js";
+} from "../shared/protocol.js";
 export type {
   AimPoint,
   BlastCircle,
@@ -31,7 +31,7 @@ export type {
   GameSnapshot,
   PlayerId,
   TrailSegment,
-} from "./protocol.js";
+} from "../shared/protocol.js";
 export type { FlightPoint } from "./launch-modifiers.js";
 import type { RoomSettings } from "./room-settings.js";
 import type { DecidedRound, RoundShot } from "./shot-log.js";

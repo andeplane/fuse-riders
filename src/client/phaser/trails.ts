@@ -3,7 +3,7 @@ import {
   SPEED_RAMP_MAX,
   TICK_HZ,
   riderSpeedMultiplier,
-} from "../../shared/game.js";
+} from "../../engine/game.js";
 import type { TrailSegment } from "../../shared/protocol.js";
 import type { ViewSnapshot } from "../snapshot-stream.js";
 

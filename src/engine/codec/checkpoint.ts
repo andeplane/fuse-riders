@@ -1,19 +1,16 @@
-import { parseCombat } from "../shared/combat-stats.js";
+import { parseCombat } from "../combat-stats.js";
 import {
   MAX_TRAIL_SEGMENTS,
   TRAIL_DECAY_PAUSE_TICKS,
   trailSegmentsConnect,
-} from "../shared/trail-lifecycle.js";
-import { POINT_UNIT } from "../shared/leaderboard.js";
-import {
-  MAX_EXTRA_BOMBS,
-  MAX_VOLLEY_BOMBS,
-} from "../shared/launch-modifiers.js";
+} from "../trail-lifecycle.js";
+import { POINT_UNIT } from "../leaderboard.js";
+import { MAX_EXTRA_BOMBS, MAX_VOLLEY_BOMBS } from "../launch-modifiers.js";
 import {
   MAX_BOARD_PICKUPS,
   MAX_POWER_PICKUPS,
   POWER_TUNING,
-} from "../shared/power-progression.js";
+} from "../power-progression.js";
 import {
   AIM_SLOW_MAX_TICKS,
   AIM_SLOW_RAMP_TICKS,
@@ -33,32 +30,25 @@ import {
   type BombState,
   type BlastState,
   type PickupState,
-} from "../shared/game.js";
-import { isAvatarId } from "../shared/avatars.js";
-import { MAX_PORTAL_PAIRS } from "../shared/portal.js";
+} from "../game.js";
+import { isAvatarId } from "../../shared/avatars.js";
+import { MAX_PORTAL_PAIRS } from "../portal.js";
 import {
   ARENA_MAPS,
   MAX_OBSTACLES,
   OBSTACLE_KINDS,
   type Obstacle,
-} from "../shared/arena-map.js";
-import {
-  parseRoomSettings,
-  type RoomSettings,
-} from "../shared/room-settings.js";
-import type { MatchPlayerStatsState } from "../shared/match-stats.js";
-import {
-  MAX_ROUND_SHOTS,
-  WEAPONS,
-  type RoundShot,
-} from "../shared/shot-log.js";
+} from "../arena-map.js";
+import { parseRoomSettings, type RoomSettings } from "../room-settings.js";
+import type { MatchPlayerStatsState } from "../match-stats.js";
+import { MAX_ROUND_SHOTS, WEAPONS, type RoundShot } from "../shot-log.js";
 import {
   MAX_MOMENTS,
   MAX_MOMENTS_PER_KIND,
   MOMENT_KINDS,
   type Moment,
   type MomentKind,
-} from "../shared/moments.js";
+} from "../moments.js";
 
 export const MAX_CHECKPOINT_BYTES = 2_000_000;
 export const MAX_CHECKPOINT_TRAILS = MAX_TRAIL_SEGMENTS;

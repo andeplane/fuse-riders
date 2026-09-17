@@ -14,7 +14,7 @@ import {
   RELEASE,
   STEER,
   type Entry,
-} from "../src/shared/input-log.js";
+} from "../src/engine/input-log.js";
 
 const e = (seq: number, tick: number, ...body: unknown[]): Entry =>
   [seq, tick, ...body] as Entry;

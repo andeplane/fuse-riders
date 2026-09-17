@@ -1,17 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { BotController } from "../src/shared/bot-controller.js";
+import { BotController } from "../src/engine/bot-controller.js";
 import {
   applyTick,
   createRoomState,
   hashRoomState,
   type RoomState,
-} from "../src/shared/apply-tick.js";
+} from "../src/engine/apply-tick.js";
 import {
   defaultRoomSettings,
   roomPickup,
-} from "../src/shared/room-settings.js";
+} from "../src/engine/room-settings.js";
 import {
   PICKUP_TYPES,
   SLOT_COLORS,
@@ -20,8 +20,8 @@ import {
   startMatch,
   step,
   type GameState,
-} from "../src/shared/game.js";
-import type { Obstacle } from "../src/shared/arena-map.js";
+} from "../src/engine/game.js";
+import type { Obstacle } from "../src/engine/arena-map.js";
 import { streamReader, type Recording } from "./fixtures/replay-log.js";
 
 test("every weighted pickup interval is independent of object insertion order", () => {

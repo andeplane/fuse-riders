@@ -1,7 +1,7 @@
 import {
   BOMB_MAX_CHARGE_TICKS,
   bombLaunchDistance,
-} from "../shared/bomb-launch.js";
+} from "../engine/bomb-launch.js";
 
 /** Interpolate the authoritative distances for display; actual releases still use whole ticks. */
 export function bombPreviewDistance(

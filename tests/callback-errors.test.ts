@@ -5,7 +5,7 @@ import {
   type WebSocketLike,
 } from "../src/client/socket-client.js";
 import { RoomRuntime, type Callbacks } from "../src/online/room-runtime.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { FakeNetwork, FakeTransport } from "./fixtures/fake-room.js";
 
 /** Synchronous delivery exposes what a browser event boundary reports as an uncaught error. */

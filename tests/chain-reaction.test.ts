@@ -8,12 +8,12 @@ import {
   startMatch,
   step,
   type GameState,
-} from "../src/shared/game.js";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
+} from "../src/engine/game.js";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
 import {
   defaultRoomSettings,
   parseRoomSettings,
-} from "../src/shared/room-settings.js";
+} from "../src/engine/room-settings.js";
 
 const flightPath = (x: number, y: number) =>
   Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));

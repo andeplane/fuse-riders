@@ -9,13 +9,13 @@ import {
   GRAVITY_FIELD_TICKS,
   PICKUP_TYPES,
   gravityCoreRadius,
-} from "../../shared/game.js";
+} from "../../engine/game.js";
 import Phaser from "phaser";
 import type { ViewSnapshot } from "../snapshot-stream.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
-import { bombsPerShot, volleyAngles } from "../../shared/launch-modifiers.js";
+import { bombsPerShot, volleyAngles } from "../../engine/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
@@ -23,8 +23,8 @@ import { TrailHistoryCache, trailTip, type TrailPoint } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
 import { crossViews, edgeGhosts } from "../arena-views.js";
-import { edgesOpen } from "../../shared/arena-map.js";
-import { wrapCoordinate } from "../../shared/wrap.js";
+import { edgesOpen } from "../../engine/arena-map.js";
+import { wrapCoordinate } from "../../engine/wrap.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";

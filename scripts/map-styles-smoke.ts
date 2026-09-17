@@ -30,7 +30,7 @@ try {
     )) as typeof import("../src/client/themes.js");
     const { generateObstacles } = (await import(
       String("/src/shared/arena-map.ts")
-    )) as typeof import("../src/shared/arena-map.js");
+    )) as typeof import("../src/engine/arena-map.js");
     const pictures: { name: string; data: string }[] = [];
     for (const backend of ["auto", "canvas"] as const) {
       const canvas = document.createElement("canvas");

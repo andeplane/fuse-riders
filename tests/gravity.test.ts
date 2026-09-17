@@ -22,7 +22,7 @@ import {
   step,
   toSnapshot,
   type GameState,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 function playing(seed = 5): GameState {
   const state = createGame("gravity", seed);

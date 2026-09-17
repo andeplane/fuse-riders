@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { durationText as sharedDurationText } from "../src/shared/duration-text.js";
-import type { MatchPlayerStats } from "../src/shared/match-stats.js";
-import { momentKey, type Moment } from "../src/shared/moments.js";
+import type { MatchPlayerStats } from "../src/engine/match-stats.js";
+import { momentKey, type Moment } from "../src/engine/moments.js";
 import {
   AWARD_DEFINITIONS,
   COMPARISON_COLUMNS,
@@ -18,7 +18,7 @@ import {
   podiumOrder,
   rankMoments,
   recapSignature,
-} from "../src/shared/match-recap.js";
+} from "../src/engine/match-recap.js";
 
 function rider(
   overrides: Partial<MatchPlayerStats> & {

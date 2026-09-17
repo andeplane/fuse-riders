@@ -3,7 +3,7 @@ import {
   addPlayer,
   toSnapshot,
   SLOT_COLORS,
-} from "../../shared/game.js";
+} from "../../engine/game.js";
 import { AVATARS } from "../../shared/avatars.js";
 import type { ViewSnapshot } from "../snapshot-stream.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */

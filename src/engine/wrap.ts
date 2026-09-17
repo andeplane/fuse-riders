@@ -6,7 +6,7 @@
  * can reach across an edge is tested once more per edge it reaches, shifted by a whole board: `wrapImages` says which.
  */
 import { clipTrailSegment } from "./trail-clipping.js";
-import type { TrailSegment } from "./protocol.js";
+import type { TrailSegment } from "../shared/protocol.js";
 
 export interface WrapOffset {
   dx: number;

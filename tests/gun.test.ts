@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cutTrailHole } from "../src/shared/gun.js";
+import { cutTrailHole } from "../src/engine/gun.js";
 const trail = {
   x1: 0,
   y1: 0,

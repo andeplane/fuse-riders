@@ -10,11 +10,11 @@ import {
   SNAPSHOT_SERVE_MS,
   pageGeneration,
 } from "../src/online/room-runtime.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { COUNTDOWN_TICKS } from "../src/shared/game.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { COUNTDOWN_TICKS } from "../src/engine/game.js";
 import { roomHash, packMessage } from "../src/online/packet.js";
-import { RULES } from "../src/shared/apply-tick.js";
-import { hashRoomState } from "../src/shared/apply-tick.js";
+import { RULES } from "../src/engine/apply-tick.js";
+import { hashRoomState } from "../src/engine/apply-tick.js";
 
 // The classic arena: these rooms are driven by idle riders, and scenery would end their rounds before the
 // membership, resync and delegation behaviour under test had played out.

@@ -1,6 +1,6 @@
-import { isAvatarId, type AvatarId } from "./avatars.js";
+import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
-import type { AimPoint, BombActionCommand } from "./protocol.js";
+import type { AimPoint, BombActionCommand } from "../shared/protocol.js";
 import type { InputIntent } from "./state.js";
 
 /** Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's. */

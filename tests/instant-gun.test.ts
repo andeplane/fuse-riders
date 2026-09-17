@@ -8,12 +8,15 @@ import {
   COUNTDOWN_TICKS,
   SLOT_COLORS,
   type InputIntent,
-} from "../src/shared/game.js";
-import { canonicalRoomState } from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import type { GameState } from "../src/shared/game.js";
-import { GUN_TRACER_TICKS } from "../src/shared/gun.js";
-import { encodeGameState, decodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/game.js";
+import { canonicalRoomState } from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import type { GameState } from "../src/engine/game.js";
+import { GUN_TRACER_TICKS } from "../src/engine/gun.js";
+import {
+  encodeGameState,
+  decodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 
 const canonical = (game: GameState) =>
   canonicalRoomState({

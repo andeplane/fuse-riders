@@ -1,7 +1,7 @@
 import { cos, sin } from "./deterministic-math.js";
 import { normalizeAngle } from "./geometry.js";
 import { hashSeed, nextRandom, normalizeSeed } from "./rng.js";
-import { DEFAULT_AVATAR } from "./avatars.js";
+import { DEFAULT_AVATAR } from "../shared/avatars.js";
 import {
   type ClearCapsule,
   OBSTACLE_WALL_MARGIN,

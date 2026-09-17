@@ -8,8 +8,8 @@ import {
   COUNTDOWN_TICKS,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.ts";
-import { INSTANT_DEATHS_COMMIT_PER_RIDER } from "../src/shared/sim/phases/commit-deaths.ts";
+} from "../src/engine/game.ts";
+import { INSTANT_DEATHS_COMMIT_PER_RIDER } from "../src/engine/sim/phases/commit-deaths.ts";
 
 const NEUTRAL: InputIntent = { left: false, right: false, bomb: false };
 

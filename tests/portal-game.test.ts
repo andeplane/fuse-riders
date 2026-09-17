@@ -11,8 +11,8 @@ import {
   toSnapshot,
   COUNTDOWN_TICKS,
   type GameState,
-} from "../src/shared/game.ts";
-import { MAX_PORTAL_PAIRS } from "../src/shared/portal.ts";
+} from "../src/engine/game.ts";
+import { MAX_PORTAL_PAIRS } from "../src/engine/portal.ts";
 
 function arena() {
   const state = createGame("portal", 123);

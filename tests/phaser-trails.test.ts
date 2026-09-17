@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addPlayer, createGame, toSnapshot } from "../src/shared/game.js";
+import { addPlayer, createGame, toSnapshot } from "../src/engine/game.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 import {
   TrailHistoryCache,

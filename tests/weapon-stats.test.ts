@@ -16,13 +16,13 @@ import {
   type GameState,
   type InputIntent,
   type PlayerState,
-} from "../src/shared/game.js";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
-import type { Weapon } from "../src/shared/shot-log.js";
+} from "../src/engine/game.js";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
+import type { Weapon } from "../src/engine/shot-log.js";
 import {
   defaultRoomSettings,
   type RoomSettings,
-} from "../src/shared/room-settings.js";
+} from "../src/engine/room-settings.js";
 import { roundShotEvents } from "../src/online/analytics.js";
 
 /**

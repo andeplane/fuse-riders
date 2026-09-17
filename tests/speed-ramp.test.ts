@@ -17,8 +17,11 @@ import {
   step,
   toSnapshot,
   type GameState,
-} from "../src/shared/game.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/game.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import { presentWorld } from "../src/online/prediction.js";
 
 function playing(seed = 31, pickups = false): GameState {

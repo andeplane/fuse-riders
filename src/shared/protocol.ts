@@ -1,24 +1,39 @@
 import { isAvatarId, type AvatarId } from "./avatars.js";
-import type { PortalPair } from "./portal.js";
-import type { ArenaMapId, Obstacle } from "./arena-map.js";
-import type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
-import type { MatchPlayerStats } from "./match-stats.js";
-import type { FlightPoint } from "./launch-modifiers.js";
-import type { PickupType } from "./pickup-types.js";
-import type { Moment } from "./moments.js";
-import type { DecidedRound } from "./shot-log.js";
+import type { PortalPair } from "../engine/portal.js";
+import type { ArenaMapId, Obstacle } from "../engine/arena-map.js";
+import type {
+  RoundPlacement,
+  SessionLeaderboardEntry,
+} from "../engine/leaderboard.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
+import type { FlightPoint } from "../engine/launch-modifiers.js";
+import type { PickupType } from "../engine/pickup-types.js";
+import type { Moment } from "../engine/moments.js";
+import type { DecidedRound } from "../engine/shot-log.js";
 
 export type { AvatarId } from "./avatars.js";
-export type { ArenaMapId, Obstacle, ObstacleKind } from "./arena-map.js";
-export type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
+export type {
+  ArenaMapId,
+  Obstacle,
+  ObstacleKind,
+} from "../engine/arena-map.js";
+export type {
+  RoundPlacement,
+  SessionLeaderboardEntry,
+} from "../engine/leaderboard.js";
 export type {
   MatchDeathCause,
   MatchDeathCounts,
   MatchPlayerStats,
-} from "./match-stats.js";
-export type { FlightPoint } from "./launch-modifiers.js";
-export type { Moment, MomentKind } from "./moments.js";
-export type { DecidedRound, RoundShot, ShotKill, Weapon } from "./shot-log.js";
+} from "../engine/match-stats.js";
+export type { FlightPoint } from "../engine/launch-modifiers.js";
+export type { Moment, MomentKind } from "../engine/moments.js";
+export type {
+  DecidedRound,
+  RoundShot,
+  ShotKill,
+  Weapon,
+} from "../engine/shot-log.js";
 
 export type PlayerId = string;
 export type PlayerToken = string;

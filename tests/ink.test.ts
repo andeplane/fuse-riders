@@ -9,7 +9,7 @@ import {
   toSnapshot,
   eliminatePlayer,
   startNextRound,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 function playing() {
   const game = createGame("ink", 42);

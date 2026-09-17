@@ -6,12 +6,12 @@ import {
   BOMB_MIN_LAUNCH_DISTANCE,
   bombLaunchDistance,
   chargeRamp,
-} from "../src/shared/bomb-launch.js";
+} from "../src/engine/bomb-launch.js";
 import { bombPreviewDistance } from "../src/client/bomb-preview.js";
 import {
   defaultRoomSettings,
   parseRoomSettings,
-} from "../src/shared/room-settings.js";
+} from "../src/engine/room-settings.js";
 
 const max = BOMB_MAX_CHARGE_TICKS;
 test("without bounce the ramp stops at full reach, as it always has", () => {

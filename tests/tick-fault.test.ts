@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BotController } from "../src/shared/bot-controller.js";
+import { BotController } from "../src/engine/bot-controller.js";
 import {
   applyTick,
   createRoomState,
   hashRoomState,
   type RoomState,
-} from "../src/shared/apply-tick.js";
+} from "../src/engine/apply-tick.js";
 import {
   PHASES,
   TickFault,
@@ -16,8 +16,8 @@ import {
   step,
   COUNTDOWN_TICKS,
   type Phase,
-} from "../src/shared/game.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+} from "../src/engine/game.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   SNAPSHOT_INTERVAL,
   World,

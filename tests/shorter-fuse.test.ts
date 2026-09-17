@@ -13,18 +13,21 @@ import {
   toSnapshot,
   type InputIntent,
   type PickupType,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   powerBlastRadius,
   powerReloadTicks,
-} from "../src/shared/power-progression.js";
-import { GUN_TRACER_TICKS } from "../src/shared/gun.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/power-progression.js";
+import { GUN_TRACER_TICKS } from "../src/engine/gun.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import {
   defaultRoomSettings,
   parseRoomSettings,
   roomPickup,
-} from "../src/shared/room-settings.js";
+} from "../src/engine/room-settings.js";
 
 function playing() {
   const game = createGame("shorter-fuse", 725);

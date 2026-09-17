@@ -36,11 +36,11 @@ try {
       )) as typeof import("../src/client/themes.js");
       const { advanceTrail } = (await import(
         String("/src/shared/trail-lifecycle.ts")
-      )) as typeof import("../src/shared/trail-lifecycle.js");
+      )) as typeof import("../src/engine/trail-lifecycle.js");
       const { createGame, addPlayer, startMatch, eliminatePlayer } =
         (await import(
           String("/src/shared/game.ts")
-        )) as typeof import("../src/shared/game.js");
+        )) as typeof import("../src/engine/game.js");
       document.body.replaceChildren();
       document.body.style.cssText = "margin:0;background:#020715";
       const canvas = document.createElement("canvas");

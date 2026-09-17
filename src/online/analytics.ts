@@ -11,10 +11,10 @@
  * `?analytics=1` to verify a build, off outright with `?analytics=0`. The Mixpanel bundle is imported only
  * once analytics is on, so a LAN game never downloads it.
  */
-import { TICK_HZ } from "../shared/game.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
-import type { DecidedRound, RoundShot } from "../shared/shot-log.js";
+import { TICK_HZ } from "../engine/game.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
+import type { DecidedRound, RoundShot } from "../engine/shot-log.js";
 
 type Mixpanel = (typeof import("mixpanel-browser"))["default"];
 

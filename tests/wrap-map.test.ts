@@ -15,22 +15,25 @@ import {
   type GameState,
   type InputIntent,
   type PlayerState,
-} from "../src/shared/game.js";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
+} from "../src/engine/game.js";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
 import {
   chooseArenaMap,
   edgesOpen,
   type ArenaMapId,
-} from "../src/shared/arena-map.js";
+} from "../src/engine/arena-map.js";
 import {
   splitWrappedSegment,
   wrapCoordinate,
   wrapDelta,
   wrapImages,
-} from "../src/shared/wrap.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { BotController } from "../src/shared/bot-controller.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/wrap.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { BotController } from "../src/engine/bot-controller.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import { renderedSnapshot } from "../src/client/render-snapshot.js";
 import { interpolateWorld } from "../src/online/prediction.js";
 import { trailPaths } from "../src/client/phaser/trails.js";

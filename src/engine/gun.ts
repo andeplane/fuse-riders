@@ -1,4 +1,4 @@
-import type { TrailSegment } from "./protocol.js";
+import type { TrailSegment } from "../shared/protocol.js";
 /** Hitscan geometry; tracer lifetime is presentation only. */
 export const GUN_RADIUS = 2;
 export const GUN_HOLE_RADIUS = 14;

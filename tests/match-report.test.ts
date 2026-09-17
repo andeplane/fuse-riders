@@ -4,7 +4,7 @@ import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
+} from "../src/engine/match-stats.js";
 import {
   createGame,
   addPlayer,
@@ -15,7 +15,7 @@ import {
   startNextRound,
   toSnapshot,
   SLOT_COLORS,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   buildMatchReport,
   buildRoundReport,

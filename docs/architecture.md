@@ -21,10 +21,10 @@ LAN remains supported. It currently shares the simulation with online, but not t
 
 | Location                                                                              | Owns                                                                                           |
 | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `src/shared/game.ts`                                                                  | Plain game state, lifecycle commands, seeded rules, tick execution and snapshot projection     |
-| `src/shared/rider-motion.ts`, geometry and weapon helpers                             | Pure turn-then-move motion, swept contacts, launch and hazard calculations                     |
-| `src/shared/input-log.ts`, `apply-tick.ts`                                            | Validated log entries, management ordering, held controls, bots and deterministic tick folding |
-| `src/shared/match-stats.ts`, `shot-log.ts`, `moments.ts`, `leaderboard.ts`            | Match facts, shot outcomes, highlights and session scoring                                     |
+| `src/engine/game.ts`                                                                  | Plain game state, lifecycle commands, seeded rules, tick execution and snapshot projection     |
+| `src/engine/rider-motion.ts`, geometry and weapon helpers                             | Pure turn-then-move motion, swept contacts, launch and hazard calculations                     |
+| `src/engine/input-log.ts`, `apply-tick.ts`                                            | Validated log entries, management ordering, held controls, bots and deterministic tick folding |
+| `src/engine/match-stats.ts`, `shot-log.ts`, `moments.ts`, `leaderboard.ts`            | Match facts, shot outcomes, highlights and session scoring                                     |
 | `src/server/`                                                                         | LAN HTTP/WebSocket authority, input buffering, seats and scheduling                            |
 | `src/online/room-runtime.ts`                                                          | Online membership coordination, world lifecycle, clocks, input delivery and frame publication  |
 | `src/online/stream.ts`, `rollback.ts`                                                 | Bounded stream history, completeness, repair and rollback                                      |
@@ -60,9 +60,9 @@ The service renews room lifetime on any member's admission or valid heartbeat, s
 
 Simulation state uses ticks; clocks schedule work and rendering samples presentation time. The current online clock changes pace when only bots survive, using `simulationTimeScale` and runtime pacing logic ([ADR 047 §11](adr/047-p2p-input-log-lockstep-rollback.md#11-game-speed-when-only-ai-survive)). Moving this acceleration into deterministic shared tick execution is proposed in #258. Do not describe the clock as fixed-rate across every current mode.
 
-`src/shared/rider-motion.ts` applies steering before movement at a fixed simulation step. Bots emit ordinary inputs through `BotController`; they do not receive special collision or movement rules. Seeded RNG and pinned deterministic trigonometry live in shared modules. Room settings, pickup definitions and game constants are the sources for balance; this guide intentionally does not duplicate numeric balance tables.
+`src/engine/rider-motion.ts` applies steering before movement at a fixed simulation step. Bots emit ordinary inputs through `BotController`; they do not receive special collision or movement rules. Seeded RNG and pinned deterministic trigonometry live in shared modules. Room settings, pickup definitions and game constants are the sources for balance; this guide intentionally does not duplicate numeric balance tables.
 
-The current `step` in [game.ts](../src/shared/game.ts) performs these broad stages:
+The current `step` in [game.ts](../src/engine/game.ts) performs these broad stages:
 
 1. Advance the tick, expire transient fields/blasts and transition countdown. Return early outside play.
 2. Age and clip trails, fit portals to the shrinking field, and attempt scheduled pickup spawning.
@@ -73,7 +73,7 @@ The current `step` in [game.ts](../src/shared/game.ts) performs these broad stag
 
 This is a summary of the current function, not a new phase API. #253 will introduce an explicit `TickContext` and ordered `PHASES`, consolidate death/fact handling and remove snapshots discarded by rollback. Until then, inspect `step` and its focused tests before changing ordering. Simultaneity, deterministic tie-breaking and the agreement between applied ticks and snapshots must survive the refactor.
 
-`RULES` in [apply-tick.ts](../src/shared/apply-tick.ts) identifies compatible simulation rules. A rules change requires a version change; a source refactor should preserve behavior. Existing cross-engine replay is useful evidence but is not yet a complete golden regression covering every pickup and defence.
+`RULES` in [apply-tick.ts](../src/engine/apply-tick.ts) identifies compatible simulation rules. A rules change requires a version change; a source refactor should preserve behavior. Existing cross-engine replay is useful evidence but is not yet a complete golden regression covering every pickup and defence.
 
 ## Rendering and controls
 

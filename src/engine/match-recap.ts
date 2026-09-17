@@ -1,5 +1,5 @@
 import { POINT_UNIT } from "./leaderboard.js";
-import { durationText } from "./duration-text.js";
+import { durationText } from "../shared/duration-text.js";
 import type { MatchPlayerStats } from "./match-stats.js";
 import {
   CUT_OFF_MAX_AGE_TICKS,

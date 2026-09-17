@@ -15,14 +15,14 @@ import {
   type Rivalries,
 } from "../shared/rating.js";
 import type { HistoryMutation } from "./history-settlement.js";
-import { parseCombat } from "../shared/combat-stats.js";
+import { parseCombat } from "../engine/combat-stats.js";
 import { createHash } from "node:crypto";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import type {
   MatchDeathCounts,
   MatchPlayerStats,
-} from "../shared/match-stats.js";
+} from "../engine/match-stats.js";
 import { validRiderName } from "../shared/rider-name.js";
 import { validUid } from "./identity.js";
 import {

@@ -7,7 +7,7 @@ import {
   botDisplayName,
   BOT_DIFFICULTIES,
   BOT_TIERS,
-} from "../src/shared/bot-controller.js";
+} from "../src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
@@ -16,15 +16,15 @@ import {
   SLOT_COLORS,
   OVERTIME_START_TICK,
   type GameState,
-} from "../src/shared/game.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+} from "../src/engine/game.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   applyTick,
   createRoomState,
   freeSlot,
   BOT_NAMES,
   type StreamEntries,
-} from "../src/shared/apply-tick.js";
+} from "../src/engine/apply-tick.js";
 import {
   ACTION,
   BOT,
@@ -32,7 +32,7 @@ import {
   STEER,
   MAX_NAME_LENGTH,
   type Entry,
-} from "../src/shared/input-log.js";
+} from "../src/engine/input-log.js";
 function fixture() {
   const game = createGame("bot-fixture");
   addPlayer(game, { id: "bot:1", name: "AI", slot: 0, color: SLOT_COLORS[0] });

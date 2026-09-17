@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import {
   addPlayer,
   createGame,
@@ -14,7 +17,7 @@ import {
   SLOT_COLORS,
   type GameState,
   type PickupType,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 function playing(): GameState {
   const game = createGame("persistent-pickups", 42);

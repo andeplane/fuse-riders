@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
-import { BotController } from "../src/shared/bot-controller.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
+import { BotController } from "../src/engine/bot-controller.js";
 import {
   COUNTDOWN_TICKS,
   SLOT_COLORS,
@@ -14,7 +17,7 @@ import {
   step,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 function fixture() {

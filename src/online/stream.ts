@@ -1,4 +1,4 @@
-import { isEntry, PRESS, uint32, type Entry } from "../shared/input-log.js";
+import { isEntry, PRESS, uint32, type Entry } from "../engine/input-log.js";
 
 export const ROLLBACK_TICKS = 40;
 /** Entries stamped further ahead than this are rejected. Clocks converge by slewing, so a live peer may legitimately

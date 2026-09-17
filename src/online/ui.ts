@@ -4,7 +4,7 @@ import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { mountArenaPresentation } from "../client/phaser/presentation.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { createAccountPanel } from "./account-panel.js";
@@ -41,11 +41,11 @@ import {
   parseRoomSettings,
   SETTINGS_KEY,
   type RoomSettings,
-} from "../shared/room-settings.js";
-import type { PickupType } from "../shared/game.js";
+} from "../engine/room-settings.js";
+import type { PickupType } from "../engine/game.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
-import type { Moment } from "../shared/moments.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
+import type { Moment } from "../engine/moments.js";
 import {
   COMPARISON_COLUMNS,
   COMPARISON_KEY,
@@ -54,7 +54,7 @@ import {
   RECAP_KICKER,
   RECAP_TITLE,
   buildMatchRecap,
-} from "../shared/match-recap.js";
+} from "../engine/match-recap.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
 import { createReplayOverlay } from "../client/replay-overlay.js";
 import { RoomRuntime, type Callbacks } from "./room-runtime.js";

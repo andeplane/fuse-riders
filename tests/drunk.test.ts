@@ -4,14 +4,14 @@ import {
   DRUNK_DURATION_TICKS,
   DRUNK_MAX_HEADING_OFFSET,
   drunkHeadingOffset,
-} from "../src/shared/drunk.js";
+} from "../src/engine/drunk.js";
 import {
   addPlayer,
   createGame,
   riderMotionStep,
   startMatch,
   step,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 const delta = (a: number, b: number) =>
   Math.atan2(Math.sin(a - b), Math.cos(a - b));

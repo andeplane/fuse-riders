@@ -1,4 +1,4 @@
-import type { BlastCircle } from "./protocol.js";
+import type { BlastCircle } from "../shared/protocol.js";
 
 /** Exact swept disk collision, including tangency and zero-length segments. */
 export function segmentIntersectsDisk(

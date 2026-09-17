@@ -36,7 +36,7 @@ try {
       const { createGame, addPlayer, startMatch, toSnapshot, step } =
         (await import(
           String("/src/shared/game.ts")
-        )) as typeof import("../src/shared/game.js");
+        )) as typeof import("../src/engine/game.js");
       const game = createGame("trail-debris-browser", 42);
       for (let p = 0; p < 3; p++) {
         addPlayer(game, {

@@ -21,10 +21,10 @@ import {
   RELEASE,
   STEER,
   type Entry,
-} from "../src/shared/input-log.js";
-import { createRoomState, hashRoomState } from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { COUNTDOWN_TICKS } from "../src/shared/game.js";
+} from "../src/engine/input-log.js";
+import { createRoomState, hashRoomState } from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { COUNTDOWN_TICKS } from "../src/engine/game.js";
 
 const settings = defaultRoomSettings();
 const members = ["creator", "b", "c", "d", "e", "f"];
@@ -471,8 +471,8 @@ test("six replicas on a deterministic lossy, reordering network agree on every r
   assert.equal(new StreamLog(1).retained().length, 0);
 });
 
-import { COUNTDOWN_TICKS as COUNTDOWN } from "../src/shared/game.js";
-import { PRESENCE as PRESENCE_KIND } from "../src/shared/input-log.js";
+import { COUNTDOWN_TICKS as COUNTDOWN } from "../src/engine/game.js";
+import { PRESENCE as PRESENCE_KIND } from "../src/engine/input-log.js";
 test("a rider's replaced stream keeps its history: a rollback across the replacement replays the old generation's inputs", () => {
   const build = (lateFirst: boolean) => {
     const w = new World(
@@ -664,7 +664,7 @@ test("late reordered inputs converge through GRIP collection and do not consume 
 });
 
 test("late duplicated and reordered Target releases converge through debris decay and peer recovery", async () => {
-  const { eliminatePlayer } = await import("../src/shared/game.js");
+  const { eliminatePlayer } = await import("../src/engine/game.js");
   const { encodeSnapshot, decodeSnapshot, SnapshotAssembler } =
     await import("../src/online/snapshot.js");
   const fixture = world("creator", ["creator", "b", "c"]);

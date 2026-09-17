@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BOTS_ONLY_TIME_SCALE, TICK_HZ } from "../src/shared/game.js";
+import { BOTS_ONLY_TIME_SCALE, TICK_HZ } from "../src/engine/game.js";
 import { SNAP_TICKS, TICK_MS } from "../src/online/clock.js";
 import {
   FUTURE_TICKS,

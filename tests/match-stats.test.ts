@@ -12,7 +12,7 @@ import {
   recordSurvivalTick,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
+} from "../src/engine/match-stats.js";
 
 const identity = (id: string, slot: number) => ({
   id,

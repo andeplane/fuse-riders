@@ -5,9 +5,9 @@ import {
   parseRoomSettings,
   roomPickup,
   loadRoomSettings,
-} from "../src/shared/room-settings.js";
-import { BOMB_MAX_CHARGE_TICKS } from "../src/shared/bomb-launch.js";
-import { ARENA_MAP_CHOICES } from "../src/shared/arena-map.js";
+} from "../src/engine/room-settings.js";
+import { BOMB_MAX_CHARGE_TICKS } from "../src/engine/bomb-launch.js";
+import { ARENA_MAP_CHOICES } from "../src/engine/arena-map.js";
 test("room settings reject malformed values, restore safe defaults and allow all drops off", () => {
   const defaults = defaultRoomSettings();
   assert.deepEqual(parseRoomSettings(defaults), defaults);

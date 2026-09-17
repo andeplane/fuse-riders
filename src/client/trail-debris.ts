@@ -1,6 +1,6 @@
-import { BLAST_VISIBLE_TICKS, TRAIL_WIDTH } from "../shared/game.js";
-import { advanceTrail } from "../shared/trail-lifecycle.js";
-import { segmentIntersectsDisk } from "../shared/blast-geometry.js";
+import { BLAST_VISIBLE_TICKS, TRAIL_WIDTH } from "../engine/game.js";
+import { advanceTrail } from "../engine/trail-lifecycle.js";
+import { segmentIntersectsDisk } from "../engine/blast-geometry.js";
 import type { TrailSegment } from "../shared/protocol.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 

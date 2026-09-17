@@ -2,14 +2,14 @@ import { performance } from "node:perf_hooks";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { BotController } from "../src/shared/bot-controller.js";
+import { BotController } from "../src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
   startMatch,
   step,
   SLOT_COLORS,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 const results = [];
 for (const trailsPerRider of [0, 160, 800]) {
   const game = createGame("bot-benchmark");

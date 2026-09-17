@@ -9,7 +9,7 @@ import {
   returnToLobby,
   toSnapshot,
   type GamePhase,
-} from "../src/shared/game.ts";
+} from "../src/engine/game.ts";
 for (const phase of [
   "lobby",
   "countdown",
