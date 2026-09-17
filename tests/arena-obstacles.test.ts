@@ -584,8 +584,8 @@ test("the room setting picks the board, and rotate gives each round a different 
     startMatch(game);
     assert.equal(game.map, map);
     assert.equal(
-      game.obstacles.length === 0,
-      map === "classic",
+      game.obstacles.length > 0,
+      ["desert", "forest", "city"].includes(map),
       `${map} scenery`,
     );
   }

@@ -26,8 +26,9 @@ import {
 import { themes } from "../src/client/themes.js";
 
 const BOUNDS = { minX: 46, minY: 46, maxX: 1554, maxY: 854 };
+// The maps that put scenery on the board; `wrap` and `cross` change the edges instead and stand on the classic floor.
 const OBSTACLE_MAPS = ARENA_MAPS.filter(
-  (map): map is Exclude<ArenaMapId, "classic"> => map !== "classic",
+  (map) => ARENA_MAP_RECIPES[map].species.length > 0,
 );
 
 /** The same counter-based stream the game uses, so a layout here is generated exactly as a round generates one. */

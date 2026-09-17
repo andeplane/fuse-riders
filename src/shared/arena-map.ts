@@ -9,9 +9,23 @@
  * this: a map says where the rocks are and what colour the ground is, a style says how walls, trails and sprites draw.
  */
 
-export const ARENA_MAPS = ["classic", "desert", "forest", "city"] as const;
+export const ARENA_MAPS = [
+  "classic",
+  "desert",
+  "forest",
+  "city",
+  "wrap",
+  "cross",
+] as const;
 export type ArenaMapId = (typeof ARENA_MAPS)[number];
-/** `rotate` cycles the obstacle maps; `classic` is the obstacle-free arena, and so is how a room turns maps off. */
+/**
+ * `rotate` cycles the obstacle maps; `classic` is the obstacle-free arena, and so is how a room turns maps off.
+ *
+ * Two maps change the board's edges rather than what stands on it. `wrap` has none until overtime: riders, shells,
+ * bullets, thrown bombs and blasts all carry through one side and out of the other (see `wrap.ts`). `cross` is the
+ * classic arena under exactly the classic rules, and differs only in how it is drawn — shifted by half a board, so
+ * the outer wall meets in a cross at the middle of the screen and the screen's own edges are open.
+ */
 export type ArenaMapChoice = ArenaMapId | "rotate";
 export const ARENA_MAP_CHOICES = ["rotate", ...ARENA_MAPS] as const;
 
@@ -111,7 +125,25 @@ export const ARENA_MAP_RECIPES: Record<ArenaMapId, ArenaMapRecipe> = {
       { kind: "crate", min: 5, max: 8, width: [30, 46], height: [30, 46] },
     ],
   },
+  wrap: { species: [], spacing: 0 },
+  cross: { species: [], spacing: 0 },
 };
+
+/** The inset a round starts with. A wrapping board has no wall to inset until overtime brings one in from the edges. */
+export function initialBoundaryInset(map: ArenaMapId, walled: number): number {
+  return map === "wrap" ? 0 : walled;
+}
+
+/**
+ * Whether the board's edges are open right now. Overtime closes them: the walls come in from the very edge, and from
+ * the first tick they stand the round is an ordinary walled one, which is how a wrapping round is guaranteed to end.
+ */
+export function edgesOpen(board: {
+  map: ArenaMapId;
+  boundaryInset: number;
+}): boolean {
+  return board.map === "wrap" && board.boundaryInset <= 0;
+}
 
 export interface ObstacleLayoutOptions {
   map: ArenaMapId;
@@ -196,7 +228,9 @@ export function chooseArenaMap(
   round: number,
 ): ArenaMapId {
   if (choice !== "rotate") return choice;
-  const rotation = ARENA_MAPS.filter((map) => map !== "classic");
+  const rotation = ARENA_MAPS.filter(
+    (map) => ARENA_MAP_RECIPES[map].species.length > 0,
+  );
   const offset = (seed >>> 0) % rotation.length;
   // `round` starts at 1 and only ever grows within a match.
   return rotation[(offset + Math.max(0, round - 1)) % rotation.length]!;

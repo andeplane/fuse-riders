@@ -22,6 +22,9 @@ import { EffectTransitions, bombPose } from "./effects.js";
 import { TrailHistoryCache, trailTip, type TrailPoint } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import { mapGround, obstacleParts } from "../arena-maps.js";
+import { crossViews, edgeGhosts } from "../arena-views.js";
+import { edgesOpen } from "../../shared/arena-map.js";
+import { wrapCoordinate } from "../../shared/wrap.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
@@ -31,6 +34,7 @@ const pickups = PICKUP_TYPES;
 const color = (value: string): number =>
   /^#[0-9a-f]{6}$/i.test(value) ? parseInt(value.slice(1), 16) : 0xffffff;
 const clamp = Phaser.Math.Clamp;
+const NO_GHOSTS = [{ dx: 0, dy: 0 }] as const;
 export interface ArenaOptions {
   renderer?: "auto" | "canvas";
   quality?: "high" | "low";
@@ -165,7 +169,7 @@ export function createPhaserArena(
   window.addEventListener("beforeunload", onLeaving);
   canvas.addEventListener("webglcontextlost", onLost);
   canvas.addEventListener("webglcontextrestored", onRestored);
-  const resize = (width: number, height: number) => {
+  const resize = (width: number, height: number, crossed = false) => {
     if (destroyed || !booted) return;
     const backing =
       options.resolution === "world"
@@ -179,18 +183,42 @@ export function createPhaserArena(
     // CSS layout remains independent of the physical canvas; all drawing stays in world units.
     canvas.style.width = "100%";
     canvas.style.height = "100%";
-    scene.cameras.main
-      .setViewport(0, 0, backing.width, backing.height)
-      .setOrigin(0, 0)
-      .setScroll(0, 0)
-      .setZoom(backing.width / width, backing.height / height);
+    // The crossed map is the same world seen through four cameras, each showing one quarter in the opposite corner
+    // of the screen. Nothing that is drawn knows: every object is clipped at a seam and picked up past it for free.
+    const views = crossed
+      ? crossViews(width, height, backing.width, backing.height)
+      : [
+          {
+            x: 0,
+            y: 0,
+            width: backing.width,
+            height: backing.height,
+            scrollX: 0,
+            scrollY: 0,
+          },
+        ];
+    const cameras = scene.cameras;
+    while (cameras.cameras.length > views.length)
+      cameras.remove(cameras.cameras[cameras.cameras.length - 1]!);
+    while (cameras.cameras.length < views.length) cameras.add(0, 0, 1, 1);
+    for (const [index, view] of views.entries()) {
+      cameras.cameras[index]!.setViewport(
+        view.x,
+        view.y,
+        view.width,
+        view.height,
+      )
+        .setOrigin(0, 0)
+        .setScroll(view.scrollX, view.scrollY)
+        .setZoom(backing.width / width, backing.height / height);
+    }
   };
   return {
     ready,
     render(snapshot, now, theme, matchId, selfId) {
       if (!booted || destroyed || lost || document.hidden) return;
       const start = performance.now();
-      resize(snapshot.width, snapshot.height);
+      resize(snapshot.width, snapshot.height, snapshot.map === "cross");
       scene.paint(snapshot, now, theme, matchId, selfId);
       game.step(
         now,
@@ -580,6 +608,9 @@ class ArenaScene extends Phaser.Scene {
     const f = this.front.clear();
     const { width: w, height: h, boundaryInset: b } = s;
     const ground = mapGround(s.map, theme);
+    const open = edgesOpen(s);
+    const ghosts = (x: number, y: number, reach: number) =>
+      open ? edgeGhosts(w, h, x, y, reach) : NO_GHOSTS;
     const backgroundKey = `${w}:${h}:${theme.id}:${s.map}`;
     if (backgroundKey !== this.backgroundKey) {
       this.backgroundKey = backgroundKey;
@@ -697,13 +728,26 @@ class ArenaScene extends Phaser.Scene {
       };
       for (let x = 0; x <= w; x += ground.gridSize) gridLine(x, 0, x, h);
       for (let y = 0; y <= h; y += ground.gridSize) gridLine(0, y, w, y);
-      this.floor
-        .fillStyle(0x00020c, 0.67)
-        .fillRect(0, 0, w, b)
-        .fillRect(0, h - b, w, b)
-        .fillRect(0, b, b, h - 2 * b)
-        .fillRect(w - b, b, b, h - 2 * b);
-      this.drawWall(w, h, b, theme);
+      if (edgesOpen(s)) {
+        // No wall to draw. A dashed rim marks where the board repeats, in place of one that would say "stop".
+        this.floor.lineStyle(2, color(theme.palette.rim), 0.35);
+        for (let x = 0; x < w; x += 28) {
+          this.floor.lineBetween(x, 1, x + 14, 1);
+          this.floor.lineBetween(x, h - 1, x + 14, h - 1);
+        }
+        for (let y = 0; y < h; y += 28) {
+          this.floor.lineBetween(1, y, 1, y + 14);
+          this.floor.lineBetween(w - 1, y, w - 1, y + 14);
+        }
+      } else {
+        this.floor
+          .fillStyle(0x00020c, 0.67)
+          .fillRect(0, 0, w, b)
+          .fillRect(0, h - b, w, b)
+          .fillRect(0, b, b, h - 2 * b)
+          .fillRect(w - b, b, b, h - 2 * b);
+        this.drawWall(w, h, b, theme);
+      }
       // After the boundary band: an obstacle the closing walls have reached is already gone from the state.
       this.drawObstacles(s.obstacles);
       this.maskShape
@@ -839,14 +883,18 @@ class ArenaScene extends Phaser.Scene {
         continue;
       }
       if (bomb.shell) {
-        this.sprite("shell", bomb.x, bomb.y, 34, now / 130);
-        const a = Math.atan2(bomb.shell.vy, bomb.shell.vx);
-        for (let i = 1; i < 5; i++)
-          g.fillStyle(0x66ff72, 0.18 / i).fillCircle(
-            bomb.x - Math.cos(a) * i * 12,
-            bomb.y - Math.sin(a) * i * 12,
-            7,
-          );
+        for (const { dx, dy } of ghosts(bomb.x, bomb.y, 60)) {
+          const x = bomb.x + dx,
+            y = bomb.y + dy;
+          this.sprite("shell", x, y, 34, now / 130);
+          const a = Math.atan2(bomb.shell.vy, bomb.shell.vx);
+          for (let i = 1; i < 5; i++)
+            g.fillStyle(0x66ff72, 0.18 / i).fillCircle(
+              x - Math.cos(a) * i * 12,
+              y - Math.sin(a) * i * 12,
+              7,
+            );
+        }
         continue;
       }
       const ownerTint = color(
@@ -854,19 +902,40 @@ class ArenaScene extends Phaser.Scene {
           "#ffffff",
       );
       // The fine outer edge stays at the exact supplied damage radius.
-      g.lineStyle(1.5, ownerTint, 0.32).strokeCircle(
-        bomb.x,
-        bomb.y,
-        bomb.blastRange,
-      );
-      g.lineStyle(4, ownerTint, 0.04).strokeCircle(
-        bomb.x,
-        bomb.y,
-        Math.max(0, bomb.blastRange - 3),
-      );
-      g.fillStyle(ownerTint, 0.025).fillCircle(bomb.x, bomb.y, bomb.blastRange);
-      const pose = bombPose(bomb, s.tick);
+      for (const { dx, dy } of ghosts(bomb.x, bomb.y, bomb.blastRange)) {
+        g.lineStyle(1.5, ownerTint, 0.32).strokeCircle(
+          bomb.x + dx,
+          bomb.y + dy,
+          bomb.blastRange,
+        );
+        g.lineStyle(4, ownerTint, 0.04).strokeCircle(
+          bomb.x + dx,
+          bomb.y + dy,
+          Math.max(0, bomb.blastRange - 3),
+        );
+        g.fillStyle(ownerTint, 0.025).fillCircle(
+          bomb.x + dx,
+          bomb.y + dy,
+          bomb.blastRange,
+        );
+        if (s.tick < bomb.landsAtTick)
+          g.lineStyle(2, ownerTint, 0.6).strokeEllipse(
+            bomb.x + dx,
+            bomb.y + dy,
+            34,
+            15,
+          );
+      }
+      // A lob over an open edge is one straight throw in the state; it is folded onto the board only to be drawn.
+      const flown = bombPose(bomb, s.tick);
       const airborne = s.tick < bomb.landsAtTick;
+      const pose = open
+        ? {
+            ...flown,
+            x: wrapCoordinate(flown.x, w),
+            y: wrapCoordinate(flown.y, h),
+          }
+        : flown;
       this.sprite(
         `${theme.id}:bomb`,
         pose.x,
@@ -899,8 +968,6 @@ class ArenaScene extends Phaser.Scene {
           2,
         );
       }
-      if (airborne)
-        g.lineStyle(2, ownerTint, 0.6).strokeEllipse(bomb.x, bomb.y, 34, 15);
     }
     for (const field of s.gravityFields) {
       // The bent floor grid shows the hole's reach; only the black core is drawn here.
@@ -963,153 +1030,166 @@ class ArenaScene extends Phaser.Scene {
         piece.y2,
       );
     }
-    for (const p of s.players) {
-      if (!p.alive) continue;
-      const tint = color(p.color);
-      // The portrait stays upright at the trail head; only its direction marker turns.
-      g.fillStyle(0x080c22).fillCircle(p.x, p.y, 15);
-      f.lineStyle(1, tint).strokeCircle(p.x, p.y, 15);
-      this.sprite(
-        this.textures.exists("avatars") ? "avatars" : `${theme.id}:rider`,
-        p.x,
-        p.y,
-        32,
-        0,
-        this.textures.exists("avatars") ? p.avatarId : undefined,
-      );
-      const a = p.angle,
-        dx = Math.cos(a),
-        dy = Math.sin(a);
-      f.fillStyle(tint).fillTriangle(
-        p.x + dx * 23,
-        p.y + dy * 23,
-        p.x + dx * 16 + dy * 5,
-        p.y + dy * 16 - dx * 5,
-        p.x + dx * 16 - dy * 5,
-        p.y + dy * 16 + dx * 5,
-      );
-      const self = p.id === selfId,
-        labelY = p.y - (self ? 30 : 27);
-      if (self)
-        f.lineStyle(2, tint, 0.55 + Math.sin(now / 180) * 0.25).strokeCircle(
+    // Near an open edge a rider is drawn on both sides of it, so it arrives as it leaves rather than popping across.
+    for (const rider of s.players)
+      for (const ghost of rider.alive ? ghosts(rider.x, rider.y, 40) : []) {
+        const p =
+          ghost.dx || ghost.dy
+            ? { ...rider, x: rider.x + ghost.dx, y: rider.y + ghost.dy }
+            : rider;
+        const tint = color(p.color);
+        // The portrait stays upright at the trail head; only its direction marker turns.
+        g.fillStyle(0x080c22).fillCircle(p.x, p.y, 15);
+        f.lineStyle(1, tint).strokeCircle(p.x, p.y, 15);
+        this.sprite(
+          this.textures.exists("avatars") ? "avatars" : `${theme.id}:rider`,
           p.x,
           p.y,
-          22 + Math.sin(now / 180) * 2,
+          32,
+          0,
+          this.textures.exists("avatars") ? p.avatarId : undefined,
         );
-      const name = this.label(
-        self ? "YOU" : p.name,
-        p.x,
-        labelY,
-        self ? "#ffffff" : p.color,
-        self ? 12 : 10,
-      );
-      const power = this.label(
-        powerCountText(p.powerPickups, p.extraBombs, p.grip),
-        p.x,
-        labelY,
-        POWER_COLOR,
-      );
-      const gap = 8,
-        left =
-          p.x -
-          (name.width + gap + POWER_ICON_SIZE + POWER_ICON_GAP + power.width) /
-            2;
-      name.setX(left + name.width / 2);
-      const iconX = left + name.width + gap + POWER_ICON_SIZE / 2,
-        iconY = labelY,
-        radius = POWER_ICON_SIZE / 2;
-      f.fillStyle(color(POWER_COLOR))
-        .lineStyle(2, 0x020715)
-        .beginPath()
-        .moveTo(iconX, iconY - radius)
-        .lineTo(iconX + radius, iconY)
-        .lineTo(iconX, iconY + radius)
-        .lineTo(iconX - radius, iconY)
-        .closePath()
-        .fillPath()
-        .strokePath();
-      power.setX(iconX + radius + POWER_ICON_GAP + power.width / 2);
-      const reload = reloadRemaining(p, s);
-      if (reload > 0) {
-        const start = -Math.PI / 2 + (1 - reload) * Math.PI * 2;
-        f.lineStyle(2, 0x080c22, 0.95).strokeCircle(
+        const a = p.angle,
+          dx = Math.cos(a),
+          dy = Math.sin(a);
+        f.fillStyle(tint).fillTriangle(
+          p.x + dx * 23,
+          p.y + dy * 23,
+          p.x + dx * 16 + dy * 5,
+          p.y + dy * 16 - dx * 5,
+          p.x + dx * 16 - dy * 5,
+          p.y + dy * 16 + dx * 5,
+        );
+        const self = p.id === selfId,
+          labelY = p.y - (self ? 30 : 27);
+        if (self)
+          f.lineStyle(2, tint, 0.55 + Math.sin(now / 180) * 0.25).strokeCircle(
+            p.x,
+            p.y,
+            22 + Math.sin(now / 180) * 2,
+          );
+        const name = this.label(
+          self ? "YOU" : p.name,
           p.x,
-          p.y,
-          RELOAD_RING_RADIUS,
+          labelY,
+          self ? "#ffffff" : p.color,
+          self ? 12 : 10,
         );
-        f.lineStyle(2, tint, 0.2).strokeCircle(p.x, p.y, RELOAD_RING_RADIUS);
-        f.lineStyle(2, tint)
+        const power = this.label(
+          powerCountText(p.powerPickups, p.extraBombs, p.grip),
+          p.x,
+          labelY,
+          POWER_COLOR,
+        );
+        const gap = 8,
+          left =
+            p.x -
+            (name.width +
+              gap +
+              POWER_ICON_SIZE +
+              POWER_ICON_GAP +
+              power.width) /
+              2;
+        name.setX(left + name.width / 2);
+        const iconX = left + name.width + gap + POWER_ICON_SIZE / 2,
+          iconY = labelY,
+          radius = POWER_ICON_SIZE / 2;
+        f.fillStyle(color(POWER_COLOR))
+          .lineStyle(2, 0x020715)
           .beginPath()
-          .arc(p.x, p.y, RELOAD_RING_RADIUS, start, Math.PI * 1.5, false)
+          .moveTo(iconX, iconY - radius)
+          .lineTo(iconX + radius, iconY)
+          .lineTo(iconX, iconY + radius)
+          .lineTo(iconX - radius, iconY)
+          .closePath()
+          .fillPath()
           .strokePath();
-      }
-      if (p.shielded || p.shieldGraceUntilTick > s.tick) {
-        f.lineStyle(2, 0x8affff, 0.8).strokeCircle(p.x, p.y, 29);
-        const a = now / 350;
-        f.fillStyle(0xcaffff).fillRect(
-          p.x + Math.cos(a) * 29 - 4,
-          p.y + Math.sin(a) * 29 - 4,
-          8,
-          8,
-        );
-      }
-      if (p.portalGraceUntilTick > s.tick || p.invulnerableUntilTick > s.tick)
-        f.lineStyle(3, 0xffdbff, 0.6).strokeCircle(
-          p.x,
-          p.y,
-          35 + Math.sin(now / 80) * 2,
-        );
-      if (p.drunkUntilTick > s.tick) {
-        f.lineStyle(2, 0xd799ff, 0.9).strokeEllipse(p.x, p.y - 12, 70, 35);
-        for (let i = 0; i < 4; i++) {
-          const a = now / 240 + (i * Math.PI) / 2;
-          const sx = p.x + Math.cos(a) * 36,
-            sy = p.y - 12 + Math.sin(a) * 20;
-          f.fillStyle(i % 2 ? 0xffe790 : 0xffaa32)
-            .fillRect(sx - 2, sy - 8, 4, 16)
-            .fillRect(sx - 8, sy - 2, 16, 4);
+        power.setX(iconX + radius + POWER_ICON_GAP + power.width / 2);
+        const reload = reloadRemaining(p, s);
+        if (reload > 0) {
+          const start = -Math.PI / 2 + (1 - reload) * Math.PI * 2;
+          f.lineStyle(2, 0x080c22, 0.95).strokeCircle(
+            p.x,
+            p.y,
+            RELOAD_RING_RADIUS,
+          );
+          f.lineStyle(2, tint, 0.2).strokeCircle(p.x, p.y, RELOAD_RING_RADIUS);
+          f.lineStyle(2, tint)
+            .beginPath()
+            .arc(p.x, p.y, RELOAD_RING_RADIUS, start, Math.PI * 1.5, false)
+            .strokePath();
         }
-        this.label("DIZZY", p.x, p.y + 37, "#fff078", 9);
-      }
-      if (
-        p.bombChargeStartedTick !== undefined &&
-        !p.targetBombArmed &&
-        !p.shellArmed &&
-        !p.gunArmed
-      ) {
-        const distance = bombPreviewDistance(
-          (p.presentationTick ?? s.tick) - p.bombChargeStartedTick,
-          s.bombChargeTicks,
-          s.aimBounce,
-        );
-        for (const a of volleyAngles(p.angle, bombsPerShot(p))) {
-          const x = clamp(p.x + Math.cos(a) * distance, b + 20, w - b - 20),
-            y = clamp(p.y + Math.sin(a) * distance, b + 20, h - b - 20);
+        if (p.shielded || p.shieldGraceUntilTick > s.tick) {
+          f.lineStyle(2, 0x8affff, 0.8).strokeCircle(p.x, p.y, 29);
+          const a = now / 350;
+          f.fillStyle(0xcaffff).fillRect(
+            p.x + Math.cos(a) * 29 - 4,
+            p.y + Math.sin(a) * 29 - 4,
+            8,
+            8,
+          );
+        }
+        if (p.portalGraceUntilTick > s.tick || p.invulnerableUntilTick > s.tick)
+          f.lineStyle(3, 0xffdbff, 0.6).strokeCircle(
+            p.x,
+            p.y,
+            35 + Math.sin(now / 80) * 2,
+          );
+        if (p.drunkUntilTick > s.tick) {
+          f.lineStyle(2, 0xd799ff, 0.9).strokeEllipse(p.x, p.y - 12, 70, 35);
+          for (let i = 0; i < 4; i++) {
+            const a = now / 240 + (i * Math.PI) / 2;
+            const sx = p.x + Math.cos(a) * 36,
+              sy = p.y - 12 + Math.sin(a) * 20;
+            f.fillStyle(i % 2 ? 0xffe790 : 0xffaa32)
+              .fillRect(sx - 2, sy - 8, 4, 16)
+              .fillRect(sx - 8, sy - 2, 16, 4);
+          }
+          this.label("DIZZY", p.x, p.y + 37, "#fff078", 9);
+        }
+        if (
+          p.bombChargeStartedTick !== undefined &&
+          !p.targetBombArmed &&
+          !p.shellArmed &&
+          !p.gunArmed
+        ) {
+          const distance = bombPreviewDistance(
+            (p.presentationTick ?? s.tick) - p.bombChargeStartedTick,
+            s.bombChargeTicks,
+            s.aimBounce,
+          );
+          for (const a of volleyAngles(p.angle, bombsPerShot(p))) {
+            const x = open
+                ? p.x + Math.cos(a) * distance
+                : clamp(p.x + Math.cos(a) * distance, b + 20, w - b - 20),
+              y = open
+                ? p.y + Math.sin(a) * distance
+                : clamp(p.y + Math.sin(a) * distance, b + 20, h - b - 20);
+            f.lineStyle(2, tint, 0.5)
+              .lineBetween(p.x, p.y, x, y)
+              .lineStyle(2, tint, 0.9)
+              .strokeRect(x - 9, y - 9, 18, 18);
+          }
+        }
+        if (
+          p.targetBombArmed &&
+          !p.shellArmed &&
+          !p.gunArmed &&
+          p.bombChargeStartedTick !== undefined &&
+          p.bombTarget
+        ) {
+          const { x, y } = p.bombTarget;
           f.lineStyle(2, tint, 0.5)
             .lineBetween(p.x, p.y, x, y)
-            .lineStyle(2, tint, 0.9)
-            .strokeRect(x - 9, y - 9, 18, 18);
+            .lineStyle(3, tint)
+            .strokeCircle(x, y, 23)
+            .lineBetween(x - 32, y, x - 11, y)
+            .lineBetween(x + 11, y, x + 32, y)
+            .lineBetween(x, y - 32, x, y - 11)
+            .lineBetween(x, y + 11, x, y + 32);
+          this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
         }
       }
-      if (
-        p.targetBombArmed &&
-        !p.shellArmed &&
-        !p.gunArmed &&
-        p.bombChargeStartedTick !== undefined &&
-        p.bombTarget
-      ) {
-        const { x, y } = p.bombTarget;
-        f.lineStyle(2, tint, 0.5)
-          .lineBetween(p.x, p.y, x, y)
-          .lineStyle(3, tint)
-          .strokeCircle(x, y, 23)
-          .lineBetween(x - 32, y, x - 11, y)
-          .lineBetween(x + 11, y, x + 32, y)
-          .lineBetween(x, y - 32, x, y - 11)
-          .lineBetween(x, y + 11, x, y + 32);
-        this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
-      }
-    }
     const inked = s.players.some((p) => p.alive && p.inkUntilTick > s.tick);
     this.inkImage.setVisible(inked);
     if (inked) {

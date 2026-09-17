@@ -124,6 +124,11 @@ export function showRoomSettings(
           ["forest", ARENA_MAP_LABELS.forest],
           ["city", ARENA_MAP_LABELS.city],
           ["classic", `${ARENA_MAP_LABELS.classic} · no obstacles`],
+          ["wrap", `${ARENA_MAP_LABELS.wrap} · no walls until overtime`],
+          [
+            "cross",
+            `${ARENA_MAP_LABELS.cross} · the classic arena, split four ways`,
+          ],
         ],
         (value) => {
           draft.map = value;
@@ -133,7 +138,11 @@ export function showRoomSettings(
     body.append(
       element(
         "p",
-        "Maps other than the classic grid put rocks, trees and buildings on the board. Crashing into one is fatal; a bomb blast clears it away.",
+        "Desert, Forest and City put rocks, trees and buildings on the board. Crashing into one is fatal; a bomb blast clears it away.",
+      ),
+      element(
+        "p",
+        "Wrap-around has open edges: riders, shells, bullets, thrown bombs and blasts leave one side and arrive on the other. Crossed plays exactly like the classic arena, drawn shifted by half a board: the walls meet in a cross in the middle and the screen edges are open.",
       ),
     );
     const lengthLabel = element("label", "Match length"),

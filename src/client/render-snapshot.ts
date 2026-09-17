@@ -1,5 +1,10 @@
 import { advanceShell, SHELL_RADIUS } from "../shared/shell.js";
-import { obstacleDistanceSquared, obstacleEdges } from "../shared/arena-map.js";
+import {
+  edgesOpen,
+  obstacleDistanceSquared,
+  obstacleEdges,
+} from "../shared/arena-map.js";
+import { wrapCoordinate, wrapDelta } from "../shared/wrap.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 export const VISUAL_PROJECTION_LIMIT_MS = 50;
@@ -50,6 +55,9 @@ export function renderedSnapshot(
   const oldById = new Map(
     older.snapshot.players.map((player) => [player.id, player]),
   );
+  // Over open edges a rider that crossed is a step further on, not a board's width back: velocity is the short way round.
+  const open = edgesOpen(newer.snapshot);
+  const { width, height } = newer.snapshot;
   return {
     ...newer.snapshot,
     // Cosmetic world effects use the same bounded fractional time as rider presentation.
@@ -73,14 +81,20 @@ export function renderedSnapshot(
         .flatMap(obstacleEdges);
       advanceShell(
         motion,
-        {
-          left: newer.snapshot.boundaryInset + SHELL_RADIUS,
-          right:
-            newer.snapshot.width - newer.snapshot.boundaryInset - SHELL_RADIUS,
-          top: newer.snapshot.boundaryInset + SHELL_RADIUS,
-          bottom:
-            newer.snapshot.height - newer.snapshot.boundaryInset - SHELL_RADIUS,
-        },
+        open
+          ? { left: -width, right: 2 * width, top: -height, bottom: 2 * height }
+          : {
+              left: newer.snapshot.boundaryInset + SHELL_RADIUS,
+              right:
+                newer.snapshot.width -
+                newer.snapshot.boundaryInset -
+                SHELL_RADIUS,
+              top: newer.snapshot.boundaryInset + SHELL_RADIUS,
+              bottom:
+                newer.snapshot.height -
+                newer.snapshot.boundaryInset -
+                SHELL_RADIUS,
+            },
         // Scenery bounces a shell in the simulation, so the projection has to bounce it too or the sprite
         // slides through a building until the next authoritative tick snaps it back.
         [
@@ -93,7 +107,11 @@ export function renderedSnapshot(
           ),
         ],
       );
-      return { ...bomb, x: motion.x, y: motion.y };
+      return {
+        ...bomb,
+        x: open ? wrapCoordinate(motion.x, width) : motion.x,
+        y: open ? wrapCoordinate(motion.y, height) : motion.y,
+      };
     }),
     players: newer.snapshot.players.map((player) => {
       const previous = oldById.get(player.id);
@@ -108,8 +126,18 @@ export function renderedSnapshot(
         ...player,
         presentationTick:
           newer.snapshot.tick + projectionDuration / VISUAL_PROJECTION_LIMIT_MS,
-        x: player.x + (player.x - previous.x) * factor,
-        y: player.y + (player.y - previous.y) * factor,
+        x:
+          player.x +
+          (open
+            ? wrapDelta(player.x - previous.x, width)
+            : player.x - previous.x) *
+            factor,
+        y:
+          player.y +
+          (open
+            ? wrapDelta(player.y - previous.y, height)
+            : player.y - previous.y) *
+            factor,
         angle: player.angle + delta * factor,
         ...(player.bombTarget && previous.bombTarget
           ? {

@@ -26,12 +26,12 @@ export const ARENA_MAP_LABELS: Record<ArenaMapId, string> = {
   desert: "Desert",
   forest: "Forest",
   city: "City",
+  wrap: "Wrap-around",
+  cross: "Crossed",
 };
 
-const GROUNDS: Record<
-  Exclude<ArenaMapId, "classic">,
-  Omit<MapGround, "gridSize">
-> = {
+/** Maps that change the edges rather than the ground play on the style's own floor, as classic does. */
+const GROUNDS: Partial<Record<ArenaMapId, Omit<MapGround, "gridSize">>> = {
   desert: {
     floorCenter: "#4a2f12",
     floorEdge: "#150a03",
@@ -52,10 +52,11 @@ const GROUNDS: Record<
   },
 };
 
-/** Classic keeps the style's own floor exactly as it was before maps existed. */
+/** Classic keeps the style's own floor exactly as it was before maps existed, and so do the two maps built on it. */
 export function mapGround(map: ArenaMapId, theme: ThemeDefinition): MapGround {
   const gridSize = theme.rendering.gridSize;
-  if (map === "classic") {
+  const ground = GROUNDS[map];
+  if (!ground) {
     return {
       floorCenter: theme.palette.floorCenter,
       floorEdge: theme.palette.floorEdge,
@@ -64,7 +65,7 @@ export function mapGround(map: ArenaMapId, theme: ThemeDefinition): MapGround {
       dust: theme.palette.rim,
     };
   }
-  return { ...GROUNDS[map], gridSize };
+  return { ...ground, gridSize };
 }
 
 export type ObstaclePart =
