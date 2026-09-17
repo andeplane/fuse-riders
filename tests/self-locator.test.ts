@@ -38,7 +38,9 @@ test("the locator opens the countdown at full strength", () => {
 test("the locator fades out over the end of the countdown", () => {
   assert.equal(countdown(60 - SELF_LOCATOR_FADE_TICKS / 2), 0.5);
   assert.equal(countdown(60), 0);
-  // Rendering between ticks fades smoothly instead of stepping at the tick rate.
+  // Rendering between ticks fades smoothly instead of stepping at the tick rate: the live view interpolates `tick`.
+  assert.equal(countdown(60 - SELF_LOCATOR_FADE_TICKS / 4), 0.25);
+  assert.equal(countdown(59.5), 0.5 / SELF_LOCATOR_FADE_TICKS);
   assert.equal(countdown(40, 60 - SELF_LOCATOR_FADE_TICKS / 4), 0.25);
   // A view presented past the end of the countdown never goes negative.
   assert.equal(countdown(60, 63), 0);

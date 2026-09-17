@@ -4,7 +4,7 @@ import type { ViewSnapshot } from "./snapshot-stream.js";
 /** The locator fades out over the end of the countdown, so it is gone by the time the riders move. */
 export const SELF_LOCATOR_FADE_TICKS = TICK_HZ;
 /** Room the arrow and its "YOU" caption need on the side of the rider they are drawn on, caption glyphs included. */
-export const SELF_LOCATOR_REACH = 120;
+export const SELF_LOCATOR_REACH = 125;
 const RING_PERIOD_MS = 1500;
 const RING_FAR = 120;
 const RING_NEAR = 30;

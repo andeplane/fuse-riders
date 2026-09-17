@@ -1058,7 +1058,7 @@ class ArenaScene extends Phaser.Scene {
             ring.radius,
           );
           const side = selfLocatorSide(p.y, b),
-            tip = p.y + side * (42 + Math.abs(Math.sin(now / 320)) * 6),
+            tip = p.y + side * (46 + Math.abs(Math.sin(now / 320)) * 6),
             neck = tip + side * 22,
             tail = neck + side * 18;
           f.fillStyle(tint, 0.9 * locate)
