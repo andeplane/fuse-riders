@@ -30,6 +30,12 @@ export class ScriptedPeer {
     peer.heartbeat();
   private readonly room: number;
   private reading?: { clockTick: number; at: number };
+  private lastClock = 0;
+  /** Nacks addressed to this peer, and fast packets that did not decode at all. */
+  nacks = 0;
+  undecodable = 0;
+  /** When each member's fast packets arrived, so a test can tell who is still sending to this peer. */
+  readonly heardFast = new Map<string, number[]>();
   private lastSendAt = -Infinity;
   private readonly greeted = new Set<string>();
   private joinName?: string;
@@ -50,7 +56,13 @@ export class ScriptedPeer {
       message: (from, data) =>
         this.inbox.push({ from, data: data as { type?: string } }),
       fast: (from, bytes) => {
+        this.heardFast.set(from, [
+          ...(this.heardFast.get(from) ?? []),
+          net.now,
+        ]);
         const decoded = decodePacket(bytes);
+        if (!decoded) this.undecodable++;
+        else if ("nack" in decoded) this.nacks++;
         if (decoded && "packet" in decoded && from === net.hostId)
           this.reading = { clockTick: decoded.packet.clockTick, at: net.now };
       },
@@ -71,11 +83,17 @@ export class ScriptedPeer {
   join(name: string): void {
     this.joinName = name;
   }
-  /** The room clock as the creator's latest packet showed it, projected to now. */
+  /**
+   * The room clock as the creator's latest packet showed it, projected to now. It never steps back: under jitter a late
+   * packet would otherwise lower the reading, and a heartbeat built on it would break its own earlier `through`.
+   */
   clock(): number {
-    return this.reading
-      ? this.reading.clockTick + (this.net.now - this.reading.at) / 50
-      : 0;
+    if (this.reading)
+      this.lastClock = Math.max(
+        this.lastClock,
+        this.reading.clockTick + (this.net.now - this.reading.at) / 50,
+      );
+    return this.lastClock;
   }
   /** The next own entry, stamped `tick`. */
   entry(tick: number, ...body: unknown[]): Entry {
@@ -118,7 +136,7 @@ export class ScriptedPeer {
       if (this.joinName !== undefined && peer === this.net.hostId)
         this.transport.send(peer, { type: "join", name: this.joinName });
     }
-    if (this.net.now - this.lastSendAt < 50 || !this.reading) return;
+    if (this.net.now - this.lastSendAt < 50) return;
     this.lastSendAt = this.net.now;
     const packet = this.script(this);
     if (packet) this.send(packet);

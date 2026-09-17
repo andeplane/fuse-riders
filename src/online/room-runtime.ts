@@ -145,13 +145,39 @@ interface Member {
   rejected: number;
   /** The peer's hello announced different `RULES`: its stream, joins and snapshots are refused until a matching hello. */
   refused: boolean;
+  /** The rules a refused peer announced, so the status can say which side is out of date. */
+  rules?: string;
+  /** Since when every packet from this member has fallen outside this replica's window; -Infinity once one is taken. */
+  windowSince: number;
   presence?: { connected: boolean; tick: number; at: number };
 }
-/** Shown by both sides of a rules mismatch; "reload this page" is what the header treats as actionable. */
-export const RULES_MISMATCH_STATUS =
-    "A rider is on a different game version — reload this page",
-  RULES_MISMATCH_REPLY =
-    "This room runs a different game version — reload this page";
+/**
+ * What a rules mismatch tells each side. Reloading only helps the page that is behind, so the text names it; every line
+ * carries a phrase the header already treats as actionable ("reload this page", "incompatible").
+ */
+export const RULES_MISMATCH = {
+  stale: "This page is out of date — reload this page",
+  staleRider: "A rider is on an older game version — they must reload",
+  staleRoom:
+    "Incompatible room: it runs an older game version — start a new room, or have its riders reload",
+  unknown: "A rider is on a different game version — reload this page",
+  replyToStale: "This room runs a newer game version — reload this page",
+  replyToNewer:
+    "Incompatible room: it runs an older game version — start a new room",
+  replyToUnknown: "This room runs a different game version — reload this page",
+} as const;
+const rulesNumber = (rules: unknown): number | undefined => {
+  const match = typeof rules === "string" && /^fuse-p2p-(\d+)$/.exec(rules);
+  return match ? Number(match[1]) : undefined;
+};
+/** Whether a peer announcing `theirs` is ahead of this build, behind it, or not comparable. */
+export function rulesAge(theirs: unknown): "newer" | "older" | "unknown" {
+  const mine = rulesNumber(RULES),
+    other = rulesNumber(theirs);
+  if (mine === undefined || other === undefined || mine === other)
+    return "unknown";
+  return other > mine ? "newer" : "older";
+}
 
 export const DISCONNECT_MS = 1000,
   CREATOR_SILENCE_MS = 5000,
@@ -161,6 +187,8 @@ export const DISCONNECT_MS = 1000,
   JOIN_RETRY_MS = 1000;
 export const SNAPSHOT_BUFFER_LIMIT = 4_000_000,
   STALLED_GAP_MS = 1500,
+  /** How long a member whose packets all fall outside this replica's window still counts as heard, and is resynced for: several snapshot attempts. */
+  WINDOW_GRACE_MS = 10_000,
   SNAPSHOT_SERVE_MS = 500;
 export const HASH_INTERVAL = 20,
   HASH_LAG = 40,
@@ -360,6 +388,7 @@ export class RoomRuntime {
           gapSince: -Infinity,
           rejected: 0,
           refused: false,
+          windowSince: -Infinity,
         });
       return;
     }
@@ -405,25 +434,35 @@ export class RoomRuntime {
     if (!member) return;
     // A peer on different rules folds the same log into a different world: only a matching hello is heard from it.
     if (member.refused && data.type !== "hello") {
-      if (data.type === "join")
+      if (data.type === "join") {
+        const age = rulesAge(member.rules);
         this.transport!.send(id, {
           type: "error",
-          error: RULES_MISMATCH_REPLY,
+          error:
+            age === "older"
+              ? RULES_MISMATCH.replyToStale
+              : age === "newer"
+                ? RULES_MISMATCH.replyToNewer
+                : RULES_MISMATCH.replyToUnknown,
         });
+      }
       return;
     }
     switch (data.type) {
       case "hello":
         if (data.rules !== RULES) {
           member.refused = true;
+          member.rules =
+            typeof data.rules === "string" ? data.rules : undefined;
           if (this.snapshotRequest?.to === id) {
             this.snapshotRequest = undefined;
             this.assembler = undefined;
           }
-          this.status.notice(RULES_MISMATCH_STATUS);
+          this.status.notice(this.mismatchStatus(member));
           return;
         }
         member.refused = false;
+        member.rules = undefined;
         if (
           typeof data.generation === "number" &&
           Number.isSafeInteger(data.generation) &&
@@ -517,15 +556,25 @@ export class RoomRuntime {
       packet.through,
       Math.floor(this.clock.tick()),
     );
+    if (result.status !== "invalid") member.windowSince = -Infinity;
     if (result.status === "unrepairable") {
       this.requestSnapshot();
       return;
     }
     if (result.status === "invalid") {
-      // A refused packet is not a sign of life: a rider whose stream cannot be folded is marked absent like a silent
-      // one, so the room plays on instead of waiting for completeness that will never be accepted.
-      member.lastPacketAt = heardAt;
       member.rejected++;
+      // A packet no unmodified client sends is not a sign of life: a rider whose stream cannot be folded is marked
+      // absent like a silent one, so the room plays on instead of waiting for completeness it will never accept.
+      // A packet outside this replica's own window says nothing about its sender, which stays heard while the usual
+      // recovery runs (a resync, a gap closing, this clock catching up) — but only for so long: a member that never
+      // comes back inside the window is then treated as silent too, rather than stalling the room for good.
+      if (result.refusal === "window" && member.windowSince === -Infinity)
+        member.windowSince = now;
+      if (
+        result.refusal !== "window" ||
+        now - member.windowSince > WINDOW_GRACE_MS
+      )
+        member.lastPacketAt = heardAt;
       return;
     }
     if (result.rollbackTicks > 0) this.lastFrameTick = -1;
@@ -592,6 +641,17 @@ export class RoomRuntime {
     // Peers that asked while there was nothing to serve re-hear a hello that now announces a world.
     for (const member of this.members.values()) member.helloed = false;
     if (this.pendingJoin) this.sendJoin();
+  }
+  /** `waiting`: this page has no world and nobody compatible to get one from, so the refused member stands for the room. */
+  private mismatchStatus(member: Member, waiting = false): string {
+    const age = rulesAge(member.rules);
+    return age === "newer"
+      ? RULES_MISMATCH.stale
+      : age === "older"
+        ? waiting
+          ? RULES_MISMATCH.staleRoom
+          : RULES_MISMATCH.staleRider
+        : RULES_MISMATCH.unknown;
   }
   /** Members whose world could be this one: everyone but those refused for announcing different rules. */
   private compatible(): string[] {
@@ -835,6 +895,7 @@ export class RoomRuntime {
       gapSince: -Infinity,
       rejected: 0,
       refused: false,
+      windowSince: -Infinity,
     };
   }
   private ensurePresence(id: string, member: Member): void {
@@ -1061,6 +1122,8 @@ export class RoomRuntime {
       }
       return true;
     }
+    // A manager refused for its rules would only answer with an error this replica drops: the status says what to do.
+    if (this.members.get(this.managerId())?.refused) return false;
     return this.transport!.send(this.managerId(), {
       type: "join",
       name: join.name,
@@ -1255,10 +1318,21 @@ export class RoomRuntime {
         !this.snapshotRequest &&
         !this.creator &&
         now - this.welcomeAt > SNAPSHOT_RETRY_MS
-      )
-        this.status.recurring(
-          `Waiting for the game — ${this.transport!.explain(this.hostId)}`,
+      ) {
+        // Nobody compatible can serve the game and a linked member was refused for its rules: that is why this page
+        // waits, and it stays on screen (the notice at the hello is gone after a few seconds).
+        const refused = [...this.members].find(
+          ([id, member]) => member.refused && this.transport!.linked(id),
         );
+        this.status.recurring(
+          refused &&
+            !candidates.some(
+              (id) => this.transport!.linked(id) && !this.saidNoWorld(id),
+            )
+            ? this.mismatchStatus(refused[1], true)
+            : `Waiting for the game — ${this.transport!.explain(this.hostId)}`,
+        );
+      }
       if (this.pendingJoin && now - this.pendingJoin.sentAt > JOIN_RETRY_MS)
         this.sendJoin();
       return;
@@ -1328,7 +1402,11 @@ export class RoomRuntime {
       if (tick !== this.lastPacketTick) this.sendPackets(now);
       for (const [id, member] of this.members) {
         const stream = world.streams.get(id);
-        if (!stream?.gap) {
+        // A stream whose owner is out of reach (`ahead`) has no gap to nack, but needs the same snapshot: it takes the
+        // same throttled path, for as long as the member still counts as heard.
+        const ahead =
+          stream?.ahead === true && now - member.windowSince <= WINDOW_GRACE_MS;
+        if (!stream?.gap && !ahead) {
           member.gapSince = -Infinity;
           continue;
         }
@@ -1344,6 +1422,7 @@ export class RoomRuntime {
           continue;
         }
         if (
+          stream.gap &&
           now - member.nackAt >= NACK_INTERVAL_MS &&
           this.transport.linked(id)
         ) {
@@ -1394,8 +1473,10 @@ export class RoomRuntime {
     const tick = Math.floor(this.clock.tick());
     this.lastPacketTick = tick;
     const entries = this.own().packetEntries();
+    // Nothing is sent to a member refused for its rules: a build without the refusal would take this replica's clock
+    // and entries for its own room's, so it must see silence and carry on by its own succession instead.
     for (const [id, member] of this.members)
-      this.sendPacket(id, member, entries, now, tick);
+      if (!member.refused) this.sendPacket(id, member, entries, now, tick);
   }
   private sendPacket(
     id: string,

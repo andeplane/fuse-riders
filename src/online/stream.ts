@@ -11,15 +11,29 @@ export const RETAINED_ENTRIES = 64,
 /**
  * How far a declared `lastSeq` may run ahead of the contiguous prefix. A rider logs a few tens of entries a second at
  * most and a repair (nack, then a snapshot) takes seconds, so an honest stream is never thousands of entries ahead of
- * what a replica holds; a larger claim is a gap nothing could ever repair, and the packet is refused instead.
+ * what a replica holds. A larger claim is a gap no nack could ever repair: the packet is refused rather than opening it,
+ * and the stream is flagged `ahead` so the replica resyncs from a snapshot, which is the only thing that can catch it up
+ * (a replica cut off from a busy rider for minutes on the same page does get there honestly).
  */
 export const SEQ_AHEAD = BUFFERED_ENTRIES * 16;
 export type ReceiveStatus = "accepted" | "invalid" | "unrepairable";
+/**
+ * Why a packet was refused. `window`: it fell outside what this replica can take right now (its owner's seq is out of
+ * reach, too much is already waiting behind a gap, or a tick is beyond this replica's own clock), which an honest packet
+ * can do and which says nothing about its sender. `violation`: no unmodified client sends it.
+ */
+export type Refusal = "window" | "violation";
 export interface ReceiveResult {
   status: ReceiveStatus;
   added: Entry[];
   rollbackTo?: number;
+  refusal?: Refusal;
 }
+const refused = (refusal: Refusal): ReceiveResult => ({
+  status: "invalid",
+  added: [],
+  refusal,
+});
 const same = (a: Entry, b: Entry): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
@@ -49,6 +63,8 @@ export class StreamLog {
    */
   private promisedFloor: number;
   private readonly promised = new Map<number, number>();
+  /** The owner's last packet declared a `lastSeq` out of reach (`SEQ_AHEAD`): only a snapshot can catch this stream up. Cleared by the next packet taken. */
+  ahead = false;
   private rotation = 0;
   constructor(
     public generation: number,
@@ -136,57 +152,56 @@ export class StreamLog {
       !uint32(lastSeq) ||
       !uint32(through) ||
       !Array.isArray(raw) ||
-      raw.length > PACKET_ENTRIES ||
-      lastSeq > this.contiguous + SEQ_AHEAD
+      raw.length > PACKET_ENTRIES
     )
-      return { status: "invalid", added: [] };
+      return refused("violation");
+    if (lastSeq > this.contiguous + SEQ_AHEAD) {
+      this.ahead = true;
+      return refused("window");
+    }
     const seen = new Map(this.entries),
       gestureFloor = this.latestGesture(),
       tail = this.latestTick();
     for (const candidate of raw) {
-      if (
-        !isEntry(candidate) ||
-        candidate[0] > Math.max(lastSeq, this.lastSeq) ||
-        candidate[1] > localTick + FUTURE_TICKS
-      )
-        return { status: "invalid", added: [] };
+      if (!isEntry(candidate) || candidate[0] > Math.max(lastSeq, this.lastSeq))
+        return refused("violation");
+      if (candidate[1] > localTick + FUTURE_TICKS) return refused("window");
       const [seq, tick] = candidate;
       const existing = seen.get(seq);
       if (existing) {
-        if (!same(existing, candidate)) return { status: "invalid", added: [] };
+        if (!same(existing, candidate)) return refused("violation");
         continue;
       }
       if (seq <= this.contiguous) continue; // Already applied and pruned; a repeat carries nothing new.
       if (tick <= this.baseTick && this.contiguous === this.baseSeq)
         return { status: "unrepairable", added: [] }; // Older than the snapshot this stream started from.
-      if (tick < tail) return { status: "invalid", added: [] };
+      if (tick < tail) return refused("violation");
       // A new entry at or before a tick its owner already declared complete: folding it in would rewrite ticks
       // every replica was told were final (the owner saw two seconds of play before committing to them).
-      if (tick <= this.promisedBefore(seq))
-        return { status: "invalid", added: [] };
+      if (tick <= this.promisedBefore(seq)) return refused("violation");
       for (const [otherSeq, other] of seen)
         if (
           (otherSeq < seq && other[1] > tick) ||
           (otherSeq > seq && other[1] < tick)
         )
-          return { status: "invalid", added: [] };
+          return refused("violation");
       if (candidate[2] === PRESS) {
-        if (candidate[3] <= gestureFloor)
-          return { status: "invalid", added: [] };
+        if (candidate[3] <= gestureFloor) return refused("violation");
         for (const [otherSeq, other] of seen)
           if (
             other[2] === PRESS &&
             ((otherSeq < seq && other[3] >= candidate[3]) ||
               (otherSeq > seq && other[3] <= candidate[3]))
           )
-            return { status: "invalid", added: [] };
+            return refused("violation");
       }
       seen.set(seq, candidate);
     }
     let buffered = 0;
     for (const seq of seen.keys()) if (seq > this.contiguous) buffered++;
-    if (buffered > BUFFERED_ENTRIES) return { status: "invalid", added: [] };
+    if (buffered > BUFFERED_ENTRIES) return refused("window");
     for (const [seq, entry] of seen) this.entries.set(seq, entry);
+    this.ahead = false;
     this.lastSeq = Math.max(this.lastSeq, lastSeq);
     this.through = Math.max(this.through, through);
     const added: Entry[] = [];

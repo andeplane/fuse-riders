@@ -107,9 +107,14 @@ test("a whole packet is rejected on any invalid entry and nothing changes", () =
     ],
   ];
   for (const [entries, lastSeq, through] of bad) {
+    const result = remote.receive(entries, lastSeq, through, 12, 12);
+    assert.equal(result.status, "invalid", JSON.stringify(entries));
+    // Only a tick beyond this replica's own clock is something an honest packet can be refused for here.
     assert.equal(
-      remote.receive(entries, lastSeq, through, 12, 12).status,
-      "invalid",
+      result.refusal,
+      JSON.stringify(entries).includes(String(12 + FUTURE_TICKS + 1))
+        ? "window"
+        : "violation",
       JSON.stringify(entries),
     );
     assert.equal(JSON.stringify([...remote.entries]), before);
@@ -122,10 +127,14 @@ test("a whole packet is rejected on any invalid entry and nothing changes", () =
   const flood = new StreamLog(1);
   let seq = 2,
     status = "accepted";
-  while (status === "accepted" && seq < BUFFERED_ENTRIES + 10)
-    ((status = flood.receive([e(seq, 5, STEER, 0)], seq, 5, 5, 5).status),
-      seq++);
+  let refusal: string | undefined;
+  while (status === "accepted" && seq < BUFFERED_ENTRIES + 10) {
+    ({ status, refusal } = flood.receive([e(seq, 5, STEER, 0)], seq, 4, 5, 5));
+    seq++;
+  }
   assert.equal(status, "invalid");
+  assert.equal(refusal, "window", "a full buffer is this replica's limit");
+  assert.equal(seq, BUFFERED_ENTRIES + 3, "and it is the buffer that refused");
   assert.ok(flood.entries.size <= BUFFERED_ENTRIES);
 });
 
@@ -384,14 +393,28 @@ test("promises survive reordering: a later packet may overtake the one carrying 
 test("a lastSeq further ahead than any repair could close is refused and opens no gap", () => {
   const remote = new StreamLog(1);
   remote.receive([e(1, 10, STEER, 1)], 1, 10, 10, 10);
-  assert.equal(
-    remote.receive([], 1 + SEQ_AHEAD + 1, 11, 11, 11).status,
-    "invalid",
-  );
+  assert.equal(remote.ahead, false);
+  assert.deepEqual(remote.receive([], 1 + SEQ_AHEAD + 1, 11, 11, 11), {
+    status: "invalid",
+    added: [],
+    refusal: "window",
+  });
   assert.equal(remote.receive([], 0xffff_ffff, 11, 11, 11).status, "invalid");
   assert.equal(remote.gap, false);
   assert.equal(remote.lastSeq, 1);
   assert.equal(remote.through, 10, "nothing from a refused packet is kept");
+  assert.equal(
+    remote.ahead,
+    true,
+    "but the stream says its owner is out of reach, so the replica can resync",
+  );
+  assert.equal(
+    remote.receive([e(2, 9, STEER, 0)], 2, 11, 11, 11).refusal,
+    "violation",
+  );
+  assert.equal(remote.ahead, true, "only a packet that is taken clears it");
+  assert.equal(remote.receive([], 1, 11, 11, 11).status, "accepted");
+  assert.equal(remote.ahead, false);
   assert.equal(
     remote.receive([], 1 + SEQ_AHEAD, 11, 11, 11).status,
     "accepted",
