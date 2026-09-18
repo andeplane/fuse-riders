@@ -209,6 +209,12 @@ try {
           { shellArmed: true },
           { gunArmed: true },
         ]) {
+          arena.render(snapshot, 2900, themes["neon-pixel"], "aim-cleared");
+          if (
+            Math.abs(markerCenter(280) - 300) > 1.5 ||
+            !Number.isFinite(markerCenter(280))
+          )
+            throw Error(`${backend}: missing active aim before clear`);
           arena.render(
             {
               ...snapshot,
