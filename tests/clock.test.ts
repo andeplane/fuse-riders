@@ -1,11 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  SAMPLE_WINDOW_MS,
-  SNAP_TICKS,
-  TICK_MS,
-  TickClock,
-} from "../src/online/clock.js";
+import { SAMPLE_WINDOW_MS, SNAP_TICKS, TICK_MS, TickClock } from "fuse-netcode";
 
 function fixture() {
   let now = 1000;

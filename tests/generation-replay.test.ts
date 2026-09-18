@@ -2,7 +2,18 @@
 // each failed on add1e90 and pins the fix. Public World/StreamLog/snapshot APIs only; no private fields, timers or network.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { World } from "../src/online/rollback.js";
+import {
+  World,
+  encodeSnapshot,
+  decodeSnapshot,
+  SnapshotAssembler,
+  PACKET_ENTRIES,
+} from "fuse-netcode";
+import {
+  fuseGame,
+  type FuseWorld,
+  type FuseSnapshot,
+} from "../src/online/fuse-game.js";
 import { createRoomState, hashRoomState } from "../src/engine/apply-tick.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
@@ -13,15 +24,10 @@ import {
   PRESS,
   RELEASE,
 } from "../src/engine/input-log.js";
-import {
-  encodeSnapshot,
-  decodeSnapshot,
-  SnapshotAssembler,
-} from "../src/online/snapshot.js";
-import { PACKET_ENTRIES } from "../src/online/stream.js";
 
 function room(ids = ["creator", "guest"]) {
   const world = new World(
+    fuseGame,
     createRoomState("m", defaultRoomSettings()),
     "creator",
     "creator",
@@ -32,27 +38,27 @@ function room(ids = ["creator", "guest"]) {
   creator.append(2, [ACTION, "start", "m"]);
   return world;
 }
-function heartbeat(world: World, id: string, through: number) {
+function heartbeat(world: FuseWorld, id: string, through: number) {
   const stream = world.streams.get(id)!;
   assert.equal(
     world.receive(id, [], stream.lastSeq, through, through).status,
     "accepted",
   );
 }
-function snapshotCopy(source: World) {
-  const assembler = new SnapshotAssembler(42);
-  let decoded: ReturnType<typeof decodeSnapshot>;
+function snapshotCopy(source: FuseWorld) {
+  const assembler = new SnapshotAssembler(fuseGame, 42);
+  let decoded: FuseSnapshot | undefined;
   for (const chunk of encodeSnapshot(source, 42)) {
     const complete = assembler.accept(chunk);
-    if (complete) decoded = decodeSnapshot(complete.bytes, 42);
+    if (complete) decoded = decodeSnapshot(fuseGame, complete.bytes, 42);
   }
   assert.ok(decoded, "snapshot decodes");
-  const copy = new World(decoded.state, "creator", "copy");
+  const copy = new World(fuseGame, decoded.state, "creator", "copy");
   for (const stream of decoded.streams) {
     const log = copy.stream(stream.id, stream.generation, {
       seq: stream.seq,
       tick: copy.tick,
-      gesture: stream.gesture,
+      ordinal: stream.ordinal,
     });
     for (
       let offset = 0;

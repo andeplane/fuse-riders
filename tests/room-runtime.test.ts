@@ -1,25 +1,24 @@
 import test from "node:test";
-import { SNAPSHOT_INTERVAL } from "../src/online/rollback.js";
 import {
+  SNAPSHOT_INTERVAL,
   SAMPLE_WINDOW_MS,
   SLEW_TICKS_PER_SECOND,
-} from "../src/online/clock.js";
-import assert from "node:assert/strict";
-import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
-import {
-  RoomRuntime,
   CREATOR_SILENCE_MS,
   DISCONNECT_MS,
   SNAPSHOT_RETRY_MS,
   SNAPSHOT_SERVE_MS,
   pageGeneration,
-} from "../src/online/room-runtime.js";
+  roomHash,
+  packMessage,
+} from "fuse-netcode";
+import { RoomRuntime } from "../src/online/room-runtime.js";
+import assert from "node:assert/strict";
+import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS } from "../src/engine/game.js";
 import { validRiderName } from "../src/engine/rider-name.js";
 import { presentFrames } from "../src/render/time/present.js";
 import type { WorldView } from "../src/engine/view.js";
-import { roomHash, packMessage } from "../src/online/packet.js";
 import { RULES } from "../src/engine/apply-tick.js";
 import { hashRoomState } from "../src/engine/apply-tick.js";
 
@@ -836,11 +835,11 @@ test("presses keep working after a rider was marked absent and returned", () => 
   assert.equal(
     (
       net.runtimes.get(HOST)! as unknown as {
-        world: { streams: Map<string, { latestGesture(): number }> };
+        world: { streams: Map<string, { latestOrdinal(): number }> };
       }
     ).world.streams
       .get(GUESTS[0]!)!
-      .latestGesture(),
+      .latestOrdinal(),
     2,
     "the new gesture id continues the sequence and every replica accepted it",
   );

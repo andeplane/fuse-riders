@@ -1,5 +1,5 @@
-import { uuid } from "../shared/uuid.js";
-import { World } from "./rollback.js";
+import { World, uuid } from "fuse-netcode";
+import { fuseGame } from "./fuse-game.js";
 import { BOT_NAMES, createRoomState } from "../engine/apply-tick.js";
 import { ACTION, BOT } from "../engine/input-log.js";
 import { defaultRoomSettings } from "../engine/room-settings.js";
@@ -13,6 +13,7 @@ export async function startAttract(
   toggle: HTMLButtonElement,
 ): Promise<() => void> {
   const world = new World(
+    fuseGame,
     createRoomState(uuid(), defaultRoomSettings()),
     "attract",
     "attract",

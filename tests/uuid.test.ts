@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { uuid } from "../src/shared/uuid.js";
+import { uuid } from "fuse-netcode";
 test("uuid is a v4 string with or without crypto.randomUUID", () => {
   const shape =
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
