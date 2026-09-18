@@ -16,8 +16,8 @@ export const MAX_PENDING_BOMB_ACTIONS = 8;
  * gesture, so one over a held gesture is `cancel` then `press`; a release or a cancel with nothing held is nothing;
  * an aim is kept only while a gesture is held, and the aim a release frame carries goes with that release.
  *
- * It was the LAN server's per-connection buffer and had drifted from the fold. Nothing in the app uses it now; tests
- * and tools that script a rider by frames do.
+ * It was the LAN server's per-connection buffer and had drifted from the fold. Nothing in the app or in `scripts/`
+ * uses it now; only tests that script a rider by frames do.
  */
 export class BombInputBuffer {
   private pending: BombActionCommand[] = [];
