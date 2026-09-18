@@ -468,9 +468,35 @@ test("notice: a status line holds text; a toast clears itself; repeats are free"
   timers.runAll();
   assert.equal(toast.element.hidden, true);
   assert.equal(toast.element.textContent, "");
+  toast.show("Held 12", "good");
+  assert.equal(
+    toast.element.hidden,
+    true,
+    "the same text shown every frame stays hidden once its hold ran out",
+  );
+  assert.deepEqual(timers.pending(), []);
+  toast.flash("Rolled a 1");
+  toast.flash("Rolled a 1");
+  assert.equal(toast.element.textContent, "Rolled a 1");
+  assert.deepEqual(
+    timers.pending(),
+    [3000],
+    "a second flash of the same text restarts the one hold",
+  );
+  timers.runAll();
+  toast.flash("Rolled a 1");
+  assert.equal(
+    toast.element.hidden,
+    false,
+    "a flash shows again after its hold",
+  );
+  toast.flash("");
+  assert.equal(toast.element.hidden, true);
   toast.show("Again");
   toast.clear();
   assert.deepEqual(timers.pending(), []);
+  toast.show("Again");
+  assert.equal(toast.element.hidden, false, "clear forgets the text");
 });
 
 test("controller row: big buttons press on pointer down and release once", () => {

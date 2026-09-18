@@ -33,7 +33,7 @@ Each component is a function that returns its elements. Options take callbacks, 
 | `createInviteCard`    | QR (pass `qr: QRCode.toDataURL` from the `qrcode` package), SCAN TO JOIN, the code, the link and COPY LINK             |
 | `createRoster`        | Rows of avatar, name, status and HOST, diffed in place by id; `row(id)` lets a game hang its own controls on a row     |
 | `createNameEntry`     | Name field and JOIN; your `normalize` decides the seated name, and an empty name shows a hint instead of doing nothing |
-| `createNotice`        | A status line, or a toast with `holdMs`; `show(text, tone)` is safe to call every frame                                |
+| `createNotice`        | A status line, or a toast with `holdMs`; `show(text, tone)` is safe every frame, `flash(text, tone)` is one event      |
 | `createDialog`        | `<dialog>` with a title bar, an actions slot with CLOSE, and a body; the game fills the body and calls `showModal()`   |
 | `createControllerRow` | Big touch buttons for a phone controller; `onPress` fires on pointer down, `onRelease` once when the press ends        |
 

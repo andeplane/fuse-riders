@@ -111,9 +111,7 @@ export function parseDiceStats(
 }
 
 export const emptyDiceTotals = (): DiceTotalsRecord =>
-  Object.fromEntries(
-    TOTAL_KEYS.map((key) => [key, 0]),
-  ) as DiceTotalsRecord;
+  Object.fromEntries(TOTAL_KEYS.map((key) => [key, 0])) as DiceTotalsRecord;
 
 export const diceRegistration: GameRegistration<
   DiceStats,
@@ -146,9 +144,7 @@ export const diceRegistration: GameRegistration<
     const stored = document.totals;
     if (
       !plain(stored) ||
-      !TOTAL_KEYS.every((key) =>
-        count(stored[key], Number.MAX_SAFE_INTEGER),
-      )
+      !TOTAL_KEYS.every((key) => count(stored[key], Number.MAX_SAFE_INTEGER))
     )
       return;
     const totals = emptyDiceTotals();

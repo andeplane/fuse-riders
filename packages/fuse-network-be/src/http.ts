@@ -101,6 +101,11 @@ async function serveStatic(
   let file = path.resolve(base, `.${decoded}`);
   if (file !== base && !file.startsWith(base + path.sep)) return false;
   let info = await stat(file).catch(() => undefined);
+  // A directory serves its own page: a second game's build lives at /<game>/index.html beside the first's.
+  if (info?.isDirectory()) {
+    file = path.join(file, "index.html");
+    info = await stat(file).catch(() => undefined);
+  }
   if (!info?.isFile()) {
     // Navigations fall back to the app shell; a missing asset stays a 404.
     if (path.extname(decoded)) return false;
