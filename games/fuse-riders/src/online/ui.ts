@@ -783,8 +783,16 @@ export async function startOnline(): Promise<void> {
     addAI = node("button", "ADD AI");
   const readyButton = node("button", "READY");
   readyButton.type = "button";
+  readyButton.className = "room-ready-button";
   readyButton.hidden = true;
   hostControls.append(readyButton, start, reset, settingsButton, share, addAI);
+  const controllerRematch = node("section", "", "controller-rematch");
+  controllerRematch.hidden = true;
+  controllerRematch.setAttribute("aria-label", "Ready for another race");
+  const controllerReadyCount = node("p", "", "controller-ready-count");
+  controllerReadyCount.setAttribute("role", "status");
+  controllerRematch.append(node("h2", "MATCH COMPLETE"), controllerReadyCount);
+  app.append(controllerRematch);
   const rosterEntries = new Map<
     string,
     {
@@ -1009,6 +1017,13 @@ export async function startOnline(): Promise<void> {
       resized,
       next.controllerOnly,
     );
+    const controllerResults = next.controllerOnly && next.kind === "recap";
+    controllerRematch.hidden = !controllerResults;
+    if (controllerResults) {
+      if (readyButton.parentElement !== controllerRematch)
+        controllerRematch.append(readyButton);
+    } else if (readyButton.parentElement !== hostControls)
+      hostControls.prepend(readyButton);
     placeElements(next);
   };
   // A rotation or a resize changes the screen now, not at the next frame; after the room closed only the desktop bar follows it.
@@ -1558,6 +1573,8 @@ export async function startOnline(): Promise<void> {
       );
       readySummary.hidden = solo || !recapOpen || !recapIsReady;
       readySummary.textContent = `${waitingRiders.filter((p) => readyPlayers.includes(p.id)).length}/${waitingRiders.length} ready`;
+      if (controllerReadyCount.textContent !== readySummary.textContent)
+        controllerReadyCount.textContent = readySummary.textContent;
       start.hidden = !solo;
       readyButton.hidden = view.actions.ready.hidden;
       readyButton.textContent = view.actions.ready.label;

@@ -3322,3 +3322,47 @@
   box-shadow: inset 0 0 14px
     color-mix(in srgb, var(--player-color, #65fff2) 20%, transparent);
 }
+
+/* The same cyan call to action in the lobby and on the phone's rematch screen. */
+.online-app .room-ready-button {
+  min-height: 3.375rem;
+  padding: 0.75rem 1rem;
+  border: 0.125rem solid var(--fui-cyan-deep);
+  border-radius: var(--ui-radius);
+  background: var(--fui-cyan-deep);
+  color: var(--fui-ink);
+  font-size: 0.9375rem;
+  font-weight: 900;
+  letter-spacing: 0.0625rem;
+  box-shadow: 0 0 0.9375rem #00d9ff25;
+}
+.controller-rematch:not([hidden]) {
+  position: fixed;
+  inset: var(--pad-top, 4.75rem) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  z-index: 10;
+}
+.controller-rematch h2 {
+  margin: 0;
+  color: var(--fui-cyan-deep);
+  font-size: clamp(0.875rem, 3vw, 1.25rem);
+  line-height: 1.5;
+}
+.controller-ready-count {
+  margin: 0;
+  color: #8ba3c0;
+  font-size: 0.75rem;
+}
+.controller-rematch .room-ready-button {
+  width: min(100%, 28rem);
+  flex-shrink: 0;
+}
+.online-app.controller-only[data-screen="recap"] .online-controls {
+  display: none !important;
+}

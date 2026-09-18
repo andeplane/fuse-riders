@@ -58,6 +58,9 @@ try {
     await tv.getByRole("button", { name: "READY", exact: true }).count(),
     0,
   );
+  const lobbyReadyColor = await a
+    .getByRole("button", { name: "READY", exact: true })
+    .evaluate((button) => getComputedStyle(button).backgroundColor);
   await a.getByRole("button", { name: "READY", exact: true }).click();
   await a.getByRole("button", { name: "NOT READY", exact: true }).waitFor();
   await a.getByRole("button", { name: "NOT READY", exact: true }).click();
@@ -88,13 +91,61 @@ try {
       {},
       { timeout: 120000 },
     );
-  // Phone controls must offer rematch without touching the TV; the real helper opens the phone menu if needed.
+  // Results replace the pads with the lobby's cyan button, without opening the menu.
+  for (const page of [a, b]) {
+    assert.equal(await page.locator(".online-controls").isVisible(), false);
+    assert.equal(await page.locator(".mobile-tools-open").count(), 0);
+    const ready = page.getByRole("button", {
+      name: "READY FOR REMATCH",
+      exact: true,
+    });
+    await ready.waitFor();
+    assert.equal(
+      await ready.evaluate(
+        (button) => getComputedStyle(button).backgroundColor,
+      ),
+      lobbyReadyColor,
+    );
+  }
+  await b.setViewportSize({ width: 1280, height: 800 });
+  const largeBox = await b.locator(".controller-rematch").boundingBox();
+  assert.ok(
+    largeBox &&
+      largeBox.x >= 0 &&
+      largeBox.y >= 0 &&
+      largeBox.x + largeBox.width <= 1280 &&
+      largeBox.y + largeBox.height <= 800,
+    "the rematch screen also fits a non-mobile controller",
+  );
+  await b.setViewportSize({ width: 844, height: 390 });
+  await a.setViewportSize({ width: 844, height: 320 });
+  const ready = a.getByRole("button", {
+    name: "READY FOR REMATCH",
+    exact: true,
+  });
+  const box = await ready.boundingBox();
+  assert.ok(
+    box && box.y >= 0 && box.y + box.height <= 320,
+    "ready fits a short phone viewport",
+  );
+  await a.screenshot({ path: "artifacts/ready-check-results-landscape.png" });
+  await a.setViewportSize({ width: 390, height: 844 });
+  await a.screenshot({ path: "artifacts/ready-check-results-portrait.png" });
+  await ready.click();
+  await a.getByRole("button", { name: "NOT READY", exact: true }).click();
+  await ready.waitFor();
+  await a.locator(".mobile-tools-toggle").click();
+  assert.equal(await a.locator(".mobile-tools-open").count(), 1);
+  await a.locator(".mobile-tools-toggle").click();
+  await a.setViewportSize({ width: 844, height: 390 });
   await readyRoom(a);
   for (const page of [a, b])
     await page.waitForFunction((previous) => {
       const snapshot = Reflect.get(window, "readySnapshot");
       return snapshot?.matchId !== previous && snapshot?.phase === "countdown";
     }, old);
+  assert.equal(await a.locator(".controller-rematch").isVisible(), false);
+  assert.equal(await a.locator(".online-controls").isVisible(), true);
   await a.screenshot({ path: "artifacts/ready-check-rematch.png" });
   assert.deepEqual(errors, []);
   console.log(

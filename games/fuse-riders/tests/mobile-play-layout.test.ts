@@ -193,9 +193,11 @@ test("shared-TV controllers expose readiness after results, and settings remain 
   layout.update(screen, "matchOver", false, false, true);
   assert.equal(layout.blocked(), false);
   layout.update(screen, "matchOver", true, false, true);
-  assert.equal(layout.blocked(), true);
-  app.querySelector("dialog")!.dispatchEvent(new Event("close"));
-  assert.equal(layout.blocked(), false);
+  assert.equal(
+    layout.blocked(),
+    false,
+    "the rematch button does not require the tools menu",
+  );
   const before = cancels;
   app.querySelector("button")!.dispatchEvent(new Event("click"));
   assert.equal(layout.blocked(), true);
@@ -204,7 +206,7 @@ test("shared-TV controllers expose readiness after results, and settings remain 
   assert.equal(
     layout.blocked(),
     false,
-    "closing settings returns to pads even after the match",
+    "closing settings returns to the rematch screen after the match",
   );
   layout.update(screen, "playing", false);
   layout.update(screen, "matchOver", true);
