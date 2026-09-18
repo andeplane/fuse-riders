@@ -1,13 +1,13 @@
-import { BotController } from "../shared/bot-controller.js";
+import { BotController } from "../engine/bot-controller.js";
 import {
   applyTick,
   hashRoomState,
   successionOrder,
   type RoomState,
   type StreamEntries,
-} from "../shared/apply-tick.js";
-import { toSnapshot } from "../shared/game.js";
-import { LEAVE, PRESENCE } from "../shared/input-log.js";
+} from "../engine/apply-tick.js";
+import { toSnapshot } from "../engine/game.js";
+import { LEAVE, PRESENCE } from "../engine/input-log.js";
 import type { GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { ROLLBACK_TICKS, StreamLog, type ReceiveResult } from "./stream.js";

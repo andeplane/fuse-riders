@@ -6,8 +6,8 @@ import {
   wrapMs,
   type Packet,
 } from "../../src/online/packet.js";
-import { RULES } from "../../src/shared/apply-tick.js";
-import type { Entry } from "../../src/shared/input-log.js";
+import { RULES } from "../../src/engine/apply-tick.js";
+import type { Entry } from "../../src/engine/input-log.js";
 
 export interface ScriptedPacket {
   through: number;

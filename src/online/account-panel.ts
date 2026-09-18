@@ -17,12 +17,12 @@ import {
   watchAccount,
   type Account,
 } from "./account.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
 import {
   MAX_RIDER_NAME,
   suggestRiderName,
   validRiderName,
-} from "../shared/rider-name.js";
+} from "../engine/rider-name.js";
 
 /**
  * The landing page's account button and its dialog: sign in, career totals and past matches. Everything a server or

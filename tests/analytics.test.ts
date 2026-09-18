@@ -26,9 +26,9 @@ import {
   safeStorage,
   type SafeStorage,
 } from "../src/client/safe-storage.js";
-import type { DecidedRound, RoundShot } from "../src/shared/shot-log.js";
-import { BOT_ID_PREFIX } from "../src/shared/bot-controller.js";
-import type { MatchPlayerStats } from "../src/shared/match-stats.js";
+import type { DecidedRound, RoundShot } from "../src/engine/shot-log.js";
+import { BOT_ID_PREFIX } from "../src/engine/bot-controller.js";
+import type { MatchPlayerStats } from "../src/engine/match-stats.js";
 
 function rider(
   overrides: Partial<MatchPlayerStats> & {

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { RULES } from "../src/shared/apply-tick.js";
-import { isEntry } from "../src/shared/input-log.js";
+import { RULES } from "../src/engine/apply-tick.js";
+import { isEntry } from "../src/engine/input-log.js";
 import { goldenFailure } from "../scripts/lib/golden-update.js";
 import { replayGolden } from "./fixtures/golden-replay.js";
 import type { Recording } from "./fixtures/replay-log.js";

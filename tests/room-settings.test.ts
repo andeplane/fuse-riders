@@ -6,9 +6,9 @@ import {
   roomPickup,
   loadRoomSettings,
   SETTINGS_KEY,
-} from "../src/shared/room-settings.js";
-import { BOMB_MAX_CHARGE_TICKS } from "../src/shared/bomb-launch.js";
-import { ARENA_MAP_CHOICES } from "../src/shared/arena-map.js";
+} from "../src/engine/room-settings.js";
+import { BOMB_MAX_CHARGE_TICKS } from "../src/engine/bomb-launch.js";
+import { ARENA_MAP_CHOICES } from "../src/engine/arena-map.js";
 test("old browser preferences reset to current defaults, and new preferences persist", () => {
   const defaults = defaultRoomSettings();
   const saved = new Map<string, string>([

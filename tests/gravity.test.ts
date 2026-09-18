@@ -22,10 +22,11 @@ import {
   step,
   toSnapshot,
   type GameState,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing(seed = 5): GameState {
-  const state = createGame("gravity", seed);
+  const state = createGame("gravity", classicSettings(), seed);
   for (let slot = 0; slot < 2; slot += 1)
     addPlayer(state, {
       id: `p${slot}`,

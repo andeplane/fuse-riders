@@ -16,7 +16,7 @@ import {
   type ArenaMapId,
   type ClearCapsule,
   type Obstacle,
-} from "../src/shared/arena-map.js";
+} from "../src/engine/arena-map.js";
 import {
   mapGround,
   paintMapGround,

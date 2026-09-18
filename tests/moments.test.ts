@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultRoomSettings } from "../src/shared/room-settings.ts";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.ts";
+import { defaultRoomSettings } from "../src/engine/room-settings.ts";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.ts";
 import {
   BOXED_IN_LOOKBACK_TICKS,
   CUT_OFF_MAX_AGE_TICKS,
@@ -13,7 +13,7 @@ import {
   pushMoment,
   roundHasMoment,
   type Moment,
-} from "../src/shared/moments.ts";
+} from "../src/engine/moments.ts";
 import {
   COUNTDOWN_TICKS,
   MATCH_WINNER_TICKS,
@@ -29,7 +29,8 @@ import {
   toSnapshot,
   type BombState,
   type GameState,
-} from "../src/shared/game.ts";
+} from "../src/engine/game.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 
 const fixedFlightPath = (x: number, y: number) =>
   Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));
@@ -41,7 +42,7 @@ const farAway = [
 
 /** A playing round with every trail cleared and every rider beyond the first `active` parked far from the action. */
 function scene(count = 3, active = 2): GameState {
-  const state = createGame("moments");
+  const state = createGame("moments", classicSettings());
   for (let slot = 0; slot < count; slot += 1)
     addPlayer(state, {
       id: `p${slot}`,
@@ -659,7 +660,7 @@ test("an eliminated rider outside the sweep records nothing and the detector sta
   step(state, new Map());
   assert.deepEqual(state.moments, []);
   const runs = [0, 1].map(() => {
-    const game = createGame("same-seed");
+    const game = createGame("same-seed", classicSettings());
     for (let slot = 0; slot < 3; slot += 1)
       addPlayer(game, {
         id: `p${slot}`,

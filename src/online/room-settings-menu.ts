@@ -1,20 +1,20 @@
 import {
   defaultRoomSettings,
   type RoomSettings,
-} from "../shared/room-settings.js";
+} from "../engine/room-settings.js";
 import {
   POWERUP_PRESETS,
   RARITIES,
   rarityOf,
   weightFor,
 } from "./powerup-rarity.js";
-import { TICK_HZ, type PickupType } from "../shared/game.js";
+import { TICK_HZ, type PickupType } from "../engine/game.js";
 import { ARENA_MAP_LABELS } from "../client/arena-maps.js";
-import type { ArenaMapChoice } from "../shared/arena-map.js";
+import type { ArenaMapChoice } from "../engine/arena-map.js";
 import {
   BOMB_MIN_CHARGE_TICKS,
   BOMB_CHARGE_TICKS_LIMIT,
-} from "../shared/bomb-launch.js";
+} from "../engine/bomb-launch.js";
 import "./room-settings-menu.css";
 const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "") => {
   const result = document.createElement(tag);

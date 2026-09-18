@@ -11,9 +11,9 @@ import {
 } from "../src/online/room-runtime.js";
 import { encodeNack, roomHash } from "../src/online/packet.js";
 import { ROLLBACK_TICKS, SEQ_AHEAD } from "../src/online/stream.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { COUNTDOWN_TICKS } from "../src/shared/game.js";
-import { ACTION, PRESENCE, STEER } from "../src/shared/input-log.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { COUNTDOWN_TICKS } from "../src/engine/game.js";
+import { ACTION, PRESENCE, STEER } from "../src/engine/input-log.js";
 import { plainStatus } from "../src/online/status-copy.js";
 import { connectHint } from "../src/online/connect-hint.js";
 

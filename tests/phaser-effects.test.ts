@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EffectTransitions, bombPose } from "../src/client/phaser/effects.js";
-import { createGame, addPlayer, toSnapshot } from "../src/shared/game.js";
+import { createGame, addPlayer, toSnapshot } from "../src/engine/game.js";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 const frame = (): ViewSnapshot => {
-  const game = createGame("visual-test");
+  const game = createGame("visual-test", classicSettings());
   addPlayer(game, { id: "p", name: "P", slot: 0, color: "#22d3ee" });
   return { ...toSnapshot(game), tick: 10, round: 1 };
 };

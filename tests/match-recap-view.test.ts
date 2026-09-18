@@ -6,8 +6,8 @@ import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
-import { momentKey, type Moment } from "../src/shared/moments.js";
+} from "../src/engine/match-stats.js";
+import { momentKey, type Moment } from "../src/engine/moments.js";
 
 function match() {
   const state: MatchStatsState = new Map();

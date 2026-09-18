@@ -52,7 +52,7 @@ None of these is built. Idle cadence throttle (20 Hz active, 5 Hz idle). Adaptiv
 
 These are dated results. Paths are as they were then: the transport and the gateway have since moved to `packages/fuse-network-fe` and `packages/fuse-network-be`, and the LAN tests and server named below were removed in #271.
 
-Implemented in `src/shared/input-log.ts`, `apply-tick.ts`, `deterministic-math.ts` and `src/online/stream.ts`, `rollback.ts`, `clock.ts`, `packet.ts`, `snapshot.ts`, `room-runtime.ts`, with `peer-transport.ts`, `ui.ts`, `attract.ts`, `src/service/gateway.ts` changed and the host-star modules deleted. The networking layer (`stream`, `rollback`, `clock`, `packet`, `snapshot`, `room-runtime`) was about 1,050 lines; with the shared log and reducer about 1,300.
+Implemented in `src/engine/input-log.ts`, `apply-tick.ts`, `deterministic-math.ts` (then under `src/shared/`) and `src/online/stream.ts`, `rollback.ts`, `clock.ts`, `packet.ts`, `snapshot.ts`, `room-runtime.ts`, with `peer-transport.ts`, `ui.ts`, `attract.ts`, `src/service/gateway.ts` changed and the host-star modules deleted. The networking layer (`stream`, `rollback`, `clock`, `packet`, `snapshot`, `room-runtime`) was about 1,050 lines; with the shared log and reducer about 1,300.
 
 ### Deviations from the first design, and why
 
