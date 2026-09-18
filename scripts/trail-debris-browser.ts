@@ -35,9 +35,18 @@ try {
       )) as typeof import("../src/client/themes.js");
       const { createGame, addPlayer, startMatch, toSnapshot, step } =
         (await import(
-          String("/src/shared/game.ts")
-        )) as typeof import("../src/shared/game.js");
-      const game = createGame("trail-debris-browser", 42);
+          String("/src/engine/game.ts")
+        )) as typeof import("../src/engine/game.js");
+      const { defaultRoomSettings } = (await import(
+        String("/src/engine/room-settings.ts")
+      )) as typeof import("../src/engine/room-settings.js");
+      // The open arena these shots were framed on, said explicitly now that a game has no settings fallback.
+      const classic = {
+        ...defaultRoomSettings(),
+        map: "classic" as const,
+        aimBounce: false,
+      };
+      const game = createGame("trail-debris-browser", classic, 42);
       for (let p = 0; p < 3; p++) {
         addPlayer(game, {
           id: `p${p}`,

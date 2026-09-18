@@ -7,14 +7,14 @@ import {
   type CareerStats,
   type GameGroup,
 } from "../shared/career-stats.js";
-import { KILL_METHODS, type KillMethod } from "../shared/combat-stats.js";
+import { KILL_METHODS, type KillMethod } from "../engine/combat-stats.js";
 import {
   newRating,
   type Rating,
   type LeaderboardEntry,
   type Rivalries,
 } from "../shared/rating.js";
-import { WEAPONS } from "../shared/shot-log.js";
+import { WEAPONS } from "../engine/shot-log.js";
 import type { HistoryEntry, UserProfile } from "../service/history.js";
 export interface StatsPage {
   profile?: UserProfile;

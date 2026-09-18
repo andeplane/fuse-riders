@@ -7,9 +7,9 @@ import {
   type FunnelView,
 } from "../src/online/funnel.js";
 import { createMemoryStorage } from "../src/client/safe-storage.js";
-import { BOT_ID_PREFIX } from "../src/shared/bot-controller.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import type { DecidedRound, RoundShot } from "../src/shared/shot-log.js";
+import { BOT_ID_PREFIX } from "../src/engine/bot-controller.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import type { DecidedRound, RoundShot } from "../src/engine/shot-log.js";
 
 interface Sent {
   event: string;

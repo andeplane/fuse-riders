@@ -5,12 +5,13 @@ import {
   createGame,
   toSnapshot,
   TRAIL_WIDTH,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   trailRibbon as buildRibbon,
   TrailRibbonCache,
 } from "../src/client/phaser/trail-ribbon.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
 
 import { completeTrailStrokes } from "../src/client/phaser/trails.js";
@@ -28,7 +29,7 @@ const segment = (x1: number, x2: number, tick: number): TrailSegment => ({
   expiresAtTick: 200,
 });
 function snapshot(): ViewSnapshot {
-  const game = createGame("ribbon", 42);
+  const game = createGame("ribbon", classicSettings(), 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
   const state = toSnapshot(game);
   return {

@@ -1,4 +1,4 @@
-import { PICKUP_TYPES } from "../../src/shared/game.js";
+import { PICKUP_TYPES } from "../../src/engine/game.js";
 import { replayHashes, type Recording } from "./replay-log.js";
 import {
   coverageObserver,

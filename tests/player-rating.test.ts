@@ -7,8 +7,8 @@ import {
   step,
   toSnapshot,
   SLOT_COLORS,
-} from "../src/shared/game.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+} from "../src/engine/game.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { buildRoundReport } from "../src/online/match-report.js";
 import { calculateElo } from "../src/shared/elo.js";
 import {
@@ -20,8 +20,8 @@ import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
-import { emptyCombat, parseCombat } from "../src/shared/combat-stats.js";
+} from "../src/engine/match-stats.js";
+import { emptyCombat, parseCombat } from "../src/engine/combat-stats.js";
 import {
   careerFor,
   emptyBuckets,
@@ -39,6 +39,7 @@ import {
 } from "../src/service/history.js";
 import { MemoryHistoryDatabase } from "../src/service/memory-history.js";
 import { MemoryRoomDatabase, RoomStore, peerId, digest } from "fuse-network-be";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function result(ids: string[], matchId = "match-1"): MatchResult {
   const map: MatchStatsState = new Map();
@@ -551,7 +552,7 @@ test("account round quota exhaustion cannot register a guest vote and can recove
 
 test("a real simulation round reaches history settlement before the multi-round game ends", async () => {
   const f = await fixture(3);
-  const game = createGame("elo-real-round");
+  const game = createGame("elo-real-round", classicSettings());
   game.settings = {
     ...defaultRoomSettings(),
     match: "rounds",

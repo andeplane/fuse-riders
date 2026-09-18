@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { format } from "prettier";
-import { RULES } from "../src/shared/apply-tick.js";
+import { RULES } from "../src/engine/apply-tick.js";
 import {
   GoldenRefusal,
   validateGoldenCoverage,

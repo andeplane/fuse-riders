@@ -1,4 +1,4 @@
-import { wrapImages, type WrapOffset } from "../shared/wrap.js";
+import { wrapImages, type WrapOffset } from "../engine/wrap.js";
 
 /**
  * How a board is put on screen when it is not simply drawn where it is. Geometry lives here rather than in the scene

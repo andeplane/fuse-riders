@@ -4,7 +4,7 @@ import { bombPreviewDistance } from "../src/client/bomb-preview.js";
 import {
   BOMB_MAX_CHARGE_TICKS,
   bombLaunchDistance,
-} from "../src/shared/bomb-launch.js";
+} from "../src/engine/bomb-launch.js";
 
 test("preview extends every rendered frame at 30, 60 and 120 Hz while releases retain whole ticks", () => {
   for (const hz of [30, 60, 120]) {

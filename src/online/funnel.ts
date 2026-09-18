@@ -18,10 +18,10 @@
  * would carry. `durationSeconds` is reported only for a match this funnel saw begin: a device that watched match
  * 1 start and missed match 2's start would otherwise report match 1's clock as match 2's length.
  */
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
-import type { DecidedRound } from "../shared/shot-log.js";
-import type { RoomSettings } from "../shared/room-settings.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
+import type { DecidedRound } from "../engine/shot-log.js";
+import type { RoomSettings } from "../engine/room-settings.js";
 import type { SafeStorage } from "../client/safe-storage.js";
 import {
   decidedRoundReport,
