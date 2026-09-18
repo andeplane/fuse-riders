@@ -4,14 +4,15 @@ import {
   DRUNK_DURATION_TICKS,
   DRUNK_MAX_HEADING_OFFSET,
   drunkHeadingOffset,
-} from "../src/shared/drunk.js";
+} from "../src/engine/drunk.js";
 import {
   addPlayer,
   createGame,
   riderMotionStep,
   startMatch,
   step,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const delta = (a: number, b: number) =>
   Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -83,7 +84,7 @@ test("refresh preserves the phase, and onset and expiry are smooth", () => {
 });
 
 test("engine adds bounded sway to ordinary steering and restores intended heading at expiry", () => {
-  const game = createGame("bounded-drunk", 42);
+  const game = createGame("bounded-drunk", classicSettings(), 42);
   for (let slot = 0; slot < 2; slot += 1)
     addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(game);

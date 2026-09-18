@@ -3,11 +3,14 @@ import {
   hashRoomState,
   type Fold,
   type RoomState,
-} from "../shared/apply-tick.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
-import { isEntry, memberId, uint32, type Entry } from "../shared/input-log.js";
-import { parseRoomSettings } from "../shared/room-settings.js";
-import { decodeGameState, encodeGameState } from "./checkpoint.js";
+} from "../engine/apply-tick.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import { isEntry, memberId, uint32, type Entry } from "../engine/input-log.js";
+import { parseRoomSettings } from "../engine/room-settings.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../engine/codec/checkpoint.js";
 import { packMessage, unpackMessage } from "./packet.js";
 import type { World } from "./rollback.js";
 

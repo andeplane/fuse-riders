@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { advanceRiderPose } from "../src/shared/rider-motion.js";
+import { advanceRiderPose } from "../src/engine/rider-motion.js";
 import {
   createGame,
   addPlayer,
@@ -8,10 +8,11 @@ import {
   step,
   SLOT_COLORS,
   riderMotionStep,
-} from "../src/shared/game.js";
-import { drunkHeadingOffset } from "../src/shared/drunk.js";
+} from "../src/engine/game.js";
+import { drunkHeadingOffset } from "../src/engine/drunk.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 test("pure rider kernel exactly matches authoritative turns including drunk offsets", () => {
-  const game = createGame("motion-kernel");
+  const game = createGame("motion-kernel", classicSettings());
   for (let i = 0; i < 2; i++)
     addPlayer(game, {
       id: `p${i}`,

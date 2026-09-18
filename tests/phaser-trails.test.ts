@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addPlayer, createGame, toSnapshot } from "../src/shared/game.js";
+import { addPlayer, createGame, toSnapshot } from "../src/engine/game.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 import {
   TrailHistoryCache,
@@ -9,6 +9,7 @@ import {
   trailPaths,
   trailTip,
 } from "../src/client/phaser/trails.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const segment = (
   tick: number,
@@ -25,7 +26,7 @@ const segment = (
   expiresAtTick: tick + 160,
 });
 const rider = () => {
-  const game = createGame("trail-test", 42);
+  const game = createGame("trail-test", classicSettings(), 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
   return {
     ...toSnapshot(game).players[0]!,

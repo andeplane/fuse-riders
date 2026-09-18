@@ -6,8 +6,8 @@ import {
   MATCH_WINNER_TICKS,
   ROUND_OVER_TICKS,
   SLOT_COLORS,
-} from "../src/shared/game.js";
-import { snapshotMatchStats } from "../src/shared/match-stats.js";
+} from "../src/engine/game.js";
+import { snapshotMatchStats } from "../src/engine/match-stats.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -20,12 +20,13 @@ import {
   type Announcement,
 } from "../src/client/arena-announcer.js";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 type ScoredView = ViewSnapshot;
 const field = (announcement: Announcement, key: string) =>
   (announcement as unknown as Record<string, unknown>)[key];
 
 const view = (overrides: Partial<ScoredView>): ScoredView => {
-  const game = createGame("announcer");
+  const game = createGame("announcer", classicSettings());
   for (const [slot, id, name] of [
     [0, "me", "Anders"],
     [1, "ai", "AI Ada"],

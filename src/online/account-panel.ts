@@ -23,7 +23,7 @@ import {
   MAX_RIDER_NAME,
   suggestRiderName,
   validRiderName,
-} from "../shared/rider-name.js";
+} from "../engine/rider-name.js";
 
 /**
  * The player dialog behind the landing page's account and leaderboard buttons: your stats, recent matches (everyone's

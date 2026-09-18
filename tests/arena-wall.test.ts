@@ -14,7 +14,7 @@ import {
   themes,
 } from "../src/client/themes.js";
 import { createMemoryStorage } from "../src/client/safe-storage.js";
-import { RIDER_SPEED, TICK_HZ } from "../src/shared/game.js";
+import { RIDER_SPEED, TICK_HZ } from "../src/engine/game.js";
 
 test("each visual style asks for a different wall", () => {
   // The regression this guards is #68: both renderers flattened every style to one thin rim, so the

@@ -1,12 +1,12 @@
-import type { MatchPlayerStats } from "../shared/match-stats.js";
-import type { Moment } from "../shared/moments.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
+import type { Moment } from "../engine/moments.js";
 import {
   COMPARISON_COLUMNS,
   COMPARISON_KEY,
   HIGHLIGHTS_TITLE,
   RECAP_EMPTY_MESSAGE,
   buildMatchRecap,
-} from "../shared/match-recap.js";
+} from "../engine/match-recap.js";
 
 /** Presentation only: placements, points, awards and moments come from the recorded match. */
 export function renderMatchRecap(

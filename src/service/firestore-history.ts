@@ -12,7 +12,7 @@ import {
   type MatchRecord,
   type UserProfile,
 } from "./history.js";
-import { validRiderName } from "../shared/rider-name.js";
+import { validRiderName } from "../engine/rider-name.js";
 /**
  * Match history and account totals. Only this service reaches these collections: firestore.rules denies every browser.
  * A match that still has an `expiresAt` carries `cleanupAt` for the TTL policy; a match an account owns has neither.
