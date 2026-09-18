@@ -1,14 +1,31 @@
 import { createHash } from "node:crypto";
-import { calculateElo } from "../shared/elo.js";
-import { emptyBuckets, mergeCareer } from "../shared/career-stats.js";
-import { newRating } from "../shared/rating.js";
-import {
-  emptyTotals,
-  TOTAL_KEYS,
-  type Credit,
-  type MatchRecord,
-  type UserProfile,
-} from "./history.js";
+import { calculateElo } from "./elo.js";
+import { newRating, type Rating } from "./rating.js";
+import type { AnyGame } from "./game.js";
+import type { MatchRecord } from "./result.js";
+
+/** The account every game shares. */
+export interface Account {
+  /** The name the account chose; what its player is called in every room of every game. Absent until chosen. */
+  username?: string;
+  /** The player name of the last credited match, from before usernames or from a device that was signed out of one. */
+  name?: string;
+  avatarId?: string;
+  updatedAt: number;
+}
+export const ACCOUNT_KEYS = [
+  "username",
+  "name",
+  "avatarId",
+  "updatedAt",
+] as const;
+/**
+ * One account as one game sees it: the shared account, that game's rating and that game's totals spread beside it
+ * (`T`, from the game's registration). `rank` is filled in on read, never stored.
+ */
+export type Profile<T extends object = object> = Account &
+  T & { rating?: Rating; rank?: number };
+
 export interface RivalCredit {
   uid: string;
   opponent: string;
@@ -16,6 +33,14 @@ export interface RivalCredit {
   kills: number;
   deaths: number;
   matches: number;
+}
+/** What one confirmed whole match adds to one account; `stats` is the game's `credit`. */
+export interface Credit<C = unknown> {
+  uid: string;
+  name: string;
+  avatarId?: string;
+  at: number;
+  stats: C;
 }
 export interface HistoryMutation<T> {
   match?: MatchRecord;
@@ -32,40 +57,42 @@ export function settlementUsers<T>(next: HistoryMutation<T>): string[] {
     ]),
   ];
 }
-/** Shared transaction body for memory and Firestore. All required profiles have been read before any writes. */
+/**
+ * Shared transaction body for memory and Firestore. All required profiles (of `game`) have been read before any
+ * writes. The rules here are the platform's and the same for every game: totals only from whole matches, rivalries
+ * once per pair, and a rating per round once every player who stayed has reported, for the signed-in ones on
+ * distinct accounts (guests are left out).
+ */
 export function settleHistory<T>(
+  game: AnyGame,
   next: HistoryMutation<T>,
-  profiles: Map<string, UserProfile>,
+  profiles: Map<string, Profile>,
   now: number,
   ratingClaimed: boolean,
 ): {
-  profiles: Map<string, UserProfile>;
+  profiles: Map<string, Profile>;
   rivals: RivalCredit[];
   claimed: boolean;
 } {
-  const updated = new Map<string, UserProfile>(),
+  const updated = new Map<string, Profile>(),
     rivals: RivalCredit[] = [];
-  const profileFor = (uid: string): UserProfile => {
+  const profileFor = (uid: string): Profile => {
     const existing = updated.get(uid);
     if (existing) return existing;
     const value = structuredClone(
-      profiles.get(uid) ?? { updatedAt: 0, totals: emptyTotals() },
+      profiles.get(uid) ?? { updatedAt: 0, ...game.emptyTotals() },
     );
     updated.set(uid, value);
     return value;
   };
   for (const credit of next.credits ?? []) {
     const profile = profileFor(credit.uid);
-    for (const key of TOTAL_KEYS) profile.totals[key] += credit.totals[key];
+    game.addTotals(profile, credit.stats);
     if (credit.at >= profile.updatedAt) {
       profile.name = credit.name;
       if (credit.avatarId) profile.avatarId = credit.avatarId;
     }
     profile.updatedAt = Math.max(profile.updatedAt, credit.at);
-    if (credit.career) {
-      profile.career ??= emptyBuckets();
-      mergeCareer(profile.career[credit.career.group], credit.career.stats);
-    }
   }
   const match = next.match;
   if (!match || match.status !== "confirmed")
@@ -74,7 +101,12 @@ export function settleHistory<T>(
     a.localeCompare(b),
   );
   const creditedPairs = new Set(match.rivalryPairs ?? []);
-  for (let i = 0; match.result.round === undefined && i < linked.length; i++)
+  const rivalsOf = game.rivals?.bind(game);
+  for (
+    let i = 0;
+    rivalsOf && match.result.round === undefined && i < linked.length;
+    i++
+  )
     for (let j = i + 1; j < linked.length; j++) {
       const [a, aUid] = linked[i]!,
         [b, bUid] = linked[j]!,
@@ -82,9 +114,9 @@ export function settleHistory<T>(
       if (creditedPairs.has(pair)) continue;
       const p = match.result.players.find((p) => p.playerId === a)!,
         q = match.result.players.find((p) => p.playerId === b)!;
-      if (!p.combat || !q.combat) continue;
-      const kills = p.combat.victims[b] ?? 0,
-        deaths = q.combat.victims[a] ?? 0;
+      const outcome = rivalsOf(p, q);
+      if (!outcome) continue;
+      const { kills, deaths } = outcome;
       if (kills === 0 && deaths === 0) {
         creditedPairs.add(pair);
         continue;
@@ -111,15 +143,15 @@ export function settleHistory<T>(
     }
   if (creditedPairs.size) match.rivalryPairs = [...creditedPairs];
   // Who could be rated is fixed by the agreed result: the humans who completed this individual round. A mid-round
-  // leaver is left out rather than voiding the round for the riders who stayed.
+  // leaver is left out rather than voiding the round for the players who stayed.
   const stayed = match.result.players.filter(
     (p) =>
-      !p.playerId.startsWith("bot:") &&
+      !game.isBot(p.playerId) &&
       match.result.finishers.includes(p.playerId) &&
       p.roundsPlayed === match.result.length &&
       p.earlyExits === 0,
   );
-  // Settling waits for every one of them to report, so a rider is never left out for reporting a moment later
+  // Settling waits for every one of them to report, so a player is never left out for reporting a moment later
   // than the rest; one who reports as a guest is then left out too.
   const humans = stayed.filter((p) => match.uidByPlayer[p.playerId]);
   const eligible =
@@ -140,7 +172,7 @@ export function settleHistory<T>(
     score: p.matchScoreUnits,
     wins: p.roundWins,
   }));
-  const calculated = calculateElo(field);
+  const calculated = calculateElo(field, (id) => game.isBot(id));
   match.ratings = {};
   // All players share a timestamp later than their previous settlement, even if clocks step backwards.
   const at = Math.max(

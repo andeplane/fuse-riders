@@ -1,20 +1,19 @@
 :root {
-  color: #effcff;
-  background: #020715;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    monospace;
+  color: var(--fui-text-bright);
+  background: var(--fui-navy);
+  font-family: var(--fui-font-body);
   font-synthesis: none;
-  --cyan: #16e7ff;
-  --pink: #ff2e9d;
-  --navy: #020715;
-  --panel: rgba(5, 14, 37, 0.93);
-  --ui-radius: 0.875rem;
-  --ui-panel-radius: 1.125rem;
-  --ui-surface: linear-gradient(180deg, #142640, #081327);
-  --ui-button-fill: linear-gradient(180deg, #2b4b78, #1b3154);
-  --ui-cyan-fill: linear-gradient(180deg, #51f5fa, #00c9df);
-  --ui-edge: inset 0 0.0625rem 0 #ffffff14;
+  /* Fuse's own names for the shared tokens (packages/fuse-ui/src/tokens.css, imported first by main.ts). */
+  --cyan: var(--fui-cyan);
+  --pink: var(--fui-pink);
+  --navy: var(--fui-navy);
+  --panel: var(--fui-panel);
+  --ui-radius: var(--fui-radius);
+  --ui-panel-radius: var(--fui-radius-panel);
+  --ui-surface: var(--fui-surface);
+  --ui-button-fill: var(--fui-button-fill);
+  --ui-cyan-fill: var(--fui-cyan-fill);
+  --ui-edge: var(--fui-edge);
   /* All UI is sized in rem. Up to the 1920x1080 design viewport 1rem is the browser default; on anything larger
      (4K, 8K, a TV) it grows with the viewport, so menus and the HUD keep the same share of the screen.
      Media queries stay in px: they measure the real viewport, and no size breakpoint matches once this scale kicks in. */
@@ -38,7 +37,11 @@ html {
 }
 body {
   overflow: hidden;
-  background: radial-gradient(circle at 50% 30%, #0a2852 0, #020715 55%);
+  background: radial-gradient(
+    circle at 50% 30%,
+    #0a2852 0,
+    var(--fui-navy) 55%
+  );
 }
 button,
 input {
@@ -88,7 +91,7 @@ button {
   text-decoration: none;
 }
 .brand {
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-size: clamp(1.1rem, 2.25vw, 2.25rem);
   font-weight: 400;
   font-style: italic;
@@ -135,7 +138,7 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-size: 0.48rem;
   line-height: 1.2;
   color: var(--player-color);
@@ -153,7 +156,7 @@ button {
   display: grid;
 }
 .timer strong {
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-size: 1.25rem;
   color: #fff;
   text-shadow: 0 0 0.75rem #3edfff;
@@ -169,7 +172,7 @@ button {
 }
 .theme-select {
   max-width: 8.125rem;
-  border: 0.0625rem solid var(--theme-wall, #6544c2);
+  border: 0.0625rem solid var(--theme-wall, var(--fui-violet));
   background: #061127;
   color: #b9cce8;
   padding: 0.4375rem 0.5625rem;
@@ -198,7 +201,7 @@ button {
   place-items: center;
   overflow: hidden;
   border: 0;
-  background: #020715;
+  background: var(--fui-navy);
 }
 .arena {
   position: absolute;
@@ -225,7 +228,7 @@ button {
   position: absolute;
   right: 0.625rem;
   bottom: 0.5625rem;
-  z-index: 8;
+  z-index: var(--fui-z-overlay);
   padding: 0.3125rem 0.4375rem;
   border: 0.0625rem solid rgba(22, 231, 255, 0.35);
   background: rgba(1, 5, 16, 0.84);
@@ -267,7 +270,7 @@ button {
     rgba(7, 22, 53, 0.97),
     rgba(3, 9, 28, 0.95)
   );
-  border: 0.125rem solid #6544c2;
+  border: 0.125rem solid var(--fui-violet);
   clip-path: polygon(
     0.875rem 0,
     100% 0,
@@ -283,7 +286,7 @@ button {
 .lobby-copy h1 {
   margin: 0.625rem 0 0.875rem;
   max-width: 38.75rem;
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-size: clamp(1.5rem, 3vw, 3rem);
   line-height: 1.22;
   letter-spacing: -0.04em;
@@ -293,7 +296,7 @@ button {
 .lede {
   max-width: 33.75rem;
   color: #a9bddb;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--fui-font-sans);
   line-height: 1.55;
   font-size: clamp(0.9rem, 1.4vw, 1.15rem);
 }
@@ -374,7 +377,7 @@ button {
   height: 2.25rem;
   color: var(--player-color);
   border: 0.0625rem solid currentColor;
-  text-shadow: 0 0 0.625rem currentColor;
+  text-shadow: var(--fui-glow-text);
 }
 .seat-details {
   padding-left: 0.625rem;
@@ -436,14 +439,14 @@ button {
 }
 .announcement strong {
   display: block;
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-size: clamp(2rem, 6vw, 5rem);
   line-height: 1.2;
   letter-spacing: -0.04em;
   color: white;
   text-shadow:
     0.3125rem 0.3125rem 0 #842562,
-    0 0 1.375rem #ff2e9d;
+    0 0 1.375rem var(--fui-pink);
   white-space: nowrap;
 }
 .announcement-small {
@@ -473,7 +476,7 @@ button {
   font-size: 0.57rem;
 }
 .round-placements b {
-  color: #ffe46b;
+  color: var(--fui-yellow);
 }
 .leaderboard-drawer {
   position: absolute;
@@ -521,7 +524,7 @@ button {
 }
 .leaderboard-rank {
   color: var(--cyan);
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
 }
 .leaderboard-name {
   overflow: hidden;
@@ -598,7 +601,7 @@ button {
 }
 .recap-heading h2 {
   margin: 0.4375rem 0 0;
-  color: #effcff;
+  color: var(--fui-text-bright);
   font:
     clamp(1.15rem, 2.2vw, 2rem)/1.2 "Press Start 2P",
     ui-monospace,
@@ -666,7 +669,7 @@ button {
     0.68rem/1 "Press Start 2P",
     ui-monospace,
     monospace;
-  text-shadow: 0 0 0.625rem currentColor;
+  text-shadow: var(--fui-glow-text);
 }
 .podium-place-1 {
   min-height: 7.8125rem;
@@ -700,7 +703,7 @@ button {
   align-self: center;
   color: #ffe55e;
   font-size: 1.5rem;
-  text-shadow: 0 0 0.625rem currentColor;
+  text-shadow: var(--fui-glow-text);
 }
 .award-card small {
   overflow: hidden;
@@ -865,7 +868,7 @@ button {
   padding: 0.125rem 0.25rem 0.75rem;
 }
 .controller-logo {
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-weight: 400;
   font-style: italic;
   letter-spacing: -0.06em;
@@ -888,14 +891,14 @@ button {
   width: min(32.5rem, 94vw);
   margin: auto;
   padding: clamp(1.625rem, 7vw, 2.875rem);
-  border: 0.125rem solid #6544c2;
+  border: 0.125rem solid var(--fui-violet);
   background: var(--panel);
   box-shadow: 0 0 2.125rem rgba(60, 47, 189, 0.3);
   border-radius: var(--ui-panel-radius);
 }
 .join-screen h1 {
   margin: 0.625rem 0 1.75rem;
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-size: clamp(1.15rem, 5vw, 2rem);
   line-height: 1.3;
   text-transform: uppercase;
@@ -933,7 +936,7 @@ button {
 .join-status {
   min-height: 2.5em;
   color: #8599b8;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--fui-font-sans);
   font-size: 0.85rem;
 }
 .join-status.error {
@@ -981,7 +984,7 @@ button {
   text-align: center;
   min-height: 1.3em;
   color: #98abc8;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--fui-font-sans);
   font-size: 0.8rem;
 }
 .power-strip {
@@ -1267,7 +1270,7 @@ button {
   position: relative;
   font: 0.625rem monospace;
   color: #adf4ff;
-  z-index: 30;
+  z-index: var(--fui-z-audio);
 }
 .audio-controls summary {
   cursor: pointer;
@@ -1314,7 +1317,7 @@ details.audio-controls > .audio-panel.radio {
   gap: 0.75rem;
   padding: 0.875rem;
   background: linear-gradient(#0b1630, #050b1c);
-  border-color: #ff2e9d;
+  border-color: var(--fui-pink);
   box-shadow:
     inset 0 0 0 0.0625rem #16e7ff22,
     0 0.875rem 2.5rem #000c,
@@ -1352,7 +1355,7 @@ details.audio-controls > .audio-panel.radio {
     inset 0 0 1.125rem #000c,
     0 0 0.875rem #16e7ff22;
   color: #7dfcff;
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   text-shadow: 0 0 0.375rem #16e7ffaa;
   transition:
     color 0.3s,
@@ -1447,7 +1450,7 @@ details.audio-controls > .audio-panel.radio {
   }
 }
 .audio-panel.radio input[type="range"] {
-  accent-color: #16e7ff;
+  accent-color: var(--fui-cyan);
 }
 .audio-panel.radio .radio-transport {
   display: grid;
@@ -1459,7 +1462,7 @@ details.audio-controls > .audio-panel.radio {
   font-size: 1.125rem;
   line-height: 1;
   border-radius: 0.625rem;
-  color: #effcff;
+  color: var(--fui-text-bright);
   background: linear-gradient(#2c3654, #141b2e);
   border: 0.0625rem solid #4a5a80;
   box-shadow:
@@ -1474,7 +1477,7 @@ details.audio-controls > .audio-panel.radio {
 }
 .audio-panel.radio .radio-transport .radio-play {
   color: #1a0212;
-  background: linear-gradient(#ff79c6, #ff2e9d);
+  background: linear-gradient(#ff79c6, var(--fui-pink));
   border-color: #ffa3d9;
   box-shadow:
     0 0 1rem #ff2e9d66,
@@ -1501,7 +1504,7 @@ details.audio-controls > .audio-panel.radio {
 }
 .audio-panel.radio .radio-toggle[aria-pressed="true"] {
   color: #02131a;
-  background: #16e7ff;
+  background: var(--fui-cyan);
   border-color: #a6f7ff;
   box-shadow: 0 0 0.75rem #16e7ff66;
 }
@@ -1516,7 +1519,7 @@ details.audio-controls > .audio-panel.radio {
 }
 .audio-panel.radio .radio-mixer .radio-toggle[aria-pressed="true"] {
   color: #1a0212;
-  background: #ff2e9d;
+  background: var(--fui-pink);
   border-color: #ffa3d9;
   box-shadow: 0 0 0.75rem #ff2e9d66;
 }
@@ -1551,9 +1554,9 @@ details.audio-controls > .audio-panel.radio {
 }
 .audio-panel.radio .radio-track[aria-current="true"] {
   color: #7dfcff;
-  border-color: #16e7ff;
+  border-color: var(--fui-cyan);
   box-shadow:
-    inset 0.25rem 0 0 #16e7ff,
+    inset 0.25rem 0 0 var(--fui-cyan),
     0 0 0.625rem #16e7ff33;
 }
 .audio-panel.radio .radio-track-edit {
@@ -1584,7 +1587,7 @@ details.audio-controls > .audio-panel.radio {
   min-height: 2.5rem;
   padding: 0 0.75rem;
   color: #e8fbff;
-  border-color: #ff2e9d;
+  border-color: var(--fui-pink);
   background: #040b19b0;
   white-space: nowrap;
 }
@@ -1597,7 +1600,7 @@ details.audio-controls > .audio-panel.radio {
   top: calc(env(safe-area-inset-top, 0px) + 4.75rem);
   right: 0.75rem;
   left: auto;
-  z-index: 60;
+  z-index: var(--fui-z-panel);
   max-height: calc(100dvh - 6.25rem);
 }
 /* Phones: the bar also holds the brand and the music and sound toggles, so the audio buttons tighten up but keep their names. */
@@ -1626,11 +1629,11 @@ details.audio-controls > .audio-panel.radio {
 
 /* Match the authoritative rider color across the whole connected controller. */
 .controller-shell {
-  --player-color: #00d9ff;
+  --player-color: var(--fui-cyan-deep);
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--player-color) 17%, #030919),
-    #030919 65%
+    color-mix(in srgb, var(--player-color) 17%, var(--fui-ink)),
+    var(--fui-ink) 65%
   );
 }
 .controller-header {
@@ -1669,8 +1672,8 @@ details.audio-controls > .audio-panel.radio {
 .ai-remove {
   margin-left: auto;
   background: #08152b;
-  color: #eefaff;
-  border: 0.0625rem solid #365477;
+  color: var(--fui-text);
+  border: var(--fui-border);
   min-width: 2.25rem;
   min-height: 2.25rem;
   cursor: pointer;
@@ -1690,7 +1693,7 @@ details.audio-controls > .audio-panel.radio {
   bottom: 0.75rem;
   left: 0.75rem;
   right: 0.75rem;
-  z-index: 1000;
+  z-index: var(--fui-z-status);
   width: fit-content;
   max-width: calc(100% - 1.5rem);
   padding: 0.75rem;
@@ -1728,9 +1731,9 @@ details.audio-controls > .audio-panel.radio {
   --player-color: #29dfff;
   position: fixed;
   inset: 0;
-  z-index: 8;
+  z-index: var(--fui-z-overlay);
   pointer-events: none;
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
 }
 .replay-bar {
   position: absolute;
@@ -1817,7 +1820,7 @@ details.audio-controls > .audio-panel.radio {
   opacity: 1;
 }
 .replay-kicker {
-  color: #ff2e9d;
+  color: var(--fui-pink);
   font-size: 0.58rem;
   letter-spacing: 0.14em;
   animation: replay-blink 1s steps(2) infinite;

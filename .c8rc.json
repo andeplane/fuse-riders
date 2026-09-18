@@ -1,6 +1,6 @@
 {
   "all": true,
-  "include": ["src/**", "packages/*/src/**"],
+  "include": ["src/**", "packages/*/src/**", "games/*/src/**"],
   "reporter": ["text", "html", "json-summary"],
   "check-coverage": true,
   "lines": 95,
@@ -9,6 +9,7 @@
   "branches": 85,
   "exclude": [
     "**/*.d.ts",
+    "games/dice/src/app/main.ts",
     "packages/fuse-network-be/src/gcp/firestore-store.ts",
     "packages/fuse-network-be/src/gcp/index.ts",
     "packages/fuse-network-be/src/gcp/pubsub-bus.ts",
@@ -18,6 +19,8 @@
     "packages/fuse-network-fe/src/transport.ts",
     "packages/fuse-network-protocol/src/index.ts",
     "packages/fuse-network-protocol/src/wire.ts",
+    "packages/fuse-platform/src/firestore.ts",
+    "packages/fuse-platform/src/index.ts",
     "src/client/avatar-heads.ts",
     "src/client/game-audio.ts",
     "src/client/main.ts",
@@ -44,7 +47,6 @@
     "src/render/power-indicator.ts",
     "src/render/reload-ring.ts",
     "src/render/themes.ts",
-    "src/service/firestore-history.ts",
     "src/service/index.ts",
     "src/service/listen-free.ts",
     "src/service/room-limits.ts"

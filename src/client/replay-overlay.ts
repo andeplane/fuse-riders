@@ -1,3 +1,4 @@
+import { el } from "fuse-ui";
 import type { MomentCard } from "../engine/match-recap.js";
 import { zoomOrigin, type ReplayUpdate } from "./replay.js";
 
@@ -19,33 +20,22 @@ export interface ReplayOverlay {
   readonly visible: boolean;
 }
 
-function element<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className: string,
-  text = "",
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  node.className = className;
-  if (text) node.textContent = text;
-  return node;
-}
-
 export function createReplayOverlay(): ReplayOverlay {
-  const root = element("div", "replay-overlay");
+  const root = el("div", "", "replay-overlay");
   root.hidden = true;
   root.setAttribute("aria-live", "polite");
-  const top = element("div", "replay-bar replay-bar-top"),
-    bottom = element("div", "replay-bar replay-bar-bottom");
-  const scan = element("div", "replay-scan"),
-    flash = element("div", "replay-flash");
-  const chyron = element("div", "replay-chyron");
-  const kicker = element("span", "replay-kicker", "▶  INSTANT REPLAY"),
-    title = element("strong", "replay-title"),
-    copy = element("em", "replay-copy"),
-    when = element("small", "replay-when");
+  const top = el("div", "", "replay-bar replay-bar-top"),
+    bottom = el("div", "", "replay-bar replay-bar-bottom");
+  const scan = el("div", "", "replay-scan"),
+    flash = el("div", "", "replay-flash");
+  const chyron = el("div", "", "replay-chyron");
+  const kicker = el("span", "▶  INSTANT REPLAY", "replay-kicker"),
+    title = el("strong", "", "replay-title"),
+    copy = el("em", "", "replay-copy"),
+    when = el("small", "", "replay-when");
   chyron.append(kicker, title, copy, when);
-  const slow = element("div", "replay-slow", "◀◀  SLOW MOTION  ×¼"),
-    live = element("div", "replay-live", "●  LIVE");
+  const slow = el("div", "◀◀  SLOW MOTION  ×¼", "replay-slow"),
+    live = el("div", "●  LIVE", "replay-live");
   root.append(top, bottom, scan, flash, chyron, slow, live);
   let liveTimer: ReturnType<typeof setTimeout> | undefined;
   let zoomed: HTMLCanvasElement | undefined;

@@ -84,14 +84,14 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
 }
 
 type Layer = "engine" | "net" | "render" | "app" | "shared" | "external";
-// `career-stats`, `elo` and `rating` are the history service's settlement and the account panel's reading of it:
-// one authority computes them after a match, no replica folds them, and nothing the simulation owns imports them.
+// `career-stats` is the history service's settlement and the account panel's reading of it (Elo and ratings moved to
+// packages/fuse-platform): one authority computes it after a match, no replica folds it, and nothing the simulation
+// owns imports it. `game-id` names Fuse Riders on the shared backend.
 // `combat-stats` is not here: match statistics carry it through every tick, so it stays engine-owned and guarded.
 const shared = new Set([
   "avatars",
   "career-stats",
-  "elo",
-  "rating",
+  "game-id",
   "duration-text",
   "protocol",
   "firebase-config",

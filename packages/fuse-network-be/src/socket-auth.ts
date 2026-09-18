@@ -1,4 +1,4 @@
-import { AUTH_FRAME_MAX_BYTES } from "fuse-network-protocol";
+import { AUTH_FRAME_MAX_BYTES, validGameId } from "fuse-network-protocol";
 import { validToken } from "./room-store.js";
 
 /**
@@ -17,6 +17,17 @@ export const REFUSED_CLOSE_GRACE_MS = 3_000;
 
 /** The member token out of a room socket's first frame; undefined for anything but one small, valid `auth` frame. */
 export function authToken(raw: string, binary: boolean): string | undefined {
+  return readAuthFrame(raw, binary)?.token;
+}
+
+/**
+ * A room socket's first frame: the member token and, when the page names one, its game. Undefined for anything but
+ * one small `auth` frame with a valid token and, if present, a well-formed `gameId`.
+ */
+export function readAuthFrame(
+  raw: string,
+  binary: boolean,
+): { token: string; gameId?: string } | undefined {
   if (binary || Buffer.byteLength(raw) > AUTH_FRAME_MAX_BYTES) return undefined;
   let frame: unknown;
   try {
@@ -26,8 +37,13 @@ export function authToken(raw: string, binary: boolean): string | undefined {
   }
   if (!frame || typeof frame !== "object" || Array.isArray(frame))
     return undefined;
-  const { type, token } = frame as { type?: unknown; token?: unknown };
-  return type === "auth" && typeof token === "string" && validToken(token)
-    ? token
-    : undefined;
+  const { type, token, gameId } = frame as {
+    type?: unknown;
+    token?: unknown;
+    gameId?: unknown;
+  };
+  if (type !== "auth" || typeof token !== "string" || !validToken(token))
+    return undefined;
+  if (gameId === undefined) return { token };
+  return validGameId(gameId) ? { token, gameId } : undefined;
 }

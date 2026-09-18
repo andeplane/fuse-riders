@@ -1,4 +1,7 @@
-/** Human-only, simultaneous, mean-pairwise Elo. Callers supply the eligible human field. */
+/**
+ * Human-only, simultaneous, mean-pairwise Elo. Callers supply the eligible human field; `isBot` is the game's bot id
+ * rule, and a bot in the field is a caller bug, so it throws rather than being rated.
+ */
 export const INITIAL_ELO = 1000;
 export const ELO_K = 32;
 export interface EloPlayer {
@@ -9,6 +12,7 @@ export interface EloPlayer {
 }
 export function calculateElo(
   players: readonly EloPlayer[],
+  isBot: (id: string) => boolean = () => false,
 ): Map<string, number> {
   if (
     new Set(players.map((p) => p.id)).size !== players.length ||
@@ -17,7 +21,7 @@ export function calculateElo(
         !Number.isFinite(p.rating) ||
         !Number.isFinite(p.score) ||
         !Number.isFinite(p.wins) ||
-        p.id.startsWith("bot:"),
+        isBot(p.id),
     )
   )
     throw new Error("Invalid human Elo field");

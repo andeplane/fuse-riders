@@ -6,10 +6,15 @@ import {
 } from "fuse-network-be";
 import { ROOM_LIMITS } from "./room-limits.js";
 import { listenFree } from "./listen-free.js";
-import { HistoryStore } from "./history.js";
-import { MemoryHistoryDatabase } from "./memory-history.js";
-import { createIdentityVerifier, type IdentityVerifier } from "./identity.js";
-import { createHistoryHttp } from "./history-http.js";
+import {
+  HistoryStore,
+  MemoryHistoryDatabase,
+  createHistoryHttp,
+  createIdentityVerifier,
+  type IdentityVerifier,
+  type Platform,
+} from "fuse-platform";
+import { platform } from "./history.js";
 import { FIREBASE_PROJECT_ID } from "../shared/firebase-config.js";
 export type { DevRoomService };
 export interface DevRoomServiceOptions extends Omit<
@@ -17,19 +22,28 @@ export interface DevRoomServiceOptions extends Omit<
   "httpExtension"
 > {
   identity?: IdentityVerifier;
+  /** The games served; every game this repo has by default (Cloud Run serves `platformFor(EXTRA_GAME_IDS)`). */
+  platform?: Platform;
 }
 
 /** Game history and capacity on the generic in-memory signalling service. */
 export function createDevRoomService(
   options: DevRoomServiceOptions = {},
 ): DevRoomService {
-  const now = options.now ?? Date.now;
+  const now = options.now ?? Date.now,
+    games = options.platform ?? platform;
   return createService({
     ...ROOM_LIMITS,
+    gameIds: games.gameIds,
     ...options,
     httpExtension: (store) =>
       createHistoryHttp(
-        new HistoryStore(new MemoryHistoryDatabase(now), store, now),
+        new HistoryStore(
+          games,
+          new MemoryHistoryDatabase(games, now),
+          store,
+          now,
+        ),
         options.identity ?? createIdentityVerifier(FIREBASE_PROJECT_ID),
       ),
   });

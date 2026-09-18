@@ -1,0 +1,27 @@
+{
+  "name": "fuse-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Game-agnostic backend shared by every game: accounts, match history and settlement, Elo, ratings and leaderboards, keyed by gameId.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./rating": "./src/rating.ts",
+    "./firestore": "./src/firestore.ts"
+  },
+  "dependencies": {
+    "fuse-network-be": "0.1.0",
+    "jose": "^6.2.12"
+  },
+  "peerDependencies": {
+    "@google-cloud/firestore": "^9.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/firestore": {
+      "optional": true
+    }
+  }
+}

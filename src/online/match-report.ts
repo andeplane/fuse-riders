@@ -6,7 +6,7 @@ import {
   type MatchPlayerStats,
   type MatchStatsState,
 } from "../engine/match-stats.js";
-import { SOLO_RATING_PLAYER_ID } from "../shared/rating.js";
+import { SOLO_RATING_PLAYER_ID } from "fuse-platform/rating";
 import type { DecidedRound } from "../engine/shot-log.js";
 
 /**

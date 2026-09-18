@@ -1,3 +1,4 @@
+import { el as element } from "fuse-ui";
 import {
   defaultRoomSettings,
   type RoomSettings,
@@ -16,11 +17,6 @@ import {
   BOMB_CHARGE_TICKS_LIMIT,
 } from "../engine/bomb-launch.js";
 import "./room-settings-menu.css";
-const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "") => {
-  const result = document.createElement(tag);
-  result.textContent = text;
-  return result;
-};
 /** One draft survives submenu navigation; only Save publishes it. */
 export function showRoomSettings(
   body: HTMLElement,

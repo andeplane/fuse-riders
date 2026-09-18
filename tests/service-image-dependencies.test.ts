@@ -29,6 +29,17 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     "utf8",
   );
   assert.match(dockerfile, /npm ci --omit=dev/);
+  // npm ci links a workspace package only if its manifest is in the image before the install; a missing one
+  // would leave fuse-platform or fuse-network-be unresolvable when the revision starts.
+  const workspaces = Object.keys(lock.packages).filter((key) =>
+    /^packages\/[^/]+$/.test(key),
+  );
+  assert.ok(workspaces.includes("packages/fuse-platform"));
+  for (const workspace of workspaces)
+    assert.ok(
+      dockerfile.includes(`COPY ${workspace}/package.json ./${workspace}/`),
+      `Dockerfile.cloud copies ${workspace}/package.json before npm ci`,
+    );
   assert.match(
     dockerfile,
     /CMD \["node", "--import", "tsx", "src\/service\/index\.ts"\]/,
@@ -59,7 +70,8 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
   );
   assert.ok(
     firstParty.includes("src/service/index.ts") &&
-      firstParty.some((file) => file.startsWith("packages/fuse-network-be/")),
+      firstParty.some((file) => file.startsWith("packages/fuse-network-be/")) &&
+      firstParty.some((file) => file.startsWith("packages/fuse-platform/")),
     "the walk reached the service's own source, including its workspace packages",
   );
   // Resolution the walk above cannot follow. `import(` followed by anything but a quote is a computed

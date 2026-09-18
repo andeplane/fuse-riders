@@ -8,13 +8,20 @@ LABEL org.opencontainers.image.title="Fuse Riders room gateway" \
       org.opencontainers.image.revision=$BUILD_REVISION
 WORKDIR /app
 COPY package.json package-lock.json ./
-# The workspace manifests must be present for npm ci to link fuse-network-be and its protocol package.
+# The workspace manifests must be present for npm ci to link the workspace packages the service runs:
+# fuse-network-be with its protocol package, fuse-netcode and fuse-platform (fuse-ui is browser-only but still a workspace).
 COPY packages/fuse-network-protocol/package.json ./packages/fuse-network-protocol/
 COPY packages/fuse-network-fe/package.json ./packages/fuse-network-fe/
 COPY packages/fuse-network-be/package.json ./packages/fuse-network-be/
+COPY packages/fuse-netcode/package.json ./packages/fuse-netcode/
+COPY packages/fuse-platform/package.json ./packages/fuse-platform/
+COPY packages/fuse-ui/package.json ./packages/fuse-ui/
+# Games are workspaces too: npm ci needs every manifest the lockfile lists, and the service registers each game's stats.
+COPY games/dice/package.json ./games/dice/
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --chown=node:node src ./src
 COPY --chown=node:node packages ./packages
+COPY --chown=node:node games ./games
 # The running service reports this on /api/health; the Pages release publishes only the revision the backend serves.
 ENV NODE_ENV=production PORT=8080 BUILD_REVISION=$BUILD_REVISION
 USER node

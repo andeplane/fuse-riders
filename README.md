@@ -47,6 +47,10 @@ Room settings offer **3 ROUNDS · QUICK** and **5 ROUNDS · STANDARD**, plus a c
 
 Every device in a room simulates the game from one shared input log, so no browser owns the world: the creator's stream carries the room management entries (seats, settings, start, AI riders), and if the creator goes quiet for five seconds the lowest connected rider marks it absent so play continues. A refreshed creator or guest rejoins the running match with a validated snapshot from any peer; nothing is persisted locally. A background tab stops sending input and is marked absent after a second, which neutralises its rider. These mechanisms have regression tests (`tests/room-runtime.test.ts`), while sustained recovery on real phones and networks remains unqualified.
 
+## Pig, the second game
+
+The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**; the Fuse Riders home page links it as **MORE GAMES: PIG**). Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md). Production serves its rooms only once `EXTRA_GAME_IDS=dice` is set ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
+
 ## How to play
 
 Riders speed up as each round goes on: from normal pace at the start to 1.5× after 60 seconds, when overtime starts closing the walls, and they stay at that speed until the round ends. Steering speeds up too, so turning circles stay the same size; you just have less time to react. Every round starts at normal speed again, and the speed pickups multiply on top ([`riderMotionStep`](src/engine/tuning.ts)).
@@ -121,6 +125,7 @@ The shared deterministic simulation advances at 20 Hz and uses pinned JavaScript
 | `packages/fuse-network-be/`                                                  | Game-agnostic room service: API/WebSocket gateway (`http.ts`, `gateway.ts`, `room-store.ts`), in-memory metadata (`dev.ts`) and Firestore transactions with Pub/Sub signalling (`gcp/`) ([README](packages/fuse-network-be/README.md))    |
 | `packages/fuse-network-protocol/`                                            | The wire contract both libraries share: room codes, authority lease, STUN defaults, protocol version                                                                                                                                      |
 | `src/service/`                                                               | The game's entry points into `fuse-network-be`: production (`index.ts`), local development and CI (`dev.ts`), and the room capacity                                                                                                       |
+| `games/dice/`                                                                | Pig, a second game on the same packages: rules, a DOM page on `fuse-ui` served at `/dice/`, and its stats registration ([README](games/dice/README.md))                                                                                   |
 | `Dockerfile.cloud`, `scripts/deploy-cloud.sh`, `.github/workflows/pages.yml` | GCP image/release and GitHub Pages frontend pipelines                                                                                                                                                                                     |
 | `tests/`, `scripts/`                                                         | Deterministic tests, browser checks and benchmark runners                                                                                                                                                                                 |
 
@@ -168,7 +173,7 @@ The same Phaser scene stays visible behind the lobby and end-of-match overview, 
 
 [CI](.github/workflows/ci.yml) has two parts. `verify` runs on every pull request and is the only gate a pull request waits on: formatting, the configuration check, type checks, unit coverage and the build. The browser matrix runs on a push to main, on a manual dispatch, or on a pull request labelled `full-ci`: one parallel `smoke: …` job per entry of [`scripts/ci-manifest.json`](scripts/ci-manifest.json), each retried once with the flake reported, summed up by one `e2e` job that is green only when every smoke passed. A push to main deploys only once all of it passes; the backend then redeploys only when something it is built from changed ([`scripts/lib/backend-paths.ts`](scripts/lib/backend-paths.ts)). Run the affected local smoke when practical and report any untested browser flow. Reserve `full-ci` for explicit requests or changes whose failure would be expensive to unwind; routine PRs do not wait on the full browser matrix.
 
-To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It runs the same manifest through the same runner as CI (`scripts/ci-run.ts`), so there is no second list to keep in step; to add or change a smoke, edit `scripts/ci-manifest.json`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. The room service takes a free port, or starts its search at `PORT`, so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `lint`, `config`, `typecheck`, `coverage`, `build`, `keyboard`, `desktop`, `online`, `voice`, `preview`, `phaser`, `home`, `landscape`, `phase`, `recap`, `shared`, `spectator`, `determinism`, `mesh`; `core` expands to every `verify` step, and a single variant such as `online-webkit` also works) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. Unlike CI, a local run does not retry a failed smoke; `npx tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, retry included. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It runs the same manifest through the same runner as CI (`scripts/ci-run.ts`), so there is no second list to keep in step; to add or change a smoke, edit `scripts/ci-manifest.json`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. The room service takes a free port, or starts its search at `PORT`, so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `lint`, `config`, `typecheck`, `coverage`, `build`, `keyboard`, `desktop`, `online`, `voice`, `preview`, `phaser`, `home`, `landscape`, `phase`, `recap`, `shared`, `spectator`, `determinism`, `mesh`, `dice`; `core` expands to every `verify` step, and a single variant such as `online-webkit` also works) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. Unlike CI, a local run does not retry a failed smoke; `npx tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, retry included. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh
@@ -307,7 +312,8 @@ Gameplay is peer-to-peer, so the gateway never sees a match. Every device comput
    binds the verified account to that seat and to no other. Nothing in the request body can name an account.
 3. A result is stored under a key derived from its own content (and the room's incarnation). It becomes **confirmed**
    once a **majority of the human riders who stayed to the end** have reported exactly that result
-   ([`history.ts`](src/service/history.ts)). Bots do not vote, and neither does a rider the stats say quit mid-match —
+   ([`fuse-platform`](packages/fuse-platform/README.md), the backend every game shares; Fuse Riders' stats are
+   registered in [`history.ts`](src/service/history.ts)). Bots do not vote, and neither does a rider the stats say quit mid-match —
    they are gone before the recap and would otherwise leave the match pending forever. A rider alone with bots
    confirms alone.
 4. On confirmation, each signed-in rider's totals are incremented in the same transaction. A rider who reports after
@@ -352,11 +358,14 @@ history (none is, today).
 The personal data stored is the Firebase `uid`, the username, the rider names matches were played under and the
 avatar. **No email address or profile photo reaches the gateway or the database.** The Google display name is shown in
 the player's own browser only, with one exception the player can see and undo: an account with no username and no
-earlier rider name starts with the _first word_ of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, and
-remove their `uid` from `uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
+earlier rider name starts with the _first word_ of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, their
+`fuse-production-ratings` documents (`<gameId>:<uid>`, once another game exists), the `rivals` subcollections of
+both (Firestore does not delete a subcollection with its parent), and remove their `uid` from
+`uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
 
 [`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index
-(`participantUids` array-contains + `endedAt` desc), the `cleanupAt` TTL policies for rooms, creation limits and
+(`participantUids` array-contains + `endedAt` desc, and the same after `gameId` for games other than Fuse Riders), the
+per-game rating indexes on `fuse-production-ratings` (`gameId`, `ranked`, `elo`), the `cleanupAt` TTL policies for rooms, creation limits and
 matches, and an index exemption for the bulky `result` map. It lists the pre-existing TTL policies on purpose: the file
 is the whole truth for the database, so leaving one out invites the next deploy to remove it.
 
@@ -382,7 +391,7 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 - **Browsers never talk to Firestore.** Accounts and match history are read and written only by the gateway, which
   authenticates with IAM and bypasses security rules. [`firestore.rules`](firestore.rules) is therefore deny-all and
   must stay that way: the web API key is public, so anything the rules allow is allowed to the whole internet.
-- **The gateway needs no Firebase credentials.** [`identity.ts`](src/service/identity.ts) verifies ID tokens with
+- **The gateway needs no Firebase credentials.** [`identity.ts`](packages/fuse-platform/src/identity.ts) verifies ID tokens with
   `jose` against Google's public keys
   (`https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`), so the runtime service
   account keeps exactly its current roles (`roles/datastore.user` conditioned on the `fuse-riders` database, plus the
@@ -525,7 +534,7 @@ Findings and accepted risks:
 
 How the implementation holds the line:
 
-- **Tokens.** [`identity.ts`](src/service/identity.ts) pins `RS256` and requires
+- **Tokens.** [`identity.ts`](packages/fuse-platform/src/identity.ts) pins `RS256` and requires
   `iss == https://securetoken.google.com/andershaf-87`, `aud == andershaf-87`, an unexpired `exp`, a past `auth_time`,
   a `sub` that is a safe document id, and `firebase.sign_in_provider == 'google.com'`. Every failure — including Google's
   keys being unreachable — yields a guest, never an error that blocks play and never an accepted token. Revocation is

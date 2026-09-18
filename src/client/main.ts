@@ -1,4 +1,5 @@
 import "@fontsource/press-start-2p/latin.css";
+import "fuse-ui/tokens.css";
 import "./style.css";
 import "./viewport-lock.js";
 

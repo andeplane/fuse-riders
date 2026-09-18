@@ -18,7 +18,7 @@
   gap: 0.75rem;
   margin: 0;
   padding: 0.875rem;
-  border: 0.0625rem solid #365477;
+  border: var(--fui-border);
   background: var(--ui-surface);
   border-radius: var(--ui-radius);
   cursor: pointer;
@@ -26,7 +26,7 @@
   box-sizing: border-box;
 }
 .room-choice label:has(input:checked) {
-  border-color: #00d9ff !important;
+  border-color: var(--fui-cyan-deep) !important;
   background: #063349 !important;
   color: #b4f7ff;
 }
@@ -35,7 +35,7 @@
   height: 1.125rem;
   min-height: 0 !important;
   margin: 0;
-  accent-color: #00d9ff;
+  accent-color: var(--fui-cyan-deep);
   flex: none;
 }
 .room-choice:disabled {
@@ -75,12 +75,12 @@
   font-size: 0.625rem;
   letter-spacing: 0.0625rem;
   padding: 0.25rem;
-  border-color: #365477;
+  border-color: var(--fui-line);
   color: #a3b9cb;
 }
 .online-app .powerup-rarity button[aria-pressed="true"] {
   background: var(--player-color);
-  color: #030919;
+  color: var(--fui-ink);
   border-color: #fff;
   font-weight: 900;
 }

@@ -12,8 +12,8 @@
     "prestart": "npm run build",
     "start": "npm run build && tsx src/service/dev.ts --port ${PORT:-8787}",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
-    "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
+    "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
     "dev:online": "npm run build && tsx src/service/dev.ts --port 8787",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -27,10 +27,12 @@
     "@stdlib/math-base-special-atan2": "0.3.1",
     "@stdlib/math-base-special-cos": "0.3.1",
     "@stdlib/math-base-special-sin": "0.3.1",
+    "dice": "0.1.0",
     "fuse-network-be": "0.1.0",
     "ws": "^8.18.3",
     "jose": "^6.2.12",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "fuse-platform": "0.1.0"
   },
   "devDependencies": {
     "@fontsource/press-start-2p": "^5.3.0",
@@ -44,6 +46,7 @@
     "firebase": "^12.19.0",
     "fuse-netcode": "0.1.0",
     "fuse-network-fe": "0.1.0",
+    "fuse-ui": "0.1.0",
     "google-auth-library": "^11.0.2",
     "linkedom": "^0.18.13",
     "mixpanel-browser": "^2.83.0",
@@ -56,6 +59,7 @@
     "vite": "^7.1.5"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "games/*"
   ]
 }
