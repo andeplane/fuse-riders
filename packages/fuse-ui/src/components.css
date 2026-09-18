@@ -1,0 +1,306 @@
+/*
+ * Styles for the fuse-ui components (their default `fui-*` classes), in the Fuse Riders look. Needs tokens.css first.
+ *
+ *   import "@fontsource/press-start-2p/latin.css";
+ *   import "fuse-ui/tokens.css";
+ *   import "fuse-ui/components.css";
+ *
+ * Put `fui-app` on the page's root element for the base page, button and field styles. Fuse Riders does not load this
+ * file yet: it passes its own class names to the components and keeps styling them in online.css.
+ */
+.fui-app {
+  min-height: 100dvh;
+  margin: 0;
+  box-sizing: border-box;
+  padding: var(--fui-space-3);
+  color: var(--fui-text-bright);
+  background: radial-gradient(
+    circle at 50% 30%,
+    #0a2852 0,
+    var(--fui-navy) 55%
+  );
+  font-family: var(--fui-font-body);
+  font-synthesis: none;
+}
+.fui-app *,
+.fui-app *::before,
+.fui-app *::after {
+  box-sizing: border-box;
+}
+.fui-app [hidden] {
+  display: none !important;
+}
+.fui-app button,
+.fui-app input {
+  font: inherit;
+  font-size: 1rem;
+  min-height: 2.75rem;
+  color: var(--fui-text);
+  background: var(--fui-surface);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius);
+  padding: var(--fui-space-2);
+}
+.fui-app button {
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--fui-cyan-deep) 40%, var(--fui-line));
+  background: var(--fui-button-fill);
+  box-shadow: var(--fui-edge);
+}
+.fui-app button:enabled:hover {
+  filter: brightness(1.15);
+}
+.fui-app button:focus-visible,
+.fui-app input:focus-visible {
+  outline: 0.1875rem solid #b4f7ff;
+  outline-offset: 0.1875rem;
+}
+.fui-app button:disabled {
+  opacity: 0.4;
+}
+.fui-app .fui-button-primary {
+  color: var(--fui-ink);
+  font-family: var(--fui-font-pixel);
+  font-size: 0.875rem;
+  background: var(--fui-cyan-fill);
+  border-color: var(--fui-cyan);
+  box-shadow: var(--fui-glow-cyan);
+}
+
+/* Landing */
+.fui-landing {
+  display: grid;
+  gap: var(--fui-space-4);
+  width: min(30rem, 100%);
+  margin: 10vh auto 0;
+}
+.fui-landing-title {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 1.75rem/1.3 var(--fui-font-pixel);
+  text-shadow: var(--fui-glow-text);
+}
+.fui-landing-tagline {
+  margin: 0;
+  color: var(--fui-text-muted);
+}
+.fui-landing-actions {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.fui-join-code {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--fui-space-2);
+}
+.fui-landing-error {
+  min-height: 1.25rem;
+  margin: 0;
+  color: var(--fui-pink-soft);
+}
+
+/* Name entry */
+.fui-name-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--fui-space-2);
+}
+.fui-name-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--fui-pink-soft);
+}
+
+/* Lobby */
+.fui-lobby {
+  display: grid;
+  gap: var(--fui-space-4);
+  width: min(32rem, 100%);
+  margin: 0 auto;
+  padding: var(--fui-space-4);
+  background: var(--fui-panel);
+  border: var(--fui-border);
+  border-radius: var(--fui-radius-panel);
+}
+.fui-lobby-title {
+  margin: 0;
+  color: var(--fui-cyan);
+  font: 1rem/1.4 var(--fui-font-pixel);
+}
+.fui-lobby-note {
+  margin: 0;
+  color: var(--fui-yellow);
+  text-align: center;
+}
+.fui-invite {
+  display: grid;
+  justify-items: center;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-4);
+  color: var(--fui-ink);
+  background: var(--fui-text);
+  border: 0.25rem solid var(--fui-cyan);
+  border-radius: var(--fui-radius);
+}
+.fui-invite-qr {
+  width: min(40vw, 12rem);
+  height: auto;
+  background: var(--fui-white);
+  image-rendering: pixelated;
+}
+.fui-invite-caption {
+  margin: 0;
+  font: 0.625rem var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
+}
+.fui-room-code {
+  display: block;
+  color: var(--fui-cyan-deep);
+  font: clamp(1.5rem, 5vw, 3rem) var(--fui-font-pixel);
+}
+.fui-invite .fui-room-code {
+  color: var(--fui-ink);
+}
+.fui-invite-link {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  max-width: 100%;
+}
+.fui-invite-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+.fui-app .fui-invite-copy.copied {
+  color: var(--fui-ink);
+  background: var(--fui-lime);
+}
+.fui-roster {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fui-roster-empty {
+  margin: 0;
+  color: var(--fui-text-dim);
+}
+.fui-roster-row {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-3);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  background: var(--fui-deep);
+  border-left: 0.25rem solid var(--rider-color, var(--fui-cyan));
+  border-radius: var(--fui-radius-small);
+}
+.fui-roster-info {
+  display: grid;
+  gap: var(--fui-space-1);
+  min-width: 0;
+}
+.fui-roster-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--fui-font-pixel);
+  font-size: 0.75rem;
+}
+.fui-roster-status {
+  color: var(--rider-color, var(--fui-cyan));
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+}
+.fui-roster-host {
+  justify-self: start;
+  padding: 0 var(--fui-space-1);
+  color: var(--fui-ink);
+  background: var(--fui-yellow);
+  font: 0.5rem/1.6 var(--fui-font-pixel);
+}
+
+/* Status line and toast */
+.fui-notice {
+  min-height: 1.25rem;
+  color: var(--fui-yellow);
+  text-align: center;
+}
+.fui-notice[data-tone="good"] {
+  color: var(--fui-lime);
+}
+.fui-notice[data-tone="error"] {
+  color: var(--fui-pink-soft);
+}
+
+/* Dialog */
+.fui-app dialog.fui-dialog {
+  width: min(32.5rem, calc(100vw - 1.5rem));
+  max-width: none;
+  max-height: calc(100dvh - 1.5rem);
+  padding: 0;
+  color: var(--fui-text);
+  background: var(--fui-panel);
+  border: 0.0625rem solid #53def7;
+  border-radius: var(--fui-radius-panel);
+  overflow: hidden;
+  box-shadow: 0 1.5rem 6.25rem #000c;
+}
+.fui-app dialog.fui-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.fui-dialog::backdrop {
+  background: #010612c9;
+  backdrop-filter: blur(0.3125rem);
+}
+.fui-dialog-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-3);
+  padding: var(--fui-space-3) var(--fui-space-4);
+  background: #102039;
+  border-bottom: 0.0625rem solid #334965;
+}
+.fui-dialog-title {
+  font-size: 0.75rem;
+  letter-spacing: 0.0625rem;
+  color: #a3c5dc;
+}
+.fui-dialog-actions {
+  display: flex;
+  gap: var(--fui-space-2);
+}
+.fui-app .fui-dialog-close {
+  border-color: var(--fui-pink-soft);
+  background: #3b1734;
+}
+.fui-dialog-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1.125rem;
+}
+
+/* Phone controller */
+.fui-controller {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: var(--fui-space-3);
+  min-height: 6.25rem;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fui-app .fui-controller button {
+  font-family: var(--fui-font-pixel);
+  font-size: 1.125rem;
+  background: color-mix(in srgb, var(--fui-cyan-deep) 18%, #061023);
+  border: var(--fui-stroke) solid var(--fui-cyan-deep);
+  touch-action: none;
+}
+.fui-app .fui-controller button.active {
+  color: var(--fui-ink);
+  background: var(--fui-cyan-deep);
+}

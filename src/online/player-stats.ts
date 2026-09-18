@@ -1,3 +1,4 @@
+import { el as element } from "fuse-ui";
 import {
   careerFor,
   emptyCareer,
@@ -21,16 +22,6 @@ export interface StatsPage {
   matches: HistoryEntry[];
   rivals?: Rivalries;
 }
-export const element = <K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  text = "",
-  className = "",
-): HTMLElementTagNameMap[K] => {
-  const e = document.createElement(tag);
-  e.textContent = text;
-  if (className) e.className = className;
-  return e;
-};
 const number = (value: number): string => Math.round(value).toLocaleString();
 const percent = (value: number, total: number): string =>
   total ? `${Math.round((100 * value) / total)}%` : "—";

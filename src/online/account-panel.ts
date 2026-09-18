@@ -1,3 +1,4 @@
+import { el } from "fuse-ui";
 import { createAvatarPortrait } from "../client/avatar-heads.js";
 import "./account-panel.css";
 import {
@@ -74,16 +75,6 @@ const liveAuth: AccountPanelAuth = {
   remember: rememberUsername,
 };
 
-const el = <K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  text = "",
-  className = "",
-): HTMLElementTagNameMap[K] => {
-  const e = document.createElement(tag);
-  e.textContent = text;
-  if (className) e.className = className;
-  return e;
-};
 const ordinal = (place: number): string =>
   `${place}${place % 100 >= 11 && place % 100 <= 13 ? "TH" : (["TH", "ST", "ND", "RD"][place % 10] ?? "TH")}`;
 const count = (value: unknown): string =>

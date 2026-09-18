@@ -1,3 +1,4 @@
+import { el as element } from "fuse-ui";
 import {
   VoiceSession,
   readVoiceState,
@@ -21,11 +22,6 @@ interface PeerVoice {
   blocked: boolean;
   failed: boolean;
 }
-const element = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "") => {
-  const e = document.createElement(tag);
-  e.textContent = text;
-  return e;
-};
 /** Optional per-device media. No voice state is recorded in the game log or checkpoints. */
 export class VoiceChat {
   readonly session: VoiceSession<MediaStreamTrack>;

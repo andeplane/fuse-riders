@@ -1,3 +1,4 @@
+import { el } from "fuse-ui";
 import {
   AudioDirector,
   MUSIC_TRACKS,
@@ -386,16 +387,6 @@ export function browserMediaSession(): MediaSessionPort | undefined {
   };
 }
 
-const element = <K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className = "",
-  text = "",
-): HTMLElementTagNameMap[K] => {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  return node;
-};
 /** Text fields keep Ctrl+A for select-all; sliders and buttons do not need it. */
 const editable = (target: EventTarget | null): boolean =>
   target instanceof HTMLTextAreaElement ||
@@ -432,7 +423,7 @@ export function createGameAudio(
     settings.muted.music = true;
     settings.muted.effects = true;
   }
-  const enable = element("button", "audio-enable");
+  const enable = el("button", "", "audio-enable");
   enable.type = "button";
   enable.textContent = `Enable ${deviceLabel} audio`;
   let running = false;
@@ -468,10 +459,10 @@ export function createGameAudio(
             },
       ),
   );
-  const controls = element("details", "audio-controls");
-  const summary = element("summary", "", "♫ RADIO");
+  const controls = el("details", "", "audio-controls");
+  const summary = el("summary", "♫ RADIO");
   summary.title = "Fuse Riders Radio (Ctrl+A)";
-  const panel = element("div", "audio-panel radio");
+  const panel = el("div", "", "audio-panel radio");
   panel.setAttribute("aria-label", "Fuse Riders Radio");
   controls.append(summary, panel);
   for (const channel of CHANNELS) {
@@ -546,24 +537,21 @@ export function createGameAudio(
   enable.addEventListener("click", () => unlock(true));
 
   // Head unit: display and transport keys.
-  const lcd = element("div", "radio-lcd");
+  const lcd = el("div", "", "radio-lcd");
   lcd.setAttribute("role", "group");
   lcd.setAttribute("aria-label", "Now playing");
-  const band = element("div", "radio-band");
-  band.append(
-    element("span", "", "FUSE RIDERS RADIO"),
-    element("span", "", "FM 88.8"),
-  );
-  const title = element("div", "radio-title");
-  const titleText = element("span");
-  const equalizer = element("span", "radio-eq");
+  const band = el("div", "", "radio-band");
+  band.append(el("span", "FUSE RIDERS RADIO"), el("span", "FM 88.8"));
+  const title = el("div", "", "radio-title");
+  const titleText = el("span");
+  const equalizer = el("span", "", "radio-eq");
   equalizer.setAttribute("aria-hidden", "true");
-  equalizer.append(...Array.from({ length: 4 }, () => element("i")));
+  equalizer.append(...Array.from({ length: 4 }, () => el("i")));
   title.append(titleText, equalizer);
-  const readout = element("div", "radio-readout");
-  const trackNumber = element("span"),
-    time = element("span"),
-    flags = element("span");
+  const readout = el("div", "", "radio-readout");
+  const trackNumber = el("span"),
+    time = el("span"),
+    flags = el("span");
   readout.append(trackNumber, time, flags);
   lcd.append(band, title, readout);
   const key = (
@@ -572,7 +560,7 @@ export function createGameAudio(
     label: string,
     action: () => void,
   ) => {
-    const button = element("button", className, text);
+    const button = el("button", text, className);
     button.type = "button";
     button.setAttribute("aria-label", label);
     button.title = label;
@@ -585,17 +573,17 @@ export function createGameAudio(
   const playPause = key("radio-play", "▶", "Play", () =>
     director.togglePause(),
   );
-  const transport = element("div", "radio-transport");
+  const transport = el("div", "", "radio-transport");
   transport.append(
     key("", "⏮", "Previous track", () => director.previousTrack()),
     playPause,
     key("", "⏭", "Next track", () => director.nextTrack()),
   );
-  const unit = element("div", "radio-unit");
+  const unit = el("div", "", "radio-unit");
   unit.append(lcd, transport);
 
   const toggle = (text: string, action: () => void) => {
-    const button = element("button", "radio-toggle", text);
+    const button = el("button", text, "radio-toggle");
     button.type = "button";
     button.addEventListener("click", action);
     return button;
@@ -610,14 +598,14 @@ export function createGameAudio(
     all: toggle("ALL TRACKS", () => director.setSource("all")),
     playlist: toggle("MY PLAYLIST", () => director.setSource("playlist")),
   };
-  const modes = element("div", "radio-modes");
+  const modes = el("div", "", "radio-modes");
   modes.append(sources.all, sources.playlist, loopSong, loopPlaylist);
 
-  const mixer = element("div", "radio-mixer");
+  const mixer = el("div", "", "radio-mixer");
   for (const channel of CHANNELS) {
     const label = channel === "music" ? "Music" : "Effects";
-    const row = element("label", "", `${label} volume`);
-    const slider = element("input");
+    const row = el("label", `${label} volume`);
+    const slider = el("input");
     slider.type = "range";
     slider.min = "0";
     slider.max = "100";
@@ -627,11 +615,7 @@ export function createGameAudio(
       setVolume(channel, Number(slider.value) / 100),
     );
     row.append(slider);
-    const mute = element(
-      "button",
-      "radio-toggle",
-      `Mute ${label.toLowerCase()}`,
-    );
+    const mute = el("button", `Mute ${label.toLowerCase()}`, "radio-toggle");
     mute.type = "button";
     const renderMute = () => {
       const pressed = String(settings.muted[channel]);
@@ -646,9 +630,9 @@ export function createGameAudio(
     mixer.append(row, mute);
   }
 
-  const tracks = element("ol", "radio-tracks"),
-    playlist = element("ol", "radio-tracks"),
-    playlistHeading = element("h3");
+  const tracks = el("ol", "", "radio-tracks"),
+    playlist = el("ol", "", "radio-tracks"),
+    playlistHeading = el("h3");
   const trackRow = (id: TrackId, source: RadioSource) => {
     const { title: name } = trackById(id);
     const listed = director.state.playlist.includes(id);
@@ -656,7 +640,7 @@ export function createGameAudio(
       director.play(id, source),
     );
     if (director.state.track === id) play.setAttribute("aria-current", "true");
-    const edit = element("button", "radio-track-edit", listed ? "−" : "+");
+    const edit = el("button", listed ? "−" : "+", "radio-track-edit");
     edit.type = "button";
     const editLabel = listed
       ? `Remove ${name} from playlist`
@@ -665,7 +649,7 @@ export function createGameAudio(
     edit.title = editLabel;
     edit.setAttribute("aria-pressed", String(listed));
     edit.addEventListener("click", () => director.togglePlaylist(id));
-    const row = element("li");
+    const row = el("li");
     row.append(play, edit);
     return row;
   };
@@ -674,11 +658,11 @@ export function createGameAudio(
     enable,
     modes,
     mixer,
-    element("h3", "", "TRACKS"),
+    el("h3", "TRACKS"),
     tracks,
     playlistHeading,
     playlist,
-    element("small", "radio-hint", RADIO_SHORTCUT_HINT),
+    el("small", RADIO_SHORTCUT_HINT, "radio-hint"),
   );
 
   const renderTime = () => {
@@ -731,10 +715,10 @@ export function createGameAudio(
         ...(state.playlist.length
           ? state.playlist.map((id) => trackRow(id, "playlist"))
           : [
-              element(
+              el(
                 "li",
-                "radio-empty",
                 "Add tracks with + to build your playlist.",
+                "radio-empty",
               ),
             ]),
       );

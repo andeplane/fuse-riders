@@ -39,6 +39,7 @@ There is one tick driver. `driveGameTick` (`src/engine/tick-driver.ts`) is a tic
 | `packages/fuse-network-fe/`                                                           | Game-agnostic WebRTC mesh, room API/socket client, link health, ICE recovery and diagnostics                        |
 | `packages/fuse-network-be/`                                                           | Game-agnostic room admission, metadata, signalling gateway and backend adapters                                     |
 | `packages/fuse-network-protocol/`                                                     | Shared networking wire contract and authority validation                                                            |
+| `packages/fuse-ui/`                                                                   | Shared menus and styles: neon CSS tokens, the element factory, landing, lobby, dialog and controller components     |
 | `src/service/`                                                                        | Game entry points and optional account/history routes composed with the networking service                          |
 | `src/service/history*.ts`, `firestore-history.ts`, `memory-history.ts`, `identity.ts` | Completed-match history, storage adapters and account identity verification                                         |
 

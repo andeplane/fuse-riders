@@ -22,7 +22,7 @@
   white-space: nowrap;
   color: #d5e4f5;
   background: var(--ui-surface);
-  border: 0.0625rem solid #365477;
+  border: var(--fui-border);
   border-radius: var(--ui-radius);
   box-shadow:
     var(--ui-edge),
@@ -33,7 +33,7 @@
   :is(.landing-top, .online-header)
   .game-top-menu
   button:focus-visible {
-  color: #eefaff;
+  color: var(--fui-text);
   border-color: #00dfff;
 }
 .online-app
@@ -41,7 +41,7 @@
   .game-top-menu
   button[data-muted="true"] {
   color: #ffa6c9;
-  border-color: #ff72b3;
+  border-color: var(--fui-pink-soft);
 }
 .online-app
   :is(.landing-top, .online-header)
@@ -49,7 +49,7 @@
   button[data-signed-in="true"],
 .online-app > .player-account[data-signed-in="true"] {
   color: #9ff5ff;
-  border-color: #16e7ff;
+  border-color: var(--fui-cyan);
 }
 .online-app .online-header .room-brand {
   flex: 0 0 auto;
@@ -105,7 +105,7 @@
   position: fixed;
   top: max(0.5rem, env(safe-area-inset-top));
   right: max(5.5rem, calc(env(safe-area-inset-right) + 5rem));
-  z-index: 70;
+  z-index: var(--fui-z-menu);
   min-height: 2.5rem;
   max-width: 28vw;
   overflow: hidden;

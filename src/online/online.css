@@ -5,7 +5,7 @@
   gap: 0.5rem;
   padding: 0.75rem;
   box-sizing: border-box;
-  --player-color: #00d9ff;
+  --player-color: var(--fui-cyan-deep);
   overflow: hidden;
 }
 .online-app button,
@@ -14,15 +14,15 @@
   font: inherit;
   font-size: 1rem;
   min-height: 2.75rem;
-  color: #eefaff;
+  color: var(--fui-text);
   background: var(--ui-surface);
-  border: 0.0625rem solid #365477;
+  border: var(--fui-border);
   border-radius: var(--ui-radius);
   padding: 0.5rem;
 }
 .online-app button {
   cursor: pointer;
-  border-color: color-mix(in srgb, var(--player-color) 40%, #365477);
+  border-color: color-mix(in srgb, var(--player-color) 40%, var(--fui-line));
   background: var(--ui-button-fill);
   box-shadow: var(--ui-edge);
 }
@@ -47,7 +47,7 @@
   width: 100%;
 }
 .online-home h1 {
-  color: #00d9ff;
+  color: var(--fui-cyan-deep);
   font-family: "Press Start 2P";
   font-size: 1.75rem;
 }
@@ -68,7 +68,7 @@
   flex: 1;
   object-fit: contain;
   border: 0;
-  background: #030919;
+  background: var(--fui-ink);
 }
 .online-notice {
   text-align: center;
@@ -102,15 +102,15 @@
 }
 .online-controls button.active {
   background: var(--player-color);
-  color: #030919;
+  color: var(--fui-ink);
 }
 .online-app [hidden] {
   display: none !important;
 }
 .online-app dialog {
   background: #08152b;
-  color: #eefaff;
-  border: 0.0625rem solid #00d9ff;
+  color: var(--fui-text);
+  border: 0.0625rem solid var(--fui-cyan-deep);
   max-height: 85dvh;
   width: min(30rem, 85vw);
   overflow: auto;
@@ -132,7 +132,7 @@
   margin: 0.5rem 0;
 }
 .online-app dialog a {
-  color: #00d9ff;
+  color: var(--fui-cyan-deep);
 }
 @media (orientation: landscape) and (max-height: 550px) {
   .online-app {
@@ -238,7 +238,7 @@
   gap: 0.375rem;
   padding: 0.125rem 0.25rem 0.375rem;
   border-bottom: 0.0625rem solid #18305a;
-  z-index: 20;
+  z-index: var(--fui-z-bar);
 }
 .desktop-game .room-brand {
   font-size: clamp(0.75rem, 1.2vw, 1.25rem);
@@ -344,7 +344,7 @@
 }
 .online-shot-error {
   position: fixed;
-  z-index: 50;
+  z-index: var(--fui-z-alert);
   top: 4.5rem;
   left: 50%;
   transform: translateX(-50%);
@@ -425,7 +425,7 @@
 .landing-top .landing-audio[data-muted="true"],
 .landing-top .landing-mute[data-muted="true"] {
   color: #ffa6c9;
-  border-color: #ff72b3;
+  border-color: var(--fui-pink-soft);
 }
 .landing-brand {
   font:
@@ -461,8 +461,8 @@
   display: inline-block;
   width: 0.4375rem;
   height: 0.4375rem;
-  background: #b6ff4d;
-  box-shadow: 0 0 0.875rem #b6ff4d;
+  background: var(--fui-lime);
+  box-shadow: 0 0 0.875rem var(--fui-lime);
 }
 .landing h1 {
   font-family: "Press Start 2P", monospace;
@@ -498,7 +498,7 @@
   box-shadow:
     var(--ui-edge),
     0 0.375rem 1.5rem #00d9ff33;
-  border: 0.125rem solid #16e7ff;
+  border: 0.125rem solid var(--fui-cyan);
   transition: transform 0.15s;
   max-width: 33.125rem;
   box-sizing: border-box;
@@ -583,7 +583,7 @@
   right: 6vw;
   bottom: 20vh;
   padding: 0.9375rem 1.25rem;
-  border: 0.0625rem solid #365477;
+  border: var(--fui-border);
   border-radius: var(--ui-panel-radius);
   background: var(--ui-surface);
   box-shadow:
@@ -774,7 +774,7 @@
   margin: 1.125rem 0 0.375rem;
   font-size: 0.75rem;
   letter-spacing: 0.0625rem;
-  color: #16e7ff;
+  color: var(--fui-cyan);
   text-transform: uppercase;
 }
 .dialog-body .shortcut-group:first-of-type {
@@ -787,14 +787,14 @@
   margin: 0;
 }
 .dialog-body .shortcut-list dt {
-  color: #eefaff;
+  color: var(--fui-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8125rem;
   white-space: nowrap;
 }
 .dialog-body .shortcut-list dd {
   margin: 0;
-  color: #b6cce3;
+  color: var(--fui-text-muted);
   font-size: 0.8125rem;
 }
 @media (max-width: 400px) {
@@ -833,7 +833,7 @@
   min-width: 6.25rem;
   min-height: 2.875rem;
   font-size: 0.9375rem;
-  border-color: #ff72b3;
+  border-color: var(--fui-pink-soft);
   background: #3b1734;
 }
 .dialog-body {
@@ -924,12 +924,12 @@
   width: 100%;
   min-height: 2.75rem;
   padding: 0;
-  accent-color: #00d9ff;
+  accent-color: var(--fui-cyan-deep);
   touch-action: pan-y;
 }
 .game-dialog .audio-panel button[aria-pressed="true"] {
   background: #4d2041;
-  border-color: #ff72b3;
+  border-color: var(--fui-pink-soft);
 }
 @media (max-width: 400px) {
   .dialog-body {
@@ -999,12 +999,12 @@
   font:
     clamp(1.5rem, 5vw, 4rem) "Press Start 2P",
     monospace;
-  color: #00d9ff;
+  color: var(--fui-cyan-deep);
 }
 .shared-lobby p {
   max-width: 16.25rem;
   line-height: 1.6;
-  color: #b6cce3;
+  color: var(--fui-text-muted);
   font-size: 0.875rem;
 }
 @media (max-width: 700px) {
@@ -1165,7 +1165,7 @@
   text-shadow: 0 0 0.9375rem #00a9ff;
 }
 .room-brand span:first-child {
-  color: #00d9ff;
+  color: var(--fui-cyan-deep);
 }
 .room-brand span:last-child {
   color: #ff318e;
@@ -1212,14 +1212,14 @@
   width: min(72.5rem, 100%);
   box-sizing: border-box;
   min-height: 28.75rem;
-  border: 0.125rem solid #6544c2;
+  border: 0.125rem solid var(--fui-violet);
   border-radius: var(--ui-panel-radius);
   background: linear-gradient(135deg, #091531, #040919);
   box-shadow: 0 0 1.625rem #4035ca26;
   align-items: center;
 }
 .room-lobby .room-eyebrow {
-  color: #16e7ff;
+  color: var(--fui-cyan);
   font-size: 0.6875rem;
   font-weight: bold;
   letter-spacing: 0.125rem;
@@ -1229,7 +1229,7 @@
     clamp(1.5rem, 3.5vw, 3rem)/1.35 "Press Start 2P",
     monospace;
   letter-spacing: -0.0625rem;
-  color: #eefaff;
+  color: var(--fui-text);
   text-shadow: 0.3125rem 0.3125rem #192755;
   margin: 1rem 0 1.5rem;
 }
@@ -1246,7 +1246,7 @@
 }
 .room-qr-card {
   background: #eefbff;
-  border: 0.25rem solid #00d9ff;
+  border: 0.25rem solid var(--fui-cyan-deep);
   box-shadow: 0 0 1.875rem #00d9ff55;
   padding: 0.875rem;
   text-align: center;
@@ -1274,7 +1274,7 @@
   font:
     1.375rem "Press Start 2P",
     monospace;
-  color: #0b1933;
+  color: var(--fui-deep);
   letter-spacing: 0.1875rem;
 }
 .room-qr-link {
@@ -1292,7 +1292,7 @@
     SFMono-Regular,
     Menlo,
     monospace;
-  color: #0b1933;
+  color: var(--fui-deep);
   line-height: 1.5;
   overflow-wrap: anywhere;
   user-select: all;
@@ -1303,19 +1303,19 @@
   font-size: 0.625rem;
   letter-spacing: 0.125rem;
   font-weight: 900;
-  border: 0.125rem solid #0b1933;
+  border: 0.125rem solid var(--fui-deep);
   border-radius: var(--ui-radius);
-  background: #0b1933;
+  background: var(--fui-deep);
   color: #eefbff;
   cursor: pointer;
 }
 .room-qr-card .room-qr-copy:hover {
-  background: #00d9ff;
-  color: #0b1933;
+  background: var(--fui-cyan-deep);
+  color: var(--fui-deep);
 }
 .room-qr-card .room-qr-copy.copied {
-  background: #00d9ff;
-  color: #0b1933;
+  background: var(--fui-cyan-deep);
+  color: var(--fui-deep);
 }
 .room-riders {
   display: grid;
@@ -1349,7 +1349,7 @@
   font-size: 0.9375rem;
   text-transform: uppercase;
   overflow-wrap: anywhere;
-  color: #eefaff;
+  color: var(--fui-text);
 }
 .room-rider small {
   display: block;
@@ -1410,13 +1410,13 @@
   gap: 0.4375rem;
   align-items: center;
   padding: 0.5rem;
-  border: 0.0625rem solid #365477;
+  border: var(--fui-border);
   font-size: 0.8125rem;
   cursor: pointer;
   background: var(--ui-surface);
 }
 .landing-mode label:has(input:checked) {
-  border-color: #16e7ff;
+  border-color: var(--fui-cyan);
   background: var(--ui-cyan-fill);
   color: #03253d;
   font-weight: 700;
@@ -1584,7 +1584,7 @@
   box-shadow: none;
   filter: blur(10px) brightness(0.45);
   pointer-events: none;
-  z-index: -1;
+  z-index: var(--fui-z-scene);
 }
 .online-app.scene-background .shared-lobby {
   background: transparent;
@@ -1929,7 +1929,7 @@
   overflow-wrap: anywhere;
 }
 .match-recap-report .recap-total small {
-  color: #7c93b8;
+  color: var(--fui-text-dim);
   font-size: 0.625rem;
   letter-spacing: 0.0625rem;
 }
@@ -2067,14 +2067,14 @@
   justify-content: center;
   gap: 1rem;
   text-align: center;
-  color: #b6cce3;
+  color: var(--fui-text-muted);
 }
 .room-boot-title {
   font:
     0.75rem/1 "Press Start 2P",
     monospace;
   letter-spacing: 0.1875rem;
-  color: #00d9ff;
+  color: var(--fui-cyan-deep);
 }
 .room-boot-note {
   font-size: 0.8125rem;
@@ -2104,8 +2104,8 @@
 .room-over-home {
   display: inline-block;
   padding: 0.625rem 1rem;
-  border: 0.125rem solid #00d9ff;
-  color: #00d9ff;
+  border: 0.125rem solid var(--fui-cyan-deep);
+  color: var(--fui-cyan-deep);
   text-decoration: none;
   font-size: 0.75rem;
   letter-spacing: 0.125rem;
@@ -2139,21 +2139,21 @@
 .room-riders .online-join {
   grid-template-columns: minmax(0, 1fr);
   padding: 0.875rem;
-  border: 0.125rem solid #00d9ff;
+  border: 0.125rem solid var(--fui-cyan-deep);
   background: #091b32;
   box-shadow: 0 0 1.25rem #00d9ff20;
 }
 .room-riders .lobby-join-title {
   display: block;
   margin: 0 0 0.25rem;
-  color: #16e7ff;
+  color: var(--fui-cyan);
   font-size: 0.8125rem;
   font-weight: bold;
   letter-spacing: 0.08em;
 }
 .room-riders .online-join > button:not(.avatar-current) {
   min-height: 2.75rem;
-  background: #00d9ff;
+  background: var(--fui-cyan-deep);
   color: #061126;
   font-weight: bold;
 }
@@ -2174,7 +2174,7 @@
   min-height: 2.75rem;
   padding: 0.25rem 0.625rem;
   text-align: left;
-  border-color: #365477;
+  border-color: var(--fui-line);
   font-size: 0.8125rem;
 }
 .online-join .avatar-current .avatar-portrait {
@@ -2185,8 +2185,8 @@
 .online-join .avatar-change {
   margin-left: auto;
   padding: 0.25rem 0.5rem;
-  border: 0.0625rem solid #16e7ff;
-  color: #16e7ff;
+  border: 0.0625rem solid var(--fui-cyan);
+  color: var(--fui-cyan);
   font-size: 0.6875rem;
   letter-spacing: 0.0625rem;
 }
@@ -2218,14 +2218,14 @@
   gap: 0.75rem;
   padding: 1rem;
   text-align: center;
-  color: #b6cce3;
+  color: var(--fui-text-muted);
 }
 .room-join .online-join {
   width: min(27.5rem, 100%);
   text-align: left;
 }
 .room-join .room-eyebrow {
-  color: #16e7ff;
+  color: var(--fui-cyan);
   font-size: 0.6875rem;
   font-weight: bold;
   letter-spacing: 0.125rem;
@@ -2248,7 +2248,7 @@
   position: fixed;
   left: 0.5rem;
   bottom: 0.5rem;
-  z-index: 60;
+  z-index: var(--fui-z-panel);
   margin: 0;
   padding: 0.375rem 0.5rem;
   font: 0.6875rem/1.45 monospace;
@@ -2429,7 +2429,7 @@
   padding: 0.875rem 0;
   font-size: 0.75rem;
   border: 0;
-  color: #7c93b8;
+  color: var(--fui-text-dim);
   text-align: center;
 }
 .online-app.phone-lobby .room-lobby-footer {
@@ -2456,16 +2456,16 @@
   grid-column: 1/-1;
   min-height: 3.375rem;
   font-size: 0.9375rem;
-  background: #00d9ff;
-  color: #030919;
-  border-color: #00d9ff;
+  background: var(--fui-cyan-deep);
+  color: var(--fui-ink);
+  border-color: var(--fui-cyan-deep);
 }
 .online-app.phone-lobby
   .room-lobby-footer
   .online-host
   button:first-child:disabled {
   background: #08152b;
-  color: #eefaff;
+  color: var(--fui-text);
 }
 .online-app.phone-lobby .room-lobby-footer .online-host button[hidden] {
   display: none;
@@ -2506,7 +2506,7 @@
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  z-index: 40;
+  z-index: var(--fui-z-announce);
   display: grid;
   gap: 0.5rem;
   justify-items: center;
@@ -2515,7 +2515,7 @@
   max-width: min(92vw, 45rem);
   box-sizing: border-box;
   background: #020715db;
-  border: 0.1875rem solid #ff2e9d;
+  border: 0.1875rem solid var(--fui-pink);
   box-shadow: 0 0 2.5rem #ff2e9d61;
   pointer-events: none;
 }
@@ -2523,20 +2523,20 @@
   display: none !important;
 }
 .online-announce .announce-small {
-  color: #00d9ff;
+  color: var(--fui-cyan-deep);
   font-weight: 900;
   letter-spacing: 0.18em;
   font-size: 0.75rem;
 }
 .online-announce strong {
   display: block;
-  font-family: "Press Start 2P", ui-monospace, monospace;
+  font-family: var(--fui-font-pixel);
   font-size: clamp(1.375rem, 4.5vw, 3.5rem);
   line-height: 1.2;
   color: #fff;
   text-shadow:
     0.3125rem 0.3125rem 0 #842562,
-    0 0 1.375rem #ff2e9d;
+    0 0 1.375rem var(--fui-pink);
   overflow-wrap: anywhere;
 }
 .online-announce.countdown strong {
@@ -2549,9 +2549,9 @@
 .online-announce.countdown .announce-small,
 .online-announce.countdown .announce-hint {
   text-shadow:
-    0 0 0.25rem #020715,
-    0 0 0.5rem #020715,
-    0 0.0625rem 0 #020715;
+    0 0 0.25rem var(--fui-navy),
+    0 0 0.5rem var(--fui-navy),
+    0 0.0625rem 0 var(--fui-navy);
 }
 .online-announce .announce-rows {
   display: flex;
@@ -2566,7 +2566,7 @@
 }
 .online-announce .announce-hint {
   margin: 0;
-  color: #ffe46b;
+  color: var(--fui-yellow);
   font-size: 0.6875rem;
   letter-spacing: 0.08em;
   max-width: 32.5rem;
@@ -2589,17 +2589,17 @@
 /* The match result follows the final round's own card in the same spot: gold, and a keyframe name of its own so the
    card pops a second time rather than only changing its words. */
 .online-announce.final {
-  border-color: #ffe46b;
+  border-color: var(--fui-yellow);
   box-shadow: 0 0 3rem #ffe46b7a;
   animation: announce-crown 0.5s ease-out;
 }
 .online-announce.final .announce-small {
-  color: #ffe46b;
+  color: var(--fui-yellow);
 }
 .online-announce.final strong {
   text-shadow:
     0.3125rem 0.3125rem 0 #8a6a12,
-    0 0 1.375rem #ffe46b;
+    0 0 1.375rem var(--fui-yellow);
 }
 .online-announce.round {
   animation: announce-pop 0.3s ease-out;
@@ -2611,7 +2611,7 @@
   font-weight: 900;
   letter-spacing: 0.0625rem;
   background: var(--player-color);
-  color: #030919;
+  color: var(--fui-ink);
   border-color: #fff;
   box-shadow: 0 0 1.125rem
     color-mix(in srgb, var(--player-color) 60%, transparent);
@@ -2649,7 +2649,7 @@
   left: 50%;
   top: max(6rem, 14vh);
   transform: translateX(-50%);
-  z-index: 39;
+  z-index: var(--fui-z-feed);
   display: grid;
   gap: 0.25rem;
   justify-items: center;
@@ -2761,7 +2761,7 @@
 }
 .desktop-game .online-host button:first-child:not(:disabled) {
   background: var(--player-color);
-  color: #030919;
+  color: var(--fui-ink);
   font-weight: 900;
   letter-spacing: 0.0625rem;
   border-color: #fff;
@@ -2771,7 +2771,7 @@
   top: calc(100% + 0.5rem);
 }
 .online-app .landing-rejoin {
-  border-color: #b6ff4d;
+  border-color: var(--fui-lime);
   color: #e6ffc6;
   white-space: nowrap;
 }
@@ -2824,20 +2824,20 @@
   overflow-wrap: anywhere;
 }
 .session-row b {
-  color: #ffe46b;
+  color: var(--fui-yellow);
 }
 .session-row strong {
   color: #fff;
 }
 .session-row small {
   grid-column: 2/-1;
-  color: #7c93b8;
+  color: var(--fui-text-dim);
   font-size: 0.625rem;
   letter-spacing: 0.0625rem;
 }
 .session-key {
   margin: 0;
-  color: #7c93b8;
+  color: var(--fui-text-dim);
   font-size: 0.6875rem;
 }
 /* Avatar dialog: labels never split mid-word; avatars other riders wear are marked. */
@@ -2886,12 +2886,12 @@
   padding: 0.625rem 1.125rem;
   background: #030d1fe8;
   border: 0.0625rem solid var(--player-color);
-  color: #eefaff;
+  color: var(--fui-text);
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-align: center;
   pointer-events: none;
-  z-index: 25;
+  z-index: var(--fui-z-hint);
   animation: key-hint-fade 3.5s ease-out forwards;
 }
 @keyframes key-hint-fade {
@@ -2924,7 +2924,7 @@
 /* Compact personal progression; arena labels carry opponents' levels. */
 .online-power-status {
   position: fixed;
-  z-index: 8;
+  z-index: var(--fui-z-overlay);
   left: 50%;
   bottom: max(0.625rem, env(safe-area-inset-bottom));
   transform: translateX(-50%);
@@ -2951,13 +2951,13 @@
 }
 .settings-list > button[data-muted="true"] {
   color: #8ba3c0;
-  border-color: #365477;
+  border-color: var(--fui-line);
 }
 .settings-list .settings-group {
   margin: 0.625rem 0 0;
   font-size: 0.75rem;
   letter-spacing: 0.0625rem;
-  color: #16e7ff;
+  color: var(--fui-cyan);
 }
 .settings-style {
   display: grid;
@@ -2966,7 +2966,7 @@
 }
 .settings-style button[aria-pressed="true"] {
   color: #02131a;
-  background: #16e7ff;
+  background: var(--fui-cyan);
   border-color: #a6f7ff;
 }
 /* PRIVACY: this device's analytics choice. A section of the room's SETTINGS list; on the landing page a one-line
@@ -2979,7 +2979,7 @@
   margin: 0.625rem 0 0;
   font-size: 0.75rem;
   letter-spacing: 0.0625rem;
-  color: #16e7ff;
+  color: var(--fui-cyan);
 }
 .settings-privacy > button {
   width: 100%;
@@ -2987,7 +2987,7 @@
 }
 .settings-privacy > button[data-muted="true"] {
   color: #8ba3c0;
-  border-color: #365477;
+  border-color: var(--fui-line);
 }
 .settings-privacy > button:disabled {
   cursor: not-allowed;
@@ -2996,7 +2996,7 @@
   margin: 0;
   font-size: 0.8125rem;
   line-height: 1.5;
-  color: #b6cce3;
+  color: var(--fui-text-muted);
 }
 /* Two lines reserved, so switching on and off never moves the button above it. */
 .settings-reason {
@@ -3034,7 +3034,7 @@
   display: none;
 }
 .settings-privacy.dialog-foot > summary:focus-visible {
-  outline: 0.125rem solid #16e7ff;
+  outline: 0.125rem solid var(--fui-cyan);
   outline-offset: 0.125rem;
 }
 
@@ -3048,7 +3048,7 @@
     0.5rem/1 "Press Start 2P",
     ui-monospace,
     monospace;
-  color: #7c93b8;
+  color: var(--fui-text-dim);
   flex: 0 0 auto;
 }
 .online-score-card.leader::before {
@@ -3056,7 +3056,7 @@
   font-size: 0.75rem;
 }
 .online-roster .online-score-card.leader {
-  border-color: #ffe46b;
+  border-color: var(--fui-yellow);
   box-shadow:
     0 0 0.75rem #ffe46b55,
     inset 0 0 0.75rem #ffe46b1f;
@@ -3094,7 +3094,7 @@
   content: "STANDINGS";
   font-size: 0.625rem;
   letter-spacing: 0.16em;
-  color: #16e7ff;
+  color: var(--fui-cyan);
   font-weight: 900;
   order: 0;
   padding: 0 0 0.25rem;
@@ -3139,7 +3139,7 @@
   gap: 0.125rem;
 }
 .side-standings > .online-roster .online-score-points {
-  color: #eefaff;
+  color: var(--fui-text);
   font-size: 0.625rem;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3168,7 +3168,7 @@
 /* The column is opaque to the bottom so a replay zoom cannot bleed under it, names keep their ellipsis, and everything centred over the arena follows the arena rather than the window. */
 .side-standings > .online-roster {
   bottom: 0;
-  background: #030919;
+  background: var(--fui-ink);
   overflow: auto;
 }
 .side-standings > .online-roster .online-score-label {
@@ -3185,7 +3185,7 @@
 .voice-settings {
   display: grid;
   gap: 10px;
-  border-top: 1px solid #365477;
+  border-top: 1px solid var(--fui-line);
   padding-top: 12px;
   min-width: 0;
 }

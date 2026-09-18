@@ -1,3 +1,4 @@
+import { elementsFor } from "fuse-ui";
 import type { MatchPlayerStats } from "../engine/match-stats.js";
 import type { Moment } from "../engine/moments.js";
 import {
@@ -19,16 +20,7 @@ export function renderMatchRecap(
   },
   document: Document = window.document,
 ): HTMLElement {
-  function node<K extends keyof HTMLElementTagNameMap>(
-    tag: K,
-    text = "",
-    className = "",
-  ): HTMLElementTagNameMap[K] {
-    const element = document.createElement(tag);
-    element.textContent = text;
-    element.className = className;
-    return element;
-  }
+  const node = elementsFor(document);
 
   const recap = buildMatchRecap(stats, moments);
   const root = node("section", "", "match-recap-report");

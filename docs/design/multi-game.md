@@ -21,7 +21,7 @@ packages/
   net-signal/         today's fuse-network-be: room admission, signalling
   net-protocol/       today's fuse-network-protocol
   netcode/            input log, lockstep and rollback, snapshot recovery, clock
-  ui/                 landing, join form, lobby and QR, dialogs, settings shell, neon CSS tokens
+  fuse-ui/            landing, name entry, lobby and QR, dialogs, controller row, neon CSS tokens (first cut built)
   platform-backend/   identity, match history and settlement, Elo and ratings, leaderboards, storage adapters
   platform-web/       analytics, safe storage, audio unlock, voice chat
 service/              the one deployed entry: composes net-signal and platform-backend with every game's registration
@@ -78,9 +78,14 @@ Extracting Fuse Riders behind the contract must be `[hash-identical]`: `RULES` d
 
 ## Menus and styles
 
-`packages/ui` owns the screens every game has: landing, join form, avatar, lobby with a QR code, room settings dialog shell, account panel, recap frame, status notices, the neon/pixel tokens (colours, font, z-index scale) and the shared-screen/phone-controller layout switch. A game supplies its settings fields, its arena view and its recap content.
+`packages/fuse-ui` holds the shared menus and styles. Its first cut is built; see [its README](../../packages/fuse-ui/README.md).
 
-The prerequisite from #255 landed in #350: `RoomScreen` and the room presenter now make screen state explicit. Extract the shared UI from those boundaries; the remaining `src/online/ui.ts` wiring and CSS still need to be separated from arena-specific behavior.
+- **Tokens.** `tokens.css` defines the neon palette, the Press Start 2P stack, spacing, borders and glow, and a named z-index scale as `--fui-*` custom properties. The values are the ones Fuse Riders already drew. Fuse imports the file first (`src/client/main.ts`); its own `--cyan`, `--ui-*` names are now aliases of the tokens, and its stylesheets read the tokens wherever the value was identical. Before and after screenshots of the landing, the settings dialog and the lobby match pixel for pixel.
+- **DOM.** One element factory, `el(tag, text, className, document?)`, replaces the eight local copies #255 found; text goes in through `textContent` only. `copyText` and `closeOnBackdrop` moved in with it.
+- **Components.** Small functions that return elements: `createLandingCard` (title, CREATE ROOM, join by code, SOLO), `createJoinByCode`, `createLobby` (invite card with QR, code and COPY LINK; roster with name, avatar, status and HOST; START for whoever may start), `createInviteCard`, `createRoster`, `createNameEntry`, `createNotice` (status line or toast), `createDialog` (title bar, CLOSE, body) and `createControllerRow` (big touch buttons). Each takes an optional `document`, so the package tests run on `linkedom`. Default classes are `fui-*`, styled by `components.css`; a `classes` option renames any part, which is how Fuse keeps its own class names and stylesheet.
+- **What Fuse Riders uses.** The factory everywhere, the join-by-code row on its landing page, both dialogs (landing SETTINGS and the in-room menu), the lobby invite card and rider list, and the controller row. Its landing page, lobby shell (copy, footer, host actions), join form (avatar picker, account name), standings and status line stay in `src/online/ui.ts`.
+
+Still to do: move Fuse's copies of the component rules from `online.css` into `components.css` so both games load one stylesheet; adopt `createNameEntry` in `join-form.ts` once the avatar picker is a slot; the account panel, recap frame and room settings shell; and the shared-screen/phone layout switch (`room-screen.ts`, `mobile-play-layout.css`).
 
 ## The dice game
 
@@ -93,7 +98,7 @@ It is small on purpose. It proves the parts of the contract Fuse Riders never ex
 - **Shared randomness.** Dice come from the seeded RNG in the room state, so every replica rolls the same number. That also means any member can compute upcoming rolls. This fits the trust model (every member is trusted with the shared log), and the template documents it.
 - **The whole stack.** Solo against bots, an online room, shared screen with the TV at `?room=CODE&display=1` and phones as roll/hold buttons, a refreshed device recovering from a peer, and rated rounds.
 
-It renders with DOM and CSS from `packages/ui`, not Phaser, which shows a game can skip Phaser entirely. `scripts/new-game.ts <id>` copies `games/dice` to start a new game.
+It renders with DOM and CSS from `packages/fuse-ui`, not Phaser, which shows a game can skip Phaser entirely. `scripts/new-game.ts <id>` copies `games/dice` to start a new game.
 
 ## Order of work
 
@@ -103,7 +108,7 @@ It renders with DOM and CSS from `packages/ui`, not Phaser, which shows a game c
 | 2   | `packages/netcode` behind `RollbackGame`, hash-identical                                     | 2–3 sessions | #254 view contract (PR #332) |
 | 3   | `packages/platform-backend`: history and Elo keyed by `gameId`; Fuse Riders stats registered | 2 sessions   | —                            |
 | 4   | `games/dice` against netcode and backend, with a minimal UI                                  | 1–2 sessions | 2, 3                         |
-| 5   | `packages/ui` and CSS tokens; dice and Fuse Riders both use it                               | 2–3 sessions | #255                         |
+| 5   | `packages/fuse-ui` and CSS tokens; dice and Fuse Riders both use it                          | 2–3 sessions | #255                         |
 | 6   | `git mv src games/fuse-riders`, one mechanical PR                                            | 1 session    | a quiet pull-request queue   |
 
 The dice game comes before the UI package so the contract is proven early, with a plain UI for now. The folder move is last because it conflicts with every open branch. Extracting packages while the game stays in `src/` keeps each diff small and lets this run alongside epic #259.

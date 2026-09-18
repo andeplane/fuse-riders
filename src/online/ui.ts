@@ -59,6 +59,14 @@ import { NetStats } from "./net-stats.js";
 import { Telemetry, telemetryEndpoint } from "./telemetry.js";
 import type { AvatarId } from "../shared/avatars.js";
 import QRCode from "qrcode";
+import {
+  el as node,
+  createControllerRow,
+  createDialog,
+  createInviteCard,
+  createJoinByCode,
+  createRoster,
+} from "fuse-ui";
 import "./online.css";
 import "./top-menu.css";
 import { formatNetStats } from "./net-stats.js";
@@ -88,41 +96,14 @@ const LAST_ROOM_KEY = "fuse-last-room";
 const reducedMotion = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 const storage = safeStorage(() => localStorage);
-const node = <K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  text = "",
-  className = "",
-) => {
-  const e = document.createElement(tag);
-  e.textContent = text;
-  e.className = className;
-  return e;
-};
-/** Clipboard write with an execCommand fallback. `navigator.clipboard` is secure-context only, so on an
- *  insecure origin it is undefined rather than throwing: only a write that actually ran reports success. */
-const copyText = async (text: string) => {
-  const clipboard = navigator.clipboard;
-  if (typeof clipboard?.writeText === "function") {
-    try {
-      await clipboard.writeText(text);
-      return true;
-    } catch {
-      /* Fall through to the legacy path below. */
-    }
-  }
-  const field = document.createElement("textarea");
-  field.value = text;
-  field.setAttribute("readonly", "");
-  field.style.cssText = "position:fixed;top:-1000px;opacity:0";
-  document.body.append(field);
-  field.select();
-  try {
-    return document.execCommand("copy");
-  } catch {
-    return false;
-  } finally {
-    field.remove();
-  }
+/** Fuse Riders' class names for the shared dialog shell; online.css styles them. */
+const FUSE_DIALOG_CLASSES = {
+  root: "game-dialog",
+  bar: "dialog-bar",
+  title: "",
+  actions: "dialog-actions",
+  close: "",
+  body: "dialog-body",
 };
 const labels: Record<PickupType, string> = {
   stopwatch: "Shorter fuse",
@@ -234,12 +215,7 @@ export async function startOnline(): Promise<void> {
       option.append(radio, node("span", label));
       mode.append(option);
     }
-    const create = node("button", "CREATE ROOM"),
-      join = node("button", "JOIN ROOM"),
-      input = node("input");
-    input.placeholder = "Room code";
-    input.maxLength = 10;
-    input.autocapitalize = "characters";
+    const create = node("button", "CREATE ROOM");
     const error = node("p");
     // `enter` keeps the document, so Room Created no longer needs a send-before-unload flush: nothing unloads out from
     // under the request, and the room stops waiting up to 700ms for Mixpanel before it appears.
@@ -258,21 +234,18 @@ export async function startOnline(): Promise<void> {
         create.disabled = false;
       }
     };
-    join.onclick = () => {
-      const value = input.value.trim().toUpperCase();
-      if (validRoomCode(value)) enter(`?room=${value}`);
-      else error.textContent = "Enter a room code, for example AB42";
-    };
     mode.setAttribute("aria-label", "Where will you play?");
-    input.setAttribute("aria-label", "Room code");
     error.setAttribute("role", "alert");
     const createRow = node("div", "", "landing-create");
     createRow.append(mode, create);
-    const joinRow = node("div", "", "landing-join");
-    joinRow.append(input, join);
-    input.onkeydown = (event) => {
-      if (event.key === "Enter") join.click();
-    };
+    const { row: joinRow } = createJoinByCode({
+      valid: validRoomCode,
+      onJoin: (value) => enter(`?room=${value}`),
+      onInvalid: (message) => {
+        error.textContent = message;
+      },
+      classes: { root: "landing-join", input: "", button: "" },
+    });
     // The last room this browser was in is one tap away; a closed room still lands on its ROOM CLOSED card, which forgets it.
     const lastRoom = read(LAST_ROOM_KEY);
     if (lastRoom && validRoomCode(lastRoom)) {
@@ -339,32 +312,14 @@ export async function startOnline(): Promise<void> {
     // stays disabled here because the radio buttons below choose it for the room being created.
     const landingSettings = node("button", "SETTINGS", "landing-settings");
     landingSettings.type = "button";
-    const landingDialog = node("dialog", "", "game-dialog");
-    landingDialog.setAttribute("aria-label", "Settings");
-    const landingBar = node("header", "", "dialog-bar"),
-      landingClose = node("button", "✕  CLOSE");
-    landingClose.type = "button";
-    landingClose.setAttribute("aria-label", "CLOSE");
-    landingClose.onclick = () => landingDialog.close();
-    const landingActions = node("span", "", "dialog-actions");
-    landingActions.append(landingClose);
-    landingBar.append(node("strong", "SETTINGS"), landingActions);
-    const landingBody = node("div", "", "dialog-body");
+    const { dialog: landingDialog, body: landingBody } = createDialog({
+      title: "SETTINGS",
+      label: "Settings",
+      classes: FUSE_DIALOG_CLASSES,
+    });
     // This device's privacy choice sits under the room settings draft rather than in it: it is not the room's.
     const landingPrivacy = createAnalyticsSetting({ collapsed: true });
-    landingDialog.append(landingBar, landingBody, landingPrivacy.element);
-    landingDialog.addEventListener("click", (event) => {
-      if (event.target === landingDialog) {
-        const r = landingDialog.getBoundingClientRect();
-        if (
-          event.clientX < r.left ||
-          event.clientX > r.right ||
-          event.clientY < r.top ||
-          event.clientY > r.bottom
-        )
-          landingDialog.close();
-      }
-    });
+    landingDialog.append(landingPrivacy.element);
     // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
     // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
     landingSettings.onclick = () => {
@@ -720,80 +675,56 @@ export async function startOnline(): Promise<void> {
     node("p", "STEER  ◀ ▶     HOLD · AIM · RELEASE", "room-howto"),
   );
   const joinLink = new URL(appUrl(`?room=${code}`), location.origin).href;
-  const qrCard = node("div", "", "room-qr-card"),
-    lobbyQr = node("img");
-  lobbyQr.alt = "Scan to join this room";
   // The link lives next to the QR so a rider who cannot scan can still be handed the room: one tap copies it, and the label reports back.
-  const linkRow = node("div", "", "room-qr-link"),
-    linkText = node("span", joinLink, "room-qr-url"),
-    copyLink = node("button", "COPY LINK", "room-qr-copy");
-  copyLink.type = "button";
-  copyLink.title = "Copy the join link";
-  linkRow.append(linkText, copyLink);
-  let copyReset = 0;
-  copyLink.onclick = async () => {
-    const copied = await copyText(joinLink);
-    copyLink.textContent = copied ? "COPIED" : "COPY FAILED";
-    copyLink.classList.toggle("copied", copied);
-    clearTimeout(copyReset);
-    copyReset = window.setTimeout(() => {
-      copyLink.textContent = "COPY LINK";
-      copyLink.classList.remove("copied");
-    }, 1600);
-  };
-  qrCard.append(
-    lobbyQr,
-    node("p", "SCAN TO JOIN"),
-    node("strong", code, "shared-room-code"),
-    ...(solo ? [] : [linkRow]),
-  );
+  const { element: qrCard } = createInviteCard({
+    code,
+    link: joinLink,
+    showLink: !solo,
+    ...(solo ? {} : { qr: (link: string) => QRCode.toDataURL(link) }),
+    classes: {
+      root: "room-qr-card",
+      qr: "",
+      caption: "",
+      code: "shared-room-code",
+      link: "room-qr-link",
+      url: "room-qr-url",
+      copy: "room-qr-copy",
+    },
+  });
   qrCard.hidden = solo;
-  const lobbyRiders = node("div", "", "room-riders");
-  const lobbyEmpty = node(
-    "p",
-    "Your crew belongs here. Share the code to get started.",
-    "room-empty",
-  );
-  lobbyRiders.append(lobbyEmpty);
+  const lobbyRoster = createRoster({
+    emptyText: "Your crew belongs here. Share the code to get started.",
+    avatar: (avatarId) => createAvatarPortrait(avatarId as AvatarId),
+    classes: {
+      root: "room-riders",
+      empty: "room-empty",
+      row: "room-rider",
+      info: "",
+      name: "",
+      status: "",
+    },
+  });
+  const lobbyRiders = lobbyRoster.element;
   const lobbyFooter = node("footer", "", "room-lobby-footer"),
     lobbyCount = node("span", "Waiting for riders");
   lobbyFooter.append(lobbyCount);
   sharedLobby.append(lobbyCopy, qrCard, lobbyRiders, lobbyFooter);
-  const lobbyEntries = new Map<
-    string,
-    {
-      entry: HTMLElement;
-      head: HTMLElement;
-      name: HTMLElement;
-      status: HTMLElement;
-      avatar: AvatarId;
-      /** The name last written, so the frame never reads it back from the page. */
-      shown: string;
-    }
-  >();
-  if (!solo)
-    void QRCode.toDataURL(joinLink)
-      .then((data) => {
-        lobbyQr.src = data;
-      })
-      .catch(() => {
-        lobbyQr.hidden = true;
-      });
-  const controls = node("div", "", "online-controls");
-  const leftButton = node("button", "◀"),
-    fireButton = node("button", "HOLD TO FIRE"),
-    rightButton = node("button", "▶");
-  controls.append(leftButton, fireButton, rightButton);
-  controls.addEventListener("selectstart", (event) => event.preventDefault());
-  controls.addEventListener("contextmenu", (event) => event.preventDefault());
-  for (const [button, key, label] of [
-    [leftButton, "ArrowLeft A", "Steer left"],
-    [fireButton, "Space", "Hold to charge, release to fire"],
-    [rightButton, "ArrowRight D", "Steer right"],
-  ] as const) {
-    button.setAttribute("aria-keyshortcuts", key);
-    button.title = `${label} (${key})`;
-  }
+  // Pointer and keyboard input bind to these buttons through ControllerPointerBindings, not the row's own handlers.
+  const {
+    element: controls,
+    buttons: [leftButton, fireButton, rightButton],
+  } = createControllerRow({
+    className: "online-controls",
+    buttons: [
+      { label: "◀", keys: "ArrowLeft A", title: "Steer left (ArrowLeft A)" },
+      {
+        label: "HOLD TO FIRE",
+        keys: "Space",
+        title: "Hold to charge, release to fire (Space)",
+      },
+      { label: "▶", keys: "ArrowRight D", title: "Steer right (ArrowRight D)" },
+    ],
+  });
   const roster = node("div", "", "online-roster");
   const hostControls = node("div", "", "online-host");
   let startLabel = "START RACE";
@@ -821,25 +752,27 @@ export async function startOnline(): Promise<void> {
   const avatarButton = node("button", "AVATAR");
   avatarButton.hidden = true;
   header.append(avatarButton, prefsButton, menu, help);
-  const dialog = node("dialog", "", "game-dialog");
-  dialog.setAttribute("aria-label", "Game menu");
+  const {
+    dialog,
+    title: dialogTitle,
+    actions: dialogActions,
+    close,
+    body: dialogBody,
+  } = createDialog({
+    title: "GAME MENU",
+    label: "Game menu",
+    classes: { ...FUSE_DIALOG_CLASSES, close: "dialog-close" },
+  });
   // One dialog serves every menu. Which one is up is kept here, never inferred from its classes or contents:
   // the results stay "open" until the dialog closes, and the avatar picker is the node the AVATAR button mounted.
   let recapOpen = false,
     avatarPicker: HTMLElement | undefined;
-  const close = node("button", "✕  CLOSE", "dialog-close");
-  close.type = "button";
-  close.setAttribute("aria-label", "CLOSE");
-  close.onclick = () => dialog.close();
   const rematch = node("button", "REMATCH");
   rematch.type = "button";
   rematch.setAttribute("aria-label", "REMATCH");
   rematch.hidden = true;
   rematch.title = "Play the same match again";
-  const dialogActions = node("span", "", "dialog-actions");
-  dialogActions.append(rematch, close);
-  const dialogBar = node("header", "", "dialog-bar"),
-    dialogTitle = node("strong", "GAME MENU");
+  dialogActions.prepend(rematch);
   const fullStats = node("button", "View full stats ↗", "recap-stats-toggle");
   fullStats.type = "button";
   fullStats.hidden = true;
@@ -863,9 +796,7 @@ export async function startOnline(): Promise<void> {
     reset.click();
   };
   dialogActions.prepend(recapLobby);
-  dialogBar.append(dialogTitle, fullStats, dialogActions);
-  const dialogBody = node("div", "", "dialog-body");
-  dialog.append(dialogBar, dialogBody);
+  dialogTitle.after(fullStats);
   dialog.addEventListener("close", () => {
     rematch.hidden = true;
     fullStats.hidden = recapLobby.hidden = true;
@@ -876,18 +807,6 @@ export async function startOnline(): Promise<void> {
     dialog.classList.remove("recap-dialog");
     dialogTitle.textContent = "GAME MENU";
     dialog.setAttribute("aria-label", "Game menu");
-  });
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) {
-      const r = dialog.getBoundingClientRect();
-      if (
-        event.clientX < r.left ||
-        event.clientX > r.right ||
-        event.clientY < r.top ||
-        event.clientY > r.bottom
-      )
-        dialog.close();
-    }
   });
   // Desktop hides the on-screen controls entirely, so a first-timer has only the ? button. One fading reminder on the first countdown of the session.
   const keyHint = node("div", "", "key-hint");
@@ -1144,8 +1063,8 @@ export async function startOnline(): Promise<void> {
     voice.setChanged(() => {
       for (const [playerId, row] of rosterEntries)
         row.entry.dataset.voice = voice.indicator(playerId);
-      for (const [playerId, row] of lobbyEntries)
-        row.entry.dataset.voice = voice.indicator(playerId);
+      for (const [playerId, entry] of lobbyRoster.entries())
+        entry.dataset.voice = voice.indicator(playerId);
     });
   }
   prefsButton.onclick = () => {
@@ -1405,36 +1324,15 @@ export async function startOnline(): Promise<void> {
         }
       } else rejoinPending = false;
       lobbyCount.textContent = view.lobby.count;
-      lobbyEmpty.hidden = !view.lobby.empty;
-      for (const [playerId, row] of lobbyEntries)
-        if (!state.players.some((p) => p.id === playerId)) {
-          row.entry.remove();
-          lobbyEntries.delete(playerId);
-        }
-      for (const p of view.lobby.riders) {
-        let row = lobbyEntries.get(p.id);
-        if (!row) {
-          const entry = node("div", "", "room-rider"),
-            head = createAvatarPortrait(p.avatarId),
-            name = node("strong"),
-            status = node("small"),
-            info = node("div");
-          info.append(name, status);
-          entry.append(head, info);
-          row = { entry, head, name, status, avatar: p.avatarId, shown: "" };
-          lobbyEntries.set(p.id, row);
-          lobbyRiders.append(entry);
-        }
-        if (row.avatar !== p.avatarId) {
-          const head = createAvatarPortrait(p.avatarId);
-          row.head.replaceWith(head);
-          row.head = head;
-          row.avatar = p.avatarId;
-        }
-        row.entry.style.setProperty("--rider-color", p.color);
-        if (row.shown !== p.name) row.name.textContent = row.shown = p.name;
-        row.status.textContent = p.status;
-      }
+      lobbyRoster.update(
+        view.lobby.riders.map((p) => ({
+          id: p.id,
+          name: p.name,
+          status: p.status,
+          color: p.color,
+          avatar: p.avatarId,
+        })),
+      );
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
       if (
@@ -1528,7 +1426,7 @@ export async function startOnline(): Promise<void> {
           row.avatar = p.avatarId;
         }
         const removeParent = screen.lobbyCard
-          ? lobbyEntries.get(p.id)!.entry
+          ? lobbyRoster.row(p.id)!
           : row.entry;
         if (row.remove.parentElement !== removeParent)
           removeParent.append(row.remove);
@@ -1548,8 +1446,8 @@ export async function startOnline(): Promise<void> {
       voice?.setRoster(id, state.players);
       for (const [playerId, row] of rosterEntries)
         if (voice) row.entry.dataset.voice = voice.indicator(playerId);
-      for (const [playerId, row] of lobbyEntries)
-        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
+      for (const [playerId, entry] of lobbyRoster.entries())
+        if (voice) entry.dataset.voice = voice.indicator(playerId);
       roundChip.textContent = view.roundClock;
       roundChip.hidden = view.roundChipHidden;
       showAnnouncement(state, view.announcerVisible);
