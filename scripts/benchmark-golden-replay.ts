@@ -2,7 +2,7 @@
  * Times the golden mechanic recording (tests/fixtures/mechanics-recording.json) through `applyTick`, with and without
  * the per-tick canonical hash. This is the C7 evidence for issue #253: what a re-simulated tick costs a rollback.
  *
- *   npx tsx scripts/benchmark-golden-replay.ts [runs=5]
+ *   pnpm exec tsx scripts/benchmark-golden-replay.ts [runs=5]
  *
  * The engine path is resolved at run time so the same file can be copied onto a revision from before the move to
  * `src/engine/` and produce the comparable "before" number.

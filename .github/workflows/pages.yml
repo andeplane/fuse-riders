@@ -84,10 +84,11 @@ jobs:
         with:
           ref: ${{ steps.revision.outputs.sha }}
           persist-credentials: false
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
       - name: Validate public API configuration
         env:
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
@@ -98,11 +99,11 @@ jobs:
           const url = new URL(raw);
           if (url.protocol !== 'https:' || url.origin !== raw) throw new Error('VITE_API_ORIGIN must be an exact HTTPS origin without a path.');
           NODE
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
       - name: Build the checked revision for its Pages path
         env:
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
-        run: npm run build -- --base=/fuse-riders/
+        run: pnpm build --base=/fuse-riders/
       - name: Record exact frontend artifact contents
         env:
           RELEASE_REVISION: ${{ steps.revision.outputs.sha }}

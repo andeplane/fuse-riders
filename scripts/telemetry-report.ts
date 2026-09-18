@@ -1,4 +1,4 @@
-// Summarises one room's device telemetry: npx tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson
+// Summarises one room's device telemetry: pnpm exec tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson
 // Every device posts its status changes, its inputs, its game events and once a second the runtime's own metrics
 // (rollbacks, per-link round trips, stream gaps, snapshot requests, hash mismatches, the stall rule).
 import { readFileSync } from "node:fs";

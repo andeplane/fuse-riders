@@ -66,10 +66,11 @@ jobs:
         with:
           ref: ${{ steps.target.outputs.sha }}
           persist-credentials: false
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
       - run: npm ci --prefix tools/firebase
       # Keyless federation: no service-account key is stored in this repository.
       - uses: google-github-actions/auth@v2

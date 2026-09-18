@@ -15,9 +15,9 @@ The permanent rapid regression delays only theme XHR delivery by 300 ms, waits u
 Typecheck and the existing Chrome/WebKit Phaser lifecycle tests also passed after the fix, including WebGL, forced Canvas, bounded effects, GPU restoration and visible fallback. No occupied LAN server was used or restarted.
 
 ```sh
-HOME_URL=http://127.0.0.1:4188/ npx tsx scripts/home-mobile-smoke.ts
-npx tsx scripts/phaser-browser.ts
-BROWSER=webkit npx tsx scripts/phaser-browser.ts
+HOME_URL=http://127.0.0.1:4188/ pnpm exec tsx scripts/home-mobile-smoke.ts
+pnpm exec tsx scripts/phaser-browser.ts
+BROWSER=webkit pnpm exec tsx scripts/phaser-browser.ts
 ```
 
 ## Shared QR lobby and avatar bounds follow-up
@@ -29,5 +29,5 @@ A separate [short-room smoke](home-evidence/shared-room-smoke.json) passed Chrom
 Both regressions are required CI steps against the isolated local Worker. Existing online/public smoke expectations now distinguish QR lobby presentation from the active arena rather than requiring a canvas to render in the shared lobby. This evidence predates public publication of this follow-up; it is not a public deployment claim.
 
 ```sh
-ONLINE_URL=http://127.0.0.1:8796/ npx tsx scripts/shared-room-smoke.ts
+ONLINE_URL=http://127.0.0.1:8796/ pnpm exec tsx scripts/shared-room-smoke.ts
 ```

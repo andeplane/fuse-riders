@@ -26,7 +26,7 @@ These workflow rules replace older process requirements in ADRs, review notes an
 - `src/engine/` owns deterministic rules and simulation and must not import app, net or render code; its few remaining imports of `src/shared/` are pinned exactly in `tests/fixtures/layer-allowlist.json` and shrink in #254 (`src/shared/` keeps what is not simulation: wire types, avatars, ids, rating; the rider-name rule is `src/engine/rider-name.ts` because the log and the checkpoint guard apply it); `src/online/` owns online simulation coordination on top of the `fuse-network-fe` transport; `packages/` holds the game-agnostic networking libraries (`fuse-network-fe`: WebRTC mesh and room client, `fuse-network-be`: room signalling service, `fuse-network-protocol`: their shared wire contract) and must not import from `src/`; `src/service/` is the game's thin entry to `fuse-network-be` (Cloud Run in production, `src/service/dev.ts` in-memory locally and in CI); `src/client/` owns presentation and controls.
 - `src/engine/rider-motion.ts` is the shared pure motion kernel. Preserve turn-then-move fixed-step behavior and atomic agreement between applied-tick records and snapshots. Bots in `src/engine/bot-controller.ts` emit ordinary inputs and get no privileged physics.
 - Keep simulation ticks and clocks separate from rendering. Phaser may render fractional snapshot time but must not run authoritative physics, game timers or a competing render loop. Consult `docs/PHASER.md` when changing presentation timing.
-- A change to engine behaviour must bump `RULES` in `src/engine/apply-tick.ts` and refresh the golden with `npx tsx scripts/update-golden-hashes.ts --record` (about a minute) in the same commit. `tests/golden-hash.test.ts` failing without an intended behaviour change is a regression to fix, not a golden to refresh. See "When the golden fails" in `docs/design/engine-safety-net.md`.
+- A change to engine behaviour must bump `RULES` in `src/engine/apply-tick.ts` and refresh the golden with `pnpm exec tsx scripts/update-golden-hashes.ts --record` (about a minute) in the same commit. `tests/golden-hash.test.ts` failing without an intended behaviour change is a regression to fix, not a golden to refresh. See "When the golden fails" in `docs/design/engine-safety-net.md`.
 - Keep ownership and ordering of actions and outcomes explicit. Prediction or rollback must converge on consistent collisions, pickups, scores and results. When changing delivery, account for entry tick and sequence, member generation, gaps and repair, retries and cancellation. A queued send is not proof the receiver applied it.
 - Validate data at room service, WebRTC, checkpoint and storage boundaries; TypeScript types are not runtime validation. Scope actions and events to the room, authority, match and round so old messages cannot affect new play. Restore validated state atomically, leaving healthy state unchanged on rejection. Bound queues, parsers, history and recovery attempts.
 - The room service (Cloud Run in production, `src/service/dev.ts` locally) coordinates rooms; it does not simulate or relay gameplay. Direct WebRTC failure needs an explicit retry state. A room keeps running while any rider stays; a device that leaves recovers the world from a peer, and nothing is persisted locally. Every member is trusted with the shared log. Do not silently add a gameplay relay or a paid service.
@@ -47,10 +47,10 @@ These workflow rules replace older process requirements in ADRs, review notes an
 Before production deployment, run the release suite plus browser checks relevant to the release:
 
 ```sh
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
+pnpm typecheck
+pnpm test
+pnpm test:coverage
+pnpm build
 ```
 
 ## Pull requests

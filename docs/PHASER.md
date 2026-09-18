@@ -14,7 +14,7 @@ WebGL trails now use a continuous triangle ribbon and a Phaser `SinglePipeline` 
 
 `trail-ribbon.ts` builds the geometry and caches equivalent visible snapshots. This prototype rebuilds the ribbons when visible geometry changes, including fractional tip movement; it does not yet update only the moving vertices in a retained GPU buffer. Rendering uses the supplied camera matrix, the existing world mask and Phaser-owned shader/buffer resources. There is no new animation loop, physics or simulation clock. This is a visual prototype, not physical-phone performance qualification.
 
-Run `npx tsx scripts/beveled-trails-browser.ts` (also with `BROWSER=webkit`) for the isolated color/bend/cut showcase at `artifacts/beveled-trails-*.png` and pixel checks for directional shading, joined segments, cleared trails and explosion gaps. `tests/trail-ribbon.test.ts` covers topology, degenerate points, bounded joins, fractional tips, cache invalidation, death and erosion. The existing dead-rider and Phaser lifecycle browser checks cover erosion, resizing and context restoration.
+Run `pnpm exec tsx scripts/beveled-trails-browser.ts` (also with `BROWSER=webkit`) for the isolated color/bend/cut showcase at `artifacts/beveled-trails-*.png` and pixel checks for directional shading, joined segments, cleared trails and explosion gaps. `tests/trail-ribbon.test.ts` covers topology, degenerate points, bounded joins, fractional tips, cache invalidation, death and erosion. The existing dead-rider and Phaser lifecycle browser checks cover erosion, resizing and context restoration.
 
 ## Portrait arena view
 
@@ -26,7 +26,7 @@ The live CSS fit mode is read for each backing calculation, so a renderer initia
 
 Desert uses a warm copper floor with sand ripples, stepped pyramids with shaded faces and stairs, and flowering cacti. Forest uses a cool jade floor with grass/moss marks, clustered tree crowns, berry bushes and fallen trunks with growth rings, moss and flowers. City uses a plum floor with inset paving and buildings viewed from above: parapets, roof access hatches, fan housings and service conduits replace facade-style window grids. Small timber crates remain in the city. These low-contrast ground marks are decorative; the existing grid, rider colors and collision silhouettes remain unchanged.
 
-Ground detail is baked into the existing background texture only when map, size or visual style changes. The renderer passes the map to the obstacle painter so the shared rock footprint can look like a desert pyramid or a forest trunk without changing wire kinds or collision geometry. Triangle faces, ellipses and rectangles use the same primitives on both backends. Obstacle details remain in the cached floor pass and disappear with their snapshot obstacles. Both Canvas and WebGL use the same art, with no extra textures, animation timers or simulation state. Classic, wrap-around and crossed maps retain their visual style's original floor. Run `npx tsx scripts/map-styles-smoke.ts` for reproducible contact sheets in both visual styles on Canvas and WebGL (`artifacts/map-styles-*.png`).
+Ground detail is baked into the existing background texture only when map, size or visual style changes. The renderer passes the map to the obstacle painter so the shared rock footprint can look like a desert pyramid or a forest trunk without changing wire kinds or collision geometry. Triangle faces, ellipses and rectangles use the same primitives on both backends. Obstacle details remain in the cached floor pass and disappear with their snapshot obstacles. Both Canvas and WebGL use the same art, with no extra textures, animation timers or simulation state. Classic, wrap-around and crossed maps retain their visual style's original floor. Run `pnpm exec tsx scripts/map-styles-smoke.ts` for reproducible contact sheets in both visual styles on Canvas and WebGL (`artifacts/map-styles-*.png`).
 
 ## Themed arena boundary
 
@@ -46,17 +46,17 @@ The [fractional presentation audit](online/FRACTIONAL-PRESENTATION.md) describes
 
 The scene batches sprites, retains trail graphics between updates, and uses one masked layer for the shrinking playfield. Existing avatar atlas and both theme asset sets are reused. Features include smooth luminous trails, restrained rider outlines, animated charge/fuse/target markers, readable shell silhouettes and white-hot instant-gun tracers, shock rings, pixel spark bursts and death fragments. Ink preserves the existing clear-space compositing semantics with a Canvas texture uploaded only while ink is active.
 
-Living riders have a thin one-world-pixel portrait outline. After firing, a two-world-pixel player-colored reload arc sits half a world pixel outside that outline, so it reads as an avatar border rather than a separate halo. It drains clockwise from the top over the shared weapon cooldown and disappears when that cooldown ends. Both Phaser backends sample the supplied fractional presentation tick (per rider first, then world, then snapshot), so no timer or effect history can drift through rollback, reconnects or a paused snapshot. The ring is hidden outside active play. Run `npx tsx scripts/reload-ring-browser.ts` (optionally with `BROWSER=webkit`) to check full, partial and completed cooldowns in both themes and all rendering backends.
+Living riders have a thin one-world-pixel portrait outline. After firing, a two-world-pixel player-colored reload arc sits half a world pixel outside that outline, so it reads as an avatar border rather than a separate halo. It drains clockwise from the top over the shared weapon cooldown and disappears when that cooldown ends. Both Phaser backends sample the supplied fractional presentation tick (per rider first, then world, then snapshot), so no timer or effect history can drift through rollback, reconnects or a paused snapshot. The ring is hidden outside active play. Run `pnpm exec tsx scripts/reload-ring-browser.ts` (optionally with `BROWSER=webkit`) to check full, partial and completed cooldowns in both themes and all rendering backends.
 
 Bomb fuse rings, blast-radius circles and landing markers use the owning rider’s color on both Phaser backends, with white as the fallback when the owner is absent. Both themes use bomb artwork without a body outline. Fuse progress and damage geometry are unchanged.
 
-Held bomb aiming uses a glowing dashed guide, paired direction chevrons, four open reticle corners and a white landing dot, without a blast-radius circle. Ordinary volleys and Target Bomb share this treatment in each rider's color; short guides omit chevrons. Bouncing aim samples the shared eased distance curve at fractional presentation ticks, moving at constant speed through the middle 75% of the range and smoothly easing through the outer 12.5% at each end, with a 100 ms hold at maximum reach and an immediate reversal at minimum reach. Authoritative releases sample that same curve at whole ticks; range and time to maximum are unchanged; the full cycle includes the extra 100 ms hold. Run `npx tsx scripts/bomb-preview-smoke.ts` (also with `BROWSER=webkit`) to check marker motion on both backends and generate `artifacts/bomb-aim-*.png` visual sheets.
+Held bomb aiming uses a glowing dashed guide, paired direction chevrons, four open reticle corners and a white landing dot, without a blast-radius circle. Ordinary volleys and Target Bomb share this treatment in each rider's color; short guides omit chevrons. Bouncing aim samples the shared eased distance curve at fractional presentation ticks, moving at constant speed through the middle 75% of the range and smoothly easing through the outer 12.5% at each end, with a 100 ms hold at maximum reach and an immediate reversal at minimum reach. Authoritative releases sample that same curve at whole ticks; range and time to maximum are unchanged; the full cycle includes the extra 100 ms hold. Run `pnpm exec tsx scripts/bomb-preview-smoke.ts` (also with `BROWSER=webkit`) to check marker motion on both backends and generate `artifacts/bomb-aim-*.png` visual sheets.
 
 `src/client/blast-animation.ts` samples explosion geometry for the Phaser scene: nine irregular orange/amber circles pop outward with staggered starts and a small size overshoot, then shrink and separate as the bright core collapses first. Six small square embers finish the effect. Seeded cosmetic offsets depend on bomb identity, so repeated frames and rollback do not jitter or consume simulation randomness. The faint full-radius footprint and the expanding ring stay within the supplied blast radius, as do every lobe and ember. The animation fits the existing eight-tick (400 ms) lifetime; it does not extend damage or retain expired explosions. The online runtime supplies a fractional snapshot tick for cosmetics; the authoritative tick stays intact. Blast sparks are sampled directly rather than emitted as Phaser particles; the bounded particle pool still handles rider deaths.
 
 Explosion-cut trails also leave client-only debris (`src/client/trail-debris.ts`). The renderer compares one retained trail frame with the next snapshot and emits only missing, unexpired segments intersecting a newly observed blast. Normal expiry, endpoint erosion, boundary trimming, partially retained segments and speculative future tips do not emit. Detached pieces ignore their former expiry when detecting a new blast; erosion is accounted for before comparing missing geometry. Each piece keeps its rider color, with locally random outward velocity, spin and a 520–820 ms lifetime; analytic drag samples the caller's frame clock without a physics loop or network messages. Overlapping blasts launch a piece once. Debris is capped at 240 pieces on desktop and 80 on mobile, and history at 2,048 segments per rider; dense removals sample across riders. Scope/round changes, backward time, lobby and renderer resets discard the cosmetic history. A fresh renderer or a client that missed the entire blast has no previous cut to animate. Both Phaser backends clip fragments to the arena and draw them beneath riders and ink.
 
-Dead riders disappear immediately, including their avatar, heading marker, label and status auras, leaving the crash particles unobscured. Detached living-owner pieces and dead trails stay opaque on both Phaser backends and gradually desaturate to gray over three seconds from detachment. The color is sampled from the existing piece decay-start tick (minus the pause) and supplied fractional presentation tick; cuts preserve the inherited age, reconnects need no local fade history, and rollback restores the corresponding color. Shared simulation pauses them for 20 ticks, then erodes each end at 37.5 world units/second; the renderer samples the surviving geometry without an independent decay clock or opacity fade. Piece ids prevent joins across cuts, and the history cache refreshes when either endpoint or lifecycle changes. Trails freeze with the final board at `decidedRound.tick` when active play ends, even as result snapshot ticks advance. Run `npx tsx scripts/dead-rider-browser.ts` (also with `BROWSER=webkit`) to check both themes across Phaser WebGL and Canvas, including gradual desaturation, opaque bodies over contrasting trails, final-board freeze, rollback, both shrinking endpoints, detached living trails, death particles and avatar reuse.
+Dead riders disappear immediately, including their avatar, heading marker, label and status auras, leaving the crash particles unobscured. Detached living-owner pieces and dead trails stay opaque on both Phaser backends and gradually desaturate to gray over three seconds from detachment. The color is sampled from the existing piece decay-start tick (minus the pause) and supplied fractional presentation tick; cuts preserve the inherited age, reconnects need no local fade history, and rollback restores the corresponding color. Shared simulation pauses them for 20 ticks, then erodes each end at 37.5 world units/second; the renderer samples the surviving geometry without an independent decay clock or opacity fade. Piece ids prevent joins across cuts, and the history cache refreshes when either endpoint or lifecycle changes. Trails freeze with the final board at `decidedRound.tick` when active play ends, even as result snapshot ticks advance. Run `pnpm exec tsx scripts/dead-rider-browser.ts` (also with `BROWSER=webkit`) to check both themes across Phaser WebGL and Canvas, including gradual desaturation, opaque bodies over contrasting trails, final-board freeze, rollback, both shrinking endpoints, detached living trails, death particles and avatar reuse.
 
 Desktop quality reserves 480 particles (mobile-width quality: 160), with matching live-particle limits. Phaser's total-object limit is one higher because its `atLimit` includes reserved dead particles. Sprite and label pools shrink to the current snapshot's needs plus 16 and 8 spare objects. These pools do not cap or omit valid authoritative projectiles. The snapshot validation boundary must still bound world complexity.
 
@@ -84,19 +84,19 @@ At the historical measured revision, the dedicated browser check passed in Chrom
 ## Reproduce
 
 ```sh
-npm run typecheck
-npx tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
-npx tsx scripts/blast-browser.ts
-BROWSER=webkit npx tsx scripts/blast-browser.ts
-npx tsx scripts/trail-debris-browser.ts
-BROWSER=webkit npx tsx scripts/trail-debris-browser.ts
-npx tsx scripts/phaser-browser.ts
-BROWSER=webkit npx tsx scripts/phaser-browser.ts
-DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
-BROWSER=webkit DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
-npx vite build --outDir artifacts/phaser-dist
-npx vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
-npx tsx scripts/phaser-pages-smoke.ts
+pnpm typecheck
+pnpm exec tsx --test tests/phaser-effects.test.ts tests/asset-url.test.ts
+pnpm exec tsx scripts/blast-browser.ts
+BROWSER=webkit pnpm exec tsx scripts/blast-browser.ts
+pnpm exec tsx scripts/trail-debris-browser.ts
+BROWSER=webkit pnpm exec tsx scripts/trail-debris-browser.ts
+pnpm exec tsx scripts/phaser-browser.ts
+BROWSER=webkit pnpm exec tsx scripts/phaser-browser.ts
+DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
+BROWSER=webkit DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
+pnpm exec vite build --outDir artifacts/phaser-dist
+pnpm exec vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
+pnpm exec tsx scripts/phaser-pages-smoke.ts
 ```
 
 The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
@@ -117,8 +117,8 @@ The same synthetic workload was subsequently measured sequentially in Chrome and
 Each mode retained 1,741 post-warmup frames. Both browser runs had zero page errors, no independent Phaser RAF loop, and active particles below the mobile cap. This is desktop browser viewport/DPR emulation on the same M4 Max machine, **not physical-phone GPU, thermals, touch or battery evidence**. Phaser costs more CPU than Canvas here too.
 
 ```sh
-VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
-BROWSER=webkit VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
+VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
+BROWSER=webkit VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
 ```
 
 The default desktop workload remains unchanged. `QUALITY` defaults to low below 701 viewport pixels; explicit low/high values let measurements reproduce the selected budget. Backing size is observed and asserted, not rescaled into a different game world.
