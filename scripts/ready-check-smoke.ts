@@ -72,20 +72,22 @@ try {
   await a.getByRole("button", { name: "READY", exact: true }).click();
   for (const page of [a, b])
     await page.locator(".mobile-play.controller-only").waitFor();
-  await a.waitForFunction(
-    () => Reflect.get(window, "readySnapshot")?.phase === "countdown",
-  );
+  for (const page of [a, b])
+    await page.waitForFunction(
+      () => Reflect.get(window, "readySnapshot")?.phase === "countdown",
+    );
   const old = await a.evaluate(
     () => Reflect.get(window, "readySnapshot").matchId,
   );
-  await a.waitForFunction(
-    () =>
-      document
-        .querySelector(".online-notice")
-        ?.textContent?.includes("MATCH COMPLETE"),
-    {},
-    { timeout: 120000 },
-  );
+  for (const page of [a, b])
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(".online-notice")
+          ?.textContent?.includes("MATCH COMPLETE"),
+      {},
+      { timeout: 120000 },
+    );
   // Phone controls must offer rematch without touching the TV; the real helper opens the phone menu if needed.
   await readyRoom(a);
   for (const page of [a, b])
