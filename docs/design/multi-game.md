@@ -50,7 +50,7 @@ interface RollbackGame<Room, Entry, View, Event> {
   scope(room: Room): { matchId: string; round: number }; // event dedupe and stale-message fencing
   members(room: Room): readonly MemberView[]; // what the runtime reads today from game.players and phase
   view(room: Room): View; // today toView
-  predict?(view: View, local: string, pending: readonly Entry[]): View; // today prediction.ts
+  predict?(view: View, local: string, pending: readonly Entry[]): View; // optional game-specific prediction; presentation currently lives in render/time/present.ts
   checkpoint: {
     encode(room: Room): unknown; // folds, bots, settings and game, as snapshot.ts sends them
     decode(raw: unknown): Room | undefined; // validated, never partial
@@ -80,7 +80,7 @@ Extracting Fuse Riders behind the contract must be `[hash-identical]`: `RULES` d
 
 `packages/ui` owns the screens every game has: landing, join form, avatar, lobby with a QR code, room settings dialog shell, account panel, recap frame, status notices, the neon/pixel tokens (colours, font, z-index scale) and the shared-screen/phone-controller layout switch. A game supplies its settings fields, its arena view and its recap content.
 
-This depends on #255. `src/online/ui.ts` is one closure holding every screen, and its CSS patches the arena styles. #255 gives it an explicit `RoomScreen` state and view builders. Lifting pieces out before that would move the problem, not solve it.
+The prerequisite from #255 landed in #350: `RoomScreen` and the room presenter now make screen state explicit. Extract the shared UI from those boundaries; the remaining `src/online/ui.ts` wiring and CSS still need to be separated from arena-specific behavior.
 
 ## The dice game
 
