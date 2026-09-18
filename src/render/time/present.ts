@@ -5,6 +5,8 @@
 import {
   advanceRiderPose,
   gravityBend,
+  isAimingGun,
+  sweepGunAim,
   wrapDelta,
   type MotionControls,
 } from "../../engine/view-kit.js";
@@ -46,11 +48,21 @@ export function interpolateWorld(
         Math.sin(player.angle - previous.angle),
         Math.cos(player.angle - previous.angle),
       );
+      // The sight is up exactly when the newer tick has it up, so it neither lags its raise nor outlives its shot.
+      const { gunAim: _olderAim, ...rest } = previous;
       return {
-        ...previous,
+        ...rest,
         x: previous.x + dx(player.x - previous.x) * f,
         y: previous.y + dy(player.y - previous.y) * f,
         angle: previous.angle + delta * f,
+        ...(player.gunAim === undefined
+          ? {}
+          : {
+              gunAim:
+                previous.gunAim === undefined
+                  ? player.gunAim
+                  : previous.gunAim + (player.gunAim - previous.gunAim) * f,
+            }),
       };
     }),
     bombs: older.bombs.map((previous) => {
@@ -87,9 +99,15 @@ export function presentWorld(
   presentationTick: number,
   local?: LocalRider,
 ): WorldView {
+  // Two frames are one log tick apart, which is several game ticks when a bots-only endgame runs extra steps per tick.
   const shown =
     older && presentationTick < newer.tick
-      ? interpolateWorld(older, newer, presentationTick - older.tick)
+      ? interpolateWorld(
+          older,
+          newer,
+          (presentationTick - older.tick) /
+            Math.max(1, newer.tick - older.tick),
+        )
       : newer;
   const rider =
     local && newer.phase === "playing"
@@ -100,6 +118,9 @@ export function presentWorld(
   // The step the simulation will give this rider on the tick after `newer`, as the newest view states it.
   const next = newer.players.find((p) => p.id === rider.id) ?? rider;
   const motion = { distance: next.speed, turn: next.turn };
+  // A held Gun steers its sight, not the rider: lead the sight with the controls and let the rider run straight.
+  // Read from the newest tick as simulated: the lead starts there, and the shown rider may be an older tick's.
+  const aiming = isAimingGun(next);
   const pose = advanceRiderPose(
     {
       x: rider.x,
@@ -115,7 +136,7 @@ export function presentWorld(
         ),
       drunkHeadingOffset: 0,
     },
-    local!.controls,
+    aiming ? { left: false, right: false } : local!.controls,
     {
       distance: motion.distance * lead,
       turn: motion.turn * lead,
@@ -146,6 +167,15 @@ export function presentWorld(
             x: pose.x,
             y: pose.y,
             angle: pose.angle,
+            ...(aiming
+              ? {
+                  gunAim: sweepGunAim(
+                    p.gunAim ?? next.gunAim ?? 0,
+                    local!.controls,
+                    lead,
+                  ),
+                }
+              : {}),
             trail,
             presentationTick: presentationTick + lead,
           }

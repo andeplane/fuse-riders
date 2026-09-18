@@ -66,6 +66,7 @@ export function legacySnapshot(state: GameState) {
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed,
+      ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
       shellArmed: player.shellArmed,
       tripleShotArmed: player.tripleShotArmed,
       fiveShotArmed: player.fiveShotArmed,

@@ -309,6 +309,7 @@ function prepareRound(state: GameState): void {
     player.alive = false;
     player.trail = [];
     player.bombChargeStartedTick = undefined;
+    player.gunAim = undefined;
     player.aimSlowTicks = 0;
     player.aimSlowSpentTicks = 0;
     player.bombReadyAtTick = state.tick;

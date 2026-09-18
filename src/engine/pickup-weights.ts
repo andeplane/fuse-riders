@@ -10,7 +10,7 @@ export const PICKUP_WEIGHTS: ReadonlyArray<
   { type: "power", weight: POWER_TUNING.defaultDropWeight },
   { type: "extraBomb", weight: 400 },
   { type: "stopwatch", weight: 160 },
-  { type: "gun", weight: 225 },
+  { type: "gun", weight: 400 },
   { type: "shell", weight: 53 },
   { type: "star", weight: 160 },
   { type: "beer", weight: 160 },

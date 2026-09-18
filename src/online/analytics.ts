@@ -19,6 +19,7 @@ import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import type { MatchPlayerStats } from "../engine/match-stats.js";
 import type { DecidedRound, RoundShot } from "../engine/shot-log.js";
 import { safeStorage, type SafeStorage } from "../client/safe-storage.js";
+import type { GraphicsReport } from "../render/phaser/presentation.js";
 import { bootFailedProps, sanitizeProperties } from "./analytics-text.js";
 
 type MixpanelConfig = import("mixpanel-browser").Config;
@@ -172,6 +173,13 @@ export interface Analytics {
   /** `listener` runs whenever the status may have changed, from this page or another tab. Returns the unsubscribe. */
   onChange(listener: () => void): () => void;
   reportBootFailure(error: unknown): void;
+  /**
+   * The arena's renderer (`webgl`, or Phaser's `canvas` fallback) is a `Graphics Ready` event and, from then on, a
+   * super property. The event is what counts renderers: the first events of a solo run (`Seat Taken`,
+   * `Match Started`) usually fire while Phaser is still downloading, before the super property exists. A view that
+   * ends on the RETRY GRAPHICS card is a `Graphics Failed` event.
+   */
+  reportGraphics(event: GraphicsReport): void;
 }
 
 const ignore = () => {
@@ -311,6 +319,12 @@ export function createAnalytics(environment: AnalyticsEnvironment): Analytics {
      * Registers nothing of its own: a boot failure raised after a room already registered its `role` would
      * otherwise relabel every later event on the page as `boot`. The role travels on the event instead.
      */
+    reportGraphics(event) {
+      if (event.kind === "ready") {
+        analytics.start({ renderer: event.renderer });
+        analytics.track("Graphics Ready");
+      } else analytics.track("Graphics Failed", { stage: event.stage });
+    },
     reportBootFailure(error) {
       analytics.start({});
       analytics.track("Boot Failed", {
@@ -361,6 +375,7 @@ export const analyticsStatusNow = page.status;
 export const setAnalyticsOptOut = page.setOptOut;
 export const onAnalyticsChange = page.onChange;
 export const reportBootFailure = page.reportBootFailure;
+export const reportGraphics = page.reportGraphics;
 
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
 /** Tenths, where whole seconds would put nearly every Gun and Shell kill in the same bucket. */

@@ -12,7 +12,7 @@ export interface RoomSettings {
   chainReaction: boolean;
   /** Holding past full reach walks the aim back down and up again instead of parking at maximum (#166). */
   aimBounce: boolean;
-  /** Which ground and obstacles a round is played on. `rotate` cycles them; `classic` is the obstacle-free arena. */
+  /** Which ground and obstacles a round is played on. `rotate` cycles them, the obstacle-free `classic` included. */
   map: ArenaMapChoice;
   weights: Partial<Record<PickupType, number>>;
 }

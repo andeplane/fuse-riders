@@ -36,17 +36,17 @@ function detachedIds(game: GameState, id: string): number[] {
   ];
 }
 
+/** A tap on the trigger: since `fuse-p2p-39` a Gun fires on release, straight along the rider's heading. */
 const PRESS: InputIntent = {
   ...NEUTRAL,
-  bomb: true,
-  bombCommands: [{ action: "press" }],
+  bombCommands: [{ action: "press" }, { action: "release" }],
 };
 
 /**
  * Pins the value of INSTANT_DEATHS_COMMIT_PER_RIDER and that Gun kills commit in seat order; it no longer tells the two
  * settings apart. Two Guns fire in one tick: p0 shoots p2
  * and p1 shoots p3. Each victim's death detaches its trail into debris, and the pieces take ids from one counter in
- * seat order: p2's wreck first, then p3's. Target Bomb, removed in `fuse-p2p-39`, also burnt trails in this pass, and
+ * seat order: p2's wreck first, then p3's. Target Bomb, removed in `fuse-p2p-40`, also burnt trails in this pass, and
  * that is what once made the per-rider commit matter; with bullets alone both settings number the pieces alike.
  */
 test("instant kills in one tick detach their wrecks in seat order", () => {

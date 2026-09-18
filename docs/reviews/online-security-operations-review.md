@@ -60,6 +60,8 @@ Required acceptance: documented temporary-preview claim/expiry owner; permanent 
 
 ### P2 — Host credentials are bearer capabilities requiring an explicit lifecycle
 
+> **Status (2026-09-17): tokens in URLs — fixed** (issue #256 S3). The ICE request sends the token as `Authorization: Bearer` and the room socket authenticates with its first frame; no room service URL carries a token, and the service logs neither URLs nor frames. Old pages are still admitted with `?token=` by the Cloud Run entry during a logged, removable rollout window. See [TOKEN-TRANSPORT.md](../online/TOKEN-TRANSPORT.md). Revocation, rotation and host transfer remain open.
+
 Evidence: room and peer tokens are stored under `fuse-room-${code}` (`ui.ts:29,34-35`) and included in query strings for WebSocket/ICE requests (`peer-transport.ts:19,28`). Invite links correctly omit the host token (`ui.ts:79`), and peers cannot directly route guest-to-guest messages (`worker/index.ts:72-73`). Origin checking is present, but it does not replace possession-based authorization. There is no capability revocation/rotation or host transfer API.
 
 Required acceptance: cross-room routing and guessed host commands rejected at the actual Worker boundary; duplicate identity behaviour defined; credentials absent from copied invites, diagnostics and logs; expiration/revocation behaviour documented. Keep tokens out of URLs where feasible or ensure URL query redaction throughout operations. The room code has 40 bits of generated entropy (ten hex characters), rather than the larger alphabet accepted by the route; evaluate lookup throttling based on that actual entropy.

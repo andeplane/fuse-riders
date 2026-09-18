@@ -98,6 +98,11 @@ export interface RiderView {
   drunkUntilTick: number;
   inkUntilTick: number;
   gunArmed?: boolean;
+  /**
+   * The held Gun sight, in radians off the heading. Present exactly while the rider holds a Gun's trigger, so its
+   * presence is the aiming flag (`isAimingGun`): the rider then runs straight and steering sweeps this instead.
+   */
+  gunAim?: number;
   shellArmed?: boolean;
   tripleShotArmed: boolean;
   fiveShotArmed: boolean;
@@ -281,6 +286,7 @@ export function toView(state: GameState): WorldView {
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
       gunArmed: player.gunArmed,
+      ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
       shellArmed: player.shellArmed,
       tripleShotArmed: player.tripleShotArmed,
       fiveShotArmed: player.fiveShotArmed,

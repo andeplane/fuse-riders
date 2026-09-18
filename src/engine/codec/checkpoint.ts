@@ -33,6 +33,7 @@ import {
   type PickupState,
 } from "../game.js";
 import { isAvatarId } from "../../shared/avatars.js";
+import { GUN_AIM_MAX } from "../gun.js";
 import { MAX_PORTAL_PAIRS } from "../portal.js";
 import {
   ARENA_MAPS,
@@ -138,6 +139,7 @@ const playerFields = {
   bombReadyAtTick: integer,
   bombChargeStartedTick: optional(integer),
   gunArmed: optional(boolean),
+  gunAim: optional(range(-GUN_AIM_MAX, GUN_AIM_MAX)),
   shellArmed: optional(boolean),
   extraBombs: count(MAX_EXTRA_BOMBS),
   fuseLevel: count(2),
@@ -454,6 +456,12 @@ function gameInvariants(game: GameState): boolean {
     if (
       p.bombChargeStartedTick !== undefined &&
       p.bombChargeStartedTick > game.tick
+    )
+      return false;
+    // A raised Gun sight is a held charge on a living rider; the rules never leave one anywhere else.
+    if (
+      p.gunAim !== undefined &&
+      (!p.alive || p.bombChargeStartedTick === undefined)
     )
       return false;
     if (

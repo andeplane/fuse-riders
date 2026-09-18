@@ -79,6 +79,7 @@ export function reflectAtObstacle(
 export function takeOutOfRound(state: GameState, player: PlayerState): void {
   player.alive = false;
   player.bombChargeStartedTick = undefined;
+  player.gunAim = undefined;
   player.trail = detachTrail(
     player.trail,
     state.tick,

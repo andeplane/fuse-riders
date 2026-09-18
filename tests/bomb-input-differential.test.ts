@@ -18,7 +18,7 @@ import type { BombActionCommand } from "../src/engine/primitives.js";
  * fold of log entries every online replica agrees on. The architecture review (C2) said they had drifted. The first
  * version of this file (commit `769a2fb`) fed both the same device behaviour and wrote down where they parted on
  * `14e1452`; the cases below keep those findings by name (drift 5, about Target Bomb's aim, went with the aim input
- * in `fuse-p2p-39`). Both now run one core (`src/engine/bomb-gesture.ts`)
+ * in `fuse-p2p-40`). Both now run one core (`src/engine/bomb-gesture.ts`)
  * with the fold's semantics, so what is asserted here is agreement.
  *
  * A device is modelled by what it does, not by either implementation: it presses (always a new gesture, numbered

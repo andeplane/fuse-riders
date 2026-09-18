@@ -226,7 +226,7 @@ test("an instant headshot is one shot and one kill for the gun, end to end", () 
   input({ bomb: true, bombCommands: [{ action: "press" }] });
   input({ bombCommands: [{ action: "release" }] });
   assert.deepEqual(shots(game, "p0"), { gun: 1 });
-  assert.equal(victim.alive, false, "the press killed immediately");
+  assert.equal(victim.alive, false, "the shot killed the tick it was fired");
   assert.equal(player.alive, true, "and the riders never met");
   assert.deepEqual(kills(game, "p0"), { gun: 1 });
   assert.equal(game.matchStats.get("p1")!.deathsByCause.explosion, 1);
@@ -397,8 +397,8 @@ test("a decided round keeps its log until the next is decided, through a rematch
       bomb.ownerId = "p0";
       bomb.shell = { vx: 0, vy: 0 };
     }); // a shell does not block the next pull
-    // The Gun fires on the press and kills at once, while the first bomb is still in the air.
-    input({ bomb: true, bombCommands: [{ action: "press" }] });
+    // A tap on the Gun fires on its release and kills at once, while the first bomb is still in the air.
+    input({ bombCommands: [{ action: "press" }, { action: "release" }] });
   };
   assert.equal(
     decided(),
@@ -514,8 +514,8 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     angle: line + Math.PI,
     trail: [],
   });
-  input({ bomb: true, bombCommands: [{ action: "press" }] });
-  assert.equal(victim.alive, false, "the press killed immediately");
+  input({ bombCommands: [{ action: "press" }, { action: "release" }] });
+  assert.equal(victim.alive, false, "the tap killed immediately");
   Object.assign(player, {
     powerPickups: 9,
     extraBombs: 4,

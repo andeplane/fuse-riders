@@ -8,7 +8,7 @@ Every commit is `[hash-identical]`: `RULES` (in `src/engine/apply-tick.ts`) is l
 
 `driveGameTick(game, inputs, roomSettings, phases?)` in `src/engine/tick-driver.ts` is one tick of a game, whoever runs it:
 
-1. `step(game, inputs)`, `STEPS_PER_TICK` times (one today).
+1. `step(game, inputs)`, then, when `applyTick` asks for more steps, further steps with later inputs while the round plays (#258 N2, `docs/design/fixed-clock-game-speed.md`).
 2. Round progression. When the round-over pause has run out, absent riders lose their seat; if two or more remain, the next round starts. With fewer, the game waits in `roundOver` for the room to act.
 3. Settings at the round boundary. The next round plays under `roomSettings`, the room's current choice, except the match format (`match`, `length`), which stays as it was when the match started.
 4. Outside play nobody holds a charge or a target.
@@ -19,12 +19,7 @@ Like `step`, the driver is not transactional: a `TickFault` leaves the game part
 
 ### The seam for #258 N2 (game speed as N steps per tick)
 
-N2 wants the 3× speed of a bots-only endgame to be N `step`s inside one shared tick instead of a faster shared clock. The driver is where that goes, and the loop is already there: in the driver it is one line (`STEPS_PER_TICK`, or a count chosen from the state before the loop). It is not implemented here, and it is not only that line:
-
-- `applyTick` reads the log's tick off the game (`tick = game.tick + 1`). With more than one step per tick the game's clock runs ahead of the log's, so the room needs its own tick counter first (a `RoomState` field, which is a checkpoint and snapshot change).
-- A press, release or cancel in `inputs` must reach the first step only; later steps of the same tick get the held controls without the commands.
-- The count has to be a pure function of state every replica holds at the start of the tick, or a rollback can change it retroactively, which is the bug N2 exists to remove.
-- It is a `[rules]` change.
+N2 wanted the 3× speed of a bots-only endgame to be N `step`s inside one shared tick instead of a faster shared clock. That is now implemented; `docs/design/fixed-clock-game-speed.md` records where the count is decided, what the later steps' inputs are, and the room's own log-tick counter that it needed. The list this section used to hold (a room tick counter, commands on the first step only, a count that is a pure function of the state before the tick, a rules change) is what that note settles.
 
 ## `settings` is required
 
@@ -98,4 +93,4 @@ Narrowing `loggedRiderName` to `validRiderName` (and with it letting an 18-emoji
 
 ## What is left of #253
 
-A4: the effect, pickup and weapon registries, with its rules bump. Candidates to ride that bump, all noted in the design notes: `loggedRiderName` → `validRiderName` (above); the instant-death commit order and the shot rule (`engine-pipeline.md`); explicit leave if the owner wants it. `InputIntent.bomb` is still written by `intentOf` and read by nothing (C9's dead fields are A4's). N2 is #258's and has its seam here.
+A4: the effect, pickup and weapon registries, with its rules bump. Candidates to ride that bump, all noted in the design notes: `loggedRiderName` → `validRiderName` (above); the instant-death commit order and the shot rule (`engine-pipeline.md`); explicit leave if the owner wants it. `InputIntent.bomb` is written by `intentOf` and read by the Gun sight (`move-riders` sweeps a held sight while it is set; `launch-weapons` ends a sight whose trigger is no longer held). Press, release and cancel reach only the first step of a multi-step tick, while `bomb` stays held for all of them, so a hold across a bots-only tick sweeps the sight three times, as three ordinary ticks would. N2 (#258) now runs its extra steps through this driver (`docs/design/fixed-clock-game-speed.md`).

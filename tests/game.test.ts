@@ -34,8 +34,8 @@ import {
   STAR_DURATION_TICKS,
   TRAIL_LIFETIME_TICKS,
   addPlayer,
-  BOTS_ONLY_TIME_SCALE,
-  simulationTimeScale,
+  BOTS_ONLY_STEPS_PER_TICK,
+  stepsPerTick,
   createGame,
   riderMotionStep,
   eliminatePlayer,
@@ -2592,7 +2592,7 @@ test("the snapshot carries the room aim-bounce flag, in both directions", () => 
   );
 });
 
-test("the simulation clock triples only while a round is live, a human rode in it and only bots survive", () => {
+test("a tick runs three steps only while a round is live, a human rode in it and only bots survive", () => {
   const state = createGame("bots-only", classicSettings()),
     bots = new Set(["bot:1", "bot:2"]);
   addPlayer(state, {
@@ -2616,23 +2616,23 @@ test("the simulation clock triples only while a round is live, a human rode in i
     color: "#0f0",
     connected: true,
   });
-  assert.equal(simulationTimeScale(state, bots), 1, "lobby");
+  assert.equal(stepsPerTick(state, bots), 1, "lobby");
   startMatch(state);
-  assert.equal(simulationTimeScale(state, bots), 1, "countdown");
+  assert.equal(stepsPerTick(state, bots), 1, "countdown");
   for (let i = 0; i < COUNTDOWN_TICKS; i++) step(state, new Map());
   assert.equal(state.phase, "playing");
-  assert.equal(simulationTimeScale(state, bots), 1, "the human still rides");
+  assert.equal(stepsPerTick(state, bots), 1, "the human still rides");
   eliminatePlayer(state, "human");
   assert.equal(state.phase, "playing");
-  assert.equal(simulationTimeScale(state, bots), BOTS_ONLY_TIME_SCALE);
-  assert.equal(BOTS_ONLY_TIME_SCALE, 3);
+  assert.equal(stepsPerTick(state, bots), BOTS_ONLY_STEPS_PER_TICK);
+  assert.equal(BOTS_ONLY_STEPS_PER_TICK, 3);
   assert.equal(
-    simulationTimeScale(state, new Set(["human", "bot:1", "bot:2"])),
+    stepsPerTick(state, new Set(["human", "bot:1", "bot:2"])),
     1,
     "an all-bot showcase keeps its pace",
   );
   eliminatePlayer(state, "bot:1");
   step(state, new Map());
   assert.notEqual(state.phase, "playing");
-  assert.equal(simulationTimeScale(state, bots), 1, "the round is over");
+  assert.equal(stepsPerTick(state, bots), 1, "the round is over");
 });

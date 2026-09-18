@@ -15,10 +15,21 @@ const browserDependencies: PresentationDependencies = {
   },
 };
 
+/**
+ * What happened to the graphics, for product analytics. `ready` fires each time an attempt starts drawing (so again
+ * after a successful RETRY GRAPHICS); `failed` fires once per attempt that ends in the retry card:
+ * `startup` = download, boot or its deadline; `context` = a lost GPU context that did not come back; `render` = a
+ * frame that threw.
+ */
+export type GraphicsReport =
+  | { kind: "ready"; renderer: string }
+  | { kind: "failed"; stage: "startup" | "context" | "render" };
+
 /** One lazy Phaser scene. Graphics failure pauses the view; retry leaves the game connection intact. */
 export function mountArenaPresentation(
   initialCanvas: HTMLCanvasElement,
   replaced: (canvas: HTMLCanvasElement) => void,
+  report: (event: GraphicsReport) => void = () => {},
   dependencies: PresentationDependencies = browserDependencies,
 ): {
   render(
@@ -71,7 +82,14 @@ export function mountArenaPresentation(
     cancelRestore?.();
     cancelRestore = undefined;
   };
-  const fail = () => {
+  const notify = (event: GraphicsReport) => {
+    try {
+      report(event);
+    } catch {
+      /* reporting never breaks the view */
+    }
+  };
+  const fail = (stage: "startup" | "context" | "render") => {
     if (state === "disposed" || state === "failed") return;
     state = "failed";
     generation++; // Late imports, readiness and context events cannot revive this attempt.
@@ -86,6 +104,7 @@ export function mountArenaPresentation(
       "Graphics unavailable. The game continues while your view is paused.",
       true,
     );
+    notify({ kind: "failed", stage });
   };
   const paint = () => {
     if (!engine || !latest || state !== "running") return;
@@ -103,7 +122,7 @@ export function mountArenaPresentation(
         metricsAt = latest.now;
       }
     } catch {
-      fail();
+      fail("render");
     }
   };
   const initialize = () => {
@@ -112,7 +131,7 @@ export function mountArenaPresentation(
     const attempt = ++generation;
     const current = () => attempt === generation;
     canvas.dataset.rendererStatus = "starting";
-    cancelStartup = dependencies.schedule(10000, fail);
+    cancelStartup = dependencies.schedule(10000, () => fail("startup"));
     // The deadline includes downloading the lazy module, not just Phaser boot.
     void (async () => {
       const module = await dependencies.loadArena();
@@ -133,7 +152,7 @@ export function mountArenaPresentation(
           canvas.style.opacity = value === "context-lost" ? ".35" : "1";
           if (value === "context-lost") {
             showStatus("Graphics paused — restoring GPU context");
-            cancelRestore = dependencies.schedule(2000, fail);
+            cancelRestore = dependencies.schedule(2000, () => fail("context"));
           } else {
             showStatus("");
             if (value === "restored") paint();
@@ -146,10 +165,12 @@ export function mountArenaPresentation(
       cancelStartup?.();
       cancelStartup = undefined;
       state = "running";
-      canvas.dataset.renderer = `phaser-${arena.metrics().renderer}`;
+      const renderer = arena.metrics().renderer;
+      canvas.dataset.renderer = `phaser-${renderer}`;
+      notify({ kind: "ready", renderer });
       paint(); // Also paints a paused landing demo after startup or retry.
     })().catch(() => {
-      if (current()) fail();
+      if (current()) fail("startup");
     });
   };
   retry.onclick = () => {

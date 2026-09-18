@@ -8,7 +8,7 @@ import {
 } from "./commit-deaths.js";
 
 /**
- * Pressed Guns take effect in the tick they are fired, after every rider has launched — and so after the sweep.
+ * Fired Guns take effect in the tick they are fired, after every rider has launched — and so after the sweep.
  * Ordinary fuses run before movement instead (`explodeFuses`), so what they clear is gone before anyone rides into it.
  */
 export function resolveInstantHits(ctx: TickContext): void {

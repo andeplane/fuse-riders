@@ -120,6 +120,12 @@ until the project owner decides otherwise: renaming it would split the Mixpanel 
 super property on every event. `mode` and `solo` are registered only on the room path, so the landing page's
 `App Opened` and `Room Created` and the boot path's `Boot Failed` carry `role` alone.
 
+`renderer` (`webgl`, or `canvas` for Phaser's fallback when WebGL is unavailable or `?renderer=phaser-canvas`
+forces it) is registered as a super property once the arena first draws, together with a `Graphics Ready` event.
+Events before that do not carry it: `App Opened`, and in solo usually `Seat Taken` and `Match Started` too, which
+fire while Phaser is still downloading. Count renderers with `Graphics Ready`. The landing page's backdrop and a room's arena each report one, even when CREATE ROOM keeps the same page, and `role` (`landing` or the room role) tells them apart. A device that never draws an arena,
+such as a shared-TV rider's phone, reports neither. This shows how many players still depend on the Canvas fallback.
+
 | Event              | Fires                                                                                             | Key properties                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `App Opened`       | once per page load                                                                                | `role`                                                                                                                                                                                                                                                                                                                                                         |
@@ -133,6 +139,8 @@ super property on every event. `mode` and `solo` are registered only on the room
 | `Settings Changed` | a draft the runtime accepted                                                                      | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `map`, `powerupTypes`                                                                                                                                                                                                                                                         |
 | `Connect Failed`   | 20s with no link to the host                                                                      | `status` (the status line, `null` if none yet), `secondsWaiting`                                                                                                                                                                                                                                                                                               |
 | `Boot Failed`      | the boot-failure card is shown                                                                    | `name`, `code`, `message`                                                                                                                                                                                                                                                                                                                                      |
+| `Graphics Ready`   | the arena first draws on this page, and again after a successful RETRY GRAPHICS                   | `renderer` (super property)                                                                                                                                                                                                                                                                                                                                    |
+| `Graphics Failed`  | the RETRY GRAPHICS card is shown                                                                  | `stage`: `startup` (download, boot or its 10 s deadline), `context` (lost GPU context not restored in 2 s), `render` (a frame threw)                                                                                                                                                                                                                           |
 | `Signed In`        | a Google sign-in from the landing page's account dialog succeeded                                 | —                                                                                                                                                                                                                                                                                                                                                              |
 
 When `Match Started`, `Kill` / `Miss`, `Seat Taken` and `Match Ended` fire is
@@ -201,7 +209,7 @@ the whole next round, a device that catches up past the round-over pause in one 
 resynchronised snapshot) still reports it. What is lost: a round whose shooter's device leaves before it is
 confirmed, and a round a device skips entirely by catching up across two decisions at once.
 
-Gun shots resolve on press: a visible tracer is already a hit or miss.
+Gun shots resolve the tick they are fired (on release): a visible tracer is already a hit or miss.
 
 A pull whose bomb or shell is still in the air when the round ends — and has killed nobody — is **not** a
 `Miss`: the round's end interrupted it. Without that rule, weapons that stay in flight longest (Shell, lobbed
@@ -214,7 +222,7 @@ with the first of these that it spent:
 `gun` → `shell` → `five` → `triple` → `bomb`
 
 Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
-under their label. Rules before `fuse-p2p-39` also reported `target`, for the Target Bomb, and rules before
+under their label. Rules before `fuse-p2p-40` also reported `target`, for the Target Bomb, and rules before
 `fuse-p2p-24` reported `gravity`, for the Singularity bomb that Gravity used to arm. The
 round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse, Range and GRIP sharpen every pull rather than
 being spent by one.

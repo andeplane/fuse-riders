@@ -11,7 +11,7 @@ export interface PlainStatus {
 }
 
 const ACTIONABLE =
-  /reload this page|newer tab|incompatible|damaged|room ended|out of sync|start a new room/i;
+  /reload this page|newer tab|incompatible|damaged|room ended|room full|out of sync|start a new room/i;
 const BAD =
   /failed|interrupted|error|unreachable|expired|NAT|relay|disconnected/i;
 const OK =
@@ -24,7 +24,11 @@ export function plainStatus(raw: string): PlainStatus {
     return {
       tone: "bad",
       text,
-      retry: /reload this page|out of sync|incompatible|damaged/i.test(text),
+      // A full room stops retrying by itself (a seat may free up later): RETRY is the player's way back in.
+      retry:
+        /reload this page|out of sync|incompatible|damaged|room full/i.test(
+          text,
+        ),
     };
   if (/paused|rebuilding|waiting for riders/i.test(text))
     return { tone: "busy", text, retry: false };

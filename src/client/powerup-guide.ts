@@ -43,7 +43,7 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   ],
   gun: [
     "GUN",
-    "tap to fire instantly ahead, through any portal gate; stops at the first body, cuts a small hole, and kills near its head",
+    "tap to fire instantly ahead, or hold and steer to swing the sight, then release; goes through any portal gate, stops at the first body, cuts a small hole, and kills near its head",
   ],
   stopwatch: [
     "FUSE",

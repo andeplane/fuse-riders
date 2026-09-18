@@ -257,7 +257,13 @@ for (const weapon of ["bomb", "gun"] as const) {
         trail: [],
       });
       inputs = new Map([
-        [survivor.id, { ...neutral, bombCommands: [{ action: "press" }] }],
+        [
+          survivor.id,
+          {
+            ...neutral,
+            bombCommands: [{ action: "press" }, { action: "release" }],
+          },
+        ],
       ]);
     } else {
       game.bombs.set(1, {

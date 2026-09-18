@@ -238,7 +238,7 @@ test("a shell that bounced before hitting is a trick shot; a fresh, stray or gun
           left: false,
           right: false,
           bomb: true,
-          bombCommands: [{ action: "press" }],
+          bombCommands: [{ action: "press" }, { action: "release" }],
         },
       ],
     ]),
@@ -517,9 +517,9 @@ test("leaving a blast zone in the last half second is a dodge; owners, immune ri
   );
 });
 
-test("a Gun volley resolved in the press tick feeds the same detector", () => {
+test("a Gun volley resolved in the tick it is fired feeds the same detector", () => {
   // Triple fans the Gun out into three bullets. Two victims each ride head on down a bullet's line, so the bullet
-  // reaches the rider before the trail the rider has laid by the press tick.
+  // reaches the rider before the trail the rider has laid by the time it fires. A tap fires on release, straight on.
   const state = scene(3, 3);
   const shooter = state.players.get("p0")!;
   place(state, "p0", 900, 450, Math.PI);
@@ -547,8 +547,8 @@ test("a Gun volley resolved in the press tick feeds the same detector", () => {
         {
           left: false,
           right: false,
-          bomb: true,
-          bombCommands: [{ action: "press" }],
+          bomb: false,
+          bombCommands: [{ action: "press" }, { action: "release" }],
         },
       ],
     ]),

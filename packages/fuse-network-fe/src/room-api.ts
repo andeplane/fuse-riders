@@ -1,3 +1,6 @@
+import { authFrame } from "fuse-network-protocol";
+import { IceRefusedError } from "./ice-config.js";
+
 /** The credentials of a new room. The token is the creator's identity: keep it on the creator's device and out of invites. */
 export interface CreatedRoom {
   code: string;
@@ -39,4 +42,57 @@ export async function endRoom(
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw await failure(response, "Could not end room");
+}
+/**
+ * Members only. The token is a bearer header, never part of the URL: request URLs are recorded by access logs.
+ * An error status rejects with `IceRefusedError`, so the caller can tell a refusal from an unusable list.
+ */
+export async function fetchIceServers(
+  apiUrl: (path: string) => string,
+  code: string,
+  token: string,
+  signal: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<unknown> {
+  const response = await fetcher(apiUrl(`/api/rooms/${code}/ice`), {
+    signal,
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new IceRefusedError(response.status);
+  return response.json();
+}
+/** What `openRoomSocket` needs of a WebSocket; a browser `WebSocket` satisfies it. */
+export interface RoomSocket {
+  addEventListener(
+    type: "open",
+    listener: () => void,
+    options?: { once?: boolean },
+  ): void;
+  send(data: string): void;
+}
+/** The room socket address. It names the room and nothing else: no token, no query. */
+export function roomSocketUrl(
+  apiUrl: (path: string) => string,
+  code: string,
+): string {
+  const url = new URL(apiUrl(`/api/rooms/${code}/ws`));
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.href;
+}
+/**
+ * Opens the room socket and authenticates it with its first frame. A browser cannot put a header on a WebSocket and
+ * a URL is logged, so the token is sent as `{type:"auth",token}` once the socket opens; the service reads nothing
+ * else first and closes a socket that stays silent. See `docs/online/TOKEN-TRANSPORT.md`.
+ */
+export function openRoomSocket<S extends RoomSocket>(
+  apiUrl: (path: string) => string,
+  code: string,
+  token: string,
+  create: (url: string) => S,
+): S {
+  const socket = create(roomSocketUrl(apiUrl, code));
+  socket.addEventListener("open", () => socket.send(authFrame(token)), {
+    once: true,
+  });
+  return socket;
 }

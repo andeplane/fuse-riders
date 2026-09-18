@@ -66,6 +66,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   aimSlowTicks: number;
   aimSlowSpentTicks: number;
   gunArmed?: boolean;
+  /** The held Gun sight, in radians off the heading. Present only while a Gun's trigger is held. */
+  gunAim?: number;
   shellArmed?: boolean;
   /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
   extraBombs: number;
