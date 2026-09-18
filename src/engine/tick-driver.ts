@@ -8,6 +8,7 @@ import {
   type Phase,
 } from "./game.js";
 import type { PlayerId } from "./primitives.js";
+import { BOTS_ONLY_STEPS_PER_TICK } from "./tuning.js";
 import type { RoomSettings } from "./room-settings.js";
 import type { GameEvent } from "./state.js";
 
@@ -15,7 +16,7 @@ import type { GameEvent } from "./state.js";
  * The most steps one log tick runs. `applyTick` chooses the count for each tick from the state before it; the
  * snapshot guard (`stepsCover`) bounds a game clock by it. See `docs/design/fixed-clock-game-speed.md`.
  */
-export const MAX_STEPS_PER_TICK = 1;
+export const MAX_STEPS_PER_TICK = BOTS_ONLY_STEPS_PER_TICK;
 
 /**
  * Whether a game clock can belong to a room at `logTick`: every log tick steps the game at least once and at most

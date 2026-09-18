@@ -11,6 +11,7 @@ import {
   type GameState,
   type InputIntent,
   type Phase,
+  stepsPerTick,
 } from "./game.js";
 import { BotController, BOT_ID_PREFIX } from "./bot-controller.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
@@ -33,7 +34,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-37"; // 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
+export const RULES = "fuse-p2p-38"; // 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
@@ -285,7 +286,9 @@ export function applyTick(
   phases?: readonly Phase[],
 ): GameEvent[] {
   const game = state.game,
-    tick = state.tick + 1;
+    tick = state.tick + 1,
+    // Decided on the state the previous tick left, before this tick's entries: the same count on every replica.
+    steps = stepsPerTick(game, state.bots);
   for (const manager of successionOrder(state, creatorId)) {
     const stream = streams.get(manager);
     if (!stream) continue;
@@ -331,7 +334,7 @@ export function applyTick(
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }
   const driven = driveGameTick(game, inputs, state.settings, phases, {
-    count: 1,
+    count: steps,
     later: (current) => laterInputs(state, current, inputs, bots),
   });
   for (const id of driven.removed) {
@@ -349,6 +352,7 @@ export function canonicalRoomState(
 ): string {
   return JSON.stringify(
     {
+      tick: state.tick,
       game: state.game,
       settings: state.settings,
       folds: state.folds,

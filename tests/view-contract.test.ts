@@ -129,6 +129,8 @@ test("a rider's published speed is the step the simulation then takes", () => {
     const before = toView(state.game);
     applyTick(state, recording.creator, streams(tick), bots);
     if (before.phase !== "playing" || state.game.phase !== "playing") continue;
+    // A bots-only log tick runs several steps; the view states one step, the one the next step takes.
+    if (state.game.tick !== before.tick + 1) continue;
     for (const rider of before.players) {
       const after = state.game.players.get(rider.id);
       // A rider that died, bounced, was stopped at a contact or went through a gate did not take a whole step.

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BOTS_ONLY_TIME_SCALE, TICK_HZ } from "../src/engine/game.js";
+import { BOTS_ONLY_STEPS_PER_TICK, TICK_HZ } from "../src/engine/game.js";
+import { MAX_STEPS_PER_TICK } from "../src/engine/tick-driver.js";
+import { TickClock } from "../src/online/clock.js";
 import { SNAP_TICKS, TICK_MS } from "../src/online/clock.js";
 import {
   BUFFERED_ENTRIES,
@@ -131,9 +133,13 @@ test("the couplings ADR 047 marks as checked hold", () => {
   // C4: one cap under three names.
   assert.equal(MAX_PACKET_ENTRIES, PACKET_ENTRIES);
   assert.equal(DEFAULT_MAX_FAST_BYTES, MAX_PACKET_BYTES);
-  // C5: the clock's tick length is the simulation's.
+  // C5: the clock's tick length is the simulation's, and it has one rate: game speed is steps per log tick, so a tick
+  // bound is the same wall time in every phase and nobody stalls on a silent rider before it can be logged absent.
   assert.equal(TICK_MS * TICK_HZ, 1000);
-  assert.ok(BOTS_ONLY_TIME_SCALE > 1);
+  assert.ok(BOTS_ONLY_STEPS_PER_TICK > 1);
+  assert.equal(MAX_STEPS_PER_TICK, BOTS_ONLY_STEPS_PER_TICK);
+  assert.equal("rate" in TickClock.prototype, false);
+  assert.ok(DISCONNECT_MS < STALL_TICKS * TICK_MS);
   // C6: an honest out-of-reach stream gets a stalled-gap wait and a snapshot retry in before its owner stops counting as heard.
   assert.ok(WINDOW_GRACE_MS >= STALLED_GAP_MS + SNAPSHOT_RETRY_MS);
   // C6: a link just up holds off an absence for one DISCONNECT_MS, which nobody stalls on at 1×.
