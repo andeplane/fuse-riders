@@ -1,4 +1,3 @@
-import "./mobile-play-layout.css";
 import type { MobileScreen } from "./room-screen.js";
 /** The phone layout's own behaviour: the ☰ MENU tools overlay, the control hints, and what a change of screen does to
  *  held input. Whether the phone is the controller, upright or on its lobby screen is decided by `roomScreen`, and its
@@ -11,7 +10,9 @@ export function installMobilePlayLayout(
     recapReady = false,
     active = false,
     portrait = false,
-    toolsOpen = false;
+    toolsOpen = false,
+    controllerOnly = false;
+  const document = app.ownerDocument;
   const compact = document.createElement("button");
   compact.className = "mobile-tools-toggle";
   compact.textContent = "☰ MENU";
@@ -50,19 +51,21 @@ export function installMobilePlayLayout(
     clearControls();
     setTools(!toolsOpen);
   };
-  // Closing a dialog returns to the live thirds mid-round; in lobby/results the roster and actions stay open.
+  // A controller returns to its pads after a dialog; own-screen phones keep tools open in lobby/results.
   app.querySelector("dialog")?.addEventListener("close", () => {
-    if (["countdown", "playing"].includes(phase)) closeTools();
+    if (controllerOnly || ["countdown", "playing"].includes(phase))
+      closeTools();
   });
   // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
-  // the recap opening ends the match for this screen, and opens the overlay so the roster and (for the host) REMATCH are in view. The pause before
+  // On own-screen phones the recap opens tools so standings and REMATCH are in view; shared-TV controllers stay on their pads. The pause before
   // it keeps the overlay shut: it hides the announcer, which is showing the final round's result and then the match winner. The lobby is its own phone screen (#134), never the controller.
   const enter = () => {
     if (["countdown", "playing"].includes(phase)) {
       closeTools();
       hints.remove();
       app.append(hints);
-    } else if (phase === "matchOver" && recapReady) openTools();
+    } else if (phase === "matchOver" && recapReady && !controllerOnly)
+      openTools();
   };
   return {
     /** A new screen: a frame, the room ending, or (`resized`) the viewport changing. A resize cancels held input and may
@@ -72,7 +75,9 @@ export function installMobilePlayLayout(
       nextPhase: string,
       nextRecapReady: boolean,
       resized = false,
+      nextControllerOnly = false,
     ) {
+      controllerOnly = nextControllerOnly;
       const entered =
         nextPhase !== phase || nextRecapReady !== recapReady || !active;
       phase = nextPhase;

@@ -15,12 +15,12 @@
  * | `lobby`      | The lobby card (QR, riders, host actions), over the blurred arena, or the phone lobby (#134)         |
  * | `arena`      | The live arena: desktop, TV, solo, or a phone as the thirds controller over its own arena (#13)      |
  * | `controller` | A shared-TV rider's controller (ADR 042): no arena, the TV draws it                                  |
- * | `recap`      | The match report is ready; the results dialog opens over the lobby card, the arena or the controller |
+ * | `recap`      | The match report is ready; results open over the arena/lobby; shared-TV controllers stay on their pads |
  * | `ended`      | ROOM CLOSED: the room ended for good (4004); everything else is frozen as it was                     |
  *
  * The kind is the name; the flags are what the page does with it. They are kept separately because the same kind
  * is drawn differently by different devices (a `recap` is a lobby card on the creator's laptop and a controller
- * with its tools open on a rider's phone), and because each flag is exactly one class or one `hidden` on the page.
+ * on a shared-TV rider's phone, where results stay on the TV), and because each flag is exactly one class or one `hidden` on the page.
  */
 import {
   arenaView,

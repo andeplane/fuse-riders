@@ -21,6 +21,9 @@ import {
 } from "./match-report.js";
 import { ControllerInputState } from "../client/controller-state.js";
 import { ControllerKeyboardBindings } from "../client/controller-keyboard.js";
+import { createControllerLayoutSetting } from "../client/controller-layout.js";
+import "./mobile-play-layout.css";
+import "./arcade-pads.css";
 import { ControllerPointerBindings } from "../client/controller-pointers.js";
 import {
   createAvatarPicker,
@@ -748,6 +751,27 @@ export async function startOnline(): Promise<void> {
       { label: "▶", keys: "ArrowRight D", title: "Steer right (ArrowRight D)" },
     ],
   });
+  leftButton.classList.add("pad-left");
+  rightButton.classList.add("pad-right");
+  fireButton.classList.add("pad-bomb");
+  leftButton.setAttribute("aria-label", "Steer left");
+  rightButton.setAttribute("aria-label", "Steer right");
+  const fireLabel = node("span", "HOLD TO FIRE", "pad-feedback");
+  fireButton.replaceChildren(fireLabel);
+  controls.style.setProperty(
+    "--bomb-art",
+    `url("${appUrl().split("?")[0]}themes/neon-pixel/bomb.svg")`,
+  );
+  const arcadeHeader = node("div", "", "arcade-header");
+  const arcadeIdentity = node("strong", "YOU", "arcade-identity");
+  const arcadeConnection = node("span", "Connecting…", "arcade-connection");
+  arcadeHeader.append(arcadeIdentity, arcadeConnection);
+  app.append(arcadeHeader);
+  const controllerLayoutSetting = createControllerLayoutSetting(
+    app,
+    storage,
+    () => clearControls(),
+  );
   const roster = node("div", "", "online-roster");
   const hostControls = node("div", "", "online-host");
   let startLabel = "START RACE";
@@ -969,11 +993,13 @@ export async function startOnline(): Promise<void> {
     roster.hidden = next.lobbyCard;
     // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
     styleHeading.hidden = styleRow.hidden = next.arenaController;
+    controllerLayoutSetting.hidden = !next.arenaController;
     mobileLayout.update(
       next.mobile,
       snapshot?.phase ?? "lobby",
       next.kind !== "ended" && recapIsReady,
       resized,
+      next.controllerOnly,
     );
     placeElements(next);
   };
@@ -1015,6 +1041,14 @@ export async function startOnline(): Promise<void> {
   );
   header.append(topMenu);
   topMenu.append(results, avatarButton, menu, help);
+  for (const extra of [
+    topRadio,
+    topMusic,
+    topMute,
+    roomAccount.leaderboardButton,
+    results,
+  ])
+    extra.classList.add("controller-menu-extra");
   const refreshAccount = () => {
     if (!document.hidden) roomAccount.refresh();
   };
@@ -1072,6 +1106,7 @@ export async function startOnline(): Promise<void> {
     styleRow,
     fullscreen,
     privacy.element,
+    controllerLayoutSetting,
   );
   const voice = solo ? undefined : new VoiceChat();
   if (voice) {
@@ -1163,6 +1198,9 @@ export async function startOnline(): Promise<void> {
       status.title = view.raw;
       status.dataset.raw = view.raw;
       status.dataset.tone = view.tone;
+      arcadeConnection.textContent = view.text;
+      arcadeConnection.dataset.tone = view.tone;
+      arcadeConnection.title = view.raw;
       // A replaced host tab cannot act on the room any more: its actions go away and one button reclaims hosting (a reload re-authenticates with the stored token).
       statusAction.hidden = !view.action;
       statusAction.textContent = view.action ?? "RETRY";
@@ -1413,7 +1451,7 @@ export async function startOnline(): Promise<void> {
       // Opened after the layout above so the close button can say where it lands.
       if (recapIsReady && lastRecap !== String(state.phaseEndsAtTick)) {
         lastRecap = String(state.phaseEndsAtTick);
-        openRecap();
+        if (!screen.controllerOnly) openRecap();
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
         const report = solo
@@ -1446,7 +1484,7 @@ export async function startOnline(): Promise<void> {
       if (view.playerColor)
         app.style.setProperty("--player-color", view.playerColor);
       if (view.fire.label !== undefined)
-        fireButton.textContent = view.fire.label;
+        fireLabel.textContent = view.fire.label;
       notice.textContent = view.notice;
       for (const [playerId, row] of rosterEntries)
         if (!state.players.some((p) => p.id === playerId)) {
@@ -1516,9 +1554,10 @@ export async function startOnline(): Promise<void> {
         if (voice) entry.dataset.voice = voice.indicator(playerId);
       roundChip.textContent = view.roundClock;
       roundChip.hidden = view.roundChipHidden;
-      showAnnouncement(state, view.announcerVisible);
+      showAnnouncement(state, view.announcerVisible && !screen.controllerOnly);
       // Phone HUD: who you are, what the fire button would do, match points and the clock. The thirds themselves stay transparent.
       hud.hidden = view.hudHidden;
+      if (player) arcadeIdentity.textContent = player.name;
       if (player && view.hud) {
         if (hudAvatar !== player.avatarId) {
           hudWho.replaceChildren(
