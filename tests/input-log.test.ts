@@ -514,7 +514,7 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-41");
+  assert.equal(RULES, "fuse-p2p-42");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;
@@ -588,6 +588,38 @@ test("succession: a rider may record the absence of anyone ahead of it, and mana
     true,
     "an absent rider manages nothing",
   );
+});
+
+test("succession follows the seats, not the member ids: the room passes to the rider in the next seat down", () => {
+  const r = playing();
+  // `aaa` sits below `guest` but sorts before it: by id it would be the delegate, by seat it is not.
+  r.tick(
+    streams(["creator", [r.at("creator", JOIN, "aaa", "Aaa", 2, "fox", 3)]]),
+  );
+  assert.deepEqual(successionOrder(r.state, "creator"), [
+    "creator",
+    "guest",
+    "aaa",
+  ]);
+  r.tick(
+    streams(["creator", [r.at("creator", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(
+    actingCreator(r.state, "creator"),
+    "guest",
+    "seat 1 takes over, not the lowest id",
+  );
+  r.tick(streams(["guest", [r.at("guest", PRESENCE, "guest", false, 2)]]));
+  assert.equal(actingCreator(r.state, "creator"), "aaa", "and then seat 2");
+  // A watcher still ranks behind every seated rider, whatever its id.
+  r.tick(
+    streams(["aaa", [r.at("aaa", SPECTATOR, "join", "aaaa", "Watcher", 9)]]),
+  );
+  assert.deepEqual(successionOrder(r.state, "creator"), [
+    "creator",
+    "aaa",
+    "aaaa",
+  ]);
 });
 
 test("a lobby reset keeps only the folds and bots of riders it still seats, so the state stays snapshot-clean", () => {

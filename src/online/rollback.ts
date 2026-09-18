@@ -1,5 +1,6 @@
 import { BotController } from "../engine/bot-controller.js";
 import {
+  actingCreator,
   applyTick,
   hashRoomState,
   successionOrder,
@@ -41,6 +42,11 @@ export interface Frame extends WorldView {
   logTick: number;
   /** The room's watching list, by member id. Room state, not game state, so it travels beside the view rather than inside it. */
   spectators: SpectatorView[];
+  /**
+   * Who manages the room as this frame folded: the creator while it is present, otherwise the next member in the
+   * succession order. Derived from the same fold on every replica, so every screen names the same host.
+   */
+  managerId: string;
 }
 
 /**
@@ -99,6 +105,7 @@ export class World {
       ...toView(state.game),
       matchId: state.game.matchId,
       logTick: state.tick,
+      managerId: actingCreator(state, this.creatorId) ?? this.creatorId,
       spectators: [...state.spectators]
         .map(([id, watcher]) => ({
           id,

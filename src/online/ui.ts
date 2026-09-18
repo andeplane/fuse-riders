@@ -71,7 +71,12 @@ import {
   type RoomScreen,
   type RoomScreenInput,
 } from "./room-screen.js";
-import { presentRoom, presentStatus, recapReady } from "./room-presenter.js";
+import {
+  presentRoom,
+  presentStatus,
+  recapReady,
+  type RemoveView,
+} from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
 import { safeStorage } from "../client/safe-storage.js";
@@ -442,6 +447,10 @@ export async function startOnline(): Promise<void> {
   if (!solo && !displayOnly) save(LAST_ROOM_KEY, code);
   let id = "",
     isHost = false,
+    // Who runs the room as the fold sees it, and whether that is this device. The creator holds it while it is here;
+    // the delegate holds it while the creator is away, and hands it straight back (ADR 047 §9).
+    managerId = "",
+    manages = false,
     joined = false,
     // This device has a place in the room's watching list: in the room, with no seat and no controls.
     watching = false,
@@ -540,6 +549,15 @@ export async function startOnline(): Promise<void> {
       : joinForm.element;
   if (role !== "joiner")
     joinForm.element.prepend(node("p", "JOIN THE RACE", "lobby-join-title"));
+  // A seat that vanishes on its own is a bug; a seat the host took back is a decision, so the join card says which it was.
+  const kickedNote = node(
+    "p",
+    "The host removed you from the room. You can join again.",
+    "join-kicked",
+  );
+  kickedNote.hidden = true;
+  kickedNote.setAttribute("role", "status");
+  joinForm.element.prepend(kickedNote);
   if (role !== "joiner") booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt = performance.now();
@@ -659,7 +677,7 @@ export async function startOnline(): Promise<void> {
     navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches;
   const showAnnouncement = (state: WorldView, visible: boolean) => {
     const announcement = announcementFor(state, id, touchInput);
-    const key = JSON.stringify(announcement) + visible + isHost;
+    const key = JSON.stringify(announcement) + visible + manages;
     if (key === lastAnnouncement) return;
     lastAnnouncement = key;
     announcer.hidden = !visible || announcement.kind === "hidden";
@@ -689,7 +707,7 @@ export async function startOnline(): Promise<void> {
       announceSmall.textContent = announcement.subtitle;
       announceBig.textContent = announcement.title;
       announceAction.hidden =
-        !isHost || replacedHost || announcement.subtitle !== "MATCH COMPLETE";
+        !manages || announcement.subtitle !== "MATCH COMPLETE";
     }
   };
   const feedLine = (text: string) => {
@@ -779,6 +797,8 @@ export async function startOnline(): Promise<void> {
       head: HTMLElement;
       name: HTMLElement;
       status: HTMLElement;
+      /** Says who runs the room. A word, not a crown: the crown is the round leader's, over in the standings. */
+      badge: HTMLElement;
       avatar: AvatarId;
       /** The name last written, so the frame never reads it back from the page. */
       shown: string;
@@ -790,6 +810,8 @@ export async function startOnline(): Promise<void> {
       entry: HTMLElement;
       name: HTMLElement;
       status: HTMLElement;
+      badge: HTMLElement;
+      remove: HTMLButtonElement;
       shown: string;
     }
   >();
@@ -833,10 +855,52 @@ export async function startOnline(): Promise<void> {
       head: HTMLElement;
       avatar: AvatarId;
       remove: HTMLButtonElement;
+      /** This row's remove button asks twice: it belongs to a person, not an AI rider. */
+      confirms: boolean;
       /** The name and points last written. */
       shown: string;
     }
   >();
+  /**
+   * Removing a friend is one tap away from removing an AI rider, and much worse to get wrong, so a human row asks
+   * twice: the first tap turns the button into KICK? for two seconds and only the second one sends the command.
+   */
+  const KICK_CONFIRM_MS = 2000;
+  const arming = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>();
+  const disarm = (button: HTMLButtonElement) => {
+    const timer = arming.get(button);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    arming.delete(button);
+    button.textContent = "×";
+    button.classList.remove("arming");
+  };
+  const removeTapped = (
+    button: HTMLButtonElement,
+    confirms: boolean,
+    act: () => void,
+  ) => {
+    if (!confirms || arming.has(button)) {
+      disarm(button);
+      act();
+      return;
+    }
+    button.textContent = "KICK?";
+    button.classList.add("arming");
+    arming.set(
+      button,
+      setTimeout(() => disarm(button), KICK_CONFIRM_MS),
+    );
+  };
+  /** One update for every remove button: the AI rider's, the friend's and the watcher's. */
+  const showRemove = (button: HTMLButtonElement, view: RemoveView) => {
+    button.hidden = view.hidden;
+    button.disabled = view.disabled;
+    button.setAttribute("aria-label", view.label);
+    button.title = view.title;
+    // A button that just went away or went dead must not stay armed: the next tap would kick without asking.
+    if (view.hidden || view.disabled) disarm(button);
+  };
   const help = node("button", "?", "desktop-help");
   help.setAttribute("aria-label", "Keyboard controls");
   help.title = "Keyboard controls";
@@ -956,7 +1020,7 @@ export async function startOnline(): Promise<void> {
     dialogBody.replaceChildren(node("h2", "Keyboard shortcuts"));
     for (const group of keyboardShortcuts({
       mac,
-      canConfigure: isHost || solo,
+      canConfigure: manages || solo,
       solo,
     })) {
       const list = node("dl", "", "shortcut-list");
@@ -1201,8 +1265,8 @@ export async function startOnline(): Promise<void> {
     dialog.setAttribute("aria-label", "Match results");
     recapOpen = true;
     dialog.classList.add("recap-dialog");
-    rematch.hidden = !isHost;
-    recapLobby.hidden = !isHost;
+    rematch.hidden = !manages;
+    recapLobby.hidden = !manages;
     close.textContent = "✕";
     fullStats.hidden = !snapshot.matchStats.length;
     fullStats.textContent = "View full stats ↗";
@@ -1233,6 +1297,9 @@ export async function startOnline(): Promise<void> {
         role: host ? "creator" : displayOnly ? "display" : "guest",
         ua: navigator.userAgent.slice(0, 80),
       });
+    },
+    kicked: () => {
+      kickedNote.hidden = false;
     },
     // The change guard compares raw wordings, not the displayed one: three flattened states would log a "change" for every distinct runtime message and hide the one that actually changed.
     status: (text) => {
@@ -1312,6 +1379,9 @@ export async function startOnline(): Promise<void> {
     state: (state, rules) => {
       if (roomEnded) return;
       bootDone();
+      // Every replica folds the same log, so every screen names the same host — including the host's own screen.
+      managerId = state.managerId;
+      manages = id !== "" && managerId === id && !replacedHost;
       if (snapshot && snapshot.phase !== state.phase) clearControls();
       funnel.onFrame(state, {
         playerId: id,
@@ -1392,6 +1462,7 @@ export async function startOnline(): Promise<void> {
       if (!recapIsReady && dialog.open && recapOpen) dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
+      if (joined) kickedNote.hidden = true;
       // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
       const watcher = state.spectators.find((seat) => seat.id === id);
       watching = Boolean(watcher);
@@ -1401,7 +1472,8 @@ export async function startOnline(): Promise<void> {
         state,
         spectators: state.spectators,
         playerId: id,
-        host: isHost,
+        manages,
+        managerId,
         replacedHost,
         solo,
         displayOnly,
@@ -1453,10 +1525,21 @@ export async function startOnline(): Promise<void> {
             head = createAvatarPortrait(p.avatarId),
             name = node("strong"),
             status = node("small"),
+            badge = node("span", "HOST", "host-badge"),
             info = node("div");
+          badge.title =
+            "Runs the room: starts the race and changes the settings";
           info.append(name, status);
-          entry.append(head, info);
-          row = { entry, head, name, status, avatar: p.avatarId, shown: "" };
+          entry.append(head, info, badge);
+          row = {
+            entry,
+            head,
+            name,
+            status,
+            badge,
+            avatar: p.avatarId,
+            shown: "",
+          };
           lobbyEntries.set(p.id, row);
           lobbyRiders.append(entry);
         }
@@ -1469,6 +1552,7 @@ export async function startOnline(): Promise<void> {
         row.entry.style.setProperty("--rider-color", p.color);
         if (row.shown !== p.name) row.name.textContent = row.shown = p.name;
         row.status.textContent = p.status;
+        row.badge.hidden = !p.host;
       }
       lobbyWatchers.hidden = view.lobby.watchersHidden;
       for (const [watcherId, row] of watcherEntries)
@@ -1483,14 +1567,25 @@ export async function startOnline(): Promise<void> {
             glyph = node("span", "👁", "watcher-glyph"),
             watcherName = node("strong"),
             watcherStatus = node("small"),
-            info = node("div");
+            badge = node("span", "HOST", "host-badge"),
+            remove = node("button", "×"),
+            info = node("div"),
+            watcherId = seat.id;
           glyph.setAttribute("aria-hidden", "true");
+          badge.title =
+            "Runs the room: starts the race and changes the settings";
           info.append(watcherName, watcherStatus);
-          entry.append(glyph, info);
+          entry.append(glyph, info, badge, remove);
+          remove.onclick = () =>
+            removeTapped(remove, true, () =>
+              runtime.command({ type: "kick", id: watcherId }),
+            );
           row = {
             entry,
             name: watcherName,
             status: watcherStatus,
+            badge,
+            remove,
             shown: "",
           };
           watcherEntries.set(seat.id, row);
@@ -1499,6 +1594,8 @@ export async function startOnline(): Promise<void> {
         if (row.shown !== seat.name)
           row.name.textContent = row.shown = seat.name;
         row.status.textContent = seat.status;
+        row.badge.hidden = !seat.host;
+        showRemove(row.remove, seat.remove);
       }
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
@@ -1561,14 +1658,34 @@ export async function startOnline(): Promise<void> {
           const entry = node("span", "", "online-score-card"),
             label = node("span"),
             head = createAvatarPortrait(p.avatarId),
-            remove = node("button", "×");
+            remove = node("button", "×"),
+            memberId = p.id;
           entry.append(head, label, remove);
+          // The same button frees an AI seat and sends a friend home; which command it is follows from who sits there.
           remove.onclick = () =>
-            runtime.command({ type: "bot", action: "remove", id: p.id });
-          row = { entry, label, head, avatar: p.avatarId, remove, shown: "" };
+            removeTapped(
+              remove,
+              rosterEntries.get(memberId)?.confirms === true,
+              () =>
+                runtime.command(
+                  rosterEntries.get(memberId)?.confirms
+                    ? { type: "kick", id: memberId }
+                    : { type: "bot", action: "remove", id: memberId },
+                ),
+            );
+          row = {
+            entry,
+            label,
+            head,
+            avatar: p.avatarId,
+            remove,
+            confirms: p.remove.confirms,
+            shown: "",
+          };
           rosterEntries.set(p.id, row);
           roster.append(entry);
         }
+        row.confirms = p.remove.confirms;
         if (row.shown !== `${p.name}${p.points}`) {
           row.shown = `${p.name}${p.points}`;
           row.label.className = "online-score-label";
@@ -1597,16 +1714,18 @@ export async function startOnline(): Promise<void> {
           : row.entry;
         if (row.remove.parentElement !== removeParent)
           removeParent.append(row.remove);
-        row.remove.hidden = p.remove.hidden;
-        row.remove.disabled = p.remove.disabled;
-        row.remove.setAttribute("aria-label", p.remove.label);
-        row.remove.title = p.remove.title;
+        showRemove(row.remove, p.remove);
       }
       addAI.disabled = view.actions.addAIDisabled;
       if (startLabel !== view.actions.start.label)
         start.textContent = startLabel = view.actions.start.label;
       start.disabled = view.actions.start.disabled;
       hostControls.hidden = view.actions.hidden;
+      // The crown can move while the results are up: REMATCH appears for whoever holds it without reopening the card.
+      if (recapOpen) {
+        rematch.hidden = !manages;
+        recapLobby.hidden = !manages;
+      }
       reset.disabled = view.actions.reset.disabled;
       reset.hidden = view.actions.reset.hidden;
       share.hidden = view.actions.shareHidden;
@@ -1672,30 +1791,36 @@ export async function startOnline(): Promise<void> {
   menu.onclick = () => {
     dialogTitle.textContent = solo ? "EXIT" : "ROOM";
     dialog.setAttribute("aria-label", solo ? "Exit" : "Room");
+    // The creator has two ways out, and they are not the same door: leaving hands the room to the next rider (the
+    // room keeps running while anyone is in it, #262), ending it closes the code for everyone.
+    const canEnd = isHost && !solo;
     dialogBody.replaceChildren(
       node(
         "p",
         solo
           ? "End this solo run and go back to the menu?"
-          : isHost
-            ? "End this room for everyone?"
+          : canEnd
+            ? "Leave this room? It keeps running, and the rider in the next seat takes over as host. END ROOM closes it for everyone."
             : "Leave this room?",
       ),
     );
     const leave = node(
         "button",
-        solo ? "END RUN" : isHost ? "END ROOM" : "LEAVE ROOM",
+        solo ? "END RUN" : "LEAVE ROOM",
         "exit-confirm",
       ),
+      end = node("button", "END ROOM", "exit-end"),
       stay = node("button", solo ? "KEEP PLAYING" : "STAY"),
       choices = node("div", "", "exit-choices");
+    end.hidden = !canEnd;
+    end.title = "Close the room for everyone in it";
     stay.onclick = () => dialog.close();
-    choices.append(stay, leave);
-    leave.onclick = async () => {
-      leave.disabled = stay.disabled = true;
-      leave.textContent = "LEAVING…";
+    choices.append(stay, end, leave);
+    const exit = async (ending: boolean) => {
+      leave.disabled = stay.disabled = end.disabled = true;
+      (ending ? end : leave).textContent = ending ? "ENDING…" : "LEAVING…";
       runtime.stop();
-      if (isHost && !solo) {
+      if (ending) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 2500);
         try {
@@ -1713,6 +1838,8 @@ export async function startOnline(): Promise<void> {
       if (read(LAST_ROOM_KEY) === code) storage.removeItem(LAST_ROOM_KEY);
       location.href = appUrl();
     };
+    leave.onclick = () => void exit(false);
+    end.onclick = () => void exit(true);
     dialogBody.append(choices);
     const standings = [...(snapshot?.leaderboard ?? [])].sort(
       (a, b) =>
@@ -1870,7 +1997,7 @@ export async function startOnline(): Promise<void> {
       dialog.open ||
       roomAccount.dialog.open ||
       roomEnded ||
-      !(isHost || solo)
+      !(manages || solo)
     )
       return;
     event.preventDefault();

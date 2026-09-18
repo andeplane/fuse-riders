@@ -67,7 +67,9 @@ export type RoomCommand =
   | { type: "avatar"; avatarId: AvatarId }
   | { type: "action"; action: "start" | "lobby" | "rematch" }
   | { type: "settings"; settings: RoomSettings }
-  | { type: "bot"; action: "add" | "remove"; id?: string };
+  | { type: "bot"; action: "add" | "remove"; id?: string }
+  /** Remove a human rider or a watcher: the manager's escape hatch for an absent friend, between rounds like AI removal. */
+  | { type: "kick"; id: string };
 export type { RoomTransport, TransportEvents };
 export interface RuntimeDependencies {
   now(): number;
@@ -82,6 +84,8 @@ export interface Callbacks {
   event(event: GameEvent, matchId: string, round: number, tick: number): void;
   status(text: string): void;
   ready(id: string, host: boolean): void;
+  /** The manager removed this device from the room. The seat is already gone from the fold; the screen says why. */
+  kicked?(): void;
   ended?(): void;
 }
 /** What `presentation()` hands the screen: frames and times, not a finished picture. */
@@ -549,6 +553,13 @@ export class RoomRuntime {
         return;
       case "snapshot":
         this.acceptSnapshotChunk(id, raw);
+        return;
+      // Only from whoever manages the room, and only about this device: a peer cannot talk anyone else out of its seat.
+      case "kicked":
+        if (id !== this.managerId()) return;
+        this.pendingJoin = undefined;
+        this.status.notice("The host removed you from the room");
+        this.deliver("kicked", () => this.callbacks.kicked?.());
         return;
       case "error":
         if (typeof data.error === "string")
@@ -1146,7 +1157,8 @@ export class RoomRuntime {
       this.sendPackets(this.deps.now());
       return true;
     }
-    if (!this.creator) {
+    // Whoever manages the room right now: the creator, or the delegate holding it while the creator is away (#B.2).
+    if (!this.manager) {
       this.status.notice("Only the host can manage the room");
       return false;
     }
@@ -1221,7 +1233,35 @@ export class RoomRuntime {
       this.append(BOT, "remove", command.id);
       return true;
     }
+    if (command.type === "kick") return this.kick(command.id);
     return false;
+  }
+  /**
+   * Remove a human member the manager names. A rider goes between rounds only (`reclaimable`), the same rule as AI
+   * removal and for a sharper reason: mid-round `LEAVE` only marks a rider absent, and the target's own page rejoins
+   * anyone it sees as absent a moment later, so the kick would undo itself. A watcher holds no seat, so `LEAVE` frees
+   * it in any phase. The target is told directly as well; that message is a courtesy, and the fold is what removes it.
+   */
+  private kick(id: string): boolean {
+    const game = this.world!.state.game,
+      watcher = this.world!.state.spectators.get(id),
+      player = game.players.get(id);
+    if (typeof id !== "string" || id === this.id) return false;
+    if (!watcher && !player) {
+      this.status.notice("That rider has already left");
+      return false;
+    }
+    if (player && this.world!.state.bots.has(id)) {
+      this.status.notice("Remove AI riders with their own button");
+      return false;
+    }
+    if (player && !reclaimable(game)) {
+      this.status.notice("Remove riders between rounds or return to menu");
+      return false;
+    }
+    this.append(LEAVE, id);
+    this.transport?.send(id, { type: "kicked" });
+    return true;
   }
   private sendJoin(): boolean {
     const join = this.pendingJoin;

@@ -1402,6 +1402,51 @@
 .room-watcher small {
   color: #8ba3c0;
 }
+/* Who runs the room. A word rather than a crown: the crown already means the round leader over in the standings. */
+.host-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 0.5rem;
+  font-weight: bold;
+  letter-spacing: 0.1875rem;
+  padding: 0.1875rem 0.4375rem;
+  border-radius: 0.6875rem;
+  border: 0.0625rem solid var(--rider-color, #8ba3c0);
+  color: var(--rider-color, #b9d2e8);
+  background: color-mix(in srgb, var(--rider-color, #8ba3c0) 14%, transparent);
+  text-shadow: 0 0 0.5rem
+    color-mix(in srgb, var(--rider-color, #8ba3c0) 60%, transparent);
+}
+/* A watcher row carries no rider colour, so its remove button takes the list's neutral grey. */
+.room-watcher > button {
+  color: #b9d2e8;
+  border-color: #334567;
+}
+.room-watcher .host-badge {
+  border-color: #8ba3c0;
+  color: #cfe2f5;
+  background: rgb(139 163 192 / 14%);
+  text-shadow: none;
+}
+/* A remove button that has been tapped once and is waiting for the second tap. */
+.room-rider > button.arming,
+.online-score-card > button.arming {
+  width: auto;
+  padding: 0.25rem 0.4375rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.0625rem;
+  color: #ffd166;
+  border-color: #ffd166;
+  background: rgb(255 209 102 / 14%);
+}
+/* The seat did not vanish: the host took it back, and the card says so above the name field. */
+.join-kicked {
+  margin: 0 0 0.625rem;
+  color: #ffd166;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
 .room-lobby-footer {
   grid-column: 1/-1;
   display: flex;

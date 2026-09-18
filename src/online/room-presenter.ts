@@ -41,7 +41,10 @@ export interface RoomPresenterInput {
   state: WorldView;
   /** This device's rider id, `""` before the room confirms it. */
   playerId: string;
-  host: boolean;
+  /** Whether this device may run the room right now: the creator, or the delegate holding it while the creator is away. */
+  manages: boolean;
+  /** Who runs the room, from the frame. Its row wears the HOST badge on every screen, including the host's own. */
+  managerId: string;
   /** Another tab took hosting over: this one's host actions are gone. */
   replacedHost: boolean;
   solo: boolean;
@@ -66,6 +69,8 @@ export interface LobbyRiderView {
   color: string;
   avatarId: AvatarId;
   status: "READY" | "OFFLINE";
+  /** This rider runs the room: the row wears the HOST badge. The crown is the round leader's, over in the standings. */
+  host: boolean;
 }
 
 export interface WatcherView {
@@ -73,6 +78,10 @@ export interface WatcherView {
   name: string;
   /** `WATCHING` or `OFFLINE`, and on this device's own row what it is here as. */
   status: string;
+  /** This watcher runs the room: a host that gave up its seat keeps the badge. */
+  host: boolean;
+  /** The manager's button for sending this watcher home. */
+  remove: RemoveView;
 }
 
 export interface StandingView {
@@ -92,12 +101,17 @@ export interface StandingView {
   leader: boolean;
   /** Match score as a fraction of the leader's, for the lead bar. */
   lead: string;
-  remove: {
-    hidden: boolean;
-    disabled: boolean;
-    title: string;
-    label: string;
-  };
+  remove: RemoveView;
+}
+
+/** The manager's remove button on a member's row: the same control for an AI rider, a friend and a watcher. */
+export interface RemoveView {
+  hidden: boolean;
+  disabled: boolean;
+  title: string;
+  label: string;
+  /** A human needs asking twice; removing an AI is one tap, as it has always been. */
+  confirms: boolean;
 }
 
 export interface FireView {
@@ -152,7 +166,7 @@ function notice(
   state: WorldView,
   playerId: string,
   joined: boolean,
-  host: boolean,
+  manages: boolean,
   ready: boolean,
   watching: boolean,
 ): string {
@@ -160,7 +174,7 @@ function notice(
   if (state.phase === "lobby")
     return watching
       ? "Watching · waiting for the race to start"
-      : joined && !host
+      : joined && !manages
         ? "Waiting for the host to start"
         : "Join your friends, then start the race";
   if (state.phase === "countdown")
@@ -223,7 +237,7 @@ const LIVE: readonly RoomPhase[] = ["playing", "countdown"];
 const BEFORE_PLAY: readonly RoomPhase[] = ["lobby", "countdown"];
 
 function standings(input: RoomPresenterInput): StandingView[] {
-  const { state, host } = input;
+  const { state, manages } = input;
   // Cards are ordered by match score (this round's points break ties); the leader is marked once somebody has scored.
   const ranked = [...state.players].sort(
     (a, b) =>
@@ -245,21 +259,46 @@ function standings(input: RoomPresenterInput): StandingView[] {
       rank: ranked.indexOf(p) + 1,
       leader: topScore > 0 && p.matchScoreUnits === topScore,
       lead: topScore > 0 ? String(p.matchScoreUnits / topScore) : "0",
-      remove: {
-        hidden: !host || !p.id.startsWith(BOT_ID_PREFIX),
-        disabled: !removable,
-        title: removable
-          ? "Remove AI rider"
-          : "Remove AI between rounds or return to menu",
-        label: `Remove ${p.name}`,
-      },
+      // The manager may remove an AI rider or a friend, never itself. Both wait for a pause: mid-round a removed rider
+      // is only marked absent, and its own page would rejoin a moment later.
+      remove: removeView({
+        hidden: !manages || p.id === input.playerId,
+        removable,
+        bot: p.id.startsWith(BOT_ID_PREFIX),
+        name: p.name,
+      }),
     };
   });
 }
 
+function removeView(input: {
+  hidden: boolean;
+  removable: boolean;
+  bot: boolean;
+  name: string;
+}): RemoveView {
+  return {
+    hidden: input.hidden,
+    disabled: !input.removable,
+    title: input.removable
+      ? input.bot
+        ? "Remove AI rider"
+        : `Remove ${input.name} from the room`
+      : input.bot
+        ? "Remove AI between rounds or return to menu"
+        : "Remove riders between rounds or return to menu",
+    label: input.bot
+      ? `Remove ${input.name}`
+      : `Remove ${input.name} from the room`,
+    confirms: !input.bot,
+  };
+}
+
 /** The room page's frame, as data. */
 export function presentRoom(input: RoomPresenterInput): RoomView {
-  const { state, playerId, host, solo, displayOnly } = input;
+  const { state, playerId, managerId, solo, displayOnly } = input;
+  // A tab another one replaced as host cannot act on the room any more, whatever the fold still says it manages.
+  const manages = input.manages && !input.replacedHost;
   const player = state.players.find((p) => p.id === playerId);
   const joined = Boolean(player);
   const watching = input.spectators.some((seat) => seat.id === playerId);
@@ -281,7 +320,7 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     roundClock: clock,
     roundChipHidden: !clock || input.lobbyCard,
     announcerVisible: !input.lobbyCard && !input.joining,
-    notice: notice(state, playerId, joined, host, ready, watching),
+    notice: notice(state, playerId, joined, manages, ready, watching),
     lobby: {
       // The watchers go beside the riders, before the call for more: "1 rider ready · 1 watching · Waiting for at least 2 riders".
       count: [
@@ -300,18 +339,27 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
         color: p.color,
         avatarId: p.avatarId,
         status: p.connected ? "READY" : "OFFLINE",
+        host: p.id === managerId,
       })),
       watchers: input.spectators.map((seat) => ({
         id: seat.id,
         name: seat.name,
-        // Whose row this is, is all one screen can say for certain; who manages the room arrives with the host crown.
-        status: `${seat.id === playerId ? (host ? "HOST · " : "YOU · ") : ""}${seat.connected ? "WATCHING" : "OFFLINE"}`,
+        // The badge says who runs the room; the status still says whose row this is and whether it is still here.
+        status: `${seat.id === playerId ? "YOU · " : ""}${seat.connected ? "WATCHING" : "OFFLINE"}`,
+        host: seat.id === managerId,
+        // A watcher holds no seat and no simulation state, so it can be sent home in any phase.
+        remove: removeView({
+          hidden: !manages || seat.id === playerId,
+          removable: true,
+          bot: false,
+          name: seat.name,
+        }),
       })),
       watchersHidden: input.spectators.length === 0,
     },
-    standings: standings(input),
+    standings: standings({ ...input, manages }),
     actions: {
-      hidden: !host || input.replacedHost,
+      hidden: !manages,
       start: {
         label: state.phase === "matchOver" ? "REMATCH" : "START RACE",
         // A rematch during the final pause would skip the match result, the recap and the match report that opens with it.
