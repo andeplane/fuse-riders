@@ -1943,42 +1943,49 @@ export async function startOnline(): Promise<void> {
     event.preventDefault();
     openSettings("powerups");
   });
-  const inputState = new ControllerInputState({
-    send: (message) => {
-      if (roomEnded) return false;
-      const controlsKey = `${message.left}:${message.right}:${message.bomb}`,
-        changed = controlsKey !== lastControls;
-      if (changed) {
-        inputAt = performance.now();
-        benchmarkInput = { seq: message.seq, at: inputAt };
-        lastControls = controlsKey;
-      }
-      const sent = runtime.command(message);
-      if (benchmark)
-        sample({
-          kind: "input",
-          at: performance.now(),
-          seq: message.seq,
-          left: message.left,
-          right: message.right,
-          bomb: message.bomb,
-          bombAction: message.bombAction,
-          sent,
-          tick: runtime.tick,
-        });
-      if (changed || message.bombAction)
-        telemetry.log("input", {
-          seq: message.seq,
-          left: message.left,
-          right: message.right,
-          bomb: message.bomb,
-          bombAction: message.bombAction,
-          sent,
-          tick: runtime.tick,
-        });
-      return sent;
+  const inputState = new ControllerInputState(
+    {
+      send: (message) => {
+        if (roomEnded) return false;
+        const controlsKey = `${message.left}:${message.right}:${message.bomb}`,
+          changed = controlsKey !== lastControls;
+        if (changed) {
+          inputAt = performance.now();
+          benchmarkInput = { seq: message.seq, at: inputAt };
+          lastControls = controlsKey;
+        }
+        const sent = runtime.command(message);
+        if (benchmark)
+          sample({
+            kind: "input",
+            at: performance.now(),
+            seq: message.seq,
+            left: message.left,
+            right: message.right,
+            bomb: message.bomb,
+            bombAction: message.bombAction,
+            sent,
+            tick: runtime.tick,
+          });
+        if (changed || message.bombAction)
+          telemetry.log("input", {
+            seq: message.seq,
+            left: message.left,
+            right: message.right,
+            bomb: message.bomb,
+            bombAction: message.bombAction,
+            sent,
+            tick: runtime.tick,
+          });
+        return sent;
+      },
     },
-  });
+    undefined,
+    () =>
+      !canvas.hidden &&
+      !app.classList.contains("controller-only") &&
+      canvas.dataset.arenaOrientation === "portrait",
+  );
   const bindings = new ControllerPointerBindings(
     inputState,
     [

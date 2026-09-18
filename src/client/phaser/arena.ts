@@ -30,7 +30,12 @@ import {
 } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
-import { crossViews, edgeGhosts } from "../arena-views.js";
+import {
+  crossViews,
+  quarterTurnView,
+  uprightOffset,
+  edgeGhosts,
+} from "../arena-views.js";
 import { edgesOpen } from "../../shared/arena-map.js";
 import { wrapCoordinate } from "../../shared/wrap.js";
 import { observeArenaDisplay } from "./viewport.js";
@@ -55,6 +60,7 @@ export interface ArenaOptions {
   renderer?: "auto" | "canvas";
   quality?: "high" | "low";
   resolution?: "display" | "world";
+  rotateToFit?: boolean;
   onStatus?: (status: "ready" | "context-lost" | "restored") => void;
 }
 export interface ArenaMetrics {
@@ -136,7 +142,7 @@ export function createPhaserArena(
   let renderMs = 0;
   canvas.style.width = "100%";
   canvas.style.height = "100%";
-  const display = observeArenaDisplay(canvas);
+  const display = observeArenaDisplay(canvas, options.rotateToFit);
   const scene = new ArenaScene(options.quality === "low" ? 160 : 480, () => {
     if (destroyed) return;
     game.loop.stop();
@@ -190,7 +196,7 @@ export function createPhaserArena(
     if (destroyed || !booted) return;
     const backing =
       options.resolution === "world"
-        ? { width, height }
+        ? { width, height, rotated: false }
         : display.backing(width, height);
     if (
       game.scale.width !== backing.width ||
@@ -202,14 +208,22 @@ export function createPhaserArena(
     canvas.style.height = "100%";
     // The crossed map is the same world seen through four cameras, each showing one quarter in the opposite corner
     // of the screen. Nothing that is drawn knows: every object is clipped at a seam and picked up past it for free.
+    scene.rotated = backing.rotated;
+    canvas.dataset.arenaOrientation = backing.rotated
+      ? "portrait"
+      : "landscape";
+    const screenWidth = backing.rotated ? backing.height : backing.width;
+    const screenHeight = backing.rotated ? backing.width : backing.height;
+    const zoomX = screenWidth / width,
+      zoomY = screenHeight / height;
     const views = crossed
-      ? crossViews(width, height, backing.width, backing.height)
+      ? crossViews(width, height, screenWidth, screenHeight)
       : [
           {
             x: 0,
             y: 0,
-            width: backing.width,
-            height: backing.height,
+            width: screenWidth,
+            height: screenHeight,
             scrollX: 0,
             scrollY: 0,
           },
@@ -218,7 +232,10 @@ export function createPhaserArena(
     while (cameras.cameras.length > views.length)
       cameras.remove(cameras.cameras[cameras.cameras.length - 1]!);
     while (cameras.cameras.length < views.length) cameras.add(0, 0, 1, 1);
-    for (const [index, view] of views.entries()) {
+    for (const [index, original] of views.entries()) {
+      const view = backing.rotated
+        ? quarterTurnView(original, screenHeight, zoomY)
+        : original;
       cameras.cameras[index]!.setViewport(
         view.x,
         view.y,
@@ -227,7 +244,8 @@ export function createPhaserArena(
       )
         .setOrigin(0, 0)
         .setScroll(view.scrollX, view.scrollY)
-        .setZoom(backing.width / width, backing.height / height);
+        .setZoom(zoomX, zoomY)
+        .setRotation(backing.rotated ? Math.PI / 2 : 0);
     }
   };
   return {
@@ -273,6 +291,7 @@ export function createPhaserArena(
 }
 
 class ArenaScene extends Phaser.Scene {
+  rotated = false;
   private floor!: Phaser.GameObjects.Graphics;
   private floorTexture!: Phaser.Textures.CanvasTexture;
   private floorImage!: Phaser.GameObjects.Image;
@@ -592,7 +611,7 @@ class ArenaScene extends Phaser.Scene {
       .setTexture(key, frame)
       .setPosition(x, y)
       .setDisplaySize(size, size)
-      .setRotation(rotation)
+      .setRotation(rotation - (this.rotated ? Math.PI / 2 : 0))
       .setAlpha(1)
       .clearTint();
   }
@@ -625,7 +644,12 @@ class ArenaScene extends Phaser.Scene {
       Math.ceil(Math.max(this.cameras.main.zoomX, this.cameras.main.zoomY)),
     );
     if (label.style.resolution !== resolution) label.setResolution(resolution);
-    label.setDepth(depth).setVisible(true).setPosition(x, y).setAlpha(1);
+    label
+      .setDepth(depth)
+      .setVisible(true)
+      .setPosition(x, y)
+      .setRotation(this.rotated ? -Math.PI / 2 : 0)
+      .setAlpha(1);
     if (label.style.color !== tint) label.setColor(tint);
     if (label.style.fontSize !== `${size}px`) label.setFontSize(size);
     return label;
@@ -879,7 +903,8 @@ class ArenaScene extends Phaser.Scene {
         p.y,
         (power ? 24 : 34) * pulse,
       ).setAlpha(clamp((p.expiresAtTick - s.tick) / 40, 0.15, 1));
-      if (!power)
+      if (!power) {
+        const text = uprightOffset(p.x, p.y, 0, 30, this.rotated);
         this.label(
           p.type === "stopwatch"
             ? "FUSE"
@@ -888,11 +913,12 @@ class ArenaScene extends Phaser.Scene {
               : p.type === "orbitShield"
                 ? "SHIELD"
                 : p.type.toUpperCase(),
-          p.x,
-          p.y + 30,
+          text.x,
+          text.y,
           "#d3fff2",
           9,
         );
+      }
     }
     const portalPulses = gunPortalPulses(s, s.presentationTick ?? s.tick);
     const livePortals = s.portalPairs.filter(
@@ -1291,9 +1317,24 @@ class ArenaScene extends Phaser.Scene {
               POWER_ICON_GAP +
               power.width) /
               2;
-        name.setX(left + name.width / 2);
-        const iconX = left + name.width + gap + POWER_ICON_SIZE / 2,
-          iconY = labelY,
+        const namePoint = uprightOffset(
+          p.x,
+          p.y,
+          left + name.width / 2 - p.x,
+          labelY - p.y,
+          this.rotated,
+        );
+        name.setPosition(namePoint.x, namePoint.y);
+        const iconOffset = left + name.width + gap + POWER_ICON_SIZE / 2 - p.x;
+        const iconPoint = uprightOffset(
+          p.x,
+          p.y,
+          iconOffset,
+          labelY - p.y,
+          this.rotated,
+        );
+        const iconX = iconPoint.x,
+          iconY = iconPoint.y,
           radius = POWER_ICON_SIZE / 2;
         f.fillStyle(color(POWER_COLOR))
           .lineStyle(2, 0x020715)
@@ -1305,7 +1346,14 @@ class ArenaScene extends Phaser.Scene {
           .closePath()
           .fillPath()
           .strokePath();
-        power.setX(iconX + radius + POWER_ICON_GAP + power.width / 2);
+        const powerPoint = uprightOffset(
+          p.x,
+          p.y,
+          iconOffset + radius + POWER_ICON_GAP + power.width / 2,
+          labelY - p.y,
+          this.rotated,
+        );
+        power.setPosition(powerPoint.x, powerPoint.y);
         const reload = reloadRemaining(p, s);
         if (reload > 0) {
           const start = -Math.PI / 2 + (1 - reload) * Math.PI * 2;
@@ -1346,7 +1394,8 @@ class ArenaScene extends Phaser.Scene {
               .fillRect(sx - 2, sy - 8, 4, 16)
               .fillRect(sx - 8, sy - 2, 16, 4);
           }
-          this.label("DIZZY", p.x, p.y + 37, "#fff078", 9);
+          const text = uprightOffset(p.x, p.y, 0, 37, this.rotated);
+          this.label("DIZZY", text.x, text.y, "#fff078", 9);
         }
         if (
           p.bombChargeStartedTick !== undefined &&
@@ -1378,7 +1427,8 @@ class ArenaScene extends Phaser.Scene {
         ) {
           const { x, y } = p.bombTarget;
           drawBombAim(f, p, { x, y }, tint);
-          this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
+          const text = uprightOffset(x, y, 0, 45, this.rotated);
+          this.label(`TARGET · ${p.name}`, text.x, text.y, p.color, 12, 7);
         }
       }
     const inked = s.players.some((p) => p.alive && p.inkUntilTick > s.tick);
