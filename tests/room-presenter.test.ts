@@ -65,6 +65,7 @@ const present = (
     phoneLobby: false,
     mobileActive: false,
     bombHeld: false,
+    spectators: [],
     ...over,
   });
 
@@ -394,4 +395,80 @@ test("status: three plain states for players, the runtime's wording kept, and th
   assert.equal(replaced.action, "TAKE OVER HOSTING");
   assert.equal(replaced.replaced, true);
   assert.equal(presentStatus("Connecting…").action, undefined);
+});
+
+test("the watching list is its own block: no colour, no READY, and a footer that counts the two apart", () => {
+  const lobby = frame({ phase: "lobby", tick: 0 });
+  const watchers = [
+    { id: "w1", name: "Watcher", connected: true },
+    { id: "w2", name: "Away", connected: false },
+  ];
+  const view = present(lobby, {
+    spectators: watchers,
+    playerId: "ada",
+    host: false,
+  });
+  assert.equal(view.lobby.watchersHidden, false);
+  assert.deepEqual(view.lobby.watchers, [
+    { id: "w1", name: "Watcher", status: "WATCHING" },
+    { id: "w2", name: "Away", status: "OFFLINE" },
+  ]);
+  assert.equal(
+    view.lobby.count,
+    "3 riders ready · 1 watching",
+    "the footer counts the seats and the watchers apart, and only the present ones",
+  );
+  assert.deepEqual(
+    view.lobby.riders.map((rider) => rider.id),
+    ["me", "ada", "bot:1"],
+    "the watchers are not riders",
+  );
+  const empty = present(lobby);
+  assert.equal(empty.lobby.watchersHidden, true);
+  assert.deepEqual(empty.lobby.watchers, []);
+  assert.equal(
+    empty.lobby.count,
+    "3 riders ready",
+    "a room nobody watches says exactly what it always said",
+  );
+});
+
+test("a watcher is in the room: no join card, no controls, no avatar and its own notice", () => {
+  const lobby = frame({ phase: "lobby", tick: 0 });
+  const watcher = present(lobby, {
+    playerId: "w1",
+    host: false,
+    spectators: [{ id: "w1", name: "Watcher", connected: true }],
+  });
+  assert.equal(watcher.joined, false);
+  assert.equal(
+    watcher.joinPanelHidden,
+    true,
+    "it is in, so the join card goes",
+  );
+  assert.equal(watcher.controlsHidden, true, "it steers nothing");
+  assert.equal(watcher.avatarHidden, true, "and picks no avatar");
+  assert.equal(watcher.hudHidden, true);
+  assert.equal(watcher.power.hidden, true);
+  assert.equal(watcher.playerColor, undefined);
+  assert.equal(watcher.notice, "Watching · waiting for the race to start");
+  assert.deepEqual(
+    watcher.lobby.watchers.map((seat) => seat.status),
+    ["YOU · WATCHING"],
+    "its own row says which one it is",
+  );
+  assert.deepEqual(
+    present(lobby, {
+      playerId: "w1",
+      host: true,
+      spectators: [{ id: "w1", name: "Watcher", connected: true }],
+    }).lobby.watchers.map((seat) => seat.status),
+    ["HOST · WATCHING"],
+    "and says so when this device runs the room from the list",
+  );
+  assert.equal(
+    present(lobby, { playerId: "ada", host: false }).notice,
+    "Waiting for the host to start",
+    "a seated rider's notice is unchanged",
+  );
 });

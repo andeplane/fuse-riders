@@ -135,8 +135,9 @@ page (below).
   5 min cap instead. A page behind a middlebox that passes the 101 but eats frames then makes about 21 attempts in
   its first hour (at most 24 with the unluckiest jitter) and about 14 an hour after, so it cannot spend its
   address's 30 failures by itself and lock out everyone else behind that NAT. With a flat 1.5 s retry and a 5 s deadline that took about three minutes.
-- `4029` (room full) is **terminal**: the transport stops, reports the service's wording ("Room full (five players
-  and TV)") through `terminated`, and the header shows RETRY. Retrying cannot free a seat.
+- `4029` (room full) is **terminal**: the transport stops, reports the service's wording ("Room full (five players,
+  five spectators and TV)", `ROOM_LIMITS.fullMessage`) through `terminated`, and the header shows RETRY. Retrying
+  cannot free a seat.
 - The player's RETRY is a page reload — a new transport with a fresh ladder — so a manual retry never waits out a
   backoff.
 - A refused `/ice` request (any non-2xx) is reported in LINK DIAGNOSTICS as

@@ -10,11 +10,17 @@ for (const seed of [7, 20260917, 0xdeadbeef])
       { loss: 0.2, duplicate: 0.3, baseMs: 20, jitterMs: 250, reliableMs: 40 },
       seed,
     );
-    const ids = ["host", "rider", "third"];
+    // `watcher` takes no seat: it carries no inputs through the impairment, and every replica must still fold the same
+    // watching list and the same world as the riders.
+    const ids = ["host", "rider", "third", "watcher"];
     const runtimes = ids.map((id) => {
       const runtime = net.add(id, defaultRoomSettings(), { humanName: id });
       runtime.start();
-      runtime.command({ type: "join", name: id });
+      runtime.command(
+        id === "watcher"
+          ? { type: "spectate", name: id }
+          : { type: "join", name: id },
+      );
       net.step(1000);
       return runtime;
     });
@@ -88,6 +94,12 @@ for (const seed of [7, 20260917, 0xdeadbeef])
         );
         assert.equal(runtime.metrics().snapshotRequest, false);
       }
+      for (const id of ids)
+        assert.deepEqual(
+          net.frame(id)?.spectators.map((seat) => [seat.name, seat.connected]),
+          [["watcher", true]],
+          `${id} agrees on the watching list`,
+        );
     } finally {
       for (const runtime of runtimes) runtime.stop();
     }

@@ -77,6 +77,7 @@ function permute(state: RoomState): void {
   state.game.leaderboard = backwardsMap(state.game.leaderboard);
   state.game.roundParticipants = backwardsMap(state.game.roundParticipants);
   state.folds = backwardsMap(state.folds);
+  state.spectators = backwardsMap(state.spectators);
   state.bots = new Set([...state.bots].sort(descending));
   state.settings.weights = backwardsKeys(state.settings.weights);
   if (state.game.settings)
