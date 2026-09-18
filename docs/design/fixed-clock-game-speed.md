@@ -6,7 +6,7 @@ Now the clock has one rate, `TICK_MS` per tick, always. The shared log advances 
 
 ## Where the step count is decided
 
-`stepsPerTick(game, bots)` (`src/engine/tuning.ts`, replacing `simulationTimeScale`) is `BOTS_ONLY_STEPS_PER_TICK` = 3 when the round is playing, at least one human rider is seated, no human rider is alive and a bot is alive; otherwise 1. The predicate is the one `simulationTimeScale` used: a disconnected human who is still coasting counts as alive and keeps normal speed; a room of bots only (the attract mode, a bots-only showcase) is not a wait and keeps its pace.
+`stepsPerTick(game, bots)` (`games/fuse-riders/src/engine/tuning.ts`, replacing `simulationTimeScale`) is `BOTS_ONLY_STEPS_PER_TICK` = 3 when the round is playing, at least one human rider is seated, no human rider is alive and a bot is alive; otherwise 1. The predicate is the one `simulationTimeScale` used: a disconnected human who is still coasting counts as alive and keeps normal speed; a room of bots only (the attract mode, a bots-only showcase) is not a wait and keeps its pace.
 
 `applyTick` evaluates it **once, first thing**, on the state as the previous log tick left it: before the tick's management entries and before any rider's entries fold. That is the folded state at the start of the tick, which every replica holds identically once it holds the same entries up to the previous tick. It passes the count to `driveGameTick`, which runs the first step with the tick's inputs and each further step with the later inputs (below), and **stops early when the round stops playing** (the round ended on step one or two). The round-over pause, the results and the next countdown therefore always run at normal speed, and a fast tick never steps into a phase the count was not decided for. `applyTick` never asks for more than `MAX_STEPS_PER_TICK` (= `BOTS_ONLY_STEPS_PER_TICK`), which is what the snapshot guard relies on.
 
@@ -19,7 +19,7 @@ The log carries a rider's entries for one log tick; the fold turns them into hel
 - a human rider: its held controls as they stand after the fold (`intentOf(fold)`: steering, the held bomb flag and aim), without commands, so a press is one press and a release one release;
 - a bot: `BotController.input` asked again on the game as the previous step left it, exactly as it would be asked on the next tick at normal speed. Bots decide per step, not per log tick; they play the fast phase as they played it when the clock itself ran fast.
 
-Fast mode only engages when every human is dead, so in practice the human half matters only for correctness of the seam (`tests/tick-driver.test.ts` pins it with a forced count).
+Fast mode only engages when every human is dead, so in practice the human half matters only for correctness of the seam (`games/fuse-riders/tests/tick-driver.test.ts` pins it with a forced count).
 
 ## Two counters: the log tick and the game's clock
 
@@ -43,7 +43,7 @@ Statistics, moments and the replay were already game-clock quantities and stay t
 
 ## Snapshots and checkpoints
 
-A snapshot already carried both counters: the envelope's `tick` field is the log tick it is served at, and the game checkpoint inside carries `game.tick`. The guard used to require them to be equal; it now requires the invariant above (`stepsCover` in `src/engine/tick-driver.ts`), and `decodeSnapshot` builds `RoomState.tick` from the envelope. The game checkpoint's own guards (`decodeGameState`) compare only game-clock quantities with `game.tick` and are unchanged. `canonicalRoomState` now includes `tick`, so the desync hash and the golden cover the log counter too; that is part of the rules commit.
+A snapshot already carried both counters: the envelope's `tick` field is the log tick it is served at, and the game checkpoint inside carries `game.tick`. The guard used to require them to be equal; it now requires the invariant above (`stepsCover` in `games/fuse-riders/src/engine/tick-driver.ts`), and `decodeSnapshot` builds `RoomState.tick` from the envelope. The game checkpoint's own guards (`decodeGameState`) compare only game-clock quantities with `game.tick` and are unchanged. `canonicalRoomState` now includes `tick`, so the desync hash and the golden cover the log counter too; that is part of the rules commit.
 
 ## The renderer
 
@@ -83,4 +83,4 @@ Measured with `npx tsx scripts/bench-catchup.ts <hiddenMs> 38` (two humans who n
 
 The total CPU of a catch-up or a re-run is the same; what changes is that no single pass holds the page for more than about 8 steps. On a device four or five times slower, a pass is still about a quarter of a second in the fast phase, and a fast phase with four bots costs more CPU per log tick than 50 ms: such a device cannot keep up there at all. Making a bot decision cheaper is the remaining lever. It cannot be done hash-identically by caching, since `BotController.input` reads the whole game state, which changes every step; deciding once per log tick instead of per step would be a rules change, and is left as a separate idea.
 
-- **It is a rules change.** A round that ended in the fast phase ends on the same step as before only in step count, not in log tick, and the canonical state now has `tick`, so `RULES` moved and the golden was re-recorded. The recording plays bots-only endgames, and `fast:steps` in `REQUIREMENTS` (`tests/fixtures/replay-coverage.ts`) makes the recorder prove it keeps doing so.
+- **It is a rules change.** A round that ended in the fast phase ends on the same step as before only in step count, not in log tick, and the canonical state now has `tick`, so `RULES` moved and the golden was re-recorded. The recording plays bots-only endgames, and `fast:steps` in `REQUIREMENTS` (`games/fuse-riders/tests/fixtures/replay-coverage.ts`) makes the recorder prove it keeps doing so.
