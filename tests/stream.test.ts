@@ -6,6 +6,7 @@ import {
   PACKET_ENTRIES,
   RETAINED_ENTRIES,
   ROLLBACK_TICKS,
+  SEQ_AHEAD,
   StreamLog,
 } from "../src/online/stream.js";
 import { PRESS, RELEASE, STEER, type Entry } from "../src/shared/input-log.js";
@@ -100,9 +101,14 @@ test("a whole packet is rejected on any invalid entry and nothing changes", () =
     ],
   ];
   for (const [entries, lastSeq, through] of bad) {
+    const result = remote.receive(entries, lastSeq, through, 12, 12);
+    assert.equal(result.status, "invalid", JSON.stringify(entries));
+    // Only a tick beyond this replica's own clock is something an honest packet can be refused for here.
     assert.equal(
-      remote.receive(entries, lastSeq, through, 12, 12).status,
-      "invalid",
+      result.refusal,
+      JSON.stringify(entries).includes(String(12 + FUTURE_TICKS + 1))
+        ? "window"
+        : "violation",
       JSON.stringify(entries),
     );
     assert.equal(JSON.stringify([...remote.entries]), before);
@@ -115,10 +121,14 @@ test("a whole packet is rejected on any invalid entry and nothing changes", () =
   const flood = new StreamLog(1);
   let seq = 2,
     status = "accepted";
-  while (status === "accepted" && seq < BUFFERED_ENTRIES + 10)
-    ((status = flood.receive([e(seq, 5, STEER, 0)], seq, 5, 5, 5).status),
-      seq++);
+  let refusal: string | undefined;
+  while (status === "accepted" && seq < BUFFERED_ENTRIES + 10) {
+    ({ status, refusal } = flood.receive([e(seq, 5, STEER, 0)], seq, 4, 5, 5));
+    seq++;
+  }
   assert.equal(status, "invalid");
+  assert.equal(refusal, "window", "a full buffer is this replica's limit");
+  assert.equal(seq, BUFFERED_ENTRIES + 3, "and it is the buffer that refused");
   assert.ok(flood.entries.size <= BUFFERED_ENTRIES);
 });
 
@@ -296,4 +306,202 @@ test("confirmed completeness stops at the last contiguous entry when a gap hides
     "accepted",
   );
   assert.equal(remote.confirmedThrough(), 90);
+});
+
+test("a declared through is a promise about every later seq: a new entry at or below it is refused, a repeat is not", () => {
+  const remote = new StreamLog(1);
+  // The entry rides with the packet that declares it: `through` may already have reached its tick.
+  assert.equal(
+    remote.receive([e(1, 10, STEER, 1)], 1, 10, 10, 10).status,
+    "accepted",
+  );
+  assert.equal(remote.receive([], 1, 50, 50, 50).status, "accepted");
+  const before = JSON.stringify([...remote.entries]);
+  for (const tick of [10, 30, 50]) {
+    assert.equal(
+      remote.receive([e(2, tick, STEER, 2)], 2, 50, 50, 50).status,
+      "invalid",
+      `seq 2 at tick ${tick} after "nothing after seq 1 at or before 50"`,
+    );
+    assert.equal(JSON.stringify([...remote.entries]), before);
+    assert.equal(remote.lastSeq, 1, "a refused packet declares nothing");
+    assert.equal(remote.gap, false);
+  }
+  assert.equal(
+    remote.receive([e(1, 10, STEER, 1)], 1, 50, 50, 50).status,
+    "accepted",
+    "a retransmitted entry below through is a harmless repeat",
+  );
+  assert.deepEqual(remote.receive([e(2, 51, STEER, 2)], 2, 51, 51, 51), {
+    status: "accepted",
+    added: [e(2, 51, STEER, 2)],
+    rollbackTo: 51,
+  });
+  assert.equal(remote.confirmedThrough(), 51);
+});
+
+test("promises survive reordering: a later packet may overtake the one carrying entries below its through", () => {
+  const remote = new StreamLog(1);
+  // Sent first: seq 1–2 up to tick 12. Sent second: seq 3 at tick 20, through 25. They arrive the other way round.
+  assert.equal(
+    remote.receive([e(3, 20, STEER, 0)], 3, 25, 25, 25).status,
+    "accepted",
+  );
+  assert.equal(remote.gap, true);
+  assert.deepEqual(
+    remote.receive([e(1, 10, STEER, 1), e(2, 12, STEER, 2)], 2, 12, 25, 25)
+      .added,
+    [e(1, 10, STEER, 1), e(2, 12, STEER, 2), e(3, 20, STEER, 0)],
+    "entries at or before tick 25 were all issued by seq 3, which the promise names",
+  );
+  assert.equal(remote.confirmedThrough(), 25);
+  assert.equal(
+    remote.receive([e(4, 25, STEER, 1)], 4, 26, 26, 26).status,
+    "invalid",
+    "once the prefix reaches seq 3 the promise binds everything after it",
+  );
+  // A promise made past a gap binds only the seqs after the one it names.
+  const gapped = new StreamLog(1);
+  gapped.receive([e(1, 10, STEER, 1)], 1, 10, 10, 10);
+  assert.equal(gapped.receive([], 3, 40, 40, 40).status, "accepted");
+  assert.equal(
+    gapped.receive([e(4, 40, STEER, 0)], 4, 41, 41, 41).status,
+    "invalid",
+  );
+  assert.equal(
+    gapped.receive([e(2, 20, STEER, 2), e(3, 30, STEER, 3)], 3, 40, 41, 41)
+      .status,
+    "accepted",
+    "seq 2 and 3 were issued before the promise and may sit anywhere up to it",
+  );
+  assert.equal(
+    gapped.receive([e(4, 40, STEER, 0)], 4, 41, 41, 41).status,
+    "invalid",
+  );
+  assert.equal(
+    gapped.receive([e(4, 41, STEER, 0)], 4, 41, 41, 41).status,
+    "accepted",
+  );
+});
+
+test("a lastSeq further ahead than any repair could close is refused and opens no gap", () => {
+  const remote = new StreamLog(1);
+  remote.receive([e(1, 10, STEER, 1)], 1, 10, 10, 10);
+  assert.equal(remote.ahead, false);
+  assert.deepEqual(remote.receive([], 1 + SEQ_AHEAD + 1, 11, 11, 11), {
+    status: "invalid",
+    added: [],
+    refusal: "window",
+  });
+  assert.equal(remote.receive([], 0xffff_ffff, 11, 11, 11).status, "invalid");
+  assert.equal(remote.gap, false);
+  assert.equal(remote.lastSeq, 1);
+  assert.equal(remote.through, 10, "nothing from a refused packet is kept");
+  assert.equal(
+    remote.ahead,
+    true,
+    "but the stream says its owner is out of reach, so the replica can resync",
+  );
+  assert.equal(
+    remote.receive([e(2, 9, STEER, 0)], 2, 11, 11, 11).refusal,
+    "violation",
+  );
+  assert.equal(remote.ahead, true, "only a packet that is taken clears it");
+  assert.equal(remote.receive([], 1, 11, 11, 11).status, "accepted");
+  assert.equal(remote.ahead, false);
+  assert.equal(
+    remote.receive([], 1 + SEQ_AHEAD, 11, 11, 11).status,
+    "accepted",
+  );
+  assert.equal(remote.gap, true);
+});
+
+/** One owner, one replica and a seeded link that loses, duplicates and reorders; `lookahead` makes the owner declare itself complete that many ticks ahead of its clock. */
+function lossyStream(seed: number, lookahead: number) {
+  let a = seed * 0x9e3779b9;
+  const random = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 0x1_0000_0000;
+  };
+  const own = new StreamLog(1),
+    remote = new StreamLog(1);
+  interface Delivery {
+    at: number;
+    entries: Entry[];
+    lastSeq: number;
+    through: number;
+  }
+  let queue: Delivery[] = [],
+    gesture = 0,
+    folded = 0,
+    refused = 0;
+  const send = (entries: Entry[], now: number) => {
+    if (random() < 0.3) return;
+    const packet = {
+      entries,
+      lastSeq: own.lastSeq,
+      through: own.through + lookahead,
+    };
+    queue.push({ at: now + 1 + Math.floor(random() * 12), ...packet });
+    if (random() < 0.3)
+      queue.push({ at: now + 1 + Math.floor(random() * 12), ...packet });
+  };
+  for (let now = 1; now <= 1200; now++) {
+    // Bursts and silences: through keeps advancing over idle stretches, so promises run far ahead of the last entry.
+    const busy = Math.floor(now / 100) % 2 === 0;
+    if (busy && random() < 0.5)
+      own.append(now + 1, [STEER, Math.floor(random() * 4)]);
+    if (busy && random() < 0.1) {
+      own.append(now + 1, [PRESS, ++gesture]);
+      if (random() < 0.5) own.append(now + 2, [RELEASE, gesture]);
+    }
+    own.through = Math.max(own.through, now);
+    send(own.packetEntries(), now);
+    const missing = remote.firstMissing();
+    if (missing !== undefined && random() < 0.5)
+      send(own.repairEntries(missing), now);
+    const due = queue
+      .filter((item) => item.at <= now)
+      .sort(() => random() - 0.5);
+    queue = queue.filter((item) => item.at > now);
+    for (const packet of due) {
+      const confirmed = remote.confirmedThrough();
+      const result = remote.receive(
+        packet.entries,
+        packet.lastSeq,
+        packet.through,
+        now,
+        now,
+      );
+      if (result.status === "invalid") refused++;
+      for (const entry of result.added)
+        assert.ok(
+          entry[1] > confirmed,
+          `seed ${seed}: seq ${entry[0]} at tick ${entry[1]} landed at or before confirmed tick ${confirmed}`,
+        );
+      folded += result.added.length;
+    }
+    remote.prune(now - 48);
+    own.prune(now - 48);
+  }
+  return { folded, refused, issued: own.lastSeq };
+}
+
+test("an honest stream never trips the promise or the seq bound under seeded loss, duplication and reordering", () => {
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const { folded, refused, issued } = lossyStream(seed, 0);
+    assert.equal(refused, 0, `seed ${seed}`);
+    assert.ok(folded > 0.9 * issued, `seed ${seed}: ${folded} of ${issued}`);
+  }
+});
+
+test("an owner that declares itself complete two seconds ahead cannot land an entry in a tick a replica holds confirmed", () => {
+  for (const seed of [1, 2, 3]) {
+    // The harness asserts that no folded entry is stamped at or before the replica's confirmed tick.
+    const { refused } = lossyStream(seed, ROLLBACK_TICKS);
+    assert.ok(refused > 0, `seed ${seed}`);
+  }
 });
