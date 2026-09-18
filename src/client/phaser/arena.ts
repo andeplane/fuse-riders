@@ -16,7 +16,6 @@ import type { ViewSnapshot } from "../snapshot-stream.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
-import { powerBlastRadius } from "../../engine/view-kit.js";
 import { drawBombAim } from "./bomb-aim.js";
 import { bombsPerShot, volleyAngles } from "../../shared/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
@@ -1360,7 +1359,7 @@ class ArenaScene extends Phaser.Scene {
               y = open
                 ? p.y + Math.sin(a) * distance
                 : clamp(p.y + Math.sin(a) * distance, b + 20, h - b - 20);
-            drawBombAim(f, p, { x, y }, tint, powerBlastRadius(p.powerPickups));
+            drawBombAim(f, p, { x, y }, tint);
           }
         }
         if (
@@ -1371,13 +1370,7 @@ class ArenaScene extends Phaser.Scene {
           p.bombTarget
         ) {
           const { x, y } = p.bombTarget;
-          drawBombAim(
-            f,
-            p,
-            { x, y },
-            tint,
-            powerBlastRadius(p.powerPickups) * 0.7,
-          );
+          drawBombAim(f, p, { x, y }, tint);
           this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
         }
       }

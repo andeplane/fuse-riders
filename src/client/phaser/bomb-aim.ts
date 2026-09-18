@@ -1,12 +1,11 @@
 import type Phaser from "phaser";
 
-/** Cosmetic guide only: callers retain ownership of landing positions and blast radii. */
+/** Cosmetic guide only: callers retain ownership of landing positions. */
 export function drawBombAim(
   graphics: Phaser.GameObjects.Graphics,
   origin: { x: number; y: number },
   target: { x: number; y: number },
   tint: number,
-  radius: number,
 ): void {
   const { x, y } = target;
   const length = Math.hypot(x - origin.x, y - origin.y);
@@ -15,10 +14,6 @@ export function drawBombAim(
   const start = 32;
   const end = length - 28;
   const arrows = end - start > 130 ? [0.38, 0.72] : [];
-
-  // The subtle footprint uses the actual blast radius; it does not pulse or grow.
-  graphics.fillStyle(tint, 0.025).fillCircle(x, y, radius);
-  graphics.lineStyle(1, tint, 0.22).strokeCircle(x, y, radius);
 
   // Wide translucent strokes supply the same restrained glow on Canvas and WebGL.
   for (const [width, alpha] of [

@@ -13,4 +13,3 @@ export {
 } from "../shared/gun.js";
 export { PORTAL_WALL_HALF_WIDTH } from "../shared/portal.js";
 export { wrapDelta } from "../shared/wrap.js";
-export { powerBlastRadius } from "../shared/power-progression.js";
