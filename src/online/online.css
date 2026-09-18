@@ -1502,19 +1502,60 @@
 
 /* Post-match summary, with the detailed report available from the persistent footer. */
 .online-app dialog.game-dialog.recap-dialog {
-  width: min(100rem, 100vw);
+  width: 100vw;
   height: 100dvh;
   max-height: 100dvh;
-  margin: auto;
+  max-width: none;
+  margin: 0;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   color: #eef0ff;
-  background:
-    radial-gradient(ellipse at 50% 20%, #44286b33, transparent 44%),
-    radial-gradient(ellipse at 0% 45%, #295c8820, transparent 28%),
-    radial-gradient(ellipse at 100% 30%, #64378a25, transparent 28%), #070c1d;
+  background: transparent;
+  isolation: isolate;
 }
 .recap-dialog::backdrop {
-  background: #070c1d;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* The existing Phaser canvas is the continuous room scene, including lobby/results. */
+.online-app.scene-background {
+  isolation: isolate;
+}
+.online-app.scene-background > .online-arena {
+  position: fixed;
+  inset: -24px;
+  width: calc(100vw + 48px) !important;
+  height: calc(100dvh + 48px) !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter: blur(10px) brightness(0.45);
+  pointer-events: none;
+  z-index: -1;
+}
+.online-app.scene-background .shared-lobby {
+  background: transparent;
+  border: 0;
+}
+/* Results float over the arena alone; room controls return when the dialog closes. */
+.online-app:has(.recap-dialog[open]) > :not(.online-arena):not(dialog) {
+  visibility: hidden;
+}
+/* WATCH temporarily brings the same scene forward, sharp and uncropped. */
+.online-app.scene-background.replaying > .online-arena {
+  inset: 0;
+  width: 100vw !important;
+  height: 100dvh !important;
+  object-fit: contain;
+  filter: none;
+}
+.online-app.scene-background.replaying > :not(.online-arena):not(dialog) {
+  visibility: hidden;
 }
 .recap-dialog .dialog-body {
   flex: 1;
