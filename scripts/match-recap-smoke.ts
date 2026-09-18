@@ -320,10 +320,13 @@ try {
             : [],
         ),
         firstFinal = banners.findIndex((banner) => banner.kind === "final");
-      assert.ok(
-        firstFinal > 0,
-        `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
-      );
+      // Portrait phones show the rotation gate instead of arena announcements.
+      if (viewport.height > viewport.width) assert.equal(banners.length, 0);
+      else
+        assert.ok(
+          firstFinal > 0,
+          `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
+        );
       for (const [index, banner] of banners.entries())
         if (index < firstFinal) {
           assert.equal(banner.kind, "round", JSON.stringify(banner));
