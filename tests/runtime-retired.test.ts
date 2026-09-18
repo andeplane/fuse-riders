@@ -113,7 +113,7 @@ test("returning runtime replays its own retired stream from the peer snapshot", 
     tickLoop();
   }
   assert.equal(runtime.tick, 74);
-  const expected = source.view()[0].players.find((p) => p.id === "guest");
+  const expected = source.view()[0]!.players.find((p) => p.id === "guest");
   const actual = frame!.players.find((p) => p.id === "guest");
   assert.equal(
     actual!.angle,
