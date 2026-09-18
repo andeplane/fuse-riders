@@ -51,8 +51,15 @@ jobs:
             let sha = context.payload.inputs?.revision;
             if (!manual) {
               const origin = process.env.VITE_API_ORIGIN;
-              if (!origin) throw new Error('Set repository variable VITE_API_ORIGIN to the verified Cloud Run HTTPS origin.');
-              const health = await fetch(`${origin}/api/health`, { cache: 'no-store', signal: AbortSignal.timeout(30000) });
+              if (!origin || new URL(origin).protocol !== 'https:' || new URL(origin).origin !== origin) throw new Error('Set repository variable VITE_API_ORIGIN to the exact verified Cloud Run HTTPS origin, without a path.');
+              // The service scales to zero and nothing retries a failed Pages run until the next backend run, so ride
+              // out a cold start or a transient 5xx instead of losing the release.
+              let health;
+              for (const wait of [0, 5000, 15000, 30000]) {
+                await new Promise((resolve) => setTimeout(resolve, wait));
+                health = await fetch(`${origin}/api/health`, { cache: 'no-store', signal: AbortSignal.timeout(30000) }).catch((error) => ({ ok: false, status: String(error) }));
+                if (health.ok) break;
+              }
               if (!health.ok) throw new Error(`Backend health returned ${health.status}; refusing to publish a frontend it may not serve.`);
               sha = (await health.json()).revision;
               if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('The live backend does not report its revision; deploy a backend that does before publishing.');
