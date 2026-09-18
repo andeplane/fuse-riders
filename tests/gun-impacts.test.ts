@@ -81,8 +81,8 @@ function scene(kind: "trail" | "head" | "wall", wrap = false) {
         {
           left: false,
           right: false,
-          bomb: true,
-          bombCommands: [{ action: "press" }],
+          bomb: false,
+          bombCommands: [{ action: "press" }, { action: "release" }],
         },
       ],
     ]),

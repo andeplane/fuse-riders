@@ -45,14 +45,21 @@ export function interpolateWorld(
         sin(player.angle - previous.angle),
         cos(player.angle - previous.angle),
       );
+      // The sight is up exactly when the newer tick has it up, so it neither lags its raise nor outlives its shot.
+      const { gunAim: _olderAim, ...rest } = previous;
       return {
-        ...previous,
+        ...rest,
         x: previous.x + dx(player.x - previous.x) * f,
         y: previous.y + dy(player.y - previous.y) * f,
         angle: previous.angle + delta * f,
-        ...(previous.gunAim !== undefined && player.gunAim !== undefined
-          ? { gunAim: previous.gunAim + (player.gunAim - previous.gunAim) * f }
-          : {}),
+        ...(player.gunAim === undefined
+          ? {}
+          : {
+              gunAim:
+                previous.gunAim === undefined
+                  ? player.gunAim
+                  : previous.gunAim + (player.gunAim - previous.gunAim) * f,
+            }),
       };
     }),
     bombs: older.bombs.map((previous) => {

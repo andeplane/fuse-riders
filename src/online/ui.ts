@@ -43,6 +43,7 @@ import {
   type RoomSettings,
 } from "../shared/room-settings.js";
 import type { PickupType } from "../shared/game.js";
+import { isAimingGun } from "../shared/game.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { renderMatchRecap } from "./match-recap-view.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
@@ -1558,7 +1559,7 @@ export async function startOnline(): Promise<void> {
         fireButton.textContent = remaining
           ? `${Math.ceil(remaining / 20)}s RECHARGE`
           : player.gunArmed
-            ? inputState.isHeld("bomb")
+            ? isAimingGun(player)
               ? "STEER TO AIM · RELEASE!"
               : "HOLD TO AIM GUN"
             : player.targetBombArmed

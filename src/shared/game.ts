@@ -884,7 +884,8 @@ export function step(
     player.aimSlowTicks = aimSlowTicks;
     player.aimSlowSpentTicks = aimSlowSpentTicks;
     // A held Gun takes the steering for its sight: the rider runs straight while left and right sweep the aim.
-    // The release tick still counts as held, so letting go with a steering key down cannot kick the shot off its line.
+    // The release tick still counts as held, so a steering key down as the trigger lets go swings the sight one last
+    // step rather than turning the rider under the shot.
     const aiming =
       player.gunAim !== undefined &&
       (input.bomb ||

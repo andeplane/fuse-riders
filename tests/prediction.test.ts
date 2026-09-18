@@ -201,4 +201,15 @@ test("a held Gun leads its sight with the controls while the rider is shown runn
   );
   const between = interpolateWorld(aiming(0.2, older), held, 0.5);
   assert.ok(Math.abs(between.players[0]!.gunAim! - 0.25) < 1e-12);
+  // The sight is shown exactly while the newer tick has it: raised at once, gone with the shot.
+  assert.equal(
+    interpolateWorld(older, held, 0.5).players[0]!.gunAim,
+    0.3,
+    "a sight raised on the newer tick shows at once",
+  );
+  assert.equal(
+    interpolateWorld(aiming(0.2, older), newer, 0.5).players[0]!.gunAim,
+    undefined,
+    "a sight lowered on the newer tick is gone",
+  );
 });

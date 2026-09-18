@@ -731,3 +731,26 @@ test("AI ignores harmless gun tracers when choosing a route", () => {
   });
   assert.deepEqual(new BotController().input(game, player.id), without);
 });
+
+test("an AI rider fires a held Gun at once when riding straight on would die sooner than turning", () => {
+  const game = fixture(),
+    bot = new BotController(),
+    player = game.players.get("bot:1")!;
+  // Nose to the wall with room to turn away, and the rival behind: the sight is far off target.
+  Object.assign(player, {
+    x: game.width - 100,
+    y: 450,
+    angle: 0,
+    trail: [],
+    gunArmed: true,
+    gunAim: 0,
+    bombChargeStartedTick: game.tick,
+  });
+  const input = bot.input(game, player.id);
+  assert.deepEqual(input.bombCommands, [{ action: "release" }]);
+  step(game, new Map([[player.id, input]]));
+  assert.equal(player.gunAim, undefined, "the sight is down");
+  assert.equal(game.shots[0]?.weapon, "gun");
+  const next = bot.input(game, player.id);
+  assert.ok(next.left || next.right, "and it steers away on the next tick");
+});

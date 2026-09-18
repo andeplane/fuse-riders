@@ -458,6 +458,12 @@ function gameInvariants(game: GameState): boolean {
       p.bombChargeStartedTick > game.tick
     )
       return false;
+    // A raised Gun sight is a held charge on a living rider; the rules never leave one anywhere else.
+    if (
+      p.gunAim !== undefined &&
+      (!p.alive || p.bombChargeStartedTick === undefined)
+    )
+      return false;
     if (
       p.drunkStartedTick > game.tick ||
       p.trail.some((t) => t.createdTick > game.tick)

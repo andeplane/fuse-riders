@@ -339,6 +339,38 @@ test("a checkpoint with a sight beyond its stops is rejected", () => {
   assert.ok(decodeGameState(encodeGameState(game)));
 });
 
+test("a sight on a rider with no charge, or a dead one, is not a valid checkpoint", () => {
+  const { game, shooter, fire } = scene();
+  fire(press);
+  assert.ok(decodeGameState(encodeGameState(game)));
+  shooter.bombChargeStartedTick = undefined;
+  assert.equal(decodeGameState(encodeGameState(game)), undefined);
+  shooter.bombChargeStartedTick = game.tick;
+  shooter.alive = false;
+  assert.equal(decodeGameState(encodeGameState(game)), undefined);
+});
+
+test("a Triple Shot fans its rays around the held sight, not the heading", () => {
+  const { game, shooter, fire } = scene();
+  shooter.tripleShotArmed = true;
+  fire(press);
+  for (let tick = 0; tick < 4; tick++)
+    fire({ ...neutral, bomb: true, left: true });
+  fire(release);
+  const sight = -4 * GUN_AIM_STEP;
+  const rays = [...game.bombs.values()]
+    .filter((bomb) => bomb.shell?.gun)
+    .map((bomb) => Math.atan2(bomb.y - bomb.launchY, bomb.x - bomb.launchX))
+    .sort((a, b) => a - b);
+  assert.equal(rays.length, 3);
+  for (const [index, ray] of rays.entries())
+    assert.ok(
+      Math.abs(ray - (sight + (index - 1) * 0.22)) < 1e-6,
+      `ray ${index} at ${ray}`,
+    );
+  assert.equal(shooter.tripleShotArmed, false, "the pull spent the Triple");
+});
+
 test("a hold whose release never arrives ends with the Gun kept and the steering back", () => {
   const { game, shooter, fire } = scene();
   fire(press);
