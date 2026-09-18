@@ -10,9 +10,10 @@ import {
   eliminatePlayer,
   startNextRound,
 } from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
-  const game = createGame("ink", 42);
+  const game = createGame("ink", classicSettings(), 42);
   for (let slot = 0; slot < 4; slot += 1)
     addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(game);

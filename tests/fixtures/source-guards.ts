@@ -95,7 +95,6 @@ const shared = new Set([
   "duration-text",
   "protocol",
   "uuid",
-  "rider-name",
   "firebase-config",
 ]);
 const network = new Set([

@@ -1,7 +1,15 @@
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
 import type { AimPoint, BombActionCommand } from "./primitives.js";
+import {
+  aimGesture,
+  cancelGesture,
+  pressGesture,
+  releaseGesture,
+  type GestureControls,
+} from "./bomb-gesture.js";
 import type { InputIntent } from "./state.js";
+import { loggedRiderName } from "./rider-name.js";
 
 /** Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's. */
 export const STEER = 0,
@@ -18,7 +26,6 @@ export const JOIN = 10,
   BOT = 15;
 export const UINT16_MAX = 0xffff,
   UINT32_MAX = 0xffff_ffff;
-export const MAX_NAME_LENGTH = 20;
 export type RoomAction = "start" | "rematch" | "lobby";
 export type Entry =
   | [seq: number, tick: number, kind: 0, flags: number]
@@ -77,11 +84,6 @@ const uint16 = (value: unknown): value is number =>
 const slot = (value: unknown): value is number => uint32(value) && value <= 4;
 export const memberId = (value: unknown): value is string =>
   typeof value === "string" && /^[\w:.-]{1,64}$/.test(value);
-const name = (value: unknown): value is string =>
-  typeof value === "string" &&
-  value.trim().length > 0 &&
-  value.length <= MAX_NAME_LENGTH &&
-  !/[\x00-\x1f\x7f]/.test(value);
 const matchId = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= 64;
 
@@ -122,7 +124,7 @@ export function isEntry(raw: unknown): raw is Entry {
       return (
         raw.length === 8 &&
         memberId(raw[3]) &&
-        name(raw[4]) &&
+        loggedRiderName(raw[4]) &&
         slot(raw[5]) &&
         isAvatarId(raw[6]) &&
         uint32(raw[7])
@@ -146,7 +148,10 @@ export function isEntry(raw: unknown): raw is Entry {
       );
     case BOT:
       return raw[3] === "add"
-        ? raw.length === 7 && memberId(raw[4]) && name(raw[5]) && slot(raw[6])
+        ? raw.length === 7 &&
+            memberId(raw[4]) &&
+            loggedRiderName(raw[5]) &&
+            slot(raw[6])
         : raw[3] === "remove" && raw.length === 5 && memberId(raw[4]);
     default:
       return false;
@@ -165,11 +170,8 @@ export function dequantizeAim(x: number, y: number): AimPoint {
 }
 
 /** Per-player controls between entries; the reducer folds one tick of entries into an intent. */
-export interface HeldControls {
+export interface HeldControls extends GestureControls {
   flags: number;
-  aim?: AimPoint;
-  activeGesture: number;
-  latestGesture: number;
 }
 export const neutralControls = (): HeldControls => ({
   flags: 0,
@@ -178,45 +180,37 @@ export const neutralControls = (): HeldControls => ({
 });
 
 /**
- * Reproduces the LAN BombInputBuffer semantics from log entries: a press allocates a gesture and enqueues `press`;
- * a press while one is active enqueues `cancel` then `press`; release or cancel with the active gesture id enqueues
- * that command; a mismatched id is a no-op; aim updates the held aim. Mutates `held`.
+ * Folds one tick of a rider's entries into its held controls and the tick's intent. The bomb button goes through the
+ * gesture core (`bomb-gesture.ts`) with the ids the entries carry: a press over a held gesture yields `cancel` then
+ * `press`, a repeated press or a release or cancel of another gesture is a no-op, a RELEASE may carry its own aim.
+ * Mutates `held`.
  */
 export function foldPlayerEntries(
   held: HeldControls,
   entries: readonly Entry[],
 ): InputIntent {
   const commands: BombActionCommand[] = [];
-  const withAim = (action: BombActionCommand["action"]): BombActionCommand => ({
-    action,
-    ...(held.aim ? { aim: { ...held.aim } } : {}),
-  });
   for (const entry of entries) {
     switch (entry[2]) {
       case STEER:
         held.flags = entry[3];
         break;
       case AIM:
-        held.aim = dequantizeAim(entry[3], entry[4]);
+        aimGesture(held, dequantizeAim(entry[3], entry[4]));
         break;
       case PRESS:
-        if (entry[3] <= held.latestGesture) break;
-        if (held.activeGesture) commands.push({ action: "cancel" });
-        held.activeGesture = held.latestGesture = entry[3];
-        commands.push(withAim("press"));
+        pressGesture(held, entry[3], commands);
         break;
       case RELEASE:
-        if (entry[3] !== held.activeGesture) break;
-        if (entry.length === 6) held.aim = dequantizeAim(entry[4], entry[5]);
-        held.activeGesture = 0;
-        commands.push(withAim("release"));
-        held.aim = undefined;
+        releaseGesture(
+          held,
+          entry[3],
+          entry.length === 6 ? dequantizeAim(entry[4], entry[5]) : undefined,
+          commands,
+        );
         break;
       case CANCEL:
-        if (entry[3] !== held.activeGesture) break;
-        held.activeGesture = 0;
-        commands.push({ action: "cancel" });
-        held.aim = undefined;
+        cancelGesture(held, entry[3], commands);
         break;
       default:
         break;

@@ -18,9 +18,10 @@ import {
   type GameState,
   type PickupType,
 } from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing(): GameState {
-  const game = createGame("persistent-pickups", 42);
+  const game = createGame("persistent-pickups", classicSettings(), 42);
   for (let i = 0; i < 2; i++)
     addPlayer(game, {
       id: `p${i}`,

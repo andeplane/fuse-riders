@@ -1,6 +1,6 @@
 import { FIREBASE_WEB_CONFIG } from "../shared/firebase-config.js";
 import { safeStorage } from "../client/safe-storage.js";
-import { validRiderName } from "../shared/rider-name.js";
+import { validRiderName } from "../engine/rider-name.js";
 
 /**
  * Optional Google sign-in. A guest never downloads the Firebase SDK: it is imported on the first sign-in, and on later

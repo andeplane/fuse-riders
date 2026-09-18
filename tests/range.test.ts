@@ -18,9 +18,10 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { powerLabel } from "../src/client/power-indicator.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
-  const game = createGame("range", 725);
+  const game = createGame("range", classicSettings(), 725);
   for (let slot = 0; slot < 3; slot++)
     addPlayer(game, {
       id: `p${slot}`,
