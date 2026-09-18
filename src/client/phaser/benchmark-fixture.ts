@@ -1,10 +1,10 @@
 import {
   createGame,
+  classicSettings,
   addPlayer,
   toSnapshot,
   SLOT_COLORS,
 } from "../../engine/game.js";
-import { classicSettings } from "../../engine/room-settings.js";
 import { AVATARS } from "../../shared/avatars.js";
 import type { ViewSnapshot } from "../snapshot-stream.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
