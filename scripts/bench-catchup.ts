@@ -20,7 +20,8 @@ import { classicSettings } from "../src/engine/room-settings.js";
 import { createRoomState } from "../src/engine/apply-tick.js";
 import { COUNTDOWN_TICKS, eliminatePlayer } from "../src/engine/game.js";
 import { ACTION, BOT, JOIN, STEER } from "../src/engine/input-log.js";
-import { World } from "../src/online/rollback.js";
+import { World } from "fuse-netcode";
+import { fuseGame } from "../src/online/fuse-game.js";
 import * as runtimeModule from "../src/online/room-runtime.js";
 
 const hiddenMs = Number(process.argv[2] ?? 6000),
@@ -113,6 +114,7 @@ function catchUp(): void {
 
 function rollback(): void {
   const w = new World(
+    fuseGame,
     createRoomState("room", classicSettings()),
     "creator",
     "creator",

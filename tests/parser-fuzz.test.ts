@@ -7,7 +7,8 @@ import {
   encodePacket,
   MAX_PACKET_BYTES,
   type Packet,
-} from "../src/online/packet.js";
+} from "fuse-netcode";
+import { fuseGame } from "../src/online/fuse-game.js";
 import { validSignal } from "../packages/fuse-network-be/src/signal.js";
 import { parseRoomRecord } from "../packages/fuse-network-be/src/room-store.js";
 
@@ -194,16 +195,22 @@ test("seeded byte mutations remain bounded and permit the next healthy packet", 
       );
     }
     const before = bytes.slice(),
-      decoded = decodePacket(bytes);
+      decoded = decodePacket(fuseGame, bytes);
     assert.deepEqual(bytes, before);
     // A mutation may still be a valid packet; require canonical re-encoding to
     // preserve every accepted field rather than incorrectly rejecting all noise.
     if (decoded && "packet" in decoded)
-      assert.deepEqual(decodePacket(encodePacket(decoded.packet)), decoded);
-    assert.deepEqual(decodePacket(good), { packet });
+      assert.deepEqual(
+        decodePacket(fuseGame, encodePacket(decoded.packet)),
+        decoded,
+      );
+    assert.deepEqual(decodePacket(fuseGame, good), { packet });
   }
   for (let end = 0; end < good.length; end++)
-    assert.equal(decodePacket(good.subarray(0, end)), undefined);
-  assert.equal(decodePacket(new Uint8Array(MAX_PACKET_BYTES + 1)), undefined);
+    assert.equal(decodePacket(fuseGame, good.subarray(0, end)), undefined);
+  assert.equal(
+    decodePacket(fuseGame, new Uint8Array(MAX_PACKET_BYTES + 1)),
+    undefined,
+  );
   assert.equal(parseClientMessage(" ".repeat(2049)), null);
 });

@@ -1,22 +1,8 @@
-import {
-  MAX_SPECTATORS,
-  RULES,
-  hashRoomState,
-  type Fold,
-  type RoomState,
-  type Spectator,
-} from "../engine/apply-tick.js";
-import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
-import { isEntry, memberId, uint32, type Entry } from "../engine/input-log.js";
-import { loggedRiderName } from "../engine/rider-name.js";
-import { parseRoomSettings } from "../engine/room-settings.js";
-import {
-  decodeGameState,
-  encodeGameState,
-} from "../engine/codec/checkpoint.js";
-import { stepsCover } from "../engine/tick-driver.js";
+import type { LogEntry, RollbackGame, RoomClock } from "./game.js";
 import { packMessage, unpackMessage } from "./packet.js";
 import type { World } from "./rollback.js";
+import type { StreamLog } from "./stream.js";
+import { memberId, uint32 } from "./wire.js";
 
 export const SNAPSHOT_CHUNK_BYTES = 16_000,
   MAX_SNAPSHOT_BYTES = 2_000_000,
@@ -30,16 +16,17 @@ export interface SnapshotChunk {
   total: number;
   data: string;
 }
-export interface SnapshotStream {
+export interface SnapshotStream<Entry extends LogEntry = LogEntry> {
   id: string;
   generation: number;
   seq: number;
-  gesture: number;
+  /** The stream's ordinal floor at the snapshot tick (Fuse Riders: the press gesture id). */
+  ordinal: number;
   entries: Entry[];
 }
-export interface DecodedSnapshot {
-  state: RoomState;
-  streams: SnapshotStream[];
+export interface DecodedSnapshot<Room, Entry extends LogEntry = LogEntry> {
+  state: Room;
+  streams: SnapshotStream<Entry>[];
 }
 
 const toBase64 = (bytes: Uint8Array): string => {
@@ -51,26 +38,30 @@ const toBase64 = (bytes: Uint8Array): string => {
 const fromBase64 = (text: string): Uint8Array =>
   Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
 
-/** The whole world at the sender's servable tick (complete for every rider) plus every stream's entries after it, in ≤16 KB chunks. */
-export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
+/**
+ * The whole world at the sender's servable tick (complete for every member) plus every stream's entries after it, in
+ * ≤16 KB chunks. The message is `[rules, room, tick, ...leading game fields, streams, hash, ...trailing game fields]`,
+ * split at `checkpoint.leading` (Fuse Riders added its spectators after the hash, and the bytes stay as they were).
+ */
+export function encodeSnapshot<
+  Room extends RoomClock,
+  Entry extends LogEntry,
+  View extends { tick: number },
+  Event,
+  Settings,
+>(
+  world: World<Room, Entry, View, Event, Settings>,
+  room: number,
+): SnapshotChunk[] {
+  const game = world.game;
   const { state, tick } = world.servable();
-  const folds = [...state.folds].map(([id, fold]) => [
-    id,
-    fold.generation,
-    fold.flags,
-    fold.activeGesture,
-    fold.latestGesture,
-  ]);
-  const encodeStream = (
-    id: string,
-    stream: World["streams"] extends Map<string, infer S> ? S : never,
-  ) => {
+  const encodeStream = (id: string, stream: StreamLog<Entry>) => {
     const base = stream.baseAt(tick);
     return [
       id,
       stream.generation,
       base.seq,
-      base.gesture,
+      base.ordinal,
       stream.entriesAfter(base.seq, tick).slice(0, MAX_SNAPSHOT_ENTRIES),
     ];
   };
@@ -85,22 +76,16 @@ export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
       .map(({ id, stream }) => encodeStream(id, stream)),
     ...[...world.streams].map(([id, stream]) => encodeStream(id, stream)),
   ];
+  const fields = game.checkpoint.encode(state),
+    leading = game.checkpoint.leading;
   const bytes = packMessage([
-    RULES,
+    game.rules,
     room,
     tick,
-    encodeGameState(state.game),
-    state.settings,
-    folds,
-    [...state.bots],
+    ...fields.slice(0, leading),
     streams,
-    hashRoomState(state),
-    [...state.spectators].map(([id, watcher]) => [
-      id,
-      watcher.name,
-      watcher.connected,
-      watcher.generation,
-    ]),
+    game.hash(state),
+    ...fields.slice(leading),
   ]);
   if (bytes.byteLength > MAX_SNAPSHOT_BYTES)
     throw new Error("Snapshot too large");
@@ -111,7 +96,7 @@ export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
   return Array.from({ length: total }, (_, chunk) => ({
     type: "snapshot",
     tick,
-    rules: RULES,
+    rules: game.rules,
     room,
     chunk,
     total,
@@ -124,7 +109,10 @@ export class SnapshotAssembler {
   private parts: string[] = [];
   private tick = -1;
   private total = 0;
-  constructor(private readonly room: number) {}
+  constructor(
+    private readonly game: { readonly rules: string },
+    private readonly room: number,
+  ) {}
   reset(): void {
     this.parts = [];
     this.tick = -1;
@@ -136,7 +124,7 @@ export class SnapshotAssembler {
       !message ||
       typeof message !== "object" ||
       message.type !== "snapshot" ||
-      message.rules !== RULES ||
+      message.rules !== this.game.rules ||
       message.room !== this.room ||
       !uint32(message.tick) ||
       !uint32(message.chunk) ||
@@ -182,125 +170,60 @@ export class SnapshotAssembler {
 }
 
 /** Every field is checked against the game it describes before anything is installed. */
-export function decodeSnapshot(
+export function decodeSnapshot<
+  Room extends RoomClock,
+  Entry extends LogEntry,
+  View extends { tick: number },
+  Event,
+  Settings,
+>(
+  game: RollbackGame<Room, Entry, View, Event, Settings>,
   bytes: Uint8Array,
   room: number,
-): DecodedSnapshot | undefined {
+): DecodedSnapshot<Room, Entry> | undefined {
   let value: unknown;
   try {
     value = unpackMessage(bytes);
   } catch {
     return;
   }
+  const leading = game.checkpoint.leading;
   if (
     !Array.isArray(value) ||
-    value.length !== 10 ||
-    value[0] !== RULES ||
+    value.length < 5 + leading ||
+    value[0] !== game.rules ||
     value[1] !== room ||
     !uint32(value[2])
   )
     return;
-  const [
-    ,
-    ,
+  const tick = value[2],
+    rawStreams: unknown = value[3 + leading],
+    hash: unknown = value[4 + leading];
+  if (!Array.isArray(rawStreams) || typeof hash !== "string") return;
+  const state = game.checkpoint.decode(
+    [...value.slice(3, 3 + leading), ...value.slice(5 + leading)],
     tick,
-    gameJson,
-    rawSettings,
-    rawFolds,
-    rawBots,
-    rawStreams,
-    hash,
-    rawSpectators,
-  ] = value;
-  const game = decodeGameState(gameJson),
-    settings = parseRoomSettings(rawSettings);
-  if (
-    !game ||
-    !settings ||
-    !stepsCover(tick, game.tick) ||
-    !Array.isArray(rawFolds) ||
-    !Array.isArray(rawBots) ||
-    !Array.isArray(rawStreams) ||
-    !Array.isArray(rawSpectators) ||
-    rawSpectators.length > MAX_SPECTATORS ||
-    typeof hash !== "string"
-  )
-    return;
-  const bots = new Set<string>();
-  for (const id of rawBots) {
-    if (
-      typeof id !== "string" ||
-      !id.startsWith(BOT_ID_PREFIX) ||
-      !game.players.has(id) ||
-      bots.has(id)
-    )
-      return;
-    bots.add(id);
-  }
-  const folds = new Map<string, Fold>();
-  for (const raw of rawFolds) {
-    if (!Array.isArray(raw) || raw.length !== 5) return;
-    const [id, generation, flags, active, latest] = raw;
-    if (
-      !memberId(id) ||
-      !game.players.has(id) ||
-      bots.has(id) ||
-      folds.has(id) ||
-      !uint32(generation) ||
-      !uint32(flags) ||
-      flags > 3 ||
-      !uint32(active) ||
-      !uint32(latest) ||
-      (active !== 0 && active !== latest)
-    )
-      return;
-    folds.set(id, {
-      generation,
-      flags,
-      activeGesture: active,
-      latestGesture: latest,
-    });
-  }
-  for (const player of game.players.values())
-    if (!bots.has(player.id) && !folds.has(player.id)) return;
-  const spectators = new Map<string, Spectator>();
-  for (const raw of rawSpectators) {
-    if (!Array.isArray(raw) || raw.length !== 4) return;
-    const [id, watcherName, connected, generation] = raw;
-    // A member is a rider or a watcher, never both, and the fold never lists one twice.
-    if (
-      !memberId(id) ||
-      spectators.has(id) ||
-      game.players.has(id) ||
-      !loggedRiderName(watcherName) ||
-      watcherName.trim() !== watcherName ||
-      typeof connected !== "boolean" ||
-      !uint32(generation)
-    )
-      return;
-    spectators.set(id, { name: watcherName, connected, generation });
-  }
-  const state: RoomState = { tick, game, settings, folds, bots, spectators };
-  if (hashRoomState(state) !== hash) return;
-  const streams: SnapshotStream[] = [],
+  );
+  if (!state || state.tick !== tick || game.hash(state) !== hash) return;
+  const streams: SnapshotStream<Entry>[] = [],
     seen = new Set<string>();
   for (const raw of rawStreams) {
     if (!Array.isArray(raw) || raw.length !== 5) return;
-    const [id, generation, seq, gesture, entries] = raw;
+    const [id, generation, seq, ordinal, entries] = raw;
     // One stream per member and generation; a member's retired generations precede its current one.
     if (
       !memberId(id) ||
       !uint32(generation) ||
       seen.has(`${id}:${generation}`) ||
       !uint32(seq) ||
-      !uint32(gesture) ||
+      !uint32(ordinal) ||
       !Array.isArray(entries) ||
       entries.length > MAX_SNAPSHOT_ENTRIES
     )
       return;
     let previous = seq;
     for (const entry of entries) {
-      if (!isEntry(entry) || entry[0] <= previous) return;
+      if (!game.isEntry(entry) || entry[0] <= previous) return;
       previous = entry[0];
     }
     let previousGeneration: number | undefined;
@@ -309,7 +232,7 @@ export function decodeSnapshot(
     if (previousGeneration !== undefined && previousGeneration >= generation)
       return;
     seen.add(`${id}:${generation}`);
-    streams.push({ id, generation, seq, gesture, entries: entries as Entry[] });
+    streams.push({ id, generation, seq, ordinal, entries: entries as Entry[] });
   }
   return { state, streams };
 }

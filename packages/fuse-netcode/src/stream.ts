@@ -1,4 +1,5 @@
-import { isEntry, PRESS, uint32, type Entry } from "../engine/input-log.js";
+import type { EntryRules, LogEntry } from "./game.js";
+import { uint32 } from "./wire.js";
 
 export const ROLLBACK_TICKS = 40;
 /** Entries stamped further ahead than this are rejected. Clocks converge by slewing, so a live peer may legitimately
@@ -16,6 +17,12 @@ export const RETAINED_ENTRIES = 64,
  * (a replica cut off from a busy rider for minutes on the same page does get there honestly).
  */
 export const SEQ_AHEAD = BUFFERED_ENTRIES * 16;
+/** Where a stream starts: after `seq`, at `tick`, with ordinals above `ordinal`. */
+export interface StreamBase {
+  seq: number;
+  tick: number;
+  ordinal?: number;
+}
 export type ReceiveStatus = "accepted" | "invalid" | "unrepairable";
 /**
  * Why a packet was refused. `window`: it fell outside what this replica can take right now (its owner's seq is out of
@@ -23,18 +30,20 @@ export type ReceiveStatus = "accepted" | "invalid" | "unrepairable";
  * can do and which says nothing about its sender. `violation`: no unmodified client sends it.
  */
 export type Refusal = "window" | "violation";
-export interface ReceiveResult {
+export interface ReceiveResult<Entry extends LogEntry = LogEntry> {
   status: ReceiveStatus;
   added: Entry[];
   rollbackTo?: number;
   refusal?: Refusal;
 }
-const refused = (refusal: Refusal): ReceiveResult => ({
+const refused = <Entry extends LogEntry>(
+  refusal: Refusal,
+): ReceiveResult<Entry> => ({
   status: "invalid",
   added: [],
   refusal,
 });
-const same = (a: Entry, b: Entry): boolean =>
+const same = (a: LogEntry, b: LogEntry): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
 /**
@@ -42,16 +51,16 @@ const same = (a: Entry, b: Entry): boolean =>
  * of later entries waiting for a gap to be repaired, the owner's completeness tick and the highest issued seq.
  * The local member's own stream is the same structure fed by `append`, so the simulation reads every stream alike.
  */
-export class StreamLog {
+export class StreamLog<Entry extends LogEntry = LogEntry> {
   readonly entries = new Map<number, Entry>();
   contiguous: number;
   lastSeq: number;
   through: number;
   readonly baseTick: number;
   private readonly baseSeq: number;
-  private gestureFloor = 0;
-  /** Presses that can no longer be replayed (the construction base and pruned entries): the floor a base at any later tick starts from. */
-  private baseGesture = 0;
+  private ordinalFloor = 0;
+  /** Ordinals that can no longer be replayed (the construction base and pruned entries): the floor a base at any later tick starts from. */
+  private baseOrdinal = 0;
   /** The highest pruned seq: a base at a later tick starts there, since pruned entries are folded into every retained snapshot. */
   private prunedSeq = 0;
   /** The highest `through` declared while the stream had no gap: final whatever gap opens later. */
@@ -67,24 +76,29 @@ export class StreamLog {
   ahead = false;
   private rotation = 0;
   constructor(
+    private readonly rules: EntryRules<Entry>,
     public generation: number,
-    base: { seq: number; tick: number; gesture?: number } = { seq: 0, tick: 0 },
+    base: StreamBase = { seq: 0, tick: 0 },
   ) {
     this.contiguous = base.seq;
     this.baseSeq = base.seq;
     this.lastSeq = base.seq;
     this.baseTick = base.tick;
     this.through = this.confirmedTick = this.promisedFloor = base.tick;
-    this.gestureFloor = this.baseGesture = base.gesture ?? 0;
+    this.ordinalFloor = this.baseOrdinal = base.ordinal ?? 0;
+  }
+  private ordinal(entry: Entry): number | undefined {
+    return this.rules.ordinal?.(entry);
   }
   /** Own stream only: the next seq, always contiguous. */
   append(tick: number, body: readonly unknown[]): Entry {
-    const entry = [this.lastSeq + 1, tick, ...body] as Entry;
-    if (!isEntry(entry) || tick < this.latestTick())
+    const entry: unknown = [this.lastSeq + 1, tick, ...body];
+    if (!this.rules.isEntry(entry) || tick < this.latestTick())
       throw new Error("Invalid own entry");
-    if (entry[2] === PRESS) {
-      if (entry[3] <= this.gestureFloor) throw new Error("Reused gesture");
-      this.gestureFloor = entry[3];
+    const ordinal = this.ordinal(entry);
+    if (ordinal !== undefined) {
+      if (ordinal <= this.ordinalFloor) throw new Error("Reused ordinal");
+      this.ordinalFloor = ordinal;
     }
     this.entries.set(entry[0], entry);
     this.lastSeq = this.contiguous = entry[0];
@@ -127,17 +141,15 @@ export class StreamLog {
   firstMissing(): number | undefined {
     return this.gap ? this.contiguous + 1 : undefined;
   }
-  /** Highest press gesture id in the contiguous prefix; presses must keep increasing across it. */
-  latestGesture(): number {
-    let gesture = this.gestureFloor;
-    for (const entry of this.entries.values())
-      if (
-        entry[0] <= this.contiguous &&
-        entry[2] === PRESS &&
-        entry[3] > gesture
-      )
-        gesture = entry[3];
-    return gesture;
+  /** Highest ordinal in the contiguous prefix; ordinals must keep increasing across it (Fuse Riders: press gesture ids). */
+  latestOrdinal(): number {
+    let latest = this.ordinalFloor;
+    for (const entry of this.entries.values()) {
+      if (entry[0] > this.contiguous) continue;
+      const ordinal = this.ordinal(entry);
+      if (ordinal !== undefined && ordinal > latest) latest = ordinal;
+    }
+    return latest;
   }
 
   /** Validates every entry before touching the stream; a single bad entry rejects the whole packet. */
@@ -147,7 +159,7 @@ export class StreamLog {
     through: number,
     localTick: number,
     currentTick: number,
-  ): ReceiveResult {
+  ): ReceiveResult<Entry> {
     if (
       !uint32(lastSeq) ||
       !uint32(through) ||
@@ -160,10 +172,13 @@ export class StreamLog {
       return refused("window");
     }
     const seen = new Map(this.entries),
-      gestureFloor = this.latestGesture(),
+      ordinalFloor = this.latestOrdinal(),
       tail = this.latestTick();
     for (const candidate of raw) {
-      if (!isEntry(candidate) || candidate[0] > Math.max(lastSeq, this.lastSeq))
+      if (
+        !this.rules.isEntry(candidate) ||
+        candidate[0] > Math.max(lastSeq, this.lastSeq)
+      )
         return refused("violation");
       if (candidate[1] > localTick + FUTURE_TICKS) return refused("window");
       const [seq, tick] = candidate;
@@ -185,15 +200,18 @@ export class StreamLog {
           (otherSeq > seq && other[1] < tick)
         )
           return refused("violation");
-      if (candidate[2] === PRESS) {
-        if (candidate[3] <= gestureFloor) return refused("violation");
-        for (const [otherSeq, other] of seen)
+      const ordinal = this.ordinal(candidate);
+      if (ordinal !== undefined) {
+        if (ordinal <= ordinalFloor) return refused("violation");
+        for (const [otherSeq, other] of seen) {
+          const theirs = this.ordinal(other);
           if (
-            other[2] === PRESS &&
-            ((otherSeq < seq && other[3] >= candidate[3]) ||
-              (otherSeq > seq && other[3] <= candidate[3]))
+            theirs !== undefined &&
+            ((otherSeq < seq && theirs >= ordinal) ||
+              (otherSeq > seq && theirs <= ordinal))
           )
             return refused("violation");
+        }
       }
       seen.set(seq, candidate);
     }
@@ -273,19 +291,20 @@ export class StreamLog {
       .slice(0, PACKET_ENTRIES);
   }
   /** Where a joiner's copy of this stream starts when it installs a snapshot taken at `tick`. */
-  baseAt(tick: number): { seq: number; tick: number; gesture: number } {
+  baseAt(tick: number): Required<StreamBase> {
     // Every held entry stamped at or before `tick` is folded into the state served at `tick`, including entries waiting behind a
     // gap: the world at `tick` was simulated without the missing entry, and the joiner must not wait for it either (the serving
     // peer only serves past a gap once it is stalled on it, so a gap that a nack can still repair is served from before it).
-    // Only presses at or before `tick` count: a press appended for a later tick travels in the replayed entries and must not be refused as reused.
+    // Only ordinals at or before `tick` count: one appended for a later tick travels in the replayed entries and must not be refused as reused.
     let seq = Math.max(this.baseSeq, this.prunedSeq),
-      gesture = this.baseGesture;
+      ordinal = this.baseOrdinal;
     for (const entry of this.entries.values()) {
       if (entry[1] > tick) continue;
       seq = Math.max(seq, entry[0]);
-      if (entry[2] === PRESS && entry[3] > gesture) gesture = entry[3];
+      const own = this.ordinal(entry);
+      if (own !== undefined && own > ordinal) ordinal = own;
     }
-    return { seq, tick, gesture };
+    return { seq, tick, ordinal };
   }
   /** Every held entry after `seq` and after `tick`, in order: what a joiner replays on top of a snapshot taken at `tick`. */
   entriesAfter(seq: number, tick = -1): Entry[] {
@@ -297,10 +316,11 @@ export class StreamLog {
   prune(tick: number): void {
     for (const [seq, entry] of this.entries)
       if (entry[1] <= tick && seq <= this.contiguous) {
-        if (entry[2] === PRESS && entry[3] > this.baseGesture)
-          this.baseGesture = entry[3];
-        if (entry[2] === PRESS && entry[3] > this.gestureFloor)
-          this.gestureFloor = entry[3];
+        const ordinal = this.ordinal(entry);
+        if (ordinal !== undefined && ordinal > this.baseOrdinal)
+          this.baseOrdinal = ordinal;
+        if (ordinal !== undefined && ordinal > this.ordinalFloor)
+          this.ordinalFloor = ordinal;
         if (seq > this.prunedSeq) this.prunedSeq = seq;
         this.entries.delete(seq);
       }

@@ -12,7 +12,9 @@ import {
   wrapDelta,
   wrapMs,
   type Packet,
-} from "../src/online/packet.js";
+  encodePacketTrimmed,
+} from "fuse-netcode";
+import { fuseGame } from "../src/online/fuse-game.js";
 import { PRESS, RELEASE, STEER, type Entry } from "../src/engine/input-log.js";
 
 const packet = (): Packet => ({
@@ -38,7 +40,7 @@ test("packets and nacks round-trip through MessagePack within the byte budget", 
     bytes.byteLength < 120,
     `${bytes.byteLength} bytes for two entries`,
   );
-  assert.deepEqual(decodePacket(bytes), { packet: packet() });
+  assert.deepEqual(decodePacket(fuseGame, bytes), { packet: packet() });
   const six: Entry[] = Array.from(
     { length: MAX_PACKET_ENTRIES },
     (_, i) => [i + 1, 100 + i, i % 2 ? PRESS : RELEASE, i + 1] as Entry,
@@ -47,7 +49,7 @@ test("packets and nacks round-trip through MessagePack within the byte budget", 
   assert.ok(full.byteLength < 140);
   const nack = encodeNack({ room: 7, from: "abcdef", firstMissingSeq: 4 });
   assert.ok(nack.byteLength < 16);
-  assert.deepEqual(decodePacket(nack), {
+  assert.deepEqual(decodePacket(fuseGame, nack), {
     nack: { room: 7, from: "abcdef", firstMissingSeq: 4 },
   });
   assert.throws(
@@ -128,18 +130,21 @@ test("malformed, oversized and out-of-range packets decode to nothing", () => {
   ];
   for (const variant of variants)
     assert.equal(
-      decodePacket(packMessage(variant)),
+      decodePacket(fuseGame, packMessage(variant)),
       undefined,
       JSON.stringify(variant),
     );
-  assert.equal(decodePacket(new Uint8Array(MAX_PACKET_BYTES + 1)), undefined);
   assert.equal(
-    decodePacket(new Uint8Array([0xc1])),
+    decodePacket(fuseGame, new Uint8Array(MAX_PACKET_BYTES + 1)),
+    undefined,
+  );
+  assert.equal(
+    decodePacket(fuseGame, new Uint8Array([0xc1])),
     undefined,
     "reserved MessagePack byte",
   );
   assert.equal(
-    decodePacket(new Uint8Array([0xdd, 0xff, 0xff, 0xff, 0xff])),
+    decodePacket(fuseGame, new Uint8Array([0xdd, 0xff, 0xff, 0xff, 0xff])),
     undefined,
     "a header claiming four billion elements allocates nothing",
   );
@@ -215,16 +220,16 @@ test("bounded unpack rejects deep nesting, oversized collections, binary, extens
   );
 });
 
-import { encodePacketTrimmed } from "../src/online/packet.js";
 import { SETTINGS } from "../src/engine/input-log.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 test("a settings entry travels in a packet, and an oversized packet is trimmed from its oldest entries", () => {
   const settingsEntry = [9, 120, SETTINGS, defaultRoomSettings()] as Entry;
   const bytes = encodePacket({ ...packet(), entries: [settingsEntry] });
   assert.ok(bytes.byteLength < 400, `${bytes.byteLength} bytes`);
-  assert.deepEqual((decodePacket(bytes) as { packet: Packet }).packet.entries, [
-    settingsEntry,
-  ]);
+  assert.deepEqual(
+    (decodePacket(fuseGame, bytes) as { packet: Packet }).packet.entries,
+    [settingsEntry],
+  );
   const many = Array.from(
     { length: MAX_PACKET_ENTRIES },
     (_, i) => [i + 1, 100 + i, SETTINGS, defaultRoomSettings()] as Entry,
@@ -234,7 +239,10 @@ test("a settings entry travels in a packet, and an oversized packet is trimmed f
     /too large/,
   );
   const trimmed = (
-    decodePacket(encodePacketTrimmed({ ...packet(), entries: many })) as {
+    decodePacket(
+      fuseGame,
+      encodePacketTrimmed({ ...packet(), entries: many }),
+    ) as {
       packet: Packet;
     }
   ).packet.entries;

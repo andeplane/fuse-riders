@@ -1,10 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
-import {
-  CREATOR_SILENCE_MS,
-  type RoomRuntime,
-} from "../src/online/room-runtime.js";
+import { CREATOR_SILENCE_MS } from "fuse-netcode";
+import { type RoomRuntime } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   MAX_SPECTATORS,

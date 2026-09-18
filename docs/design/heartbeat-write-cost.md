@@ -146,7 +146,7 @@ A lapsed member lease is **not** a relink. Read from source:
    `room-store.ts`).
 2. That commit reaches every instance's `observe`, which sends the other members
    `peer … online:false`.
-3. On the managing device `RoomRuntime.peer` (`src/online/room-runtime.ts`) appends `LEAVE`
+3. On the managing device `RoomRuntime.peer` (`packages/fuse-netcode/src/room-runtime.ts`) appends `LEAVE`
    for a rider that is in the world.
 4. `applyManagement`, `case LEAVE` (`src/engine/apply-tick.ts`): in a reclaimable phase
    (`RECLAIMABLE_PHASES`: lobby, round over, match over) `removePlayer` takes the rider
