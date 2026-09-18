@@ -1,5 +1,12 @@
 import { INITIAL_ELO } from "./elo.js";
+/**
+ * Ratings and what the account pages show of them. Browser-safe (no Node imports), so a game's client imports this
+ * module as `fuse-platform/rating` without pulling in the service.
+ */
+/** The seat a signed-in player's solo round reports as: solo play has no room, so no room token to derive one from. */
 export const SOLO_RATING_PLAYER_ID = "0".repeat(24);
+/** A rated round seats at most this many humans; a round result with more players is refused. */
+export const MAX_RATED_PLAYERS = 5;
 export interface RatingPoint {
   match: string;
   at: number;
@@ -59,7 +66,7 @@ export function parseRating(raw: unknown): Rating | undefined {
           (p.round as number) > 1_000_000 ||
           !Number.isSafeInteger(p.opponents) ||
           (p.opponents as number) < 0 ||
-          (p.opponents as number) > 4)) ||
+          (p.opponents as number) > MAX_RATED_PLAYERS - 1)) ||
       (p.round === undefined && p.opponents !== undefined)
     )
       return;
@@ -99,6 +106,10 @@ export interface LeaderboardEntry {
   rounds?: number;
   you?: boolean;
 }
+/**
+ * One opponent an account has met. `kills` counts how often it got the better of that opponent and `deaths` how often
+ * the opponent got the better of it; each game decides what that means (Fuse Riders counts eliminations).
+ */
 export interface Rival {
   name: string;
   kills: number;

@@ -8,10 +8,12 @@ LABEL org.opencontainers.image.title="Fuse Riders room gateway" \
       org.opencontainers.image.revision=$BUILD_REVISION
 WORKDIR /app
 COPY package.json package-lock.json ./
-# The workspace manifests must be present for npm ci to link fuse-network-be and its protocol package.
+# The workspace manifests must be present for npm ci to link the workspace packages the service runs:
+# fuse-network-be with its protocol package, and fuse-platform.
 COPY packages/fuse-network-protocol/package.json ./packages/fuse-network-protocol/
 COPY packages/fuse-network-fe/package.json ./packages/fuse-network-fe/
 COPY packages/fuse-network-be/package.json ./packages/fuse-network-be/
+COPY packages/fuse-platform/package.json ./packages/fuse-platform/
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --chown=node:node src ./src
 COPY --chown=node:node packages ./packages
