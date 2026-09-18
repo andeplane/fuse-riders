@@ -107,6 +107,8 @@ test("a room serves the game it was created for; an absent gameId is the legacy 
     result: undefined,
   }));
   await store.admit(legacy, token(7), "gateway");
+  // The rollout case: a new client names the legacy game for a room stored before rooms carried one.
+  await store.admit(legacy, token(9), "gateway", LEGACY_GAME_ID);
   await assert.rejects(store.admit(legacy, token(8), "gateway", "dice"), {
     status: 404,
   });

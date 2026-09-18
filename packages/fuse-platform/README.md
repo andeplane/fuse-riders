@@ -5,6 +5,7 @@ and one Firestore database serve every game; everything a game stores carries it
 `GameRegistration` (its stats, totals and rivalries) and the platform does the rest.
 
 ```ts
+import { createDevRoomService } from "fuse-network-be";
 import {
   HistoryStore,
   MemoryHistoryDatabase,
@@ -15,21 +16,26 @@ import { FirestoreHistoryDatabase } from "fuse-platform/firestore"; // Cloud Run
 import { newRating, type Rating } from "fuse-platform/rating"; // browser-safe
 
 const platform = new Platform(accountRules, [myGame, otherGame]);
-const history = new HistoryStore(
-  platform,
-  new MemoryHistoryDatabase(platform),
-  roomStore,
-  Date.now,
-);
 createDevRoomService({
   gameIds: platform.gameIds,
-  httpExtension: () => createHistoryHttp(history, verifier),
+  // The history reads the service's own room store: a report is admitted by its seat in that room.
+  httpExtension: (store) =>
+    createHistoryHttp(
+      new HistoryStore(
+        platform,
+        new MemoryHistoryDatabase(platform),
+        store,
+        Date.now,
+      ),
+      verifier,
+    ),
 });
 ```
 
 What the platform owns and keeps the same for every game: a result is kept once a majority of its finishers report
-the same one; a round is rated only when every player who stayed has reported, each on their own account, and once
-per rating scope; early leavers are never rated; Elo is `calculateElo` over humans only. What a game owns: the
+the same one; a round is rated once every player who stayed has reported, and only the signed-in ones on distinct accounts
+are rated (guests are left out), once per rating scope; early leavers are never rated; Elo is `calculateElo` over humans only. Rate-limit budgets are per game (the legacy game keeps its keys), except the username's, which is the account's.
+What a game owns: the
 `PlayerResult` fields it reports beside its own stats (`parseStats`, the storage and wire boundary), which ids are
 bots, what a confirmed match adds to an account (`credit`, `addTotals`, `parseTotals`) and, optionally, rivalries.
 

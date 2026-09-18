@@ -1,9 +1,11 @@
 import test from "node:test";
+import { Readable } from "node:stream";
 import assert from "node:assert/strict";
 import {
   MemoryRoomDatabase,
   RoomError,
   RoomStore,
+  digest,
   peerId,
   type HttpExtension,
 } from "fuse-network-be";
@@ -12,12 +14,14 @@ import {
   LEGACY_GAME_ID,
   MemoryHistoryDatabase,
   Platform,
+  collectHistory,
   createHistoryHttp,
   gameRoute,
   matchRecordId,
   parseMatchRecord,
   parseMatchResult,
   parseProfile,
+  rankFields,
   splitProfile,
   type AccountRules,
   type GameRegistration,
@@ -125,12 +129,28 @@ function seat(
   };
 }
 
-async function fixture() {
+/** Records every rate-limit key it is asked about. */
+class RecordingDatabase extends MemoryRoomDatabase {
+  keys: string[] = [];
+  override allowance(
+    key: string,
+    now: number,
+    limit: number,
+    consume?: boolean,
+  ): Promise<boolean> {
+    this.keys.push(key);
+    return super.allowance(key, now, limit, consume);
+  }
+}
+
+/** `sameIncarnation` gives every room one incarnation, so two games' rooms can map a result to one record id. */
+async function fixture(sameIncarnation = false) {
   let now = 1_800_000_000_000,
     ids = 0;
-  const rooms = new RoomStore(new MemoryRoomDatabase(), {
+  const roomDatabase = new RecordingDatabase();
+  const rooms = new RoomStore(roomDatabase, {
     now: () => now,
-    id: () => `id-${ids++}`,
+    id: () => (sameIncarnation ? "room-id" : `id-${ids++}`),
     gameIds: platform.gameIds,
   });
   const database = new MemoryHistoryDatabase(platform, () => now);
@@ -160,6 +180,7 @@ async function fixture() {
   };
   return {
     rooms,
+    roomDatabase,
     database,
     store,
     room,
@@ -227,6 +248,76 @@ test("an unknown game is refused by the store, the routes and the record parser"
     gameId: LEGACY_GAME_ID,
     path: "/api/me",
   });
+});
+
+test("history routes address a game by prefix and refuse an unknown game or a room of another game", async () => {
+  const f = await fixture();
+  const arena = await f.room(undefined, 1);
+  const http = createHistoryHttp(f.store, async () => undefined);
+  const call = async (
+    method: string,
+    path: string,
+    headers: Record<string, string> = {},
+    body?: unknown,
+  ) => {
+    const response: { status?: number; body?: string } = {};
+    const handled = await handle(
+      http,
+      method,
+      path,
+      response,
+      headers,
+      body,
+    ).catch((error: unknown) => error);
+    return { handled, response };
+  };
+  const refused = async (
+    outcome: Promise<{ handled: unknown }>,
+    status: number,
+    message: string,
+  ) => {
+    const { handled } = await outcome;
+    assert.ok(handled instanceof RoomError, message);
+    assert.equal(handled.status, status);
+    assert.equal(handled.message, message);
+  };
+  await refused(
+    call("POST", "/api/games/chess/rooms/AB12/results", {}, { result: 1 }),
+    404,
+    "Unknown game",
+  );
+  await refused(
+    call("PUT", "/api/games/chess/me", {}, { username: "Ace" }),
+    404,
+    "Unknown game",
+  );
+  await refused(
+    call(
+      "POST",
+      `/api/games/dice/rooms/${arena.code}/results`,
+      { authorization: `Bearer ${arena.tokens[0]!}` },
+      { result: round(arena.ids, 0) },
+    ),
+    404,
+    "Room is for another game",
+  );
+  // A signed-in round reporter whose identity cannot be verified must retry, never be settled as a guest.
+  await refused(
+    call(
+      "POST",
+      `/api/rooms/${arena.code}/round-results`,
+      {
+        authorization: `Bearer ${arena.tokens[0]!}`,
+        "x-fuse-identity": "unverifiable",
+      },
+      { result: round(arena.ids, 0) },
+    ),
+    503,
+    "Identity unavailable; retry round report",
+  );
+  const board = await call("GET", "/api/games/dice/leaderboard");
+  assert.equal(board.handled, true);
+  assert.deepEqual(JSON.parse(board.response.body!), { players: [] });
 });
 
 test("ratings and leaderboards are per game, while the account is shared", async () => {
@@ -342,14 +433,38 @@ test("match history, totals and rivalries are per game; a record without a gameI
     parseMatchRecord(platform, { ...diceRecord, gameId: 7 }),
     undefined,
   );
-  // A record cannot change games on a later report.
+});
+
+test("a record cannot change games: the same record id reported to another game is refused", async () => {
+  // One incarnation for every room, so a legacy room and a dice room hash the same result to the same record.
+  const f = await fixture(true);
+  const arena = await f.room(undefined, 1),
+    table = await f.room("dice", 3);
+  const result = (ids: string[]) => ({
+    matchId: "same",
+    length: 1,
+    finishers: [ids[0]!],
+    players: [seat(ids[0]!, 0, 1), seat("bot:1", 1, 2)],
+  });
+  const legacyHistory = f.store.game(LEGACY_GAME_ID),
+    diceHistory = f.store.game("dice");
+  // Same seat id in both rooms (same token), so the result bytes and the record id are identical.
+  const solo = { ...arena, tokens: [arena.tokens[0]!] };
+  await f.rooms.admit(table.code, arena.tokens[0]!, "gateway", "dice");
+  await f.play(LEGACY_GAME_ID, solo, result(arena.ids), ["alice"]);
   await assert.rejects(
-    f.database.transactMatch("dice", stored.id, (current) => {
-      assert.equal(current!.gameId, LEGACY_GAME_ID);
-      throw new RoomError(409, "Match belongs to another game");
-    }),
-    { status: 409 },
+    diceHistory.submit(
+      await diceHistory.admit(table.code, arena.tokens[0]!, "ip"),
+      { result: result(arena.ids) },
+      "alice",
+    ),
+    { status: 409, message: "Match belongs to another game" },
   );
+  assert.equal(
+    (await legacyHistory.history("alice", undefined)).matches.length,
+    1,
+  );
+  assert.deepEqual((await diceHistory.history("alice", undefined)).matches, []);
 });
 
 test("a room of one game refuses another game's reports and joins", async () => {
@@ -374,9 +489,43 @@ test("a room of one game refuses another game's reports and joins", async () => 
     .game("dice")
     .admit(table.code, table.tokens[0]!, "ip");
   await assert.rejects(
-    f.store.game(LEGACY_GAME_ID).submit(reporter, {}, undefined),
-    { status: 400 },
+    f.store
+      .game(LEGACY_GAME_ID)
+      .submit(reporter, { result: round(table.ids, 0) }, undefined),
+    { status: 400, message: "Report for another game" },
   );
+  // A room stored before rooms carried a game is the legacy game's, whether a client names it or not.
+  const stored = structuredClone(await f.rooms.get(arena.code));
+  delete stored.gameId;
+  await f.rooms.database.transact(arena.code, () => ({
+    room: stored,
+    result: undefined,
+  }));
+  assert.ok(
+    await f.store
+      .game(LEGACY_GAME_ID)
+      .admit(arena.code, arena.tokens[1]!, "ip"),
+  );
+  await f.rooms.admit(arena.code, token(9), "gateway", LEGACY_GAME_ID);
+  await assert.rejects(
+    f.store.game("dice").admit(arena.code, arena.tokens[1]!, "ip"),
+    { status: 404 },
+  );
+});
+
+test("rate-limit budgets are per game; the legacy game keeps its keys", async () => {
+  const f = await fixture();
+  await f.store.game(LEGACY_GAME_ID).profile("alice");
+  await f.store.game("dice").profile("alice");
+  await f.store.game(LEGACY_GAME_ID).leaderboard("ip");
+  await f.store.game("dice").leaderboard("ip");
+  const legacyKeys = [digest("history:alice"), digest("leaderboard:ip")],
+    diceKeys = [digest("dice:history:alice"), digest("dice:leaderboard:ip")];
+  for (const key of [...legacyKeys, ...diceKeys])
+    assert.ok(f.roomDatabase.keys.includes(key));
+  // The username is the account's in every game, so its budget is shared.
+  await f.store.game("dice").rename("alice", { username: "Ace" });
+  assert.ok(f.roomDatabase.keys.includes(digest("rename:alice")));
 });
 
 test("solo rounds of different games never share a record or a rating scope", async () => {
@@ -526,26 +675,118 @@ test("a record written by the platform re-parses to itself", async () => {
   assert.deepEqual(parseMatchRecord(platform, structuredClone(stored)), stored);
 });
 
-/** Drives an HttpExtension with a minimal request and response. */
+/** Drives an HttpExtension with a minimal request (a readable body) and response. */
 async function handle(
   http: HttpExtension,
   method: string,
   url: string,
   response: { status?: number; body?: string },
+  headers: Record<string, string> = {},
+  body?: unknown,
 ): Promise<boolean> {
-  const req = {
-    method,
-    url,
-    headers: {},
-    [Symbol.asyncIterator]: async function* () {},
-  } as unknown as Parameters<HttpExtension["handle"]>[0];
+  const req = Object.assign(
+    Readable.from(
+      body === undefined ? [] : [Buffer.from(JSON.stringify(body))],
+    ),
+    { method, url, headers },
+  ) as unknown as Parameters<HttpExtension["handle"]>[0];
   const res = {
     writeHead(status: number) {
       response.status = status;
     },
-    end(body: string) {
-      response.body = body;
+    end(text: string) {
+      response.body = text;
     },
   } as unknown as Parameters<HttpExtension["handle"]>[1];
   return http.handle(req, res, "ip");
 }
+
+test("a corrupt stored record fails closed, field by field", async () => {
+  const f = await fixture();
+  const table = await f.room("dice", 3);
+  await f.play("dice", table, round(table.ids, 0), ["alice", "bob"], true);
+  const id = matchRecordId(
+    (await f.rooms.get(table.code)).incarnation,
+    parseMatchResult(dice, ACCOUNT, round(table.ids, 0))!,
+  );
+  const stored = await f.database.transactMatch("dice", id, (current) => ({
+    result: current as MatchRecord,
+  }));
+  const point = stored.ratings![table.ids[0]!]!;
+  assert.ok(parseMatchRecord(platform, stored));
+  for (const [label, change] of Object.entries<Record<string, unknown>>({
+    "a null game": { gameId: null },
+    "a negative creation time": { createdAt: -1 },
+    "an infinite end": { endedAt: Infinity },
+    "a string expiry": { expiresAt: "soon" },
+    "a malformed rating scope": { ratingScope: "x" },
+    "ratings that are a list": { ratings: [] },
+    "a rating for a stranger": { ratings: { ["c".repeat(24)]: point } },
+    "a rating that is not an object": { ratings: { [table.ids[0]!]: 5 } },
+    "a rating from another match": {
+      ratings: { [table.ids[0]!]: { ...point, match: "f".repeat(40) } },
+    },
+    "rivalry pairs that are a string": { rivalryPairs: "a:b" },
+    "a malformed rivalry pair": { rivalryPairs: ["a:b"] },
+    "an unknown status": { status: "void" },
+    "a pending record with an end": { status: "pending" },
+  }))
+    assert.equal(
+      parseMatchRecord(platform, { ...stored, ...change }),
+      undefined,
+      label,
+    );
+});
+
+test("rank fields follow the rating: absent without one, unranked before a game, Elo rounded", () => {
+  assert.deepEqual(rankFields({}), {});
+  const rating = { value: 1015.6, peak: 1015.6, games: 0, points: [] };
+  assert.deepEqual(rankFields({ rating }), { ranked: false, elo: 1016 });
+  assert.deepEqual(rankFields({ rating: { ...rating, games: 2 } }), {
+    ranked: true,
+    elo: 1016,
+  });
+});
+
+test("legacy history paging keeps the game's own records, skips unreadable ones and stops within its bound", async () => {
+  const record = (gameId: string, endedAt: number) =>
+    ({ gameId, endedAt }) as unknown as MatchRecord;
+  // Newest first: a page of the legacy game's query holds every game's records.
+  const all = Array.from({ length: 30 }, (_, i) => {
+    const endedAt = 1000 - i;
+    return {
+      record:
+        i === 3
+          ? undefined
+          : record(i % 3 === 0 ? LEGACY_GAME_ID : "dice", endedAt),
+      endedAt,
+    };
+  });
+  const cursors: (number | undefined)[] = [];
+  const page = async (cursor: number | undefined) => {
+    cursors.push(cursor);
+    return all
+      .filter((doc) => cursor === undefined || doc.endedAt < cursor)
+      .slice(0, 4);
+  };
+  const found = await collectHistory(page, LEGACY_GAME_ID, undefined, 4);
+  assert.deepEqual(
+    found.map((m) => m.endedAt),
+    [1000, 994, 991, 988],
+    "four of the game's records, the unreadable one skipped",
+  );
+  assert.deepEqual(cursors, [undefined, 997, 993, 989]);
+  // The bound: with one pass, a page crowded by other games comes back short.
+  cursors.length = 0;
+  assert.deepEqual(
+    (await collectHistory(page, LEGACY_GAME_ID, undefined, 4, 1)).map(
+      (m) => m.endedAt,
+    ),
+    [1000],
+  );
+  assert.deepEqual(cursors, [undefined]);
+  // The query ran out: stop without another read.
+  cursors.length = 0;
+  assert.deepEqual(await collectHistory(page, LEGACY_GAME_ID, 973, 4), []);
+  assert.deepEqual(cursors, [973]);
+});

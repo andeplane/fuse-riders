@@ -60,7 +60,8 @@ export function settlementUsers<T>(next: HistoryMutation<T>): string[] {
 /**
  * Shared transaction body for memory and Firestore. All required profiles (of `game`) have been read before any
  * writes. The rules here are the platform's and the same for every game: totals only from whole matches, rivalries
- * once per pair, and a rating per round only when every player who stayed has reported, each on their own account.
+ * once per pair, and a rating per round once every player who stayed has reported, for the signed-in ones on
+ * distinct accounts (guests are left out).
  */
 export function settleHistory<T>(
   game: AnyGame,

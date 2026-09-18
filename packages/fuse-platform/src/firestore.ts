@@ -15,6 +15,7 @@ import {
   splitProfile,
 } from "./profile.js";
 import type { LeaderboardEntry, Rival, Rivalries } from "./rating.js";
+import { collectHistory } from "./pages.js";
 import { parseMatchRecord, type MatchRecord } from "./result.js";
 import {
   ACCOUNT_KEYS,
@@ -23,9 +24,6 @@ import {
   type HistoryMutation,
   type Profile,
 } from "./settlement.js";
-
-/** Pages the legacy game's history query may read to fill one page when other games' matches are interleaved. */
-const LEGACY_HISTORY_PASSES = 5;
 
 /**
  * Match history, accounts and ratings of every game. Only this service reaches these collections: firestore.rules
@@ -182,25 +180,16 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
       if (cursor !== undefined) query = query.where("endedAt", "<", cursor);
       return (await query.orderBy("endedAt", "desc").limit(limit).get()).docs;
     };
-    const found: MatchRecord[] = [];
-    let cursor = before;
-    for (let pass = 0; pass < LEGACY_HISTORY_PASSES; pass++) {
-      const docs = await page(cursor);
-      // One unreadable record must not hide the rest of an account's history.
-      for (const doc of docs) {
-        const match = parseMatchRecord(this.platform, doc.data());
-        if (match?.gameId === gameId) found.push(match);
-      }
-      const last = docs.at(-1)?.get("endedAt") as unknown;
-      if (
-        found.length >= limit ||
-        docs.length < limit ||
-        typeof last !== "number"
-      )
-        break;
-      cursor = last;
-    }
-    return found.slice(0, limit);
+    return collectHistory(
+      async (cursor) =>
+        (await page(cursor)).map((doc) => ({
+          record: parseMatchRecord(this.platform, doc.data()),
+          endedAt: doc.get("endedAt") as unknown,
+        })),
+      gameId,
+      before,
+      limit,
+    );
   }
   async profile(gameId: string, uid: string): Promise<Profile | undefined> {
     const [user, standing] = await Promise.all([

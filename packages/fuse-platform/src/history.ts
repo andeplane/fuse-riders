@@ -159,6 +159,17 @@ export class GameHistory<
     private now: () => number,
   ) {}
 
+  /**
+   * A rate-limit key for this game. Budgets are per game, so one game's play cannot spend another's; the legacy
+   * game keeps its keys exactly as they were. Room keys need no scope (a room serves one game) and the rename budget
+   * is the shared account's.
+   */
+  private limit(key: string): string {
+    return digest(
+      this.game.id === LEGACY_GAME_ID ? key : `${this.game.id}:${key}`,
+    );
+  }
+
   /** Runtime boundary for a result of this game. */
   parseResult(raw: unknown): MatchResult<P> | undefined {
     return parseMatchResult(this.game, this.platform.account, raw) as
@@ -211,12 +222,12 @@ export class GameHistory<
   async admitSolo(uid: string, address: string): Promise<Reporter> {
     const allowed =
       (await this.rooms.database.allowance(
-        digest(`solo-round:${uid}`),
+        this.limit(`solo-round:${uid}`),
         this.now(),
         600,
       )) &&
       (await this.rooms.database.allowance(
-        digest(`solo-round-address:${address}`),
+        this.limit(`solo-round-address:${address}`),
         this.now(),
         3000,
       ));
@@ -281,7 +292,9 @@ export class GameHistory<
     const account =
       uid !== undefined &&
       (await this.rooms.database.allowance(
-        digest(`${result.round === undefined ? "link" : "round-link"}:${uid}`),
+        this.limit(
+          `${result.round === undefined ? "link" : "round-link"}:${uid}`,
+        ),
         this.now(),
         result.round === undefined ? LINKS_PER_HOUR : 600,
       ))
@@ -401,7 +414,7 @@ export class GameHistory<
   async profile(uid: string): Promise<Profile<T> | undefined> {
     if (
       !(await this.rooms.database.allowance(
-        digest(`history:${uid}`),
+        this.limit(`history:${uid}`),
         this.now(),
         READS_PER_HOUR,
       ))
@@ -446,7 +459,7 @@ export class GameHistory<
   ): Promise<LeaderboardEntry[]> {
     if (
       !(await this.rooms.database.allowance(
-        digest(`leaderboard:${address}`),
+        this.limit(`leaderboard:${address}`),
         this.now(),
         READS_PER_HOUR,
       ))
@@ -465,7 +478,7 @@ export class GameHistory<
   }> {
     if (
       !(await this.rooms.database.allowance(
-        digest(`history:${uid}`),
+        this.limit(`history:${uid}`),
         this.now(),
         READS_PER_HOUR,
       ))

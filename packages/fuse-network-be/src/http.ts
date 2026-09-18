@@ -29,7 +29,6 @@ import {
   CLOSE_ROOM_FULL,
   CLOSE_UNAUTHENTICATED,
   DEFAULT_ICE_SERVERS,
-  validGameId,
 } from "fuse-network-protocol";
 
 /** Optional game-owned HTTP routes, behind the common Origin and error boundaries. */
@@ -206,6 +205,13 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         return;
       }
       if (url.pathname === "/api/rooms" && req.method === "POST") {
+        // The game rides in the query, not a body, so creation stays a simple request with no CORS preflight.
+        // Absent means `LEGACY_GAME_ID`: a page from before rooms carried a game. Checked before the creation budget.
+        const gameId = url.searchParams.get("gameId") ?? undefined;
+        if (gameId !== undefined && !store.gameIds.has(gameId)) {
+          json({ error: "Unknown game" }, 400);
+          return;
+        }
         if (
           !(await store.database.allowance(
             digest(options.clientAddress(req)),
@@ -214,13 +220,6 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
           ))
         ) {
           json({ error: "Room creation limit; try later" }, 429);
-          return;
-        }
-        // The game rides in the query, not a body, so creation stays a simple request with no CORS preflight.
-        // Absent means `LEGACY_GAME_ID`: a page from before rooms carried a game.
-        const gameId = url.searchParams.get("gameId") ?? undefined;
-        if (gameId !== undefined && !validGameId(gameId)) {
-          json({ error: "Unknown game" }, 400);
           return;
         }
         const token = randomBytes(32).toString("hex"),

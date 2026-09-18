@@ -353,7 +353,8 @@ The personal data stored is the Firebase `uid`, the username, the rider names ma
 avatar. **No email address or profile photo reaches the gateway or the database.** The Google display name is shown in
 the player's own browser only, with one exception the player can see and undo: an account with no username and no
 earlier rider name starts with the _first word_ of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, their
-`fuse-production-ratings` documents (`<gameId>:<uid>`, once another game exists), and remove their `uid` from
+`fuse-production-ratings` documents (`<gameId>:<uid>`, once another game exists), the `rivals` subcollections of
+both (Firestore does not delete a subcollection with its parent), and remove their `uid` from
 `uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
 
 [`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index

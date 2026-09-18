@@ -196,7 +196,7 @@ export function parseMatchRecord(
   )
     return;
   // No backfill: every record from before match records carried a game is the legacy game's.
-  const gameId = raw.gameId ?? LEGACY_GAME_ID;
+  const gameId = raw.gameId === undefined ? LEGACY_GAME_ID : raw.gameId;
   const game =
     typeof gameId === "string" ? platform.games.get(gameId) : undefined;
   if (!game) return;

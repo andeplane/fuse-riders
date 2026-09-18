@@ -34,7 +34,6 @@ import {
 } from "../src/service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
 import { MemoryHistoryDatabase } from "fuse-platform";
-import { GAME_ID } from "../src/shared/game-id.js";
 import { RoomStore, peerId } from "fuse-network-be";
 
 async function fixture(riders = 2, length = 1) {
