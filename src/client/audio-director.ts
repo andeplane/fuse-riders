@@ -1,3 +1,4 @@
+import { GunImpacts } from "./gun-impacts.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { showsRoundResult } from "./arena-announcer.js";
 import {
@@ -52,6 +53,7 @@ export interface GameSynth {
  */
 export class AudioDirector {
   private unlocked = false;
+  private gunImpacts = new GunImpacts();
   private scope = "";
   private matchId = "";
   private round = -1;
@@ -241,6 +243,7 @@ export class AudioDirector {
   disconnect(): void {
     this.save();
     this.scope = "";
+    this.gunImpacts.reset();
     this.seen.clear();
     this.stingFor = "";
     this.playing = false;
@@ -261,6 +264,11 @@ export class AudioDirector {
         this.seen.clear();
         this.stingFor = "";
       } else if (message.tick < this.latestTick) return;
+      for (const impact of this.gunImpacts.accept(
+        { ...message.state, tick: message.tick, round: message.round },
+        message.matchId,
+      ).fresh)
+        this.cue(`gun-${impact.kind}`);
       this.latestTick = message.tick;
       // The final pause opens on the round's own result; the match sting belongs to the card that names the match winner.
       if (
@@ -284,7 +292,7 @@ export class AudioDirector {
     )
       return;
     const gun = message.event.type === "bombPlaced" && message.event.gun;
-    const key = `${message.tick}:${message.event.type}${gun && message.event.type === "bombPlaced" ? `:${message.event.bombId}` : ""}`;
+    const key = `${message.tick}:${message.event.type}${gun && message.event.type === "bombPlaced" ? `:${message.event.playerId}` : ""}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
     if (this.seen.size > 100)
@@ -404,6 +412,17 @@ export class AudioDirector {
         note(1500 * pitch, 480 * pitch, 0.16, "sawtooth", 0.025, 0.045);
         break;
       }
+      case "gun-solid":
+        note(1900, 800, 0.045, "square", 0, 0.075);
+        note(2700, 1800, 0.065, "triangle", 0.01, 0.05);
+        break;
+      case "gun-trail":
+        note(1100, 220, 0.085, "sawtooth", 0, 0.1);
+        break;
+      case "gun-lethal":
+        note(1700, 1100, 0.045, "square", 0, 0.13);
+        note(880, 1320, 0.12, "triangle", 0.035, 0.17);
+        break;
       case "bombPlaced":
         note(260, 1050, 0.12);
         break;

@@ -743,7 +743,16 @@ test("gun crack is short, layered, varied and deduplicated per shot", async () =
   f.director.message(shot);
   assert.equal(f.notes.length, 4, "duplicate shot stays silent");
   f.director.message(
-    f.event(11, { type: "bombPlaced", bombId: 2, playerId: "p", gun: true }),
+    f.event(11, { type: "bombPlaced", bombId: 3, playerId: "p", gun: true }),
+  );
+  assert.equal(f.notes.length, 4, "volley rays share one firing sound");
+  f.director.message(
+    f.event(11, {
+      type: "bombPlaced",
+      bombId: 2,
+      playerId: "other",
+      gun: true,
+    }),
   );
   assert.equal(f.notes.length, 8, "another shot in the same tick is audible");
   assert.notEqual(f.notes[0]!.note.frequency, f.notes[4]!.note.frequency);

@@ -121,6 +121,66 @@ try {
         const reset = paint(100);
         if (!fresh.every((v, i) => v === reset[i]))
           throw Error("Reset changed Gun presentation");
+        // A real-shaped authoritative trail cut leaves sparks after its tracer is gone.
+        const target = {
+          ...player,
+          id: "target",
+          x: 1200,
+          y: 650,
+          color: "#ff5577",
+        };
+        const trail = {
+          x1: 900,
+          y1: 350,
+          x2: 900,
+          y2: 550,
+          createdTick: 90,
+          expiresAtTick: 300,
+        };
+        const cut = Math.sqrt(14 ** 2 - 5 ** 2);
+        const after = {
+          ...base,
+          tick: 100,
+          players: [
+            player,
+            {
+              ...target,
+              trail: [
+                { ...trail, y2: 450 - cut },
+                { ...trail, y1: 450 + cut },
+              ],
+            },
+          ],
+          bombs: [{ ...shot, x: 895 }],
+        };
+        arena.reset();
+        arena.render(
+          {
+            ...base,
+            tick: 99,
+            bombs: [],
+            players: [player, { ...target, trail: [trail] }],
+          },
+          1000,
+          theme,
+          "gun-impact",
+        );
+        arena.render(after, 1000, theme, "gun-impact");
+        const aftermath = {
+          ...after,
+          tick: 104,
+          presentationTick: 104,
+          bombs: [],
+        };
+        arena.render(aftermath, 1000, theme, "gun-impact");
+        const debris = read();
+        arena.reset();
+        arena.render(aftermath, 1000, theme, "gun-impact");
+        const baseline = read();
+        if (debris.every((v, i) => v === baseline[i]))
+          throw Error("Trail hit produced no debris");
+        arena.reset();
+        paint(100);
         results.push({ theme: theme.id, renderer: arena.metrics().renderer });
       }
       Reflect.set(window, "disposeGun", () => arena.destroy());
