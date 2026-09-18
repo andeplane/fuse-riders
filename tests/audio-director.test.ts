@@ -718,23 +718,35 @@ test("a later failed unlock (a lock-screen play iOS will not let resume the cont
   assert.equal(f.music.length, 3, "an OS resume arms it too");
 });
 
-test("gun launch plays a layered cannon cue", async () => {
+test("gun crack is short, layered, varied and deduplicated per shot", async () => {
   const f = fixture();
   await f.director.unlock();
   f.director.message(f.snapshot(10));
-  f.director.message(
-    f.event(11, { type: "bombPlaced", bombId: 1, playerId: "p", gun: true }),
-  );
-  assert.equal(f.notes.length, 3);
+  const shot = f.event(11, {
+    type: "bombPlaced",
+    bombId: 1,
+    playerId: "p",
+    gun: true,
+  });
+  f.director.message(shot);
+  assert.equal(f.notes.length, 4);
   assert.ok(
     f.notes.some(
-      ({ note }) =>
-        note.wave === "triangle" &&
-        note.endFrequency === 24 &&
-        note.duration === 0.4,
+      ({ note }) => note.wave === "triangle" && note.frequency > 200,
     ),
   );
-  assert.ok(f.notes.every(({ channel }) => channel === "effects"));
+  assert.ok(
+    f.notes.every(
+      ({ channel, note }) => channel === "effects" && note.duration <= 0.16,
+    ),
+  );
+  f.director.message(shot);
+  assert.equal(f.notes.length, 4, "duplicate shot stays silent");
+  f.director.message(
+    f.event(11, { type: "bombPlaced", bombId: 2, playerId: "p", gun: true }),
+  );
+  assert.equal(f.notes.length, 8, "another shot in the same tick is audible");
+  assert.notEqual(f.notes[0]!.note.frequency, f.notes[4]!.note.frequency);
 });
 
 test("replay stings play only after the unlock and never while effects are silenced", async () => {

@@ -283,7 +283,8 @@ export class AudioDirector {
       message.tick < this.latestTick - 2
     )
       return;
-    const key = `${message.tick}:${message.event.type}`;
+    const gun = message.event.type === "bombPlaced" && message.event.gun;
+    const key = `${message.tick}:${message.event.type}${gun && message.event.type === "bombPlaced" ? `:${message.event.bombId}` : ""}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
     if (this.seen.size > 100)
@@ -293,9 +294,8 @@ export class AudioDirector {
       return;
     }
     this.cue(
-      message.event.type === "bombPlaced" && message.event.gun
-        ? "cannon"
-        : message.event.type,
+      gun ? "cannon" : message.event.type,
+      gun && message.event.type === "bombPlaced" ? message.event.bombId : 0,
     );
   }
   /**
@@ -376,7 +376,7 @@ export class AudioDirector {
         break;
     }
   }
-  private cue(type: string): void {
+  private cue(type: string, identity = 0): void {
     if (!this.unlocked || this.silenced) return;
     const note = (
       frequency: number,
@@ -384,6 +384,7 @@ export class AudioDirector {
       duration: number,
       wave: SynthNote["wave"] = "square",
       delay = 0,
+      level = 0.24,
     ) =>
       this.synth.note("effects", {
         frequency,
@@ -391,14 +392,18 @@ export class AudioDirector {
         duration,
         wave,
         delay,
-        level: 0.24,
+        level,
       });
     switch (type) {
-      case "cannon":
-        note(180, 35, 0.32, "sawtooth");
-        note(90, 24, 0.4, "triangle");
-        note(900, 90, 0.09);
+      case "cannon": {
+        // Stable cosmetic variation: re-delivery never changes the shot's voice.
+        const pitch = 0.96 + ((identity * 7) % 9) * 0.01;
+        note(2400 * pitch, 650 * pitch, 0.035, "square", 0, 0.18);
+        note(260 * pitch, 115 * pitch, 0.105, "triangle", 0, 0.3);
+        note(780 * pitch, 180 * pitch, 0.075, "sawtooth", 0.008, 0.12);
+        note(1500 * pitch, 480 * pitch, 0.16, "sawtooth", 0.025, 0.045);
         break;
+      }
       case "bombPlaced":
         note(260, 1050, 0.12);
         break;
