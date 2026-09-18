@@ -42,7 +42,7 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
   constructor(scene: Phaser.Scene, trailWidth: number) {
     super(scene);
     // Slightly fuller silhouette; the authoritative collision width is unchanged.
-    this.visualWidth = trailWidth * 1.5;
+    this.visualWidth = trailWidth * 1.25;
     this.cache = new TrailRibbonCache(this.visualWidth);
     const renderer = scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
     this.ribbonPipeline = new Phaser.Renderer.WebGL.Pipelines.SinglePipeline({
