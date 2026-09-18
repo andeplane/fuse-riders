@@ -173,7 +173,7 @@ for (const [name, type] of [
     );
     result.savedPreferences = await host.evaluate(() => {
       const s = JSON.parse(
-        localStorage.getItem("fuse-riders-room-settings-v1") ?? "{}",
+        localStorage.getItem("fuse-riders-room-settings-v2") ?? "{}",
       );
       return { mode: s.mode, length: s.length, powerWeight: s.weights?.power };
     });

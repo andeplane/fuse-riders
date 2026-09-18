@@ -160,7 +160,7 @@ try {
     await page.addInitScript(
       (settings: string | undefined) => {
         if (settings)
-          localStorage.setItem("fuse-riders-room-settings-v1", settings);
+          localStorage.setItem("fuse-riders-room-settings-v2", settings);
         window.addEventListener("fuse-benchmark", (event) => {
           const detail = (
             event as CustomEvent<{
