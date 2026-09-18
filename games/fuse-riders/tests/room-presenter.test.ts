@@ -198,6 +198,7 @@ test("the fire button says what a press would do", () => {
   assert.equal(label({ shellArmed: true }).label, "FIRE SHELL");
   const gun = label({ gunArmed: true });
   assert.deepEqual(gun, {
+    weapon: "gun",
     gunReady: true,
     title: "Tap to fire Gun, or hold and steer to aim (Space)",
     label: "HOLD TO AIM GUN",
@@ -503,4 +504,25 @@ test("ready controls belong to riders, including guests; votes are reflected and
     }).actions.ready,
     { hidden: false, pressed: false, label: "READY FOR REMATCH" },
   );
+});
+
+test("controller artwork follows the local rider’s next weapon and resets after spending it", () => {
+  const weapons: Partial<RiderView> = {
+    gunArmed: true,
+    shellArmed: true,
+    fiveShotArmed: true,
+    tripleShotArmed: true,
+  };
+  const icon = () =>
+    present(frame({}, { me: weapons, ada: { gunArmed: true } })).fire.weapon;
+  assert.equal(icon(), "gun");
+  weapons.gunArmed = false;
+  assert.equal(icon(), "shell");
+  weapons.shellArmed = false;
+  assert.equal(icon(), "five");
+  weapons.fiveShotArmed = false;
+  assert.equal(icon(), "triple");
+  weapons.tripleShotArmed = false;
+  assert.equal(icon(), "bomb");
+  assert.equal(present(frame(), { playerId: "missing" }).fire.weapon, "bomb");
 });

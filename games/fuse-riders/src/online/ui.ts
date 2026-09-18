@@ -1,3 +1,4 @@
+import { legendSrc } from "../client/legend-src.js";
 import { VoiceChat } from "./voice-chat.js";
 import { uuid } from "fuse-netcode";
 import { showRoomSettings } from "./room-settings-menu.js";
@@ -759,10 +760,7 @@ export async function startOnline(): Promise<void> {
   rightButton.setAttribute("aria-label", "Steer right");
   const fireLabel = node("span", "HOLD TO FIRE", "pad-feedback");
   fireButton.replaceChildren(fireLabel);
-  controls.style.setProperty(
-    "--bomb-art",
-    `url("${appUrl().split("?")[0]}themes/neon-pixel/bomb.svg")`,
-  );
+  let fireArtwork = "";
   const arcadeHeader = node("div", "", "arcade-header");
   const arcadeIdentity = node("strong", "YOU", "arcade-identity");
   const arcadeConnection = node("span", "Connecting…", "arcade-connection");
@@ -1506,6 +1504,20 @@ export async function startOnline(): Promise<void> {
       fireButton.classList.toggle("gun-armed", view.fire.gunReady);
       hudFire.classList.toggle("gun-armed", view.fire.gunReady);
       fireButton.title = view.fire.title;
+      const weapon = view.fire.weapon;
+      const artwork = legendSrc(
+        theme.id,
+        weapon === "bomb" ? "bomb" : `pickup-${weapon}`,
+      );
+      if (artwork !== fireArtwork) {
+        fireArtwork = artwork;
+        fireButton.style.setProperty("--bomb-art", `url("${artwork}")`);
+        fireButton.dataset.weapon = weapon.toUpperCase();
+      }
+      fireButton.setAttribute(
+        "aria-label",
+        `${fireButton.dataset.weapon}: ${view.fire.label ?? "Hold to fire"}`,
+      );
       if (view.playerColor)
         app.style.setProperty("--player-color", view.playerColor);
       if (view.fire.label !== undefined)

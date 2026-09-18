@@ -98,6 +98,18 @@ try {
     }
     assert.equal(await phone.locator(".online-arena").isVisible(), false);
   }
+  // The real controller uses the same themed SVG assets as the arena, with a matching caption.
+  const fire = phone.locator(".pad-bomb");
+  await phone.waitForFunction(() => {
+    const button = document.querySelector<HTMLElement>(".pad-bomb");
+    return (
+      button?.dataset.weapon === "BOMB" &&
+      getComputedStyle(button, "::before").backgroundImage.includes(
+        "/themes/neon-pixel/bomb.svg",
+      )
+    );
+  });
+  assert.match((await fire.getAttribute("aria-label")) ?? "", /^BOMB:/);
   await layout(true);
   await cleanScreenshot({ path: `artifacts/arcade-portrait-${kind}.png` });
   await phone.setViewportSize({ width: 844, height: 390 });
