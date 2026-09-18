@@ -6,7 +6,7 @@ Today the repo holds one game, Fuse Riders. Its networking is already split into
 
 ## Decisions
 
-- **One backend for all games.** One Cloud Run room service and one Firestore database. Rooms, match records, ratings and leaderboards carry a `gameId`. An account is shared across games; each game has its own rating. Hosting cost stays flat as games are added.
+- **One backend for all games.** One Cloud Run room service and one Firestore database. Rooms, match records, ratings and leaderboards carry a `gameId`. An account is shared across games; each game has its own rating. Sharing infrastructure avoids a separate service per game; cost still depends on usage.
 - **Libraries stay inside this repo** as npm workspaces. They are not published to npm until a game outside the repo needs them.
 - **The template game is a dice game**, described under [The dice game](#the-dice-game).
 
@@ -36,7 +36,7 @@ The boundary sits at the room's tick (`applyTick`), not the game's (`step`). A g
 ```ts
 interface RollbackGame<Room, Entry, View, Event> {
   id: string; // "fuse-riders", "dice"; the gameId everywhere
-  rules: string; // today "fuse-p2p-36"; peers on different rules refuse each other
+  rules: string; // the game's RULES identifier; peers on different rules refuse each other
   // Entries: the netcode's envelope carries tick, sequence and generation; the game owns the payload.
   parseEntry(raw: unknown): Entry | undefined; // the wire boundary (today isEntry)
   follows?(previous: Entry | undefined, next: Entry): boolean; // stream order rule (today PRESS order in StreamLog)
@@ -49,8 +49,7 @@ interface RollbackGame<Room, Entry, View, Event> {
   ): Event[]; // applies permitted management, folds entries and bots, drives the game
   scope(room: Room): { matchId: string; round: number }; // event dedupe and stale-message fencing
   members(room: Room): readonly MemberView[]; // what the runtime reads today from game.players and phase
-  timeScale?(room: Room): number; // today simulationTimeScale
-  view(room: Room): View; // today toSnapshot
+  view(room: Room): View; // today toView
   predict?(view: View, local: string, pending: readonly Entry[]): View; // today prediction.ts
   checkpoint: {
     encode(room: Room): unknown; // folds, bots, settings and game, as snapshot.ts sends them
@@ -62,7 +61,7 @@ interface RollbackGame<Room, Entry, View, Event> {
 }
 ```
 
-Management entries (join with name, slot and avatar; leave; settings; start; rematch with a new match id) keep one generic envelope in the netcode, so every game gets rooms, seats and rematch for free. The game applies them, because only the game knows who may issue one. The netcode keeps what `src/online/` already owns and must not lose: entry tick and sequence, member generation and retired streams, gaps and repair, bounded history, rollback within its bound, snapshot transfer validated at the boundary and installed atomically, the stall rule and the desync hash ([ADR 047](../adr/047-p2p-input-log-lockstep-rollback.md)). Its windows (`ROLLBACK_TICKS`, `STALL_TICKS`, `FUTURE_TICKS`) stay counted in 50 ms ticks, so every game runs at 50 ms for now.
+Management entries (join with name, slot and avatar; leave; settings; start; rematch with a new match id) keep one generic envelope in the netcode, so every game gets rooms, seats and rematch for free. The game applies them, because only the game knows who may issue one. The netcode keeps what `src/online/` already owns and must not lose: entry tick and sequence, member generation and retired streams, gaps and repair, bounded history, rollback within its bound, snapshot transfer validated at the boundary and installed atomically, the stall rule and the desync hash ([ADR 047](../adr/047-p2p-input-log-lockstep-rollback.md)). Its windows (`ROLLBACK_TICKS`, `STALL_TICKS`, `FUTURE_TICKS`) stay counted in 50 ms ticks, so every game uses a fixed 50 ms log clock. Game speed belongs inside `applyTick`, which may run multiple simulation steps per log tick; it must not change the netcode clock rate (see [the fixed-clock design](fixed-clock-game-speed.md)).
 
 Extracting Fuse Riders behind the contract must be `[hash-identical]`: `RULES` does not move and `tests/golden-hash.test.ts` passes on main's recording. The interface above is a first cut; step 2 will find what else the runtime reads, and the interface follows the code, not the other way round.
 
@@ -85,7 +84,7 @@ This depends on #255. `src/online/ui.ts` is one closure holding every screen, an
 
 ## The dice game
 
-The dice game is **Pig**, for 2–5 players plus bots, first to 50. On your turn you roll a d6 as often as you like, adding each roll to the turn's total. Rolling a 1 loses the turn's total and passes the turn. **Hold** banks the total and passes the turn. One race to 50 is one round, and a match is best of three rounds, so ratings settle per round as they do for Fuse Riders.
+The dice game is **Pig**, for 2–5 players plus bots, first to 50. On your turn you roll a d6 as often as you like, adding each roll to the turn's total. Rolling a 1 loses the turn's total and passes the turn. **Hold** banks the total and passes the turn. One race to 50 is one round, and the first player to win two rounds wins the match, so ratings settle per round as they do for Fuse Riders.
 
 It is small on purpose. It proves the parts of the contract Fuse Riders never exercises:
 
@@ -101,7 +100,7 @@ It renders with DOM and CSS from `packages/ui`, not Phaser, which shows a game c
 | #   | Step                                                                                         | Size         | Depends on                   |
 | --- | -------------------------------------------------------------------------------------------- | ------------ | ---------------------------- |
 | 1   | Rename and scope the three network packages                                                  | ½ session    | —                            |
-| 2   | `packages/netcode` behind `DeterministicGame`, hash-identical                                | 2–3 sessions | #254 view contract (PR #332) |
+| 2   | `packages/netcode` behind `RollbackGame`, hash-identical                                     | 2–3 sessions | #254 view contract (PR #332) |
 | 3   | `packages/platform-backend`: history and Elo keyed by `gameId`; Fuse Riders stats registered | 2 sessions   | —                            |
 | 4   | `games/dice` against netcode and backend, with a minimal UI                                  | 1–2 sessions | 2, 3                         |
 | 5   | `packages/ui` and CSS tokens; dice and Fuse Riders both use it                               | 2–3 sessions | #255                         |
