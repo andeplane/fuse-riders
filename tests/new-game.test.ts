@@ -53,7 +53,12 @@ test("new-game copies the dice template to a renamed game whose own tests pass",
         "tests/rules.test.ts",
         "tests/checkpoint.test.ts",
       ],
-      { cwd: join(dir, "snake-eyes"), encoding: "utf8" },
+      {
+        cwd: join(dir, "snake-eyes"),
+        encoding: "utf8",
+        // Run as its own test run, not as a subtest reporting to this one.
+        env: { ...process.env, NODE_TEST_CONTEXT: undefined },
+      },
     );
     assert.equal(run.status, 0, run.stdout + run.stderr);
     assert.match(run.stdout, /pass [1-9]\d*/, "the copy's tests ran");
