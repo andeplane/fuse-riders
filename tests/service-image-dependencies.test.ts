@@ -2,15 +2,72 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { posix } from "node:path";
 import { build } from "esbuild";
+import { parse } from "yaml";
 
+type Deps = Record<string, string | { version: string }>;
 interface Lockfile {
-  packages: Record<string, { dev?: boolean; link?: boolean }>;
+  importers: Record<
+    string,
+    { dependencies?: Deps; optionalDependencies?: Deps }
+  >;
+  snapshots: Record<
+    string,
+    { dependencies?: Deps; optionalDependencies?: Deps }
+  >;
+}
+
+/** `name@version`, dropping pnpm's peer suffix such as `(encoding@0.1.13)`. */
+const packageId = (name: string, version: string) =>
+  `${name}@${version.replace(/\(.*$/, "")}`;
+
+/**
+ * Every `name@version` a `pnpm install --prod` puts on disk: the production and optional dependencies
+ * of the root, of each workspace package they link, and of everything those reach.
+ */
+function productionPackages(lock: Lockfile): Set<string> {
+  const production = new Set<string>();
+  const importers = new Set<string>();
+  const pending: Array<{ importer: string } | { id: string }> = [
+    { importer: "." },
+  ];
+  const visit = (deps: Deps | undefined, importer?: string) => {
+    for (const [name, entry] of Object.entries(deps ?? {})) {
+      const version = typeof entry === "string" ? entry : entry.version;
+      if (version.startsWith("link:"))
+        pending.push({
+          importer: posix.join(importer ?? ".", version.slice(5)),
+        });
+      // An npm alias (`"wrap-ansi-cjs": "npm:wrap-ansi@7"`) records the real package as its version.
+      else if (/^.[^@(]*@/.test(version)) pending.push({ id: version });
+      else pending.push({ id: `${name}@${version}` });
+    }
+  };
+  for (let next = pending.pop(); next; next = pending.pop()) {
+    if ("importer" in next) {
+      if (importers.has(next.importer)) continue;
+      importers.add(next.importer);
+      const entry = lock.importers[next.importer];
+      assert.ok(entry, `${next.importer} is a workspace importer`);
+      visit(entry.dependencies, next.importer);
+      visit(entry.optionalDependencies, next.importer);
+    } else {
+      const id = next.id.replace(/\(.*$/, "");
+      if (production.has(id)) continue;
+      production.add(id);
+      const entry = lock.snapshots[next.id];
+      assert.ok(entry, `${next.id} is in pnpm-lock.yaml`);
+      visit(entry.dependencies);
+      visit(entry.optionalDependencies);
+    }
+  }
+  return production;
 }
 
 /**
- * Dockerfile.cloud installs with `npm ci --omit=dev` and starts `node --import tsx src/service/index.ts`,
- * so a package the service reaches must not be dev-only in the lockfile. A violation here would
+ * Dockerfile.cloud installs with `pnpm install --prod` and starts `node --import tsx src/service/index.ts`,
+ * so a package the service reaches must be a production dependency in the lockfile. A violation here would
  * otherwise first show up as a Cloud Run revision that cannot start.
  *
  * The walk is esbuild's static import graph, so it only sees literal `import`, `import()` and
@@ -21,14 +78,16 @@ interface Lockfile {
  * package production when any production package declares it.
  */
 test("the Cloud Run entry and its tsx loader resolve from production dependencies only", async () => {
-  const lock = JSON.parse(
-    await readFile(new URL("../package-lock.json", import.meta.url), "utf8"),
-  ) as Lockfile;
+  const production = productionPackages(
+    parse(
+      await readFile(new URL("../pnpm-lock.yaml", import.meta.url), "utf8"),
+    ) as Lockfile,
+  );
   const dockerfile = await readFile(
     new URL("../Dockerfile.cloud", import.meta.url),
     "utf8",
   );
-  assert.match(dockerfile, /npm ci --omit=dev/);
+  assert.match(dockerfile, /pnpm install --prod --frozen-lockfile/);
   assert.match(
     dockerfile,
     /CMD \["node", "--import", "tsx", "src\/service\/index\.ts"\]/,
@@ -45,16 +104,40 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     format: "esm",
     logLevel: "silent",
   });
-  const installed = new Set<string>(["node_modules/tsx"]);
+  // esbuild follows pnpm's symlinks, so each package is reached at its store path,
+  // node_modules/.pnpm/<name with + for />@<version>[_<peers>]/node_modules/<name>/.
+  const tsx = await readFile(
+    new URL("../node_modules/tsx/package.json", import.meta.url),
+    "utf8",
+  );
+  const installed = new Set<string>([
+    packageId("tsx", (JSON.parse(tsx) as { version: string }).version),
+  ]);
+  const names = new Set<string>(["tsx"]);
   const firstParty: string[] = [];
   for (const input of Object.keys(result.metafile.inputs)) {
-    const match = input.match(/^(.*node_modules\/(?:@[^/]+\/)?[^/]+)\//);
-    if (match) installed.add(match[1]!);
-    else firstParty.push(input);
+    const match = input.match(
+      /node_modules\/\.pnpm\/([^/]+)\/node_modules\/((?:@[^/]+\/)?[^/]+)\//,
+    );
+    if (match) {
+      const [, directory, name] = match as unknown as [string, string, string];
+      const prefix = `${name.replace("/", "+")}@`;
+      assert.ok(directory.startsWith(prefix), `${input} is in the pnpm store`);
+      installed.add(
+        packageId(name, directory.slice(prefix.length).split("_")[0]!),
+      );
+      names.add(name);
+    } else {
+      assert.doesNotMatch(
+        input,
+        /node_modules/,
+        `${input} is in the pnpm store`,
+      );
+      firstParty.push(input);
+    }
   }
   assert.ok(
-    installed.has("node_modules/@google-cloud/firestore") &&
-      installed.has("node_modules/ws"),
+    names.has("@google-cloud/firestore") && names.has("ws"),
     "the walk reached the service's third-party imports",
   );
   assert.ok(
@@ -80,20 +163,14 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     "resolves a module in a way the static walk cannot see (createRequire, import.meta.resolve or a non-literal import())",
   );
   // `debug` requires `supports-color` inside a try/catch as an undeclared extra and runs without it;
-  // the walk cannot tell that require from a hard one.
-  const optional = new Set([
-    "node_modules/supports-color",
-    "node_modules/has-flag",
-  ]);
-  const devOnly = [...installed].filter((key) => {
-    if (optional.has(key)) return false;
-    const entry = lock.packages[key];
-    assert.ok(entry, `${key} is in package-lock.json`);
-    return entry.dev === true;
-  });
+  // the walk cannot tell that require from a hard one, and finds it through pnpm's hidden hoisting.
+  const optional = /^(supports-color|has-flag)@/;
+  const devOnly = [...installed].filter(
+    (id) => !optional.test(id) && !production.has(id),
+  );
   assert.deepEqual(
     devOnly,
     [],
-    "imported by the service but omitted from the image by --omit=dev",
+    "imported by the service but omitted from the image by --prod",
   );
 });

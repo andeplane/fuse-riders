@@ -51,7 +51,7 @@ if (
   // The port asked for is where the search starts, not a demand: another worktree's service may already hold it.
   const actual = await listenFree(service.server, port, host);
   const base = `http://${host === "127.0.0.1" || host === "0.0.0.0" ? "localhost" : host}:${actual}`;
-  // Same shape as `npm run dev`'s banner: every link on its own line, after the build output, so it can be found and clicked.
+  // Same shape as `pnpm dev`'s banner: every link on its own line, after the build output, so it can be found and clicked.
   console.log(`
 FUSE RIDERS — online rooms, locally
 ${actual === port ? "" : `\nPort ${port} is in use; using ${actual} instead.\n`}

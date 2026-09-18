@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+# pnpm 10 skips dependency install scripts unless listed; esbuild's checks its platform binary.
+onlyBuiltDependencies:
+  - esbuild
+# Postinstall hooks nothing here needs: protobufjs checks its CLI version, @firebase/util writes browser defaults.
+ignoredBuiltDependencies:
+  - "@firebase/util"
+  - protobufjs

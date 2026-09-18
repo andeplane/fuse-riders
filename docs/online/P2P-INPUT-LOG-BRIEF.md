@@ -78,7 +78,7 @@ Implemented in `src/engine/input-log.ts`, `apply-tick.ts`, `deterministic-math.t
 
 ### Phase 5 summary
 
-`ONLINE_URL=http://localhost:8811/ npx tsx scripts/p2p-measure.ts` at revision `f7e6ca9`: five scripted Chromium players plus a TV, 45 s each, 5 rounds locally and 5 rounds impaired. Latencies are input event to the first simulated state showing the changed heading, stamped with page clocks on one machine; wire bytes are data-channel payloads. The impaired run injects 40 ms delay, 20 ms jitter and 2% loss at the sender's input-channel send. Raw output: `artifacts/p2p-measure.json` (ignored).
+`ONLINE_URL=http://localhost:8811/ pnpm exec tsx scripts/p2p-measure.ts` at revision `f7e6ca9`: five scripted Chromium players plus a TV, 45 s each, 5 rounds locally and 5 rounds impaired. Latencies are input event to the first simulated state showing the changed heading, stamped with page clocks on one machine; wire bytes are data-channel payloads. The impaired run injects 40 ms delay, 20 ms jitter and 2% loss at the sender's input-channel send. Raw output: `artifacts/p2p-measure.json` (ignored).
 
 | Metric (per peer, 5 links)                     | Local                     | 40 ms + 20 ms jitter + 2% loss |
 | ---------------------------------------------- | ------------------------- | ------------------------------ |

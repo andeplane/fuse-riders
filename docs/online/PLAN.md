@@ -77,7 +77,7 @@ Do not send private controller or host data to spectators. Scope every event by 
 
 ## Benchmarks already run
 
-Reproduce: `npx tsx scripts/benchmark-online.ts`. Results: `baseline.json`.
+Reproduce: `pnpm exec tsx scripts/benchmark-online.ts`. Results: `baseline.json`.
 
 Local Apple Silicon / Node 22, five invulnerable circling riders; 600 sampled ticks after warmup. Step plus full snapshot serialization p95 was 0.60 ms with no shells, 0.68 ms with five shells and 0.97 ms with twenty shells. This excludes network fanout and browser rendering; it is not a cloud capacity test.
 

@@ -12,7 +12,7 @@ Every newly added AI uses **Hard** difficulty, with a plain name such as `AI Tur
 
 The controller still recognizes explicit Easy/Medium/Hard suffixes in existing logs and benchmark fixtures, preserving their deterministic replay. `BOT_TIERS` defines those settings; new bot creation does not roll a difficulty or encode one in the name.
 
-Measured over 100 matches per pairing, four riders, seating swapped and spawns jittered (identical deterministic brains on symmetric spawns mirror each other into a simultaneous crash, which measures the arena rather than the riders): Easy loses to Medium, Medium loses to Hard, and Easy loses to Hard by a wide margin. Reproduce with `npx tsx scripts/ai-league.ts 100`.
+Measured over 100 matches per pairing, four riders, seating swapped and spawns jittered (identical deterministic brains on symmetric spawns mirror each other into a simultaneous crash, which measures the arena rather than the riders): Easy loses to Medium, Medium loses to Hard, and Easy loses to Hard by a wide margin. Reproduce with `pnpm exec tsx scripts/ai-league.ts 100`.
 
 `src/engine/bot-controller.ts` evaluates 15 bounded steering plans over 32 fixed ticks (1.6 seconds), with at most 512 nearby existing trail segments. Plans include straight travel and left/right turns lasting 2, 4, 8, 12, 16, 24 or 32 ticks, followed by straight travel. Every tick it replans through the shared motion kernel. Swept collision checks consider existing trails, the bot’s projected own trail, opponents continuing straight and laying new trails, heads, projectiles, blasts and shrinking overtime walls. Predicted survival takes priority over clearance or chasing a target; equally safe plans prefer room away from walls and trails. It still heads toward pickups/opponents and uses the same ordinary charged, target, shell and cannon attacks. Deterministic injected tie-breaking uses its own stateless stream, leaving pickup randomness untouched. It never examines future human controls or future drops.
 
@@ -21,10 +21,10 @@ Online, an AI rider is a management entry in the creator's stream (`BOT add`/`re
 Validation commands:
 
 ```sh
-npx tsx --test tests/bot-controller.test.ts
-npx tsx scripts/benchmark-bots.ts
-npx tsx scripts/benchmark-bot-survival.ts
-# Run against an isolated local room service serving the current build (`npm run dev:online`).
+pnpm exec tsx --test tests/bot-controller.test.ts
+pnpm exec tsx scripts/benchmark-bots.ts
+pnpm exec tsx scripts/benchmark-bot-survival.ts
+# Run against an isolated local room service serving the current build (`pnpm dev:online`).
 ```
 
 The browser checks create disposable rooms and verify desktop/phone add/remove/solo-start and real round scoring. They must not target an occupied room.

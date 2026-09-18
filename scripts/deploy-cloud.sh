@@ -67,7 +67,7 @@ gcloud artifacts repositories describe "$ARTIFACT_REPOSITORY" --location="$ARTIF
 
 # Apply the versioned named-database/Auth/key configuration only after the source gate passed.
 # This waits for required indexes/TTLs and refuses an unregistered OAuth redirect before any gateway rollout.
-npx tsx scripts/deploy-configuration.ts --apply --revision "$revision"
+pnpm exec tsx scripts/deploy-configuration.ts --apply --revision "$revision"
 
 build_dir="$(mktemp -d "${TMPDIR:-/tmp}/fuse-cloud.XXXXXX")"
 trap 'rm -rf "$build_dir"' EXIT

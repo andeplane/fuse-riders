@@ -14,30 +14,32 @@ _Historical desktop browser screenshot (1280×800) from [controller and lobby ac
 
 _Five AI riders playing an actual match in the real game client — not a staged fixture._
 
-Public Chrome and WebKit checks covered phone hosting, AI, guest connections, saved settings, shared-TV play and reset at runtime `6c1673b`; the [public acceptance report](docs/online/PUBLIC-ACCEPTANCE.md) records that tested release. The restored UI (`68bea0d`: neon lobby, landscape touch controls, keyboard controls, short room codes) was first published after local Chrome/WebKit verification; its CI run failed at the desktop keyboard browser check, PRs #9 and #11 fixed that check, and the currently deployed `a4bee00` runtime passed CI 34822503284. No clean public acceptance run for the restored UI is recorded in this repository; see the [release status](docs/online/PUBLIC-BETA-2026-09-14.md#restored-ui-release-68bea0d). Renderer and network benchmarks are documented separately; physical-device performance and arbitrary network reliability are not guaranteed. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The separate LAN server was removed in #271: every game, including solo play and a shared TV with phone controllers, is an online room, and `npm run dev` serves those rooms from a local in-memory room service. That service is loopback only, so a TV plus phones on other devices need the deployed site.
+Public Chrome and WebKit checks covered phone hosting, AI, guest connections, saved settings, shared-TV play and reset at runtime `6c1673b`; the [public acceptance report](docs/online/PUBLIC-ACCEPTANCE.md) records that tested release. The restored UI (`68bea0d`: neon lobby, landscape touch controls, keyboard controls, short room codes) was first published after local Chrome/WebKit verification; its CI run failed at the desktop keyboard browser check, PRs #9 and #11 fixed that check, and the currently deployed `a4bee00` runtime passed CI 34822503284. No clean public acceptance run for the restored UI is recorded in this repository; see the [release status](docs/online/PUBLIC-BETA-2026-09-14.md#restored-ui-release-68bea0d). Renderer and network benchmarks are documented separately; physical-device performance and arbitrary network reliability are not guaranteed. See the [online roadmap](docs/online/ROADMAP.md), [ADRs](docs/adr/), and [review reports](docs/reviews/). The separate LAN server was removed in #271: every game, including solo play and a shared TV with phone controllers, is an online room, and `pnpm dev` serves those rooms from a local in-memory room service. That service is loopback only, so a TV plus phones on other devices need the deployed site.
 
 ## Run locally
 
-Requires Node.js **22.13 or newer** and npm. From a fresh checkout:
+Requires Node.js **22.13 or newer** and pnpm (`corepack enable pnpm` installs the version `packageManager` in `package.json` pins). From a fresh checkout:
 
 ```sh
-npm ci
-PORT=3030 npm run dev
+pnpm install
+PORT=3030 pnpm dev
 ```
 
-Run the online development service locally with `npm run dev`, or use the deployed room service in production. Create a room and choose shared-screen or individual-device play from the home page.
+pnpm keeps one content-addressed store per machine and hardlinks packages from it, so installing in a new worktree takes seconds and adds almost no disk space.
 
-`npm start` builds the latest browser assets before starting the local online room service. `npm run dev` does the same for development. Rooms and match history are in memory and vanish when the process exits.
+Run the online development service locally with `pnpm dev`, or use the deployed room service in production. Create a room and choose shared-screen or individual-device play from the home page.
+
+`pnpm start` builds the latest browser assets before starting the local online room service. `pnpm dev` does the same for development. Rooms and match history are in memory and vanish when the process exits.
 
 The local service uses the production `fuse-network-be` protocol over in-memory rooms on port 8787 (or the next free port).
 
 ## Try online rooms locally
 
 ```sh
-npm run dev:online
+pnpm dev:online
 ```
 
-Open the URL it prints — **http://localhost:8787/** unless that port is taken, in which case it walks upward (8788, …) and says which one it got, like `npm run dev`. Create a room, choose shared-screen or individual-device play, and share its short code (for example **AB42**), invite link or QR code. A shared-TV lobby keeps its QR code visible until the race starts, with the join link printed under it and a **COPY LINK** button for anyone who cannot scan. The creator can join as a player on the same phone and use **START RACE**, **BACK TO LOBBY**, and **ROOM SETTINGS**. **TV VIEW** opens a separate display role for a shared screen in a new tab. Use HTTPS for remote-device testing; local HTTP testing does not prove Internet connectivity.
+Open the URL it prints — **http://localhost:8787/** unless that port is taken, in which case it walks upward (8788, …) and says which one it got, like `pnpm dev`. Create a room, choose shared-screen or individual-device play, and share its short code (for example **AB42**), invite link or QR code. A shared-TV lobby keeps its QR code visible until the race starts, with the join link printed under it and a **COPY LINK** button for anyone who cannot scan. The creator can join as a player on the same phone and use **START RACE**, **BACK TO LOBBY**, and **ROOM SETTINGS**. **TV VIEW** opens a separate display role for a shared screen in a new tab. Use HTTPS for remote-device testing; local HTTP testing does not prove Internet connectivity.
 
 A room lasts while any member keeps its service connection active, including after the creator disconnects and across rematches. **ROOM → END ROOM** lets the creator close it immediately. Admission and member heartbeats renew a 90-second reconnect window; a current member leaving starts that window too. If everyone leaves, no live world is persisted for later recovery.
 
@@ -129,27 +131,27 @@ Phaser is presentation only: the caller supplies snapshots to one render loop, p
 ## Tests and evidence
 
 ```sh
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
-npx playwright install chrome chromium webkit
+pnpm typecheck
+pnpm test
+pnpm test:coverage
+pnpm build
+pnpm exec playwright install chrome chromium webkit
 ```
 
-Online smoke uses bundled Chromium by default and needs `npm run dev:online` running in another terminal:
+Online smoke uses bundled Chromium by default and needs `pnpm dev:online` running in another terminal:
 
 ```sh
 mkdir -p artifacts
-npx tsx scripts/online-smoke.ts
-BROWSER=webkit npx tsx scripts/online-smoke.ts
-ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
-BROWSER=webkit ONLINE_URL=http://localhost:8787/ npx tsx scripts/desktop-controls-smoke.ts
-npx tsx scripts/determinism-replay.ts
-ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-mesh-browser.ts
-ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-measure.ts
+pnpm exec tsx scripts/online-smoke.ts
+BROWSER=webkit pnpm exec tsx scripts/online-smoke.ts
+ONLINE_URL=http://localhost:8787/ pnpm exec tsx scripts/desktop-controls-smoke.ts
+BROWSER=webkit ONLINE_URL=http://localhost:8787/ pnpm exec tsx scripts/desktop-controls-smoke.ts
+pnpm exec tsx scripts/determinism-replay.ts
+ONLINE_URL=http://localhost:8787/ pnpm exec tsx scripts/p2p-mesh-browser.ts
+ONLINE_URL=http://localhost:8787/ pnpm exec tsx scripts/p2p-measure.ts
 ```
 
-The soundtrack is **Fuse Riders Radio**: it plays for as long as the page is open, starting on the landing page itself, and nothing in the game state restarts a track — rounds, matches and alt-tabbing all leave it playing, and only a finished track or the listener changes the song. **♫ RADIO** (room **SETTINGS**, TV toolbar) is a car-radio panel with previous / play-pause / next, the track list, a personal playlist (add with **+**), loop song and loop playlist. CREATE ROOM, JOIN ROOM and PLAY SOLO swap the landing view for the room in place rather than reloading, so the song simply plays on; the playlist, loop settings, current track and position also persist between visits, so a real page load resumes the same song where it was. Shortcuts: **Ctrl+A** radio, **Ctrl+M** mute all, **Ctrl+Alt+M** music, **Ctrl+Alt+E** effects (text fields keep Ctrl+A). The radio also appears on the iOS lock screen, CarPlay and car browsers with the track title and artwork; their play/pause and previous/next buttons follow the radio's own queue. The **♫ MUSIC ON / OFF** toggle (landing top bar, room **SETTINGS** with an **EFFECTS ON / OFF** twin, TV toolbar) says whether music is on, not whether the speaker is making a sound: a page the browser has not let play yet still reads ON, because the first gesture anywhere starts it (every page load on a phone needs one tap first). Tapping ON turns music off; tapping OFF unmutes, unpauses and plays. Next to it, **🔊 SOUND ON / 🔇 SOUND OFF** mutes and unmutes music and effects together, the same as Ctrl+M. On phones and tablets music starts off on the first visit; the choice is stored. Music plays through a media element so a phone's volume keys reach it, and the page asks iOS for an ambient audio session so the silent switch mutes it too (the cost is that ambient audio stops when the screen locks, so the lock-screen radio only plays while the phone is awake); effects stay synthesized. Mute and volume for both channels persist in `localStorage`, so the toggle keeps music off through the page load into a room. `LANDING_URL=http://127.0.0.1:5173/ npx tsx scripts/landing-music-smoke.ts` drives that flow in a real browser against `npx vite` and writes `artifacts/landing-music.png`; set `CHROMIUM_PATH` to use a specific Chromium build. `?mute` on any URL (e.g. `?mute` or `?room=CODE&mute=1`) silences music and effects for that load only, without writing to `localStorage` — for testing with several tabs or agents open at once; a bare `0` or `false` value opts back in.
+The soundtrack is **Fuse Riders Radio**: it plays for as long as the page is open, starting on the landing page itself, and nothing in the game state restarts a track — rounds, matches and alt-tabbing all leave it playing, and only a finished track or the listener changes the song. **♫ RADIO** (room **SETTINGS**, TV toolbar) is a car-radio panel with previous / play-pause / next, the track list, a personal playlist (add with **+**), loop song and loop playlist. CREATE ROOM, JOIN ROOM and PLAY SOLO swap the landing view for the room in place rather than reloading, so the song simply plays on; the playlist, loop settings, current track and position also persist between visits, so a real page load resumes the same song where it was. Shortcuts: **Ctrl+A** radio, **Ctrl+M** mute all, **Ctrl+Alt+M** music, **Ctrl+Alt+E** effects (text fields keep Ctrl+A). The radio also appears on the iOS lock screen, CarPlay and car browsers with the track title and artwork; their play/pause and previous/next buttons follow the radio's own queue. The **♫ MUSIC ON / OFF** toggle (landing top bar, room **SETTINGS** with an **EFFECTS ON / OFF** twin, TV toolbar) says whether music is on, not whether the speaker is making a sound: a page the browser has not let play yet still reads ON, because the first gesture anywhere starts it (every page load on a phone needs one tap first). Tapping ON turns music off; tapping OFF unmutes, unpauses and plays. Next to it, **🔊 SOUND ON / 🔇 SOUND OFF** mutes and unmutes music and effects together, the same as Ctrl+M. On phones and tablets music starts off on the first visit; the choice is stored. Music plays through a media element so a phone's volume keys reach it, and the page asks iOS for an ambient audio session so the silent switch mutes it too (the cost is that ambient audio stops when the screen locks, so the lock-screen radio only plays while the phone is awake); effects stay synthesized. Mute and volume for both channels persist in `localStorage`, so the toggle keeps music off through the page load into a room. `LANDING_URL=http://127.0.0.1:5173/ pnpm exec tsx scripts/landing-music-smoke.ts` drives that flow in a real browser against `pnpm exec vite` and writes `artifacts/landing-music.png`; set `CHROMIUM_PATH` to use a specific Chromium build. `?mute` on any URL (e.g. `?mute` or `?room=CODE&mute=1`) silences music and effects for that load only, without writing to `localStorage` — for testing with several tabs or agents open at once; a bare `0` or `false` value opts back in.
 
 The game ships two visual styles. **Neon Pixel** (the default) draws a chunky brick boundary wall with corner brackets and warning studs, a 30px gravity grid and dotted trail cores; **Clean Neon** draws a thin glowing rim with a smooth outer stroke, a 50px gravity grid and hairline trails. The grid stays hidden until a gravity field warps it, fading in toward the core and out at the field edges. The style is a per-device choice stored in `localStorage` and never sent to other players: switch it under the room's **SETTINGS** button or with a `?theme=neon-pixel` / `?theme=clean-neon` URL. Switching applies immediately, mid-round included, and only changes graphics — never hitboxes or timing.
 
@@ -157,15 +159,15 @@ Online rooms offer opt-in **VOICE** chat: join with a microphone or listen only,
 
 Desktop arena play uses one compact bar for scores and room actions, with keyboard instructions under **?** and device preferences (music, effects, radio, visual style, fullscreen) under **SETTINGS**. The arena fits the remaining viewport without changing its aspect ratio. The desktop-controls smoke checks fit at standard and ultrawide sizes, toolbar placement, resize recovery, keyboard help and phone controls.
 
-Solo and online arenas turn 90° locally when that makes the complete board larger. Avatars, pickups and labels stay upright; scenery, trails and collision footprints turn together. Portrait phones, tablets and narrow windows use the compact MENU layout with left/fire/right touch zones across the bottom. Landscape phones retain full-screen thirds. Target Bomb dragging follows the displayed direction. Opening the menu or changing orientation cancels held input. Other players and LAN TV/controller views are unchanged. Run `node --import tsx scripts/portrait-arena-browser.ts` (also with `BROWSER=webkit`) for renderer and offline solo checks. To try it, run `npx vite --host 0.0.0.0`, open `http://localhost:5173/?solo=1` (or your computer’s LAN address on a phone), play in portrait, then turn the device during play.
+Solo and online arenas turn 90° locally when that makes the complete board larger. Avatars, pickups and labels stay upright; scenery, trails and collision footprints turn together. Portrait phones, tablets and narrow windows use the compact MENU layout with left/fire/right touch zones across the bottom. Landscape phones retain full-screen thirds. Target Bomb dragging follows the displayed direction. Opening the menu or changing orientation cancels held input. Other players and LAN TV/controller views are unchanged. Run `node --import tsx scripts/portrait-arena-browser.ts` (also with `BROWSER=webkit`) for renderer and offline solo checks. To try it, run `pnpm exec vite --host 0.0.0.0`, open `http://localhost:5173/?solo=1` (or your computer’s LAN address on a phone), play in portrait, then turn the device during play.
 
 The same Phaser scene stays visible behind the lobby and end-of-match overview, blurred and dimmed while those screens are open (a shared-TV controller shows no arena at all; the TV does). The end-of-match view has no outer panel or frame, and leads with the winner, final standings and match highlights. “View full stats” expands totals, the replayable highlight reel, awards and rider comparison; the footer keeps rematch and lobby actions within reach. Its data is built by the pure [`src/engine/match-recap.ts`](src/engine/match-recap.ts) module from the authoritative `matchStats` and `moments`; the online `MATCH RESULTS` dialog renders it, so ties, empty rosters and formatting are covered once by `tests/match-recap.test.ts`. The highlight reel lists the plays worth replaying and is detected inside the shared simulation by [`src/engine/moments.ts`](src/engine/moments.ts) so every device agrees on them.
 
-`ONLINE_URL=https://your-preview.example npx tsx scripts/online-smoke.ts` targets a preview and creates test rooms there. Never point tests at an occupied game. Benchmark scripts write reports under `docs/online/`; review regenerated evidence before committing it.
+`ONLINE_URL=https://your-preview.example pnpm exec tsx scripts/online-smoke.ts` targets a preview and creates test rooms there. Never point tests at an occupied game. Benchmark scripts write reports under `docs/online/`; review regenerated evidence before committing it.
 
 [CI](.github/workflows/ci.yml) splits into two jobs. `verify` runs on every pull request: formatting, type checks, unit coverage and the build. `e2e` runs the browser matrix and runs on a push to main, on a manual dispatch, or on a pull request labelled `full-ci`; a push to main deploys only once both pass. Run the affected local smoke when practical and report any untested browser flow. Reserve `full-ci` for explicit requests or changes whose failure would be expensive to unwind; routine PRs do not wait on the full browser matrix.
 
-To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `lint`, `typecheck`, `coverage`, `build`, `keyboard`, `online`, `preview`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to formatting, lint, typecheck, coverage and build) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `npm ci` and `npx playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
+To run the whole CI suite locally in the same order and with the same env, use `scripts/ci-local.sh`. It stops at the first failing step, prints a `PASS`/`FAIL` line with wall time per step, starts the local room service itself (log in `artifacts/room-service.log`) and always stops it on exit. `PORT` chooses the room service port so parallel worktrees do not collide. `ONLY` runs a comma-separated subset of steps (`format`, `lint`, `typecheck`, `coverage`, `build`, `keyboard`, `online`, `preview`, `phaser`, `home`, `landscape`, `recap`, `shared`, `determinism`, `mesh`; `core` expands to formatting, lint, typecheck, coverage and build) and starts the room service only when a selected step needs it. Steps CI runs in both Chrome and WebKit still run both. The script assumes `pnpm install --frozen-lockfile` and `pnpm exec playwright install chrome chromium webkit` have run; the room-service steps serve `dist/`, so run `build` (or `core`) first:
 
 ```sh
 PORT=8801 scripts/ci-local.sh
@@ -174,7 +176,7 @@ ONLY=core,keyboard PORT=8801 scripts/ci-local.sh
 
 Coverage thresholds in [.c8rc.json](.c8rc.json) are 95% lines/statements/functions and 85% branches across its listed modules. Those thresholds do **not** mean every browser path is covered. [CI](.github/workflows/ci.yml) runs type checks, coverage and builds on every pull request, and the browser checks on the way to main; inspect the actual revision's result, and whether `e2e` ran on it at all, rather than treating this checklist as proof of passing CI.
 
-The determinism replay folds one seeded 3,000-tick five-rider log in Node, Chromium and WebKit and compares the state hash on every tick. The mesh harness runs six contexts alternating Chromium and WebKit through fifteen links, thirty send directions, a three-second send blackhole and a closed channel. The measurement script runs five scripted players plus a TV, once locally and once with injected 40 ms delay, 20 ms jitter and 2% loss, and reports wire bytes, rollbacks and input-to-state latencies as p50/p95 into `artifacts/p2p-measure.json`. Opt-in `?benchmark=1` events expose simulated states, inputs and events without capabilities. Devices on a ported address (or with `?telemetry=1`) still POST runtime metrics to `/telemetry`, but the receiver that wrote `artifacts/telemetry/<ROOM>.ndjson` lived in the LAN server removed by #271; `npm run dev` no longer records them. `npx tsx scripts/telemetry-report.ts <file>` summarises a file recorded before that. Application-message injection is not real IP packet loss, and desktop timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
+The determinism replay folds one seeded 3,000-tick five-rider log in Node, Chromium and WebKit and compares the state hash on every tick. The mesh harness runs six contexts alternating Chromium and WebKit through fifteen links, thirty send directions, a three-second send blackhole and a closed channel. The measurement script runs five scripted players plus a TV, once locally and once with injected 40 ms delay, 20 ms jitter and 2% loss, and reports wire bytes, rollbacks and input-to-state latencies as p50/p95 into `artifacts/p2p-measure.json`. Opt-in `?benchmark=1` events expose simulated states, inputs and events without capabilities. Devices on a ported address (or with `?telemetry=1`) still POST runtime metrics to `/telemetry`, but the receiver that wrote `artifacts/telemetry/<ROOM>.ndjson` lived in the LAN server removed by #271; `pnpm dev` no longer records them. `pnpm exec tsx scripts/telemetry-report.ts <file>` summarises a file recorded before that. Application-message injection is not real IP packet loss, and desktop timing is not physical touch-to-photon latency. Reports must identify their tested revision and remaining unmeasured assertions; sustained active-rider, physical-device and WAN acceptance remain roadmap gates.
 
 Tests should use typed injected clocks, schedulers, transports and seeded randomness. Keep simulation time independent of wall-clock time; exercise serialization and lifecycle boundaries with deterministic failures, not only happy paths. Review reports explain the missing invariants and required regressions.
 
@@ -186,7 +188,7 @@ by default, `?analytics=1` forces them on and `?analytics=0` forces them off; ei
 browser, so it survives the navigation into a room. See [product analytics](docs/ANALYTICS.md)
 for the event list and what is deliberately not tracked.
 
-`HOME_URL=http://127.0.0.1:8899/ npx tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
+`HOME_URL=http://127.0.0.1:8899/ pnpm exec tsx scripts/analytics-smoke.ts` (and `BROWSER=webkit`) plays a one-round
 solo match with Mixpanel intercepted — never delivered — and asserts what each event carried, writing
 `artifacts/analytics-<browser>.json`. It exists because the failure mode is silent: Mixpanel answers `200` to a
 request whose properties it dropped, so a bad payload looks exactly like a good one from inside the game. It ends
@@ -256,7 +258,7 @@ shipping the gateway. [Issue #261](https://github.com/andeplane/fuse-riders/issu
 Client/service should ship together because peer checkpoints now carry optional combat counters; refresh peers before
 new games. See [the design and rollout notes](docs/design/PLAYER-STATS.md).
 
-Focused browser verification: `npx tsx scripts/player-stats-smoke.ts`. It uses the real local history API with injected
+Focused browser verification: `pnpm exec tsx scripts/player-stats-smoke.ts`. It uses the real local history API with injected
 test identity, Chromium and WebKit at desktop/phone widths; it does not exercise Google OAuth or production Firestore.
 
 ### Usernames
@@ -359,7 +361,7 @@ is the whole truth for the database, so leaving one out invites the next deploy 
 
 ### Running it locally
 
-`npm run dev:online` serves the same routes over in-memory storage, so history lasts until the process exits. Sign-in
+`pnpm dev:online` serves the same routes over in-memory storage, so history lasts until the process exits. Sign-in
 works from `localhost` against the real Firebase project (it is an authorized domain and an allowed key referrer), and
 the local service verifies real ID tokens. Tests never touch Google: they inject a verifier, or sign tokens with a
 throwaway key ([`tests/match-history.test.ts`](tests/match-history.test.ts)).
@@ -465,8 +467,8 @@ See [configuration CD](docs/online/CONFIGURATION-CD.md) for the one-time IAM boo
 No personal token or new GitHub secret is needed: deployments use the existing workload identity.
 
 ```bash
-npm run config:check
-npm run config:plan -- --account YOUR_AUTHORIZED_GOOGLE_ACCOUNT
+pnpm config:check
+pnpm config:plan -- --account YOUR_AUTHORIZED_GOOGLE_ACCOUNT
 ```
 
 Two things about

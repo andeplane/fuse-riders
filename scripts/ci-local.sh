@@ -34,7 +34,7 @@ start_room_service() {
   mkdir -p artifacts
   if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN > /dev/null 2>&1; then echo "FAIL port $PORT already in use; pick another with PORT=<port>"; exit 1; fi
   # set -m gives the service its own process group so the trap also stops the tsx child.
-  set -m; npx tsx src/service/dev.ts --port "$PORT" > artifacts/room-service.log 2>&1 & ROOM_SERVICE_PID=$!; set +m
+  set -m; pnpm exec tsx src/service/dev.ts --port "$PORT" > artifacts/room-service.log 2>&1 & ROOM_SERVICE_PID=$!; set +m
   for _ in $(seq 1 30); do
     kill -0 "$ROOM_SERVICE_PID" 2>/dev/null || { cat artifacts/room-service.log; echo "FAIL room service exited early"; exit 1; }
     curl -fsS "$URL" > /dev/null 2>&1 && return 0; sleep 1
@@ -49,26 +49,26 @@ stop_room_service() {
 }
 trap stop_room_service EXIT
 
-step format npm run format:check
-step lint npm run lint
-step typecheck npm run typecheck
-step coverage npm run test:coverage
-step build npm run build
+step format pnpm format:check
+step lint pnpm lint
+step typecheck pnpm typecheck
+step coverage pnpm test:coverage
+step build pnpm build
 for s in keyboard online voice home landscape recap shared mesh; do needs "$s" && { start_room_service; break; }; done
 
-step keyboard env HOME_URL="$URL" npx tsx scripts/keyboard-smoke.ts
-step online:chrome env ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
-step online:webkit env BROWSER=webkit ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" npx tsx scripts/online-smoke.ts
-step voice env ONLINE_URL="$URL" npx tsx scripts/voice-smoke.ts
-step preview:chrome npx tsx scripts/bomb-preview-smoke.ts
-step preview:webkit env BROWSER=webkit npx tsx scripts/bomb-preview-smoke.ts
-step phaser:chrome npx tsx scripts/phaser-browser.ts
-step phaser:webkit env BROWSER=webkit npx tsx scripts/phaser-browser.ts
-step home env HOME_URL="$URL" npx tsx scripts/home-mobile-smoke.ts
-step landscape env HOME_URL="$URL" npx tsx scripts/mobile-landscape-smoke.ts
-step recap:chrome env HOME_URL="$URL" npx tsx scripts/match-recap-smoke.ts
-step recap:webkit env BROWSER=webkit HOME_URL="$URL" npx tsx scripts/match-recap-smoke.ts
-step shared env ONLINE_URL="$URL" npx tsx scripts/shared-room-smoke.ts
-step determinism npx tsx scripts/determinism-replay.ts
-step mesh env ONLINE_URL="$URL" npx tsx scripts/p2p-mesh-browser.ts
+step keyboard env HOME_URL="$URL" pnpm exec tsx scripts/keyboard-smoke.ts
+step online:chrome env ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" pnpm exec tsx scripts/online-smoke.ts
+step online:webkit env BROWSER=webkit ROOM_RENDERER=phaser-canvas ONLINE_URL="$URL" pnpm exec tsx scripts/online-smoke.ts
+step voice env ONLINE_URL="$URL" pnpm exec tsx scripts/voice-smoke.ts
+step preview:chrome pnpm exec tsx scripts/bomb-preview-smoke.ts
+step preview:webkit env BROWSER=webkit pnpm exec tsx scripts/bomb-preview-smoke.ts
+step phaser:chrome pnpm exec tsx scripts/phaser-browser.ts
+step phaser:webkit env BROWSER=webkit pnpm exec tsx scripts/phaser-browser.ts
+step home env HOME_URL="$URL" pnpm exec tsx scripts/home-mobile-smoke.ts
+step landscape env HOME_URL="$URL" pnpm exec tsx scripts/mobile-landscape-smoke.ts
+step recap:chrome env HOME_URL="$URL" pnpm exec tsx scripts/match-recap-smoke.ts
+step recap:webkit env BROWSER=webkit HOME_URL="$URL" pnpm exec tsx scripts/match-recap-smoke.ts
+step shared env ONLINE_URL="$URL" pnpm exec tsx scripts/shared-room-smoke.ts
+step determinism pnpm exec tsx scripts/determinism-replay.ts
+step mesh env ONLINE_URL="$URL" pnpm exec tsx scripts/p2p-mesh-browser.ts
 [[ $RAN -gt 0 ]] || { echo "FAIL no steps ran"; exit 1; }

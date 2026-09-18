@@ -12,7 +12,7 @@
     "./gcp": "./src/gcp/index.ts"
   },
   "dependencies": {
-    "fuse-network-protocol": "0.1.0",
+    "fuse-network-protocol": "workspace:*",
     "ws": "^8.18.3"
   },
   "peerDependencies": {
