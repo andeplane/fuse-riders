@@ -6,10 +6,14 @@ import {
 } from "fuse-network-be";
 import { ROOM_LIMITS } from "./room-limits.js";
 import { listenFree } from "./listen-free.js";
-import { HistoryStore } from "./history.js";
-import { MemoryHistoryDatabase } from "./memory-history.js";
-import { createIdentityVerifier, type IdentityVerifier } from "./identity.js";
-import { createHistoryHttp } from "./history-http.js";
+import {
+  HistoryStore,
+  MemoryHistoryDatabase,
+  createHistoryHttp,
+  createIdentityVerifier,
+  type IdentityVerifier,
+} from "fuse-platform";
+import { platform } from "./history.js";
 import { FIREBASE_PROJECT_ID } from "../shared/firebase-config.js";
 export type { DevRoomService };
 export interface DevRoomServiceOptions extends Omit<
@@ -26,10 +30,16 @@ export function createDevRoomService(
   const now = options.now ?? Date.now;
   return createService({
     ...ROOM_LIMITS,
+    gameIds: platform.gameIds,
     ...options,
     httpExtension: (store) =>
       createHistoryHttp(
-        new HistoryStore(new MemoryHistoryDatabase(now), store, now),
+        new HistoryStore(
+          platform,
+          new MemoryHistoryDatabase(platform, now),
+          store,
+          now,
+        ),
         options.identity ?? createIdentityVerifier(FIREBASE_PROJECT_ID),
       ),
   });

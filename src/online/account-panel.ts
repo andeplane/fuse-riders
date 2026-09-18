@@ -6,7 +6,7 @@ import {
   leaderboardTable,
   type StatsPage,
 } from "./player-stats.js";
-import { newRating, type LeaderboardEntry } from "../shared/rating.js";
+import { newRating, type LeaderboardEntry } from "fuse-platform/rating";
 import {
   accountReady,
   identityToken,

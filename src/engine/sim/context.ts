@@ -100,6 +100,8 @@ export interface TickContext {
   /** The field inside the walls as they stand this tick. */
   trailBounds: PortalBounds;
 
+  /** Where each piece of scenery that moved this tick stood before its step, by id. Written by `moveScenery`. */
+  readonly sceneryBefore: Map<number, { x: number; y: number }>;
   /** Every living rider's step, in seat order. Written by `moveRiders`; later phases shorten and turn the steps. */
   readonly movements: Map<PlayerId, Movement>;
   /** Riders turned back by a wall or by scenery this tick, for the statistics. */
@@ -161,6 +163,7 @@ export function createTickContext(
     elapsed: 0,
     open: false,
     trailBounds: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+    sceneryBefore: new Map(),
     movements: new Map(),
     bounced: new Set(),
     shellPaths: new Map(),

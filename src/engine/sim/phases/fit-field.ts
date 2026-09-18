@@ -12,6 +12,7 @@ import {
   edgesOpen,
   initialBoundaryInset,
   obstacleInsideBounds,
+  obstacleIsPermanent,
 } from "../../arena-map.js";
 import { portalBounds } from "../field.js";
 import { sortedPlayers } from "../../state.js";
@@ -35,9 +36,12 @@ export function fitField(ctx: TickContext): void {
   state.portalPairs = state.portalPairs
     .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
     .filter((pair): pair is PortalPair => pair !== undefined);
-  // Scenery is not resized the way a gate is: an obstacle the closing walls have reached is rubble.
-  state.obstacles = state.obstacles.filter((obstacle) =>
-    obstacleInsideBounds(obstacle, trailBounds),
+  // Scenery is not resized the way a gate is: an obstacle the closing walls have reached is rubble. The movers a
+  // map is made of run on regardless, through the closing band and across what is left of the field.
+  state.obstacles = state.obstacles.filter(
+    (obstacle) =>
+      obstacleIsPermanent(obstacle) ||
+      obstacleInsideBounds(obstacle, trailBounds),
   );
   // Overtime closes the walls around a field that was legally placed: keep its centre inside, or the pull aims out
   // of bounds. Clamped against the inset computed just above, like the portal fit, rather than last tick's.

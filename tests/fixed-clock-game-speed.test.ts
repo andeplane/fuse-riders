@@ -16,25 +16,27 @@ import {
   step,
 } from "../src/engine/game.js";
 import { MAX_STEPS_PER_TICK } from "../src/engine/tick-driver.js";
-import { TICK_MS } from "../src/online/clock.js";
-import { World, type Frame } from "../src/online/rollback.js";
 import {
+  TICK_MS,
+  World,
   SnapshotAssembler,
   decodeSnapshot,
   encodeSnapshot,
-} from "../src/online/snapshot.js";
-import {
   encodePacket,
   packMessage,
   roomHash,
   unpackMessage,
-} from "../src/online/packet.js";
-import { ACTION, BOT, JOIN, STEER } from "../src/engine/input-log.js";
-import {
   BEHIND_STEPS,
   CATCHUP_STEPS,
-  type RoomRuntime,
-} from "../src/online/room-runtime.js";
+} from "fuse-netcode";
+import { type RoomRuntime } from "../src/online/room-runtime.js";
+import {
+  fuseGame,
+  type Frame,
+  type FuseWorld,
+  type FuseSnapshot,
+} from "../src/online/fuse-game.js";
+import { ACTION, BOT, JOIN, STEER } from "../src/engine/input-log.js";
 
 /**
  * #258 N2: game speed is simulation steps per log tick, decided from folded state, and the shared clock never changes
@@ -303,6 +305,7 @@ test("a late human input that keeps the last human alive flips the fast-mode dec
 
 test("a snapshot carries both counters, and the guard refuses a game clock the log tick's steps cannot cover", () => {
   const w = new World(
+    fuseGame,
     createRoomState("m", classicSettings()),
     "creator",
     "creator",
@@ -325,12 +328,12 @@ test("a snapshot carries both counters, and the guard refuses a game clock the l
     `forty fast log ticks ran ${w.state.game.tick - w.tick} extra steps`,
   );
 
-  const assembler = new SnapshotAssembler(7);
+  const assembler = new SnapshotAssembler(fuseGame, 7);
   let bytes: Uint8Array | undefined;
   for (const chunk of encodeSnapshot(w, 7))
     bytes = assembler.accept(chunk)?.bytes ?? bytes;
   assert.ok(bytes);
-  const decoded = decodeSnapshot(bytes, 7)!;
+  const decoded = decodeSnapshot(fuseGame, bytes, 7)!;
   assert.equal(
     decoded.state.tick,
     w.tick,
@@ -345,7 +348,7 @@ test("a snapshot carries both counters, and the guard refuses a game clock the l
     copy[2] = tick;
     // A consistent hash, so only the guard can refuse it.
     copy[8] = hashRoomState({ ...decoded.state, tick });
-    return decodeSnapshot(packMessage(copy), 7);
+    return decodeSnapshot(fuseGame, packMessage(copy), 7);
   };
   const game = w.state.game.tick;
   assert.ok(withTick(game), "a log tick the game clock equals");
@@ -359,7 +362,7 @@ test("a snapshot carries both counters, and the guard refuses a game clock the l
     "more steps than the log ticks could run",
   );
   assert.equal(withTick(game + 1), undefined, "fewer steps than log ticks");
-  assert.equal(RULES, "fuse-p2p-41");
+  assert.equal(RULES, "fuse-p2p-42");
   assert.equal(MAX_STEPS_PER_TICK, BOTS_ONLY_STEPS_PER_TICK);
 });
 
@@ -373,7 +376,7 @@ test("fast steps stop at the round's end: the pause after it runs at one step pe
   eliminatePlayer(state.game, "human");
   eliminatePlayer(state.game, "bot:2");
   // One bot left alive and the human dead: the next step ends the round, and nothing more runs in that tick.
-  const w = new World(state, "human", "human");
+  const w = new World(fuseGame, state, "human", "human");
   w.stream("human", 1).through = w.tick + 5;
   const before = w.state.game.tick;
   w.advance(w.tick + 1);
@@ -383,6 +386,7 @@ test("fast steps stop at the round's end: the pause after it runs at one step pe
 
 test("the confirmed tick handed to reports is in game time, so a decided round after a fast endgame still counts as final", () => {
   const w = new World(
+    fuseGame,
     createRoomState("m", classicSettings()),
     "creator",
     "creator",
@@ -546,6 +550,7 @@ test("the snapshot threshold is BEHIND_STEPS estimated steps: a fast backlog pas
 test("a deep rollback in the fast phase re-runs within the step budget, keeps the shown frames until it is done, and ends on the unbudgeted state", () => {
   const build = () => {
     const w = new World(
+      fuseGame,
       createRoomState("m", classicSettings()),
       "creator",
       "creator",
@@ -566,7 +571,7 @@ test("a deep rollback in the fast phase re-runs within the step budget, keeps th
     assert.equal(w.state.game.phase, "playing", "the bots still race");
     return { w, b };
   };
-  const late = (w: World, b: { through: number }) =>
+  const late = (w: FuseWorld, b: { through: number }) =>
     w.receive("b", [[1, w.tick - 38, STEER, 1]], 1, b.through, w.tick);
 
   const reference = build();

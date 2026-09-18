@@ -84,33 +84,28 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
 }
 
 type Layer = "engine" | "net" | "render" | "app" | "shared" | "external";
-// `career-stats`, `elo` and `rating` are the history service's settlement and the account panel's reading of it:
-// one authority computes them after a match, no replica folds them, and nothing the simulation owns imports them.
+// `career-stats` is the history service's settlement and the account panel's reading of it (Elo and ratings moved to
+// packages/fuse-platform): one authority computes it after a match, no replica folds it, and nothing the simulation
+// owns imports it. `game-id` names Fuse Riders on the shared backend.
 // `combat-stats` is not here: match statistics carry it through every tick, so it stays engine-owned and guarded.
 const shared = new Set([
   "avatars",
   "career-stats",
-  "elo",
-  "rating",
+  "game-id",
   "duration-text",
   "protocol",
-  "uuid",
   "firebase-config",
 ]);
 const network = new Set([
-  "clock",
   "endpoints",
+  "fuse-game",
   "net-stats",
-  "packet",
-  "rollback",
   "room-runtime",
-  "snapshot",
-  "stream",
   "telemetry",
 ]);
 /** Ownership by directory, with the files under `src/online/` that are netcode rather than app listed by name. */
 export function layer(file: string): Layer {
-  if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
+  if (/^fuse-(network-(fe|be|protocol)|netcode)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
   if (file.startsWith("src/engine/")) return "engine";
   // `src/shared/` keeps only what is not simulation. Anything else that turns up there is held to the engine's rules

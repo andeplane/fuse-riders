@@ -8,6 +8,7 @@ import {
   wrapImages,
 } from "../wrap.js";
 import { clipTrailSegment } from "../trail-clipping.js";
+import { mapWraps } from "../arena-map.js";
 import { powerTrailLifetimeTicks } from "../power-progression.js";
 /** The field as the tick sees it: the walls, the open edges, and the trail a step leaves on it. */
 
@@ -27,7 +28,7 @@ export function portalBounds(state: GameState) {
  * a few ticks instead of arriving a full radius wide in one.
  */
 export function wallReach(state: GameState): number {
-  return state.map === "wrap"
+  return mapWraps(state.map)
     ? Math.min(RIDER_RADIUS, 2 * state.boundaryInset)
     : RIDER_RADIUS;
 }

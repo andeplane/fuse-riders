@@ -7,7 +7,7 @@ import {
   verdict,
   type NetSummary,
 } from "../src/online/net-stats.js";
-import type { RuntimeMetrics } from "../src/online/room-runtime.js";
+import { type RuntimeMetrics } from "fuse-netcode";
 
 const clock = () => {
   let t = 0;

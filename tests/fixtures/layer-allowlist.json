@@ -4,7 +4,5 @@
   "src/engine/input-log.ts -> src/shared/avatars.ts",
   "src/engine/match-recap.ts -> src/shared/duration-text.ts",
   "src/engine/state.ts -> src/shared/protocol.ts",
-  "src/online/room-runtime.ts -> src/online/status-notices.ts",
-  "src/online/room-runtime.ts -> src/shared/avatars.ts",
-  "src/online/room-runtime.ts -> src/shared/uuid.ts"
+  "src/online/fuse-game.ts -> src/shared/avatars.ts"
 ]

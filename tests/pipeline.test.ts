@@ -20,6 +20,7 @@ test("PHASES is the tick order the design note describes", () => {
       "*startPlay",
       "ageTrails",
       "fitField",
+      "moveScenery",
       "spawnPickups",
       "moveRiders",
       "collectPickups",

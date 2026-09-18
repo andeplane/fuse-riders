@@ -18,6 +18,8 @@
     "packages/fuse-network-fe/src/transport.ts",
     "packages/fuse-network-protocol/src/index.ts",
     "packages/fuse-network-protocol/src/wire.ts",
+    "packages/fuse-platform/src/firestore.ts",
+    "packages/fuse-platform/src/index.ts",
     "src/client/avatar-heads.ts",
     "src/client/game-audio.ts",
     "src/client/main.ts",
@@ -44,7 +46,6 @@
     "src/render/power-indicator.ts",
     "src/render/reload-ring.ts",
     "src/render/themes.ts",
-    "src/service/firestore-history.ts",
     "src/service/index.ts",
     "src/service/listen-free.ts",
     "src/service/room-limits.ts"

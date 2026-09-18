@@ -1,5 +1,6 @@
 import { encode, decode } from "@msgpack/msgpack";
-import { isEntry, memberId, uint32, type Entry } from "../engine/input-log.js";
+import type { EntryRules, LogEntry } from "./game.js";
+import { memberId, uint32 } from "./wire.js";
 
 export const PACKET_VERSION = 1,
   NACK_VERSION = 2;
@@ -8,7 +9,7 @@ export const MAX_PACKET_BYTES = 1100,
   MAX_PACKET_ENTRIES = 6,
   MAX_MESSAGE_BYTES = 2_000_000;
 /** The per-tick packet from one member to another; echo fields make every packet a clock and RTT sample. */
-export interface Packet {
+export interface Packet<Entry extends LogEntry = LogEntry> {
   room: number;
   from: string;
   generation: number;
@@ -158,12 +159,13 @@ export function encodeNack(nack: Nack): Uint8Array {
 const finite = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 /** Shape validation only; stream order, generation and room membership are the receiver's business. */
-export function decodePacket(
+export function decodePacket<Entry extends LogEntry>(
+  rules: Pick<EntryRules<Entry>, "isEntry">,
   bytes: Uint8Array,
-): { packet: Packet } | { nack: Nack } | undefined {
+): { packet: Packet<Entry> } | { nack: Nack } | undefined {
   if (bytes.byteLength > MAX_PACKET_BYTES) return;
   let value: unknown;
-  // Maps are allowed for the SETTINGS entry's room settings (and its pickup weights); isEntry validates them.
+  // Maps are allowed for a settings entry (Fuse Riders: its room settings and pickup weights); the game's isEntry validates them.
   try {
     value = decode(bytes, {
       maxStrLength: 128,
@@ -207,7 +209,7 @@ export function decodePacket(
     !uint32(lastSeq) ||
     !Array.isArray(entries) ||
     entries.length > MAX_PACKET_ENTRIES ||
-    !entries.every(isEntry)
+    !entries.every((entry) => rules.isEntry(entry))
   )
     return;
   if (

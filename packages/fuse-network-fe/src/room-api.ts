@@ -17,11 +17,23 @@ async function failure(response: Response, fallback: string): Promise<Error> {
     { error?: unknown } | undefined;
   return new Error(typeof body?.error === "string" ? body.error : fallback);
 }
+/**
+ * Creates a room for `gameId`. Without one the service creates a `LEGACY_GAME_ID` room; a service from before rooms
+ * carried a game ignores the query, so a page can send it to either.
+ */
 export async function createRoom(
   apiUrl: (path: string) => string,
   fetcher: typeof fetch = fetch,
+  gameId?: string,
 ): Promise<CreatedRoom> {
-  const response = await fetcher(apiUrl("/api/rooms"), { method: "POST" });
+  const response = await fetcher(
+    apiUrl(
+      gameId
+        ? `/api/rooms?${new URLSearchParams({ gameId }).toString()}`
+        : "/api/rooms",
+    ),
+    { method: "POST" },
+  );
   if (!response.ok) throw await failure(response, "Could not create room");
   const body = (await response.json()) as Partial<CreatedRoom>;
   if (typeof body.code !== "string" || typeof body.token !== "string")
@@ -82,16 +94,18 @@ export function roomSocketUrl(
 /**
  * Opens the room socket and authenticates it with its first frame. A browser cannot put a header on a WebSocket and
  * a URL is logged, so the token is sent as `{type:"auth",token}` once the socket opens; the service reads nothing
- * else first and closes a socket that stays silent. See `docs/online/TOKEN-TRANSPORT.md`.
+ * else first and closes a socket that stays silent. See `docs/online/TOKEN-TRANSPORT.md`. `gameId` rides in the same
+ * frame, and a room of another game refuses the socket.
  */
 export function openRoomSocket<S extends RoomSocket>(
   apiUrl: (path: string) => string,
   code: string,
   token: string,
   create: (url: string) => S,
+  gameId?: string,
 ): S {
   const socket = create(roomSocketUrl(apiUrl, code));
-  socket.addEventListener("open", () => socket.send(authFrame(token)), {
+  socket.addEventListener("open", () => socket.send(authFrame(token, gameId)), {
     once: true,
   });
   return socket;

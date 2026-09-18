@@ -1,4 +1,5 @@
 import test from "node:test";
+import type { GameEvent } from "../src/engine/view.js";
 import assert from "node:assert/strict";
 import {
   SNAPSHOT_INTERVAL,
@@ -6,13 +7,16 @@ import {
   STALL_TICKS,
   World,
   type WorldEvent,
-} from "../src/online/rollback.js";
-import { CATCHUP_STEPS } from "../src/online/room-runtime.js";
-import {
+  CATCHUP_STEPS,
   PACKET_ENTRIES,
   ROLLBACK_TICKS,
   StreamLog,
-} from "../src/online/stream.js";
+} from "fuse-netcode";
+import {
+  fuseGame,
+  type FuseWorld,
+  type FuseSnapshot,
+} from "../src/online/fuse-game.js";
 import {
   ACTION,
   BOT,
@@ -30,8 +34,13 @@ import { COUNTDOWN_TICKS } from "../src/engine/game.js";
 
 const settings = defaultRoomSettings();
 const members = ["creator", "b", "c", "d", "e", "f"];
-function world(self = "creator", humans = ["creator", "b"]): World {
-  const w = new World(createRoomState("room", settings), "creator", self);
+function world(self = "creator", humans = ["creator", "b"]): FuseWorld {
+  const w = new World(
+    fuseGame,
+    createRoomState("room", settings),
+    "creator",
+    self,
+  );
   for (const id of humans) w.stream(id, 1);
   const creator = w.streams.get("creator")!;
   // At most five riders: a sixth member is a display without a seat.
@@ -43,12 +52,12 @@ function world(self = "creator", humans = ["creator", "b"]): World {
   creator.append(2, [ACTION, "start", "match-1"]);
   return w;
 }
-const playing = (w: World) => {
+const playing = (w: FuseWorld) => {
   for (const stream of w.streams.values()) stream.through = COUNTDOWN_TICKS + 2;
   w.advance(COUNTDOWN_TICKS + 2);
   assert.equal(w.state.game.phase, "playing");
 };
-const guest = (w: World) => w.state.game.players.get("b")!;
+const guest = (w: FuseWorld) => w.state.game.players.get("b")!;
 
 test("advance folds every stream, snapshots every fourth tick and emits each event once", () => {
   const w = world();
@@ -147,6 +156,7 @@ test("a late entry rolls back N ticks, re-simulates from the nearest snapshot an
   );
   assert.equal(w.receive("zzz", [], 0, 0, w.tick).status, "invalid");
   const old = new World(
+    fuseGame,
     createRoomState("room", settings),
     "creator",
     "creator",
@@ -180,7 +190,12 @@ test("late reordered steering replays a close pass without false double eliminat
   ];
   const replica = () => {
     // Seed through the public constructor so rollback snapshots include the close-pass fixture.
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     w.stream("creator", 1).through = end;
     w.stream("b", 1).through = start;
     return w;
@@ -470,7 +485,7 @@ test("six replicas on a deterministic lossy, reordering network agree on every r
     true,
     "every replica bounds itself on the other riders",
   );
-  assert.equal(new StreamLog(1).retained().length, 0);
+  assert.equal(new StreamLog(fuseGame, 1).retained().length, 0);
 });
 
 import { COUNTDOWN_TICKS as COUNTDOWN } from "../src/engine/game.js";
@@ -478,6 +493,7 @@ import { PRESENCE as PRESENCE_KIND } from "../src/engine/input-log.js";
 test("a rider's replaced stream keeps its history: a rollback across the replacement replays the old generation's inputs", () => {
   const build = (lateFirst: boolean) => {
     const w = new World(
+      fuseGame,
       createRoomState("m", defaultRoomSettings()),
       "creator",
       "creator",
@@ -551,7 +567,12 @@ test("Extra Bomb collection and volley converge after dropped, reordered and dup
     [2, start + 5, RELEASE, 1],
   ];
   const replica = () => {
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     w.stream("creator", 1).through = end;
     w.stream("b", 1).through = start;
     return w;
@@ -592,7 +613,12 @@ test("Shorter Fuse collection and volley converge after dropped, reordered and d
     [2, start + 5, RELEASE, 1],
   ];
   const replica = () => {
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     w.stream("creator", 1).through = end;
     w.stream("b", 1).through = start;
     return w;
@@ -642,7 +668,12 @@ test("late reordered inputs converge through GRIP collection and do not consume 
     [2, start + 8, STEER, 0],
   ];
   const replica = () => {
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     w.stream("creator", 1).through = end;
     w.stream("b", 1).through = start;
     return w;
@@ -690,7 +721,12 @@ test("late reordered inputs converge through Range collection and do not consume
     [2, start + 8, STEER, 0],
   ];
   const replica = () => {
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     w.stream("creator", 1).through = end;
     w.stream("b", 1).through = start;
     return w;
@@ -716,7 +752,7 @@ test("late reordered inputs converge through Range collection and do not consume
 test("late duplicated and reordered bomb releases converge through debris decay and peer recovery", async () => {
   const { eliminatePlayer } = await import("../src/engine/game.js");
   const { encodeSnapshot, decodeSnapshot, SnapshotAssembler } =
-    await import("../src/online/snapshot.js");
+    await import("fuse-netcode");
   const fixture = world("creator", ["creator", "b", "c"]);
   playing(fixture);
   const start = fixture.tick,
@@ -749,26 +785,31 @@ test("late duplicated and reordered bomb releases converge through debris decay 
     [2, start + 2, RELEASE, 1],
   ];
   const replica = () => {
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     for (const id of ["creator", "b", "c"])
       w.stream(id, 1).through = id === "b" ? start : end;
     return w;
   };
-  const recover = (source: World) => {
-    const assembler = new SnapshotAssembler(42);
-    let decoded: ReturnType<typeof decodeSnapshot>;
+  const recover = (source: FuseWorld) => {
+    const assembler = new SnapshotAssembler(fuseGame, 42);
+    let decoded: FuseSnapshot | undefined;
     for (const chunk of encodeSnapshot(source, 42)) {
       const complete = assembler.accept(chunk);
-      if (complete) decoded = decodeSnapshot(complete.bytes, 42);
+      if (complete) decoded = decodeSnapshot(fuseGame, complete.bytes, 42);
     }
     assert.ok(decoded);
     assert.equal(hashRoomState(decoded.state), hashRoomState(source.state));
-    const joiner = new World(decoded.state, "creator", "creator");
+    const joiner = new World(fuseGame, decoded.state, "creator", "creator");
     for (const s of decoded.streams)
       joiner.stream(s.id, s.generation, {
         seq: s.seq,
         tick: joiner.tick,
-        gesture: s.gesture,
+        ordinal: s.ordinal,
       });
     return joiner;
   };
@@ -825,7 +866,12 @@ test("repair across the final elimination replaces speculative points and duplic
     [2, end + 1, STEER, 0],
   ];
   const replica = () => {
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     w.stream("creator", 1).through = end + 1;
     w.stream("b", 1).through = start;
     return w;
@@ -888,7 +934,12 @@ test("late reordered inputs converge through Nitro and Snail collection, and a d
     [2, start + 8, STEER, 0],
   ];
   const replica = () => {
-    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    const w = new World(
+      fuseGame,
+      structuredClone(fixture.state),
+      "creator",
+      "creator",
+    );
     w.stream("creator", 1).through = end;
     w.stream("b", 1).through = start;
     return w;
@@ -923,7 +974,7 @@ test("late reordered inputs converge through Nitro and Snail collection, and a d
 // ---- A rollback's re-run paced by the step budget (World.refill): nothing outside World sees history go back ----
 
 /** Humans creator, b and c alive and playing for 42 ticks, every stream complete to the current tick. */
-function pacedWorld(): World {
+function pacedWorld(): FuseWorld {
   const w = world("creator", ["creator", "b", "c"]);
   playing(w);
   const at = w.tick + 42;
@@ -933,7 +984,7 @@ function pacedWorld(): World {
   return w;
 }
 /** A bomb b pressed 38 ticks ago and released four ticks later, arriving only now. */
-const lateBomb = (w: World, at: number) =>
+const lateBomb = (w: FuseWorld, at: number) =>
   w.receive(
     "b",
     [
@@ -962,7 +1013,7 @@ test("a paced re-run keeps the world's tick, state and frames until it is done, 
   const first = lateBomb(w, at);
   assert.equal(first.rollbackTicks, straight.rollbackTicks);
   assert.deepEqual(first.events, [], "nothing is delivered before the frames");
-  const delivered: WorldEvent[] = [];
+  const delivered: WorldEvent<GameEvent>[] = [];
   let passes = 0;
   while (!w.settled) {
     assert.equal(w.tick, at);
@@ -989,9 +1040,9 @@ test("a second late entry during a paced re-run restarts it from an earlier snap
   const reference = pacedWorld(),
     at = reference.tick;
   lateBomb(reference, at);
-  const cSteer = (w: World) =>
+  const cSteer = (w: FuseWorld) =>
     w.receive("c", [[1, at - 37, STEER, 1]], 1, at, at);
-  const bSteer = (w: World) =>
+  const bSteer = (w: FuseWorld) =>
     w.receive("b", [[3, at - 10, STEER, 2]], 3, at, at);
   assert.ok(cSteer(reference).rollbackTicks > 0);
   bSteer(reference);
@@ -1003,7 +1054,7 @@ test("a second late entry during a paced re-run restarts it from an earlier snap
   w.refill(CATCHUP_STEPS);
   w.advance(at);
   assert.ok(!w.settled, "still owed");
-  const events: WorldEvent[] = [];
+  const events: WorldEvent<GameEvent>[] = [];
   w.refill(CATCHUP_STEPS);
   const restart = cSteer(w);
   assert.ok(

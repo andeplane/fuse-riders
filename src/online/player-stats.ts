@@ -14,7 +14,7 @@ import {
   type Rating,
   type LeaderboardEntry,
   type Rivalries,
-} from "../shared/rating.js";
+} from "fuse-platform/rating";
 import { WEAPONS } from "../engine/shot-log.js";
 import type { HistoryEntry, UserProfile } from "../service/history.js";
 export interface StatsPage {

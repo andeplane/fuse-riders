@@ -29,9 +29,11 @@ import {
   matchRecordId,
   parseMatchResult,
   parseTotals,
+  fuseRiders,
+  platform,
 } from "../src/service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
-import { MemoryHistoryDatabase } from "../src/service/memory-history.js";
+import { MemoryHistoryDatabase } from "fuse-platform";
 import { RoomStore, peerId } from "fuse-network-be";
 
 async function fixture(riders = 2, length = 1) {
@@ -47,10 +49,11 @@ async function fixture(riders = 2, length = 1) {
   const code = await rooms.createAvailable(tokens[0]!);
   for (const token of tokens) await rooms.admit(code, token, "gateway");
   const history = new HistoryStore(
-    new MemoryHistoryDatabase(),
+    platform,
+    new MemoryHistoryDatabase(platform),
     rooms,
     () => 1_000,
-  );
+  ).game(fuseRiders);
   const state = createRoomState("gameplay-history", {
     ...defaultRoomSettings(),
     length,

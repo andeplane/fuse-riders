@@ -128,6 +128,11 @@ export function showRoomSettings(
             "cross",
             `${ARENA_MAP_LABELS.cross} · the classic arena, split four ways`,
           ],
+          [
+            "drift",
+            `${ARENA_MAP_LABELS.drift} · open edges, and the walls wander`,
+          ],
+          ["trains", `${ARENA_MAP_LABELS.trains} · mind the level crossings`],
         ],
         (value) => {
           draft.map = value;
@@ -142,6 +147,10 @@ export function showRoomSettings(
       element(
         "p",
         "Wrap-around has open edges: riders, shells, bullets, thrown bombs and blasts leave one side and arrive on the other. Crossed plays exactly like the classic arena, drawn shifted by half a board: the walls meet in a cross in the middle and the screen edges are open.",
+      ),
+      element(
+        "p",
+        "Drifting cross is Wrap-around with a cross of walls on it that slides around like a screensaver logo, bouncing off the edges. Trains keeps the classic walls and runs three trains round two loops of track: the rails are safe to cross, the trains are not, and neither bombs nor the closing walls stop them.",
       ),
     );
     const lengthLabel = element("label", "Match length"),

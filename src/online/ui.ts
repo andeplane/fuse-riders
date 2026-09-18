@@ -1,11 +1,12 @@
 import { VoiceChat } from "./voice-chat.js";
-import { uuid } from "../shared/uuid.js";
+import { uuid } from "fuse-netcode";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
 import { mountArenaPresentation } from "../render/phaser/presentation.js";
 import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
+import { GAME_ID } from "../shared/game-id.js";
 import { createAccountPanel } from "./account-panel.js";
 import {
   accountUsername,
@@ -54,7 +55,7 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES } from "./packet.js";
+import { MAX_PACKET_BYTES } from "fuse-netcode";
 import { NetStats } from "./net-stats.js";
 import { Telemetry, telemetryEndpoint } from "./telemetry.js";
 import type { AvatarId } from "../shared/avatars.js";
@@ -222,7 +223,7 @@ export async function startOnline(): Promise<void> {
     create.onclick = async () => {
       create.disabled = true;
       try {
-        const body = await createRoom(apiUrl);
+        const body = await createRoom(apiUrl, fetch, GAME_ID);
         save(`fuse-room-${body.code}`, body.token);
         const settings = loadRoomSettings(storage);
         settings.mode = selectedMode;
@@ -1544,6 +1545,7 @@ export async function startOnline(): Promise<void> {
             new PeerTransport(code, token, events, {
               extension: voice,
               apiUrl,
+              gameId: GAME_ID,
               maxFastBytes: MAX_PACKET_BYTES,
               copy: TRANSPORT_COPY,
             }),

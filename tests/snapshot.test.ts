@@ -6,9 +6,11 @@ import {
   SnapshotAssembler,
   decodeSnapshot,
   encodeSnapshot,
-} from "../src/online/snapshot.js";
-import { World } from "../src/online/rollback.js";
-import { packMessage, unpackMessage } from "../src/online/packet.js";
+  World,
+  packMessage,
+  unpackMessage,
+} from "fuse-netcode";
+import { fuseGame, type FuseWorld } from "../src/online/fuse-game.js";
 import {
   decodeGameState,
   encodeGameState,
@@ -39,8 +41,9 @@ import {
 import { classicSettings } from "./fixtures/classic-settings.js";
 
 const ROOM = 42;
-function playingWorld(): World {
+function playingWorld(): FuseWorld {
   const w = new World(
+    fuseGame,
     createRoomState("m", defaultRoomSettings()),
     "creator",
     "creator",
@@ -77,11 +80,11 @@ test("a snapshot carries the world, folds, bots and every stream past its base, 
   assert.equal(chunks.length, 1);
   assert.equal(chunks[0]!.tick, 60);
   assert.equal(chunks[0]!.rules, RULES);
-  const assembler = new SnapshotAssembler(ROOM),
+  const assembler = new SnapshotAssembler(fuseGame, ROOM),
     complete = assembler.accept(chunks[0]);
   assert.ok(complete);
   assert.equal(complete.tick, 60);
-  const decoded = decodeSnapshot(complete.bytes, ROOM)!;
+  const decoded = decodeSnapshot(fuseGame, complete.bytes, ROOM)!;
   assert.ok(decoded);
   assert.equal(hashRoomState(decoded.state), w.hashAt(60));
   assert.deepEqual(decoded.state.bots, new Set(["bot:1"]));
@@ -93,8 +96,8 @@ test("a snapshot carries the world, folds, bots and every stream past its base, 
   });
   const guest = decoded.streams.find((stream) => stream.id === "guest")!;
   assert.deepEqual(
-    { generation: guest.generation, seq: guest.seq, gesture: guest.gesture },
-    { generation: 2, seq: 1, gesture: 1 },
+    { generation: guest.generation, seq: guest.seq, ordinal: guest.ordinal },
+    { generation: 2, seq: 1, ordinal: 1 },
   );
   assert.deepEqual(
     guest.entries,
@@ -104,12 +107,12 @@ test("a snapshot carries the world, folds, bots and every stream past its base, 
     ],
     "the entries after the served tick, gap included, are replayed by the joiner",
   );
-  const joiner = new World(decoded.state, "creator", "joiner");
+  const joiner = new World(fuseGame, decoded.state, "creator", "joiner");
   for (const stream of decoded.streams) {
     const log = joiner.stream(stream.id, stream.generation, {
       seq: stream.seq,
       tick: 60,
-      gesture: stream.gesture,
+      ordinal: stream.ordinal,
     });
     if (stream.entries.length)
       log.receive(stream.entries, stream.entries.at(-1)![0], 75, 200, 60);
@@ -151,7 +154,7 @@ test("large snapshots are chunked at 16 KB and reassembled only in order", () =>
       (chunk) => chunk.data.length <= (SNAPSHOT_CHUNK_BYTES * 4) / 3 + 4,
     ),
   );
-  const assembler = new SnapshotAssembler(ROOM);
+  const assembler = new SnapshotAssembler(fuseGame, ROOM);
   for (const chunk of chunks.slice(0, -1))
     assert.equal(assembler.accept(chunk), undefined);
   assert.equal(
@@ -162,7 +165,7 @@ test("large snapshots are chunked at 16 KB and reassembled only in order", () =>
   for (const chunk of chunks.slice(0, -1)) assembler.accept(chunk);
   const complete = assembler.accept(chunks.at(-1))!;
   assert.ok(complete);
-  assert.ok(decodeSnapshot(complete.bytes, ROOM));
+  assert.ok(decodeSnapshot(fuseGame, complete.bytes, ROOM));
   for (const bad of [
     { ...chunks[0], rules: "other" },
     { ...chunks[0], room: ROOM + 1 },
@@ -175,17 +178,17 @@ test("large snapshots are chunked at 16 KB and reassembled only in order", () =>
     { ...chunks[0], total: 1000 },
   ])
     assert.equal(assembler.accept(bad), undefined);
-  const skipped = new SnapshotAssembler(ROOM);
+  const skipped = new SnapshotAssembler(fuseGame, ROOM);
   skipped.accept(chunks[0]);
   assert.equal(skipped.accept({ ...chunks[2] }), undefined);
   assert.equal(skipped.accept({ ...chunks[1], tick: 7 }), undefined);
-  const garbage = new SnapshotAssembler(ROOM);
+  const garbage = new SnapshotAssembler(fuseGame, ROOM);
   assert.equal(
     garbage.accept({ ...chunks[0], total: 1, data: "@@@" }),
     undefined,
   );
   assert.equal(
-    decodeSnapshot(new Uint8Array(MAX_SNAPSHOT_BYTES + 1), ROOM),
+    decodeSnapshot(fuseGame, new Uint8Array(MAX_SNAPSHOT_BYTES + 1), ROOM),
     undefined,
   );
 });
@@ -203,11 +206,11 @@ test("foreign rules on any snapshot chunk discard the transfer and allow a fresh
     total: 3,
     data: snapshot.data.slice(chunk * span, (chunk + 1) * span),
   }));
-  const expected = new SnapshotAssembler(ROOM).accept(snapshot);
+  const expected = new SnapshotAssembler(fuseGame, ROOM).accept(snapshot);
   assert.ok(expected);
 
   for (const foreignIndex of [0, 1, 2]) {
-    const assembler = new SnapshotAssembler(ROOM);
+    const assembler = new SnapshotAssembler(fuseGame, ROOM);
     for (const [index, chunk] of chunks.entries()) {
       assert.equal(
         assembler.accept(
@@ -230,22 +233,22 @@ test("foreign rules on any snapshot chunk discard the transfer and allow a fresh
       assert.equal(assembler.accept(chunk), undefined);
     const complete = assembler.accept(chunks.at(-1));
     assert.deepEqual(complete, expected, "a fresh retry reassembles exactly");
-    assert.ok(decodeSnapshot(complete!.bytes, ROOM));
+    assert.ok(decodeSnapshot(fuseGame, complete!.bytes, ROOM));
   }
 });
 
 test("snapshot validation rejects foreign rules and rooms, corrupt state, inconsistent folds, bots, streams and hashes", () => {
   const w = playingWorld(),
-    bytes = new SnapshotAssembler(ROOM).accept(
+    bytes = new SnapshotAssembler(fuseGame, ROOM).accept(
       encodeSnapshot(w, ROOM)[0],
     )!.bytes;
   const fields = unpackMessage(bytes) as unknown[];
   const mutate = (change: (value: unknown[]) => void) => {
     const copy = structuredClone(fields);
     change(copy);
-    return decodeSnapshot(packMessage(copy), ROOM);
+    return decodeSnapshot(fuseGame, packMessage(copy), ROOM);
   };
-  assert.ok(decodeSnapshot(packMessage(fields), ROOM));
+  assert.ok(decodeSnapshot(fuseGame, packMessage(fields), ROOM));
   assert.equal(
     mutate((v) => {
       v[0] = "fuse-p2p-0";
@@ -378,8 +381,11 @@ test("snapshot validation rejects foreign rules and rooms, corrupt state, incons
     }),
     undefined,
   );
-  assert.equal(decodeSnapshot(packMessage("nope"), ROOM), undefined);
-  assert.equal(decodeSnapshot(new Uint8Array([0xc1]), ROOM), undefined);
+  assert.equal(decodeSnapshot(fuseGame, packMessage("nope"), ROOM), undefined);
+  assert.equal(
+    decodeSnapshot(fuseGame, new Uint8Array([0xc1]), ROOM),
+    undefined,
+  );
 });
 
 test("replica game-state encoding preserves negative zero, maps and connection flags and rejects corruption", () => {
@@ -472,10 +478,10 @@ test("a snapshot is served at the newest retained tick every rider has completed
     chunks[0]!.tick <= w.completeTick(),
     `served ${chunks[0]!.tick} ≤ complete ${w.completeTick()}`,
   );
-  const assembler = new SnapshotAssembler(ROOM);
+  const assembler = new SnapshotAssembler(fuseGame, ROOM);
   let complete: { bytes: Uint8Array } | undefined;
   for (const chunk of chunks) complete = assembler.accept(chunk) ?? complete;
-  const decoded = decodeSnapshot(complete!.bytes, ROOM);
+  const decoded = decodeSnapshot(fuseGame, complete!.bytes, ROOM);
   assert.ok(decoded);
   assert.equal(decoded.state.game.tick, chunks[0]!.tick);
   assert.ok(
@@ -489,6 +495,7 @@ test("a snapshot is served at the newest retained tick every rider has completed
 test("a snapshot carries the watching list, and validation refuses a list the fold could never hold", () => {
   // One seated rider and two watchers, all confirmed, so the tick the world serves is the tick it is on.
   const w = new World(
+    fuseGame,
     createRoomState("m", defaultRoomSettings()),
     "creator",
     "creator",
@@ -503,10 +510,10 @@ test("a snapshot carries the watching list, and validation refuses a list the fo
   w.advance(4);
   assert.equal(w.state.spectators.size, 2);
   assert.equal(w.servable().tick, w.tick);
-  const bytes = new SnapshotAssembler(ROOM).accept(
+  const bytes = new SnapshotAssembler(fuseGame, ROOM).accept(
     encodeSnapshot(w, ROOM)[0],
   )!.bytes;
-  const decoded = decodeSnapshot(bytes, ROOM);
+  const decoded = decodeSnapshot(fuseGame, bytes, ROOM);
   assert.ok(decoded, "the snapshot round-trips");
   assert.deepEqual(
     [...decoded.state.spectators].map(([id, watcher]) => [
@@ -550,9 +557,9 @@ test("a snapshot carries the watching list, and validation refuses a list the fo
     const copy = structuredClone(fields);
     change(copy);
     if (agree) rehash(copy);
-    return decodeSnapshot(packMessage(copy), ROOM);
+    return decodeSnapshot(fuseGame, packMessage(copy), ROOM);
   };
-  assert.ok(decodeSnapshot(packMessage(fields), ROOM));
+  assert.ok(decodeSnapshot(fuseGame, packMessage(fields), ROOM));
   assert.ok(
     mutate(() => {}),
     "a payload whose hash agrees with its list decodes: the cases below fail on their own check, not on the hash",

@@ -209,20 +209,30 @@ function resolveGunShots(
       }
       // Scenery stops a bullet without taking damage from it: only a blast clears an obstacle. Whatever stood
       // behind it was never in this ray's line, so an earlier obstacle contact also drops the rider it found.
-      // Id order: each bisection starts from the contact before it, so the order decides its low bits.
-      for (const obstacle of sortedObstacles(state)) {
-        const touches = (t: number): boolean =>
-          segmentObstacleDistanceSquared(
-            obstacle,
-            x,
-            y,
-            x + dx * t,
-            y + dy * t,
-          ) <= square(GUN_RADIUS);
-        if (!touches(contact)) continue;
-        contact = firstContactTime(touches, contact);
-        hit = undefined;
-      }
+      // Id order: each bisection starts from the contact before it, so the order decides its low bits. Along an
+      // open edge a piece is also met where the far side puts it, like a trail overhanging that edge.
+      for (const obstacle of sortedObstacles(state))
+        for (const image of legImages) {
+          const piece =
+            image.dx === 0 && image.dy === 0
+              ? obstacle
+              : {
+                  ...obstacle,
+                  x: obstacle.x - image.dx,
+                  y: obstacle.y - image.dy,
+                };
+          const touches = (t: number): boolean =>
+            segmentObstacleDistanceSquared(
+              piece,
+              x,
+              y,
+              x + dx * t,
+              y + dy * t,
+            ) <= square(GUN_RADIUS);
+          if (!touches(contact)) continue;
+          contact = firstContactTime(touches, contact);
+          hit = undefined;
+        }
       const gate = findGunPortalEntry(
         state,
         { x, y },
