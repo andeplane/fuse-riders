@@ -1,5 +1,5 @@
 import type { MatchResult, PlayerResult } from "fuse-platform";
-import { players, type DiceRoom } from "./rules.js";
+import type { DiceRoom } from "./rules.js";
 
 /** One player's result as `fuse-platform` stores it: the fields it reads itself, plus the points they banked. */
 export interface DicePlayerResult extends PlayerResult {
@@ -13,27 +13,19 @@ function placements<T>(items: T[], better: (a: T, b: T) => boolean): number[] {
     (item) => 1 + items.filter((other) => better(other, item)).length,
   );
 }
-/** Humans still seated and here: who can report, and whose reports count. */
-function finishersOf(room: DiceRoom, among: ReadonlySet<string>): string[] {
-  return players(room)
-    .filter((seat) => !seat.bot && seat.connected && among.has(seat.id))
-    .map((seat) => seat.id)
-    .sort();
-}
 
 /**
  * The finished match as every replica computes it, or undefined before the match is over. Placement is by round wins,
- * then points; `matchScoreUnits` is the round wins. A player no longer seated (or absent) at the end left early.
+ * then points; `matchScoreUnits` is the round wins. A player no longer seated (or absent) when the deciding round was
+ * decided left early. Who finished and who left are read from that round's record, frozen at the tick it was decided,
+ * so every device writes the same receipt however seats change afterwards.
  */
 export function matchResult(
   room: DiceRoom,
 ): MatchResult<DicePlayerResult> | undefined {
-  if (room.stage !== "over" || !room.winner) return;
-  const seated = new Set(
-    players(room)
-      .filter((seat) => seat.bot || seat.connected)
-      .map((seat) => seat.id),
-  );
+  const decided = room.history.at(-1);
+  if (room.stage !== "over" || !room.winner || !decided) return;
+  const seated = new Set(decided.present);
   const rows = Object.entries(room.roster)
     .map(([id, entry]) => ({
       id,
@@ -53,7 +45,7 @@ export function matchResult(
     matchId: room.matchId,
     length: room.history.length,
     winnerId: room.winner,
-    finishers: finishersOf(room, new Set(rows.map((row) => row.id))),
+    finishers: decided.finishers,
     players: rows.map((row, index) => ({
       playerId: row.id,
       name: row.name,
@@ -87,7 +79,9 @@ export function roundResult(
     round,
     length: 1,
     winnerId: record.winnerId,
-    finishers: finishersOf(room, new Set(rows.map((row) => row.id))),
+    finishers: record.finishers.filter((id) =>
+      Object.hasOwn(record.scores, id),
+    ),
     players: rows.map((row, index) => ({
       playerId: row.id,
       name: row.name,

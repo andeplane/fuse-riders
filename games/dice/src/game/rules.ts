@@ -1,4 +1,5 @@
 import {
+  ACTION,
   BOT,
   PRESENCE,
   SPECTATOR,
@@ -38,7 +39,11 @@ export const MIN_TURN_TICKS = 2 * TICKS_PER_SECOND;
 export const MAX_TURN_TICKS = 60 * TICKS_PER_SECOND;
 /** Log ticks between a decided round and the next one. */
 export const BETWEEN_TICKS = 3 * TICKS_PER_SECOND;
-/** A round every seat but one can win before someone reaches `WINS_NEEDED`, plus the deciding one. */
+/**
+ * The most rounds a match plays. With a fixed roster someone reaches `WINS_NEEDED` by then (every seat but one wins
+ * `WINS_NEEDED - 1`, then the deciding round); with seats coming and going it could run on, so the round that reaches
+ * this bound ends the match, won by the leader (`leader`).
+ */
 export const MAX_ROUNDS = CAPACITY * (WINS_NEEDED - 1) + 1;
 /** Everyone who ever sat in a match, departed seats included. */
 export const MAX_PARTICIPANTS = 64;
@@ -75,6 +80,10 @@ export interface RoundRecord {
   winnerId: string;
   /** Every round player's bank when the round was decided. */
   scores: Record<string, number>;
+  /** Seated players taking turns (bots, and humans who were here) when the round was decided; sorted. */
+  present: string[];
+  /** The humans among `present`: who can report the round, and the match when this round decided it; sorted. */
+  finishers: string[];
 }
 
 export interface DiceRoom extends ManagedRoom<DiceSettings> {
@@ -83,6 +92,11 @@ export interface DiceRoom extends ManagedRoom<DiceSettings> {
   matchId: string;
   round: number;
   stage: Stage;
+  /**
+   * The turn timer this match plays with: `settings.turnTicks` as it was when the match started. A SETTINGS entry
+   * changes `settings` at once (the lobby shows it) but a running match keeps its own timer.
+   */
+  turnTicks: number;
   /** The generator's state (mulberry32), seeded from the match id at start. */
   rng: number;
   /** Turns taken this match; a play entry names the turn it is for. 0 before the first. */
@@ -157,6 +171,10 @@ export const AVATARS = [
 export const isAvatar = (value: unknown): value is string =>
   (AVATARS as readonly unknown[]).includes(value);
 
+/** A match id as every replica accepts it, in a logged ACTION entry and in a checkpoint: 1–64 printable ASCII characters. */
+export const validMatchId = (value: unknown): value is string =>
+  typeof value === "string" && /^[\x21-\x7e]{1,64}$/.test(value);
+
 /** A member id that is safe as a record key: never one of `Object.prototype`'s names. */
 export const playerKey = (value: unknown): value is string =>
   memberId(value) && !(value in Object.prototype);
@@ -187,6 +205,7 @@ const payloads = {
 /** The wire boundary for every entry: the shared management entries, and ROLL/HOLD naming a turn. */
 export function isDiceEntry(raw: unknown): raw is DiceEntry {
   if (isManagementEntry(raw, payloads)) {
+    if (raw[2] === ACTION) return validMatchId(raw[4]);
     // Member ids become record keys: one of Object.prototype's names never does.
     const at =
       raw[2] === BOT || raw[2] === SPECTATOR ? 4 : raw[2] <= PRESENCE ? 3 : -1;
@@ -235,6 +254,7 @@ export function createRoom(matchId: string, settings: DiceSettings): DiceRoom {
     stage: "lobby",
     seats: new Map(),
     settings: { ...settings },
+    turnTicks: settings.turnTicks,
     rng: seedOf(matchId),
     turnNo: 0,
     rolls: 0,
@@ -273,7 +293,7 @@ function beginTurn(room: DiceRoom, id: string, tick: number): void {
   room.turn = id;
   room.turnNo++;
   room.turnTotal = 0;
-  room.deadline = tick + room.settings.turnTicks;
+  room.deadline = tick + room.turnTicks;
   room.nextAct = tick + botDelay(room);
 }
 /** Pass the turn to the next active seat after the current one, or to the first; nobody's when no seat is active. */
@@ -311,6 +331,7 @@ function startRound(room: DiceRoom, tick: number): void {
 }
 function resetMatch(room: DiceRoom, matchId: string): void {
   room.matchId = matchId;
+  room.turnTicks = room.settings.turnTicks;
   room.round = 1;
   room.rng = seedOf(matchId);
   room.turnNo = 0;
@@ -351,6 +372,19 @@ export const lifecycle: LifecycleHooks<DiceRoom, DiceSettings> = {
   },
 };
 
+/** Most round wins, then most points over the decided rounds, then the lower slot, then the lower id. */
+function leader(room: DiceRoom): string {
+  const points = (id: string) =>
+    room.history.reduce((sum, record) => sum + (record.scores[id] ?? 0), 0);
+  return Object.keys(room.wins).sort(
+    (a, b) =>
+      room.wins[b]! - room.wins[a]! ||
+      points(b) - points(a) ||
+      room.roster[a]!.slot - room.roster[b]!.slot ||
+      (a < b ? -1 : 1),
+  )[0]!;
+}
+
 function endRound(
   room: DiceRoom,
   id: string,
@@ -363,18 +397,25 @@ function endRound(
   for (const seat of players(room))
     if (active(seat) && seat.id in room.scores)
       room.played[seat.id] = (room.played[seat.id] ?? 0) + 1;
+  const present = players(room).filter(active);
   room.history.push({
     round: room.round,
     winnerId: id,
     scores: { ...room.scores },
+    present: present.map((seat) => seat.id).sort(),
+    finishers: present
+      .filter((seat) => !seat.bot)
+      .map((seat) => seat.id)
+      .sort(),
   });
   room.turn = "";
   room.turnTotal = 0;
   events.push({ type: "round", id, round: room.round });
-  if (room.wins[id]! >= WINS_NEEDED) {
+  if (room.wins[id]! >= WINS_NEEDED || room.round >= MAX_ROUNDS) {
+    const winner = room.wins[id]! >= WINS_NEEDED ? id : leader(room);
     room.stage = "over";
-    room.winner = id;
-    events.push({ type: "match", id });
+    room.winner = winner;
+    events.push({ type: "match", id: winner });
   } else {
     room.stage = "between";
     room.resumeAt = tick + BETWEEN_TICKS;
@@ -404,7 +445,7 @@ export function act(
     }
     room.turnTotal += value;
     // Each roll gives the player the whole timer again to decide.
-    room.deadline = tick + room.settings.turnTicks;
+    room.deadline = tick + room.turnTicks;
     room.nextAct = tick + botDelay(room);
     return;
   }
@@ -422,6 +463,10 @@ export const BOT_HOLD_AT = 20;
 /**
  * The bot: the entry it logs for the current turn at `tick`, or nothing yet. It holds at `BOT_HOLD_AT` or when the
  * hold would reach `TARGET`, and otherwise rolls, one entry per `botDelay`.
+ *
+ * A bot logs nothing: `foldTick` asks this function for the bot's entry while folding, as Fuse Riders' bots decide
+ * inside the simulation. It reads only the room, so every replica decides the same way at the same tick, and a
+ * rollback or a checkpoint recovery replays the bot's play exactly.
  */
 export function botEntry(
   room: DiceRoom,
@@ -463,6 +508,8 @@ export function foldTick(
   const tick = room.tick + 1,
     events: DiceEvent[] = [];
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
+  // A seat that joins a running round takes turns in it, so the roster knows it from the tick it sits down.
+  if (room.stage === "running") remember(room);
   if (room.stage === "between" && tick >= room.resumeAt) {
     room.round++;
     startRound(room, tick);

@@ -92,7 +92,7 @@ export function diceView(room: DiceRoom): DiceView {
         }
       : {}),
     timerTicks: running ? Math.max(0, room.deadline - room.tick) : 0,
-    turnTicks: room.settings.turnTicks,
+    turnTicks: room.turnTicks,
     ...(room.roundWinner ? { roundWinnerId: room.roundWinner } : {}),
     ...(room.winner ? { winnerId: room.winner } : {}),
   };
@@ -120,7 +120,12 @@ export const diceGame: RollbackGame<
   view: diceView,
   hash: hashRoom,
   checkpoint: { leading: 5, encode: encodeRoom, decode: decodeRoom },
-  members: (room) => [...room.seats.values()],
+  // Slot then id: an order that depends only on the room, so a device that recovered it from a checkpoint (which
+  // lists seats by slot) names members exactly as the devices that folded it.
+  members: (room) =>
+    [...room.seats.values()].sort(
+      (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    ),
   seat: (room, id) => room.seats.get(id),
   stage: (room) => room.stage,
   settings: (room) => room.settings,

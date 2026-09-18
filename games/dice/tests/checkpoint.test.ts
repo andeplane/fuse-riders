@@ -97,6 +97,7 @@ test("a corrupt or hostile checkpoint is refused whole", () => {
     ["an unknown stage", (f) => (at(f, 0)[2] = "paused")],
     ["a negative generator", (f) => (at(f, 0)[3] = -1)],
     ["a fractional turn number", (f) => (at(f, 0)[4] = 1.5)],
+    ["a match timer out of bounds", (f) => (at(f, 0)[6] = 1)],
     ["seats that are not a list", (f) => (f[1] = {})],
     ["a seat with a bad id", (f) => (at(f, 1, 0)[0] = "no spaces")],
     ["a seat named __proto__", (f) => (at(f, 1, 0)[0] = "__proto__")],
@@ -138,7 +139,7 @@ test("a corrupt or hostile checkpoint is refused whole", () => {
     ["history that is not a list", (f) => (at(f, 4)[4] = {})],
     [
       "a decided round in the future",
-      (f) => (at(f, 4)[4] = [[5, "a", { a: 50 }]]),
+      (f) => (at(f, 4)[4] = [[5, "a", { a: 50 }, ["a"], ["a"]]]),
     ],
     ["a tick that is not a tick", () => {}, -1],
   ];
@@ -160,11 +161,21 @@ test("a corrupt or hostile checkpoint is refused whole", () => {
   );
   const doubled = wire(between);
   at(doubled, 4)[4] = [
-    [1, "a", { a: 50, b: 0 }],
-    [1, "a", { a: 50, b: 0 }],
+    [1, "a", { a: 50, b: 0 }, ["a", "b"], ["a", "b"]],
+    [1, "a", { a: 50, b: 0 }, ["a", "b"], ["a", "b"]],
   ];
   at(doubled, 4)[1] = { a: 2 };
   assert.equal(decode(doubled, between.tick), undefined, "one round twice");
+  const record = (present: unknown, finishers: unknown) => {
+    const fields = wire(between);
+    at(fields, 4)[4] = [[1, "a", { a: 50, b: 0 }, present, finishers]];
+    return decode(fields, between.tick);
+  };
+  assert.ok(record(["a", "b"], ["a"]), "a well-formed record decodes");
+  assert.equal(record(["b", "a"], []), undefined, "present out of order");
+  assert.equal(record(["a", "a"], []), undefined, "present twice");
+  assert.equal(record(["a", "zed"], []), undefined, "a stranger present");
+  assert.equal(record(["a"], ["b"]), undefined, "a finisher not present");
 });
 
 test("the entry parser accepts ROLL and HOLD naming a turn, and the shared management entries, and nothing else", () => {
