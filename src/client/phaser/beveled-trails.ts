@@ -73,7 +73,7 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
     for (const ribbon of this.ribbons) {
       const tint = Phaser.Renderer.WebGL.Utils.getTintAppendFloatAlpha(
         ribbon.color,
-        ribbon.alpha * camera.alpha * this.alpha,
+        camera.alpha * this.alpha,
       );
       for (let i = 0; i < ribbon.vertices.length; i += 3) {
         if (pipeline.shouldFlush(3)) {

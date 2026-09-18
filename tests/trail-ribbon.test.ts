@@ -152,15 +152,12 @@ test("death, detachment, erosion and rider color are reflected without mutating 
   const original = structuredClone(state);
   const cache = new TrailRibbonCache(TRAIL_WIDTH);
   const first = update(cache, state);
-  assert.deepEqual(
-    first.map((r) => r.alpha),
-    [0.6, 1],
-  );
   assert(first.every((r) => r.color === 0x22d3ee));
   assert.deepEqual(state, original);
   state.players[0].alive = false;
   const dead = update(cache, state);
-  assert(dead.every((r) => r.alpha === 0.6));
+  assert.equal(dead[0].color, first[0].color);
+  assert.notEqual(dead[1].color, first[1].color);
   state.players[0].trail[0].x1 += 3;
   const eroded = update(cache, state);
   assert(

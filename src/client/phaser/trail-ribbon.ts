@@ -70,7 +70,6 @@ export function trailRibbon(
 export interface TrailRibbon {
   vertices: RibbonVertex[];
   color: number;
-  alpha: number;
 }
 
 export class TrailRibbonCache {
@@ -92,7 +91,6 @@ export class TrailRibbonCache {
       color: /^#[0-9a-f]{6}$/i.test(stroke.color)
         ? parseInt(stroke.color.slice(1), 16)
         : 0xffffff,
-      alpha: stroke.alive ? 1 : 0.6,
     }));
     return this.ribbons;
   }

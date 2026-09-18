@@ -22,6 +22,7 @@ import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
 import {
   completeTrailStrokes,
+  trailColor,
   TrailHistoryCache,
   trailTip,
   type TrailPoint,
@@ -434,7 +435,6 @@ class ArenaScene extends Phaser.Scene {
     graphics: Phaser.GameObjects.Graphics,
     paths: readonly (readonly TrailPoint[])[],
     tint: number,
-    alive: boolean,
     theme: ThemeDefinition,
   ): void {
     const pixel = theme.rendering.pixelated;
@@ -446,10 +446,8 @@ class ArenaScene extends Phaser.Scene {
     ] as const;
     for (const [index, [width, alpha, shade]] of passes.entries()) {
       const core = index === passes.length - 1;
-      // Detached trails are quieter visually but remain collidable until eroded.
-      graphics
-        .lineStyle(width, shade, alpha * (alive ? 1 : 0.6))
-        .fillStyle(shade, alpha * (alive ? 1 : 0.6));
+      // The solid body stays opaque throughout detachment and death.
+      graphics.lineStyle(width, shade, alpha).fillStyle(shade, alpha);
       for (const path of paths) {
         if (path.length < 2) continue;
         if (core && pixel) {
@@ -793,33 +791,42 @@ class ArenaScene extends Phaser.Scene {
         .fillStyle(0xffffff)
         .fillRect(b, b, w - 2 * b, h - 2 * b);
     }
+    // Snapshot ticks keep advancing during results; the decision owns the frozen board.
+    const trailColorTick =
+      s.phase === "playing"
+        ? (s.presentationTick ?? s.tick)
+        : (s.phase === "roundOver" || s.phase === "matchOver") &&
+            s.decidedRound?.round === s.round
+          ? s.decidedRound.tick
+          : s.tick;
     const history = this.trailHistory.update(
       s.players,
       `${matchId}:${s.round}:${theme.id}`,
+      trailColorTick,
     );
     if (history.changed) {
       this.trailHistoryBuilds++;
       this.trails.clear();
       for (const stroke of this.beveledTrails ? [] : history.strokes)
-        this.strokeTrail(
-          this.trails,
-          stroke.paths,
-          color(stroke.color),
-          stroke.alive,
-          theme,
-        );
+        this.strokeTrail(this.trails, stroke.paths, color(stroke.color), theme);
     }
     this.trailTips.clear();
     if (this.beveledTrails)
       this.beveledTrails.updateTrails(
-        completeTrailStrokes(s.players, s.tick, s.phase),
+        completeTrailStrokes(s.players, s.tick, s.phase, trailColorTick),
       );
     for (const player of this.beveledTrails ? [] : s.players)
       this.strokeTrail(
         this.trailTips,
         [trailTip(player, s.tick, s.phase)],
-        color(player.color),
-        player.alive && !player.trail.at(-1)?.detached,
+        color(
+          trailColor(
+            player.color,
+            player.alive,
+            player.trail.at(-1),
+            trailColorTick,
+          ),
+        ),
         theme,
       );
     const events = this.transitions.accept(s, matchId);
