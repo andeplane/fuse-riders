@@ -472,7 +472,7 @@ test("fatal trail ends at the nearest contact regardless of trail array order", 
         y2: 350,
         createdTick: state.tick,
         expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
-        detached: { id: 1, decayStartTick: state.tick + 20 },
+        detached: { id: 1, decayStartTick: state.tick + 60 },
       },
     ]);
   }

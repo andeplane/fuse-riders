@@ -81,6 +81,45 @@ async function assertRecapLayout(page: Page): Promise<{
     "the report announces itself as the results, not the game menu",
   );
   await inside(page, dialog);
+  const surface = await dialog.evaluate((element) => {
+    const style = getComputedStyle(element),
+      box = element.getBoundingClientRect();
+    return {
+      width: box.width,
+      viewport: innerWidth,
+      background: style.backgroundColor,
+      shadow: style.boxShadow,
+      border: style.borderWidth,
+    };
+  });
+  assert.equal(
+    surface.width,
+    surface.viewport,
+    "results span the viewport without side panels",
+  );
+  assert.equal(
+    surface.background,
+    "rgba(0, 0, 0, 0)",
+    "results have no opaque panel",
+  );
+  assert.equal(surface.shadow, "none");
+  assert.equal(surface.border, "0px");
+  const scene = page.locator(".online-arena");
+  assert.ok(
+    await scene.isVisible(),
+    "the actual arena stays visible behind results",
+  );
+  assert.equal(
+    await page.locator("canvas").count(),
+    1,
+    "results use the existing scene, not a copied canvas",
+  );
+  assert.ok(
+    await scene.evaluate((element) =>
+      getComputedStyle(element).filter.includes("blur"),
+    ),
+    "the scene is blurred for the overview",
+  );
   await inside(page, page.getByRole("button", { name: /full stats/ }));
   assert.ok(
     await page.evaluate(
@@ -338,6 +377,47 @@ try {
           assert.match(banner.big, /THE MATCH$|^SHARED VICTORY$/);
         }
       const layout = await assertRecapLayout(page);
+      if (!phone) {
+        await page
+          .getByRole("button", { name: "View full stats ↗", exact: true })
+          .click();
+        const watch = page.locator(".watch-again").first();
+        if (await watch.count()) {
+          await watch.click();
+          await page.locator(".online-app.replaying").waitFor();
+          const playback = await page
+            .locator(".online-arena")
+            .evaluate((element) => ({
+              filter: getComputedStyle(element).filter,
+              fit: getComputedStyle(element).objectFit,
+            }));
+          assert.deepEqual(
+            playback,
+            { filter: "none", fit: "contain" },
+            "WATCH restores a sharp, uncropped arena",
+          );
+          assert.equal(
+            await page.locator(".shared-lobby").isVisible(),
+            false,
+            "lobby controls do not cover replay",
+          );
+          console.log(`PASS ${tag} sharp highlight replay`);
+          await page
+            .getByRole("dialog", { name: "Match results" })
+            .waitFor({ timeout: smokeTimeout(20000) });
+          await assertRecapLayout(page);
+        } else {
+          await page
+            .getByRole("button", { name: "Hide full stats ↗", exact: true })
+            .click();
+        }
+        await page.setViewportSize({ width: 2000, height: 1100 });
+        await assertRecapLayout(page);
+        await page.screenshot({
+          path: `artifacts/match-recap-${browserName}-ultrawide.png`,
+        });
+        await page.setViewportSize(viewport);
+      }
       const screenshots = [`artifacts/match-recap-${tag}.png`];
       await page.screenshot({ path: screenshots[0]! });
       await page
@@ -400,6 +480,15 @@ try {
           false,
           "a rematch does not reopen the old report",
         );
+        assert.equal(
+          await page
+            .locator(".online-app")
+            .evaluate((element) =>
+              element.classList.contains("scene-background"),
+            ),
+          false,
+          "rematch restores the sharp playing arena",
+        );
       }
       if (phone) {
         await page
@@ -410,6 +499,18 @@ try {
           () => latest()?.phase === "lobby",
           20000,
           "footer returns to lobby",
+        );
+        assert.ok(
+          await page.locator(".online-arena").isVisible(),
+          "the lobby retains the actual arena",
+        );
+        assert.ok(
+          await page
+            .locator(".online-arena")
+            .evaluate((element) =>
+              getComputedStyle(element).filter.includes("blur"),
+            ),
+          "lobby keeps the scene treatment",
         );
         assert.equal(await page.getByRole("dialog").isVisible(), false);
       }
