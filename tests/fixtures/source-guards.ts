@@ -190,6 +190,63 @@ export function forbiddenEdge(
   return violation ? `${source} -> ${target}` : undefined;
 }
 
+/**
+ * `src/render/` may take VALUES only from `engine/view-kit.ts`; from `engine/view.ts` it takes types. A value import of
+ * the view (`toView`) would pull the tuning and the rules in behind the contract, so every import or re-export of
+ * `engine/view.ts` from a render file must be type-only, and a dynamic import of it is refused outright.
+ */
+export function renderValueImportsOfView(file: ts.SourceFile): string[] {
+  const source = file.fileName;
+  if (!source.startsWith("src/render/")) return [];
+  const isView = (specifier: string): boolean =>
+    specifier.startsWith(".") &&
+    path.posix
+      .normalize(path.posix.join(path.posix.dirname(source), specifier))
+      .replace(/\.js$/, ".ts") === "src/engine/view.ts";
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      isView(node.moduleSpecifier.text)
+    ) {
+      const clause = node.importClause;
+      const typeOnly =
+        !!clause &&
+        (clause.isTypeOnly ||
+          (!clause.name &&
+            !!clause.namedBindings &&
+            ts.isNamedImports(clause.namedBindings) &&
+            clause.namedBindings.elements.every((e) => e.isTypeOnly)));
+      if (!typeOnly) found.push(`${source}: ${node.getText(file)}`);
+    }
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      isView(node.moduleSpecifier.text)
+    ) {
+      const typeOnly =
+        node.isTypeOnly ||
+        (!!node.exportClause &&
+          ts.isNamedExports(node.exportClause) &&
+          node.exportClause.elements.every((e) => e.isTypeOnly));
+      if (!typeOnly) found.push(`${source}: ${node.getText(file)}`);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      isView(node.arguments[0].text)
+    )
+      found.push(`${source}: ${node.getText(file)}`);
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
+}
+
 export function layerViolations(): string[] {
   return [
     ...new Set(

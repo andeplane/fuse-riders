@@ -5,6 +5,8 @@ import {
   forbiddenEdge,
   imports,
   layerViolations,
+  renderValueImportsOfView,
+  sourceFiles,
   syntax,
 } from "./fixtures/source-guards.js";
 
@@ -102,5 +104,38 @@ test("the boundary guard covers target directories, re-exports, type imports and
   assert.equal(
     forbiddenEdge("src/app/main.ts", "../render/world.js"),
     undefined,
+  );
+});
+
+test("rendering takes only types from engine/view: a value import of toView would pull the rules in behind the contract", () => {
+  assert.deepEqual(
+    sourceFiles("src/render").flatMap((file) =>
+      renderValueImportsOfView(syntax(file)),
+    ),
+    [],
+  );
+  const check = (text: string, file = "src/render/phaser/scene.ts") =>
+    renderValueImportsOfView(syntax(file, text));
+  for (const text of [
+    'import { toView } from "../../engine/view.js";',
+    'import { toView, type WorldView } from "../../engine/view.js";',
+    'import * as view from "../../engine/view.js";',
+    'import "../../engine/view.js";',
+    'export { toView } from "../../engine/view.js";',
+    'export * from "../../engine/view.js";',
+    'const view = await import("../../engine/view.js");',
+  ])
+    assert.equal(check(text).length, 1, text);
+  for (const text of [
+    'import type { WorldView } from "../../engine/view.js";',
+    'import { type WorldView, type RiderView } from "../../engine/view.js";',
+    'export type { WorldView } from "../../engine/view.js";',
+    'import { advanceTrail } from "../../engine/view-kit.js";',
+  ])
+    assert.deepEqual(check(text), [], text);
+  assert.deepEqual(
+    check('import { toView } from "../engine/view.js";', "src/online/ui.ts"),
+    [],
+    "only render files are held to it",
   );
 });
