@@ -36,6 +36,10 @@ export { segmentIntersectsDisk } from "./blast-geometry.js";
 // endpoint touches a piece of scenery, with the same rectangle distance the simulation used.
 export { obstacleDistanceSquared } from "./arena-map.js";
 
+// A train's rails are drawn from the same loop its cars are advanced along, and a car's lights face the way the
+// rails run where it stands: the one kernel, so the drawing cannot put a train beside its track.
+export { trackLength, trackPose } from "./scenery-motion.js";
+
 // The pickup vocabulary as a list: the scene preloads one sprite per type before any view exists.
 export { PICKUP_TYPES } from "./pickup-types.js";
 

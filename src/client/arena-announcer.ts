@@ -5,7 +5,7 @@ import {
   ROUND_DRAW_TICK,
   TICK_HZ,
 } from "../engine/game.js";
-import { ARENA_MAP_RECIPES } from "../engine/arena-map.js";
+import { mapHasScenery, mapWraps } from "../engine/arena-map.js";
 import type { ArenaMapId, GameEvent } from "../shared/protocol.js";
 import type { WorldView } from "../engine/view.js";
 
@@ -96,7 +96,7 @@ export function announcementFor(
         text: `OVERTIME // WALLS CLOSING · DRAW IN ${Math.max(0, Math.ceil((ROUND_DRAW_TICK - elapsed) / TICK_HZ))}s`,
       };
     // Open edges close when overtime starts, and a rider heading out through one on that tick meets a wall instead.
-    if (snapshot.map === "wrap" && elapsed >= OVERTIME_START_TICK - 3 * TICK_HZ)
+    if (mapWraps(snapshot.map) && elapsed >= OVERTIME_START_TICK - 3 * TICK_HZ)
       return {
         kind: "overtime",
         text: `EDGES CLOSE IN ${Math.ceil((OVERTIME_START_TICK - elapsed) / TICK_HZ)}s`,
@@ -202,5 +202,5 @@ export function eliminationLine(
       ? "YOU"
       : (players.find((player) => player.id === event.playerId)?.name ??
         "A rider");
-  return `${name} ${event.cause === "wall" && ARENA_MAP_RECIPES[map].species.length > 0 ? "crashed" : CAUSES[event.cause]}`;
+  return `${name} ${event.cause === "wall" && mapHasScenery(map) ? "crashed" : CAUSES[event.cause]}`;
 }

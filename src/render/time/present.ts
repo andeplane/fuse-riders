@@ -80,6 +80,17 @@ export function interpolateWorld(
         y: previous.y + dy(bomb.y - previous.y) * f,
       };
     }),
+    // Scenery that moves slides between its two ticks like a shell does; the rest stands where the older tick had it.
+    obstacles: older.obstacles.map((previous) => {
+      if (!previous.motion) return previous;
+      const obstacle = newer.obstacles.find((o) => o.id === previous.id);
+      if (!obstacle?.motion) return previous;
+      return {
+        ...previous,
+        x: previous.x + dx(obstacle.x - previous.x) * f,
+        y: previous.y + dy(obstacle.y - previous.y) * f,
+      };
+    }),
   };
 }
 
