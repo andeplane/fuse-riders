@@ -31,7 +31,7 @@ export interface GcpRoomServiceOptions {
 /**
  * The Cloud Run room service: Firestore holds room metadata, Pub/Sub routes signalling between instances.
  * Reads GOOGLE_CLOUD_PROJECT, GCP_REGION, PUBSUB_TOPIC, ALLOWED_ORIGINS, and optionally ROOM_COLLECTION_PREFIX,
- * FIRESTORE_DATABASE_ID and PORT.
+ * FIRESTORE_DATABASE_ID, PORT and BUILD_REVISION (the image's source commit, reported by the health route).
  */
 export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
   const { authClient } = options;
@@ -96,6 +96,9 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
     // `deprecated-query-token` log line has been absent for a week.
     legacyQueryToken: true,
     allowOrigin: (origin) => origins.has(origin),
+    ...(/^[a-f0-9]{40}$/.test(process.env.BUILD_REVISION ?? "")
+      ? { revision: process.env.BUILD_REVISION }
+      : {}),
     // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
     // Limits are kept per IPv4 address or per IPv6 /64: one IPv6 host owns a whole /64 of addresses.
     clientAddress: (req) => {
