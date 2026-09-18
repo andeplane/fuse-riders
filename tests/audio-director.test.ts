@@ -719,23 +719,44 @@ test("a later failed unlock (a lock-screen play iOS will not let resume the cont
   assert.equal(f.music.length, 3, "an OS resume arms it too");
 });
 
-test("gun launch plays a layered cannon cue", async () => {
+test("gun crack is short, layered, varied and deduplicated per shot", async () => {
   const f = fixture();
   await f.director.unlock();
   f.director.message(f.snapshot(10));
-  f.director.message(
-    f.event(11, { type: "bombPlaced", bombId: 1, playerId: "p", gun: true }),
-  );
-  assert.equal(f.notes.length, 3);
+  const shot = f.event(11, {
+    type: "bombPlaced",
+    bombId: 1,
+    playerId: "p",
+    gun: true,
+  });
+  f.director.message(shot);
+  assert.equal(f.notes.length, 4);
   assert.ok(
     f.notes.some(
-      ({ note }) =>
-        note.wave === "triangle" &&
-        note.endFrequency === 24 &&
-        note.duration === 0.4,
+      ({ note }) => note.wave === "triangle" && note.frequency > 200,
     ),
   );
-  assert.ok(f.notes.every(({ channel }) => channel === "effects"));
+  assert.ok(
+    f.notes.every(
+      ({ channel, note }) => channel === "effects" && note.duration <= 0.16,
+    ),
+  );
+  f.director.message(shot);
+  assert.equal(f.notes.length, 4, "duplicate shot stays silent");
+  f.director.message(
+    f.event(11, { type: "bombPlaced", bombId: 3, playerId: "p", gun: true }),
+  );
+  assert.equal(f.notes.length, 4, "volley rays share one firing sound");
+  f.director.message(
+    f.event(11, {
+      type: "bombPlaced",
+      bombId: 2,
+      playerId: "other",
+      gun: true,
+    }),
+  );
+  assert.equal(f.notes.length, 8, "another shot in the same tick is audible");
+  assert.notEqual(f.notes[0]!.note.frequency, f.notes[4]!.note.frequency);
 });
 
 test("replay stings play only after the unlock and never while effects are silenced", async () => {
@@ -762,4 +783,70 @@ test("replay stings play only after the unlock and never while effects are silen
   f.director.setEffectsSilenced(false);
   f.director.replayCue("out");
   assert.ok(f.notes.length > before);
+});
+
+test("Gun pickup racks once after the pickup cue, while joins and hidden transitions stay silent", async () => {
+  const f = fixture();
+  await f.director.unlock();
+  f.director.message(f.snapshot(10));
+  const player = f.game.players.get("p")!;
+  player.gunArmed = true;
+  f.director.message(f.snapshot(11));
+  assert.equal(f.notes.length, 2);
+  assert.ok(f.notes.every(({ note }) => note.delay! >= 0.32));
+  f.director.message(f.snapshot(11));
+  assert.equal(f.notes.length, 2);
+  f.director.disconnect();
+  f.director.message(f.snapshot(12));
+  assert.equal(f.notes.length, 2, "rejoining armed stays silent");
+  player.gunArmed = false;
+  f.director.message(f.snapshot(13));
+  f.director.setEffectsSilenced(true);
+  player.gunArmed = true;
+  f.director.message(f.snapshot(14));
+  f.director.setEffectsSilenced(false);
+  f.director.message(f.snapshot(15));
+  assert.equal(f.notes.length, 2, "hidden pickup is not replayed");
+});
+
+test("impact audio coalesces a volley and respects repeated snapshots and hidden tabs", async () => {
+  const f = fixture();
+  await f.director.unlock();
+  const before = f.snapshot(10);
+  if (before.type !== "snapshot") throw Error("Expected snapshot");
+  f.director.message(before);
+  const bomb = {
+    id: 1,
+    ownerId: "p",
+    launchX: 200,
+    launchY: 450,
+    x: before.state.width - before.state.boundaryInset - 2,
+    y: 450,
+    launchedTick: 11,
+    landsAtTick: 14,
+    explodeAtTick: 14,
+    blastRange: 0,
+    shell: { gun: true, vx: 1, vy: 0 },
+    flightPath: [],
+  };
+  const after = {
+    ...before,
+    tick: 11,
+    state: { ...before.state, bombs: [bomb, { ...bomb, id: 2 }] },
+  };
+  f.director.message(after);
+  assert.equal(f.notes.length, 2, "one solid-impact cue for the volley");
+  f.director.message(after);
+  assert.equal(f.notes.length, 2);
+  f.director.setEffectsSilenced(true);
+  f.director.message({
+    ...after,
+    tick: 12,
+    state: { ...after.state, bombs: [{ ...bomb, id: 3, launchedTick: 12 }] },
+  });
+  assert.equal(f.notes.length, 2);
+  f.director.disconnect();
+  f.director.setEffectsSilenced(false);
+  f.director.message(after);
+  assert.equal(f.notes.length, 2, "reconnect baseline is silent");
 });

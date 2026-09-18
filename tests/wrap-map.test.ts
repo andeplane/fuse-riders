@@ -443,7 +443,7 @@ test("overtime brings the walls in from the very edge, and the round is an ordin
   );
 });
 
-test("bots ride through open edges rather than turning away from them, and survive a wrap round", () => {
+test("bots ride through open edges rather than turning away from them, and only combat can end the round", () => {
   const game = createGame("bots", classicSettings(), 1);
   game.settings = { ...defaultRoomSettings(), map: "wrap" };
   for (let slot = 0; slot < 4; slot += 1)
@@ -463,10 +463,17 @@ test("bots ride through open edges rather than turning away from them, and survi
         { x: player.x, y: player.y },
       ]),
     );
-    step(
+    const { events } = step(
       game,
       new Map([...game.players.keys()].map((id) => [id, bots.input(game, id)])),
     );
+    for (const event of events)
+      if (event.type === "playerEliminated")
+        assert.notEqual(
+          event.cause,
+          "wall",
+          "open edges cannot eliminate bots",
+        );
     for (const player of game.players.values())
       if (
         player.alive &&
@@ -484,10 +491,12 @@ test("bots ride through open edges rather than turning away from them, and survi
       );
     }
   }
-  assert.ok(
-    [...game.players.values()].filter((player) => player.alive).length >= 2,
-    "most of a hard field is still riding after twenty seconds",
-  );
+  // Combat can end the round earlier when detached trails remain hazardous longer.
+  const survivors = [...game.players.values()].filter((player) => player.alive);
+  if (game.phase === "roundOver")
+    assert.equal(survivors.length, 1, "ordinary combat leaves a round winner");
+  else
+    assert.ok(survivors.length >= 2, "multiple riders keep the round running");
   assert.ok(crossings > 0, "and at least one of them used an edge");
 });
 

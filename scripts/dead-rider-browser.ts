@@ -168,18 +168,65 @@ try {
           throw Error("Dead rider obscures crash");
         const deadRatio =
           regionDifference(crashed, empty, 250, 198, 300, 4) / livingTrail;
-        if (deadRatio < 0.5 || deadRatio > 0.8)
-          throw Error(`Dead trail too faint: ${deadRatio}`);
+        if (Math.abs(deadRatio - 1) > 0.01)
+          throw Error(`Fresh dead trail lost opacity: ${deadRatio}`);
         const detached = paint([{ ...player, trail: dead.trail }]);
-        const detachedRatio =
-          regionDifference(detached, empty, 250, 198, 300, 4) / livingTrail;
-        if (Math.abs(detachedRatio - deadRatio) > 0.01)
-          throw Error("Living detached pieces have different opacity");
-        const paused = paint([dead], 120);
-        const pausedRatio =
-          regionDifference(paused, empty, 250, 198, 300, 4) / livingTrail;
-        if (Math.abs(pausedRatio - deadRatio) > 0.01)
-          throw Error("Pause faded the whole trail");
+        if (regionDifference(detached, crashed, 250, 198, 300, 4) !== 0)
+          throw Error("Living detached pieces have different styling");
+        const at = (pixels: Uint8Array) => {
+          const offset =
+            ((mode === "webgl" ? 899 - 198 : 198) * 1600 + 350) * 4;
+          return Array.from(pixels.slice(offset, offset + 3));
+        };
+        const chroma = (pixels: Uint8Array) =>
+          Math.max(...at(pixels)) - Math.min(...at(pixels));
+        const partial = paint([dead], 130);
+        const gray = paint([dead], 160);
+        if (!(
+          chroma(crashed) > chroma(partial) && chroma(partial) > chroma(gray)
+        ))
+          throw Error("Trail saturation did not fade gradually");
+        if (chroma(gray) > 1) throw Error("Old trail is not neutral gray");
+        // A contrasting trail underneath must not show through the solid body.
+        const underlay = { ...player, id: "underlay", color: "#ff00ff" };
+        for (const tick of [100, 130, 160]) {
+          const alone = paint([dead], tick);
+          const over = paint([underlay, dead], tick);
+          if (at(alone).some((channel, i) => channel !== at(over)[i]))
+            throw Error(`Trail body is translucent at tick ${tick}`);
+        }
+        const frozen = {
+          ...base,
+          tick: 160,
+          presentationTick: 190,
+          decidedRound: {
+            matchId: "dead-rider-browser",
+            round: base.round,
+            tick: 130,
+            shots: [],
+          },
+          phase: "roundOver" as const,
+          players: [dead],
+        };
+        arena.render(frozen, 2000, themes[theme], "dead-rider-browser");
+        if (at(read()).some((channel, i) => channel !== at(partial)[i]))
+          throw Error("Results kept desaturating beyond the final snapshot");
+        for (const phase of ["roundOver", "matchOver"] as const) {
+          arena.reset(); // A fresh/reconnected renderer also recovers the decision-time color.
+          arena.render(
+            { ...frozen, phase, tick: 220, presentationTick: 220.5 },
+            3000,
+            themes[theme],
+            "dead-rider-browser",
+          );
+          if (at(read()).some((channel, i) => channel !== at(partial)[i]))
+            throw Error(
+              "Advancing result ticks changed the frozen trail color",
+            );
+        }
+        const restored = paint([dead], 100);
+        if (at(restored).some((channel, i) => channel !== at(crashed)[i]))
+          throw Error("Rollback did not restore trail color");
         const shrinking = {
           ...dead,
           trail: advanceTrail(dead.trail, 160, 120),
@@ -200,7 +247,11 @@ try {
         const revived = paint([player]);
         if (regionDifference(revived, empty, 750, 395, 100, 110) === 0)
           throw Error("Live avatar did not return");
-        results.push({ theme, deadRatio, detachedRatio, pausedRatio });
+        results.push({
+          theme,
+          deadRatio,
+          chroma: [chroma(crashed), chroma(partial), chroma(gray)],
+        });
         paint([dead]);
         arena.reset();
         paint([dead]);

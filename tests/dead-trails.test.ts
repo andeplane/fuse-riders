@@ -147,7 +147,7 @@ for (const cause of [
         "restored replay agrees",
       );
     assert.equal(encodeGameState(restored), encodeGameState(game));
-    advanceWithSurvivors(game, 40);
+    advanceWithSurvivors(game, 80);
     assert.deepEqual(dead.trail, [], "both ends eventually meet");
     for (const player of game.players.values())
       if (player.alive && player.id !== "p2") eliminatePlayer(game, player.id);
@@ -244,7 +244,7 @@ test("riders can pass through space eroded before this tick collision check", ()
     },
   ];
   eliminatePlayer(game, dead.id);
-  advanceWithSurvivors(game, 40);
+  advanceWithSurvivors(game, 80);
   assert.equal(dead.trail[0]!.x1, 237.5);
   Object.assign(survivor, {
     x: 220,

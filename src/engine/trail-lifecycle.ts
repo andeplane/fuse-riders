@@ -1,7 +1,7 @@
 import { hypot2 } from "./deterministic-math.js";
 import type { TrailSegment } from "./primitives.js";
 
-export const TRAIL_DECAY_PAUSE_TICKS = 20;
+export const TRAIL_DECAY_PAUSE_TICKS = 60; // Three seconds at 20 Hz.
 export const TRAIL_DECAY_PER_TICK = 37.5 / 20;
 export const MAX_TRAIL_SEGMENTS = 2048;
 type AllocatePiece = () => number;

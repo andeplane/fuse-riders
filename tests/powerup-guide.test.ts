@@ -50,6 +50,7 @@ test("power-up guide default-spawn flags match what a new room spawns", () => {
     spawning,
   );
   assert.equal(entry("star").spawnsByDefault, false);
+  assert.equal(entry("target").spawnsByDefault, false);
   // The TV lobby legend lays these out two per row beside the QR card; past this the host's START RACE leaves the
   // viewport. Adding a pickup means checking that layout, not just bumping the number (#166): seventeen were checked
   // at 1280×960 and 1024×768 for Nitro and Snail.
