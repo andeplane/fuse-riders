@@ -806,6 +806,41 @@ test("a boot failure leaves as a class, a code and a scrubbed message, without r
   assert.deepEqual(fake.registered.at(-1), { role: "host" });
 });
 
+test("the arena's renderer is an event and a super property from then on; a failed view reports its stage", async () => {
+  const { analytics, fake } = page();
+  analytics.start({ role: "solo" });
+  analytics.track("Seat Taken");
+  analytics.reportGraphics({ kind: "ready", renderer: "canvas" });
+  analytics.track("Match Ended");
+  analytics.reportGraphics({ kind: "failed", stage: "context" });
+  await settle();
+  assert.deepEqual(
+    fake.tracked.map(({ event }) => event),
+    [
+      "FlowRiders.Seat Taken",
+      "FlowRiders.Graphics Ready",
+      "FlowRiders.Match Ended",
+      "FlowRiders.Graphics Failed",
+    ],
+  );
+  assert.deepEqual(fake.tracked.at(-1)!.properties, { stage: "context" });
+  assert.deepEqual(fake.registered.at(-1), {
+    role: "solo",
+    renderer: "canvas",
+  });
+});
+
+test("graphics reports send nothing while analytics is off", async () => {
+  const { analytics, fake } = page({
+    storage: seededStorage({ [OPT_OUT_KEY]: "1" }),
+  });
+  analytics.start({ role: "solo" });
+  analytics.reportGraphics({ kind: "ready", renderer: "webgl" });
+  analytics.reportGraphics({ kind: "failed", stage: "startup" });
+  await settle();
+  assert.deepEqual(fake.tracked, []);
+});
+
 test("free text in any event is scrubbed of this page's room code on the way out", async () => {
   const { analytics, fake } = page({ search: "?room=ab42" });
   analytics.start({ role: "joiner", note: "room AB42" });

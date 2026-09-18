@@ -1,10 +1,8 @@
 import { VoiceChat } from "./voice-chat.js";
-import { powerLabel } from "../render/power-indicator.js";
 import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
-import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { mountArenaPresentation } from "../render/phaser/presentation.js";
 import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
@@ -65,25 +63,25 @@ import "./online.css";
 import "./top-menu.css";
 import { formatNetStats } from "./net-stats.js";
 import { installMobilePlayLayout } from "./mobile-play-layout.js";
-import { arenaView } from "./mobile-play-policy.js";
+import {
+  endedScreen,
+  roomScreen,
+  screenClasses,
+  type RoomDevice,
+  type RoomScreen,
+  type RoomScreenInput,
+} from "./room-screen.js";
+import { presentRoom, presentStatus, recapReady } from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
 import { safeStorage } from "../client/safe-storage.js";
-import { startAnalytics, track } from "./analytics.js";
+import { reportGraphics, startAnalytics, track } from "./analytics.js";
 import { createAnalyticsSetting } from "./analytics-setting.js";
 import { connectStatus } from "./analytics-text.js";
 import { createFunnel } from "./funnel.js";
 import { POWERUP_GUIDE } from "../client/powerup-guide.js";
 import { createPowerupGuide } from "../client/powerup-guide-view.js";
-import {
-  announcementFor,
-  eliminationLine,
-  matchWinnerName,
-  roundClock,
-  roundWinnerName,
-  showsRoundResult,
-} from "../client/arena-announcer.js";
-import { plainStatus } from "./status-copy.js";
+import { announcementFor, eliminationLine } from "../client/arena-announcer.js";
 /** The blurred scene behind the lobby and results redraws at 10 fps. */
 const BACKDROP_FRAME_MS = 100;
 const LAST_ROOM_KEY = "fuse-last-room";
@@ -449,6 +447,8 @@ export async function startOnline(): Promise<void> {
   let id = "",
     isHost = false,
     joined = false,
+    // This device has a place in the room's watching list: in the room, with no seat and no controls.
+    watching = false,
     settings = loadRoomSettings(storage),
     snapshot: WorldView | undefined;
   startAnalytics({ role, mode: settings.mode, solo });
@@ -461,7 +461,8 @@ export async function startOnline(): Promise<void> {
     inputAt = 0;
   let lastRatedRound = "";
   let lastRecap = "",
-    rejoinPending = false;
+    rejoinPending = false,
+    recapIsReady = false;
   const benchmark = url.searchParams.get("benchmark") === "1";
   let benchmarkInput: { seq: number; at: number } | undefined,
     lastBenchmarkRender = 0,
@@ -546,7 +547,8 @@ export async function startOnline(): Promise<void> {
   if (role !== "joiner") booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt = performance.now();
-  let connectFailed = false;
+  let connectFailed = false,
+    booted = false;
   // 20s is where connectHint gives up on progress and says "different network": the one drop-off the funnel cannot otherwise see.
   const bootTick = () => {
     const waited = performance.now() - bootAt;
@@ -560,12 +562,13 @@ export async function startOnline(): Promise<void> {
     }
   };
   const bootPoll = setInterval(bootTick, 1000);
+  // The first frame (or the room ending) takes the boot card down; the screen derived next drops `.booting`.
   const bootDone = () => {
-    if (!bootNote.isConnected) return;
+    if (booted) return;
+    booted = true;
     clearInterval(bootPoll);
     booting.remove();
     bootNote.remove();
-    app.classList.remove("booting");
   };
   const overCard = node("div", "", "room-boot room-over-card"),
     overNote = node(
@@ -582,14 +585,16 @@ export async function startOnline(): Promise<void> {
     overNote,
     overHome,
   );
-  app.classList.toggle("booting", role !== "joiner");
-  app.classList.toggle("joining", role === "joiner");
   app.replaceChildren(header, role === "joiner" ? joinPanel : booting);
   let canvas = node("canvas", "", "online-arena");
   let renderScope = code;
-  const presentation = mountArenaPresentation(canvas, (replacement) => {
-    canvas = replacement;
-  });
+  const presentation = mountArenaPresentation(
+    canvas,
+    (replacement) => {
+      canvas = replacement;
+    },
+    reportGraphics,
+  );
   let theme: ThemeDefinition = selectedTheme();
   // Both styles' textures are preloaded by the Phaser arena and every palette is read per frame, so switching needs no reload.
   applyThemeProperties(theme);
@@ -698,7 +703,7 @@ export async function startOnline(): Promise<void> {
     setTimeout(() => line.remove(), 2600);
   };
   const shake = () => {
-    if (canvas.hidden || reducedMotion()) return;
+    if (screen.arenaHidden || reducedMotion()) return;
     canvas.animate(
       [
         { transform: "translate(4px,-3px)", filter: "brightness(1.7)" },
@@ -763,12 +768,12 @@ export async function startOnline(): Promise<void> {
   const lobbyFooter = node("footer", "", "room-lobby-footer"),
     lobbyCount = node("span", "Waiting for riders");
   lobbyFooter.append(lobbyCount);
-  // The watching list: same row height as a rider, no colour, no avatar and no READY, so the five seats stay the thing being read.
+  // The watching list: the rider row's height in neutral grey, no colour, no avatar and no READY, so the five seats stay
+  // the thing being read. It lives inside the rider column (the lobby grid has one cell per column) and CSS `order` keeps it last.
   const lobbyWatchers = node("div", "", "room-watchers");
   lobbyWatchers.hidden = true;
   lobbyWatchers.setAttribute("aria-label", "Watching");
   lobbyWatchers.append(node("p", "WATCHING", "room-watchers-title"));
-  // Inside the rider column, under the seats: the lobby's own grid has one cell per column, and CSS `order` keeps the list last there.
   lobbyRiders.append(lobbyWatchers);
   sharedLobby.append(lobbyCopy, qrCard, lobbyRiders, lobbyFooter);
   const lobbyEntries = new Map<
@@ -779,11 +784,18 @@ export async function startOnline(): Promise<void> {
       name: HTMLElement;
       status: HTMLElement;
       avatar: AvatarId;
+      /** The name last written, so the frame never reads it back from the page. */
+      shown: string;
     }
   >();
   const watcherEntries = new Map<
     string,
-    { entry: HTMLElement; name: HTMLElement; status: HTMLElement }
+    {
+      entry: HTMLElement;
+      name: HTMLElement;
+      status: HTMLElement;
+      shown: string;
+    }
   >();
   if (!solo)
     void QRCode.toDataURL(joinLink)
@@ -810,7 +822,8 @@ export async function startOnline(): Promise<void> {
   }
   const roster = node("div", "", "online-roster");
   const hostControls = node("div", "", "online-host");
-  const start = node("button", "START RACE"),
+  let startLabel = "START RACE";
+  const start = node("button", startLabel),
     reset = node("button", "BACK TO LOBBY"),
     settingsButton = node("button", "ROOM SETTINGS"),
     share = node("button", "TV VIEW"),
@@ -824,6 +837,8 @@ export async function startOnline(): Promise<void> {
       head: HTMLElement;
       avatar: AvatarId;
       remove: HTMLButtonElement;
+      /** The name and points last written. */
+      shown: string;
     }
   >();
   const help = node("button", "?", "desktop-help");
@@ -834,6 +849,10 @@ export async function startOnline(): Promise<void> {
   header.append(avatarButton, prefsButton, menu, help);
   const dialog = node("dialog", "", "game-dialog");
   dialog.setAttribute("aria-label", "Game menu");
+  // One dialog serves every menu. Which one is up is kept here, never inferred from its classes or contents:
+  // the results stay "open" until the dialog closes, and the avatar picker is the node the AVATAR button mounted.
+  let recapOpen = false,
+    avatarPicker: HTMLElement | undefined;
   const close = node("button", "✕  CLOSE", "dialog-close");
   close.type = "button";
   close.setAttribute("aria-label", "CLOSE");
@@ -879,6 +898,7 @@ export async function startOnline(): Promise<void> {
     close.hidden = false;
     close.textContent = "✕  CLOSE";
     close.setAttribute("aria-label", "CLOSE");
+    recapOpen = false;
     dialog.classList.remove("recap-dialog");
     dialogTitle.textContent = "GAME MENU";
     dialog.setAttribute("aria-label", "Game menu");
@@ -955,11 +975,12 @@ export async function startOnline(): Promise<void> {
   const desktopQuery = matchMedia(
     "(min-width: 1000px) and (hover: hover) and (pointer: fine)",
   );
-  const updateDesktopLayout = () => {
+  // Where the movable parts of the page sit on this screen. Pure placement: what the screen is was decided by `roomScreen`.
+  const placeElements = (screen: RoomScreen) => {
     // Keep the creator's seat invitation beside the riders while the lobby is
     // visible. Outside the lobby it must remain reachable for mid-game joins.
     if (role !== "joiner") {
-      const joinParent = sharedLobby.hidden ? app : lobbyRiders;
+      const joinParent = screen.lobbyCard ? lobbyRiders : app;
       if (joinPanel.parentElement !== joinParent) {
         if (joinParent === app) {
           joinForm.element.querySelector("input")!.after(joinForm.submitButton);
@@ -972,32 +993,19 @@ export async function startOnline(): Promise<void> {
         joinForm.submitButton.after(joinForm.spectateButton);
       }
     }
-    const desktop =
-      desktopQuery.matches &&
-      !app.classList.contains("mobile-play") &&
-      !app.classList.contains("controller-only") &&
-      !app.classList.contains("joining") &&
-      sharedLobby.hidden;
-    app.classList.toggle("desktop-game", desktop);
+    const { desktop, sideStandings: side } = screen;
     // Keep the same account control visible beside MENU during full-screen phone play.
-    const accountParent = app.classList.contains("mobile-play") ? app : topMenu;
+    const accountParent = screen.mobile.active ? app : topMenu;
     if (roomAccount.button.parentElement !== accountParent)
       accountParent.append(roomAccount.button);
     // Desktop play keeps the standings in a fixed column right of the arena (its width lives in online.css), so the game bar holds actions only.
-    const side =
-      desktop &&
-      !canvas.hidden &&
-      !app.classList.contains("scene-background") &&
-      !app.classList.contains("booting") &&
-      !app.classList.contains("room-over");
-    app.classList.toggle("side-standings", side);
     const rosterParent = side ? app : desktop ? header : scoreboard;
     if (roster.parentElement !== rosterParent) {
       if (side) app.append(roster);
       else if (desktop) header.insertBefore(roster, topMenu);
       else scoreboard.append(roster);
     }
-    const actionsParent = !sharedLobby.hidden
+    const actionsParent = screen.lobbyCard
       ? lobbyFooter
       : desktop
         ? header
@@ -1016,8 +1024,52 @@ export async function startOnline(): Promise<void> {
       `${header.offsetTop + header.offsetHeight}px`,
     ),
   ).observe(header);
-  window.addEventListener("resize", updateDesktopLayout);
-  desktopQuery.addEventListener("change", updateDesktopLayout);
+  const device = (): RoomDevice => ({
+    touch:
+      navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches,
+    width: innerWidth,
+    height: innerHeight,
+    desktopPointer: desktopQuery.matches,
+  });
+  const screenInput = (): RoomScreenInput => ({
+    role,
+    booted,
+    joined,
+    watching,
+    phase: snapshot?.phase ?? "lobby",
+    recapReady: recapIsReady,
+    shared: settings.mode === "shared",
+    device: device(),
+  });
+  // Every class the room screen implies is set here, from the derived screen, and nothing reads one back.
+  let screen: RoomScreen = roomScreen(screenInput());
+  const showScreen = (next: RoomScreen, resized = false) => {
+    screen = next;
+    for (const [name, on] of Object.entries(screenClasses(next)))
+      app.classList.toggle(name, on);
+    app.dataset.screen = next.kind;
+    canvas.hidden = next.arenaHidden;
+    sharedLobby.hidden = !next.lobbyCard;
+    roster.hidden = next.lobbyCard;
+    // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
+    styleHeading.hidden = styleRow.hidden = next.arenaController;
+    mobileLayout.update(
+      next.mobile,
+      snapshot?.phase ?? "lobby",
+      next.kind !== "ended" && recapIsReady,
+      resized,
+    );
+    placeElements(next);
+  };
+  // A rotation or a resize changes the screen now, not at the next frame; after the room closed only the desktop bar follows it.
+  const resizeScreen = () =>
+    showScreen(
+      roomEnded ? endedScreen(screen, device()) : roomScreen(screenInput()),
+      true,
+    );
+  window.addEventListener("resize", resizeScreen);
+  window.visualViewport?.addEventListener("resize", resizeScreen);
+  desktopQuery.addEventListener("change", resizeScreen);
 
   const openRadio = () => {
     audio.unlock();
@@ -1138,7 +1190,7 @@ export async function startOnline(): Promise<void> {
     dialogBody.replaceChildren(
       renderMatchRecap(snapshot.matchStats, snapshot.moments, {
         playerId: id,
-        canWatch: (key) => !canvas.hidden && !!replay.recorder.clip(key),
+        canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
         watch: (key) => {
           const clip = replay.recorder.clip(key);
           if (!clip) return;
@@ -1151,6 +1203,7 @@ export async function startOnline(): Promise<void> {
     );
     dialogTitle.textContent = "MATCH RESULTS";
     dialog.setAttribute("aria-label", "Match results");
+    recapOpen = true;
     dialog.classList.add("recap-dialog");
     rematch.hidden = !isHost;
     recapLobby.hidden = !isHost;
@@ -1189,21 +1242,20 @@ export async function startOnline(): Promise<void> {
     status: (text) => {
       if (rawStatus !== text) telemetry.log("status", { text });
       rawStatus = text;
-      const plain = plainStatus(text);
-      status.textContent = plain.text;
-      status.title = text;
-      status.dataset.raw = text;
-      status.dataset.tone = plain.tone;
+      const view = presentStatus(text);
+      status.textContent = view.text;
+      status.title = view.raw;
+      status.dataset.raw = view.raw;
+      status.dataset.tone = view.tone;
       // A replaced host tab cannot act on the room any more: its actions go away and one button reclaims hosting (a reload re-authenticates with the stored token).
-      const replaced = /replaced/i.test(text);
-      statusAction.hidden = !(plain.retry || replaced);
-      statusAction.textContent = replaced ? "TAKE OVER HOSTING" : "RETRY";
-      if (replaced) {
+      statusAction.hidden = !view.action;
+      statusAction.textContent = view.action ?? "RETRY";
+      if (view.replaced) {
         replacedHost = true;
         hostControls.hidden = true;
         announceAction.hidden = true;
       }
-      if (bootNote.isConnected) bootTick();
+      if (!booted) bootTick();
       if (roomEnded) {
         notice.textContent = text;
         overNote.textContent = text;
@@ -1229,17 +1281,9 @@ export async function startOnline(): Promise<void> {
       controls.hidden = true;
       joinPanel.hidden = true;
       hostControls.hidden = true;
-      app.classList.add("room-over");
-      app.classList.remove("controller-only");
       if (canvas.isConnected) canvas.after(overCard);
       else app.append(overCard);
-      mobileLayout.update({
-        joined,
-        phase: snapshot?.phase ?? "lobby",
-        displayOnly,
-        host: isHost,
-        ended: true,
-      });
+      showScreen(endedScreen(screen));
     },
     event: (event, matchId, round, tick) => {
       audio.director.message({ type: "event", matchId, round, tick, event });
@@ -1346,41 +1390,42 @@ export async function startOnline(): Promise<void> {
       });
       const player = state.players.find((player) => player.id === id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
-      const recapReady =
-        state.phase === "matchOver" &&
-        state.tick >= (state.phaseEndsAtTick ?? 0);
-      results.hidden = !recapReady;
+      recapIsReady = recapReady(state);
+      results.hidden = !recapIsReady;
       // Every device dismisses the report when the shared state moves on, including peers that did not click REMATCH.
-      if (
-        !recapReady &&
-        dialog.open &&
-        dialog.classList.contains("recap-dialog")
-      )
-        dialog.close();
+      if (!recapIsReady && dialog.open && recapOpen) dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
       // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
       const watcher = state.spectators.find((seat) => seat.id === id);
-      const watching = Boolean(watcher);
-      const joining = role === "joiner" && !joined && !watching;
-      app.classList.toggle("joining", joining);
-      mobileLayout.update({
-        joined,
-        phase: state.phase,
-        displayOnly,
+      watching = Boolean(watcher);
+      // The screen, once per frame: every class and every arena/lobby visibility below follows from it.
+      showScreen(roomScreen(screenInput()));
+      const view = presentRoom({
+        state,
+        spectators: state.spectators,
+        playerId: id,
         host: isHost,
-        recapReady,
+        replacedHost,
+        solo,
+        displayOnly,
+        lobbyCard: screen.lobbyCard,
+        joining: screen.joining,
+        phoneLobby: screen.mobile.lobby,
+        mobileActive: screen.mobile.active,
+        bombHeld: inputState.isHeld("bomb"),
       });
-      joinPanel.hidden = joined || watching || displayOnly;
+      joinPanel.hidden = view.joinPanelHidden;
       /* Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts. */ avatarButton.hidden =
-        !joined || state.phase !== "lobby";
+        view.avatarHidden;
       if (
         avatarButton.hidden &&
         dialog.open &&
-        dialogBody.querySelector(".avatar-option")
+        avatarPicker &&
+        dialogBody.contains(avatarPicker)
       )
         dialog.close();
-      controls.hidden = !joined || displayOnly;
+      controls.hidden = view.controlsHidden;
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       // A watcher the room still lists does the same, asking for its place in the watching list back rather than for a seat.
       if (player && !player.connected && !displayOnly) {
@@ -1398,70 +1443,14 @@ export async function startOnline(): Promise<void> {
           runtime.command({ type: "spectate", name: watcher.name });
         }
       } else rejoinPending = false;
-      // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
-      // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / BACK TO LOBBY.
-      // Solo and a joined shared-screen rider have no lobby card (their pre-start screen is the arena or the controller), so their button stays CLOSE.
-      const phoneLobby = mobileLayout.lobby();
-      // The same arena stays behind the lobby and results; only its presentation changes.
-      // A shared-TV controller (phone or desktop) never shows or renders it: the TV does.
-      const arena = arenaView({
-        shared: settings.mode === "shared",
-        displayOnly,
-        joined,
-        joining,
-        phase: state.phase,
-        recapReady,
-      });
-      sharedLobby.hidden =
-        !(state.phase === "lobby" || recapReady) ||
-        joining ||
-        (!phoneLobby && (solo || arena.controller || mobileLayout.active()));
-      app.classList.toggle("room-waiting", !sharedLobby.hidden);
-      const readyCount = state.players.filter((p) => p.connected).length,
-        watchingCount = state.spectators.filter(
-          (seat) => seat.connected,
-        ).length;
-      const watchingNote = watchingCount ? ` · ${watchingCount} watching` : "";
-      lobbyCount.textContent =
-        (readyCount < 2
-          ? `${readyCount === 1 ? "1 rider ready · " : ""}Waiting for at least 2 riders`
-          : `${readyCount} riders ready`) + watchingNote;
-      lobbyEmpty.hidden = state.players.length > 0;
-      lobbyWatchers.hidden = state.spectators.length === 0;
-      for (const [watcherId, row] of watcherEntries)
-        if (!state.spectators.some((seat) => seat.id === watcherId)) {
-          row.entry.remove();
-          watcherEntries.delete(watcherId);
-        }
-      for (const seat of state.spectators) {
-        let row = watcherEntries.get(seat.id);
-        if (!row) {
-          const entry = node("div", "", "room-rider room-watcher"),
-            glyph = node("span", "👁", "watcher-glyph"),
-            watcherName = node("strong"),
-            watcherStatus = node("small"),
-            info = node("div");
-          glyph.setAttribute("aria-hidden", "true");
-          info.append(watcherName, watcherStatus);
-          entry.append(glyph, info);
-          row = { entry, name: watcherName, status: watcherStatus };
-          watcherEntries.set(seat.id, row);
-          lobbyWatchers.append(entry);
-        }
-        if (row.name.textContent !== seat.name)
-          row.name.textContent = seat.name;
-        // Whose row this is, is all this screen can say for certain; who manages the room arrives with the host crown.
-        const mine = seat.id === id ? (isHost ? "HOST · " : "YOU · ") : "";
-        row.status.textContent = seat.connected
-          ? `${mine}WATCHING`
-          : `${mine}OFFLINE`;
-      }
+      lobbyCount.textContent = view.lobby.count;
+      lobbyEmpty.hidden = !view.lobby.empty;
       for (const [playerId, row] of lobbyEntries)
         if (!state.players.some((p) => p.id === playerId)) {
           row.entry.remove();
           lobbyEntries.delete(playerId);
         }
-      for (const p of state.players) {
+      for (const p of view.lobby.riders) {
         let row = lobbyEntries.get(p.id);
         if (!row) {
           const entry = node("div", "", "room-rider"),
@@ -1471,7 +1460,7 @@ export async function startOnline(): Promise<void> {
             info = node("div");
           info.append(name, status);
           entry.append(head, info);
-          row = { entry, head, name, status, avatar: p.avatarId };
+          row = { entry, head, name, status, avatar: p.avatarId, shown: "" };
           lobbyEntries.set(p.id, row);
           lobbyRiders.append(entry);
         }
@@ -1482,30 +1471,52 @@ export async function startOnline(): Promise<void> {
           row.avatar = p.avatarId;
         }
         row.entry.style.setProperty("--rider-color", p.color);
-        if (row.name.textContent !== p.name) row.name.textContent = p.name;
-        row.status.textContent = p.connected ? "READY" : "OFFLINE";
+        if (row.shown !== p.name) row.name.textContent = row.shown = p.name;
+        row.status.textContent = p.status;
       }
-      roster.hidden = !sharedLobby.hidden;
-      const controllerOnly = arena.controller && !phoneLobby;
-      app.classList.toggle("controller-only", controllerOnly);
-      app.classList.toggle("scene-background", arena.sceneBackground);
-      canvas.hidden = arena.hidden;
-      if (!canvas.hidden)
+      lobbyWatchers.hidden = view.lobby.watchersHidden;
+      for (const [watcherId, row] of watcherEntries)
+        if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
+          row.entry.remove();
+          watcherEntries.delete(watcherId);
+        }
+      for (const seat of view.lobby.watchers) {
+        let row = watcherEntries.get(seat.id);
+        if (!row) {
+          const entry = node("div", "", "room-rider room-watcher"),
+            glyph = node("span", "👁", "watcher-glyph"),
+            watcherName = node("strong"),
+            watcherStatus = node("small"),
+            info = node("div");
+          glyph.setAttribute("aria-hidden", "true");
+          info.append(watcherName, watcherStatus);
+          entry.append(glyph, info);
+          row = {
+            entry,
+            name: watcherName,
+            status: watcherStatus,
+            shown: "",
+          };
+          watcherEntries.set(seat.id, row);
+          lobbyWatchers.append(entry);
+        }
+        if (row.shown !== seat.name)
+          row.name.textContent = row.shown = seat.name;
+        row.status.textContent = seat.status;
+      }
+      if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
-      // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
-      styleHeading.hidden = styleRow.hidden = arena.controller;
-      updateDesktopLayout();
       if (
         state.phase === "countdown" &&
         joined &&
         !keyHintShown &&
-        app.classList.contains("desktop-game")
+        screen.desktop
       ) {
         keyHintShown = true;
         keyHint.hidden = false;
       }
       // Opened after the layout above so the close button can say where it lands.
-      if (recapReady && lastRecap !== String(state.phaseEndsAtTick)) {
+      if (recapIsReady && lastRecap !== String(state.phaseEndsAtTick)) {
         lastRecap = String(state.phaseEndsAtTick);
         openRecap();
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
@@ -1532,85 +1543,24 @@ export async function startOnline(): Promise<void> {
             identityToken: signedInToken,
           });
       }
-      inputState.configureTargetAim(
-        player?.targetBombArmed && !player.gunArmed && !player.shellArmed
-          ? { x: player.x / state.width, y: player.y / state.height }
-          : undefined,
-      );
-      powerStatus.hidden =
-        !player ||
-        displayOnly ||
-        !["playing", "countdown"].includes(state.phase);
-      powerStatus.textContent = player
-        ? powerLabel(
-            player.powerPickups,
-            player.extraBombs,
-            player.grip,
-            player.rangeLevel,
-          )
-        : "";
-      const gunReady =
-        !!player?.alive && !!player.gunArmed && state.phase === "playing";
-      fireButton.classList.toggle("gun-armed", gunReady);
-      hudFire.classList.toggle("gun-armed", gunReady);
-      fireButton.title = gunReady
-        ? "Tap to fire Gun (Space)"
-        : "Hold to charge, release to fire (Space)";
-      if (player) {
-        app.style.setProperty("--player-color", player.color);
-        const remaining = Math.max(0, player.bombReadyAtTick - state.tick);
-        fireButton.textContent = remaining
-          ? `${Math.ceil(remaining / 20)}s RECHARGE`
-          : player.gunArmed
-            ? "TAP TO FIRE GUN"
-            : player.targetBombArmed
-              ? "SLIDE TO AIM"
-              : player.shellArmed
-                ? "FIRE SHELL"
-                : inputState.isHeld("bomb")
-                  ? "RELEASE!"
-                  : "HOLD TO FIRE";
-      }
-      notice.textContent =
-        state.phase === "lobby"
-          ? watching
-            ? "Watching · waiting for the race to start"
-            : joined && !isHost
-              ? "Waiting for the host to start"
-              : "Join your friends, then start the race"
-          : state.phase === "countdown"
-            ? `READY · ${Math.max(0, Math.ceil(((state.phaseEndsAtTick ?? state.tick) - state.tick) / 20))}`
-            : showsRoundResult(state)
-              ? state.roundWinnerId === id
-                ? "You win this round"
-                : `${roundWinnerName(state) ?? "Nobody"} wins this round`
-              : state.phase === "matchOver"
-                ? // The notice is narrow on a phone: the result alone while its beat lasts, then the old short form the smokes wait for.
-                  recapReady
-                  ? `${matchWinnerName(state) ?? "Shared victory"} · MATCH COMPLETE`
-                  : matchWinnerName(state) === undefined
-                    ? "Shared victory"
-                    : state.matchWinnerId === id
-                      ? "You win the match"
-                      : `${matchWinnerName(state)} wins the match`
-                : player?.waitingForNextRound
-                  ? "You’re in — joining next round"
-                  : !player?.alive && joined
-                    ? "Eliminated — next round soon"
-                    : "";
+      inputState.configureTargetAim(view.targetAim);
+      powerStatus.hidden = view.power.hidden;
+      powerStatus.textContent = view.power.text;
+      fireButton.classList.toggle("gun-armed", view.fire.gunReady);
+      hudFire.classList.toggle("gun-armed", view.fire.gunReady);
+      fireButton.title = view.fire.title;
+      if (view.playerColor)
+        app.style.setProperty("--player-color", view.playerColor);
+      if (view.fire.label !== undefined)
+        fireButton.textContent = view.fire.label;
+      notice.textContent = view.notice;
       for (const [playerId, row] of rosterEntries)
         if (!state.players.some((p) => p.id === playerId)) {
           row.entry.remove();
           rosterEntries.delete(playerId);
         }
-      // Standings: cards are ordered by match score (this round's points break ties) with CSS `order`, so the DOM and its handlers stay put. The leader is marked once somebody has scored.
-      const ranked = [...state.players].sort(
-          (a, b) =>
-            b.matchScoreUnits - a.matchScoreUnits ||
-            b.roundScoreUnits - a.roundScoreUnits,
-        ),
-        topScore = ranked[0]?.matchScoreUnits ?? 0;
-      for (const p of state.players) {
+      // Standings: cards are ordered with CSS `order`, so the DOM and its handlers stay put.
+      for (const p of view.standings) {
         let row = rosterEntries.get(p.id);
         if (!row) {
           const entry = node("span", "", "online-score-card"),
@@ -1620,82 +1570,62 @@ export async function startOnline(): Promise<void> {
           entry.append(head, label, remove);
           remove.onclick = () =>
             runtime.command({ type: "bot", action: "remove", id: p.id });
-          row = { entry, label, head, avatar: p.avatarId, remove };
+          row = { entry, label, head, avatar: p.avatarId, remove, shown: "" };
           rosterEntries.set(p.id, row);
           roster.append(entry);
         }
-        const name = `${p.name}${p.waitingForNextRound ? " · next round" : p.connected ? "" : " · offline"}`,
-          points = `${p.matchScoreUnits / 60} PTS · +${p.roundScoreUnits / 60}`;
-        if (row.label.textContent !== `${name}${points}`) {
+        if (row.shown !== `${p.name}${p.points}`) {
+          row.shown = `${p.name}${p.points}`;
           row.label.className = "online-score-label";
           row.label.replaceChildren(
-            node("span", name, "online-score-name"),
-            node("span", points, "online-score-points"),
+            node("span", p.name, "online-score-name"),
+            node("span", p.points, "online-score-points"),
           );
         }
-        row.label.title = `${p.name} · ${p.matchScoreUnits / 60} PTS · +${p.roundScoreUnits / 60} this round`;
+        row.label.title = p.title;
         row.label.setAttribute("aria-label", row.label.title);
         row.entry.style.color = p.color;
         row.entry.style.setProperty("--rider-color", p.color);
-        row.entry.classList.toggle(
-          "out",
-          !p.alive && !["lobby", "countdown"].includes(state.phase),
-        );
-        const rank = ranked.indexOf(p) + 1;
-        row.entry.style.order = String(rank);
-        row.entry.dataset.rank = String(rank);
-        row.entry.classList.toggle(
-          "leader",
-          topScore > 0 && p.matchScoreUnits === topScore,
-        );
-        row.entry.style.setProperty(
-          "--lead",
-          topScore > 0 ? String(p.matchScoreUnits / topScore) : "0",
-        );
+        row.entry.classList.toggle("out", p.out);
+        row.entry.style.order = String(p.rank);
+        row.entry.dataset.rank = String(p.rank);
+        row.entry.classList.toggle("leader", p.leader);
+        row.entry.style.setProperty("--lead", p.lead);
         if (row.avatar !== p.avatarId) {
           const head = createAvatarPortrait(p.avatarId);
           row.head.replaceWith(head);
           row.head = head;
           row.avatar = p.avatarId;
         }
-        const removeParent = sharedLobby.hidden
-          ? row.entry
-          : lobbyEntries.get(p.id)!.entry;
+        const removeParent = screen.lobbyCard
+          ? lobbyEntries.get(p.id)!.entry
+          : row.entry;
         if (row.remove.parentElement !== removeParent)
           removeParent.append(row.remove);
-        row.remove.hidden = !isHost || !p.id.startsWith(BOT_ID_PREFIX);
-        row.remove.disabled = !["lobby", "roundOver", "matchOver"].includes(
-          state.phase,
-        );
-        row.remove.setAttribute("aria-label", `Remove ${p.name}`);
-        row.remove.title = row.remove.disabled
-          ? "Remove AI between rounds or return to menu"
-          : "Remove AI rider";
+        row.remove.hidden = p.remove.hidden;
+        row.remove.disabled = p.remove.disabled;
+        row.remove.setAttribute("aria-label", p.remove.label);
+        row.remove.title = p.remove.title;
       }
-      addAI.disabled = state.players.length >= 5;
-      const startLabel = state.phase === "matchOver" ? "REMATCH" : "START RACE";
-      if (start.textContent !== startLabel) start.textContent = startLabel;
-      // A rematch during the final pause would skip the match result, the recap and the match report that opens with it.
-      start.disabled =
-        state.players.filter((p) => p.connected).length < 2 ||
-        !["lobby", "matchOver"].includes(state.phase) ||
-        (state.phase === "matchOver" && !recapReady);
-      hostControls.hidden = !isHost || replacedHost;
-      reset.disabled = state.phase === "lobby";
-      reset.hidden = phoneLobby;
-      share.hidden = solo || phoneLobby; // BACK TO LOBBY means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
+      addAI.disabled = view.actions.addAIDisabled;
+      if (startLabel !== view.actions.start.label)
+        start.textContent = startLabel = view.actions.start.label;
+      start.disabled = view.actions.start.disabled;
+      hostControls.hidden = view.actions.hidden;
+      reset.disabled = view.actions.reset.disabled;
+      reset.hidden = view.actions.reset.hidden;
+      share.hidden = view.actions.shareHidden;
       voice?.setRoster(id, state.players);
       for (const [playerId, row] of rosterEntries)
         if (voice) row.entry.dataset.voice = voice.indicator(playerId);
       for (const [playerId, row] of lobbyEntries)
         if (voice) row.entry.dataset.voice = voice.indicator(playerId);
-      const clock = roundClock(state);
-      roundChip.textContent = clock;
-      roundChip.hidden = !clock || !sharedLobby.hidden;
-      showAnnouncement(state, sharedLobby.hidden && !joining);
+      roundChip.textContent = view.roundClock;
+      roundChip.hidden = view.roundChipHidden;
+      showAnnouncement(state, view.announcerVisible);
       // Phone HUD: who you are, what the fire button would do, match points and the clock. The thirds themselves stay transparent.
-      hud.hidden = !player || !mobileLayout.active();
-      if (player) {
+      hud.hidden = view.hudHidden;
+      if (player && view.hud) {
         if (hudAvatar !== player.avatarId) {
           hudWho.replaceChildren(
             createAvatarPortrait(player.avatarId),
@@ -1703,14 +1633,9 @@ export async function startOnline(): Promise<void> {
           );
           hudAvatar = player.avatarId;
         }
-        hudFire.textContent =
-          state.phase === "playing" && player.alive
-            ? (fireButton.textContent ?? "")
-            : player.alive || state.phase !== "playing"
-              ? ""
-              : "WIPED OUT";
-        hudWins.textContent = `${player.matchScoreUnits / 60} PTS · +${player.roundScoreUnits / 60}`;
-        hudRound.textContent = clock;
+        hudFire.textContent = view.hud.fire;
+        hudWins.textContent = view.hud.wins;
+        hudRound.textContent = view.hud.clock;
       }
     },
   };
@@ -1884,6 +1809,7 @@ export async function startOnline(): Promise<void> {
         option.classList.toggle("taken", Boolean(owner));
         option.title = owner ? `${owner.name} has this one` : "";
       });
+    avatarPicker = picker.element;
     dialogBody.append(picker.element);
     dialog.showModal();
   };
@@ -1994,8 +1920,8 @@ export async function startOnline(): Promise<void> {
     },
     undefined,
     () =>
-      !canvas.hidden &&
-      !app.classList.contains("controller-only") &&
+      !screen.arenaHidden &&
+      !screen.controllerOnly &&
       canvas.dataset.arenaOrientation === "portrait",
   );
   const bindings = new ControllerPointerBindings(
@@ -2046,7 +1972,7 @@ export async function startOnline(): Promise<void> {
     bindings.clear(true, true);
   };
   const mobileLayout = installMobilePlayLayout(app, clearControls);
-  mobileLayout.update({ joined: false, phase: "lobby", displayOnly }); // A phone booting a room is already on the lobby screen (#134): the header takes its lobby shape before the first snapshot.
+  showScreen(screen); // A phone booting a room is already on the lobby screen (#134): the header takes its lobby shape before the first snapshot.
   window.addEventListener("blur", clearControls);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) clearControls();
@@ -2127,7 +2053,7 @@ export async function startOnline(): Promise<void> {
     const update = replay.frame(now);
     if (!update) return false;
     // The arena left the screen under a replay (MAIN MENU, a controller-only seat): take the dressing down and forget the clip.
-    if (canvas.hidden) {
+    if (screen.arenaHidden) {
       replay.cancel();
       replay.frame(now);
       replayOverlay.stop(canvas);
@@ -2191,10 +2117,10 @@ export async function startOnline(): Promise<void> {
     // Behind the lobby and results the scene is blurred and dimmed, so ten frames a second are enough. This saves power
     // on lobby screens and load on crowded CI runners. It is not a startup fix: the TV draws nothing until Phaser is
     // ready, and the shared-room smoke passes without it in default headless Chromium (#333's controller fix is what counts).
-    const backdrop = app.classList.contains("scene-background");
+    const backdrop = screen.sceneBackground;
     if (
       predicted &&
-      !canvas.hidden &&
+      !screen.arenaHidden &&
       !(backdrop && now - lastBackdropRender < BACKDROP_FRAME_MS)
     ) {
       if (backdrop) lastBackdropRender = now;
