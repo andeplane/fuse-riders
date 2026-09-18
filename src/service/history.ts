@@ -752,7 +752,10 @@ export class HistoryStore {
         const hasAccounts = match.participantUids.length > 0;
         // Round receipts remain durable and idempotent, but do not appear as career games or in the public feed.
         if (result.round !== undefined) match.participantUids = [];
-        else match.feedAt ??= match.endedAt;
+        // A lone guest confirms their own game, so it is public only once a second rider vouches or an account (whose
+        // links are rate limited) owns a seat: otherwise free room tokens could fill everyone's feed with inventions.
+        else if (hasAccounts || match.attesters.length >= 2)
+          match.feedAt ??= match.endedAt;
         if (hasAccounts) delete match.expiresAt;
         else match.expiresAt = (match.endedAt ?? now) + GUEST_MATCH_TTL_MS;
       }

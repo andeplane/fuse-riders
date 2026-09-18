@@ -719,6 +719,35 @@ test("the public feed lists every confirmed game newest first, guests' too, but 
   });
 });
 
+test("a lone guest's game stays out of the public feed until a second rider or an account vouches for it", async () => {
+  const f = await room(2),
+    result = resultOf([f.ids[0]!, "bot:1"], "lone");
+  assert.equal(
+    (await f.report(f.tokens[0]!, { result }, undefined)).status,
+    "confirmed",
+  );
+  assert.deepEqual(
+    (await f.history.feed("viewer", undefined, undefined)).matches,
+    [],
+  );
+  f.advance(1000);
+  await f.report(f.tokens[0]!, { result }, "alice");
+  const listed = (await f.history.feed("viewer", undefined, undefined)).matches;
+  assert.deepEqual(
+    listed.map((entry) => entry.result.matchId),
+    ["lone"],
+    "a late sign-in makes it public",
+  );
+  assert.equal(listed[0]!.endedAt, f.now() - 1000, "listed at when it ended");
+  f.advance(1000);
+  await f.report(f.tokens[0]!, { result }, "alice");
+  assert.equal(
+    (await f.history.feed("viewer", undefined, undefined)).matches[0]!.endedAt,
+    f.now() - 2000,
+    "a rewrite keeps its place",
+  );
+});
+
 test("only a confirmed whole game can carry a feed time", () => {
   const result = parseMatchResult(resultOf(["a".repeat(24), "bot:1"]))!;
   const record: MatchRecord = {
