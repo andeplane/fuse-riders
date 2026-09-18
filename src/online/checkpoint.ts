@@ -15,6 +15,8 @@ import {
   POWER_TUNING,
 } from "../shared/power-progression.js";
 import {
+  AIM_SLOW_MAX_TICKS,
+  AIM_SLOW_RAMP_TICKS,
   ARENA_WIDTH,
   ARENA_HEIGHT,
   GRAVITY_FIELD_TICKS,
@@ -156,6 +158,8 @@ const playerFields = {
     integer(v) &&
     range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v),
   invulnerableUntilTick: integer,
+  aimSlowTicks: count(AIM_SLOW_RAMP_TICKS),
+  aimSlowSpentTicks: count(AIM_SLOW_MAX_TICKS),
   nitroUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
   snailUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
   grip: boolean,

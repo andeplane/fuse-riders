@@ -19,5 +19,6 @@ contiguity, ownership, schedules and limits before restore. Increment the peer f
 because both lifecycle state and deterministic outcomes change. Old clients must refresh;
 there is no conversion of live rooms or production deployment in this change.
 
-Render detached/dead trails at 60% opacity on both Phaser backends, with authoritative
-endpoints and no age fading. Flying blast fragments remain a separate cosmetic effect.
+Render detached/dead trail bodies fully opaque on both Phaser backends, with authoritative
+endpoints. Fade saturation to zero over three seconds from detachment, sampled from the
+existing piece schedule and presentation tick; freeze color with the final board. Flying blast fragments remain a separate cosmetic effect.
