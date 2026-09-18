@@ -22,9 +22,9 @@ test("the Phaser internals the arena patches belong to the exact release that is
     read("../node_modules/phaser/package.json"),
   ).version;
   const advice =
-    "guardDefaultTextures (src/render/phaser/arena.ts) takes over two private READY listeners. After a Phaser upgrade, " +
-    "check that the renderer's boot and Game.texturesReady are still the two listeners, in that order, run " +
-    "`npx tsx scripts/phaser-browser.ts` in Chrome and WebKit, then update GUARDED_PHASER_VERSION.";
+    "guardDefaultTextures (src/render/phaser/arena.ts) takes over two private READY listeners and leaves Phaser " +
+    "untouched when they have another shape. After a Phaser upgrade, run `npx tsx scripts/phaser-browser.ts` in " +
+    "Chrome and WebKit (it fails when metrics().defaultTextureGuard is false), then update GUARDED_PHASER_VERSION.";
   assert.equal(
     declared,
     guarded,

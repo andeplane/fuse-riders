@@ -80,6 +80,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
             renderMs: 0,
             automaticLoopRunning: false,
             trailHistoryBuilds: 0,
+            defaultTextureGuard: true,
           }),
         };
         return arena;
