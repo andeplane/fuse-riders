@@ -1,14 +1,16 @@
 # Refactor plan: three clean layers — network · game engine · rendering
 
+> Plan written 2026-09-17 against `174233a`, following `architecture-review-2026-09-17.md`. It is a proposal, not a record of completed work. Parts have since landed or been overtaken (for example, `src/server/` was removed and golden-hash and layer-boundary tests were added). Epic #259 tracks progress. Check current `main` before acting on any item.
+
 ## Context
 
-The architecture review (`docs/reviews/architecture-review-2026-09-17.md`) found good foundations but blurred boundaries. The user wants a clear separation of concerns:
+The architecture review (`docs/reviews/architecture-review-2026-09-17.md`) found good foundations but blurred boundaries. Goal: a clear separation of concerns:
 
-1. **Network** — being extracted into a library by another agent. Out of scope here; our work lands first and they refactor on top.
+1. **Network** — being extracted into a library as separate work (as of 2026-09-17). Out of scope here.
 2. **Game engine** — deterministic simulation. Today: `step()` is one 400-line function (`src/shared/game.ts:492-889`), every power-up is a bespoke field + bespoke `if`, the tick driver exists twice (LAN vs P2P) with different rules, determinism and `RULES` versioning are unenforced conventions (review C1–C9).
 3. **Rendering** — today it reaches into engine rules (`phaser/arena.ts` imports `GRAVITY_FIELD_TICKS`, `volleyAngles`; `phaser/trails.ts` recomputes a max-speed bound from `RIDER_SPEED * riderSpeedMultiplier * SPEED_RAMP_MAX`; `render-snapshot.ts` runs `advanceShell`), its core type `ViewSnapshot` lives in the LAN client (`src/client/snapshot-stream.ts:6`) and is imported *by netcode* (`online/rollback.ts`, `online/prediction.ts`), and `client/replay.ts` imports `interpolateWorld` back from `online/`.
 
-Decided with the user: `apply-tick.ts`, `input-log.ts`, `online/checkpoint.ts` are engine-side; LAN gets the shared tick driver now. Engine design is **not a full ECS**: ordered phase functions over a `TickContext` + `Record<Kind, Def>` registries; entities stay plain typed records so rollback cloning and the `satisfies Record<keyof T, Guard>` checkpoint guards keep working.
+Decisions: `apply-tick.ts`, `input-log.ts`, `online/checkpoint.ts` are engine-side; LAN gets the shared tick driver now. Engine design is **not a full ECS**: ordered phase functions over a `TickContext` + `Record<Kind, Def>` registries; entities stay plain typed records so rollback cloning and the `satisfies Record<keyof T, Guard>` checkpoint guards keep working.
 
 ## Target architecture
 
@@ -114,7 +116,7 @@ Independent; one commit each.
 
 ## Review coverage
 
-✅ full · 🟡 partial · ❌ not covered · 🌐 netcode agent. Of 38 findings: 20 ✅ · 10 🟡 · 0 ❌ · 8 🌐. Every 🟡 remainder is either the netcode agent's, a product decision (T1, S2), or named explicitly below.
+✅ addressed by plan · 🟡 partially addressed by plan · ❌ not covered · 🌐 netcode agent. Of 38 findings: 20 ✅ · 10 🟡 · 0 ❌ · 8 🌐. Every 🟡 remainder is either the netcode agent's, a product decision (T1, S2), or named explicitly below.
 
 | # | PR | | Not covered part |
 |---|---|---|---|
@@ -161,15 +163,14 @@ Fast iteration: targeted tests locally, push, CI is the gate.
 
 ## Execution
 
-**How I'll run it.** Subagents in isolated worktrees under `/private/tmp/fuse-<topic>`, max 5 at once, one branch per PR (`claude/<topic>`). I orchestrate, review each agent's diff, and own the golden-hash check myself. Targeted tests locally, push early, CI is the gate; after each push I loop on `gh pr checks` until green and fix what breaks. Preview tabs muted, preview servers stopped after use. I open PRs but never merge or enable auto-merge — you merge.
+**Suggested execution.** Subagents in isolated worktrees under `/private/tmp/fuse-<topic>`, max 5 at once, one branch per PR (`claude/<topic>`). One coordinator reviews each agent's diff and owns the golden-hash check. Targeted tests locally, push early, CI is the gate; loop on `gh pr checks` until green after each push. Preview tabs muted, preview servers stopped after use. Merging follows AGENTS.md: only with the user's explicit authorization.
 
 **Order.**
-1. **Wave 0 (serial, ~first hour):** PR C's Prettier commit alone → PR → you merge. Everything after moves formatted files, and open feature PRs rebase once instead of repeatedly.
+1. **Wave 0 (serial, ~first hour):** PR C's Prettier commit alone → PR → merge. Everything after moves formatted files, and open feature PRs rebase once instead of repeatedly.
 2. **Wave 1 (parallel):** agent 1 finishes PR C (remaining commits); agent 2 does A1 (safety net); agent 3 starts PR E. No file overlap between the three.
-3. **Wave 2 (serial on one branch):** A2 → A3 → A4. One agent per stage, never two at once — they all rewrite the same files. After each stage I run golden-hash + `scripts/determinism-replay.ts` before the next stage starts. A2 is done as ~15 small `[hash-identical]` commits (one phase extracted per commit) so a hash break bisects to one phase.
+3. **Wave 2 (serial on one branch):** A2 → A3 → A4. One agent per stage, never two at once — they all rewrite the same files. After each stage run golden-hash + `scripts/determinism-replay.ts` before the next stage starts. A2 is done as ~15 small `[hash-identical]` commits (one phase extracted per commit) so a hash break bisects to one phase.
 4. **Wave 3 (parallel, starts when A2 is pushed):** PR B on a branch off PR A, alongside A3/A4 — safe because A4 keeps the `WorldView` shape stable and B owns `src/render/**`.
 5. **Wave 4 (after B and C merge):** PR D, split across up to 3 agents with disjoint files: (a) shared views + `dom.ts`, (b) `ui.ts` split + `RoomScreen`, (c) audio + diagnostics. `main.ts` split follows (b) reusing its pieces.
 
-**Checkpoints where I stop and ask you:** merge of the Prettier commit; the two visible behaviour changes in A3 (LAN gets `aimBounce: true`; explicit leave eliminates in P2P); if PR A exceeds a reviewable size → peel A4 into its own PR; anything in D that needs the netcode agent (typed status codes).
+**Checkpoints that need the user's decision:** merge of the Prettier commit; the two visible behaviour changes in A3 (LAN gets `aimBounce: true`; explicit leave eliminates in P2P); if PR A exceeds a reviewable size → peel A4 into its own PR; anything in D that needs the netcode agent (typed status codes).
 
-**Deliverable doc.** On approval, first action is to commit this whole plan as `docs/reviews/refactor-plan-2026-09-17.md` next to the review, so both agents and future sessions work from the same file; the coverage table gets a status column that I update as PRs land.

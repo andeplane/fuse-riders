@@ -4,7 +4,7 @@ Reviewed at `174233a` (main). Every file under `src/` was read in full by five p
 
 This is an **architecture** review: structure, shortcuts, hacks. For line-level bugs see `full-codebase-bug-review.md`.
 
-## Verdict
+## Verdict (as of `174233a`)
 
 The **foundations are genuinely strong**: a pure, seeded, plain-data simulation; a clean input-log + rollback model; hostile-input decoding that is better than most commercial indie netcode; dependency injection nearly everywhere; ~740 unit tests. None of that needs rethinking.
 
@@ -161,6 +161,8 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 ---
 
 ## 6. Roadmap
+
+Superseded in detail by `refactor-plan-2026-09-17.md`.
 
 Ordered so each step makes the next one safer. Sizes are rough.
 
