@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { interpolateWorld, presentWorld } from "../src/render/time/present.js";
-import { World } from "../src/online/rollback.js";
+import { World } from "fuse-netcode";
+import { fuseGame } from "../src/online/fuse-game.js";
 import { ACTION, JOIN } from "../src/engine/input-log.js";
 import { createRoomState } from "../src/engine/apply-tick.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
@@ -12,6 +13,7 @@ import { bombPreviewDistance } from "../src/render/bomb-preview.js";
 
 function frames() {
   const world = new World(
+    fuseGame,
     createRoomState("m", defaultRoomSettings()),
     "h",
     "h",

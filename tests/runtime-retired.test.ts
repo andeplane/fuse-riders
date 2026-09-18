@@ -2,21 +2,23 @@
 // entries that the peer's snapshot predates, or it reconstructs a different world from everyone else.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { World, type Frame } from "../src/online/rollback.js";
+import {
+  World,
+  encodeSnapshot,
+  roomHash,
+  type TransportEvents,
+  type RoomTransport,
+} from "fuse-netcode";
+import { RoomRuntime } from "../src/online/room-runtime.js";
+import { fuseGame, type Frame } from "../src/online/fuse-game.js";
 import { createRoomState, RULES } from "../src/engine/apply-tick.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { JOIN, ACTION, STEER, PRESENCE } from "../src/engine/input-log.js";
-import { encodeSnapshot } from "../src/online/snapshot.js";
-import { roomHash } from "../src/online/packet.js";
-import {
-  RoomRuntime,
-  type TransportEvents,
-  type RoomTransport,
-} from "../src/online/room-runtime.js";
 
 test("returning runtime replays its own retired stream from the peer snapshot", () => {
   const settings = defaultRoomSettings();
   const source = new World(
+    fuseGame,
     createRoomState("m", settings),
     "creator",
     "creator",

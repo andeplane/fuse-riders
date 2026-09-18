@@ -22,7 +22,8 @@ const bundle = await build({
   stdin: {
     contents: `
 import { PeerTransport } from 'fuse-network-fe';
-import { encodePacket, decodePacket, roomHash } from './src/online/packet.ts';
+import { encodePacket, decodePacket, roomHash } from 'fuse-netcode';
+import { fuseGame } from './src/online/fuse-game.ts';
 globalThis.startMesh = (code, token) => {
   let linkDrops = 0; const peers = new Set(), links = new Set(), received = new Map(), messages = [], errors = [], statuses = [];
   let dropFast = false; const originalSend = RTCDataChannel.prototype.send;
@@ -40,7 +41,7 @@ globalThis.startMesh = (code, token) => {
     welcome: () => {}, peer: (id, online) => { if (online) peers.add(id); else { peers.delete(id); links.delete(id); } },
     link: (id, open) => { if (open) links.add(id); else { links.delete(id); linkDrops++; } },
     message: (id, data) => messages.push({ from: id, data }),
-    fast: (id, bytes) => { const decoded = decodePacket(bytes); if (decoded && 'packet' in decoded) received.set(id, (received.get(id) ?? 0) + 1); },
+    fast: (id, bytes) => { const decoded = decodePacket(fuseGame, bytes); if (decoded && 'packet' in decoded) received.set(id, (received.get(id) ?? 0) + 1); },
     status: text => { statuses.push(text); if (statuses.length > 40) statuses.shift(); },
     revoked: () => errors.push('revoked'), ended: () => errors.push('ended'), terminated: text => errors.push('terminated: ' + text),
   }, { apiUrl: path => new URL(path, location.origin).href });

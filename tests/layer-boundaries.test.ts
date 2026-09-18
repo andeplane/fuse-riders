@@ -42,7 +42,8 @@ test("rendering is done migrating: only the engine's view and view-kit, and no a
     "../engine/index.js",
     "../shared/avatars.js",
     "../shared/protocol.js",
-    "../online/rollback.js",
+    "fuse-netcode",
+    "../online/fuse-game.js",
     "../online/room-runtime.js",
     "../client/safe-storage.js",
   ])
@@ -75,6 +76,13 @@ test("the boundary guard covers target directories, re-exports, type imports and
     assert.ok(forbiddenEdge("src/engine/game.ts", specifier));
     assert.equal(forbiddenEdge("src/net/world.ts", specifier), undefined);
   }
+  assert.ok(forbiddenEdge("src/engine/apply-tick.ts", "fuse-netcode"));
+  assert.ok(
+    forbiddenEdge(
+      "packages/fuse-netcode/src/rollback.ts",
+      "../../../src/engine/apply-tick.js",
+    ),
+  );
   assert.deepEqual(
     imports(
       syntax(

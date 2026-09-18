@@ -3,24 +3,22 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { BOTS_ONLY_STEPS_PER_TICK, TICK_HZ } from "../src/engine/game.js";
 import { MAX_STEPS_PER_TICK } from "../src/engine/tick-driver.js";
-import { TickClock } from "../src/online/clock.js";
-import { SNAP_TICKS, TICK_MS } from "../src/online/clock.js";
 import {
+  TickClock,
+  SNAP_TICKS,
+  TICK_MS,
   BUFFERED_ENTRIES,
   FUTURE_TICKS,
   PACKET_ENTRIES,
   RETAINED_ENTRIES,
   ROLLBACK_TICKS,
   SEQ_AHEAD,
-} from "../src/online/stream.js";
-import {
   SNAPSHOT_INTERVAL,
   SNAPSHOTS_RETAINED,
   STALL_TICKS,
-} from "../src/online/rollback.js";
-import { MAX_PACKET_BYTES, MAX_PACKET_ENTRIES } from "../src/online/packet.js";
-import { MAX_SNAPSHOT_BYTES } from "../src/online/snapshot.js";
-import {
+  MAX_PACKET_BYTES,
+  MAX_PACKET_ENTRIES,
+  MAX_SNAPSHOT_BYTES,
   DISCONNECT_MS,
   HASH_INTERVAL,
   HASH_LAG,
@@ -28,7 +26,7 @@ import {
   SNAPSHOT_RETRY_MS,
   STALLED_GAP_MS,
   WINDOW_GRACE_MS,
-} from "../src/online/room-runtime.js";
+} from "fuse-netcode";
 import { DEFAULT_MAX_FAST_BYTES } from "fuse-network-fe";
 import { ROOM_RECONNECT_GRACE_MS } from "fuse-network-protocol";
 import { ROOM_TTL_MS } from "fuse-network-be";
@@ -36,12 +34,12 @@ import { ROOM_TTL_MS } from "fuse-network-be";
 const ADR = "docs/adr/047-p2p-input-log-lockstep-rollback.md";
 /** Every numeric constant these modules export must have a row: a new magic number is documented or CI says so. */
 const COMPLETE = [
-  "src/online/stream.ts",
-  "src/online/rollback.ts",
-  "src/online/clock.ts",
-  "src/online/packet.ts",
-  "src/online/snapshot.ts",
-  "src/online/room-runtime.ts",
+  "packages/fuse-netcode/src/stream.ts",
+  "packages/fuse-netcode/src/rollback.ts",
+  "packages/fuse-netcode/src/clock.ts",
+  "packages/fuse-netcode/src/packet.ts",
+  "packages/fuse-netcode/src/snapshot.ts",
+  "packages/fuse-netcode/src/room-runtime.ts",
 ];
 
 interface Row {
