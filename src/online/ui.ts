@@ -65,6 +65,7 @@ import "./online.css";
 import "./top-menu.css";
 import { formatNetStats } from "./net-stats.js";
 import { installMobilePlayLayout } from "./mobile-play-layout.js";
+import { arenaView } from "./mobile-play-policy.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
 import { safeStorage } from "../client/safe-storage.js";
@@ -83,6 +84,8 @@ import {
   showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus } from "./status-copy.js";
+/** The blurred scene behind the lobby and results redraws at 10 fps. */
+const BACKDROP_FRAME_MS = 100;
 const LAST_ROOM_KEY = "fuse-last-room";
 const reducedMotion = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -462,6 +465,7 @@ export async function startOnline(): Promise<void> {
   const benchmark = url.searchParams.get("benchmark") === "1";
   let benchmarkInput: { seq: number; at: number } | undefined,
     lastBenchmarkRender = 0,
+    lastBackdropRender = 0,
     lastControls = "";
   const sample = (detail: object) => {
     if (benchmark)
@@ -1416,14 +1420,20 @@ export async function startOnline(): Promise<void> {
         row.status.textContent = p.connected ? "READY" : "OFFLINE";
       }
       roster.hidden = !sharedLobby.hidden;
-      const controllerOnly =
-        settings.mode === "shared" && !displayOnly && joined && !phoneLobby;
-      app.classList.toggle("controller-only", controllerOnly);
       // The same arena stays behind the lobby and results; only its presentation changes.
-      // Shared-screen phones still skip arena rendering during active controller play.
-      const sceneBackground = state.phase === "lobby" || recapReady;
-      app.classList.toggle("scene-background", sceneBackground);
-      canvas.hidden = (controllerOnly && !sceneBackground) || joining;
+      // A shared-TV controller (phone or desktop) never shows or renders it: the TV does.
+      const arena = arenaView({
+        shared: settings.mode === "shared",
+        displayOnly,
+        joined,
+        joining,
+        phase: state.phase,
+        recapReady,
+      });
+      const controllerOnly = arena.controller && !phoneLobby;
+      app.classList.toggle("controller-only", controllerOnly);
+      app.classList.toggle("scene-background", arena.sceneBackground);
+      canvas.hidden = arena.hidden;
       if (!canvas.hidden)
         replay.observe(state, state.matchId, performance.now());
       styleHeading.hidden = styleRow.hidden = controllerOnly;
@@ -2121,7 +2131,15 @@ export async function startOnline(): Promise<void> {
       requestAnimationFrame(frame);
       return;
     }
-    if (predicted && !canvas.hidden) {
+    // Behind the lobby and results the scene is blurred and dimmed, so ten frames a second are enough; full-rate
+    // redraws there kept a software-GL TV from starting its renderer (shared-room smoke).
+    const backdrop = app.classList.contains("scene-background");
+    if (
+      predicted &&
+      !canvas.hidden &&
+      !(backdrop && now - lastBackdropRender < BACKDROP_FRAME_MS)
+    ) {
+      if (backdrop) lastBackdropRender = now;
       presentation.render(predicted, now, theme, renderScope, id);
       if (benchmark && (benchmarkInput || now - lastBenchmarkRender >= 100)) {
         const p = predicted.players.find((p) => p.id === id);
