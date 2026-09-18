@@ -16,7 +16,7 @@ import type { ViewSnapshot } from "../snapshot-stream.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
-import { powerBlastRadius } from "../../shared/power-progression.js";
+import { powerBlastRadius } from "../../engine/view-kit.js";
 import { drawBombAim } from "./bomb-aim.js";
 import { bombsPerShot, volleyAngles } from "../../shared/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
