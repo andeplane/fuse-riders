@@ -612,7 +612,13 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
         : typeof history === "object"
           ? history.feed
           : emptyFeed();
-    if (scope === "everyone" && !feed.matches.length && feed.state === "idle")
+    // Only a feed never read yet loads by itself; an empty first page sets `more` false, so it is not asked again.
+    if (
+      scope === "everyone" &&
+      !feed.matches.length &&
+      feed.state === "idle" &&
+      feed.more
+    )
       void loadMatches("everyone");
     const now = refreshClock.now(),
       list = el("div", "", "account-matches");
