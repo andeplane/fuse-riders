@@ -66,6 +66,9 @@ importers:
       fuse-network-fe:
         specifier: workspace:*
         version: link:packages/fuse-network-fe
+      fuse-network-protocol:
+        specifier: workspace:*
+        version: link:packages/fuse-network-protocol
       google-auth-library:
         specifier: ^11.0.2
         version: 11.0.2
