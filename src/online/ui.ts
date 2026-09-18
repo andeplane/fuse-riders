@@ -1455,6 +1455,13 @@ export async function startOnline(): Promise<void> {
         state.phase === "matchOver" &&
         state.tick >= (state.phaseEndsAtTick ?? 0);
       results.hidden = !recapReady;
+      // Every device dismisses the report when the shared state moves on, including peers that did not click REMATCH.
+      if (
+        !recapReady &&
+        dialog.open &&
+        dialog.classList.contains("recap-dialog")
+      )
+        dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
       if (player && !seatTracked) {
@@ -1809,7 +1816,6 @@ export async function startOnline(): Promise<void> {
   app.append(statsPanel);
   reset.onclick = () => runtime.command({ type: "action", action: "lobby" });
   rematch.onclick = () => {
-    dialog.close();
     start.click();
   };
   menu.onclick = () => {
