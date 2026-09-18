@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_AVATAR } from "../src/shared/avatars.ts";
-import type { Moment } from "../src/shared/moments.ts";
+import type { Moment } from "../src/engine/moments.ts";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.ts";
 import {
   BARS_IN_MS,

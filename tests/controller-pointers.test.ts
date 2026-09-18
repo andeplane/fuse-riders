@@ -149,7 +149,7 @@ test("arrow and letter aliases keep steering until both keys are released", () =
     for (const [first, second] of [
       [arrow, letter],
       [letter, arrow],
-    ]) {
+    ] as const) {
       const f = fixture();
       f.bindings.bindKeyboard(f.terminal, () => true);
       key(f.terminal, "keydown", first);

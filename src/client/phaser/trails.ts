@@ -3,7 +3,7 @@ import {
   SPEED_RAMP_MAX,
   TICK_HZ,
   riderSpeedMultiplier,
-} from "../../shared/game.js";
+} from "../../engine/game.js";
 import { TRAIL_DECAY_PAUSE_TICKS } from "../../engine/view-kit.js";
 import type { TrailSegment } from "../../shared/protocol.js";
 import type { ViewSnapshot } from "../snapshot-stream.js";
@@ -43,7 +43,8 @@ export function trailColor(
   const rgb = [1, 3, 5].map((offset) =>
     parseInt(color.slice(offset, offset + 2), 16),
   );
-  const gray = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+  // The map above always produces exactly the three RGB channels.
+  const gray = rgb[0]! * 0.2126 + rgb[1]! * 0.7152 + rgb[2]! * 0.0722;
   return (
     "#" +
     rgb
@@ -223,23 +224,24 @@ export function completeTrailStrokes(
       paths: ReturnType<typeof trailPaths>;
     }[] = [];
     let start = 0;
+    // start <= i - 1; both indexes exist while i < segments.length.
     for (let i = 1; i <= segments.length; i++) {
       if (
         i < segments.length &&
-        segments[i].detached?.decayStartTick ===
-          segments[start].detached?.decayStartTick
+        segments[i]!.detached?.decayStartTick ===
+          segments[start]!.detached?.decayStartTick
       )
         continue;
       const section = segments.slice(start, i);
       if (section.length)
         groups.push({
           color: trailColor(player.color, player.alive, section[0], colorTick),
-          alive: player.alive && !section[0].detached,
+          alive: player.alive && !section[0]!.detached,
           paths: trailPaths(section),
         });
       start = i;
     }
-    if (tip.length === 3) groups.at(-1)?.paths.at(-1)?.push(tip[2]);
+    if (tip.length === 3) groups.at(-1)?.paths.at(-1)?.push(tip[2]!);
     return groups;
   });
 }

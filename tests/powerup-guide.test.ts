@@ -6,12 +6,12 @@ import {
   INK_DURATION_TICKS,
   STAR_DURATION_TICKS,
   TICK_HZ,
-} from "../src/shared/game.js";
-import { DRUNK_DURATION_TICKS } from "../src/shared/drunk.js";
+} from "../src/engine/game.js";
+import { DRUNK_DURATION_TICKS } from "../src/engine/drunk.js";
 import {
   defaultRoomSettings,
   parseRoomSettings,
-} from "../src/shared/room-settings.js";
+} from "../src/engine/room-settings.js";
 
 const entry = (type: string) => {
   const found = POWERUP_GUIDE.find((candidate) => candidate.type === type);

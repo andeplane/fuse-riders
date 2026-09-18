@@ -4,7 +4,7 @@ import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { mountArenaPresentation } from "../client/phaser/presentation.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { createAccountPanel } from "./account-panel.js";
@@ -41,8 +41,8 @@ import {
   parseRoomSettings,
   SETTINGS_KEY,
   type RoomSettings,
-} from "../shared/room-settings.js";
-import type { PickupType } from "../shared/game.js";
+} from "../engine/room-settings.js";
+import type { PickupType } from "../engine/game.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { renderMatchRecap } from "./match-recap-view.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
@@ -65,16 +65,14 @@ import "./online.css";
 import "./top-menu.css";
 import { formatNetStats } from "./net-stats.js";
 import { installMobilePlayLayout } from "./mobile-play-layout.js";
+import { arenaView } from "./mobile-play-policy.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
 import { safeStorage } from "../client/safe-storage.js";
-import {
-  decidedRoundReport,
-  matchEndedProps,
-  matchStartKey,
-  startAnalytics,
-  track,
-} from "./analytics.js";
+import { startAnalytics, track } from "./analytics.js";
+import { createAnalyticsSetting } from "./analytics-setting.js";
+import { connectStatus } from "./analytics-text.js";
+import { createFunnel } from "./funnel.js";
 import { POWERUP_GUIDE } from "../client/powerup-guide.js";
 import { createPowerupGuide } from "../client/powerup-guide-view.js";
 import {
@@ -86,9 +84,9 @@ import {
   showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus } from "./status-copy.js";
+/** The blurred scene behind the lobby and results redraws at 10 fps. */
+const BACKDROP_FRAME_MS = 100;
 const LAST_ROOM_KEY = "fuse-last-room";
-/** The last decided round (and rider) whose Kill and Miss events this browser sent, so a reload or a reopened tab does not send them twice. */
-const SHOTS_REPORTED_KEY = "fuse-shots-reported";
 const reducedMotion = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 const storage = safeStorage(() => localStorage);
@@ -147,20 +145,9 @@ const labels: Record<PickupType, string> = {
   snail: "Snail",
   gravity: "Gravity",
 };
-const read = (key: string) => {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-};
-const save = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Storage can be blocked or full (private browsing); the preference then lasts for this page only.
-  }
-};
+// Storage only ever through `safeStorage`: Safari with "Block all cookies" throws on merely evaluating `localStorage`.
+const read = (key: string) => storage.getItem(key);
+const save = (key: string, value: string) => storage.setItem(key, value);
 /** The transport's player-facing wording, in the game's voice. */
 const TRANSPORT_COPY = {
   linking: "Connected · linking riders",
@@ -231,7 +218,7 @@ export async function startOnline(): Promise<void> {
     const mode = node("fieldset", "", "landing-mode");
     mode.setAttribute("aria-label", "Where will you play?");
     mode.append(node("legend", "Where will you play?"));
-    let selectedMode = loadRoomSettings(localStorage).mode;
+    let selectedMode = loadRoomSettings(storage).mode;
     for (const [value, label] of [
       ["devices", "Each device"],
       ["shared", "Shared TV"],
@@ -262,7 +249,7 @@ export async function startOnline(): Promise<void> {
       try {
         const body = await createRoom(apiUrl);
         save(`fuse-room-${body.code}`, body.token);
-        const settings = loadRoomSettings(localStorage);
+        const settings = loadRoomSettings(storage);
         settings.mode = selectedMode;
         save(SETTINGS_KEY, JSON.stringify(settings));
         track("Room Created", { mode: selectedMode });
@@ -364,7 +351,9 @@ export async function startOnline(): Promise<void> {
     landingActions.append(landingClose);
     landingBar.append(node("strong", "SETTINGS"), landingActions);
     const landingBody = node("div", "", "dialog-body");
-    landingDialog.append(landingBar, landingBody);
+    // This device's privacy choice sits under the room settings draft rather than in it: it is not the room's.
+    const landingPrivacy = createAnalyticsSetting({ collapsed: true });
+    landingDialog.append(landingBar, landingBody, landingPrivacy.element);
     landingDialog.addEventListener("click", (event) => {
       if (event.target === landingDialog) {
         const r = landingDialog.getBoundingClientRect();
@@ -380,9 +369,10 @@ export async function startOnline(): Promise<void> {
     // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
     // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
     landingSettings.onclick = () => {
+      landingPrivacy.render();
       showRoomSettings(
         landingBody,
-        loadRoomSettings(localStorage),
+        loadRoomSettings(storage),
         true,
         labels,
         (draft) => {
@@ -454,17 +444,12 @@ export async function startOnline(): Promise<void> {
   let id = "",
     isHost = false,
     joined = false,
-    settings = loadRoomSettings(localStorage),
+    settings = loadRoomSettings(storage),
     snapshot: ViewSnapshot | undefined;
   startAnalytics({ role, mode: settings.mode, solo });
   track("App Opened");
-  // Funnel bookkeeping, per page load: a seat is reported once, and a match only where this device saw it begin.
-  // The in-memory copy is the real guard: storage can refuse, and a round-over snapshot arrives twenty times a second.
-  let seatTracked = false,
-    matchStartedAt = 0,
-    matchNumber = 0,
-    startedMatch = "",
-    reportedShots = read(SHOTS_REPORTED_KEY) ?? "";
+  // When Match Started, Kill / Miss, Seat Taken and Match Ended fire is `funnel.ts`; the render callback only feeds it.
+  const funnel = createFunnel(track, { now: () => Date.now(), storage });
   const frameTimes: number[] = [];
   const inputTimes: number[] = [];
   let previousFrame = performance.now(),
@@ -475,6 +460,7 @@ export async function startOnline(): Promise<void> {
   const benchmark = url.searchParams.get("benchmark") === "1";
   let benchmarkInput: { seq: number; at: number } | undefined,
     lastBenchmarkRender = 0,
+    lastBackdropRender = 0,
     lastControls = "";
   const sample = (detail: object) => {
     if (benchmark)
@@ -559,7 +545,7 @@ export async function startOnline(): Promise<void> {
     if (waited >= 20000 && !connectFailed) {
       connectFailed = true;
       track("Connect Failed", {
-        status: rawStatus || null,
+        status: connectStatus(rawStatus),
         secondsWaiting: Math.round(waited / 1000),
       });
     }
@@ -1086,6 +1072,7 @@ export async function startOnline(): Promise<void> {
       ? "EXIT FULLSCREEN"
       : "FULLSCREEN";
   });
+  const privacy = createAnalyticsSetting();
   prefs.append(
     musicButton,
     effectsButton,
@@ -1094,6 +1081,7 @@ export async function startOnline(): Promise<void> {
     styleHeading,
     styleRow,
     fullscreen,
+    privacy.element,
   );
   const voice = solo ? undefined : new VoiceChat();
   if (voice) {
@@ -1116,6 +1104,7 @@ export async function startOnline(): Promise<void> {
     });
   }
   prefsButton.onclick = () => {
+    privacy.render();
     if (voice) prefs.append(voice.controls);
     dialogTitle.textContent = "SETTINGS";
     dialog.setAttribute("aria-label", "Settings");
@@ -1262,25 +1251,12 @@ export async function startOnline(): Promise<void> {
       if (roomEnded) return;
       bootDone();
       if (snapshot && snapshot.phase !== state.phase) clearControls();
-      const startKey = matchStartKey(state.matchId, state.phase, state.round);
-      if (startKey && startedMatch !== startKey) {
-        startedMatch = startKey;
-        matchStartedAt = Date.now();
-        matchNumber += 1;
-        track("Match Started", {
-          matchNumber,
-          playerCount: state.players.length,
-          botCount: state.players.filter((p) => p.id.startsWith(BOT_ID_PREFIX))
-            .length,
-          mode: rules.mode,
-          match: rules.match,
-          matchLength: rules.length,
-          powerupTypes: Object.values(rules.weights ?? {}).filter(
-            (weight) => weight > 0,
-          ).length,
-          host: isHost,
-        });
-      }
+      funnel.onFrame(state, {
+        playerId: id,
+        host: isHost,
+        confirmedTick: runtime.confirmedTick(),
+        rules,
+      });
       const roundReport =
         solo && !remembersSignIn()
           ? undefined
@@ -1305,23 +1281,6 @@ export async function startOnline(): Promise<void> {
             identityToken: signedInToken,
           },
         ).then(() => roomAccount.refresh());
-      }
-      const shotReport = decidedRoundReport(
-        state.decidedRound,
-        id,
-        runtime.confirmedTick(),
-        reportedShots,
-        {
-          riders: state.players.length,
-          bots: state.players.filter((p) => p.id.startsWith(BOT_ID_PREFIX))
-            .length,
-        },
-      );
-      if (shotReport) {
-        reportedShots = shotReport.key;
-        save(SHOTS_REPORTED_KEY, shotReport.key);
-        for (const shot of shotReport.events)
-          track(shot.event, shot.properties);
       }
       const matchId = state.matchId;
       snapshot = state;
@@ -1378,13 +1337,6 @@ export async function startOnline(): Promise<void> {
         dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
-      if (player && !seatTracked) {
-        seatTracked = true;
-        track("Seat Taken", {
-          avatarId: player.avatarId,
-          playerCount: state.players.length,
-        });
-      }
       const joining = role === "joiner" && !joined;
       app.classList.toggle("joining", joining);
       mobileLayout.update({
@@ -1419,13 +1371,20 @@ export async function startOnline(): Promise<void> {
       // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / BACK TO LOBBY.
       // Solo and a joined shared-screen rider have no lobby card (their pre-start screen is the arena or the controller), so their button stays CLOSE.
       const phoneLobby = mobileLayout.lobby();
+      // The same arena stays behind the lobby and results; only its presentation changes.
+      // A shared-TV controller (phone or desktop) never shows or renders it: the TV does.
+      const arena = arenaView({
+        shared: settings.mode === "shared",
+        displayOnly,
+        joined,
+        joining,
+        phase: state.phase,
+        recapReady,
+      });
       sharedLobby.hidden =
         !(state.phase === "lobby" || recapReady) ||
         joining ||
-        (!phoneLobby &&
-          (solo ||
-            (settings.mode === "shared" && joined && !displayOnly) ||
-            mobileLayout.active()));
+        (!phoneLobby && (solo || arena.controller || mobileLayout.active()));
       app.classList.toggle("room-waiting", !sharedLobby.hidden);
       const readyCount = state.players.filter((p) => p.connected).length;
       lobbyCount.textContent =
@@ -1463,17 +1422,14 @@ export async function startOnline(): Promise<void> {
         row.status.textContent = p.connected ? "READY" : "OFFLINE";
       }
       roster.hidden = !sharedLobby.hidden;
-      const controllerOnly =
-        settings.mode === "shared" && !displayOnly && joined && !phoneLobby;
+      const controllerOnly = arena.controller && !phoneLobby;
       app.classList.toggle("controller-only", controllerOnly);
-      // The same arena stays behind the lobby and results; only its presentation changes.
-      // Shared-screen phones still skip arena rendering during active controller play.
-      const sceneBackground = state.phase === "lobby" || recapReady;
-      app.classList.toggle("scene-background", sceneBackground);
-      canvas.hidden = (controllerOnly && !sceneBackground) || joining;
+      app.classList.toggle("scene-background", arena.sceneBackground);
+      canvas.hidden = arena.hidden;
       if (!canvas.hidden)
         replay.observe(state, state.matchId, performance.now());
-      styleHeading.hidden = styleRow.hidden = controllerOnly;
+      // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
+      styleHeading.hidden = styleRow.hidden = arena.controller;
       updateDesktopLayout();
       if (
         state.phase === "countdown" &&
@@ -1488,20 +1444,6 @@ export async function startOnline(): Promise<void> {
       if (recapReady && lastRecap !== String(state.phaseEndsAtTick)) {
         lastRecap = String(state.phaseEndsAtTick);
         openRecap();
-        // Only this match's own start time is a duration: a device that saw match 1 begin and missed match 2's
-        // start would otherwise report match 1's clock as match 2's length, which is worse than reporting none.
-        const sawStart =
-          startedMatch === matchStartKey(matchId, "countdown", 1);
-        track("Match Ended", {
-          ...matchEndedProps(state.matchStats, id),
-          ...(sawStart && matchStartedAt
-            ? {
-                durationSeconds: Math.round(
-                  (Date.now() - matchStartedAt) / 1000,
-                ),
-              }
-            : {}),
-        });
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
         const report = solo
@@ -2168,7 +2110,16 @@ export async function startOnline(): Promise<void> {
       requestAnimationFrame(frame);
       return;
     }
-    if (predicted && !canvas.hidden) {
+    // Behind the lobby and results the scene is blurred and dimmed, so ten frames a second are enough. This saves power
+    // on lobby screens and load on crowded CI runners. It is not a startup fix: the TV draws nothing until Phaser is
+    // ready, and the shared-room smoke passes without it in default headless Chromium (#333's controller fix is what counts).
+    const backdrop = app.classList.contains("scene-background");
+    if (
+      predicted &&
+      !canvas.hidden &&
+      !(backdrop && now - lastBackdropRender < BACKDROP_FRAME_MS)
+    ) {
+      if (backdrop) lastBackdropRender = now;
       presentation.render(predicted, now, theme, renderScope, id);
       if (benchmark && (benchmarkInput || now - lastBenchmarkRender >= 100)) {
         const p = predicted.players.find((p) => p.id === id);

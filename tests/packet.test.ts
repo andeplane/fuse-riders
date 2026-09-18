@@ -13,7 +13,7 @@ import {
   wrapMs,
   type Packet,
 } from "../src/online/packet.js";
-import { PRESS, RELEASE, STEER, type Entry } from "../src/shared/input-log.js";
+import { PRESS, RELEASE, STEER, type Entry } from "../src/engine/input-log.js";
 
 const packet = (): Packet => ({
   room: roomHash("AB42:host"),
@@ -216,8 +216,8 @@ test("bounded unpack rejects deep nesting, oversized collections, binary, extens
 });
 
 import { encodePacketTrimmed } from "../src/online/packet.js";
-import { SETTINGS } from "../src/shared/input-log.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { SETTINGS } from "../src/engine/input-log.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 test("a settings entry travels in a packet, and an oversized packet is trimmed from its oldest entries", () => {
   const settingsEntry = [9, 120, SETTINGS, defaultRoomSettings()] as Entry;
   const bytes = encodePacket({ ...packet(), entries: [settingsEntry] });

@@ -2,14 +2,14 @@ import {
   BotController,
   botDisplayName,
   type BotDifficulty,
-} from "../../src/shared/bot-controller.js";
+} from "../../src/engine/bot-controller.js";
 import {
   applyTick,
   BOT_NAMES,
   createRoomState,
   freeSlot,
   type RoomState,
-} from "../../src/shared/apply-tick.ts";
+} from "../../src/engine/apply-tick.ts";
 import {
   ACTION,
   BOT,
@@ -22,11 +22,11 @@ import {
   STEER,
   SETTINGS,
   type Entry,
-} from "../../src/shared/input-log.ts";
+} from "../../src/engine/input-log.ts";
 import {
   defaultRoomSettings,
   type RoomSettings,
-} from "../../src/shared/room-settings.js";
+} from "../../src/engine/room-settings.js";
 import {
   AIM_SLOW_MAX_TICKS,
   OVERTIME_START_TICK,
@@ -34,13 +34,13 @@ import {
   riderMotionStep,
   type GameState,
   type PlayerState,
-} from "../../src/shared/game.js";
+} from "../../src/engine/game.js";
 import {
   edgesOpen,
   segmentObstacleDistanceSquared,
-} from "../../src/shared/arena-map.js";
-import { GUN_RADIUS } from "../../src/shared/gun.js";
-import { SHELL_SPEED } from "../../src/shared/shell.js";
+} from "../../src/engine/arena-map.js";
+import { GUN_RADIUS } from "../../src/engine/gun.js";
+import { SHELL_SPEED } from "../../src/engine/shell.js";
 import type { GameEvent } from "../../src/shared/protocol.js";
 import {
   coverageObserver,

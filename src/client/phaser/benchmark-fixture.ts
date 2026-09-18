@@ -1,21 +1,24 @@
 import {
   createGame,
+  classicSettings,
   addPlayer,
   toSnapshot,
   SLOT_COLORS,
-} from "../../shared/game.js";
+} from "../../engine/game.js";
 import { AVATARS } from "../../shared/avatars.js";
 import type { ViewSnapshot } from "../snapshot-stream.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
 export function visualFixture(tick: number): ViewSnapshot {
-  const game = createGame("renderer-fixture", 42);
+  // The classic board with a parked aim: what this fixture rendered before settings became required (#311).
+  const game = createGame("renderer-fixture", classicSettings(), 42);
+  // The fixture uses five of the available slot colors and avatars.
   for (let p = 0; p < 5; p++)
     addPlayer(game, {
       id: `p${p}`,
       name: `RIDER ${p + 1}`,
       slot: p,
-      color: SLOT_COLORS[p],
-      avatarId: AVATARS[p].id,
+      color: SLOT_COLORS[p]!,
+      avatarId: AVATARS[p]!.id,
     });
   const state = toSnapshot(game);
   const phase = tick / 20;

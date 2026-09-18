@@ -9,7 +9,7 @@ import {
   SEQ_AHEAD,
   StreamLog,
 } from "../src/online/stream.js";
-import { PRESS, RELEASE, STEER, type Entry } from "../src/shared/input-log.js";
+import { PRESS, RELEASE, STEER, type Entry } from "../src/engine/input-log.js";
 
 const e = (seq: number, tick: number, ...body: unknown[]): Entry =>
   [seq, tick, ...body] as Entry;

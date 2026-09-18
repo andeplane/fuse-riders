@@ -95,7 +95,6 @@ const shared = new Set([
   "duration-text",
   "protocol",
   "uuid",
-  "rider-name",
   "firebase-config",
 ]);
 const network = new Set([
@@ -125,12 +124,13 @@ const rendering = new Set([
   "trail-debris",
 ]);
 
-/** Today's ownership, plus the target directories, so moving files cannot disable the guard. */
+/** Ownership by directory, with the app-side files that are really net or render code listed by name. */
 export function layer(file: string): Layer {
   if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
-  if (file.startsWith("src/engine/") || file === "src/online/checkpoint.ts")
-    return "engine";
+  if (file.startsWith("src/engine/")) return "engine";
+  // `src/shared/` keeps only what is not simulation. Anything else that turns up there is held to the engine's rules
+  // until it is listed above, so a simulation file cannot dodge the guards by being put in the wrong directory.
   if (file.startsWith("src/shared/"))
     return shared.has(base) ? "shared" : "engine";
   if (

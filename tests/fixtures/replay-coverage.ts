@@ -1,4 +1,4 @@
-import type { RoomState } from "../../src/shared/apply-tick.ts";
+import type { RoomState } from "../../src/engine/apply-tick.ts";
 import {
   AIM_SLOW_MAX_TICKS,
   AIM_SLOW_RAMP_TICKS,
@@ -16,7 +16,7 @@ import {
   TRAIL_WIDTH,
   type EliminationCause,
   type PickupType,
-} from "../../src/shared/game.js";
+} from "../../src/engine/game.js";
 import {
   ARENA_MAP_RECIPES,
   edgesOpen,
@@ -24,17 +24,17 @@ import {
   obstacleTouchesCircle,
   segmentObstacleDistanceSquared,
   type ArenaMapId,
-} from "../../src/shared/arena-map.js";
-import { DRUNK_DURATION_TICKS } from "../../src/shared/drunk.js";
-import { GUN_RADIUS } from "../../src/shared/gun.js";
-import { MOMENT_KINDS, type MomentKind } from "../../src/shared/moments.js";
+} from "../../src/engine/arena-map.js";
+import { DRUNK_DURATION_TICKS } from "../../src/engine/drunk.js";
+import { GUN_RADIUS } from "../../src/engine/gun.js";
+import { MOMENT_KINDS, type MomentKind } from "../../src/engine/moments.js";
 import {
   PORTAL_COOLDOWN_TICKS,
   PORTAL_GRACE_TICKS,
-} from "../../src/shared/portal.js";
+} from "../../src/engine/portal.js";
 import type { GameEvent } from "../../src/shared/protocol.js";
-import { SHELL_RADIUS, SHELL_SPEED } from "../../src/shared/shell.js";
-import { WEAPONS, type Weapon } from "../../src/shared/shot-log.js";
+import { SHELL_RADIUS, SHELL_SPEED } from "../../src/engine/shell.js";
+import { WEAPONS, type Weapon } from "../../src/engine/shot-log.js";
 
 /** The timed effects a pickup starts, each with a real duration it can be held to. */
 export const TIMED_EFFECTS = ["star", "nitro", "snail", "beer", "ink"] as const;

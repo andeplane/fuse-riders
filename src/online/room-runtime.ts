@@ -25,7 +25,7 @@ import {
   createRoomState,
   reclaimable,
   successionOrder,
-} from "../shared/apply-tick.js";
+} from "../engine/apply-tick.js";
 import {
   ACTION,
   AVATAR,
@@ -33,20 +33,20 @@ import {
   CANCEL,
   JOIN,
   LEAVE,
-  MAX_NAME_LENGTH,
   PRESENCE,
   PRESS,
   RELEASE,
   SETTINGS,
   STEER,
-} from "../shared/input-log.js";
+} from "../engine/input-log.js";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import {
   parseRoomSettings,
   type RoomSettings,
-} from "../shared/room-settings.js";
-import { botDisplayName, BOT_ID_PREFIX } from "../shared/bot-controller.js";
-import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../shared/game.js";
+} from "../engine/room-settings.js";
+import { botDisplayName, BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import { MAX_RIDER_NAME, seatRiderName } from "../engine/rider-name.js";
+import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../engine/game.js";
 import type { GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { uuid } from "../shared/uuid.js";
@@ -330,8 +330,7 @@ export class RoomRuntime {
       });
       this.deliver("ready", () => this.callbacks.ready("solo", true));
       this.status.recurring("Solo · you and four AI riders");
-      const name =
-        this.options.humanName?.trim().slice(0, MAX_NAME_LENGTH) || "You";
+      const name = seatRiderName(this.options.humanName ?? "") ?? "You";
       this.join("solo", name, undefined);
       for (let index = 0; index < 4; index++)
         this.command({ type: "bot", action: "add" });
@@ -402,8 +401,17 @@ export class RoomRuntime {
     this.members.delete(id);
     this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
-    if (this.manager && this.world?.state.game.players.has(id))
-      this.append(LEAVE, id);
+    const state = this.world?.state,
+      player = state?.game.players.get(id);
+    if (!this.manager || !player) return;
+    // A reload reaches here too: the service retires the old socket before it admits the new page. In the lobby that
+    // frees the seat, and the page confirms its name on the join card. Mid-match it is absence, not departure: `LEAVE`
+    // frees a seat at once in `roundOver` and `matchOver`, so a reload that landed just after the round ended lost the
+    // seat inside that round. Absent riders are pruned when the next round starts, which leaves the page the whole
+    // pause to come back, and they are logged present again once heard (`creatorDuties`).
+    if (state!.game.phase === "lobby") this.append(LEAVE, id);
+    else if (player.connected)
+      this.append(PRESENCE, id, false, state!.folds.get(id)?.generation ?? 0);
   }
   /** A link opening is only a hint: the transport admits sends once its own probes confirm the path, so the tick loop retries. */
   private link(id: string, open: boolean): void {
@@ -840,9 +848,9 @@ export class RoomRuntime {
     avatarId: AvatarId | undefined,
   ): string | undefined {
     if (!this.world) return "The room is still loading";
-    const name = rawName.trim().slice(0, MAX_NAME_LENGTH);
-    if (!name || /[\x00-\x1f\x7f]/.test(name))
-      return "Choose a name (1–20 characters)";
+    // The one normaliser: what is logged is a valid rider name every replica's log guard accepts, never half an emoji.
+    const name = seatRiderName(rawName);
+    if (!name) return `Choose a name (1–${MAX_RIDER_NAME} characters)`;
     const game = this.world.state.game,
       member = from === this.id ? undefined : this.members.get(from);
     const generation = from === this.id ? this.generation : member?.generation;
@@ -1481,7 +1489,7 @@ export class RoomRuntime {
         return `Connected · ${player.name} lagging`;
     }
     if (
-      game.settings?.mode === "shared" &&
+      game.settings.mode === "shared" &&
       !this.full &&
       ![...this.members.values()].some(
         (member) => member.full && now - member.lastPacketAt <= DISCONNECT_MS,
@@ -1573,8 +1581,9 @@ export class RoomRuntime {
   /** The frame to draw now: one tick behind the clock, the local rider led by its held controls. */
   view(): ViewSnapshot | undefined {
     const frames = this.world?.view();
-    if (!frames?.length) return undefined;
-    const [newer, older] = frames,
+    const newer = frames?.[0];
+    if (!newer) return undefined;
+    const older = frames[1],
       clock = this.clock.tick(),
       presentation = Math.max(
         older?.tick ?? newer.tick,

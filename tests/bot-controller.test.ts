@@ -7,7 +7,7 @@ import {
   botDisplayName,
   BOT_DIFFICULTIES,
   BOT_TIERS,
-} from "../src/shared/bot-controller.js";
+} from "../src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
@@ -16,25 +16,29 @@ import {
   SLOT_COLORS,
   OVERTIME_START_TICK,
   type GameState,
-} from "../src/shared/game.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+} from "../src/engine/game.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   applyTick,
   createRoomState,
   freeSlot,
   BOT_NAMES,
   type StreamEntries,
-} from "../src/shared/apply-tick.js";
+} from "../src/engine/apply-tick.js";
 import {
   ACTION,
   BOT,
   JOIN,
   STEER,
-  MAX_NAME_LENGTH,
   type Entry,
-} from "../src/shared/input-log.js";
+} from "../src/engine/input-log.js";
+import {
+  MAX_LOGGED_NAME_UNITS,
+  validRiderName,
+} from "../src/engine/rider-name.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 function fixture() {
-  const game = createGame("bot-fixture");
+  const game = createGame("bot-fixture", classicSettings());
   addPlayer(game, { id: "bot:1", name: "AI", slot: 0, color: SLOT_COLORS[0] });
   addPlayer(game, {
     id: "human",
@@ -520,7 +524,7 @@ test("Explicit tiers in existing names retain their deterministic controller set
         `${name} must read back its own tier`,
       );
       assert.ok(
-        name.length <= MAX_NAME_LENGTH,
+        name.length <= MAX_LOGGED_NAME_UNITS && validRiderName(name),
         `${name} must fit the rider name the log accepts`,
       );
     }

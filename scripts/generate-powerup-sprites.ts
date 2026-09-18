@@ -99,7 +99,7 @@ const artwork: Record<string, string> = {
 };
 
 function volley(count: 3 | 5): string {
-  const points =
+  const points: [number, number][] =
     count === 3
       ? [
           [14, 36],

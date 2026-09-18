@@ -11,22 +11,26 @@ import {
   toSnapshot,
   type InputIntent,
   type PickupType,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   MAX_EXTRA_BOMBS,
   MAX_VOLLEY_BOMBS,
   volleyAngles,
-} from "../src/shared/launch-modifiers.js";
+} from "../src/engine/launch-modifiers.js";
 import {
   powerBlastRadius,
   powerReloadTicks,
-} from "../src/shared/power-progression.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
-import { PICKUP_WEIGHTS } from "../src/shared/pickup-weights.js";
+} from "../src/engine/power-progression.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
+import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.js";
 import { powerLabel } from "../src/client/power-indicator.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
-  const game = createGame("extra-bomb", 725);
+  const game = createGame("extra-bomb", classicSettings(), 725);
   for (let slot = 0; slot < 2; slot++)
     addPlayer(game, {
       id: `p${slot}`,

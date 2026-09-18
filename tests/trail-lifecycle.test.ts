@@ -7,9 +7,9 @@ import {
   detachTrail,
   erodeTrailPiece,
   MAX_TRAIL_SEGMENTS,
-} from "../src/shared/trail-lifecycle.js";
-import { cutTrailHole } from "../src/shared/gun.js";
-import { clipTrailSegment } from "../src/shared/trail-clipping.js";
+} from "../src/engine/trail-lifecycle.js";
+import { cutTrailHole } from "../src/engine/gun.js";
+import { clipTrailSegment } from "../src/engine/trail-clipping.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 
 const line = (

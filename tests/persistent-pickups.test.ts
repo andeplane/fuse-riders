@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import {
   addPlayer,
   createGame,
@@ -14,10 +17,11 @@ import {
   SLOT_COLORS,
   type GameState,
   type PickupType,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing(): GameState {
-  const game = createGame("persistent-pickups", 42);
+  const game = createGame("persistent-pickups", classicSettings(), 42);
   for (let i = 0; i < 2; i++)
     addPlayer(game, {
       id: `p${i}`,
@@ -108,7 +112,7 @@ test("blast destruction is strictly inside 60% of the actual radius, using cente
     bomb(game, 800, 400, radius);
     const result = step(game, new Map());
     assert.deepEqual(
-      result.snapshot.pickups.map((p) => p.id),
+      toSnapshot(game).pickups.map((p) => p.id),
       [boundary, fringe, diagonal, outside],
     );
     assert.equal(

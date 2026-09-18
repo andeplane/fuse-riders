@@ -1,10 +1,10 @@
-import { advanceShell, SHELL_RADIUS } from "../shared/shell.js";
+import { advanceShell, SHELL_RADIUS } from "../engine/shell.js";
 import {
   edgesOpen,
   obstacleDistanceSquared,
   obstacleEdges,
-} from "../shared/arena-map.js";
-import { wrapCoordinate, wrapDelta } from "../shared/wrap.js";
+} from "../engine/arena-map.js";
+import { wrapCoordinate, wrapDelta } from "../engine/wrap.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 export const VISUAL_PROJECTION_LIMIT_MS = 50;
