@@ -14,8 +14,11 @@ import {
   COUNTDOWN_TICKS,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/game.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import { presentWorld } from "../src/online/prediction.js";
 import { powerLabel } from "../src/client/power-indicator.js";
 

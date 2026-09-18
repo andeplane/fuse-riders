@@ -18,9 +18,12 @@ import {
   toSnapshot,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import { presentWorld } from "../src/online/prediction.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 
 // Holding the bomb button eases the rider down to AIM_SLOW_SPEED to steady the aim, for at most a second, and eases
 // them back up afterwards. `control` is the same game with nobody aiming: the round's own speed ramp cancels out.

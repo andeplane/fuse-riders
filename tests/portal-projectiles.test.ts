@@ -11,17 +11,20 @@ import {
   type BombState,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.js";
-import { GUN_RADIUS } from "../src/shared/gun.js";
-import { SHELL_SPEED } from "../src/shared/shell.js";
+} from "../src/engine/game.js";
+import { GUN_RADIUS } from "../src/engine/gun.js";
+import { SHELL_SPEED } from "../src/engine/shell.js";
 import {
   MAX_PORTAL_PAIRS,
   PORTAL_COOLDOWN_TICKS,
   type PortalPair,
-} from "../src/shared/portal.js";
-import { canonicalRoomState } from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { encodeGameState, decodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/portal.js";
+import { canonicalRoomState } from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import {
+  encodeGameState,
+  decodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 
 const press: InputIntent = {
   left: false,

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PICKUP_TYPES, pickupPacing } from "../src/shared/game.ts";
+import { PICKUP_TYPES, pickupPacing } from "../src/engine/game.ts";
 import {
   PICKUP_WEIGHTS,
   pickupTypeForRoll,
-} from "../src/shared/pickup-weights.ts";
+} from "../src/engine/pickup-weights.ts";
 import {
   defaultRoomSettings,
   roomPickup,
-} from "../src/shared/room-settings.ts";
+} from "../src/engine/room-settings.ts";
 test("weighted table gives Five one third Triple probability with deterministic intervals", () => {
   assert.deepEqual(
     PICKUP_WEIGHTS.map((row) => row.type),

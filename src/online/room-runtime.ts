@@ -25,7 +25,7 @@ import {
   createRoomState,
   reclaimable,
   successionOrder,
-} from "../shared/apply-tick.js";
+} from "../engine/apply-tick.js";
 import {
   ACTION,
   AIM,
@@ -41,14 +41,14 @@ import {
   SETTINGS,
   STEER,
   quantizeAim,
-} from "../shared/input-log.js";
+} from "../engine/input-log.js";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import {
   parseRoomSettings,
   type RoomSettings,
-} from "../shared/room-settings.js";
-import { botDisplayName, BOT_ID_PREFIX } from "../shared/bot-controller.js";
-import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../shared/game.js";
+} from "../engine/room-settings.js";
+import { botDisplayName, BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../engine/game.js";
 import type { AimPoint, GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { uuid } from "../shared/uuid.js";

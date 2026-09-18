@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   BombInputBuffer,
   MAX_PENDING_BOMB_ACTIONS,
-} from "../src/shared/bomb-input.js";
+} from "../src/engine/bomb-input.js";
 
 test("ordered bomb edges survive a between-tick tap, while held resends do not repeat presses", () => {
   const buffer = new BombInputBuffer();

@@ -4,7 +4,7 @@ import {
   startMatch,
   toSnapshot,
   SLOT_COLORS,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

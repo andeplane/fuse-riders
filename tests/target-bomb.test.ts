@@ -1,7 +1,7 @@
 import {
   powerBlastRadius,
   powerReloadTicks,
-} from "../src/shared/power-progression.js";
+} from "../src/engine/power-progression.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -18,8 +18,8 @@ import {
   eliminatePlayer,
   startNextRound,
   type InputIntent,
-} from "../src/shared/game.ts";
-import { BombInputBuffer } from "../src/shared/bomb-input.ts";
+} from "../src/engine/game.ts";
+import { BombInputBuffer } from "../src/engine/bomb-input.ts";
 function fixture() {
   const game = createGame("target");
   for (let i = 0; i < 2; i++)

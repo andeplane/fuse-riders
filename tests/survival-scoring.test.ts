@@ -13,20 +13,23 @@ import {
   COUNTDOWN_TICKS,
   SLOT_COLORS,
   type GameState,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   defaultRoomSettings,
   loadRoomSettings,
   parseRoomSettings,
-} from "../src/shared/room-settings.js";
-import { POINT_UNIT, rankRound } from "../src/shared/leaderboard.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/room-settings.js";
+import { POINT_UNIT, rankRound } from "../src/engine/leaderboard.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import {
   beginMatchParticipant,
   finalizeMatchStatsRound,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
+} from "../src/engine/match-stats.js";
 
 function match(count: number, length = 3): GameState {
   const game = createGame("survival-scoring", 42);

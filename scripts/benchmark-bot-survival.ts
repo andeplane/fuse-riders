@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { BotController, botRandom } from "../src/shared/bot-controller.js";
+import { BotController, botRandom } from "../src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
@@ -10,7 +10,7 @@ import {
   SLOT_COLORS,
   TICK_HZ,
   type InputIntent,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 // Same seeds and normal game physics before/after. Steering-only runs remove firing
 // and random pickups to isolate navigation; combat runs retain both.
@@ -88,7 +88,7 @@ const report = {
   controllerSha256: createHash("sha256")
     .update(
       await readFile(
-        new URL("../src/shared/bot-controller.ts", import.meta.url),
+        new URL("../src/engine/bot-controller.ts", import.meta.url),
       ),
     )
     .digest("hex"),

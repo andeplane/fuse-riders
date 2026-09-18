@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { segmentIntersectsDisk } from "../src/shared/blast-geometry.ts";
+import { segmentIntersectsDisk } from "../src/engine/blast-geometry.ts";
 const disk = { x: 100, y: 100, radius: 50 };
 test("disk uses radial distance rather than bounding square or cross", () => {
   assert.equal(segmentIntersectsDisk(130, 130, 130, 130, disk), true);

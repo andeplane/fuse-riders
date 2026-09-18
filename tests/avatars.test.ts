@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AVATARS, avatarCell, isAvatarId } from "../src/shared/avatars.ts";
 import { parseClientMessage } from "../src/shared/protocol.ts";
-import { addPlayer, createGame, toSnapshot } from "../src/shared/game.ts";
+import { addPlayer, createGame, toSnapshot } from "../src/engine/game.ts";
 
 test("ten distinct avatar ids address exactly ten atlas cells", () => {
   assert.equal(AVATARS.length, 10);

@@ -9,10 +9,13 @@ import {
   COUNTDOWN_TICKS,
   SLOT_COLORS,
   type InputIntent,
-} from "../src/shared/game.js";
-import { BOT_ID_PREFIX } from "../src/shared/bot-controller.js";
-import { pickupPacing } from "../src/shared/power-progression.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/game.js";
+import { BOT_ID_PREFIX } from "../src/engine/bot-controller.js";
+import { pickupPacing } from "../src/engine/power-progression.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 
 function playing(count: number) {
   const game = createGame("pickup-pacing", 8192);

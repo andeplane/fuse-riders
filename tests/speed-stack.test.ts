@@ -21,9 +21,12 @@ import {
   type GameState,
   type InputIntent,
   type PickupType,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import { presentWorld } from "../src/online/prediction.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import { speedEffectLabel } from "../src/client/power-indicator.js";
 import { POWERUP_GUIDE } from "../src/client/powerup-guide.js";
 

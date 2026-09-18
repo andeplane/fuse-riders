@@ -7,8 +7,8 @@ import {
   step,
   toSnapshot,
   SLOT_COLORS,
-} from "../src/shared/game.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+} from "../src/engine/game.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { buildRoundReport } from "../src/online/match-report.js";
 import { calculateElo } from "../src/shared/elo.js";
 import {
@@ -20,8 +20,8 @@ import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
-import { emptyCombat, parseCombat } from "../src/shared/combat-stats.js";
+} from "../src/engine/match-stats.js";
+import { emptyCombat, parseCombat } from "../src/engine/combat-stats.js";
 import {
   careerFor,
   emptyBuckets,

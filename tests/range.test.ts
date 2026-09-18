@@ -10,10 +10,13 @@ import {
   SLOT_COLORS,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.js";
-import { bombLaunchDistance } from "../src/shared/bomb-launch.js";
+} from "../src/engine/game.js";
+import { bombLaunchDistance } from "../src/engine/bomb-launch.js";
 import { bombPreviewDistance } from "../src/client/bomb-preview.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import { powerLabel } from "../src/client/power-indicator.js";
 
 function playing() {

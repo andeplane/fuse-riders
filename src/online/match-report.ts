@@ -1,13 +1,13 @@
 import type { AvatarId } from "../shared/avatars.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchPlayerStats,
   type MatchStatsState,
-} from "../shared/match-stats.js";
+} from "../engine/match-stats.js";
 import { SOLO_RATING_PLAYER_ID } from "../shared/rating.js";
-import type { DecidedRound } from "../shared/shot-log.js";
+import type { DecidedRound } from "../engine/shot-log.js";
 
 /**
  * What a device tells the room service when a match ends. The service keeps a result once a majority of its riders

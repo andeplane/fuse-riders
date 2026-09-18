@@ -2,21 +2,21 @@ import {
   pickupPacing,
   powerBlastRadius,
   powerReloadTicks,
-} from "../src/shared/power-progression.js";
+} from "../src/engine/power-progression.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POINT_UNIT } from "../src/shared/leaderboard.ts";
-import { defaultRoomSettings } from "../src/shared/room-settings.ts";
+import { POINT_UNIT } from "../src/engine/leaderboard.ts";
+import { defaultRoomSettings } from "../src/engine/room-settings.ts";
 import {
   DRUNK_DURATION_TICKS,
   drunkHeadingOffset,
-} from "../src/shared/drunk.ts";
+} from "../src/engine/drunk.ts";
 import {
   BOMB_FLIGHT_TICKS,
   BOMB_MAX_CHARGE_TICKS,
   BOMB_MAX_LAUNCH_DISTANCE,
   BOMB_MIN_LAUNCH_DISTANCE,
-} from "../src/shared/bomb-launch.ts";
+} from "../src/engine/bomb-launch.ts";
 
 import {
   BOMB_COOLDOWN_TICKS,
@@ -48,7 +48,7 @@ import {
   toSnapshot,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.ts";
+} from "../src/engine/game.ts";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const fixedFlightPath = (x: number, y: number) =>
@@ -459,8 +459,10 @@ test("fatal trail ends at the nearest contact regardless of trail array order", 
         expiresAtTick: state.tick + 100,
       })),
     });
-    const { snapshot } = step(state, new Map());
-    const dead = snapshot.players.find((player) => player.id === rider.id)!;
+    step(state, new Map());
+    const dead = toSnapshot(state).players.find(
+      (player) => player.id === rider.id,
+    )!;
     assert.equal(dead.alive, false);
     assert.ok(Math.abs(dead.x - 505) < 1e-6);
     assert.equal(dead.y, 350);

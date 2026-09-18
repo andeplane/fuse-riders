@@ -11,18 +11,21 @@ import {
   toSnapshot,
   type InputIntent,
   type PickupType,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   MAX_EXTRA_BOMBS,
   MAX_VOLLEY_BOMBS,
   volleyAngles,
-} from "../src/shared/launch-modifiers.js";
+} from "../src/engine/launch-modifiers.js";
 import {
   powerBlastRadius,
   powerReloadTicks,
-} from "../src/shared/power-progression.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
-import { PICKUP_WEIGHTS } from "../src/shared/pickup-weights.js";
+} from "../src/engine/power-progression.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
+import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.js";
 import { powerLabel } from "../src/client/power-indicator.js";
 
 function playing() {

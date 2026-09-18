@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { PICKUP_TYPES } from "../src/shared/game.js";
+import { PICKUP_TYPES } from "../src/engine/game.js";
 import { themes } from "../src/client/themes.js";
 
 // Resolved from this file, not the working directory, so the test means the same run from anywhere.

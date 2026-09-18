@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clipTrailSegment } from "../src/shared/trail-clipping.ts";
+import { clipTrailSegment } from "../src/engine/trail-clipping.ts";
 import {
   addPlayer,
   createGame,
   startMatch,
   step,
+  toSnapshot,
   COUNTDOWN_TICKS,
   INITIAL_BOUNDARY_INSET,
   OVERTIME_START_TICK,
   RIDER_RADIUS,
   SPEED_RAMP_MAX,
   TRAIL_LIFETIME_TICKS,
-} from "../src/shared/game.ts";
+} from "../src/engine/game.ts";
 import type { TrailSegment } from "../src/shared/protocol.ts";
 
 const bounds = { minX: 10, minY: 20, maxX: 90, maxY: 80 };
@@ -127,7 +128,7 @@ test("overtime trims dead and living trails before collision and snapshot, retai
     },
   ]);
   assert.deepEqual(
-    result.snapshot.players.find((player) => player.id === "p1")!.trail,
+    toSnapshot(state).players.find((player) => player.id === "p1")!.trail,
     owner.trail,
   );
   step(state, new Map());

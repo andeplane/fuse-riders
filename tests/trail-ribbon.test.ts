@@ -5,7 +5,7 @@ import {
   createGame,
   toSnapshot,
   TRAIL_WIDTH,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   trailRibbon as buildRibbon,
   TrailRibbonCache,

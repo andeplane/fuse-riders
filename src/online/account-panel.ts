@@ -17,7 +17,7 @@ import {
   watchAccount,
   type Account,
 } from "./account.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
 import {
   MAX_RIDER_NAME,
   suggestRiderName,

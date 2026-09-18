@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TrailDebris } from "../src/client/trail-debris.js";
-import { createGame, addPlayer, toSnapshot } from "../src/shared/game.js";
+import { createGame, addPlayer, toSnapshot } from "../src/engine/game.js";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 

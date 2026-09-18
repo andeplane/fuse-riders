@@ -4,7 +4,7 @@ import {
   decodeGameState,
   encodeGameState,
   MAX_CHECKPOINT_TRAILS,
-} from "../src/online/checkpoint.js";
+} from "../src/engine/codec/checkpoint.js";
 import {
   BOMB_BLAST_RANGE,
   COUNTDOWN_TICKS,
@@ -17,10 +17,10 @@ import {
   startMatch,
   step,
   type GameState,
-} from "../src/shared/game.js";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
-import { MAX_PORTAL_PAIRS, createPortalPair } from "../src/shared/portal.js";
-import { MOMENT_KINDS } from "../src/shared/moments.js";
+} from "../src/engine/game.js";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
+import { MAX_PORTAL_PAIRS, createPortalPair } from "../src/engine/portal.js";
+import { MOMENT_KINDS } from "../src/engine/moments.js";
 
 // The replica state a joiner installs comes from any peer, so decodeGameState is an untrusted boundary: every shape and
 // cross-reference guard here is what keeps a corrupt or hostile snapshot from replacing a healthy world.

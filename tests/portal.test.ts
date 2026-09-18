@@ -7,7 +7,7 @@ import {
   MAX_PORTAL_PAIRS,
   type PortalPair,
   type PortalTransitOptions,
-} from "../src/shared/portal.ts";
+} from "../src/engine/portal.ts";
 
 const bounds = { minX: 20, minY: 20, maxX: 1580, maxY: 880 };
 const pair: PortalPair = {

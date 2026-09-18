@@ -16,8 +16,8 @@ import {
   type GameState,
   type InputIntent,
   type PlayerState,
-} from "../src/shared/game.js";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
+} from "../src/engine/game.js";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
 import {
   ARENA_MAPS,
   MAX_OBSTACLES,
@@ -28,10 +28,13 @@ import {
   obstacleHitbox,
   obstacleTouchesCircle,
   type Obstacle,
-} from "../src/shared/arena-map.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { BotController } from "../src/shared/bot-controller.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/arena-map.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { BotController } from "../src/engine/bot-controller.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const press: InputIntent = {

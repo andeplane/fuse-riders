@@ -6,7 +6,7 @@ import {
   botRandom,
   BOT_DIFFICULTIES,
   type BotDifficulty,
-} from "../src/shared/bot-controller.js";
+} from "../src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
@@ -14,7 +14,7 @@ import {
   step,
   SLOT_COLORS,
   ROUND_DRAW_TICK,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 /** Identical deterministic brains on symmetric spawns mirror each other into a simultaneous crash, which measures
  *  the arena's symmetry rather than the riders' skill. A seeded nudge off the spawn marks breaks it. */

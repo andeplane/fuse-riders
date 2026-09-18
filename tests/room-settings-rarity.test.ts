@@ -5,7 +5,7 @@ import {
   rarityOf,
   weightFor,
 } from "../src/online/powerup-rarity.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 
 const defaults = defaultRoomSettings().weights;
 

@@ -4,7 +4,7 @@ import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { mountArenaPresentation } from "../client/phaser/presentation.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { createAccountPanel } from "./account-panel.js";
@@ -41,8 +41,8 @@ import {
   parseRoomSettings,
   SETTINGS_KEY,
   type RoomSettings,
-} from "../shared/room-settings.js";
-import type { PickupType } from "../shared/game.js";
+} from "../engine/room-settings.js";
+import type { PickupType } from "../engine/game.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { renderMatchRecap } from "./match-recap-view.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";

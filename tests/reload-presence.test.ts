@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 import { ScriptedPeer } from "./fixtures/scripted-peer.js";
-import { STEER } from "../src/shared/input-log.js";
+import { STEER } from "../src/engine/input-log.js";
 import {
   CREATOR_SILENCE_MS,
   DISCONNECT_MS,
@@ -10,8 +10,8 @@ import {
   WINDOW_GRACE_MS,
 } from "../src/online/room-runtime.js";
 import { SEQ_AHEAD } from "../src/online/stream.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { COUNTDOWN_TICKS, ROUND_OVER_TICKS } from "../src/shared/game.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { COUNTDOWN_TICKS, ROUND_OVER_TICKS } from "../src/engine/game.js";
 
 // A page that has just (re)loaded has heard nobody yet. These tests pin that "not heard in this page's lifetime" is not
 // "silent": a rider is logged absent only once this runtime could have heard it and did not.
