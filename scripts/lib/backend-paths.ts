@@ -130,6 +130,16 @@ export function decideDeploy(
       .split("\n")
       .filter(Boolean);
   } catch {
+    // A validated live revision may be newer than this queued automatic run. Never roll it back.
+    try {
+      git("git", ["merge-base", "--is-ancestor", head, deployed]);
+      return {
+        deploy: false,
+        reason: `${deployed} is already serving a newer revision than ${head}`,
+      };
+    } catch {
+      // An unrelated or unavailable history remains uncertain and must not suppress a deployment.
+    }
     return {
       deploy: true,
       reason: `served commit ${deployed} is not an ancestor of ${head} in this checkout`,

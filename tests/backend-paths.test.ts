@@ -13,10 +13,10 @@ const SERVED = "a".repeat(40),
   HEAD = "b".repeat(40);
 /** A typed fake for git: `changed` is what `git diff --name-only` prints. */
 const git =
-  (changed: string[], ancestor = true): Run =>
+  (changed: string[], ancestor = true, ahead = false): Run =>
   (_file, args) => {
     if (args[0] === "merge-base") {
-      if (!ancestor) throw new Error("exit 1");
+      if (!(args[2] === SERVED ? ancestor : ahead)) throw new Error("exit 1");
       return "";
     }
     assert.deepEqual(args, [
@@ -147,6 +147,17 @@ test("frontend-only releases advance the backend revision used by Pages", () => 
   ]) {
     assert.equal(decideDeploy(served, HEAD, git([file])).deploy, true, file);
   }
+});
+
+test("a validated newer served revision prevents an automatic rollback", () => {
+  assert.equal(decideDeploy(served, HEAD, git([], false, true)).deploy, false);
+});
+
+test("a failed rollout label matching the target still retries deployment", () => {
+  const failed = servedCommit(
+    service({ commit: HEAD, created: "gateway-failed", ready: "gateway-old" }),
+  );
+  assert.equal(decideDeploy(failed, HEAD, git([])).deploy, true);
 });
 
 test("a backend change anywhere since the served commit deploys", () => {
@@ -313,10 +324,14 @@ test("everything the configuration step reads or imports is a backend path", () 
 test("backend.yml asks the filter before it installs or deploys, and a dispatch still deploys", () => {
   const workflow = readFileSync(".github/workflows/backend.yml", "utf8");
   assert.match(workflow, /^ {2}workflow_dispatch:$/m);
+  assert.ok(
+    !workflow.includes("metadata.labels.commit"),
+    "readiness validation must not be bypassed by a label-only gate",
+  );
   assert.ok(workflow.includes("          fetch-depth: 0\n"));
   assert.ok(
     workflow.includes(
-      "        id: changes\n        if: steps.live.outputs.action != 'skip'\n        run: npx tsx scripts/backend-changed.ts\n        env:\n          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}\n",
+      "        id: changes\n        run: npx tsx scripts/backend-changed.ts\n        env:\n          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}\n",
     ),
   );
   assert.ok(
