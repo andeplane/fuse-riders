@@ -9,6 +9,7 @@ import { AVATARS } from "../../shared/avatars.js";
 import type { ViewSnapshot } from "../snapshot-stream.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
 export function visualFixture(tick: number): ViewSnapshot {
+  // The classic board with a parked aim: what this fixture rendered before settings became required (#311).
   const game = createGame("renderer-fixture", classicSettings(), 42);
   // The fixture uses five of the available slot colors and avatars.
   for (let p = 0; p < 5; p++)
