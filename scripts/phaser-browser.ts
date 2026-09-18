@@ -116,6 +116,8 @@ try {
         !canvas.getContext("webgl")?.getContextAttributes()?.antialias
       )
         throw Error("WebGL trail antialiasing is disabled");
+      if (backend === "auto" && !arena.metrics().defaultTextureGuard)
+        throw Error("Default-texture boot guard (#127) did not install");
       const fixed = visualFixture(40);
       arena.render(fixed, now, themes["neon-pixel"], "cache-test");
       const settle = async () => {
