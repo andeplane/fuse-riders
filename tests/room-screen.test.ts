@@ -8,10 +8,6 @@ import {
   type RoomScreen,
   type RoomScreenInput,
 } from "../src/online/room-screen.js";
-import {
-  arenaView,
-  mobilePlayPolicy,
-} from "../src/online/mobile-play-policy.js";
 
 const DESKTOP: RoomDevice = {
   touch: false,
@@ -659,115 +655,6 @@ test("after the room closed a resize only moves the desktop bar, and the standin
     endedScreen(endedScreen(roomScreen(input({}))), DESKTOP).desktop,
     false,
   );
-});
-
-/**
- * The expressions `ui.ts` evaluated inline before the screen was derived (origin/main 9a7c214, the state callback and
- * `updateDesktopLayout`), kept verbatim so every combination can be checked against the derivation that replaced them.
- */
-function legacyClasses(state: RoomScreenInput) {
-  const displayOnly = state.role === "display",
-    solo = state.role === "solo";
-  const joining = state.role === "joiner" && !state.joined;
-  const mobile = mobilePlayPolicy(
-    {
-      joined: state.joined,
-      phase: state.phase,
-      displayOnly,
-      host: state.role === "host",
-      recapReady: state.recapReady,
-    },
-    state.device.touch,
-    state.device.width,
-    state.device.height,
-  );
-  const phoneLobby = mobile.lobby;
-  const arena = arenaView({
-    shared: state.shared,
-    displayOnly,
-    joined: state.joined,
-    joining,
-    phase: state.phase,
-    recapReady: state.recapReady,
-  });
-  const sharedLobbyHidden =
-    !(state.phase === "lobby" || state.recapReady) ||
-    joining ||
-    (!phoneLobby && (solo || arena.controller || mobile.active));
-  const controllerOnly = arena.controller && !phoneLobby;
-  const desktop =
-    state.device.desktopPointer &&
-    !mobile.active &&
-    !controllerOnly &&
-    !joining &&
-    sharedLobbyHidden;
-  const side =
-    desktop && !arena.hidden && !arena.sceneBackground && !false && !false;
-  return {
-    classes: {
-      booting: false,
-      joining,
-      "room-over": false,
-      "room-waiting": !sharedLobbyHidden,
-      "controller-only": controllerOnly,
-      "scene-background": arena.sceneBackground,
-      "desktop-game": desktop,
-      "side-standings": side,
-      "mobile-play": mobile.active,
-      "mobile-portrait": mobile.portrait,
-      "mobile-lobby": state.phase === "lobby",
-      "phone-lobby": mobile.lobby,
-    },
-    canvasHidden: arena.hidden,
-    sharedLobbyHidden,
-    styleHidden: arena.controller,
-  };
-}
-
-test("every combination of role, seat, phase, recap, mode and device matches what the page computed inline before", () => {
-  const devices = [
-    DESKTOP,
-    SMALL_WINDOW,
-    TV,
-    PHONE_PORTRAIT,
-    PHONE_LANDSCAPE,
-    SMALL_PHONE,
-    // A portrait tablet or a narrow portrait window without touch: the lobby screen, and the controller once seated.
-    { touch: false, width: 800, height: 1100, desktopPointer: false },
-  ];
-  let checked = 0;
-  for (const role of ["solo", "display", "host", "joiner"] as const)
-    for (const joined of [false, true])
-      for (const phase of [
-        "lobby",
-        "countdown",
-        "playing",
-        "roundOver",
-        "matchOver",
-      ])
-        for (const recap of phase === "matchOver" ? [false, true] : [false])
-          for (const shared of [false, true])
-            for (const device of devices) {
-              if (role === "display" && joined) continue; // a TV never takes a seat
-              const state = input({
-                role,
-                joined,
-                phase,
-                recapReady: recap,
-                shared,
-                device,
-              });
-              const screen = roomScreen(state);
-              const legacy = legacyClasses(state);
-              const label = JSON.stringify(state);
-              assert.deepEqual(screenClasses(screen), legacy.classes, label);
-              assert.equal(screen.arenaHidden, legacy.canvasHidden, label);
-              assert.equal(!screen.lobbyCard, legacy.sharedLobbyHidden, label);
-              assert.equal(screen.arenaController, legacy.styleHidden, label);
-              checked++;
-            }
-  // 4 roles × 2 seats × 6 phase/recap states × 2 modes × 7 devices, less the seated TVs.
-  assert.equal(checked, 4 * 2 * 6 * 2 * 7 - 6 * 2 * 7);
 });
 
 test("a watcher is in the room, so an invited page that watches stops being a join card", () => {

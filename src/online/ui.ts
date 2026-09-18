@@ -1038,12 +1038,14 @@ export async function startOnline(): Promise<void> {
     device: device(),
   });
   // Every class the room screen implies is set here, from the derived screen, and nothing reads one back.
-  let screen: RoomScreen = roomScreen(screenInput());
+  let screen: RoomScreen = roomScreen(screenInput()),
+    shownKind: RoomScreen["kind"] | undefined;
   const showScreen = (next: RoomScreen, resized = false) => {
     screen = next;
     for (const [name, on] of Object.entries(screenClasses(next)))
       app.classList.toggle(name, on);
-    app.dataset.screen = next.kind;
+    // Nothing reads it back; it names the screen for a person in the inspector, so it is written only when it changes.
+    if (next.kind !== shownKind) app.dataset.screen = shownKind = next.kind;
     canvas.hidden = next.arenaHidden;
     sharedLobby.hidden = !next.lobbyCard;
     roster.hidden = next.lobbyCard;
@@ -1415,7 +1417,7 @@ export async function startOnline(): Promise<void> {
       /* Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts. */ avatarButton.hidden =
         view.avatarHidden;
       if (
-        avatarButton.hidden &&
+        view.avatarHidden &&
         dialog.open &&
         avatarPicker &&
         dialogBody.contains(avatarPicker)
