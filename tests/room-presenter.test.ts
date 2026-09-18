@@ -488,9 +488,31 @@ test("a watcher is in the room: no join card, no controls, no avatar and its own
       manages: true,
       managerId: "w1",
       spectators: [{ id: "w1", name: "Watcher", connected: true }],
-    }).lobby.watchers.map((seat) => [seat.status, seat.host]),
-    [["YOU · WATCHING", true]],
-    "a host watching from the list wears the badge on its own row",
+    }).lobby.watchers.map((seat) => [
+      seat.status,
+      seat.host,
+      seat.remove.hidden,
+    ]),
+    [["YOU · WATCHING", true, true]],
+    "a host watching from the list wears the badge and cannot remove itself",
+  );
+  assert.deepEqual(
+    present(lobby, {
+      playerId: "me",
+      manages: true,
+      managerId: "me",
+      spectators: [{ id: "w1", name: "Watcher", connected: true }],
+    }).lobby.watchers.map((seat) => seat.remove),
+    [
+      {
+        hidden: false,
+        disabled: false,
+        title: "Remove Watcher from the room",
+        label: "Remove Watcher from the room",
+        confirms: true,
+      },
+    ],
+    "and a watcher holds no seat, so the manager may send it home in any phase",
   );
   assert.equal(
     present(lobby, { playerId: "ada", manages: false }).notice,

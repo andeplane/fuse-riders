@@ -68,7 +68,9 @@ const joinAs = async (page: Page, name: string, url: string) => {
     .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
     .click();
 };
-// Rider names only: the same lists also carry the HOST badge and the status lines, and a name is what these steps mean.
+// A member's own name: these lists also carry the HOST badge and the status lines, and `getByText` is not case
+// sensitive, so "Host" would match the badge too. The watching list is nested in `.room-riders`, so this matches a
+// watcher's name as well as a rider's — no spectator takes part in this smoke.
 const RIDER_NAME = ":is(.room-rider strong, .online-score-name)";
 const rosterHas = (page: Page, name: string) =>
   page

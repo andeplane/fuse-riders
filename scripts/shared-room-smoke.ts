@@ -430,10 +430,20 @@ for (const { name, kind } of BOTH_ENGINES) {
         1,
         "one menu button in the lobby",
       );
+      // The creator here drives the shared screen from a page that has taken no seat, so the room's own succession
+      // hands its controls to the first rider as well as to that page (ADR 047 §9): this guest is not waiting on
+      // anyone, it is one of the two devices that can start the race, and its notice says so.
       assert.match(
         (await guest.locator(".online-notice").textContent()) ?? "",
-        /^Waiting for the host/,
-        "guest sees why it waits",
+        /^Join your friends/,
+        "a guest that holds the room is told it can start it",
+      );
+      assert.equal(
+        await guest
+          .getByRole("button", { name: "START RACE", exact: true })
+          .isVisible(),
+        true,
+        "and has the button to do it",
       );
       controlBounds.push({ viewport, rider });
       await guest.screenshot({

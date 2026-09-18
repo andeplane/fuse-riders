@@ -134,16 +134,15 @@ try {
     ["rider", rider],
     ["watcher", watcher],
   ] as const) {
-    const badges = page.locator(".room-riders .host-badge:visible");
+    // The watching list is nested inside `.room-riders`, so say "a seat's row" rather than "anything in the list".
+    const badges = page.locator(
+      ".room-riders > .room-rider:not(.room-watcher) .host-badge:visible",
+    );
     await badges.first().waitFor();
     assert.equal(await badges.count(), 1, `${label} names one host`);
     assert.equal(
-      await page
-        .locator(".room-watcher .host-badge")
-        .first()
-        .isVisible()
-        .catch(() => false),
-      false,
+      await page.locator(".room-watcher .host-badge:visible").count(),
+      0,
       `${label} does not put the badge on the watcher`,
     );
   }
@@ -152,11 +151,21 @@ try {
     false,
     "a watcher holds no remove button",
   );
-  // The host sends the watcher home. A person's row asks twice, so one tap only arms the button.
+  // The host sends the watcher home. A person's row asks twice, so one tap only arms the button — and the armed state
+  // lapses after two seconds, so a loaded machine that misses the window arms it again rather than failing the smoke.
   const removeWatcher = host.locator(".room-watcher > button");
+  const watching = () => host.locator(".room-watcher").count();
   await removeWatcher.click();
   await host.locator(".room-watcher > button.arming").waitFor();
-  await removeWatcher.click();
+  assert.equal(await watching(), 1, "one tap asks; it does not remove anyone");
+  // The armed state lapses after two seconds. On a loaded machine a tap can land after that, in which case it arms the
+  // button again rather than confirming, so the tap is repeated until the row goes.
+  for (let attempt = 0; attempt < 6 && (await watching()); attempt++) {
+    await removeWatcher.click({ timeout: smokeTimeout(5000) }).catch(() => {});
+    for (let waited = 0; waited < 3000 && (await watching()); waited += 250)
+      await host.waitForTimeout(250);
+  }
+  assert.equal(await watching(), 0, "the confirming tap removes the watcher");
   await watcher.locator(".join-kicked").waitFor({ state: "visible" });
   for (const [label, page] of [
     ["host", host],
@@ -209,6 +218,41 @@ try {
     "it does get the standings: both riders",
   );
   await watcher.screenshot({ path: "artifacts/spectator-playing.png" });
+
+  // The host's tab closes for good. The room keeps running (#262), and the rider in the next seat picks it up: the
+  // badge moves to its row and it holds the controls that were the host's, so the match can be ended and restarted.
+  await host.context().close();
+  await rider
+    .locator(".online-host:visible")
+    .waitFor({ timeout: smokeTimeout(30000) });
+  await rider
+    .getByRole("button", { name: "BACK TO LOBBY", exact: true })
+    .click();
+  await waitPhase(rider, ["lobby"]);
+  await rider.screenshot({ path: "artifacts/spectator-handover.png" });
+  const riderBadges = rider.locator(
+    ".room-riders > .room-rider:not(.room-watcher) .host-badge:visible",
+  );
+  await riderBadges.first().waitFor();
+  assert.equal(
+    await riderBadges.count(),
+    1,
+    "exactly one row wears the badge after the handover",
+  );
+  assert.equal(
+    await rider
+      .locator(".room-rider")
+      .filter({ has: rider.locator(".host-badge:visible") })
+      .locator("strong")
+      .innerText(),
+    "RIDER",
+    "and it is the rider that is still here",
+  );
+  assert.equal(
+    await watcher.locator(".online-host").isVisible(),
+    false,
+    "a watcher does not inherit the room while a rider is in it",
+  );
 
   assert.deepEqual(errors, [], "no page errors");
   await writeFile(

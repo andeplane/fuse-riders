@@ -259,8 +259,8 @@ function standings(input: RoomPresenterInput): StandingView[] {
       rank: ranked.indexOf(p) + 1,
       leader: topScore > 0 && p.matchScoreUnits === topScore,
       lead: topScore > 0 ? String(p.matchScoreUnits / topScore) : "0",
-      // The manager may remove an AI rider or a friend, never itself. Both wait for a pause: mid-round a removed rider
-      // is only marked absent, and its own page would rejoin a moment later.
+      // The manager may remove an AI rider or a friend, never itself. Both wait for a pause: outside one a removed
+      // rider is only marked absent, and the manager's own presence duties would log it back a moment later.
       remove: removeView({
         hidden: !manages || p.id === input.playerId,
         removable,

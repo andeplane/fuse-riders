@@ -1388,6 +1388,11 @@ test("kick: the manager frees a human seat between rounds, the target is told, a
     "an AI rider goes through its own button",
   );
   assert.equal(host.command({ type: "kick", id: GUESTS[0]! }), true);
+  assert.equal(
+    net.recorded.get(GUESTS[0]!)!.kicked,
+    0,
+    "the target is told once the seat is actually gone, not when the entry is written",
+  );
   net.step(600);
   for (const id of [HOST, GUESTS[0]!])
     assert.deepEqual(
@@ -1470,4 +1475,42 @@ test("kick: refused mid-round, allowed by the delegate, and it reaches a watcher
   first.stop();
   second.stop();
   watcher.stop();
+});
+
+test("succession is read off the seats: the rider below the host takes over, not the lowest id", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  // Seats go in join order, so the rider with the higher id sits directly under the host. By id the other one would
+  // be the delegate; by seat it is this one, which is what the lobby list shows.
+  const below = join(GUESTS[2]!, "Below");
+  net.step(300);
+  const lower = join(GUESTS[1]!, "Lower");
+  net.step(900);
+  assert.deepEqual(
+    net.frame(HOST)!.players.map((player) => [player.id, player.slot]),
+    [
+      [HOST, 0],
+      [GUESTS[2]!, 1],
+      [GUESTS[1]!, 2],
+    ],
+  );
+  assert.ok(GUESTS[1]! < GUESTS[2]!, "and it is not the lowest id");
+  net.disconnect(HOST);
+  net.step(CREATOR_SILENCE_MS + 2000);
+  for (const id of [GUESTS[1]!, GUESTS[2]!])
+    assert.equal(net.frame(id)!.managerId, GUESTS[2]!, `${id} agrees`);
+  assert.equal(
+    lower.command({ type: "settings", settings: { ...settings, length: 9 } }),
+    false,
+  );
+  assert.equal(
+    below.command({ type: "settings", settings: { ...settings, length: 9 } }),
+    true,
+  );
+  net.step(600);
+  assert.equal(world(lower).state.settings.length, 9);
+  host.stop();
+  below.stop();
+  lower.stop();
 });

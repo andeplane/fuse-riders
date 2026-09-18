@@ -1386,7 +1386,9 @@ export async function startOnline(): Promise<void> {
       bootDone();
       // Every replica folds the same log, so every screen names the same host — including the host's own screen.
       managerId = state.managerId;
-      manages = id !== "" && managerId === id && !replacedHost;
+      // The creator's own page keeps its controls even where the log hands the crown on: a creator that took no seat is
+      // in the room and can see it, and the fold accepts its management entries whatever it says about the crown.
+      manages = id !== "" && (managerId === id || isHost) && !replacedHost;
       if (snapshot && snapshot.phase !== state.phase) clearControls();
       funnel.onFrame(state, {
         playerId: id,

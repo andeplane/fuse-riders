@@ -6,8 +6,9 @@
 > **Status.** Phase G (spectators) landed in #351 under rules `fuse-p2p-41`. Phase B (host badge and handover) and
 > Phase D (kick) landed under rules `fuse-p2p-42`, with two departures from the plan below, both noted where they
 > occur: the badge is the word HOST rather than a crown, because the crown already marks the round leader in the
-> standings; and the crown names exactly one member, so a creator the room has never seen in a seat or in the watching
-> list keeps it rather than handing it to the first rider (`roomManager`). Phases A, C, E and F are still open.
+> standings; and delegation is left exactly as the log defines it, so beside a creator that took no seat the first
+> rider wears the badge as well as the creator's own page — every rule that would avoid that also strands a room whose
+> unseated host has left (ADR 047 §9, `roomManager`). Phases A, C, E and F are still open.
 > Covers ten requested lobby and feel changes: host crown, kick, host handover, ready check, ten colours, unique
 > avatars, spectators, ready check between rounds with a countdown sound, a lobby map picker, and a slower bomb range
 > sweep. Each sub-phase is sized for one agent owning it end to end on a `codex/` branch, opening one pull request in

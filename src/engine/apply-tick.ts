@@ -169,19 +169,20 @@ export function permitted(
 }
 
 /**
- * Who runs the room for the players: the one name the screens show as HOST and the one device whose room commands the
- * others expect. The creator holds it while the room counts it present — seated or watching — and also while the room
- * has never seen it in either, which is a host driving a shared screen from a page that took no seat; the log cannot
- * tell that host from one that left, and the rest of the room can see it on the TV. Otherwise it passes to whoever the
- * log hands the duties to. That is narrower than `actingCreator`, which answers for the log duties alone and
- * deliberately names a second manager beside an unseated creator so joins and presence keep flowing.
+ * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
+ * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * every replica names the same member from the same fold.
+ *
+ * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
+ * shared screen from a page that took no seat. There the crown goes to the rider in the first seat, beside the
+ * creator's own page, which keeps its controls because it knows it is the creator (`RoomRuntime.managing`). That is
+ * what the log has always permitted there (`permitted` accepts every management kind from that rider, ADR 047 §9), and
+ * the alternative is worse: any rule that keeps the crown on an unrecorded creator also keeps it on one that has left,
+ * and a room whose crown sits on a member no device answers for cannot be started, rematched or emptied by anyone.
+ * A creator that means to hand the room over for good is ADR 047 N5.
  */
 export function roomManager(state: RoomState, creatorId: string): string {
-  // The session leaderboard remembers every id that has held a seat, through rounds and lobby resets, so it is what
-  // separates a creator that lost its seat from one that never took a seat.
-  const known =
-    state.game.leaderboard.has(creatorId) || state.spectators.has(creatorId);
-  return known ? (actingCreator(state, creatorId) ?? creatorId) : creatorId;
+  return actingCreator(state, creatorId) ?? creatorId;
 }
 
 function pruneDisconnected(state: RoomState): void {
