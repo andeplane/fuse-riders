@@ -475,18 +475,21 @@ for (const { name, kind } of BOTH_ENGINES) {
       return states.at(-1)?.phase === "playing";
     });
     await guest.locator(".mobile-play").waitFor();
-    const fullThirds = await guest
+    const pads = await guest
       .locator(".online-controls button")
       .evaluateAll((buttons) =>
         buttons.map((b) => {
           const r = b.getBoundingClientRect();
-          return { x: r.x, width: r.width, height: r.height };
+          return { x: r.x, y: r.y, width: r.width, height: r.height };
         }),
       );
-    for (const [i, r] of fullThirds.entries()) {
-      assert.ok(Math.abs(r.x - (i * 844) / 3) < 1);
-      assert.ok(Math.abs(r.width - 844 / 3) < 1);
-      assert.equal(r.height, 390);
+    const [leftPad, bombPad, rightPad] = pads;
+    assert.ok(leftPad && bombPad && rightPad);
+    assert.ok(leftPad.x < rightPad.x && rightPad.x < bombPad.x);
+    assert.ok(Math.abs(bombPad.width - leftPad.width * 2) < 5);
+    for (const pad of pads) {
+      assert.ok(pad.y > 0 && pad.y + pad.height <= 390);
+      assert.ok(pad.x >= 0 && pad.x + pad.width <= 844);
     }
     assert.equal(await guest.locator(".online-arena").isVisible(), false);
     assert.equal(
@@ -496,7 +499,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       "none",
     );
     await guest.screenshot({
-      path: `artifacts/shared-landscape-thirds-${name}.png`,
+      path: `artifacts/shared-landscape-pads-${name}.png`,
     });
     const beforeAngle = await guest.evaluate(() => {
       const states = Reflect.get(window, "__sharedStates") as {
@@ -506,7 +509,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       const state = states.at(-1)!;
       return state.players.find((p) => p.id === state.playerId)!.angle;
     });
-    const left = guest.getByRole("button", { name: "◀", exact: true }),
+    const left = guest.getByRole("button", { name: "Steer left", exact: true }),
       leftBounds = await left.boundingBox();
     assert.ok(leftBounds);
     await guest.mouse.move(

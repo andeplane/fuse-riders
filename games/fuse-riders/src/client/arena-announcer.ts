@@ -81,7 +81,7 @@ export function announcementFor(
       round: snapshot.round,
       count: seconds > 0 ? String(seconds) : "GO!",
       hint: touch
-        ? "HOLD LEFT / RIGHT TO STEER · HOLD THE MIDDLE TO CHARGE, RELEASE TO FIRE"
+        ? "HOLD LEFT / RIGHT TO STEER · HOLD FIRE TO CHARGE, RELEASE TO FIRE"
         : "← → OR A / D TO STEER · HOLD SPACE TO CHARGE, RELEASE TO FIRE",
     };
   }
