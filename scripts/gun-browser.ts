@@ -243,7 +243,7 @@ try {
       controls.className = "online-controls";
       const fire = document.createElement("button");
       fire.className = "gun-armed";
-      fire.textContent = "TAP TO FIRE GUN";
+      fire.textContent = "HOLD TO AIM GUN";
       controls.append(fire);
       document.body.append(controls);
       const hud = document.createElement("span");
