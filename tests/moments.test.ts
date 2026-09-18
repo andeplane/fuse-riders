@@ -16,6 +16,7 @@ import {
 } from "../src/shared/moments.ts";
 import {
   COUNTDOWN_TICKS,
+  MATCH_WINNER_TICKS,
   ROUND_OVER_TICKS,
   SLOT_COLORS,
   addPlayer,
@@ -757,7 +758,7 @@ test("a detected moment is also an event of its tick, and a round with a moment 
   assert.equal(final.phase, "matchOver");
   assert.equal(
     final.phaseEndsAtTick,
-    final.tick + 60 + REPLAY_PAUSE_TICKS,
+    final.tick + ROUND_OVER_TICKS + REPLAY_PAUSE_TICKS + MATCH_WINNER_TICKS,
     "so does the final-round pause before the recap",
   );
   const capped = scene();

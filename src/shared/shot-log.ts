@@ -48,6 +48,7 @@ export interface RoundShot {
   power: number;
   extraBombs: number;
   fuseLevel: number;
+  rangeLevel: number;
   grip: boolean;
   /** Empty for a miss. A rider dies once per round, so one pull can kill at most every other rider. */
   kills: ShotKill[];
@@ -68,6 +69,18 @@ export interface DecidedRound {
   /** The tick the round was decided at; the log is final once every replica has confirmed it. */
   tick: number;
   shots: RoundShot[];
+  /** Frozen at the decision tick; absent in older checkpoints. */
+  rating?: {
+    finishers: string[];
+    standings: Array<{
+      playerId: string;
+      name: string;
+      slot: number;
+      color: string;
+      place: number;
+      scoreUnits: number;
+    }>;
+  };
 }
 
 /**

@@ -118,6 +118,7 @@ export function mountArenaPresentation(
       const module = await dependencies.loadArena();
       if (!current()) return;
       const arena = module.createPhaserArena(canvas, {
+        rotateToFit: canvas.classList.contains("online-arena"),
         renderer:
           new URLSearchParams(location.search).get("renderer") ===
           "phaser-canvas"

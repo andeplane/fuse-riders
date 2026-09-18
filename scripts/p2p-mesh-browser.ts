@@ -33,6 +33,8 @@ globalThis.startMesh = (code, token) => {
   // the answerer's side too, or closeInput finds nothing to close for that peer.
   const onDataChannel = Object.getOwnPropertyDescriptor(RTCPeerConnection.prototype, 'ondatachannel');
   Object.defineProperty(RTCPeerConnection.prototype, 'ondatachannel', { ...onDataChannel, set(handler) { onDataChannel.set.call(this, handler && (event => { channels.push(event.channel); return handler.call(this, event); })); } });
+  // linked() proves reliable-channel health, not that the independently opened input channels are ready.
+  const inputReady = () => channels.filter(channel => channel.label === 'input' && channel.readyState === 'open').length === peers.size;
   const transport = new PeerTransport(code, token, {
     welcome: () => {}, peer: (id, online) => { if (online) peers.add(id); else { peers.delete(id); links.delete(id); } },
     link: (id, open) => { if (open) links.add(id); else { links.delete(id); linkDrops++; } },
@@ -46,7 +48,7 @@ globalThis.startMesh = (code, token) => {
   globalThis.mesh = {
     id: () => transport.id,
     peers: () => [...peers], links: () => [...links],
-    ready: () => peers.size === 5 && [...peers].every(id => transport.linked(id)),
+    ready: () => peers.size === 5 && inputReady() && [...peers].every(id => transport.linked(id)),
     send: () => { let sent = 0; for (const id of peers) { const bytes = encodePacket({ room: roomHash('mesh'), from: transport.id, generation: 1, through: ++seq, lastSeq: 0, entries: [], sentAt: 1, echoSentAt: 0, echoHeld: 0, clockTick: seq, hash: null }); if (transport.sendFast(id, bytes)) sent++; } return sent; },
     received: () => Object.fromEntries(received), receivedFromAll: () => received.size === 5 && [...received.values()].every(count => count > 0),
     reliable: () => { let sent = 0; for (const id of peers) if (transport.send(id, { type: 'hello', generation: 1, full: true, rules: 'harness' })) sent++; return sent; },

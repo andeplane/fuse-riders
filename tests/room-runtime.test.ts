@@ -1,5 +1,9 @@
 import test from "node:test";
 import { SNAPSHOT_INTERVAL } from "../src/online/rollback.js";
+import {
+  SAMPLE_WINDOW_MS,
+  SLEW_TICKS_PER_SECOND,
+} from "../src/online/clock.js";
 import assert from "node:assert/strict";
 import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 import {
@@ -8,6 +12,7 @@ import {
   DISCONNECT_MS,
   SNAPSHOT_RETRY_MS,
   SNAPSHOT_SERVE_MS,
+  RATE_DEFER_MS,
   pageGeneration,
 } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/shared/room-settings.js";
@@ -75,8 +80,8 @@ test("the creator opens a fresh world, seats joiners, adds bots and starts; ever
     .players.find((p) => p.id.startsWith("bot:"))!.name;
   assert.match(
     botName,
-    /^AI \w+ · (Easy|Medium|Hard)$/,
-    "an added AI carries the difficulty it was rolled, so every roster shows it",
+    /^AI \w+$/,
+    "an added AI has no difficulty label in the replicated roster",
   );
   assert.equal(
     host.command({ type: "action", action: "start" }),
@@ -1127,7 +1132,21 @@ test("a guest hidden while only AI riders race drops back with the authority at 
     `the frozen world did not keep the guest at triple pace: ${apart(f.host, f.guest)}`,
   );
   f.net.setHidden(GUESTS[0]!, false);
-  f.net.step(3000);
+  // The round's end can land anywhere in the rate-observation window. Recovery slews at one tick per second;
+  // a fixed three-second wait only worked for the previous pickup balance's smaller clock gap.
+  // Restoring visibility also requests the frozen world's snapshot. Even when the clocks are already close,
+  // advance the network until that recovery completes before asserting that both clocks and worlds are ready.
+  const recoveryMs =
+    (apart(f.host, f.guest) / SLEW_TICKS_PER_SECOND) * 1000 +
+    SAMPLE_WINDOW_MS +
+    RATE_DEFER_MS;
+  for (
+    let elapsed = 0;
+    elapsed < recoveryMs &&
+    (apart(f.host, f.guest) >= 5 || f.guest.metrics().snapshotRequest);
+    elapsed += 50
+  )
+    f.net.step(50);
   assert.ok(
     apart(f.host, f.guest) < 5,
     `back in step: ${apart(f.host, f.guest)}`,

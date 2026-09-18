@@ -61,6 +61,10 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   beer: ["BEER", `rivals wobble for ${seconds(DRUNK_DURATION_TICKS)}`],
   ink: ["INK", `clouds rivals' view for ${seconds(INK_DURATION_TICKS)}`],
   star: ["STAR", `invulnerable for ${seconds(STAR_DURATION_TICKS)}`],
+  range: [
+    "RANGE",
+    "longer maximum bomb reach for this round: 1.5× → 1.75× → 2×; stacks up to 3 times",
+  ],
   grip: [
     "GRIP",
     "43% tighter turn radius for this round; collect once, leave later drops for rivals",
@@ -79,7 +83,9 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   ],
 };
 
-const defaultSpawns = new Set(PICKUP_WEIGHTS.map((row) => row.type));
+const defaultSpawns = new Set(
+  PICKUP_WEIGHTS.filter((row) => row.weight > 0).map((row) => row.type),
+);
 
 export const POWERUP_GUIDE: readonly PowerupGuideEntry[] = (
   Object.entries(copy) as Array<[PickupType, readonly [string, string]]>

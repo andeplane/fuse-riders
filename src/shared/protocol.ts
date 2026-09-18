@@ -98,6 +98,8 @@ export interface GameSnapshot {
     waitingForNextRound?: boolean;
     bombReadyAtTick: number;
     bombChargeStartedTick?: number;
+    aimSlowTicks: number;
+    aimSlowSpentTicks: number;
     trail: ReadonlyArray<TrailSegment>;
     extraBombs: number;
     fuseLevel: number;
@@ -106,6 +108,7 @@ export interface GameSnapshot {
     invulnerableUntilTick: number;
     nitroUntilTicks: ReadonlyArray<number>;
     snailUntilTicks: ReadonlyArray<number>;
+    rangeLevel: number;
     grip: boolean;
     drunkUntilTick: number;
     inkUntilTick: number;

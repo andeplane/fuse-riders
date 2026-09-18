@@ -9,17 +9,18 @@ export const PICKUP_WEIGHTS: ReadonlyArray<
   { type: "stopwatch", weight: 160 },
   { type: "gun", weight: 400 },
   { type: "shell", weight: 53 },
+  { type: "target", weight: 0 },
   { type: "beer", weight: 160 },
   { type: "ink", weight: 160 },
   { type: "triple", weight: 540 },
   { type: "five", weight: 180 },
-  { type: "target", weight: 165 },
   { type: "orbitShield", weight: 160 },
+  { type: "portal", weight: 160 },
   { type: "gravity", weight: 120 },
   { type: "grip", weight: 160 },
+  { type: "range", weight: 160 },
   { type: "nitro", weight: 160 },
   { type: "snail", weight: 160 },
-  { type: "portal", weight: 160 },
 ];
 export function pickupTypeForRoll(roll: number): PickupType {
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1)

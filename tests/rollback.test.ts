@@ -663,6 +663,54 @@ test("late reordered inputs converge through GRIP collection and do not consume 
   assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
 });
 
+test("late reordered inputs converge through Range collection and do not consume a repeat drop", () => {
+  const fixture = world();
+  playing(fixture);
+  Object.assign(fixture.state.game.players.get("creator")!, {
+    x: 1100,
+    y: 700,
+    angle: 0,
+    trail: [],
+  });
+  Object.assign(guest(fixture), { x: 500, y: 350, angle: 0, trail: [] });
+  fixture.state.game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  fixture.state.game.pickups = [0, 1, 2, 3].map(() => ({
+    id: fixture.state.game.nextPickupId++,
+    type: "range",
+    x: 505,
+    y: 350,
+    expiresAtTick: fixture.tick + 100,
+  }));
+  const start = fixture.tick,
+    end = start + 12;
+  const entries: Entry[] = [
+    [1, start + 1, STEER, 1],
+    [2, start + 8, STEER, 0],
+  ];
+  const replica = () => {
+    const w = new World(structuredClone(fixture.state), "creator", "creator");
+    w.stream("creator", 1).through = end;
+    w.stream("b", 1).through = start;
+    return w;
+  };
+  const reference = replica();
+  reference.receive("b", entries, 2, end, end);
+  reference.advance(end);
+  const delayed = replica();
+  delayed.advance(end);
+  delayed.receive("b", [entries[1]!], 2, end, end);
+  const repair = delayed.receive("b", [entries[0]!], 2, end, end);
+  assert.ok(repair.rollbackTicks > 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+  assert.equal(guest(delayed).rangeLevel, 3);
+  assert.equal(delayed.state.game.pickups.length, 1);
+  assert.equal(delayed.state.game.matchStats.get("b")!.pickupsCollected, 3);
+  const duplicate = delayed.receive("b", entries, 2, end, end);
+  assert.deepEqual(duplicate.events, []);
+  assert.equal(duplicate.rollbackTicks, 0);
+  assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});
+
 test("late duplicated and reordered Target releases converge through debris decay and peer recovery", async () => {
   const { eliminatePlayer } = await import("../src/shared/game.js");
   const { encodeSnapshot, decodeSnapshot, SnapshotAssembler } =
@@ -741,7 +789,7 @@ test("late duplicated and reordered Target releases converge through debris deca
   const pieces = delayed.state.game.players.get("c")!.trail;
   assert.ok(pieces.length > 0 && pieces.length < 40);
   assert.equal(new Set(pieces.map((s) => s.detached?.id)).size, 2);
-  assert.ok(pieces.every((s) => s.detached?.decayStartTick === start + 20));
+  assert.ok(pieces.every((s) => s.detached?.decayStartTick === start + 60));
   assert.equal(delayed.receive("b", entries, 2, end, end).rollbackTicks, 0);
   const recovered = recover(delayed);
   for (const w of [reference, delayed, recovered]) {

@@ -446,8 +446,8 @@ test("overtime brings the walls in from the very edge, and the round is an ordin
   );
 });
 
-test("bots ride through open edges rather than turning away from them, and survive a wrap round", () => {
-  const game = createGame("bots", 3);
+test("bots ride through open edges rather than turning away from them, and only combat can end the round", () => {
+  const game = createGame("bots", 1);
   game.settings = { ...defaultRoomSettings(), map: "wrap" };
   for (let slot = 0; slot < 4; slot += 1)
     addPlayer(game, {
@@ -461,16 +461,27 @@ test("bots ride through open edges rather than turning away from them, and survi
   let crossings = 0;
   for (let i = 0; i < 460 && game.phase !== "roundOver"; i += 1) {
     const before = new Map(
-      [...game.players.values()].map((player) => [player.id, player.x]),
+      [...game.players.values()].map((player) => [
+        player.id,
+        { x: player.x, y: player.y },
+      ]),
     );
-    step(
+    const { events } = step(
       game,
       new Map([...game.players.keys()].map((id) => [id, bots.input(game, id)])),
     );
+    for (const event of events)
+      if (event.type === "playerEliminated")
+        assert.notEqual(
+          event.cause,
+          "wall",
+          "open edges cannot eliminate bots",
+        );
     for (const player of game.players.values())
       if (
         player.alive &&
-        Math.abs(player.x - before.get(player.id)!) > ARENA_WIDTH / 2
+        (Math.abs(player.x - before.get(player.id)!.x) > ARENA_WIDTH / 2 ||
+          Math.abs(player.y - before.get(player.id)!.y) > ARENA_HEIGHT / 2)
       )
         crossings += 1;
     for (const player of game.players.values()) {
@@ -483,10 +494,12 @@ test("bots ride through open edges rather than turning away from them, and survi
       );
     }
   }
-  assert.ok(
-    [...game.players.values()].filter((player) => player.alive).length >= 2,
-    "most of a hard field is still riding after twenty seconds",
-  );
+  // Combat can end the round earlier when detached trails remain hazardous longer.
+  const survivors = [...game.players.values()].filter((player) => player.alive);
+  if (game.phase === "roundOver")
+    assert.equal(survivors.length, 1, "ordinary combat leaves a round winner");
+  else
+    assert.ok(survivors.length >= 2, "multiple riders keep the round running");
   assert.ok(crossings > 0, "and at least one of them used an edge");
 });
 
