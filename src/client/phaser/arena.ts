@@ -920,19 +920,29 @@ class ArenaScene extends Phaser.Scene {
     }
     for (const bomb of s.bombs) {
       if (bomb.shell?.gun) {
-        const alpha = clamp(
-          (bomb.explodeAtTick - (s.presentationTick ?? s.tick)) /
-            Math.max(1, bomb.explodeAtTick - bomb.launchedTick),
-          0,
-          1,
+        const { alpha, glow } = gunFrame(bomb, s.presentationTick ?? s.tick);
+        const tint = color(
+          s.players.find((p) => p.id === bomb.ownerId)?.color ?? "#ffffff",
         );
-        g.lineStyle(2, 0xd8edff, 0.7 * alpha).lineBetween(
+        g.lineStyle(10 * glow + 2, tint, 0.24 * glow).lineBetween(
           bomb.launchX,
           bomb.launchY,
           bomb.x,
           bomb.y,
         );
-        g.fillStyle(0xffffff, alpha).fillCircle(bomb.x, bomb.y, 2);
+        g.lineStyle(4, tint, 0.65 * alpha).lineBetween(
+          bomb.launchX,
+          bomb.launchY,
+          bomb.x,
+          bomb.y,
+        );
+        g.lineStyle(1.5, 0xffffff, alpha).lineBetween(
+          bomb.launchX,
+          bomb.launchY,
+          bomb.x,
+          bomb.y,
+        );
+        g.fillStyle(0xffffff, alpha).fillRect(bomb.x - 2, bomb.y - 2, 4, 4);
         continue;
       }
       if (bomb.shell) {

@@ -39,3 +39,12 @@ test("flash and decorative recoil sample fractional time, end cleanly and replay
   assert.deepEqual(gunFrame(tracer, 100.5), first);
   assert.deepEqual(tracer, before);
 });
+
+test("tracer glow collapses before the authoritative tracer expires", () => {
+  assert.equal(gunFrame(tracer, 100).glow, 1);
+  assert.equal(gunFrame(tracer, 100).alpha, 1);
+  assert.equal(gunFrame(tracer, 101.5).glow, 0);
+  assert.ok(gunFrame(tracer, 101.5).alpha > 0);
+  assert.equal(gunFrame(tracer, 103).alpha, 0);
+  assert.equal(gunFrame({ ...tracer, shell: undefined }, 100).alpha, 0);
+});

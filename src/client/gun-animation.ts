@@ -19,6 +19,10 @@ export function gunFrame(bomb: Tracer, tick: number) {
   const age = tick - bomb.launchedTick;
   const visible = !!bomb.shell?.gun && age >= 0 && tick < bomb.explodeAtTick;
   return {
+    alpha: visible
+      ? (1 - age / Math.max(1, bomb.explodeAtTick - bomb.launchedTick)) ** 2
+      : 0,
+    glow: visible ? Math.max(0, 1 - age / 1.5) : 0,
     flash: visible ? Math.max(0, 1 - age) : 0,
     recoil: visible ? 5 * Math.sin(Math.min(1, age / 2) * Math.PI) : 0,
     dx: bomb.shell?.vx ?? 0,
