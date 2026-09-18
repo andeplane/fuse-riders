@@ -105,8 +105,9 @@ try {
       a.reduce((sum, value, i) => sum + Math.abs(value - b[i]), 0);
     const empty = paint([]);
     const filled = paint([testRider]);
-    const upper = at(filled, 350, 198),
-      lower = at(filled, 350, 201);
+    // Sample opposite shoulders of the wider body, away from the antialiased rim.
+    const upper = at(filled, 350, 197),
+      lower = at(filled, 350, 202);
     if (distance(upper, lower) < 50) throw Error("Beveled lighting is flat");
     if (distance(at(filled, 499, 200), at(filled, 501, 200)) > 10)
       throw Error("History/tip join has a seam");
