@@ -25,6 +25,7 @@ export class ControllerInputState {
   constructor(
     private readonly transport: InputTransport,
     private readonly now: () => number = () => performance.now(),
+    private readonly aimRotated: () => boolean = () => false,
   ) {}
 
   configureTargetAim(origin?: ControllerPoint): void {
@@ -51,10 +52,13 @@ export class ControllerInputState {
     const previous = this.positions.get(pointerId);
     this.positions.set(pointerId, point);
     if (pointerId !== this.aimPointer || !this.aim || !previous) return false;
-    // 320 x 180 CSS pixels sweeps the full 16:9 arena like a trackpad.
+    // Undo the local clockwise view before applying the world-space trackpad scale.
+    const dx = point.x - previous.x,
+      dy = point.y - previous.y;
+    const rotated = this.aimRotated();
     this.aim = {
-      x: Math.max(0, Math.min(1, this.aim.x + (point.x - previous.x) / 320)),
-      y: Math.max(0, Math.min(1, this.aim.y + (point.y - previous.y) / 180)),
+      x: Math.max(0, Math.min(1, this.aim.x + (rotated ? dy : dx) / 320)),
+      y: Math.max(0, Math.min(1, this.aim.y + (rotated ? -dx : dy) / 180)),
     };
     return true;
   }
