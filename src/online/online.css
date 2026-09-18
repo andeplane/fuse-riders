@@ -626,6 +626,14 @@
   border: 0.0625rem solid #43536b;
   background: #040b19b0;
 }
+/* The other games on this site: one quiet text link, not a second call to action. */
+.landing-more {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--fui-cyan);
+  font-size: 0.625rem;
+  letter-spacing: 0.125rem;
+}
 .landing-guide {
   max-width: 33.125rem;
   margin-top: 2.125rem;
