@@ -83,6 +83,7 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
   private cache: TrailRibbonCache;
   private readonly visualWidth: number;
   private resources: Resources | undefined;
+  private failed = false;
   private capacity = 0;
   private uploaded = {
     ribbons: undefined as readonly TrailRibbon[] | undefined,
@@ -110,18 +111,24 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
     // The arena camera never renders through a framebuffer (no camera alpha,
     // filters or forceComposite); that path would need a different matrix.
     if (!this.ribbons.length || !drawingContext.useCanvas) return;
-    if (renderer.contextLost || !renderer.gl) return;
-    const resources = (this.resources ??= this.createResources(renderer));
-    const { program, vao } = resources;
-    if (program.compiling) {
-      program.checkParallelCompile();
-      if (program.compiling) return;
+    if (this.failed || renderer.contextLost || !renderer.gl) return;
+    let resources: Resources;
+    try {
+      resources = this.resources ??= this.createResources(renderer);
+      if (resources.program.compiling) {
+        resources.program.checkParallelCompile();
+        if (resources.program.compiling) return;
+      }
+    } catch (error) {
+      // A shader that will not build fails once, not on every frame; the rest of the arena keeps rendering.
+      this.failed = true;
+      this.releaseResources();
+      console.error("Beveled trails disabled", error);
+      return;
     }
-    const count = this.upload(
-      resources,
-      calcMatrix,
-      (drawingContext.camera?.alpha ?? 1) * this.alpha,
-    );
+    const { program, vao } = resources;
+    // The framebuffer early return above means camera alpha is always 1 here.
+    const count = this.upload(resources, calcMatrix, this.alpha);
     if (!count) return;
     const scale = Math.hypot(calcMatrix.a, calcMatrix.b);
     program.setUniform(
@@ -147,11 +154,29 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
 
   private createResources(renderer: WebGLRenderer): Resources {
     const gl = renderer.gl;
-    const program = renderer.createProgram(vertex, fragment);
-    const buffer = renderer.createVertexBuffer(
-      new ArrayBuffer(INITIAL_VERTICES * STRIDE),
-      gl.DYNAMIC_DRAW,
-    );
+    let program: ProgramWrapper | undefined;
+    let buffer: BufferWrapper | undefined;
+    try {
+      // A compile error surfaces here or later in checkParallelCompile; either way nothing stays registered.
+      program = renderer.createProgram(vertex, fragment);
+      buffer = renderer.createVertexBuffer(
+        new ArrayBuffer(INITIAL_VERTICES * STRIDE),
+        gl.DYNAMIC_DRAW,
+      );
+      return this.createVAO(renderer, program, buffer);
+    } catch (error) {
+      if (buffer) renderer.deleteBuffer(buffer);
+      if (program) renderer.deleteProgram(program);
+      throw error;
+    }
+  }
+
+  private createVAO(
+    renderer: WebGLRenderer,
+    program: ProgramWrapper,
+    buffer: BufferWrapper,
+  ): Resources {
+    const gl = renderer.gl;
     this.capacity = INITIAL_VERTICES;
     // The shape WebGLVAOWrapper reads at runtime (and again on restore). Phaser's
     // typings for WebGLVertexBufferLayoutWrapper/createVAO disagree with 4.2.1's
@@ -245,8 +270,7 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
     const { renderer } = resources;
     // Phaser has no deleteVAO; drop it from the restore list by hand so a
     // later context restore never rebuilds a destroyed VAO.
-    const index = renderer.glVAOWrappers.indexOf(resources.vao);
-    if (index >= 0) renderer.glVAOWrappers.splice(index, 1);
+    Phaser.Utils.Array.Remove(renderer.glVAOWrappers, resources.vao);
     resources.vao.destroy();
     renderer.deleteBuffer(resources.buffer);
     renderer.deleteProgram(resources.program);

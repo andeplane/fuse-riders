@@ -1,6 +1,6 @@
 # Phaser 4 migration
 
-Status: in progress on `claude/phaser-4-refactor-eval-ae6882`.
+Status: implemented on `claude/phaser-4-refactor-eval-ae6882`.
 
 ## Goal
 
@@ -12,7 +12,7 @@ Unchanged: `src/shared/`, `src/online/`, the snapshot/frame-clock contract, the 
 
 `npm install phaser@4.2.1` followed by `tsc` reports six errors, in two places:
 
-1. `beveled-trails.ts`: Phaser 4 removed the `Pipeline` system (`SinglePipeline`, `renderer.pipelines`, `getTintAppendFloatAlpha`), and `Extern#render` has a new signature `(renderer, drawingContext, calcMatrix, displayList, displayListIndex)`.
+1. `beveled-trails.ts`: Phaser 4 removed the `Pipeline` system (`SinglePipeline`, `renderer.pipelines`), and `Extern#render` has a new signature `(renderer, drawingContext, calcMatrix, displayList, displayListIndex)`.
 2. `arena.ts` `cancelPreload`: `LoaderPlugin#inflight` is now a native `Set`, so `.iterate` becomes `for…of`.
 
 One more break is silent at compile time and is the largest behavioural risk:
@@ -41,12 +41,12 @@ Clipping on WebGL would be a visible gameplay-presentation change. It needs its 
 The migration guide's documented escape hatch for custom GL is an `Extern`. Phaser runs `YieldContext` before `Extern#render` and `RebindContext` after it, and resets the state it tracks. It warns against raw `gl` calls anywhere else.
 
 - `BeveledTrails` stays an `Extern`, and `TrailRibbonCache` and `trail-ribbon.ts` are untouched.
-- Create GL resources through the renderer's wrappers (`renderer.createProgram`, `createVertexBuffer`, `createVAO` or the current 4.2.1 equivalents) rather than raw `gl.create*`. The renderer tracks them, recreates them and re-uploads buffer data on context restore, so there is no hand-written loss handling. Raw `gl` calls are confined to the draw itself, inside `render`.
+- Create GL resources through the renderer's wrappers (`renderer.createProgram`, `createVertexBuffer`, `createVAO` or the current 4.2.1 equivalents) rather than raw `gl.create*`. The renderer tracks them, recreates them and re-uploads buffer data on context restore, so there is no hand-written loss handling. The one exception: Phaser 4.2.1 has no `deleteVAO`, so `destroy` removes our VAO from `renderer.glVAOWrappers` by hand before destroying it. Raw `gl` calls are confined to the draw itself, inside `render`.
 - Call `drawingContext.beginDraw()` before drawing. `YieldContext` only resets blend, the VAO and texture units, and it is `beginDraw` that binds the framebuffer, scissor and viewport for the current camera.
 - `calcMatrix` from `ExternWebGLRenderer` includes the camera viewport, rotation, zoom and scroll when `drawingContext.useCanvas` is true, in top-left, Y-down backing pixels. The vertex shader maps to clip space as `x' = 2x/W − 1, y' = 1 − 2y/H` using `drawingContext.width/height`. We never put the arena camera in a framebuffer (no camera alpha < 1, filters or `forceComposite`). `render` checks `useCanvas` and skips drawing if it is false, rather than supporting that path untested.
 - Vertex layout: `x, y` (already transformed by `calcMatrix` on the CPU, as today), `nx, ny`, and colour as RGBA with alpha `camera.alpha * this.alpha`. The v3 shader read `outTint.bgr` because Phaser 3 packed tints as BGR; the new code packs RGB itself. Output stays premultiplied with blend `ONE, ONE_MINUS_SRC_ALPHA`, as Phaser's NORMAL blend expects. `uFeather` keeps its formula, using `Math.hypot(calcMatrix.a, calcMatrix.b)`.
 - Upload vertices when the ribbon set or the camera matrix changes. Positions are in screen space, so crossed maps with four cameras need one upload per camera per frame, which is acceptable at trail scale. Grow the buffer geometrically.
-- `preDestroy` releases the program and buffer.
+- `destroy` releases the VAO, buffer and program. A shader that fails to compile or link disables the trails once (logged) and releases what was created, instead of throwing on every frame.
 
 Rejected alternative: a custom `BatchHandlerTri` render node registered through `RenderConfig#renderNodes` with shader additions. It would batch with Phaser's own draws, but it ties us to render-node internals that are still moving across the 4.x minors, and trail count is small enough that one draw call per frame is fine.
 

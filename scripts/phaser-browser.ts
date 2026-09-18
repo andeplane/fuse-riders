@@ -116,7 +116,7 @@ try {
         !canvas.getContext("webgl")?.getContextAttributes()?.antialias
       )
         throw Error("WebGL trail antialiasing is disabled");
-      if (backend === "auto" && !arena.metrics().defaultTextureGuard)
+      if (!arena.metrics().defaultTextureGuard)
         throw Error("Default-texture boot guard (#127) did not install");
       const fixed = visualFixture(40);
       arena.render(fixed, now, themes["neon-pixel"], "cache-test");
@@ -125,24 +125,10 @@ try {
           requestAnimationFrame(() => requestAnimationFrame(() => r())),
         );
       };
-      for (const [w, h] of [
-        [800, 450],
-        [1200, 675],
-        [400, 225],
-      ] as const) {
-        wrapper.style.width = `${w}px`;
-        wrapper.style.height = `${h}px`;
-        await settle();
-        arena.render(fixed, now, themes["neon-pixel"], "cache-test");
-        if (
-          canvas.width !== w * devicePixelRatio ||
-          canvas.height !== h * devicePixelRatio
-        )
-          throw Error(
-            `DPR sizing failed: ${canvas.width}x${canvas.height} at ${w}x${h} DPR ${devicePixelRatio}`,
-          );
-        // A fixture containing just two bright, far-apart landmarks verifies world-to-pixel mapping
-        // and the boundary mask after every resize, on both actual rendering backends.
+      // A fixture containing just two bright, far-apart landmarks verifies world-to-pixel mapping
+      // on both actual rendering backends; extra segments exercise the trail vertex buffer.
+      type Segment = (typeof fixed.players)[number]["trail"][number];
+      const checkLandmarks = (label: string, extra: Segment[] = []) => {
         const marker = {
           ...fixed,
           players: fixed.players.slice(0, 1).map((p) => ({
@@ -152,6 +138,7 @@ try {
             x: 500,
             y: 400,
             trail: [
+              ...extra,
               {
                 x1: 100,
                 y1: 100,
@@ -197,9 +184,27 @@ try {
             pixel.set(canvas.getContext("2d")!.getImageData(px, py, 1, 1).data);
           if (Math.max(...pixel.slice(0, 3)) < 100)
             throw Error(
-              `World landmark missing after resize at ${x},${y}: ${pixel}`,
+              `World landmark missing ${label} at ${x},${y}: ${pixel}`,
             );
         }
+      };
+      for (const [w, h] of [
+        [800, 450],
+        [1200, 675],
+        [400, 225],
+      ] as const) {
+        wrapper.style.width = `${w}px`;
+        wrapper.style.height = `${h}px`;
+        await settle();
+        arena.render(fixed, now, themes["neon-pixel"], "cache-test");
+        if (
+          canvas.width !== w * devicePixelRatio ||
+          canvas.height !== h * devicePixelRatio
+        )
+          throw Error(
+            `DPR sizing failed: ${canvas.width}x${canvas.height} at ${w}x${h} DPR ${devicePixelRatio}`,
+          );
+        checkLandmarks("after resize");
       }
       arena.render(fixed, now, themes["neon-pixel"], "cache-test");
       const stableHistoryBuilds = arena.metrics().trailHistoryBuilds;
@@ -313,6 +318,19 @@ try {
         gl!.readPixels(200, 200, 1, 1, gl!.RGBA, gl!.UNSIGNED_BYTE, pixel);
         if (pixel[0]! + pixel[1]! + pixel[2]! === 0)
           throw Error("Restored renderer remained blank");
+        // Trails come back after restore, including through a grown vertex buffer.
+        checkLandmarks("after context restore");
+        const zigzag: Segment[] = [];
+        for (let i = 0; i < 1200; i++)
+          zigzag.push({
+            x1: 100 + i,
+            y1: i % 2 ? 600 : 300,
+            x2: 101 + i,
+            y2: i % 2 ? 300 : 600,
+            createdTick: 39,
+            expiresAtTick: 100,
+          });
+        checkLandmarks("with a grown trail buffer", zigzag);
         restored = true;
       }
       results.push({
