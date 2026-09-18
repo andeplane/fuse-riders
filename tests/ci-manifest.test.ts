@@ -203,7 +203,11 @@ test("ONLY selects verify steps, groups, single smokes and core", () => {
     ids("core"),
     manifest.verify.map((step) => step.id),
   );
-  assert.deepEqual(ids("online"), ["online-chrome", "online-webkit"]);
+  assert.deepEqual(ids("online"), [
+    "online-chrome",
+    "online-webkit",
+    "ready-check",
+  ]);
   assert.deepEqual(ids("online-webkit, build"), ["build", "online-webkit"]);
   assert.throws(() => select(manifest, "lan"), /Unknown step 'lan'/);
 });

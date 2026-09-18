@@ -1,3 +1,4 @@
+import { readyRoom } from "./lib/ready-room.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { launchSelected, browserKind } from "./lib/browser.js";
@@ -54,7 +55,7 @@ try {
     .click();
   await phone.locator(".online-join").waitFor({ state: "hidden" });
   await host.getByRole("button", { name: "ADD AI", exact: true }).click();
-  await host.getByRole("button", { name: "START RACE", exact: true }).click();
+  await readyRoom(host);
   await phone.locator(".mobile-play.controller-only").waitFor();
 
   async function cleanScreenshot(options: { path: string }) {

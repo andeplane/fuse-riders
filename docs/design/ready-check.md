@@ -1,0 +1,11 @@
+# Ready check (#364)
+
+Online riders toggle READY in the lobby and READY FOR REMATCH after the final results pause. Every connected human must agree; at least two connected riders are required, counting AI. An unseated creator, display or spectator has no vote. Solo retains its start/rematch controls. Once unanimity starts the existing countdown, votes are consumed and the countdown proceeds normally.
+
+Readiness belongs to the deterministic room fold, not the signalling service or a host-side button tally. Player entry kind 6 is `[seq, tick, READY, boolean, matchId, phase]`, with `phase` limited to `lobby | matchOver`. The ordinary stream sequence, generation, repair and rollback rules apply. A vote changes only its sender's connected human seat and only in the named match and phase. The fold checks unanimity after all entries for a tick, so concurrent votes have one outcome. Rematches derive a fresh deterministic id from the previous match id and the triggering log tick. No host command or new network service is needed.
+
+Readiness is cleared on a consumed start/rematch, return to lobby, settings change or presence/reconnect transition. New riders start unready. Disconnected riders do not block the check; if fewer than two riders remain, readiness waits. A ready vote already in flight may arrive after a settings change, following normal tick ordering.
+
+Checkpoints encode true readiness as an optional sixth fold field, validate it, and include it in the canonical hash. Missing means not ready. The RULES bump separates old peers; refresh all peers together and use fresh rooms after rollback. Rules 44 is reserved for the separate hidden-tab-policy work, so this change uses 45.
+
+The presentation lists READY / NOT READY / OFFLINE for each lobby rider, offers the toggle to guests as well as hosts, and shows the ready count in the results. Host settings and return-to-lobby controls retain their ownership. The browser smoke helper readies the actual rider pages through their buttons, including controllers; it never substitutes a host start command.

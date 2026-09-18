@@ -60,6 +60,17 @@
       "retries": 1
     },
     {
+      "id": "ready-check",
+      "group": "online",
+      "name": "Phone readiness starts and rematches without the TV",
+      "command": "npx tsx scripts/ready-check-smoke.ts",
+      "browsers": ["chromium"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 10,
+      "retries": 1
+    },
+    {
       "id": "voice",
       "group": "voice",
       "name": "Online voice chat (synthetic microphone)",

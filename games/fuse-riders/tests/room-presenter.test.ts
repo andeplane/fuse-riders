@@ -85,23 +85,27 @@ test("the recap is ready only once the final-round pause has run out", () => {
 test("lobby: who is ready, what the host may do, and what a guest waits for", () => {
   const lobby = frame({ phase: "lobby" });
   const host = present(lobby, { lobbyCard: true });
-  assert.equal(host.lobby.count, "3 riders ready");
+  assert.equal(host.lobby.count, "3 riders");
   assert.equal(host.lobby.empty, false);
   assert.deepEqual(
     host.lobby.riders.map((r) => [r.id, r.name, r.status]),
     [
-      ["me", "Anders", "READY"],
-      ["ada", "Ada", "READY"],
+      ["me", "Anders", "NOT READY"],
+      ["ada", "Ada", "NOT READY"],
       ["bot:1", "AI Bo", "READY"],
     ],
   );
-  assert.equal(host.notice, "Join your friends, then start the race");
+  assert.equal(
+    host.notice,
+    "Ready up — the race starts when everyone is ready",
+  );
   assert.equal(host.avatarHidden, false);
   assert.equal(host.roundClock, "");
   assert.equal(host.roundChipHidden, true);
   assert.equal(host.announcerVisible, false);
   assert.deepEqual(host.actions, {
     hidden: false,
+    ready: { hidden: false, pressed: false, label: "READY" },
     start: { label: "START RACE", disabled: false },
     reset: { disabled: true, hidden: false },
     shareHidden: false,
@@ -110,8 +114,11 @@ test("lobby: who is ready, what the host may do, and what a guest waits for", ()
   assert.equal(host.power.hidden, true);
 
   const guest = present(lobby, { playerId: "ada", host: false });
-  assert.equal(guest.notice, "Waiting for the host to start");
-  assert.equal(guest.actions.hidden, true);
+  assert.equal(
+    guest.notice,
+    "Ready up — the race starts when everyone is ready",
+  );
+  assert.equal(guest.actions.hidden, false);
 
   const unseated = present(lobby, { playerId: "new", host: false });
   assert.equal(unseated.joined, false);
@@ -128,10 +135,7 @@ test("lobby: who is ready, what the host may do, and what a guest waits for", ()
 test("lobby count: waiting for a second rider, and offline riders do not count", () => {
   const one = frame({ phase: "lobby" }, { ada: { connected: false } });
   const alone = present({ ...one, players: one.players.slice(0, 1) });
-  assert.equal(
-    alone.lobby.count,
-    "1 rider ready · Waiting for at least 2 riders",
-  );
+  assert.equal(alone.lobby.count, "1 rider · Waiting for at least 2 riders");
   assert.equal(alone.actions.start.disabled, true);
   const none = present({
     ...one,
@@ -415,7 +419,7 @@ test("the watching list is its own block: no colour, no READY, and a footer that
   ]);
   assert.equal(
     view.lobby.count,
-    "3 riders ready · 1 watching",
+    "3 riders · 1 watching",
     "the footer counts the seats and the watchers apart, and only the present ones",
   );
   assert.deepEqual(
@@ -428,7 +432,7 @@ test("the watching list is its own block: no colour, no READY, and a footer that
   assert.deepEqual(empty.lobby.watchers, []);
   assert.equal(
     empty.lobby.count,
-    "3 riders ready",
+    "3 riders",
     "a room nobody watches says exactly what it always said",
   );
 });
@@ -468,7 +472,35 @@ test("a watcher is in the room: no join card, no controls, no avatar and its own
   );
   assert.equal(
     present(lobby, { playerId: "ada", host: false }).notice,
-    "Waiting for the host to start",
+    "Ready up — the race starts when everyone is ready",
     "a seated rider's notice is unchanged",
+  );
+});
+
+test("ready controls belong to riders, including guests; votes are reflected and spectators cannot vote", () => {
+  const lobby = frame({ phase: "lobby" });
+  assert.deepEqual(
+    present(lobby, { host: false, readyPlayers: ["me"] }).actions.ready,
+    { hidden: false, pressed: true, label: "NOT READY" },
+  );
+  assert.equal(
+    present(lobby, { displayOnly: true }).actions.ready.hidden,
+    true,
+  );
+  assert.equal(
+    present(lobby, { playerId: "watcher" }).actions.ready.hidden,
+    true,
+  );
+  assert.equal(present(lobby, { solo: true }).actions.ready.hidden, true);
+  assert.equal(
+    present(frame({ phase: "matchOver", tick: 1, phaseEndsAtTick: 2 })).actions
+      .ready.hidden,
+    true,
+  );
+  assert.deepEqual(
+    present(frame({ phase: "matchOver", tick: 2, phaseEndsAtTick: 2 }), {
+      host: false,
+    }).actions.ready,
+    { hidden: false, pressed: false, label: "READY FOR REMATCH" },
   );
 });

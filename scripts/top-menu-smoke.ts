@@ -1,3 +1,4 @@
+import { readyRoom } from "./lib/ready-room.js";
 /** Real navigation/runtime with the identity module replaced at the browser boundary.
  * No Firebase credentials or production services: profile HTTP is a deterministic fixture.
  */
@@ -123,7 +124,7 @@ try {
           .getByRole("button", { name: "CREATE ROOM", exact: true })
           .click();
         await page
-          .getByRole("button", { name: "START RACE", exact: true })
+          .getByRole("button", { name: "ROOM SETTINGS", exact: true })
           .waitFor();
         await page
           .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
@@ -165,9 +166,7 @@ try {
         });
         await page.getByRole("button", { name: "ADD AI", exact: true }).click();
         if (phone) await page.setViewportSize({ width: 844, height: 390 });
-        await page
-          .getByRole("button", { name: "START RACE", exact: true })
-          .click();
+        await readyRoom(page);
         await page.locator(phone ? ".mobile-play" : ".desktop-game").waitFor();
         await inside(page);
         if (phone) {
