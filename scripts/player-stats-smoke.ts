@@ -281,9 +281,19 @@ try {
           path: `artifacts/player-stats-${name}-${viewport.width}.png`,
         });
         // Recent matches: everyone's by default, your own one tap away, and each opens into its full results.
+        // The first page fails once, and TRY AGAIN recovers it without reopening the dialog.
+        let failFeed = true;
+        await page.route(`${api}/api/matches*`, (route) => {
+          if (!failFeed) return route.fallback();
+          failFeed = false;
+          return route.fulfill({ status: 503, json: {} });
+        });
         await page
           .locator(".stats-tabs")
           .getByRole("button", { name: "MATCHES", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "TRY AGAIN", exact: true })
           .click();
         await page.locator(".account-match").first().waitFor();
         assert.equal(await page.locator(".account-match").count(), 8);

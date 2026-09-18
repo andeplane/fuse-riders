@@ -634,7 +634,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
         ? "Loading older matches…"
         : "Loading matches…";
     else if (feed.state === "failed")
-      note.textContent = "Could not load matches. Try again in a moment.";
+      note.textContent = "Could not load matches.";
     else if (!feed.matches.length)
       note.textContent =
         scope === "everyone"
@@ -652,7 +652,11 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     more.dataset.focus = "more";
     // Disabled rather than hidden while loading, so a keyboard user's focus survives the redraw.
     more.disabled = feed.state === "loading";
-    more.hidden = !feed.matches.length || (feed.state === "idle" && !feed.more);
+    // A failure always offers TRY AGAIN, including a first page that never arrived.
+    more.hidden =
+      feed.state === "loading"
+        ? !feed.matches.length
+        : feed.state === "idle" && (!feed.more || !feed.matches.length);
     more.onclick = () => void loadMatches(scope);
     body.replaceChildren(filter, intro, list, note, more);
   }
