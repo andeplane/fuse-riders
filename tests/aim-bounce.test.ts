@@ -14,6 +14,105 @@ import {
 } from "../src/shared/room-settings.js";
 
 const max = BOMB_MAX_CHARGE_TICKS;
+test("most of the aim range stays linear, with smooth joins into the endpoint easing", () => {
+  // Central 60% of each leg's time covers 75% of the distance at a constant speed.
+  for (let age = 2; age <= 6; age += 0.25) {
+    const step =
+      bombPreviewDistance(age + 0.25, max, true) -
+      bombPreviewDistance(age, max, true);
+    assert.ok(Math.abs(step - 11.71875) < 1e-10);
+  }
+  for (const join of [1.6, 6.4, 9.6, 14.4]) {
+    const dt = 0.001;
+    const before =
+      (bombPreviewDistance(join, max, true) -
+        bombPreviewDistance(join - dt, max, true)) /
+      dt;
+    const after =
+      (bombPreviewDistance(join + dt, max, true) -
+        bombPreviewDistance(join, max, true)) /
+      dt;
+    assert.ok(
+      Math.abs(before - after) < 0.001,
+      "no speed jump where easing meets linear motion",
+    );
+  }
+});
+
+test("bouncing aim swings between both endpoints without dwelling", () => {
+  for (let window = 2; window <= 40; window++) {
+    const outward = Array.from({ length: window + 1 }, (_, tick) =>
+      bombLaunchDistance(tick, window, true),
+    );
+    let previousStep = Infinity;
+    for (let tick = 1; tick <= window; tick++) {
+      const step = outward[tick]! - outward[tick - 1]!;
+      assert.ok(step > 0, `window ${window}: aim never parks`);
+      if (tick > window * 0.8 + 1)
+        assert.ok(
+          step < previousStep,
+          `window ${window}: approach decelerates`,
+        );
+      else if (tick > 1 && tick <= window * 0.2)
+        assert.ok(
+          step > previousStep,
+          `window ${window}: departure accelerates`,
+        );
+      assert.equal(
+        bombLaunchDistance(2 * window - tick, window, true),
+        outward[tick],
+      );
+      previousStep = step;
+    }
+  }
+  assert.ok(Math.abs(bombLaunchDistance(4, 8, true) - 250) < 1e-10);
+  assert.ok(Math.abs(bombLaunchDistance(12, 8, true) - 250) < 1e-10);
+  assert.equal(
+    bombLaunchDistance(4.75, 8, true),
+    bombLaunchDistance(4, 8, true),
+    "releases stay on the tick grid",
+  );
+});
+
+test("fractional previews ease within each tick and reverse with continuous velocity and no pause", () => {
+  // The closer we sample to a turning point, the smaller its velocity; neither side dwells.
+  for (const endpoint of [0, max]) {
+    const dt = 0.001;
+    const at = bombPreviewDistance(endpoint, max, true);
+    const near = Math.abs(bombPreviewDistance(endpoint + dt, max, true) - at);
+    const far = Math.abs(
+      bombPreviewDistance(endpoint + 2 * dt, max, true) - at,
+    );
+    assert.ok(near > 0 && near < far / 3);
+    assert.ok(
+      near / dt < 0.02,
+      "endpoint velocity tends to zero without a pause",
+    );
+  }
+  for (const hz of [30, 60, 120]) {
+    const dt = 20 / hz;
+    const peak = bombPreviewDistance(max, max, true);
+    let previousStep = 0;
+    for (let frame = 1; frame <= hz * 0.08; frame++) {
+      const age = frame * dt;
+      const before = bombPreviewDistance(max + age - dt, max, true);
+      const after = bombPreviewDistance(max + age, max, true);
+      const step = before - after;
+      assert.ok(
+        step > previousStep,
+        `${hz} Hz: return accelerates every frame`,
+      );
+
+      assert.ok(
+        Math.abs(after - bombPreviewDistance(max - age, max, true)) < 1e-10,
+      );
+      previousStep = step;
+    }
+    assert.ok(bombPreviewDistance(max - dt, max, true) < peak);
+    assert.ok(bombPreviewDistance(max + dt, max, true) < peak);
+  }
+});
+
 test("without bounce the ramp stops at full reach, as it always has", () => {
   for (const held of [max, max + 1, max * 3])
     assert.equal(
@@ -98,7 +197,7 @@ test("the preview follows the same ramp, including across the turnaround", () =>
       bombPreviewDistance(held, max, true),
       bombLaunchDistance(held, max, true),
     );
-  // Between ticks it interpolates, so just past the peak it must already be shortening rather than sitting still.
+  // Between ticks it samples the curve, so just past the peak it must already be shortening rather than sitting still.
   assert.ok(
     bombPreviewDistance(max + 0.5, max, true) < BOMB_MAX_LAUNCH_DISTANCE,
     "the preview turns around with the ramp",

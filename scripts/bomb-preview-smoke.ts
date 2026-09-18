@@ -152,15 +152,11 @@ try {
             }
             results.push({ backend, timing, bombChargeTicks, centers });
           }
-        // A new room bounces by default (#175), and the fold is the only place the two ramps disagree: below the
-        // peak they are identical, which is every frame the cases above render. At a window of 8 the rider sits at
-        // x=200, so ages 7.5 → 9 walk the bouncing marker out to full reach and back, 581.25 → 600 → 581.25 →
-        // 562.5, while the clamped ramp climbs the same way to 600 and then stays there. They agree at 7.5 and 8
-        // and part company after the peak, so the control is what proves the flag moved the marker.
+        // Check the eased approach and return against fixed reference positions, alongside linear clamped aim.
         for (const timing of ["local", "world"] as const) {
           for (const aimBounce of [true, false] as const) {
             const expected = aimBounce
-              ? [581.25, 600, 581.25, 562.5]
+              ? [598.0688095092773, 600.0, 598.0688095092773, 587.4114990234375]
               : [581.25, 600, 600, 600];
             const ages = [7.5, 8, 8.5, 9],
               centers = [];
