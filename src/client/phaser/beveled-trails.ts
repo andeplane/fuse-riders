@@ -18,8 +18,8 @@ void main () {
   vec3 halfLight = normalize(light + vec3(0.0, 0.0, 1.0));
   float specular = pow(max(0.0, dot(normal, halfLight)), 28.0);
   vec3 base = outTint.bgr;
-  vec3 body = base * (0.32 + 0.78 * diffuse);
-  body += mix(base, vec3(1.0), 0.72) * specular * 0.72;
+  vec3 body = base * (0.45 + 0.65 * diffuse);
+  body += mix(base, vec3(1.0), 0.72) * specular * 0.56;
   float halo = 0.13 * pow(max(0.0, 1.0 - max(0.0, radius - 1.0) / 0.8), 2.0);
   float alpha = (coverage + halo * (1.0 - coverage)) * outTint.a;
   vec3 shade = mix(base * 0.8, body, coverage);
@@ -31,13 +31,13 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
   private readonly ribbonPipeline: Phaser.Renderer.WebGL.Pipelines.SinglePipeline;
   private ribbons: readonly TrailRibbon[] = [];
   private cache: TrailRibbonCache;
+  private readonly visualWidth: number;
 
-  constructor(
-    scene: Phaser.Scene,
-    private readonly trailWidth: number,
-  ) {
+  constructor(scene: Phaser.Scene, trailWidth: number) {
     super(scene);
-    this.cache = new TrailRibbonCache(trailWidth);
+    // Slightly fuller silhouette; the authoritative collision width is unchanged.
+    this.visualWidth = trailWidth * 1.25;
+    this.cache = new TrailRibbonCache(this.visualWidth);
     const renderer = scene.game.renderer as Phaser.Renderer.WebGL.WebGLRenderer;
     this.ribbonPipeline = new Phaser.Renderer.WebGL.Pipelines.SinglePipeline({
       game: scene.game,
@@ -61,7 +61,7 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
     const scale = Math.hypot(matrix.a, matrix.b);
     pipeline.set1f(
       "uFeather",
-      Math.min(0.6, 0.65 / ((this.trailWidth / 2) * scale)),
+      Math.min(0.6, 0.65 / ((this.visualWidth / 2) * scale)),
     );
     let unit = pipeline.setTexture2D();
     for (const ribbon of this.ribbons) {

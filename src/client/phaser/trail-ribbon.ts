@@ -7,7 +7,7 @@ export interface RibbonVertex extends TrailPoint {
 }
 
 // Extra geometry carries the antialiased edge and a restrained halo. The solid body
-// follows the authoritative centerline and width; no curve fitting moves collisions.
+// follows the authoritative centerline at the supplied cosmetic width.
 const OUTER = 1.8;
 const CAP_STEPS = 16;
 
