@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "building-small-vent",
+  "category": "building",
+  "sizeClass": "small",
+  "description": "Small narrow slate service building with one circular roof fan and an electrical box.",
+  "image": {
+    "file": "building-small-vent.png",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "b6e2d21efd54b174b07952048dc4f5c8f108a174eb78745a9f86f972700c43fa"
+  },
+  "anchorPixels": {
+    "x": 627.5,
+    "y": 613.0
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 627.5,
+    "centerY": 613.0,
+    "width": 609,
+    "height": 1046
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.0994263862332696,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 60.55066921606119,
+      "height": 104.0
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.986777
+  }
+}

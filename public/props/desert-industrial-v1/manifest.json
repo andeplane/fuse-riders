@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "desert-industrial-v1",
+  "status": "art-pack-for-future-integration",
+  "assets": [
+    {
+      "id": "building-small-sandstone",
+      "metadata": "building-small-sandstone.json"
+    },
+    {
+      "id": "building-small-vent",
+      "metadata": "building-small-vent.json"
+    },
+    {
+      "id": "building-small-workshop",
+      "metadata": "building-small-workshop.json"
+    },
+    {
+      "id": "building-large-warehouse",
+      "metadata": "building-large-warehouse.json"
+    },
+    {
+      "id": "building-large-factory",
+      "metadata": "building-large-factory.json"
+    },
+    {
+      "id": "building-large-sandstone",
+      "metadata": "building-large-sandstone.json"
+    },
+    {
+      "id": "crate-small-wood",
+      "metadata": "crate-small-wood.json"
+    },
+    {
+      "id": "crate-long-wood",
+      "metadata": "crate-long-wood.json"
+    },
+    {
+      "id": "crate-tall-metal",
+      "metadata": "crate-tall-metal.json"
+    },
+    {
+      "id": "crate-wide-amber",
+      "metadata": "crate-wide-amber.json"
+    },
+    {
+      "id": "rock-small-faceted",
+      "metadata": "rock-small-faceted.json"
+    },
+    {
+      "id": "rock-large-cracked",
+      "metadata": "rock-large-cracked.json"
+    },
+    {
+      "id": "rock-medium-fused",
+      "metadata": "rock-medium-fused.json"
+    },
+    {
+      "id": "pyramid-small-sandstone",
+      "metadata": "pyramid-small-sandstone.json"
+    },
+    {
+      "id": "pyramid-large-stepped",
+      "metadata": "pyramid-large-stepped.json"
+    },
+    {
+      "id": "pyramid-tall-obsidian",
+      "metadata": "pyramid-tall-obsidian.json"
+    }
+  ]
+}

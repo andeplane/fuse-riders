@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "crate-tall-metal",
+  "category": "crate",
+  "sizeClass": "large",
+  "description": "Tall gray metal cargo crate with five top panels and reinforced corners.",
+  "image": {
+    "file": "crate-tall-metal.png",
+    "width": 934,
+    "height": 1684,
+    "sha256": "38edaeeee5af14839cbe641593a1f2afde8454e53eab27378b8987b9ec65fd88"
+  },
+  "anchorPixels": {
+    "x": 467.5,
+    "y": 866.0
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 467.5,
+    "centerY": 866.0,
+    "width": 783,
+    "height": 1338
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.053811659192825115,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 42.134529147982065,
+      "height": 72.0
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.968178
+  }
+}
