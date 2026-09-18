@@ -25,7 +25,13 @@ import { DEFAULT_SETTINGS, diceGame, seatName } from "../game/index.js";
 import { presentTable, type TableModel, type Viewer } from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
 import { DiceRuntime, type DiceCallbacks } from "./runtime.js";
-import { keys, roomFailure, safeStore, sessionFor } from "./session.js";
+import {
+  NOT_OPEN,
+  keys,
+  roomFailure,
+  safeStore,
+  sessionFor,
+} from "./session.js";
 
 /**
  * The dice page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to the
@@ -415,6 +421,16 @@ function room(solo: boolean): void {
     },
     ended() {
       status.show("Room ended", "error");
+      // A service that does not host this game closes the socket the same way: its game routes say which it was.
+      void fetch(endpoints.apiUrl(`/api/games/${GAME}/leaderboard`))
+        .then(async (response) => {
+          const body = (await response.json()) as { error?: unknown };
+          const text = roomFailure(String(body.error ?? ""));
+          if (text === NOT_OPEN) status.show(text, "error");
+        })
+        .catch(() => {
+          /* offline: "Room ended" stands */
+        });
     },
   };
   const shared =
