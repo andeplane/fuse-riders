@@ -12,7 +12,7 @@ import {
   recordDeath,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
+} from "../src/engine/match-stats.js";
 import type { MatchResult } from "../src/service/history.js";
 
 const vite = await createServer({

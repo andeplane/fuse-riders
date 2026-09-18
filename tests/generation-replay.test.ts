@@ -3,8 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { World } from "../src/online/rollback.js";
-import { createRoomState, hashRoomState } from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { createRoomState, hashRoomState } from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   JOIN,
   ACTION,
@@ -12,7 +12,7 @@ import {
   PRESENCE,
   PRESS,
   RELEASE,
-} from "../src/shared/input-log.js";
+} from "../src/engine/input-log.js";
 import {
   encodeSnapshot,
   decodeSnapshot,

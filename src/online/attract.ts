@@ -1,8 +1,8 @@
 import { uuid } from "../shared/uuid.js";
 import { World } from "./rollback.js";
-import { BOT_NAMES, createRoomState } from "../shared/apply-tick.js";
-import { ACTION, BOT } from "../shared/input-log.js";
-import { defaultRoomSettings } from "../shared/room-settings.js";
+import { BOT_NAMES, createRoomState } from "../engine/apply-tick.js";
+import { ACTION, BOT } from "../engine/input-log.js";
+import { defaultRoomSettings } from "../engine/room-settings.js";
 import { mountArenaPresentation } from "../client/phaser/presentation.js";
 import { selectedTheme } from "../client/themes.js";
 

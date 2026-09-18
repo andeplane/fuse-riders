@@ -1,7 +1,7 @@
 import {
   powerBlastRadius,
   powerReloadTicks,
-} from "../src/shared/power-progression.js";
+} from "../src/engine/power-progression.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -18,10 +18,11 @@ import {
   eliminatePlayer,
   startNextRound,
   type InputIntent,
-} from "../src/shared/game.ts";
-import { BombInputBuffer } from "../src/shared/bomb-input.ts";
+} from "../src/engine/game.ts";
+import { BombInputBuffer } from "../src/engine/bomb-input.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 function fixture() {
-  const game = createGame("target");
+  const game = createGame("target", classicSettings());
   for (let i = 0; i < 2; i++)
     addPlayer(game, { id: `p${i}`, name: `P${i}`, slot: i, color: "#fff" });
   startMatch(game);
@@ -129,9 +130,9 @@ test("queued release uses its own aim rather than a later packet in the same ser
   const { game, player, input } = fixture();
   player.targetBombArmed = true;
   const buffer = new BombInputBuffer();
-  buffer.accept(true, "press", { x: 0.1, y: 0.1 });
-  buffer.accept(false, "release", { x: 0.2, y: 0.2 });
-  buffer.accept(true, "press", { x: 0.9, y: 0.9 });
+  buffer.accept("press", { x: 0.1, y: 0.1 });
+  buffer.accept("release", { x: 0.2, y: 0.2 });
+  buffer.accept("press", { x: 0.9, y: 0.9 });
   input({
     bomb: true,
     aim: { x: 0.9, y: 0.9 },

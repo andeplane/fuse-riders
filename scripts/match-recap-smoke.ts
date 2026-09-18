@@ -2,7 +2,7 @@ import { chromium, webkit, type Page, type Locator } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { smokeTimeout } from "./smoke-timeout.js";
 /**
  * End-of-match recap evidence: a solo match plays to completion, the report opens only after the
@@ -266,7 +266,7 @@ try {
       }
     };
     try {
-      await page.goto(new URL("?solo=1&benchmark=1", base).href);
+      await page.goto(new URL("?solo=1&benchmark=1&mute", base).href);
       await page.waitForFunction(() =>
         document
           .querySelector("canvas")
@@ -359,13 +359,11 @@ try {
             : [],
         ),
         firstFinal = banners.findIndex((banner) => banner.kind === "final");
-      // Portrait phones show the rotation gate instead of arena announcements.
-      if (viewport.height > viewport.width) assert.equal(banners.length, 0);
-      else
-        assert.ok(
-          firstFinal > 0,
-          `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
-        );
+      // Portrait devices now render the rotated arena, so every orientation must show both beats.
+      assert.ok(
+        firstFinal > 0,
+        `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
+      );
       for (const [index, banner] of banners.entries())
         if (index < firstFinal) {
           assert.equal(banner.kind, "round", JSON.stringify(banner));

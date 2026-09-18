@@ -3,9 +3,9 @@ import {
   KILL_METHODS,
   parseCombat,
   type CombatStats,
-} from "./combat-stats.js";
-import { WEAPONS } from "./shot-log.js";
-import type { MatchPlayerStats } from "./match-stats.js";
+} from "../engine/combat-stats.js";
+import { WEAPONS } from "../engine/shot-log.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
 export const GAME_GROUPS = ["human", "mixed", "practice"] as const;
 export type GameGroup = (typeof GAME_GROUPS)[number];
 export function gameGroup(
