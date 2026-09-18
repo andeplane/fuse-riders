@@ -50,12 +50,16 @@ export class World {
   private emitted = new Set<string>();
   private readonly bots = new BotController();
   /**
-   * A rollback's re-simulation still owed: the log tick the world had reached when it rolled back, while the re-run
-   * is short of it (else -1). Frames stay on that tick until the re-run catches up; see `refill`.
+   * The state being simulated. Settled, it is `state`. After a rollback whose re-run the budget window could not
+   * finish, it is the re-run, short of `state.tick`, and `state` stays the newest state the world reached until the
+   * re-run catches up and replaces it (`replay`): outside `World` nothing ever sees history go backwards.
    */
-  private replayTo = -1;
-  /** The newest two frames of the re-run, shown once it reaches `replayTo`. */
+  private work: RoomState;
+  /** The newest two frames of the re-run, shown once it reaches `state.tick`. */
   private replayFrames: Frame[] = [];
+  /** Events the re-run produced, delivered with its frames once it reaches `state.tick`. */
+  private replayEvents: { key: string; logTick: number; event: WorldEvent }[] =
+    [];
   /** Steps the current budget window allows, and has spent (`refill`). */
   private budget = Infinity;
   private spent = 0;
@@ -68,6 +72,7 @@ export class World {
     readonly creatorId: string,
     readonly selfId: string,
   ) {
+    this.work = state;
     this.snapshots.set(state.tick, structuredClone(state));
     this.gameTicks.set(state.tick, state.game.tick);
     this.frames = [this.frame(state)];
@@ -76,9 +81,12 @@ export class World {
   get tick(): number {
     return this.state.tick;
   }
-  /** The newest log tick this world has simulated: `tick`, or further while a rollback's re-run is still owed. */
-  get frontier(): number {
-    return Math.max(this.tick, this.replayTo);
+  /**
+   * No rollback re-run is owed. While one is, `state`, `tick` and `view()` stay on the newest state the world reached
+   * (history as it stood before the late entry) and `advance` finishes the re-run before any new tick.
+   */
+  get settled(): boolean {
+    return this.work === this.state;
   }
   /**
    * Open a new budget window of `steps` simulation steps, shared by `advance` and rollbacks until the next refill.
@@ -191,7 +199,7 @@ export class World {
     const events: WorldEvent[] = [];
     let waitingFor: string | undefined,
       advanced = this.replay(events);
-    while (this.replayTo < 0 && this.tick < targetTick) {
+    while (this.settled && this.tick < targetTick) {
       const stall = this.stallBound();
       if (this.tick >= stall.tick) {
         waitingFor = stall.waitingFor;
@@ -225,7 +233,8 @@ export class World {
       lastSeq,
       through,
       localTick,
-      this.tick,
+      // Late means at or before what has been simulated: an entry the owed re-run has not reached yet is folded when it does.
+      this.work.tick,
     );
     if (result.status !== "accepted" || result.rollbackTo === undefined)
       return { ...result, events: [], rollbackTicks: 0 };
@@ -241,11 +250,11 @@ export class World {
     return { ...result, events, rollbackTicks };
   }
   /**
-   * Restore the newest snapshot before `tick` and re-simulate to the frontier, as far as the budget window allows; the
-   * rest is owed to the next `advance`. Returns the ticks to replay or -1.
+   * Restore the newest snapshot before `tick` and re-simulate to the tick the world had reached, as far as the budget
+   * window allows; the rest is owed to the next `advance`. Returns the ticks to replay or -1.
    */
   private rollback(tick: number, events: WorldEvent[]): number {
-    const current = this.frontier,
+    const current = this.tick,
       base = Math.max(
         ...[...this.snapshots.keys()].filter((at) => at < tick),
         -1,
@@ -253,30 +262,41 @@ export class World {
     if (base < 0) return -1;
     for (const at of [...this.snapshots.keys()])
       if (at > base) this.snapshots.delete(at);
-    this.state = structuredClone(this.snapshots.get(base)!);
-    this.replayTo = current;
+    this.work = structuredClone(this.snapshots.get(base)!);
     this.replayFrames = [];
+    // Held events of an interrupted re-run after the new base are re-simulated: the new timeline decides them afresh.
+    this.replayEvents = this.replayEvents.filter((held) => {
+      if (held.logTick <= base) return true;
+      this.emitted.delete(held.key);
+      return false;
+    });
     this.replay(events);
     this.rollbacks++;
     this.rollbackTicks += current - base;
     return current - base;
   }
-  /** Run the owed re-run within the budget; once it reaches `replayTo`, its frames replace the ones shown. */
+  /**
+   * Run the owed re-run within the budget. Once it reaches `state.tick` it becomes `state`, and its frames and held
+   * events are shown and delivered together.
+   */
   private replay(events: WorldEvent[]): boolean {
     let ran = false;
-    while (this.tick < this.replayTo && this.step(events)) ran = true;
-    if (this.replayTo >= 0 && this.tick >= this.replayTo) {
+    while (this.work.tick < this.state.tick && this.step(events)) ran = true;
+    if (!this.settled && this.work.tick >= this.state.tick) {
+      this.state = this.work;
       this.frames = this.replayFrames.length
         ? this.replayFrames
         : [this.frame(this.state)];
+      events.push(...this.replayEvents.map((held) => held.event));
       this.replayFrames = [];
-      this.replayTo = -1;
+      this.replayEvents = [];
     }
     return ran;
   }
   /** Fold one log tick if the budget window has room for its steps; false when it does not. */
   private step(events: WorldEvent[]): boolean {
-    const state = this.state;
+    const state = this.work,
+      replaying = !this.settled;
     if (
       this.spent > 0 &&
       this.spent + stepsPerTick(state.game, state.bots) > this.budget
@@ -300,12 +320,15 @@ export class World {
       const key = `${matchId}:${round}:${tick}:${index}`;
       if (this.emitted.has(key)) return;
       this.emitted.add(key);
-      events.push({ tick: state.game.tick, round, matchId, event });
+      const emitted = { tick: state.game.tick, round, matchId, event };
+      if (replaying)
+        this.replayEvents.push({ key, logTick: tick, event: emitted });
+      else events.push(emitted);
     });
     this.gameTicks.set(tick, state.game.tick);
     if (tick % SNAPSHOT_INTERVAL === 0)
       this.snapshots.set(tick, structuredClone(state));
-    const frames = this.replayTo >= 0 ? this.replayFrames : this.frames;
+    const frames = replaying ? this.replayFrames : this.frames;
     frames.unshift(this.frame(state));
     if (frames.length > 2) frames.length = 2;
     return true;
@@ -359,15 +382,20 @@ export class World {
    */
   servable(): { state: RoomState; tick: number } {
     const complete = this.completeTick();
+    // While a re-run is owed, `state` is history a late entry has overturned: only the re-run and its snapshots are served.
+    const current = this.work;
     // A replica stalled on a gap nobody can repair serves the state past it: that is how the room moves on without the entry.
-    if (complete >= this.tick || this.tick >= this.stallBound().tick)
-      return { state: this.state, tick: this.tick };
+    if (
+      complete >= current.tick ||
+      (this.settled && this.tick >= this.stallBound().tick)
+    )
+      return { state: current, tick: current.tick };
     const at = Math.max(
       ...[...this.snapshots.keys()].filter((tick) => tick <= complete),
       -1,
     );
     return at < 0
-      ? { state: this.state, tick: this.tick }
+      ? { state: current, tick: current.tick }
       : { state: this.snapshots.get(at)!, tick: at };
   }
   /** Diagnostic hash of the retained state at `tick`, if one is kept there. */
@@ -377,12 +405,12 @@ export class World {
   }
   /** Replace the world wholesale from a validated snapshot; the caller re-creates streams from its metadata. */
   install(state: RoomState): void {
-    this.state = state;
+    this.state = this.work = state;
     this.snapshots = new Map([[state.tick, structuredClone(state)]]);
     this.gameTicks = new Map([[state.tick, state.game.tick]]);
     this.frames = [this.frame(state)];
-    this.replayTo = -1;
     this.replayFrames = [];
+    this.replayEvents = [];
     this.emitted.clear();
     this.streams.clear();
     this.retired.clear();

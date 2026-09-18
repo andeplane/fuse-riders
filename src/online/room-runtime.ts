@@ -648,7 +648,7 @@ export class RoomRuntime {
     if (existing && existing.generation === member.generation) return;
     this.world.stream(id, member.generation, {
       seq: 0,
-      tick: Math.max(0, this.world.frontier - STALL_TICKS),
+      tick: Math.max(0, this.world.tick - STALL_TICKS),
     });
     if (this.creator) this.ensurePresence(id, member);
   }
@@ -1283,9 +1283,11 @@ export class RoomRuntime {
       this.requestSnapshot();
   }
   /**
-   * Whether catching up to log tick `to` would cost more than `BEHIND_STEPS` steps: the gap in log ticks times the step
-   * count the world's state runs at now. It is an estimate (a gap can cross a phase change), and it keeps the snapshot
-   * path at the CPU cost it had when every log tick was one step.
+   * Whether catching up to log tick `to` would cost more than `BEHIND_STEPS` steps: the gap in log ticks past the
+   * world's tick times the step count its state runs at now. It is an estimate (a gap can cross a phase change),
+   * and it keeps the snapshot path at the CPU cost it had when every log tick was one step. A rollback's owed re-run
+   * does not count: it is at most the rollback window, and a late entry alone must not turn into a resync, which it
+   * never did when the re-run finished inside `receive`.
    */
   private behind(to: number): boolean {
     const world = this.world!;
@@ -1372,10 +1374,10 @@ export class RoomRuntime {
     )
       this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
-    if (this.hiddenState && world.frontier > world.tick)
+    if (this.hiddenState && !world.settled)
       // A hidden world does not advance, but a rollback's re-run is history it already reached: it finishes.
       this.deliverEvents(world.advance(world.tick).events);
-    else if (!this.hiddenState && tick > world.tick) {
+    else if (!this.hiddenState && (tick > world.tick || !world.settled)) {
       // Only ticks the stall rule lets us reach count as a backlog: a world waiting on a rider is not behind, and a
       // long stall must end by catching up, never by fetching a snapshot from a peer that waited just as long.
       const reachable = Math.min(tick, world.stallBound().tick);
