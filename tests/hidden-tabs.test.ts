@@ -38,10 +38,14 @@ const THROTTLED: NetworkOptions = {
 const HOST = "a-host",
   GUESTS = ["b-guest", "c-guest", "d-guest"];
 
+// A one-round match for the fast phase: once its round is decided the bots stop racing, which keeps the long case cheap.
+const oneRound = { ...settings, length: 1 };
 function room(riders: number, bots = 0, options = THROTTLED) {
   const net = new FakeNetwork(HOST, options, 7);
   const join = (id: string, name: string) => {
-    const runtime = net.add(id, settings, { humanName: name });
+    const runtime = net.add(id, bots ? oneRound : settings, {
+      humanName: name,
+    });
     runtime.start();
     runtime.command({ type: "join", name });
     return runtime;
