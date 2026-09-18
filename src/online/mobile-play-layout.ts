@@ -1,17 +1,17 @@
 import "./mobile-play-layout.css";
-import {
-  mobilePlayPolicy,
-  type MobilePlayState,
-} from "./mobile-play-policy.js";
+import type { MobileScreen } from "./room-screen.js";
+/** The phone layout's own behaviour: the ☰ MENU tools overlay, the control hints, and what a change of screen does to
+ *  held input. Whether the phone is the controller, upright or on its lobby screen is decided by `roomScreen`, and its
+ *  classes are set with the rest of the screen's; this module keeps its own record of them and reads none back. */
 export function installMobilePlayLayout(
   app: HTMLElement,
   clearControls: () => void,
 ) {
-  let state: MobilePlayState = {
-    joined: false,
-    phase: "lobby",
-    displayOnly: false,
-  };
+  let phase = "lobby",
+    recapReady = false,
+    active = false,
+    portrait = false,
+    toolsOpen = false;
   const compact = document.createElement("button");
   compact.className = "mobile-tools-toggle";
   compact.textContent = "☰ MENU";
@@ -33,76 +33,61 @@ export function installMobilePlayLayout(
     app.addEventListener(type, (event) => {
       const target = event.target as Node;
       const element = target instanceof Element ? target : target.parentElement;
-      if (
-        app.classList.contains("mobile-play") &&
-        !element?.closest("dialog,input,textarea,select")
-      )
+      if (active && !element?.closest("dialog,input,textarea,select"))
         event.preventDefault();
     });
-  const closeTools = () => {
-    app.classList.remove("mobile-tools-open");
-    compact.setAttribute("aria-expanded", "false");
+  const setTools = (open: boolean) => {
+    toolsOpen = open;
+    app.classList.toggle("mobile-tools-open", open);
+    compact.setAttribute("aria-expanded", String(open));
   };
+  const closeTools = () => setTools(false);
   const openTools = () => {
     clearControls();
-    app.classList.add("mobile-tools-open");
-    compact.setAttribute("aria-expanded", "true");
+    setTools(true);
   };
   compact.onclick = () => {
     clearControls();
-    const open = app.classList.toggle("mobile-tools-open");
-    compact.setAttribute("aria-expanded", String(open));
+    setTools(!toolsOpen);
   };
-  const update = () => {
-    const previous = app.classList.contains("mobile-play"),
-      portrait = app.classList.contains("mobile-portrait");
-    const next = mobilePlayPolicy(
-      state,
-      navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches,
-      innerWidth,
-      innerHeight,
-    ); // Rotating cancels held input, but only closes the tools overlay while a round is live: a host reviewing results keeps it open (#134).
-    if (previous !== next.active || portrait !== next.portrait) {
-      clearControls();
-      if (
-        previous !== next.active ||
-        ["countdown", "playing"].includes(state.phase)
-      )
-        closeTools();
-    }
-    app.classList.toggle("mobile-play", next.active);
-    app.classList.toggle("mobile-portrait", next.portrait);
-    app.classList.toggle("mobile-lobby", state.phase === "lobby");
-    app.classList.toggle("phone-lobby", next.lobby);
-  };
-  window.addEventListener("resize", update);
-  window.visualViewport?.addEventListener("resize", update);
   // Closing a dialog returns to the live thirds mid-round; in lobby/results the roster and actions stay open.
   app.querySelector("dialog")?.addEventListener("close", () => {
-    if (["countdown", "playing"].includes(state.phase)) closeTools();
+    if (["countdown", "playing"].includes(phase)) closeTools();
   });
   // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
   // the recap opening ends the match for this screen, and opens the overlay so the roster and (for the host) REMATCH are in view. The pause before
   // it keeps the overlay shut: it hides the announcer, which is showing the final round's result and then the match winner. The lobby is its own phone screen (#134), never the controller.
   const enter = () => {
-    if (["countdown", "playing"].includes(state.phase)) {
+    if (["countdown", "playing"].includes(phase)) {
       closeTools();
       hints.remove();
       app.append(hints);
-    } else if (state.phase === "matchOver" && state.recapReady) openTools();
+    } else if (phase === "matchOver" && recapReady) openTools();
   };
   return {
-    update(next: MobilePlayState) {
+    /** A new screen: a frame, the room ending, or (`resized`) the viewport changing. A resize cancels held input and may
+     *  close the tools, but is not a phase transition: the hints do not restart and the results do not open the tools. */
+    update(
+      next: MobileScreen,
+      nextPhase: string,
+      nextRecapReady: boolean,
+      resized = false,
+    ) {
       const entered =
-        next.phase !== state.phase ||
-        Boolean(next.recapReady) !== Boolean(state.recapReady) ||
-        !app.classList.contains("mobile-play");
-      state = next;
-      update();
-      if (entered && app.classList.contains("mobile-play")) enter();
+        nextPhase !== phase || nextRecapReady !== recapReady || !active;
+      phase = nextPhase;
+      recapReady = nextRecapReady;
+      // Rotating cancels held input, but only closes the tools overlay while a round is live: a host reviewing results keeps it open (#134).
+      if (active !== next.active || portrait !== next.portrait) {
+        clearControls();
+        if (active !== next.active || ["countdown", "playing"].includes(phase))
+          closeTools();
+      }
+      active = next.active;
+      portrait = next.portrait;
+      if (entered && active && !resized) enter();
     },
-    active: () => app.classList.contains("mobile-play"),
-    lobby: () => app.classList.contains("phone-lobby"),
-    blocked: () => app.classList.contains("mobile-tools-open"),
+    /** The ☰ MENU tools overlay is open over the controller: keys do not steer. */
+    blocked: () => toolsOpen,
   };
 }
