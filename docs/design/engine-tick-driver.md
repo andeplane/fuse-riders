@@ -2,7 +2,7 @@
 
 Finding C2 of the architecture review said the tick driver existed twice, LAN and online, and that the two shipped different rules: LAN never set `GameState.settings` and ran on `??` fallbacks, leave semantics differed, and bomb input was folded by two implementations. The LAN server has since been deleted (#271), so there is no second driver to bring into line and nothing here is a visible LAN change. What was left of C2 lived in the engine: a driver that only existed inline in `applyTick`, fallbacks for a state that no longer occurs in play, a second bomb-input state machine, and rider-name rules written four times. This stage removes that residue.
 
-Every commit is `[hash-identical]`: `RULES` stays `fuse-p2p-32` and `tests/fixtures/golden-hashes.json` is untouched. No rules bump was needed; the two places one would have been are listed under "Left for a rules bump" and "Owner decisions".
+Every commit is `[hash-identical]`: `RULES` (in `src/engine/apply-tick.ts`) is left as `main` has it and `tests/fixtures/golden-hashes.json` is only ever main's own recording. No rules bump was needed; the two places one would have been are listed under "Left for a rules bump" and "Owner decisions".
 
 ## The driver contract
 
