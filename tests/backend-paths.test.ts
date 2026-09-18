@@ -5,7 +5,10 @@ import { dirname, join, normalize } from "node:path";
 import {
   affectsBackend,
   decideDeploy,
+  decideRelease,
+  revisionCommit,
   servedCommit,
+  servingRevision,
   type Run,
 } from "../scripts/lib/backend-paths.js";
 
@@ -343,4 +346,182 @@ test("backend.yml asks the filter before it installs or deploys, and a dispatch 
     workflow.indexOf("id: changes") <
       workflow.indexOf("run: ./scripts/deploy-cloud.sh"),
   );
+});
+
+/** The commit whose rollout failed after it had written the service label. */
+const LABELLED = "c".repeat(40);
+const TARGET = {
+  force: false,
+  project: "andershaf-87",
+  region: "europe-west1",
+  service: "fuse-riders-gateway",
+};
+/** A service whose label names LABELLED, while all traffic stays on gateway-00042-abc. */
+const failedRollout = () =>
+  service({
+    commit: LABELLED,
+    created: "gateway-00043-new",
+    ready: "gateway-00042-abc",
+    traffic: [{ revisionName: "gateway-00042-abc", percent: 100 }],
+  });
+const readyRevision = (commit = SERVED) => ({
+  metadata: { labels: { application: "fuse-riders", commit } },
+  status: { conditions: [{ type: "Ready", status: "True" }] },
+});
+/**
+ * A typed fake for git and gcloud as decideRelease calls them. HEAD is the queued target and the
+ * serving revision gateway-00042-abc runs SERVED; `headIsOlder` answers whether HEAD is an ancestor of it.
+ */
+const cloud = (
+  change: {
+    service?: unknown;
+    revision?: unknown;
+    headIsOlder?: boolean;
+  },
+  calls: string[][] = [],
+): Run => {
+  return (file, args) => {
+    calls.push([file, ...args]);
+    if (file === "git" && args[0] === "rev-parse") return HEAD;
+    if (file === "git" && args[0] === "merge-base") {
+      // As real git: every commit is its own ancestor, so only a strict comparison can tell "newer".
+      if (args[2] === args[3]) return "";
+      if (args[2] === HEAD && args[3] === SERVED && change.headIsOlder)
+        return "";
+      throw new Error("exit 1");
+    }
+    const where = ["--project=andershaf-87", "--region=europe-west1"];
+    if (file === "gcloud" && args[1] === "services") {
+      assert.deepEqual(args, [
+        "run",
+        "services",
+        "describe",
+        "fuse-riders-gateway",
+        ...where,
+        "--format=json",
+      ]);
+      return JSON.stringify(change.service ?? failedRollout());
+    }
+    if (file === "gcloud" && args[1] === "revisions") {
+      assert.deepEqual(args, [
+        "run",
+        "revisions",
+        "describe",
+        "gateway-00042-abc",
+        ...where,
+        "--format=json",
+      ]);
+      if (change.revision instanceof Error) throw change.revision;
+      return JSON.stringify(change.revision ?? readyRevision());
+    }
+    throw new Error(`unexpected ${file} ${args.join(" ")}`);
+  };
+};
+
+test("a doubted label does not roll back a serving revision newer than the queued target", () => {
+  // A local deploy of SERVED succeeded, then a rollout of LABELLED failed; a stale run now targets HEAD,
+  // an ancestor of SERVED. Deploying HEAD would move production backwards.
+  const decision = decideRelease(TARGET, cloud({ headIsOlder: true }));
+  assert.equal(decision.deploy, false, decision.reason);
+  assert.match(decision.reason, /not the ready revision.*newer than b{40}/);
+  // The same holds when the doubt is a deliberate pin of all traffic to that newer revision.
+  const pinned = service({
+    traffic: [{ revisionName: "gateway-00042-abc", percent: 100 }],
+    ready: "gateway-00043-new",
+    created: "gateway-00043-new",
+  });
+  assert.equal(
+    decideRelease(TARGET, cloud({ service: pinned, headIsOlder: true })).deploy,
+    false,
+  );
+});
+
+test("a doubted label deploys a target newer than the serving revision", () => {
+  const calls: string[][] = [];
+  const decision = decideRelease(TARGET, cloud({ headIsOlder: false }, calls));
+  assert.equal(decision.deploy, true);
+  assert.match(decision.reason, /not the ready revision/);
+  // It did look: the serving revision was read and compared, and was not newer.
+  assert.ok(calls.some((call) => call[2] === "revisions"));
+  assert.ok(calls.some((call) => call[1] === "merge-base"));
+});
+
+test("a doubted label deploys when the serving revision cannot be read or trusted", () => {
+  for (const revision of [
+    new Error("PERMISSION_DENIED"),
+    readyRevision("not-a-sha"),
+    { metadata: readyRevision().metadata, status: { conditions: [] } },
+    {
+      metadata: readyRevision().metadata,
+      status: { conditions: [{ type: "Ready", status: "False" }] },
+    },
+  ])
+    assert.equal(
+      decideRelease(TARGET, cloud({ revision, headIsOlder: true })).deploy,
+      true,
+      String(revision instanceof Error ? revision : JSON.stringify(revision)),
+    );
+  // A split names no serving revision at all.
+  const split = service({
+    created: "gateway-00043-new",
+    traffic: [
+      { revisionName: "gateway-00042-abc", percent: 50 },
+      { revisionName: "gateway-00043-new", percent: 50 },
+    ],
+  });
+  assert.equal(
+    decideRelease(TARGET, cloud({ service: split, headIsOlder: true })).deploy,
+    true,
+  );
+  // The serving revision runs the target itself: not strictly newer, so the doubt still deploys.
+  assert.equal(
+    decideRelease(TARGET, cloud({ revision: readyRevision(HEAD) })).deploy,
+    true,
+  );
+  // An unreadable service deploys too.
+  assert.equal(
+    decideRelease(TARGET, (file, args) => {
+      if (file === "git") return HEAD;
+      throw new Error(`gcloud ${args.join(" ")} failed`);
+    }).deploy,
+    true,
+  );
+});
+
+test("a manual dispatch deploys an older target without asking Cloud Run", () => {
+  // The situation of the skip test above, dispatched on purpose: an intentional rollback must work.
+  const calls: string[][] = [];
+  const decision = decideRelease(
+    { ...TARGET, force: true },
+    cloud({ headIsOlder: true }, calls),
+  );
+  assert.deepEqual(decision, { deploy: true, reason: "manual dispatch" });
+  assert.deepEqual(calls, []);
+});
+
+test("the serving revision is the one with all of the traffic, and its commit needs a ready label", () => {
+  assert.equal(servingRevision(failedRollout()), "gateway-00042-abc");
+  assert.equal(servingRevision(service()), "gateway-00042-abc");
+  assert.equal(
+    servingRevision(
+      service({ traffic: [{ latestRevision: true, percent: 100 }] }),
+    ),
+    "gateway-00042-abc",
+  );
+  assert.equal(
+    servingRevision(
+      service({
+        traffic: [
+          { revisionName: "gateway-00042-abc", percent: 90 },
+          { revisionName: "gateway-00041-old", percent: 10 },
+        ],
+      }),
+    ),
+    undefined,
+  );
+  assert.equal(servingRevision(service({ traffic: [] })), undefined);
+  assert.equal(servingRevision(null), undefined);
+  assert.equal(revisionCommit(readyRevision()), SERVED);
+  assert.equal(revisionCommit({ status: readyRevision().status }), undefined);
+  assert.equal(revisionCommit(null), undefined);
 });
