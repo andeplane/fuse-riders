@@ -36,6 +36,8 @@ try {
     const fixture = visualFixture(40);
     const snapshot = {
       ...fixture,
+      // Linear clamped aim unless a case below turns the bounce on; the fixture now carries the default settings.
+      aimBounce: false,
       boundaryInset: 20,
       bombs: [],
       blasts: [],
