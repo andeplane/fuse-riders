@@ -12,7 +12,7 @@ export const PICKUP_WEIGHTS: ReadonlyArray<
   { type: "stopwatch", weight: 160 },
   { type: "gun", weight: 400 },
   { type: "shell", weight: 53 },
-  { type: "target", weight: 0 },
+  { type: "star", weight: 160 },
   { type: "beer", weight: 160 },
   { type: "ink", weight: 160 },
   { type: "triple", weight: 540 },

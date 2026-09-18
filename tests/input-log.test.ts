@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ACTION,
-  AIM,
   AVATAR,
   BOT,
   CANCEL,
@@ -12,17 +11,17 @@ import {
   PRESS,
   RELEASE,
   SETTINGS,
+  SPECTATOR,
   STEER,
-  dequantizeAim,
   foldPlayerEntries,
   isEntry,
   isManagementKind,
   neutralControls,
-  quantizeAim,
   type Entry,
 } from "../src/engine/input-log.js";
 import { BotController } from "../src/engine/bot-controller.js";
 import {
+  MAX_SPECTATORS,
   RULES,
   actingCreator,
   applyTick,
@@ -31,6 +30,7 @@ import {
   freeSlot,
   hashRoomState,
   hashText,
+  memberConnected,
   permitted,
   successionOrder,
   type RoomState,
@@ -94,10 +94,8 @@ function playing() {
 test("entry validation accepts every kind and rejects malformed shapes, bounds and unknown kinds", () => {
   const valid: Entry[] = [
     entry(1, 1, STEER, 3),
-    entry(2, 1, AIM, 0, 65535),
     entry(3, 2, PRESS, 1),
     entry(4, 2, RELEASE, 1),
-    entry(5, 3, RELEASE, 2, 10, 20),
     entry(6, 3, CANCEL, 2),
     entry(7, 3, AVATAR, "fox"),
     entry(8, 4, JOIN, "abc", "Name", 4, "robot", 0),
@@ -107,6 +105,8 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
     entry(12, 4, ACTION, "lobby", "m"),
     entry(13, 4, BOT, "add", "bot:1", "AI Ada", 2),
     entry(14, 4, BOT, "remove", "bot:1"),
+    entry(15, 4, SPECTATOR, "join", "abc", "Watcher", 7),
+    entry(16, 4, SPECTATOR, "leave", "abc"),
   ];
   for (const item of valid)
     assert.equal(isEntry(item), true, JSON.stringify(item));
@@ -115,9 +115,10 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
     [1, 0, STEER, 0],
     [1, 1, STEER, 4],
     [1, 1, STEER],
-    [1, 1, AIM, 65536, 0],
+    [1, 1, 1, 0, 65535], // kind 1 carried Target Bomb aim and is retired
     [1, 1, PRESS, 0],
     [1, 1, RELEASE, 1, 5],
+    [1, 1, RELEASE, 1, 10, 20], // the retired release-with-aim form
     [1, 1, AVATAR, "nope"],
     [1, 1, JOIN, "", "Name", 0, "fox", 1],
     [1, 1, JOIN, "abc", "   ", 0, "fox", 1],
@@ -127,6 +128,13 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
     [1, 1, ACTION, "pause", "m"],
     [1, 1, BOT, "add", "bot:1", "AI", 9],
     [1, 1, BOT, "remove"],
+    [1, 1, SPECTATOR, "join", "abc", "Watcher"],
+    [1, 1, SPECTATOR, "join", "abc", "   ", 1],
+    [1, 1, SPECTATOR, "join", "", "Watcher", 1],
+    [1, 1, SPECTATOR, "join", "abc", "Watcher", -1],
+    [1, 1, SPECTATOR, "watch", "abc"],
+    [1, 1, SPECTATOR, "leave"],
+    [1, 1, 17, "join", "abc"],
     [1, 1, 99, 1],
     [1.5, 1, STEER, 0],
     [-0, 1, STEER, 0],
@@ -137,46 +145,39 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
   for (const item of invalid)
     assert.equal(isEntry(item), false, JSON.stringify(item));
   assert.equal(isManagementKind(JOIN), true);
+  assert.equal(isManagementKind(SPECTATOR), true);
+  assert.equal(isManagementKind(SPECTATOR + 1), false);
   assert.equal(isManagementKind(STEER), false);
-  assert.deepEqual(quantizeAim({ x: 0.5, y: 2 }), [32768, 65535]);
-  assert.deepEqual(quantizeAim({ x: NaN, y: -1 }), [0, 0]);
-  assert.deepEqual(dequantizeAim(65535, 0), { x: 1, y: 0 });
 });
 
-test("the gesture fold mirrors the LAN bomb buffer: press, replacement, matching release with aim, cancel, mismatch", () => {
+test("the gesture fold mirrors the LAN bomb buffer: press, replacement, matching release, cancel, mismatch", () => {
   const held = neutralControls();
-  assert.deepEqual(
-    foldPlayerEntries(held, [
-      entry(1, 1, STEER, 1),
-      entry(2, 1, AIM, 65535, 0),
-    ]),
-    { left: true, right: false, bomb: false, aim: { x: 1, y: 0 } },
-  );
+  assert.deepEqual(foldPlayerEntries(held, [entry(1, 1, STEER, 1)]), {
+    left: true,
+    right: false,
+    bomb: false,
+  });
   assert.deepEqual(foldPlayerEntries(held, [entry(3, 2, PRESS, 1)]), {
     left: true,
     right: false,
     bomb: true,
-    aim: { x: 1, y: 0 },
-    bombCommands: [{ action: "press", aim: { x: 1, y: 0 } }],
+    bombCommands: [{ action: "press" }],
   });
   assert.deepEqual(
     foldPlayerEntries(held, [entry(4, 3, PRESS, 2)]).bombCommands,
-    [{ action: "cancel" }, { action: "press", aim: { x: 1, y: 0 } }],
+    [{ action: "cancel" }, { action: "press" }],
   );
   assert.deepEqual(
     foldPlayerEntries(held, [entry(5, 4, RELEASE, 1)]).bombCommands,
     undefined,
     "a stale gesture id is a no-op",
   );
-  assert.deepEqual(
-    foldPlayerEntries(held, [entry(6, 5, RELEASE, 2, 0, 65535)]),
-    {
-      left: true,
-      right: false,
-      bomb: false,
-      bombCommands: [{ action: "release", aim: { x: 0, y: 1 } }],
-    },
-  );
+  assert.deepEqual(foldPlayerEntries(held, [entry(6, 5, RELEASE, 2)]), {
+    left: true,
+    right: false,
+    bomb: false,
+    bombCommands: [{ action: "release" }],
+  });
   assert.deepEqual(
     foldPlayerEntries(held, [entry(7, 6, PRESS, 2)]).bombCommands,
     undefined,
@@ -513,7 +514,7 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-39");
+  assert.equal(RULES, "fuse-p2p-41");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;
@@ -598,5 +599,241 @@ test("a lobby reset keeps only the folds and bots of riders it still seats, so t
     [...r.state.folds.keys()],
     ["creator"],
     "no fold outlives its seat",
+  );
+});
+
+test("the watching list is folded: joins are capped and idempotent, presence reaches it, and a leave frees the place", () => {
+  const r = playing();
+  const watchers = ["w1", "w2", "w3", "w4", "w5", "w6"];
+  r.tick(
+    streams([
+      "creator",
+      watchers.map((id, index) =>
+        r.at("creator", SPECTATOR, "join", id, `Watcher ${index + 1}`, 10),
+      ),
+    ]),
+  );
+  assert.deepEqual(
+    [...r.state.spectators.keys()],
+    watchers.slice(0, MAX_SPECTATORS),
+    "the sixth watcher is refused by the fold, on every replica alike",
+  );
+  assert.equal(r.state.spectators.get("w1")!.name, "Watcher 1");
+  assert.equal(r.state.game.players.size, 2, "no watcher took a seat");
+  r.tick(
+    streams([
+      "creator",
+      [r.at("creator", SPECTATOR, "join", "w1", "Renamed", 11)],
+    ]),
+  );
+  assert.deepEqual(
+    [
+      r.state.spectators.get("w1")!.name,
+      r.state.spectators.get("w1")!.generation,
+    ],
+    ["Watcher 1", 11],
+    "a second join from a listed watcher is its reconnection, not a rename",
+  );
+  r.tick(streams(["creator", [r.at("creator", PRESENCE, "w2", false, 12)]]));
+  assert.equal(r.state.spectators.get("w2")!.connected, false);
+  assert.equal(memberConnected(r.state, "w2"), false);
+  assert.equal(memberConnected(r.state, "w1"), true);
+  r.tick(streams(["creator", [r.at("creator", LEAVE, "w3")]]));
+  assert.equal(
+    r.state.spectators.has("w3"),
+    false,
+    "a watcher holds no seat, so leaving frees its place mid-match too",
+  );
+  r.tick(streams(["creator", [r.at("creator", SPECTATOR, "leave", "w4")]]));
+  assert.equal(r.state.spectators.has("w4"), false);
+  r.tick(
+    streams([
+      "creator",
+      [r.at("creator", JOIN, "w1", "Watcher 1", 2, "cat", 11)],
+    ]),
+  );
+  assert.equal(
+    r.state.game.players.has("w1"),
+    false,
+    "a member is a rider or a watcher, never both",
+  );
+  // A bot id can only reach the watching list from a modified peer, but a state holding both would fold everywhere and
+  // then fail every snapshot decode, which nothing in the room could recover from.
+  r.tick(
+    streams([
+      "creator",
+      [
+        r.at("creator", SPECTATOR, "join", "bot:9", "Impostor", 13),
+        r.at("creator", BOT, "add", "bot:9", "AI Ada", 2),
+      ],
+    ]),
+  );
+  assert.equal(
+    r.state.game.players.has("bot:9"),
+    false,
+    "and an AI seat is refused for a listed watcher too",
+  );
+});
+
+test("a start and a return to the lobby drop the watchers that are gone, as they free the seats that are", () => {
+  const r = playing();
+  r.tick(
+    streams([
+      "creator",
+      [
+        r.at("creator", SPECTATOR, "join", "w1", "Here", 10),
+        r.at("creator", SPECTATOR, "join", "w2", "Gone", 11),
+      ],
+    ]),
+  );
+  r.tick(streams(["creator", [r.at("creator", PRESENCE, "w2", false, 11)]]));
+  r.tick(streams(["creator", [r.at("creator", ACTION, "lobby", "match-2")]]));
+  assert.deepEqual([...r.state.spectators.keys()], ["w1"]);
+  r.tick(
+    streams([
+      "creator",
+      [r.at("creator", SPECTATOR, "join", "w3", "Also gone", 12)],
+    ]),
+  );
+  r.tick(streams(["creator", [r.at("creator", PRESENCE, "w3", false, 12)]]));
+  r.tick(streams(["creator", [r.at("creator", ACTION, "start", "match-3")]]));
+  assert.deepEqual([...r.state.spectators.keys()], ["w1"]);
+});
+
+test("watchers rank last in the succession order, and a watching creator keeps the crown", () => {
+  const r = playing();
+  r.tick(
+    streams([
+      "creator",
+      [r.at("creator", SPECTATOR, "join", "watcher", "Watcher", 9)],
+    ]),
+  );
+  assert.deepEqual(successionOrder(r.state, "creator"), [
+    "creator",
+    "guest",
+    "watcher",
+  ]);
+  assert.equal(
+    actingCreator(r.state, "creator"),
+    undefined,
+    "a seated creator manages alone",
+  );
+  r.tick(
+    streams(["creator", [r.at("creator", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(actingCreator(r.state, "creator"), "guest");
+  r.tick(streams(["guest", [r.at("guest", PRESENCE, "guest", false, 2)]]));
+  assert.equal(
+    actingCreator(r.state, "creator"),
+    "watcher",
+    "with every seat absent the watching member runs the room",
+  );
+  assert.equal(
+    permitted(
+      r.state,
+      "creator",
+      "watcher",
+      r.at("watcher", SETTINGS, { ...settings, length: 9 }),
+    ),
+    true,
+  );
+});
+
+test("a watcher manages nothing while anyone ahead of it is here, and may only say who is absent", () => {
+  const r = playing();
+  r.tick(
+    streams([
+      "creator",
+      [r.at("creator", SPECTATOR, "join", "watcher", "Watcher", 9)],
+    ]),
+  );
+  for (const body of [
+    [SETTINGS, { ...settings, length: 9 }],
+    [ACTION, "lobby", "match-9"],
+    [SPECTATOR, "join", "other", "Other", 10],
+    [JOIN, "other", "Other", 3, "fox", 10],
+  ])
+    assert.equal(
+      permitted(r.state, "creator", "watcher", r.at("watcher", ...body)),
+      false,
+      `a watcher writes no management entry of kind ${String(body[0])} while the room has a manager`,
+    );
+  r.tick(
+    streams([
+      "watcher",
+      [
+        r.at("watcher", SETTINGS, { ...settings, length: 9 }),
+        r.at("watcher", SPECTATOR, "join", "other", "Other", 10),
+      ],
+    ]),
+  );
+  assert.equal(r.state.settings.length, 5, "and the fold drops them");
+  assert.equal(r.state.spectators.size, 1);
+  // Presence forgery (ADR 047, #258 N7, open): a ranked member may say anyone ahead of it is absent, and spectators
+  // rank, so a watcher reaches the same open gap the last rider always could. Pinned so the surface is visible.
+  assert.equal(
+    permitted(
+      r.state,
+      "creator",
+      "watcher",
+      r.at("watcher", PRESENCE, "creator", false, 1),
+    ),
+    true,
+    "KNOWN GAP: a watcher may claim the creator is absent",
+  );
+  assert.equal(
+    permitted(
+      r.state,
+      "creator",
+      "watcher",
+      r.at("watcher", PRESENCE, "creator", true, 1),
+    ),
+    false,
+    "but never that someone ahead of it is back",
+  );
+  // A creator that never took a seat but watches from the list is present: nobody stands in for it.
+  const w = room();
+  w.tick(
+    streams([
+      "creator",
+      [
+        w.at("creator", SPECTATOR, "join", "creator", "Host", 1),
+        w.at("creator", JOIN, "guest", "Guest", 0, "fox", 2),
+      ],
+    ]),
+  );
+  assert.deepEqual(successionOrder(w.state, "creator"), ["creator", "guest"]);
+  assert.equal(
+    actingCreator(w.state, "creator"),
+    undefined,
+    "a creator watching the room is not an absent creator",
+  );
+});
+
+test("the watching list hashes by member id, never by the order the joins arrived in", () => {
+  const build = (ids: string[]) => {
+    const r = room();
+    r.tick(
+      streams([
+        "creator",
+        [
+          r.at("creator", JOIN, "creator", "Creator", 0, "fox", 1),
+          ...ids.map((id) =>
+            r.at("creator", SPECTATOR, "join", id, id.toUpperCase(), 3),
+          ),
+        ],
+      ]),
+    );
+    return r.state;
+  };
+  const forwards = build(["wa", "wb", "wc"]),
+    backwards = build(["wc", "wb", "wa"]);
+  assert.equal(hashRoomState(forwards), hashRoomState(backwards));
+  assert.equal(canonicalRoomState(forwards), canonicalRoomState(backwards));
+  const alone = build([]);
+  assert.notEqual(
+    hashRoomState(alone),
+    hashRoomState(forwards),
+    "who is watching is part of the state every replica agrees on",
   );
 });

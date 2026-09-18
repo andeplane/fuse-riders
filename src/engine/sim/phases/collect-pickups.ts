@@ -122,8 +122,6 @@ export function collectPickups(ctx: TickContext): void {
       openBlackHoles(state, movements);
     } else if (pickup.type === "shell") {
       collector.shellArmed = true;
-    } else if (pickup.type === "target") {
-      collector.targetBombArmed = true;
     } else if (pickup.type === "star") {
       collector.invulnerableUntilTick = Math.max(
         collector.invulnerableUntilTick,

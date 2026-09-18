@@ -9,13 +9,7 @@ import {
   SEQ_AHEAD,
   StreamLog,
 } from "../src/online/stream.js";
-import {
-  AIM,
-  PRESS,
-  RELEASE,
-  STEER,
-  type Entry,
-} from "../src/engine/input-log.js";
+import { PRESS, RELEASE, STEER, type Entry } from "../src/engine/input-log.js";
 
 const e = (seq: number, tick: number, ...body: unknown[]): Entry =>
   [seq, tick, ...body] as Entry;
@@ -188,7 +182,7 @@ test("retention keeps the newest 64 or two seconds, rotates every entry through 
   for (let seq = 1; seq <= 100; seq++) own.append(seq, [STEER, seq % 4]);
   own.through = 100;
   assert.equal(own.retained().length, ROLLBACK_TICKS, "two seconds of ticks");
-  for (let seq = 101; seq <= 200; seq++) own.append(100, [AIM, seq, seq]);
+  for (let seq = 101; seq <= 200; seq++) own.append(100, [RELEASE, seq]);
   assert.equal(own.retained().length, RETAINED_ENTRIES);
   const seen = new Set<number>();
   for (let packets = 0; packets < 30; packets++) {

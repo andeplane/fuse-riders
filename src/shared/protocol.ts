@@ -30,14 +30,12 @@ export type {
 
 // The primitives the simulation itself is written in are the engine's; the wire vocabulary re-exports them.
 import type {
-  AimPoint,
   BlastCircle,
   BombAction,
   PlayerId,
   TrailSegment,
 } from "../engine/primitives.js";
 export type {
-  AimPoint,
   BlastCircle,
   BombAction,
   BombActionCommand,
@@ -59,7 +57,6 @@ export type ClientMessage =
       right: boolean;
       bomb: boolean;
       bombAction?: BombAction;
-      aim?: AimPoint;
     }
   | { type: "setAvatar"; avatarId: AvatarId }
   | { type: "heartbeat" }
@@ -134,28 +131,12 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       };
     case "input":
       if (
-        !keys("type", "seq", "left", "right", "bomb", "bombAction", "aim") ||
+        !keys("type", "seq", "left", "right", "bomb", "bombAction") ||
         !Number.isSafeInteger(v.seq) ||
         (v.seq as number) < 0 ||
         !["left", "right", "bomb"].every((k) => typeof v[k] === "boolean")
       )
         return null;
-      if (v.aim !== undefined) {
-        if (!v.aim || typeof v.aim !== "object" || Array.isArray(v.aim))
-          return null;
-        const aim = v.aim as Record<string, unknown>;
-        if (
-          Object.keys(aim).some((key) => key !== "x" && key !== "y") ||
-          ![aim.x, aim.y].every(
-            (value) =>
-              typeof value === "number" &&
-              Number.isFinite(value) &&
-              value >= 0 &&
-              value <= 1,
-          )
-        )
-          return null;
-      }
       if (
         v.bombAction !== undefined &&
         !["press", "release", "cancel"].includes(v.bombAction as string)

@@ -10,10 +10,9 @@ import { square } from "../../geometry.js";
  * retreat and any immune rider do not count. One per rider per tick, against the first such blast in id order.
  */
 export function observeDodges(ctx: TickContext): void {
-  const { state, observations, instantBlasts } = ctx;
-  const newBlasts = ctx.fuseBlasts;
+  const { state, observations } = ctx;
+  const blasts = ctx.fuseBlasts;
   if (ctx.origins) {
-    const blasts = [...newBlasts, ...instantBlasts];
     for (const player of sortedPlayers(state)) {
       const origin = ctx.origins.get(player.id);
       if (!origin || !player.alive || isHazardImmune(player, state.tick))

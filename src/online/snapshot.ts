@@ -1,11 +1,14 @@
 import {
+  MAX_SPECTATORS,
   RULES,
   hashRoomState,
   type Fold,
   type RoomState,
+  type Spectator,
 } from "../engine/apply-tick.js";
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { isEntry, memberId, uint32, type Entry } from "../engine/input-log.js";
+import { loggedRiderName } from "../engine/rider-name.js";
 import { parseRoomSettings } from "../engine/room-settings.js";
 import {
   decodeGameState,
@@ -55,8 +58,6 @@ export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
     id,
     fold.generation,
     fold.flags,
-    fold.aim?.x ?? null,
-    fold.aim?.y ?? null,
     fold.activeGesture,
     fold.latestGesture,
   ]);
@@ -94,6 +95,12 @@ export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
     [...state.bots],
     streams,
     hashRoomState(state),
+    [...state.spectators].map(([id, watcher]) => [
+      id,
+      watcher.name,
+      watcher.connected,
+      watcher.generation,
+    ]),
   ]);
   if (bytes.byteLength > MAX_SNAPSHOT_BYTES)
     throw new Error("Snapshot too large");
@@ -187,14 +194,24 @@ export function decodeSnapshot(
   }
   if (
     !Array.isArray(value) ||
-    value.length !== 9 ||
+    value.length !== 10 ||
     value[0] !== RULES ||
     value[1] !== room ||
     !uint32(value[2])
   )
     return;
-  const [, , tick, gameJson, rawSettings, rawFolds, rawBots, rawStreams, hash] =
-    value;
+  const [
+    ,
+    ,
+    tick,
+    gameJson,
+    rawSettings,
+    rawFolds,
+    rawBots,
+    rawStreams,
+    hash,
+    rawSpectators,
+  ] = value;
   const game = decodeGameState(gameJson),
     settings = parseRoomSettings(rawSettings);
   if (
@@ -204,6 +221,8 @@ export function decodeSnapshot(
     !Array.isArray(rawFolds) ||
     !Array.isArray(rawBots) ||
     !Array.isArray(rawStreams) ||
+    !Array.isArray(rawSpectators) ||
+    rawSpectators.length > MAX_SPECTATORS ||
     typeof hash !== "string"
   )
     return;
@@ -219,11 +238,9 @@ export function decodeSnapshot(
     bots.add(id);
   }
   const folds = new Map<string, Fold>();
-  const unit = (v: unknown): v is number =>
-    typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
   for (const raw of rawFolds) {
-    if (!Array.isArray(raw) || raw.length !== 7) return;
-    const [id, generation, flags, x, y, active, latest] = raw;
+    if (!Array.isArray(raw) || raw.length !== 5) return;
+    const [id, generation, flags, active, latest] = raw;
     if (
       !memberId(id) ||
       !game.players.has(id) ||
@@ -237,18 +254,33 @@ export function decodeSnapshot(
       (active !== 0 && active !== latest)
     )
       return;
-    if (!((x === null && y === null) || (unit(x) && unit(y)))) return;
     folds.set(id, {
       generation,
       flags,
       activeGesture: active,
       latestGesture: latest,
-      ...(x === null ? {} : { aim: { x, y: y as number } }),
     });
   }
   for (const player of game.players.values())
     if (!bots.has(player.id) && !folds.has(player.id)) return;
-  const state: RoomState = { tick, game, settings, folds, bots };
+  const spectators = new Map<string, Spectator>();
+  for (const raw of rawSpectators) {
+    if (!Array.isArray(raw) || raw.length !== 4) return;
+    const [id, watcherName, connected, generation] = raw;
+    // A member is a rider or a watcher, never both, and the fold never lists one twice.
+    if (
+      !memberId(id) ||
+      spectators.has(id) ||
+      game.players.has(id) ||
+      !loggedRiderName(watcherName) ||
+      watcherName.trim() !== watcherName ||
+      typeof connected !== "boolean" ||
+      !uint32(generation)
+    )
+      return;
+    spectators.set(id, { name: watcherName, connected, generation });
+  }
+  const state: RoomState = { tick, game, settings, folds, bots, spectators };
   if (hashRoomState(state) !== hash) return;
   const streams: SnapshotStream[] = [],
     seen = new Set<string>();

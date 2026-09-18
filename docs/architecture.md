@@ -48,7 +48,7 @@ The target is `engine` (pure rules), `net` (simulation coordination), `render` (
 
 ## Online data flow and recovery
 
-1. The browser creates or joins a short-code room through the room service. A member token identifies its seat; the creator capability authorizes room termination. Public room codes are rendezvous identifiers, not secrets.
+1. The browser creates or joins a short-code room through the room service. A member token identifies its seat; the creator capability authorizes room termination. Public room codes are rendezvous identifiers, not secrets. A member may take a seat or a place in the room's watching list (five each, plus a TV display); a spectator is a folded, listed member with no seat and no inputs ([design note](design/spectators.md)).
 2. The service admits members, publishes roster changes and forwards validated SDP/ICE signalling. WebRTC carries reliable control/snapshot messages and unreliable per-tick input packets directly between peers. There is no gameplay relay or TURN fallback.
 3. Each member records its own ordered input stream. `applyTick` applies permitted management entries, folds player inputs and bot inputs, then calls `driveGameTick`, which executes the simulation and round progression. Generation and sequence identify reconnects and ordering; a successful send does not prove application by another replica.
 4. `StreamLog` tracks retained entries, gaps and completeness. The runtime requests missing entries or rotates retained data. `World` retains rollback state and replays late inputs within its bounded history.
@@ -74,7 +74,7 @@ Simulation state uses ticks; clocks schedule work and rendering samples presenta
 3. Compute every rider's step, collect pickups, fly shells, explode due fuses and their chains.
 4. Sweep the steps against projectiles, blasts, walls, scenery, trails and each other; resolve shields and portal transits. Nothing has been committed yet.
 5. Commit positions and trails, then the sweep's deaths.
-6. Apply weapon inputs against the committed board; resolve guns and Target Bombs in the same tick; commit those deaths.
+6. Apply weapon inputs against the committed board; resolve guns in the same tick; commit those deaths.
 7. `recordFacts` writes match statistics, the shot log and highlight moments from the facts the phases stated; `resolveRound` decides the round.
 
 Every death goes through one `commitDeaths` over `DeathFact`s, and no phase before `recordFacts` reads statistics, so they cannot steer an outcome. `step` returns events only; callers that need the public snapshot call `toView`. The order of `PHASES` is part of the rules: the [engine pipeline note](design/engine-pipeline.md) has the full contract, the orderings it preserves, and the behaviour kept behind a named flag for stage A4. A phase that throws surfaces as a `TickFault` naming the tick and the phase; the state is still left part-way through the tick, as it always was, and recovering from that is tracked separately (#253 C8).

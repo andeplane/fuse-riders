@@ -3,13 +3,8 @@
  * them; they are defined here because the engine imports nothing outside itself.
  */
 export type PlayerId = string;
-export interface AimPoint {
-  x: number;
-  y: number;
-}
 export interface BombActionCommand {
   action: BombAction;
-  aim?: AimPoint;
 }
 export type BombAction = "press" | "release" | "cancel";
 export interface TrailSegment {

@@ -2131,7 +2131,6 @@ test("shell persists beyond five seconds and permits another shot after cooldown
   step(state, new Map());
   assert.equal(owner.shellArmed, true);
   owner.fiveShotArmed = true;
-  owner.targetBombArmed = true;
   step(
     state,
     inputs(["p0", { bomb: true, bombCommands: [{ action: "press" }] }]),
@@ -2150,7 +2149,6 @@ test("shell persists beyond five seconds and permits another shot after cooldown
   assert.equal(shell.explodeAtTick, Number.MAX_SAFE_INTEGER);
   assert.equal(owner.shellArmed, false);
   assert.equal(owner.fiveShotArmed, false);
-  assert.equal(owner.targetBombArmed, true);
   const snap = toView(state).bombs[0]!;
   assert.equal(snap.shell!.vx, 450);
   snap.shell!.vx = -2;
@@ -2168,7 +2166,6 @@ test("shell persists beyond five seconds and permits another shot after cooldown
     inputs(["p0", { bomb: true, bombCommands: [{ action: "press" }] }]),
   );
   assert.notEqual(owner.bombChargeStartedTick, undefined);
-  owner.targetBombArmed = false;
   step(
     state,
     inputs(["p0", { bomb: false, bombCommands: [{ action: "release" }] }]),

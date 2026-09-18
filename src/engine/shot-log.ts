@@ -16,8 +16,11 @@
  * Shorter Fuse, GRIP) are deliberately absent: they sharpen every shot rather than being spent by one.
  *
  * A rider can hold several weapons and a pull spends only some of them, so `applyBombActions` labels the pull with
- * the first of `gun`, `shell`, `target`, `five`, `triple`, `bomb` that it spent; whatever it did not
+ * the first of `gun`, `shell`, `five`, `triple`, `bomb` that it spent; whatever it did not
  * spend stays armed for the next pull.
+ *
+ * `target` is the retired Target Bomb. No pull fires it any more; the key stays because stored career statistics
+ * and match results count by weapon and are validated key by key.
  */
 export const WEAPONS = [
   "bomb",
@@ -42,7 +45,7 @@ export interface RoundShot {
   weapon: Weapon;
   /** Ticks into the round when the trigger was pulled. */
   elapsed: number;
-  /** Bombs the pull put in the air: 1 for Target, more for a volley or with Extra Bomb, which fan out Gun and Shell too. */
+  /** Bombs the pull put in the air: more than 1 for a volley or with Extra Bomb, which fan out Gun and Shell too. */
   bombs: number;
   /** The shooter's round-long upgrades at the moment of the pull, so outcomes can be split by them. */
   power: number;
@@ -57,7 +60,7 @@ export interface RoundShot {
 /**
  * A bound for untrusted checkpoints, not a budget play approaches. A round ends at the 1800-tick draw, and a rider
  * cannot pull while its own lobbed bomb is still in the air, so ordinary bombs allow a pull every sixty
- * ticks or so; only spent pickups (Target, Shell, Gun) come faster, down to the 20-tick minimum reload. A pull past the
+ * ticks or so; only spent pickups (Shell, Gun) come faster, down to the 20-tick minimum reload. A pull past the
  * cap goes unlogged rather than displacing one already logged.
  */
 export const MAX_ROUND_SHOTS = 512;

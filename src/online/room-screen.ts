@@ -46,6 +46,8 @@ export interface RoomScreenInput {
   booted: boolean;
   /** This device's rider is in the room's roster. */
   joined: boolean;
+  /** This device has a place in the room's watching list: it is in the room, so it is not at its door. */
+  watching: boolean;
   /** The last frame's phase; `"lobby"` before the first frame. */
   phase: string;
   /** `matchOver` whose closing pause has run out: the match report is ready. */
@@ -147,7 +149,7 @@ export function roomScreen(input: RoomScreenInput): RoomScreen {
       }),
     };
   }
-  const joining = input.role === "joiner" && !input.joined;
+  const joining = input.role === "joiner" && !input.joined && !input.watching;
   const mobile = mobileScreen(input, {
     joined: input.joined,
     phase: input.phase,

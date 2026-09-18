@@ -17,6 +17,7 @@ import {
   showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus, type StatusTone } from "./status-copy.js";
+import type { SpectatorView } from "./rollback.js";
 
 /** Match score units per point. */
 const UNITS = 60;
@@ -55,6 +56,8 @@ export interface RoomPresenterInput {
   mobileActive: boolean;
   /** The fire control is held down right now. */
   bombHeld: boolean;
+  /** The room's watching list, from the frame. Watchers hold no seat, so nothing else here reads them. */
+  spectators: readonly SpectatorView[];
 }
 
 export interface LobbyRiderView {
@@ -63,6 +66,13 @@ export interface LobbyRiderView {
   color: string;
   avatarId: AvatarId;
   status: "READY" | "OFFLINE";
+}
+
+export interface WatcherView {
+  id: string;
+  name: string;
+  /** `WATCHING` or `OFFLINE`, and on this device's own row what it is here as. */
+  status: string;
 }
 
 export interface StandingView {
@@ -110,7 +120,14 @@ export interface RoomView {
   /** The in-arena announcer may show: not behind the lobby card or the join card. */
   announcerVisible: boolean;
   notice: string;
-  lobby: { count: string; empty: boolean; riders: LobbyRiderView[] };
+  lobby: {
+    count: string;
+    empty: boolean;
+    riders: LobbyRiderView[];
+    watchers: WatcherView[];
+    /** Nobody is watching, so the WATCHING block is not there at all. */
+    watchersHidden: boolean;
+  };
   standings: StandingView[];
   actions: {
     hidden: boolean;
@@ -121,8 +138,6 @@ export interface RoomView {
   };
   fire: FireView;
   power: { hidden: boolean; text: string };
-  /** Where a target bomb aims from, as a fraction of the arena; undefined when none is armed. */
-  targetAim: { x: number; y: number } | undefined;
   /** This device's rider colour, when it has a rider. */
   playerColor: string | undefined;
   /** The phone HUD shows only on a phone playing as the controller. */
@@ -139,12 +154,15 @@ function notice(
   joined: boolean,
   host: boolean,
   ready: boolean,
+  watching: boolean,
 ): string {
   const player = state.players.find((p) => p.id === playerId);
   if (state.phase === "lobby")
-    return joined && !host
-      ? "Waiting for the host to start"
-      : "Join your friends, then start the race";
+    return watching
+      ? "Watching · waiting for the race to start"
+      : joined && !host
+        ? "Waiting for the host to start"
+        : "Join your friends, then start the race";
   if (state.phase === "countdown")
     return `READY · ${Math.max(0, Math.ceil(((state.phaseEndsAtTick ?? state.tick) - state.tick) / TICKS_PER_SECOND))}`;
   if (showsRoundResult(state))
@@ -181,13 +199,11 @@ function fire(
         ? isAimingGun(player)
           ? "STEER TO AIM · RELEASE!"
           : "HOLD TO AIM GUN"
-        : player.targetBombArmed
-          ? "SLIDE TO AIM"
-          : player.shellArmed
-            ? "FIRE SHELL"
-            : bombHeld
-              ? "RELEASE!"
-              : "HOLD TO FIRE";
+        : player.shellArmed
+          ? "FIRE SHELL"
+          : bombHeld
+            ? "RELEASE!"
+            : "HOLD TO FIRE";
   }
   return {
     gunReady,
@@ -246,9 +262,13 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
   const { state, playerId, host, solo, displayOnly } = input;
   const player = state.players.find((p) => p.id === playerId);
   const joined = Boolean(player);
+  const watching = input.spectators.some((seat) => seat.id === playerId);
   const ready = recapReady(state);
   const clock = roundClock(state);
   const connected = state.players.filter((p) => p.connected).length;
+  const watchingCount = input.spectators.filter(
+    (seat) => seat.connected,
+  ).length;
   const fireView = fire(state, player, input.bombHeld);
   return {
     joined,
@@ -256,17 +276,23 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     resultsHidden: !ready,
     // Avatars are a lobby choice: before a seat the join form carries it, and the button leaves with the lobby.
     avatarHidden: !joined || state.phase !== "lobby",
-    joinPanelHidden: joined || displayOnly,
+    joinPanelHidden: joined || watching || displayOnly,
     controlsHidden: !joined || displayOnly,
     roundClock: clock,
     roundChipHidden: !clock || input.lobbyCard,
     announcerVisible: !input.lobbyCard && !input.joining,
-    notice: notice(state, playerId, joined, host, ready),
+    notice: notice(state, playerId, joined, host, ready, watching),
     lobby: {
-      count:
-        connected < 2
-          ? `${connected === 1 ? "1 rider ready · " : ""}Waiting for at least 2 riders`
-          : `${connected} riders ready`,
+      // The watchers go beside the riders, before the call for more: "1 rider ready · 1 watching · Waiting for at least 2 riders".
+      count: [
+        ...(connected >= 2
+          ? [`${connected} riders ready`]
+          : connected === 1
+            ? ["1 rider ready"]
+            : []),
+        ...(watchingCount ? [`${watchingCount} watching`] : []),
+        ...(connected < 2 ? ["Waiting for at least 2 riders"] : []),
+      ].join(" · "),
       empty: state.players.length === 0,
       riders: state.players.map((p) => ({
         id: p.id,
@@ -275,6 +301,13 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
         avatarId: p.avatarId,
         status: p.connected ? "READY" : "OFFLINE",
       })),
+      watchers: input.spectators.map((seat) => ({
+        id: seat.id,
+        name: seat.name,
+        // Whose row this is, is all one screen can say for certain; who manages the room arrives with the host crown.
+        status: `${seat.id === playerId ? (host ? "HOST · " : "YOU · ") : ""}${seat.connected ? "WATCHING" : "OFFLINE"}`,
+      })),
+      watchersHidden: input.spectators.length === 0,
     },
     standings: standings(input),
     actions: {
@@ -305,10 +338,6 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
           )
         : "",
     },
-    targetAim:
-      player?.targetBombArmed && !player.gunArmed && !player.shellArmed
-        ? { x: player.x / state.width, y: player.y / state.height }
-        : undefined,
     playerColor: player?.color,
     // Phone HUD: who you are, what the fire button would do, match points and the clock.
     hudHidden: !player || !input.mobileActive,

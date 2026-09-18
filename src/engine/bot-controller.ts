@@ -45,8 +45,8 @@ export const BOT_BLUNDER_WINDOW = 4;
 export type BotDifficulty = "easy" | "medium" | "hard";
 export const BOT_DIFFICULTIES = ["easy", "medium", "hard"] as const;
 /**
- * lookaheadTicks is how far the rider plans, aimError how badly it throws a target bomb, and blunderRate how often it
- * stops steering well for a moment, the way a distracted human does. Every knob must be a pure function of folded
+ * lookaheadTicks is how far the rider plans, aimError how far off it points a Gun's sight, and blunderRate how often
+ * it stops steering well for a moment, the way a distracted human does. Every knob must be a pure function of folded
  * state: the controller runs inside the fold on every device, and a rollback replays it without restoring anything it
  * kept for itself, so a remembered decision would replay differently than it was first played and diverge the room.
  */
@@ -580,8 +580,6 @@ export class BotController {
         : nearest.y - player.y;
     const distance = hypot2(towardX, towardY);
     const bearing = atan2(towardY, towardX);
-    const aimed =
-      player.targetBombArmed && !player.gunArmed && !player.shellArmed;
     // One fixed miss per shot: the cooldown stamp is stable while charging, so a weak rider commits to its bad aim.
     const scatter = (axis: string) =>
       (Math.max(
@@ -598,21 +596,9 @@ export class BotController {
         2 -
         1) *
       tier.aimError;
-    const aim = aimed
-      ? {
-          x: Math.max(
-            0,
-            Math.min(1, (nearest.x + scatter(":aimX")) / game.width),
-          ),
-          y: Math.max(
-            0,
-            Math.min(1, (nearest.y + scatter(":aimY")) / game.height),
-          ),
-        }
-      : undefined;
     const maxChargeTicks = game.settings.bombChargeTicks;
     let wantedCharge =
-      aimed || player.gunArmed || player.shellArmed
+      player.gunArmed || player.shellArmed
         ? 1
         : Math.max(
             1,
@@ -646,12 +632,7 @@ export class BotController {
           }
         : { left: off < 0, right: off > 0, bomb: true };
     }
-    if (
-      game.settings.aimBounce &&
-      !aimed &&
-      !player.gunArmed &&
-      !player.shellArmed
-    ) {
+    if (game.settings.aimBounce && !player.gunArmed && !player.shellArmed) {
       // The eased curve is nonlinear. Pick the closest attainable first-swing distance.
       let error = Infinity;
       for (let ticks = 1; ticks <= maxChargeTicks; ticks++) {
@@ -670,22 +651,17 @@ export class BotController {
       return {
         ...intent,
         bomb: !release,
-        ...(aim ? { aim } : {}),
-        ...(release
-          ? { bombCommands: [{ action: "release", ...(aim ? { aim } : {}) }] }
-          : {}),
+        ...(release ? { bombCommands: [{ action: "release" }] } : {}),
       };
     }
     if (
-      aimed ||
-      (distance < bombMaxLaunchDistance(player.rangeLevel) + 100 &&
-        Math.abs(angleDifference(bearing, player.angle)) < 0.6)
+      distance < bombMaxLaunchDistance(player.rangeLevel) + 100 &&
+      Math.abs(angleDifference(bearing, player.angle)) < 0.6
     ) {
       return {
         ...intent,
         bomb: true,
-        ...(aim ? { aim } : {}),
-        bombCommands: [{ action: "press", ...(aim ? { aim } : {}) }],
+        bombCommands: [{ action: "press" }],
       };
     }
     return intent;

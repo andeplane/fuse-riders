@@ -144,8 +144,7 @@ const wanted: [string, (view: View) => boolean][] = [
           p.alive &&
           p.bombChargeStartedTick !== undefined &&
           !p.gunArmed &&
-          !p.shellArmed &&
-          !p.targetBombArmed,
+          !p.shellArmed,
       ),
   ],
   [
@@ -159,13 +158,6 @@ const wanted: [string, (view: View) => boolean][] = [
             (p.tripleShotArmed ? 2 : 0) +
             (p.fiveShotArmed ? 4 : 0) >
             0,
-      ),
-  ],
-  [
-    "target-bomb",
-    (v) =>
-      v.players.some(
-        (p) => p.alive && p.targetBombArmed && p.bombTarget !== undefined,
       ),
   ],
   ["ink", (v) => v.players.some((p) => p.alive && p.inkUntilTick > v.tick)],
@@ -259,7 +251,7 @@ const transitions: [string, number, (view: View, previous: View) => boolean][] =
     "the recording reaches every moment",
   );
   // Range (rules 36) lengthens the aim guide. The recording's riders may never hold a Range pickup while charging, so
-  // the charging and target moments are drawn again with every rider at the top Range level.
+  // the charging and volley moments are drawn again with every rider at the top Range level.
   for (const name of ["charging", "volley"]) {
     const base = moments.find((moment) => moment.name === name)!;
     const view = structuredClone(base.view) as View;

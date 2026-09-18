@@ -1524,7 +1524,6 @@ class ArenaScene extends Phaser.Scene {
         }
         if (
           p.bombChargeStartedTick !== undefined &&
-          !p.targetBombArmed &&
           !p.shellArmed &&
           !p.gunArmed
         ) {
@@ -1587,18 +1586,6 @@ class ArenaScene extends Phaser.Scene {
               y = y2 >= h - 1e-6 ? 0 : y2 <= 1e-6 ? h : y2;
             }
           }
-        }
-        if (
-          p.targetBombArmed &&
-          !p.shellArmed &&
-          !p.gunArmed &&
-          p.bombChargeStartedTick !== undefined &&
-          p.bombTarget
-        ) {
-          const { x, y } = p.bombTarget;
-          drawBombAim(f, p, { x, y }, tint);
-          const text = uprightOffset(x, y, 0, 45, this.rotated);
-          this.label(`TARGET · ${p.name}`, text.x, text.y, p.color, 12, 7);
         }
       }
   }

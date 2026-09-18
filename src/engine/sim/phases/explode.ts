@@ -18,14 +18,6 @@ export function explodeFuses(ctx: TickContext): void {
   ctx.fuseBlasts = resolveExplosions(ctx);
 }
 
-/**
- * The same rule a second time, after this tick's launches: a released Target Bomb lands and explodes on the tick it
- * is thrown, and chains like any other blast.
- */
-export function explodeInstant(ctx: TickContext): void {
-  ctx.instantBlasts = resolveExplosions(ctx);
-}
-
 /** Explodes what is due, in bomb-id order, and follows the chain breadth-first in id order. */
 function resolveExplosions({ state, events, facts }: TickContext): NewBlast[] {
   // #166: with chaining off a bomb only ever answers to its own fuse, neither to a blast already on the field nor to one opened this tick.

@@ -179,6 +179,18 @@
       "retries": 1
     },
     {
+      "id": "spectator",
+      "group": "spectator",
+      "name": "Spectators join, are listed and watch a race",
+      "why": "The watching list is folded state with its own way in; only a browser shows that a watcher gets the arena and none of the controls.",
+      "command": "npx tsx scripts/spectator-smoke.ts",
+      "browsers": ["chromium"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
       "id": "determinism",
       "group": "determinism",
       "name": "Cross-engine determinism replay",

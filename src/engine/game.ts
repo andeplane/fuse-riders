@@ -135,7 +135,6 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     grip: false,
     drunkUntilTick: 0,
     inkUntilTick: 0,
-    targetBombArmed: false,
     tripleShotArmed: false,
     fiveShotArmed: false,
     drunkStartedTick: 0,
@@ -310,7 +309,6 @@ function prepareRound(state: GameState): void {
     player.alive = false;
     player.trail = [];
     player.bombChargeStartedTick = undefined;
-    player.bombTarget = undefined;
     player.gunAim = undefined;
     player.aimSlowTicks = 0;
     player.aimSlowSpentTicks = 0;
@@ -330,7 +328,6 @@ function prepareRound(state: GameState): void {
     player.inkUntilTick = 0;
     player.gunArmed = false;
     player.shellArmed = false;
-    player.targetBombArmed = false;
     player.tripleShotArmed = false;
     player.fiveShotArmed = false;
     player.shielded = false;

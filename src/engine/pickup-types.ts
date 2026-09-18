@@ -5,7 +5,6 @@ export const PICKUP_TYPES = [
   "stopwatch",
   "gun",
   "shell",
-  "target",
   "star",
   "beer",
   "ink",
