@@ -11,11 +11,14 @@ type Storage = Pick<SafeStorage, "getItem" | "setItem">;
  * Name, avatar and JOIN. Every rider confirms these before taking a seat: a remembered name prefills the field, it never joins by itself.
  * A signed-in rider rides under their account's username: the field shows it and is not editable here, so they are the same name in
  * every room and on every device. It is changed where the account lives, under MY GAMES on the home page.
+ *
+ * `onSpectate` adds the second way in, under the first: watch the room by name without taking one of its five seats.
  */
 export function createJoinForm(
   storage: Storage,
   onJoin: (name: string, avatarId: AvatarId) => void,
   accountName?: string,
+  onSpectate?: (name: string) => void,
 ) {
   const form = document.createElement("form");
   form.className = "online-join";
@@ -80,8 +83,17 @@ export function createJoinForm(
   hint.setAttribute("role", "alert");
   hint.textContent = "Enter your name to join";
   hint.hidden = true;
+  // The quieter second way in: same name, no seat. A plain button, never the form's submit, so Enter still joins as a player.
+  const spectate = document.createElement("button");
+  spectate.type = "button";
+  spectate.className = "join-spectate";
+  spectate.textContent = "JOIN AS SPECTATOR";
+  spectate.title = "Watch the room without taking a seat";
+  spectate.disabled = true;
+  spectate.hidden = !onSpectate;
   // The note follows the button and spans the row like the hint: between name and button it took the grid's auto column and crushed both.
   form.append(name, button, account, hint, current, picker.element);
+  if (onSpectate) button.after(spectate);
   if (accountName) useAccountName(accountName);
   // The name is remembered as it is typed, so a page that reloads before JOIN is tapped keeps it rather than an empty field.
   name.addEventListener("input", () => {
@@ -90,9 +102,8 @@ export function createJoinForm(
     hint.hidden = true;
     name.removeAttribute("aria-invalid");
   });
-  form.onsubmit = (event) => {
-    event.preventDefault();
-    // What the room would seat, so the field, the remembered name and the seat are the same text.
+  /** What the room would seat, so the field, the remembered name and the seat are the same text. */
+  const confirmedName = (): string | undefined => {
     const value = seatRiderName(name.value);
     if (!value) {
       hint.hidden = false;
@@ -102,11 +113,21 @@ export function createJoinForm(
     }
     name.value = value;
     if (!accountName) storage.setItem(NAME_KEY, value);
-    onJoin(value, picker.selected());
+    return value;
+  };
+  form.onsubmit = (event) => {
+    event.preventDefault();
+    const value = confirmedName();
+    if (value) onJoin(value, picker.selected());
+  };
+  spectate.onclick = () => {
+    const value = confirmedName();
+    if (value) onSpectate!(value);
   };
   return {
     element: form,
     submitButton: button,
+    spectateButton: spectate,
     picker: {
       ...picker,
       sync(id: AvatarId) {
@@ -115,7 +136,7 @@ export function createJoinForm(
       },
     },
     ready() {
-      button.disabled = false;
+      button.disabled = spectate.disabled = false;
     },
     useAccountName,
   };
