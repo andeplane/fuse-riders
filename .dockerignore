@@ -10,3 +10,6 @@
 !packages/*/package.json
 !packages/*/src/
 !packages/*/src/**
+!games/
+!games/*/
+!games/*/package.json

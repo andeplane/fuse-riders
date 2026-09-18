@@ -31,6 +31,8 @@ export default defineConfig(
       "scripts/**/*.ts",
       "packages/*/src/**/*.ts",
       "packages/*/tests/**/*.ts",
+      "games/*/src/**/*.ts",
+      "games/*/tests/**/*.ts",
       "vite.config.ts",
     ],
     languageOptions: {

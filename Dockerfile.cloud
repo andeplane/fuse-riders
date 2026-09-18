@@ -16,6 +16,8 @@ COPY packages/fuse-network-be/package.json ./packages/fuse-network-be/
 COPY packages/fuse-netcode/package.json ./packages/fuse-netcode/
 COPY packages/fuse-platform/package.json ./packages/fuse-platform/
 COPY packages/fuse-ui/package.json ./packages/fuse-ui/
+# Games are workspaces too: npm ci needs every manifest the lockfile lists, even when the service does not run it.
+COPY games/dice/package.json ./games/dice/
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --chown=node:node src ./src
 COPY --chown=node:node packages ./packages

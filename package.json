@@ -12,8 +12,8 @@
     "prestart": "npm run build",
     "start": "npm run build && tsx src/service/dev.ts --port ${PORT:-8787}",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
-    "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts",
+    "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
+    "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
     "dev:online": "npm run build && tsx src/service/dev.ts --port 8787",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -58,6 +58,7 @@
     "vite": "^7.1.5"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "games/*"
   ]
 }

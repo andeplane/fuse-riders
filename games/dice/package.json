@@ -1,0 +1,17 @@
+{
+  "name": "dice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pig, the template game: roll a d6 or hold, first to 50 wins the round and two rounds win the match. Its rules run on fuse-netcode.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "exports": {
+    ".": "./src/game/index.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "0.1.0",
+    "fuse-platform": "0.1.0"
+  }
+}
