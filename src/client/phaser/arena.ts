@@ -28,6 +28,8 @@ import { wrapCoordinate } from "../../shared/wrap.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
+import { GunImpacts, gunImpactFrame } from "./gun-impacts.js";
+import { gunFrame, gunRoots, gunPortalPulses } from "./gun-animation.js";
 import { TrailDebris } from "../trail-debris.js";
 import {
   selfLocatorRing,
@@ -269,6 +271,7 @@ class ArenaScene extends Phaser.Scene {
   private trailTips!: Phaser.GameObjects.Graphics;
   private dynamic!: Phaser.GameObjects.Graphics;
   private front!: Phaser.GameObjects.Graphics;
+  private gunImpacts = new GunImpacts();
   private sparks!: Phaser.GameObjects.Particles.ParticleEmitter;
   private world!: Phaser.GameObjects.Layer;
   private maskShape!: Phaser.GameObjects.Graphics;
@@ -393,6 +396,7 @@ class ArenaScene extends Phaser.Scene {
   }
   resetEffects(): void {
     this.transitions.reset();
+    this.gunImpacts.reset();
     this.sparks?.killAll();
     this.trailHistory.reset();
     this.debris.reset();
@@ -809,6 +813,32 @@ class ArenaScene extends Phaser.Scene {
       this.sparks.setParticleTint(color(ground.dust));
       this.sparks.explode(10, piece.x, piece.y);
     }
+    for (const hit of this.gunImpacts.accept(s, matchId).active) {
+      const frame = gunImpactFrame(hit, s.presentationTick ?? s.tick);
+      const tint = color(hit.color);
+      for (const fragment of frame.fragments)
+        for (const { dx, dy } of ghosts(fragment.x, fragment.y, fragment.size))
+          g.fillStyle(tint, frame.alpha).fillRect(
+            fragment.x + dx - fragment.size / 2,
+            fragment.y + dy - fragment.size / 2,
+            fragment.size,
+            fragment.size,
+          );
+      for (const end of hit.ends)
+        g.fillStyle(0xffffff, frame.alpha ** 2).fillRect(
+          end.x - 2,
+          end.y - 2,
+          4,
+          4,
+        );
+      if (hit.kind === "lethal")
+        for (const { dx, dy } of ghosts(hit.x, hit.y, 20))
+          g.lineStyle(2, 0xffffff, frame.core).strokeCircle(
+            hit.x + dx,
+            hit.y + dy,
+            5 + (1 - frame.core) * 15,
+          );
+    }
     for (const p of s.pickups) {
       const pulse = 1 + Math.sin(now / 210 + p.id) * 0.06;
       const power = p.type === "power";
@@ -838,12 +868,26 @@ class ArenaScene extends Phaser.Scene {
           9,
         );
     }
+    const portalPulses = gunPortalPulses(s, s.presentationTick ?? s.tick);
     const livePortals = s.portalPairs.filter(
       (pair) => pair.expiresAtTick > s.tick,
     );
     const portalTints = portalPalettes(livePortals.map((pair) => pair.id));
     for (const [pairIndex, pair] of livePortals.entries()) {
       const tints = portalTints[pairIndex]!.map(color) as [number, number];
+      const shotPulses = portalPulses.filter(
+        (pulse) => pulse.pairId === pair.id,
+      );
+      const shotGlow = Math.max(
+        0,
+        ...shotPulses.map((pulse) => pulse.strength),
+      );
+      for (const pulse of shotPulses)
+        for (const point of [pulse.entry, pulse.exit])
+          g.fillStyle(0xffffff, pulse.strength)
+            .fillRect(point.x - 2, point.y - 8, 4, 16)
+            .fillRect(point.x - 8, point.y - 2, 16, 4);
+
       // The faint tether keeps the two ends of one pair readable when several pairs are open.
       g.lineStyle(2, tints[0], 0.18).lineBetween(
         pair.gates[0].x,
@@ -867,6 +911,21 @@ class ArenaScene extends Phaser.Scene {
             gate.x,
             gate.y + gate.halfLength,
           );
+        if (shotGlow > 0)
+          g.lineStyle(30, tint, 0.3 * shotGlow)
+            .lineBetween(
+              gate.x,
+              gate.y - gate.halfLength,
+              gate.x,
+              gate.y + gate.halfLength,
+            )
+            .lineStyle(3, 0xffffff, 0.9 * shotGlow)
+            .lineBetween(
+              gate.x,
+              gate.y - gate.halfLength,
+              gate.x,
+              gate.y + gate.halfLength,
+            );
         for (let y = -gate.halfLength; y < gate.halfLength; y += 20) {
           const offset = (now / 35) % 20;
           g.fillStyle(0xffffff, 0.75).fillRect(
@@ -885,21 +944,63 @@ class ArenaScene extends Phaser.Scene {
         }
       }
     }
+    // Only original rays flash at the muzzle; portal/wrap legs never create a second rider.
+    for (const bomb of gunRoots(s.bombs)) {
+      const frame = gunFrame(bomb, s.presentationTick ?? s.tick);
+      const owner = s.players.find((p) => p.id === bomb.ownerId);
+      const tint = color(owner?.color ?? "#ffffff");
+      const { dx, dy, flash, recoil } = frame;
+      if (flash > 0) {
+        const offset = Math.min(
+          23,
+          Math.hypot(bomb.x - bomb.launchX, bomb.y - bomb.launchY),
+        );
+        const x = bomb.launchX + dx * offset,
+          y = bomb.launchY + dy * offset;
+        g.fillStyle(tint, flash * 0.35).fillTriangle(
+          x - dy * 9,
+          y + dx * 9,
+          x + dx * 23,
+          y + dy * 23,
+          x + dy * 9,
+          y - dx * 9,
+        );
+        g.fillStyle(0xffffff, flash)
+          .fillRect(x - 2, y - 8, 4, 16)
+          .fillRect(x - 8, y - 2, 16, 4);
+      }
+      if (owner?.alive && recoil > 0)
+        f.lineStyle(2, tint, 0.65 * (1 - recoil / 10)).strokeCircle(
+          owner.x - dx * recoil,
+          owner.y - dy * recoil,
+          18,
+        );
+    }
     for (const bomb of s.bombs) {
       if (bomb.shell?.gun) {
-        const alpha = clamp(
-          (bomb.explodeAtTick - (s.presentationTick ?? s.tick)) /
-            Math.max(1, bomb.explodeAtTick - bomb.launchedTick),
-          0,
-          1,
+        const { alpha, glow } = gunFrame(bomb, s.presentationTick ?? s.tick);
+        const tint = color(
+          s.players.find((p) => p.id === bomb.ownerId)?.color ?? "#ffffff",
         );
-        g.lineStyle(2, 0xd8edff, 0.7 * alpha).lineBetween(
+        g.lineStyle(10 * glow + 2, tint, 0.24 * glow).lineBetween(
           bomb.launchX,
           bomb.launchY,
           bomb.x,
           bomb.y,
         );
-        g.fillStyle(0xffffff, alpha).fillCircle(bomb.x, bomb.y, 2);
+        g.lineStyle(4, tint, 0.65 * alpha).lineBetween(
+          bomb.launchX,
+          bomb.launchY,
+          bomb.x,
+          bomb.y,
+        );
+        g.lineStyle(1.5, 0xffffff, alpha).lineBetween(
+          bomb.launchX,
+          bomb.launchY,
+          bomb.x,
+          bomb.y,
+        );
+        g.fillStyle(0xffffff, alpha).fillRect(bomb.x - 2, bomb.y - 2, 4, 4);
         continue;
       }
       if (bomb.shell) {
@@ -1113,6 +1214,28 @@ class ArenaScene extends Phaser.Scene {
           p.x + dx * 16 - dy * 5,
           p.y + dy * 16 + dx * 5,
         );
+        if (p.gunArmed && (s.phase === "playing" || s.phase === "countdown")) {
+          // A compact luminous barrel/chevron, aligned with the next shot.
+          f.lineStyle(6, tint, 0.25).lineBetween(
+            p.x + dx * 20,
+            p.y + dy * 20,
+            p.x + dx * 33,
+            p.y + dy * 33,
+          );
+          f.lineStyle(2, 0xffffff, 0.95)
+            .lineBetween(
+              p.x + dx * 23 + dy * 5,
+              p.y + dy * 23 - dx * 5,
+              p.x + dx * 30,
+              p.y + dy * 30,
+            )
+            .lineBetween(
+              p.x + dx * 30,
+              p.y + dy * 30,
+              p.x + dx * 23 - dy * 5,
+              p.y + dy * 23 + dx * 5,
+            );
+        }
         const labelY = p.y - (self ? 30 : 27);
         if (self)
           f.lineStyle(2, tint, 0.55 + Math.sin(now / 180) * 0.25).strokeCircle(
