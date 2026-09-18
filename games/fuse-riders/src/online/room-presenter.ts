@@ -102,6 +102,8 @@ export interface StandingView {
 }
 
 export interface FireView {
+  /** The next shot, in the engine’s Gun → Shell → Five → Triple priority. */
+  weapon: "bomb" | "gun" | "shell" | "five" | "triple";
   /** The Gun is armed and a tap fires it. */
   gunReady: boolean;
   title: string;
@@ -208,6 +210,15 @@ function fire(
             : "HOLD TO FIRE";
   }
   return {
+    weapon: player?.gunArmed
+      ? "gun"
+      : player?.shellArmed
+        ? "shell"
+        : player?.fiveShotArmed
+          ? "five"
+          : player?.tripleShotArmed
+            ? "triple"
+            : "bomb",
     gunReady,
     title: gunReady
       ? "Tap to fire Gun, or hold and steer to aim (Space)"

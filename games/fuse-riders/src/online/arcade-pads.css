@@ -158,7 +158,7 @@
   content: "RIGHT";
 }
 .online-app.mobile-play.controller-only .online-controls > .pad-bomb::after {
-  content: "BOMB";
+  content: attr(data-weapon);
 }
 .online-app.mobile-play.controller-only .pad-feedback {
   order: 1;
