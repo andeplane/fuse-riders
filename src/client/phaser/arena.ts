@@ -28,6 +28,7 @@ import { wrapCoordinate } from "../../shared/wrap.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
+import { gunFrame, gunRoots } from "../gun-animation.js";
 import { TrailDebris } from "../trail-debris.js";
 import {
   selfLocatorRing,
@@ -884,6 +885,38 @@ class ArenaScene extends Phaser.Scene {
             .lineBetween(gate.x + 14, gate.y + y, gate.x + 8, gate.y + y + 5);
         }
       }
+    }
+    // Only original rays flash at the muzzle; portal/wrap legs never create a second rider.
+    for (const bomb of gunRoots(s.bombs)) {
+      const frame = gunFrame(bomb, s.presentationTick ?? s.tick);
+      const owner = s.players.find((p) => p.id === bomb.ownerId);
+      const tint = color(owner?.color ?? "#ffffff");
+      const { dx, dy, flash, recoil } = frame;
+      if (flash > 0) {
+        const offset = Math.min(
+          23,
+          Math.hypot(bomb.x - bomb.launchX, bomb.y - bomb.launchY),
+        );
+        const x = bomb.launchX + dx * offset,
+          y = bomb.launchY + dy * offset;
+        g.fillStyle(tint, flash * 0.35).fillTriangle(
+          x - dy * 9,
+          y + dx * 9,
+          x + dx * 23,
+          y + dy * 23,
+          x + dy * 9,
+          y - dx * 9,
+        );
+        g.fillStyle(0xffffff, flash)
+          .fillRect(x - 2, y - 8, 4, 16)
+          .fillRect(x - 8, y - 2, 16, 4);
+      }
+      if (owner?.alive && recoil > 0)
+        f.lineStyle(2, tint, 0.65 * (1 - recoil / 10)).strokeCircle(
+          owner.x - dx * recoil,
+          owner.y - dy * recoil,
+          18,
+        );
     }
     for (const bomb of s.bombs) {
       if (bomb.shell?.gun) {
