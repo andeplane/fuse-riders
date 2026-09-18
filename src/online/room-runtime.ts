@@ -1,5 +1,5 @@
 import { StatusNotices } from "./status-notices.js";
-import { TickClock } from "./clock.js";
+import { TICK_MS, TickClock } from "./clock.js";
 import { World, type Frame } from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
 import { PACKET_ENTRIES } from "./stream.js";
@@ -569,7 +569,7 @@ export class RoomRuntime {
     member.lastPacketAt = now;
     member.lastSentAt = packet.sentAt;
     member.lastSentReceivedAt = now;
-    member.clockTick = packet.clockTick + (member.rttMs ?? 0) / 2 / 50;
+    member.clockTick = packet.clockTick + (member.rttMs ?? 0) / 2 / TICK_MS;
     if (packet.echoSentAt !== 0) {
       const rtt = wrapDelta(wrapMs(now), packet.echoSentAt) - packet.echoHeld;
       if (rtt >= 0 && rtt < 10_000) {
@@ -818,12 +818,13 @@ export class RoomRuntime {
               now - member.lastPacketAt < 2000,
           )
           .map(
-            (member) => member.clockTick! + (now - member.lastPacketAt) / 50,
+            (member) =>
+              member.clockTick! + (now - member.lastPacketAt) / TICK_MS,
           );
       this.clock.start(
         readings.length
           ? Math.max(...readings)
-          : tick + (now - this.snapshotRequest.at) / 2 / 50,
+          : tick + (now - this.snapshotRequest.at) / 2 / TICK_MS,
       );
     }
     this.snapshotRequest = undefined;
