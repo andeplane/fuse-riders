@@ -134,6 +134,7 @@
 }
 .fui-invite {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   gap: var(--fui-space-2);
   padding: var(--fui-space-4);
@@ -168,6 +169,9 @@
   max-width: 100%;
 }
 .fui-invite-url {
+  /* A flex item keeps its text's full width unless allowed to shrink; without this the ellipsis never applies and a
+     long invite link widens the page. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

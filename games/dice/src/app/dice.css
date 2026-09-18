@@ -4,6 +4,8 @@ body.dice-page {
 }
 #app {
   display: grid;
+  /* The column is the screen, never the widest unbreakable line in it: a phone must not scroll sideways. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   min-height: 100dvh;
   padding: 0 max(var(--fui-space-3), env(safe-area-inset-left))

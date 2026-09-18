@@ -38,6 +38,18 @@ const seated = (tab: Page, timeout = 30_000) =>
     .locator(".dice-player.you")
     .first()
     .waitFor({ timeout: smokeTimeout(timeout) });
+/**
+ * A phone page never scrolls sideways: every control stays on screen and under the finger that aims at it. Measured
+ * against the phone's width, not `innerWidth`: a mobile browser widens its layout viewport to fit a page that overflows.
+ */
+const fitsPhone = async (tab: Page, where: string) => {
+  const page = await tab.evaluate(() => document.documentElement.scrollWidth);
+  const screen = phoneSize.viewport.width;
+  assert.ok(
+    page <= screen,
+    `${where}: page is ${page}px wide on a ${screen}px phone`,
+  );
+};
 const joinAs = async (tab: Page, name: string) => {
   const field = tab.getByPlaceholder("Your name");
   await field.waitFor();
@@ -100,7 +112,10 @@ async function twoPlayers(browser: Browser): Promise<void> {
   await b.getByPlaceholder("Room code").fill(code.toLowerCase());
   await b.getByRole("button", { name: "JOIN ROOM" }).click();
   await b.waitForURL(new RegExp(`room=${code}`));
+  await b.getByPlaceholder("Your name").waitFor();
+  await fitsPhone(b, "name entry");
   await joinAs(b, "Bo");
+  await fitsPhone(b, "lobby");
   await a.locator(".fui-roster-name", { hasText: "Bo" }).waitFor();
   await a.screenshot({ path: `${shots}/dice-lobby-${engine}.png` });
 
@@ -114,6 +129,7 @@ async function twoPlayers(browser: Browser): Promise<void> {
   await start.click();
   await Promise.all([waitPhase(a, ["running"]), waitPhase(b, ["running"])]);
   await Promise.all([seated(a), seated(b)]);
+  await fitsPhone(b, "table");
   await a.screenshot({ path: `${shots}/dice-table-${engine}.png` });
 
   // Turns until the round is decided; the joiner refreshes once it has played, mid-round.
@@ -200,6 +216,7 @@ async function sharedScreen(browser: Browser): Promise<void> {
   );
   await tv.screenshot({ path: `${shots}/dice-tv-${engine}.png` });
   await p.screenshot({ path: `${shots}/dice-controller-${engine}.png` });
+  await fitsPhone(p, "controller");
   console.log(`${engine}: shared screen ${code} ok`);
   await host.close();
   await phone.close();
