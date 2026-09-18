@@ -339,6 +339,7 @@ class ArenaScene extends Phaser.Scene {
   }
   preload(): void {
     this.load.image("avatars", assetUrl(AVATAR_ATLAS_URL));
+    this.load.image("desert-pyramid", assetUrl("/maps/desert/pyramid.png"));
     for (const theme of Object.values(themes)) {
       this.load.svg(`${theme.id}:rider`, assetUrl(theme.sprites.rider), {
         width: 64,
@@ -562,8 +563,17 @@ class ArenaScene extends Phaser.Scene {
     obstacles: ViewSnapshot["obstacles"],
     map: ViewSnapshot["map"],
   ): void {
-    for (const obstacle of obstacles)
-      for (const part of obstacleParts(obstacle, map)) {
+    for (const obstacle of obstacles) {
+      this.floor.save();
+      this.floor.translateCanvas(obstacle.x, obstacle.y);
+      this.floor.rotateCanvas(obstacle.rotation ?? 0);
+      const textured =
+        map === "desert" &&
+        obstacle.kind === "rock" &&
+        this.textures.exists("desert-pyramid");
+      const parts = obstacleParts({ ...obstacle, x: 0, y: 0 }, map);
+      // The texture fills the footprint; the cached painter supplies its ground shadow.
+      for (const part of textured ? parts.slice(0, 1) : parts) {
         this.floor.fillStyle(color(part.color), part.alpha ?? 1);
         if (part.shape === "ellipse")
           this.floor.fillEllipse(
@@ -583,6 +593,8 @@ class ArenaScene extends Phaser.Scene {
           );
         else this.floor.fillRect(part.x, part.y, part.width, part.height);
       }
+      this.floor.restore();
+    }
   }
   private sprite(
     texture: string,
@@ -695,7 +707,24 @@ class ArenaScene extends Phaser.Scene {
       this.floorTexture.setFilter(Phaser.Textures.FilterMode.LINEAR);
       this.floorImage.setDisplaySize(w, h);
     }
-    // Obstacles are only ever removed within a round, so their count identifies the standing set.
+    // Reconcile textured scenery with every snapshot, including rollback and blast removal.
+    if (s.map === "desert" && this.textures.exists("desert-pyramid"))
+      for (const obstacle of s.obstacles)
+        if (obstacle.kind === "rock")
+          this.sprite(
+            "desert-pyramid",
+            obstacle.x,
+            obstacle.y,
+            obstacle.halfWidth * 2,
+            obstacle.rotation ?? 0,
+          ).setDepth(0.5);
+    // Include geometry so same-count rollback replacements also repaint shadows and fallback art.
+    const obstacleKey = s.obstacles
+      .map(
+        (o) =>
+          `${o.id},${o.kind},${o.x},${o.y},${o.halfWidth},${o.halfHeight},${o.rotation ?? 0}`,
+      )
+      .join(";");
     // Black holes pull the grid toward their cores. The ease is quantised, so the floor only redraws while a hole opens or closes.
     const wells = s.gravityFields
       .map((field) => {
@@ -715,7 +744,7 @@ class ArenaScene extends Phaser.Scene {
         };
       })
       .filter((well) => well.pull > 0);
-    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${s.obstacles.length}:${wells.map((well) => `${Math.round(well.x)},${Math.round(well.y)},${Math.round(well.radius)},${well.pull}`).join(";")}`;
+    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${obstacleKey}:${wells.map((well) => `${Math.round(well.x)},${Math.round(well.y)},${Math.round(well.radius)},${well.pull}`).join(";")}`;
     if (floorKey !== this.floorKey) {
       this.floorKey = floorKey;
       // Boundary motion must not redraw/upload the full background texture each tick.

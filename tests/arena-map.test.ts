@@ -10,6 +10,7 @@ import {
   obstacleBounceNormal,
   obstacleDistanceSquared,
   obstacleEdges,
+  obstacleExtents,
   obstacleInsideBounds,
   obstacleTouchesCircle,
   segmentObstacleDistanceSquared,
@@ -108,12 +109,14 @@ test("obstacles keep their map's spacing, so no layout seals a rider into a pock
       const obstacles = layout(map, seed);
       for (const [index, a] of obstacles.entries())
         for (const b of obstacles.slice(index + 1)) {
+          const ae = obstacleExtents(a),
+            be = obstacleExtents(b);
           const gapX = Math.max(
-            Math.abs(a.x - b.x) - a.halfWidth - b.halfWidth,
+            Math.abs(a.x - b.x) - ae.halfWidth - be.halfWidth,
             0,
           );
           const gapY = Math.max(
-            Math.abs(a.y - b.y) - a.halfHeight - b.halfHeight,
+            Math.abs(a.y - b.y) - ae.halfHeight - be.halfHeight,
             0,
           );
           assert.ok(
@@ -550,4 +553,82 @@ test("ground decoration is stable, bounded and absent on classic edge variants",
           if (typeof value === "number") assert.ok(Number.isFinite(value));
     }
   }
+});
+
+test("desert pyramids keep square local footprints with varied deterministic orientations", () => {
+  const angles = new Set<number>();
+  for (let seed = 1; seed <= 40; seed++) {
+    for (const obstacle of layout("desert", seed)) {
+      if (obstacle.kind !== "rock") {
+        assert.equal(obstacle.rotation, undefined);
+        continue;
+      }
+      assert.equal(obstacle.halfWidth, obstacle.halfHeight);
+      angles.add(obstacle.rotation!);
+      assert.ok(
+        obstacleInsideBounds(obstacle, BOUNDS),
+        "rotated corners stay within bounds",
+      );
+      for (const edge of obstacleEdges(obstacle)) {
+        assert.ok(edge.x1 >= BOUNDS.minX && edge.x1 <= BOUNDS.maxX);
+        assert.ok(edge.y1 >= BOUNDS.minY && edge.y1 <= BOUNDS.maxY);
+        assert.ok(
+          Math.abs(
+            Math.hypot(edge.x2 - edge.x1, edge.y2 - edge.y1) -
+              2 * obstacle.halfWidth,
+          ) < 1e-9,
+        );
+      }
+    }
+  }
+  assert.ok(angles.has(0), "some pyramids remain aligned");
+  assert.ok(angles.size >= 5, "tilts in both directions are represented");
+  for (const map of ["forest", "city"] as const)
+    assert.ok(layout(map, 42).every((o) => o.rotation === undefined));
+});
+
+test("rotated square geometry agrees for riders, blast disks, bounce normals, shells and overtime", () => {
+  const pyramid: Obstacle = {
+    id: 1,
+    kind: "rock",
+    x: 100,
+    y: 100,
+    halfWidth: 20,
+    halfHeight: 20,
+    rotation: Math.PI / 4,
+  };
+  const tip = 100 + 20 * Math.SQRT2;
+  assert.equal(
+    obstacleBlocksPath(pyramid, 125, 80, 125, 120, 0),
+    true,
+    "hits the rotated tip outside the old box",
+  );
+  assert.equal(
+    obstacleBlocksPath(pyramid, 119, 116, 119, 120, 0),
+    false,
+    "old box corner is now floor",
+  );
+  assert.equal(obstacleTouchesCircle(pyramid, tip + 4, 100, 5), true);
+  assert.equal(obstacleTouchesCircle(pyramid, tip + 6, 100, 5), false);
+  assert.ok(
+    Math.abs(obstacleDistanceSquared(pyramid, tip + 5, 100) - 25) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(
+      segmentObstacleDistanceSquared(pyramid, tip + 5, 90, tip + 5, 110) - 25,
+    ) < 1e-9,
+  );
+  const normal = obstacleBounceNormal(pyramid, 117, 117);
+  assert.ok(Math.abs(normal.nx - Math.SQRT1_2) < 1e-9);
+  assert.ok(Math.abs(normal.ny - Math.SQRT1_2) < 1e-9);
+  const edges = obstacleEdges(pyramid);
+  assert.ok(Math.abs(Math.max(...edges.map((e) => e.x1)) - tip) < 1e-9);
+  assert.equal(
+    obstacleInsideBounds(pyramid, { minX: 70, minY: 70, maxX: 130, maxY: 130 }),
+    true,
+  );
+  assert.equal(
+    obstacleInsideBounds(pyramid, { minX: 75, minY: 70, maxX: 130, maxY: 130 }),
+    false,
+  );
 });

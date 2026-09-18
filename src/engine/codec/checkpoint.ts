@@ -38,6 +38,7 @@ import {
   ARENA_MAPS,
   MAX_OBSTACLES,
   OBSTACLE_KINDS,
+  obstacleInsideBounds,
   type Obstacle,
 } from "../arena-map.js";
 import { parseRoomSettings, type RoomSettings } from "../room-settings.js";
@@ -296,6 +297,7 @@ const obstacle: Guard = shape({
   y: position,
   halfWidth: range(1, ARENA_WIDTH / 4),
   halfHeight: range(1, ARENA_HEIGHT / 4),
+  rotation: (v) => v === undefined || range(-Math.PI, Math.PI)(v),
 } satisfies Record<keyof Obstacle, Guard>);
 const gravityField: Guard = shape({
   x: position,
@@ -598,10 +600,17 @@ function gameInvariants(game: GameState): boolean {
     if (obstacleIds.has(piece.id)) return false;
     obstacleIds.add(piece.id);
     if (
-      piece.x - piece.halfWidth < 0 ||
-      piece.x + piece.halfWidth > game.width ||
-      piece.y - piece.halfHeight < 0 ||
-      piece.y + piece.halfHeight > game.height
+      (game.map === "desert" &&
+        piece.kind === "rock" &&
+        piece.halfWidth !== piece.halfHeight) ||
+      (piece.rotation !== undefined &&
+        (game.map !== "desert" || piece.kind !== "rock")) ||
+      !obstacleInsideBounds(piece, {
+        minX: 0,
+        minY: 0,
+        maxX: game.width,
+        maxY: game.height,
+      })
     )
       return false;
   }
