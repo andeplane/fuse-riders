@@ -1344,8 +1344,12 @@ export class RoomRuntime {
   private lastLoopAt = -Infinity;
   /** One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too. */
   private tickLoop(): void {
-    this.tickPass();
-    this.world?.refill(CATCHUP_STEPS);
+    // A pass that throws after advancing must still open the next window, or the world would never step again.
+    try {
+      this.tickPass();
+    } finally {
+      this.world?.refill(CATCHUP_STEPS);
+    }
   }
   private tickPass(): void {
     const now = this.deps.now();

@@ -23,7 +23,12 @@ import {
   decodeSnapshot,
   encodeSnapshot,
 } from "../src/online/snapshot.js";
-import { packMessage, unpackMessage } from "../src/online/packet.js";
+import {
+  encodePacket,
+  packMessage,
+  roomHash,
+  unpackMessage,
+} from "../src/online/packet.js";
 import { ACTION, BOT, JOIN, STEER } from "../src/engine/input-log.js";
 import {
   BEHIND_STEPS,
@@ -737,6 +742,75 @@ test("the tick loop's own check fetches a snapshot for a backlog past BEHIND_STE
     const m = guest.metrics();
     assert.ok(m.tick >= Math.floor(m.clockTick) - 1, "current again");
     assert.equal(m.mismatches, 0);
+  } finally {
+    for (const runtime of net.runtimes.values()) runtime.stop();
+  }
+});
+
+test("a loop pass that throws after advancing still opens the next step budget: the world keeps advancing, and the throw still escapes the pass", () => {
+  const net = new FakeNetwork(
+    "host",
+    { loss: 0, baseMs: 20, jitterMs: 0, reliableMs: 20 },
+    9,
+  );
+  try {
+    // The host manages without a seat, so a gap in its stream stalls nobody: only the guest rides, with two bots.
+    for (const id of ["host", "guest"]) {
+      net.add(id, classicSettings(), { humanName: id }).start();
+      net.step(1500);
+    }
+    const host = net.runtimes.get("host")!,
+      guest = net.runtimes.get("guest")!;
+    guest.command({ type: "join", name: "guest" });
+    for (let bot = 0; bot < 2; bot++)
+      host.command({ type: "bot", action: "add" });
+    net.step(1500);
+    assert.ok(host.command({ type: "action", action: "start" }));
+    net.step(500);
+    // A packet from the host skipping one entry opens a gap on the guest, whose loop then asks the transport about
+    // the host after it has advanced, on every pass until the gap closes; the transport throws there.
+    const clock = Math.floor(guest.metrics().clockTick),
+      after = guest.metrics().streams.host!.contiguous + 2;
+    net.transports.get("guest")!.events.fast(
+      "host",
+      encodePacket({
+        room: roomHash("AB42:host"),
+        from: "host",
+        generation: 1,
+        through: clock,
+        lastSeq: after,
+        entries: [[after, clock + 20, STEER, 0]],
+        sentAt: 0,
+        echoSentAt: 0,
+        echoHeld: 0,
+        clockTick: clock,
+        hash: null,
+      }),
+    );
+    assert.ok(guest.metrics().streams.host!.gap, "the gap is open");
+    // Silence the host's own packets, which would otherwise answer the gap from the receive path first.
+    net.muted.add("host");
+    net.transports.get("guest")!.failing.add("host");
+    const pass = net.ticks.get("guest")!;
+    let thrown = 0;
+    net.ticks.set("guest", () => {
+      try {
+        pass();
+      } catch {
+        thrown++;
+      }
+    });
+    const from = guest.metrics();
+    net.step(1000);
+    const to = guest.metrics();
+    assert.ok(
+      thrown >= 90,
+      `nearly every pass threw, and the throw escaped it: ${thrown}`,
+    );
+    assert.ok(
+      to.tick >= Math.floor(to.clockTick) - 1 && to.tick - from.tick >= 19,
+      `the world kept pace with its clock: ${from.tick} → ${to.tick}, clock ${to.clockTick.toFixed(1)}`,
+    );
   } finally {
     for (const runtime of net.runtimes.values()) runtime.stop();
   }
