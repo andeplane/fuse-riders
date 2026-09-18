@@ -11,7 +11,7 @@ The **foundations are genuinely strong**: a pure, seeded, plain-data simulation;
 The **debt is a velocity artifact**. The repo is 4 days old with 694 commits. The pattern that repeats in every layer is:
 
 1. **Concentration** — five files (`game.ts`, `room-runtime.ts`, `ui.ts`, `main.ts`, `gateway.ts`) hold most of the behaviour as giant functions/closures, several written in a hand-minified style (62 KB in 445 lines; lines up to 1,121 chars).
-2. **Two of everything** — LAN and online are two complete products sharing only `step()`. Tick driver, bomb-input folding, recap DOM, keyboard bindings, static serving, rate limiting, and interpolation all exist twice and have already drifted (LAN and online currently ship *different default rules*).
+2. **Two of everything** — LAN and online are two complete products sharing only `step()`. Tick driver, bomb-input folding, recap DOM, keyboard bindings, static serving, rate limiting, and interpolation all exist twice and have already drifted (LAN and online currently ship _different default rules_).
 3. **Conventions without enforcement** — deterministic math, the `RULES` version bump, the layering rule in `AGENTS.md`, and "coverage 95%" are all honoured by discipline, not by tooling. There is no linter or formatter at all.
 4. **Implicit state machines** — world-sync lifecycle, join, room screen, connection/seat state are all encoded as flag combinations, sentinel values, CSS classes, and in three places regex-matching English status strings.
 
@@ -19,38 +19,39 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 
 ## Numbers
 
-| | |
-|---|---|
-| Age / commits | 4 days / 694 |
-| `src` | 12.6k lines, 865 KB; tests 11.9k lines, 109 files, ~740 cases |
-| Hottest files (commits) | `online/ui.ts` 99 · `client/main.ts` 84 · `shared/game.ts` 78 · `online/room-runtime.ts` 46+ |
-| Lines > 160 chars | `ui.ts` 109 of 445 (max 1,121) · `room-runtime.ts` 43 (max 685) · `main.ts` 32 |
-| Lint / format config | none |
-| TODO/HACK/FIXME, `as any`, `@ts-ignore` | 0 / 0 / 0 (3 `as unknown as`, 7 empty `catch{}`) |
-| `RULES` version | `fuse-p2p-23` — 23 manual bumps; `docs/architecture.md` still says `-5` |
-| Repo weight | `docs/` 66 MB vs `src/` 1.1 MB |
-| Cross-layer imports | `online→client` 21 · `client→online` 1 · `service→online` 2 |
+|                                         |                                                                                              |
+| --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Age / commits                           | 4 days / 694                                                                                 |
+| `src`                                   | 12.6k lines, 865 KB; tests 11.9k lines, 109 files, ~740 cases                                |
+| Hottest files (commits)                 | `online/ui.ts` 99 · `client/main.ts` 84 · `shared/game.ts` 78 · `online/room-runtime.ts` 46+ |
+| Lines > 160 chars                       | `ui.ts` 109 of 445 (max 1,121) · `room-runtime.ts` 43 (max 685) · `main.ts` 32               |
+| Lint / format config                    | none                                                                                         |
+| TODO/HACK/FIXME, `as any`, `@ts-ignore` | 0 / 0 / 0 (3 `as unknown as`, 7 empty `catch{}`)                                             |
+| `RULES` version                         | `fuse-p2p-23` — 23 manual bumps; `docs/architecture.md` still says `-5`                      |
+| Repo weight                             | `docs/` 66 MB vs `src/` 1.1 MB                                                               |
+| Cross-layer imports                     | `online→client` 21 · `client→online` 1 · `service→online` 2                                  |
 
 ---
 
 ## 1. Simulation core (`src/shared`)
 
-**C1 — `step()` is one 400-line function (High).** `game.ts:492-889` does countdown, trail ageing, overtime, portals, pickups, movement, shells, explosions, all collision classes, shields, transits, commit, bomb actions, gun raycasts, a *second* explosion pass, a *second* death-commit path, dodge detection, moments, and round resolution. Phases communicate through ~15 shared local maps (`causes`, `causeOwners`, `shotSources`, `trailContactTimes`, `landingHits`, `shellHits`, …). The two death paths (`:792-819` swept, `:853-871` instant) each re-implement shield absorb / elimination credit / shot log with slightly different credit logic. Stats, shot-log and moments are threaded inline through physics.
+**C1 — `step()` is one 400-line function (High).** `game.ts:492-889` does countdown, trail ageing, overtime, portals, pickups, movement, shells, explosions, all collision classes, shields, transits, commit, bomb actions, gun raycasts, a _second_ explosion pass, a _second_ death-commit path, dodge detection, moments, and round resolution. Phases communicate through ~15 shared local maps (`causes`, `causeOwners`, `shotSources`, `trailContactTimes`, `landingHits`, `shellHits`, …). The two death paths (`:792-819` swept, `:853-871` instant) each re-implement shield absorb / elimination credit / shot log with slightly different credit logic. Stats, shot-log and moments are threaded inline through physics.
 → Phase functions over an explicit `TickContext`; one `commitDeath()`; stats/moments as consumers of a per-tick fact list.
 
-**C2 — The tick *driver* exists twice and has diverged (High).** Only `step()` is shared. `applyTick` (P2P: management fold, input fold, bots, round progression) is re-implemented by hand in `server/index.ts:349-370`:
+**C2 — The tick _driver_ exists twice and has diverged (High).** Only `step()` is shared. `applyTick` (P2P: management fold, input fold, bots, round progression) is re-implemented by hand in `server/index.ts:349-370`:
+
 - LAN never sets `game.settings`, so it runs the `??` fallbacks in `game.ts` — `aimBounce ?? false` (`:895`, `:1307`) while `defaultRoomSettings()` has `aimBounce: true`. **LAN and online ship different rules today.**
 - Leaving mid-round: LAN eliminates the rider; P2P lets it coast until it crashes.
 - Bomb input: `BombInputBuffer` class (LAN) vs `foldPlayerEntries` "reproduces the LAN semantics" by hand (P2P).
-→ Drive LAN through `applyTick`; make `GameState.settings` mandatory and delete the fallbacks.
+  → Drive LAN through `applyTick`; make `GameState.settings` mandatory and delete the fallbacks.
 
 **C3 — Determinism is convention, not enforcement (Medium, high leverage).** The discipline is good (stdlib `sin/cos/atan2`, no `Date`, seeded RNG in state, zero `Math.*` transcendentals in `src/shared`). But nothing stops the next `Math.sin`: no lint, no source scan, and unit tests run on V8 only. Two bypasses already exist — `** 2` in `portal.ts:113` and `blast-geometry.ts:9` (`**` is `pow`, which the spec does not require to be correctly rounded; everywhere else uses `square()`).
 → A source-scan test banning `Math.(sin|cos|tan|atan2?|hypot|pow|exp|log)` and `**` in `src/shared`; a golden state-hash fixture (bots + pickups + portals, few hundred ticks) run in Node, Chromium and WebKit on every PR, not main-only.
 
-**C4 — `RULES` is a hand-bumped string (Medium).** `apply-tick.ts:8`; the only guard is a test asserting the literal, which forces a double edit but cannot detect a *missed* bump. A missed bump = unexplained desync for anyone with a cached tab. Replay clips carry no version. A rules-mismatched peer only gets a notice; its packets are still folded into the world (`room-runtime.ts:168`, `:206`).
+**C4 — `RULES` is a hand-bumped string (Medium).** `apply-tick.ts:8`; the only guard is a test asserting the literal, which forces a double edit but cannot detect a _missed_ bump. A missed bump = unexplained desync for anyone with a cached tab. Replay clips carry no version. A rules-mismatched peer only gets a notice; its packets are still folded into the world (`room-runtime.ts:168`, `:206`).
 → The golden hash from C3 makes "hash changed but `RULES` didn't" a CI failure. Refuse streams from mismatched members.
 
-**C5 — Adding a pickup is ~10 hand edits, half unchecked (Medium-High).** No registry: `PICKUP_TYPES`, `PlayerState` field, `addPlayer` defaults, a *second copy* of defaults in `prepareRound`, an 18-arm `else if` in `collectPickups`, `toSnapshot`, `GameSnapshot` type, checkpoint guards, weights, `RULES`. Only the checkpoint guard is compiler-enforced. Forgetting `prepareRound` silently carries an effect into the next round. Already inconsistent: `recordPickup` counts 9 of 18 types; `gunArmed?`/`shellArmed?` are optional while siblings are required. The Nitro/Snail commit touched 30 files.
+**C5 — Adding a pickup is ~10 hand edits, half unchecked (Medium-High).** No registry: `PICKUP_TYPES`, `PlayerState` field, `addPlayer` defaults, a _second copy_ of defaults in `prepareRound`, an 18-arm `else if` in `collectPickups`, `toSnapshot`, `GameSnapshot` type, checkpoint guards, weights, `RULES`. Only the checkpoint guard is compiler-enforced. Forgetting `prepareRound` silently carries an effect into the next round. Already inconsistent: `recordPickup` counts 9 of 18 types; `gunArmed?`/`shellArmed?` are optional while siblings are required. The Nitro/Snail commit touched 30 files.
 → One `freshRoundPlayerState()`; a `Record<PickupType, {weight, onCollect, statKey?}>` table; derive the snapshot player type from `PlayerState`.
 
 **C6 — The desync hash sorts away orderings the sim reads (Medium).** `canonicalRoomState` sorts Map entries/object keys, but the sim depends on insertion order in places: `roomPickup` walks `Object.entries(weights)`; first-wins `trailHits`/`shellHits` over `players.values()`/`bombs.values()`; bot tie-breaks. Two states can hash equal and evolve differently. Also `localeCompare` as a tiebreak (`game.ts:1657`) is ICU-dependent.
@@ -61,7 +62,7 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 
 **C8 — A throw inside `step` leaves state half-mutated (Medium).** `state.tick += 1` is the first statement; stats helpers throw on invariant breaks; neither `applyTick` nor the LAN tick wraps `step`. On LAN it kills the process; in P2P it becomes an exception loop on one replica rather than a clean desync signal.
 
-**C9 — Shortcuts in state (Low).** Gun tracers are modelled as `BombState` with `blastRange: 0`, forcing `bomb.shell?.gun` exclusions in 8 places. Bot difficulty is encoded in the display-name suffix and parsed back with `endsWith`. `PickupState.expiresAtTick` is always `MAX_SAFE_INTEGER`; `BombState.placedTick`, `InputIntent.bomb`, and `PortalTransit.heading` are written and never read. Issue-number archaeology (#166 ×5, #186, #240…) is the main form of rule documentation. `game.ts` also owns RNG, geometry, scoring, snapshot projection, and `PICKUP_TYPES`, so helpers import *back* into it.
+**C9 — Shortcuts in state (Low).** Gun tracers are modelled as `BombState` with `blastRange: 0`, forcing `bomb.shell?.gun` exclusions in 8 places. Bot difficulty is encoded in the display-name suffix and parsed back with `endsWith`. `PickupState.expiresAtTick` is always `MAX_SAFE_INTEGER`; `BombState.placedTick`, `InputIntent.bomb`, and `PortalTransit.heading` are written and never read. Issue-number archaeology (#166 ×5, #186, #240…) is the main form of rule documentation. `game.ts` also owns RNG, geometry, scoring, snapshot projection, and `PICKUP_TYPES`, so helpers import _back_ into it.
 
 ---
 
@@ -69,10 +70,10 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 
 **What it actually is:** deterministic input-log lockstep with rollback over a full WebRTC mesh. Every member simulates; the creator is only clock authority, management-entry author, and hash reference. Snapshots are for join/resync only. This is a good model for this game. It has **no ADR** — 028–032, 035, 041 are all "superseded by `P2P-INPUT-LOG-BRIEF.md`", and that brief has already drifted (future-tick bound 14 vs code 400; packet 512 vs 1100 bytes; resync 60 vs 400 ticks). The 3× AI pacing and hidden-tab handling are documented nowhere.
 
-**N1 — `RoomRuntime` is a god-object (High).** 591 lines, one class, ~20 fields + a 7-field `pace` struct + 13 fields per `Member`. It owns handshake, member table/RTT, snapshot request/rotate/assemble/install, divergence detection, seat allocation, presence debounce, succession, input edge-filtering, visibility, clock pacing, tick loop, NACKs, packet assembly, prediction, status copy, metrics. The world lifecycle is *derived* each tick from `id===''`, `world`, `snapshotRequest`, `assembler`, `noWorld`, `welcomeAt`, `outOfSync`; dirty flags are sentinels (`-1`, `-Infinity`). `outOfSync` is set once, never cleared, and the runtime then keeps simulating a diverged world (`:294`).
+**N1 — `RoomRuntime` is a god-object (High).** 591 lines, one class, ~20 fields + a 7-field `pace` struct + 13 fields per `Member`. It owns handshake, member table/RTT, snapshot request/rotate/assemble/install, divergence detection, seat allocation, presence debounce, succession, input edge-filtering, visibility, clock pacing, tick loop, NACKs, packet assembly, prediction, status copy, metrics. The world lifecycle is _derived_ each tick from `id===''`, `world`, `snapshotRequest`, `assembler`, `noWorld`, `welcomeAt`, `outOfSync`; dirty flags are sentinels (`-1`, `-Infinity`). `outOfSync` is set once, never cleared, and the runtime then keeps simulating a diverged world (`:294`).
 → `Membership`, `WorldSync` (explicit enum: NoWorld/Requesting/Live/Resyncing/Diverged), `RoomManager`, `InputRecorder`, `Pacer`; `RoomRuntime` becomes wiring.
 
-**N2 — Game speed is implemented by changing the shared wall clock (High).** `clock.rate = simulationTimeScale(world.state…)` (`:481-485`) — derived from *speculative* state, so a rollback can flip the rate retroactively and members flip at different moments. A hidden member can't compute it, hence `observeRate`/`paceClock` with a threshold, a streak ≥2, and a 1.5 s deference rule. The feature needed two same-day fix commits (`be7a09e`, `61128c3`). A hidden follower learns of the switch ~40 ticks late — exactly `STALL_TICKS`.
+**N2 — Game speed is implemented by changing the shared wall clock (High).** `clock.rate = simulationTimeScale(world.state…)` (`:481-485`) — derived from _speculative_ state, so a rollback can flip the rate retroactively and members flip at different moments. A hidden member can't compute it, hence `observeRate`/`paceClock` with a threshold, a streak ≥2, and a 1.5 s deference rule. The feature needed two same-day fix commits (`be7a09e`, `61128c3`). A hidden follower learns of the switch ~40 ticks late — exactly `STALL_TICKS`.
 → Keep the clock fixed; run N `step`s per tick inside `applyTick` when only bots survive. Pure function of the log; deletes the `pace` struct and all the heuristics.
 
 **N3 — A partially connected mesh deadlocks (High).** Packets carry only the sender's own entries; no forwarding, no TURN. If A↔B can't link but the creator hears both, B stays "connected" in shared state and A stalls on B forever (`rollback.ts:60-71`). Nothing recovers it — there's no gap to NACK.
@@ -83,7 +84,7 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 **N5 — "Host migration" is a 90-second bridge (High, decision needed).** Room lifetime is tied to the creator's service presence (`ROOM_TTL_MS = 90_000`); expiry halts every runtime. The substantial succession machinery (`successionOrder`, `permitted`, retired generations) only covers those 90 s. There are also two elections with different inputs (`authority()` by packet recency incl. TVs; `actingCreator` by log), which can disagree in a partition.
 → Either real migration (service re-homes `hostId`) or delete most of succession and "pause until creator returns".
 
-**N6 — Desync is undiagnosable in the field (Medium).** Whole-state hash every 20 ticks lagged 40; snapshot retention is ~48 ticks, so above ~400 ms latency (130 ms at 3×) the check *silently skips* (`mine === undefined`). On mismatch: full reinstall; after 3, "reload". Only two hashes go to `console.warn`; telemetry is off in prod. `World.install` clears `emitted`, so a resync re-fires sounds/analytics/moments.
+**N6 — Desync is undiagnosable in the field (Medium).** Whole-state hash every 20 ticks lagged 40; snapshot retention is ~48 ticks, so above ~400 ms latency (130 ms at 3×) the check _silently skips_ (`mine === undefined`). On mismatch: full reinstall; after 3, "reload". Only two hashes go to `console.warn`; telemetry is off in prod. `World.install` clears `emitted`, so a resync re-fires sounds/analytics/moments.
 → Per-subsystem hashes or a state diff to prod-safe telemetry; decouple `HASH_LAG` from retention.
 
 **N7 — Cheap hardening gaps (Medium).** `StreamLog.receive` never checks `tick <= through`, so a peer can declare completeness then insert 40 ticks back (a 2 s lookahead cheat that also falsifies `completeTick()` → replays/analytics). An inflated `lastSeq` creates a permanent gap that disables hash checks for everyone. Any rider can log `PRESENCE false` for those ranked ahead and become acting creator. Cheat resistance is a stated non-goal, but the first two are one-line rejections.
@@ -102,6 +103,7 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 → An explicit `RoomScreen` union derived once per snapshot; runtime emits `{code, tone, retry}`.
 
 **P4 — Error swallowing at the two hottest seams (High, tiny fix).**
+
 - `socket-client.ts:64-70`: one `try` wraps `JSON.parse` **and** `this.onMessage(message)`. Every exception in LAN UI/replay/audio is silently discarded at 20 Hz.
 - `room-runtime.ts:575`: `callbacks.state(...)` has no guard, and `lastFrameTick` is set first — a UI throw (DOM, analytics, storage all run in that callback) propagates into the netcode tick loop.
 
@@ -109,7 +111,7 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 
 **P6 — Renderer: good boundary, no view-model (Medium).** `PhaserArena.render(snapshot, now, theme, scope)` is the only input, Phaser's loop is externally stepped, and `presentation.ts` is an exemplary explicit lifecycle state machine. But `ArenaScene.paint` is one 165-line method reading raw snapshot fields and game rules; `trails.ts:73` recomputes a max-speed bound from sim constants and will silently clip trail tips when a new speed effect lands; `render-snapshot.ts` runs sim code (`advanceShell`) in the view. The trail "cache" reports `changed` every tick during play, so all trails are re-stroked in 3 passes at 20 Hz; `renderedSnapshot` spreads every player and copies all trails per shell per frame. Two interpolation models coexist (LAN extrapolation, online interpolation). Phaser internals are monkey-patched via `as unknown as` (`arena.ts:40-54`, `:140-148`) with no version assertion.
 
-**P7 — Audio (Medium).** `game-audio.ts` is engine + iOS session adapters + radio panel DOM + global shortcuts + persistence in one module, with **no disposer** — which is the root cause of the module-level `pageAudio` singleton hack in `ui.ts:61-67`. Every tap fires 5 gesture events each running `unlock()` → `resume()` → full re-render, during touch gameplay. `AudioDirector` fuses cue dedupe with the radio state machine and consumes the LAN wire type, so the online UI *fabricates LAN-shaped messages* to feed it (`ui.ts:308`, `:323`).
+**P7 — Audio (Medium).** `game-audio.ts` is engine + iOS session adapters + radio panel DOM + global shortcuts + persistence in one module, with **no disposer** — which is the root cause of the module-level `pageAudio` singleton hack in `ui.ts:61-67`. Every tap fires 5 gesture events each running `unlock()` → `resume()` → full re-render, during touch gameplay. `AudioDirector` fuses cue dedupe with the radio state machine and consumes the LAN wire type, so the online UI _fabricates LAN-shaped messages_ to feed it (`ui.ts:308`, `:323`).
 
 **P8 — Diagnostics in the prod path (Medium).** `runtime.metrics()` is JSON-stringified into `app.dataset.metrics` once a second for all users and parsed back by the stats panel — the DOM as IPC for Playwright. The benchmark per-snapshot player dump at `ui.ts:322` is built every tick regardless of the flag (args evaluated before the check).
 
@@ -124,7 +126,7 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 **S1 — One room can take down every room on a gateway instance (High).** `gateway.ts:95`: `if(this.seen.size>=4096){this.fail('bus-overflow',…)}` and `fail()` closes every client. Every delivered signal is recorded for 10 s, including same-gateway ones; caps are 100 msg/s guest, 400/s host. A host plus one guest sending valid ICE-shaped frames reach 4,096 in ~10 s. Repeatable. No test covers it.
 → Dedupe only bus-origin frames; on overflow drop the frame or the offending room; cap signalling at a realistic rate.
 
-**S2 — Admission is unthrottled and globally serialized (High).** Only room creation is rate-limited. WS upgrade → `store.admit` is a Firestore transaction even for nonexistent codes, and all connects/disconnects run through one promise chain (`gateway.ts:20-22`). The code space is 67,600 and enumerable by design; every member is a *trusted* mesh peer; ICE exposes player IPs. Scanning → join → grief/harvest is cheap.
+**S2 — Admission is unthrottled and globally serialized (High).** Only room creation is rate-limited. WS upgrade → `store.admit` is a Firestore transaction even for nonexistent codes, and all connects/disconnects run through one promise chain (`gateway.ts:20-22`). The code space is 67,600 and enumerable by design; every member is a _trusted_ mesh peer; ICE exposes player IPs. Scanning → join → grief/harvest is cheap.
 → Per-IP admission-failure limit; serialize per room; consider a fragment-carried invite secret with the 4-char code as lookup only.
 
 **S3 — Tokens in query strings (Medium, previously flagged, unfixed).** `/ice?token=…` and the WS URL. Cloud Run request logs record full URLs; the host token authorizes `/end`.
@@ -156,7 +158,7 @@ If only three things get done: **(A)** enforce determinism + rules versioning me
 - **DI everywhere it counts**; deterministic lossy/reordering `FakeNetwork`; six-replica convergence tests; a three-engine determinism replay script.
 - **XSS surface ≈ nil**: two `innerHTML` uses in all of `src`, both static; names via `textContent`, validated in the log.
 - **Service**: stateless gateways, clean `RoomDatabase` abstraction, incarnation/revision fencing, closed signalling relay, exact-origin CORS, keyless WIF deploys, no secrets in repo, no TURN creds to leak.
-- **Zero TODO/HACK/`as any`**, comments explain *why*, superseded ADRs are mostly labelled, flake reporting is honest.
+- **Zero TODO/HACK/`as any`**, comments explain _why_, superseded ADRs are mostly labelled, flake reporting is honest.
 
 ---
 
@@ -167,6 +169,7 @@ Superseded in detail by `refactor-plan-2026-09-17.md`.
 Ordered so each step makes the next one safer. Sizes are rough.
 
 ### Phase 0 — one-liners and guards (hours)
+
 1. `socket-client.ts`: narrow the `try` to `JSON.parse` (P4).
 2. `room-runtime.ts`: guard `callbacks.state/event`; replace raw control bytes at `:302` with `\x00-\x1f\x7f` (P4, N8).
 3. `gateway.ts`: stop failing the gateway on `seen` overflow; dedupe bus-origin frames only (S1).
@@ -175,17 +178,20 @@ Ordered so each step makes the next one safer. Sizes are rough.
 6. Replace the two `** 2` sites and `localeCompare` tiebreaks (C3, C6).
 
 ### Phase 1 — turn conventions into checks (1–2 days)
+
 7. **Prettier + typescript-eslint (`no-floating-promises`, no empty catch) in one mechanical commit.** Do this while few branches are open. Everything after depends on it.
 8. Source-scan test banning non-deterministic math in `src/shared`; golden state-hash fixture in Node + Chromium + WebKit on every PR; CI fails if the hash changes and `RULES` doesn't (C3, C4).
 9. An import-boundary lint rule: `shared` ← nothing; `netcode` ← shared; `presentation` ← shared + netcode types; `service` ← shared (P5).
 10. Replace the c8 allowlist with `src/**` plus an explicit, justified exclude list (T2).
 
 ### Phase 2 — the decisions only you can make
+
 11. **LAN: unify onto the P2P runtime, or freeze it** (T1, C2, P2). This one decision removes roughly a third of the duplication in this report. My recommendation: unify — the in-process room service already exists, and "two complete products" is not sustainable at this commit rate. Interim regardless: run LAN through `applyTick` and make `settings` mandatory so the two modes stop shipping different rules.
 12. **Creator loss: real migration or pause-until-return** (N5). Recommendation: pause-until-return and delete most of succession, unless long sessions surviving a host leaving is a product goal.
 13. **Room admission model** given enumerable codes + trusted mesh + IP exposure (S2).
 
 ### Phase 3 — structural work (a week or two, parallelisable after Phase 1)
+
 14. **Game speed as N steps per tick** inside `applyTick`; delete `pace`/`observeRate`/`paceClock` (N2). Model 1 Hz throttling in `FakeNetwork` and pick an explicit hidden-member policy (N4).
 15. Decompose `RoomRuntime` around an explicit `WorldSync` state machine; typed status codes instead of English (N1, P3). Give `PeerTransport` an injectable RTC/timer seam and unit tests (N8).
 16. Decompose `step()` into phases over a `TickContext`, one death path, events-only return (C1, C7). Pickup registry + `freshRoundPlayerState()` (C5).
@@ -193,6 +199,7 @@ Ordered so each step makes the next one safer. Sizes are rough.
 18. Partial-mesh recovery (N3); production-safe desync diagnostics (N6).
 
 ### Phase 4 — hygiene
+
 19. Rewrite `docs/architecture.md` as the current four-runtime system map; write the P2P ADR; tombstone 040; fix README/ADR 039/020 (T6).
 20. Move ~60 MB of evidence out of git; migrate the Playwright scripts to `@playwright/test` with shared fixtures and sharded CI; delete the ~19 unreferenced ones; single manifest for local + CI steps (T4, T5).
 21. Tokens out of URLs; cut the Firestore heartbeat rate; slim the Docker image; declare `esbuild` (S3, S4, T3).
