@@ -349,7 +349,10 @@ export class FakeTransport implements RoomTransport {
    * reliable channel or its health probes are not there yet. Empty unless a test fills it.
    */
   readonly unhealthy = new Set<string>();
+  /** Set by a test to make `linked` throw for these peers, standing in for any transport failure inside a loop pass. */
+  readonly failing = new Set<string>();
   linked(id: string): boolean {
+    if (this.failing.has(id)) throw new Error(`link state for ${id} failed`);
     return this.links.has(id) && !this.unhealthy.has(id);
   }
   linkedWith(id: string): boolean {
