@@ -42,6 +42,8 @@ const sourceHashes = Object.fromEntries(
       "src/client/phaser/arena.ts",
       "src/client/blast-animation.ts",
       "src/client/phaser/trails.ts",
+      "src/client/phaser/beveled-trails.ts",
+      "src/client/phaser/trail-ribbon.ts",
       "src/client/phaser/viewport.ts",
       "src/client/main.ts",
       "src/client/themes.ts",

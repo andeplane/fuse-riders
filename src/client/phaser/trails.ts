@@ -151,3 +151,36 @@ export function trailTip(
   }
   return points;
 }
+
+/** Full visible paths for continuous ribbon lighting, including a validated fractional tip. */
+export function completeTrailStrokes(
+  players: readonly Rider[],
+  tick: number,
+  phase: ViewSnapshot["phase"],
+): TrailStroke[] {
+  // Include the moving tip in the same ribbon: no end cap or lighting seam at
+  // the boundary between established history and fractional presentation.
+  return players.flatMap((player) => {
+    const tip = trailTip(player, tick, phase);
+    const segments = player.trail;
+    const groups: { alive: boolean; paths: ReturnType<typeof trailPaths> }[] =
+      [];
+    let start = 0;
+    for (let i = 1; i <= segments.length; i++) {
+      if (
+        i < segments.length &&
+        !!segments[i].detached === !!segments[start].detached
+      )
+        continue;
+      const section = segments.slice(start, i);
+      if (section.length)
+        groups.push({
+          alive: player.alive && !section[0].detached,
+          paths: trailPaths(section),
+        });
+      start = i;
+    }
+    if (tip.length === 3) groups.at(-1)?.paths.at(-1)?.push(tip[2]);
+    return groups.map((group) => ({ ...group, color: player.color }));
+  });
+}
