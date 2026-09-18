@@ -5,7 +5,9 @@ import {
   SNAPSHOTS_RETAINED,
   STALL_TICKS,
   World,
+  type WorldEvent,
 } from "../src/online/rollback.js";
+import { CATCHUP_STEPS } from "../src/online/room-runtime.js";
 import {
   PACKET_ENTRIES,
   ROLLBACK_TICKS,
@@ -916,4 +918,149 @@ test("late reordered inputs converge through Nitro and Snail collection, and a d
   assert.deepEqual(duplicate.events, []);
   assert.equal(duplicate.rollbackTicks, 0);
   assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
+});
+
+// ---- A rollback's re-run paced by the step budget (World.refill): nothing outside World sees history go back ----
+
+/** Humans creator, b and c alive and playing for 42 ticks, every stream complete to the current tick. */
+function pacedWorld(): World {
+  const w = world("creator", ["creator", "b", "c"]);
+  playing(w);
+  const at = w.tick + 42;
+  for (const stream of w.streams.values()) stream.through = at;
+  w.advance(at);
+  assert.equal(w.state.game.phase, "playing");
+  return w;
+}
+/** A bomb b pressed 38 ticks ago and released four ticks later, arriving only now. */
+const lateBomb = (w: World, at: number) =>
+  w.receive(
+    "b",
+    [
+      [1, at - 38, PRESS, 1],
+      [2, at - 34, RELEASE, 1],
+    ],
+    2,
+    at - 30, // b vouches only for what it has sent: a later entry of its own may still come
+    at,
+  );
+
+test("a paced re-run keeps the world's tick, state and frames until it is done, then delivers its events with its frames, as an unpaced rollback does", () => {
+  const reference = pacedWorld(),
+    at = reference.tick;
+  const straight = lateBomb(reference, at);
+  assert.equal(straight.status, "accepted");
+  assert.ok(
+    straight.events.some((e) => e.event.type === "bombPlaced"),
+    "the late bomb changes history",
+  );
+
+  const w = pacedWorld();
+  const shown = w.view()[0]!,
+    stateBefore = hashRoomState(w.state);
+  w.refill(CATCHUP_STEPS);
+  const first = lateBomb(w, at);
+  assert.equal(first.rollbackTicks, straight.rollbackTicks);
+  assert.deepEqual(first.events, [], "nothing is delivered before the frames");
+  const delivered: WorldEvent[] = [];
+  let passes = 0;
+  while (!w.settled) {
+    assert.equal(w.tick, at);
+    assert.equal(w.view()[0], shown, "the old frames stay between passes");
+    assert.equal(hashRoomState(w.state), stateBefore, "so does the state");
+    assert.equal(delivered.length, 0);
+    w.refill(CATCHUP_STEPS);
+    const start = w.steps;
+    delivered.push(...w.advance(at).events);
+    assert.ok(w.steps - start <= CATCHUP_STEPS);
+    passes++;
+  }
+  assert.ok(
+    passes >= 3,
+    `${straight.rollbackTicks} ticks took ${passes} passes`,
+  );
+  assert.deepEqual(delivered, straight.events, "the same events, once");
+  assert.notEqual(w.view()[0], shown);
+  assert.deepEqual(w.view(), reference.view());
+  assert.equal(hashRoomState(w.state), hashRoomState(reference.state));
+});
+
+test("a second late entry during a paced re-run restarts it from an earlier snapshot or is folded when the re-run gets there", () => {
+  const reference = pacedWorld(),
+    at = reference.tick;
+  lateBomb(reference, at);
+  const cSteer = (w: World) =>
+    w.receive("c", [[1, at - 37, STEER, 1]], 1, at, at);
+  const bSteer = (w: World) =>
+    w.receive("b", [[3, at - 10, STEER, 2]], 3, at, at);
+  assert.ok(cSteer(reference).rollbackTicks > 0);
+  bSteer(reference);
+
+  const w = pacedWorld();
+  w.refill(CATCHUP_STEPS);
+  lateBomb(w, at);
+  assert.ok(!w.settled);
+  w.refill(CATCHUP_STEPS);
+  w.advance(at);
+  assert.ok(!w.settled, "still owed");
+  const events: WorldEvent[] = [];
+  w.refill(CATCHUP_STEPS);
+  const restart = cSteer(w);
+  assert.ok(
+    restart.rollbackTicks > 0,
+    "earlier than the re-run has got: it restarts",
+  );
+  events.push(...restart.events);
+  w.refill(CATCHUP_STEPS);
+  const folded = bSteer(w);
+  assert.equal(folded.status, "accepted");
+  assert.equal(
+    folded.rollbackTicks,
+    0,
+    "later than the re-run has got: no rollback",
+  );
+  for (let i = 0; i < 100 && !w.settled; i++) {
+    w.refill(CATCHUP_STEPS);
+    events.push(...w.advance(at).events);
+  }
+  assert.ok(w.settled);
+  assert.equal(hashRoomState(w.state), hashRoomState(reference.state));
+  assert.deepEqual(w.view(), reference.view());
+  assert.equal(
+    events.filter((e) => e.event.type === "bombPlaced").length,
+    1,
+    "the restarted re-run's bomb is delivered once",
+  );
+});
+
+test("mid re-run, hashes and the served state come only from the re-run, and an install replaces it", () => {
+  const reference = pacedWorld(),
+    at = reference.tick;
+  lateBomb(reference, at);
+  const w = pacedWorld();
+  const before = w.hashAt(at - (at % SNAPSHOT_INTERVAL));
+  w.refill(CATCHUP_STEPS);
+  lateBomb(w, at);
+  w.refill(CATCHUP_STEPS);
+  w.advance(at);
+  assert.ok(!w.settled);
+  const snapshotAt = at - (at % SNAPSHOT_INTERVAL);
+  assert.equal(w.hashAt(snapshotAt), undefined, "overturned hashes are gone");
+  assert.ok(before !== undefined);
+  const served = w.servable();
+  assert.ok(served.tick < at, "not the overturned newest state");
+  assert.equal(
+    served.tick % SNAPSHOT_INTERVAL,
+    0,
+    "the budget ends on a snapshot here",
+  );
+  assert.equal(hashRoomState(served.state), reference.hashAt(served.tick));
+  assert.equal(w.hashAt(served.tick), reference.hashAt(served.tick));
+
+  w.install(structuredClone(reference.state));
+  assert.ok(w.settled, "an install drops the owed re-run");
+  assert.equal(w.tick, at);
+  assert.equal(hashRoomState(w.state), hashRoomState(reference.state));
+  w.refill(CATCHUP_STEPS);
+  assert.deepEqual(w.advance(at).events, [], "and its held events");
 });

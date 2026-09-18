@@ -24,6 +24,7 @@ const metrics = (over: Partial<RuntimeMetrics> = {}): RuntimeMetrics => ({
   rollbacks: 0,
   rollbackTicks: 0,
   steps: 0,
+  settled: true,
   rtt: { a: 40, b: 60 },
   heard: { a: 30, b: 12 },
   clock: { offset: 0, samples: 0 },

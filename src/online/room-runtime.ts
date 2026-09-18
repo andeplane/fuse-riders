@@ -106,6 +106,8 @@ export interface RuntimeMetrics {
   rollbackTicks: number;
   /** Simulation steps the current world has run (`World.steps`): catch-up, rollback re-runs and fast log ticks included. */
   steps: number;
+  /** No rollback re-run is owed (`World.settled`). */
+  settled: boolean;
   rtt: Record<string, number>;
   heard: Record<string, number>;
   clock: ReturnType<TickClock["diagnostics"]>;
@@ -1637,6 +1639,7 @@ export class RoomRuntime {
       rollbacks: this.world?.rollbacks ?? 0,
       rollbackTicks: this.world?.rollbackTicks ?? 0,
       steps: this.world?.steps ?? 0,
+      settled: this.world?.settled ?? true,
       rtt: Object.fromEntries(
         [...this.members]
           .filter(([, member]) => member.rttMs !== undefined)

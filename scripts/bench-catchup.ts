@@ -148,7 +148,11 @@ function rollback(): void {
   const receiveMs = performance.now() - at;
   const passes: number[] = [];
   // Budgeted worlds finish the replay over later loop passes, each with a fresh budget, without advancing further.
-  while (w.tick < tickBefore && passes.length < 1000) {
+  // A paced world keeps its tick and owes the re-run (`settled` false); an unpaced one finished it inside `receive`.
+  const owed = () =>
+    (w as unknown as { settled?: boolean }).settled === false ||
+    w.tick < tickBefore;
+  while (owed() && passes.length < 1000) {
     pace.refill?.(budget ?? Infinity);
     const start = performance.now();
     w.advance(tickBefore);
