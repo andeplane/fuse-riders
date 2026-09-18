@@ -42,6 +42,12 @@ import {
   type Obstacle,
 } from "../arena-map.js";
 import { parseRoomSettings, type RoomSettings } from "../room-settings.js";
+import {
+  MAX_MOVER_SPEED,
+  MAX_TRAINS,
+  TRAIN_TRACKS,
+  trackLength,
+} from "../scenery-motion.js";
 import { loggedRiderName } from "../rider-name.js";
 import type { MatchPlayerStatsState } from "../match-stats.js";
 import { MAX_ROUND_SHOTS, WEAPONS, type RoundShot } from "../shot-log.js";
@@ -285,16 +291,41 @@ const settings: Guard = (v) => {
     Object.keys(parsed).every((key) => v[key] !== undefined)
   );
 };
-/** Half extents are bounded well under the arena: scenery is something a rider rides around, not a second wall. */
-const obstacle: Guard = shape({
+const moverSpeed = range(-MAX_MOVER_SPEED, MAX_MOVER_SPEED);
+const bounceMotion: Guard = shape({
+  kind: (v) => v === "bounce",
+  vx: moverSpeed,
+  vy: moverSpeed,
+});
+const railMotion: Guard = shape({
+  kind: (v) => v === "rail",
+  track: count(TRAIN_TRACKS.length - 1),
+  // Loose here; the walk over the decoded state below holds it to the loop's own length.
+  along: range(0, ARENA_WIDTH * 4),
+  speed: moverSpeed,
+  train: count(MAX_TRAINS - 1),
+});
+const motion: Guard = (v) => bounceMotion(v) || railMotion(v);
+const obstacleShape: Guard = shape({
   id: (v) => integer(v) && v !== 0,
   kind: (v) =>
     typeof v === "string" && (OBSTACLE_KINDS as readonly string[]).includes(v),
   x: position,
   y: position,
-  halfWidth: range(1, ARENA_WIDTH / 4),
-  halfHeight: range(1, ARENA_HEIGHT / 4),
+  halfWidth: range(1, ARENA_WIDTH / 2),
+  halfHeight: range(1, ARENA_HEIGHT / 2),
+  motion: optional(motion),
 } satisfies Record<keyof Obstacle, Guard>);
+/**
+ * A wall of the drifting cross spans the board. Anything else is bounded well under it: scenery is something a
+ * rider rides around, not a second wall.
+ */
+const obstacle: Guard = (v) =>
+  obstacleShape(v) &&
+  record(v) &&
+  (v.kind === "wall" ||
+    ((v.halfWidth as number) <= ARENA_WIDTH / 4 &&
+      (v.halfHeight as number) <= ARENA_HEIGHT / 4));
 const gravityField: Guard = shape({
   x: position,
   y: position,
@@ -606,6 +637,13 @@ function gameInvariants(game: GameState): boolean {
       piece.x + piece.halfWidth > game.width ||
       piece.y - piece.halfHeight < 0 ||
       piece.y + piece.halfHeight > game.height
+    )
+      return false;
+    // A car is somewhere on a loop of the map it is on: the track index passed the shape, so the loop exists.
+    if (
+      piece.motion?.kind === "rail" &&
+      (game.map !== "trains" ||
+        piece.motion.along > trackLength(TRAIN_TRACKS[piece.motion.track]!))
     )
       return false;
   }

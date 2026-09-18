@@ -647,6 +647,8 @@ const PLAYED_MAPS: readonly ArenaMapId[] = [
   "wrap",
   "classic",
   "cross",
+  "drift",
+  "trains",
 ];
 
 export const REQUIREMENTS: readonly Requirement[] = [

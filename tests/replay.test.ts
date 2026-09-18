@@ -92,6 +92,7 @@ function world(
     openEdges: false,
     map: "classic",
     obstacles: [],
+    tracks: [],
     bombs: [],
     blasts: [],
     pickups: [],

@@ -26,6 +26,7 @@ import { snapshotMatchStats } from "./match-stats.js";
 import { sortedLeaderboard } from "./leaderboard.js";
 import type { PortalPair } from "./portal.js";
 import type { ArenaMapId, Obstacle } from "./arena-map.js";
+import { mapTracks, type Track } from "./scenery-motion.js";
 import type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
 import type { MatchPlayerStats } from "./match-stats.js";
 import type { FlightPoint } from "./launch-modifiers.js";
@@ -36,6 +37,12 @@ import type { BlastCircle, PlayerId, TrailSegment } from "./primitives.js";
 
 // The vocabulary the view is written in, so a screen needs no other engine module to name what it draws.
 export type { ArenaMapId, Obstacle, ObstacleKind } from "./arena-map.js";
+export type {
+  ObstacleMotion,
+  Track,
+  TrackPoint,
+  TrackPose,
+} from "./scenery-motion.js";
 export type { FlightPoint } from "./launch-modifiers.js";
 export type { PickupType } from "./pickup-types.js";
 export type { PortalPair } from "./portal.js";
@@ -147,9 +154,11 @@ export interface WorldView {
   width: number;
   height: number;
   boundaryInset: number;
-  /** The round's ground, and the scenery standing on it: lethal to touch, and cleared by a blast. */
+  /** The round's ground, and the scenery standing on it: lethal to touch, and cleared by a blast unless it moves. */
   map: ArenaMapId;
   obstacles: ReadonlyArray<Obstacle>;
+  /** The loops the map's trains run round, for the rails to be drawn under them. Decoration: nothing collides with a track. */
+  tracks: ReadonlyArray<Track>;
   /** Whether the board's edges are open right now (a wrapping map whose overtime walls have not come in yet). */
   openEdges: boolean;
   players: ReadonlyArray<RiderView>;
@@ -247,7 +256,11 @@ export function toView(state: GameState): WorldView {
     height: state.height,
     boundaryInset: state.boundaryInset,
     map: state.map,
-    obstacles: state.obstacles.map((obstacle) => ({ ...obstacle })),
+    obstacles: state.obstacles.map((obstacle) => ({
+      ...obstacle,
+      ...(obstacle.motion ? { motion: { ...obstacle.motion } } : {}),
+    })),
+    tracks: mapTracks(state.map),
     openEdges: edgesOpen(state),
     players: sortedPlayers(state).map((player) => ({
       id: player.id,

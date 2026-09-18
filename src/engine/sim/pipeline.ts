@@ -8,6 +8,7 @@ import { expire } from "./phases/expire.js";
 import { startPlay } from "./phases/start-play.js";
 import { ageTrails } from "./phases/age-trails.js";
 import { fitField } from "./phases/fit-field.js";
+import { moveScenery } from "./phases/move-scenery.js";
 import { spawnPickups } from "./phases/spawn-pickups.js";
 import { moveRiders } from "./phases/move-riders.js";
 import { collectPickups } from "./phases/collect-pickups.js";
@@ -44,6 +45,7 @@ export const PHASES: readonly Phase[] = [
   { name: "startPlay", when: "always", run: startPlay },
   { name: "ageTrails", when: "playing", run: ageTrails },
   { name: "fitField", when: "playing", run: fitField },
+  { name: "moveScenery", when: "playing", run: moveScenery },
   { name: "spawnPickups", when: "playing", run: spawnPickups },
   { name: "moveRiders", when: "playing", run: moveRiders },
   { name: "collectPickups", when: "playing", run: collectPickups },

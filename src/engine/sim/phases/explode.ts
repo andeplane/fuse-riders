@@ -6,7 +6,11 @@ import {
 } from "../../tuning.js";
 import { type BlastCircle, type BlastState, sortedBombs } from "../../state.js";
 import { NO_WRAP, wrapImages } from "../../wrap.js";
-import { edgesOpen, obstacleTouchesCircle } from "../../arena-map.js";
+import {
+  edgesOpen,
+  obstacleIsPermanent,
+  obstacleTouchesCircle,
+} from "../../arena-map.js";
 import { segmentIntersectsDisk } from "../../blast-geometry.js";
 import { square } from "../../geometry.js";
 
@@ -79,8 +83,10 @@ function resolveExplosions({ state, events, facts }: TickContext): NewBlast[] {
       ),
     );
     // Scenery goes at the full radius rather than the pickups' inner disk: clearing a path is the point of the shot.
+    // A wandering wall or a train is the map itself, and stands.
     state.obstacles = state.obstacles.filter(
       (obstacle) =>
+        obstacleIsPermanent(obstacle) ||
         !circles.some((part) =>
           obstacleTouchesCircle(obstacle, part.x, part.y, part.radius),
         ),
