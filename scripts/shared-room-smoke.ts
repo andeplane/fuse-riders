@@ -213,7 +213,9 @@ for (const [name, type] of [
     });
     await host.goto(base);
     // The landing radio is visually hidden behind its filled label, so pick the mode through the label.
-    await host.locator(".landing-mode label", { hasText: "Shared TV" }).click();
+    await host
+      .locator(".landing-mode label", { hasText: /^Shared TV$/ })
+      .click();
     assert.equal(
       await host
         .getByRole("radio", { name: "Shared TV", exact: true })

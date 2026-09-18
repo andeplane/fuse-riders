@@ -215,7 +215,7 @@ round linked to your account; already settled rounds are not rewritten by a late
 ### Player stats and human Elo
 
 The stats dashboard leads with current **Rider Elo**, global rank, peak rating and a graph of the latest 100
-rated results with one evenly spaced point per entry, regardless of when they were played. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
+rated results with one evenly spaced step per entry, starting from the rating before the first, regardless of when they were played. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
 players start at 1,000 and remain unranked until their first rated round. Equal rounded Elo values share a rank.
 The public leaderboard exposes rider names, avatars, Elo and individual-round counts, never account IDs or emails.
 
