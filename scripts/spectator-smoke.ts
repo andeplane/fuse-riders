@@ -93,8 +93,8 @@ try {
   ] as const) {
     await page.locator(".room-watchers .room-watcher").waitFor();
     assert.equal(
-      await page.locator(".room-watcher strong").innerText(),
-      "WATCHER",
+      (await page.locator(".room-watcher strong").innerText()).toLowerCase(),
+      "watcher",
       `${label} lists the watcher by name`,
     );
     assert.equal(
@@ -151,6 +151,16 @@ try {
     await watcher.locator("canvas").isVisible(),
     true,
     "but it does get the arena",
+  );
+  assert.equal(
+    await watcher.locator(".mobile-hud").isVisible(),
+    false,
+    "and no rider HUD, because it has no rider",
+  );
+  assert.equal(
+    await watcher.locator(".online-score-card").count(),
+    2,
+    "it does get the standings: both riders",
   );
   await watcher.screenshot({ path: "artifacts/spectator-playing.png" });
 

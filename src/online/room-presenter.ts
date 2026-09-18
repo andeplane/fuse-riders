@@ -284,11 +284,16 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     announcerVisible: !input.lobbyCard && !input.joining,
     notice: notice(state, playerId, joined, host, ready, watching),
     lobby: {
-      count:
-        (connected < 2
-          ? `${connected === 1 ? "1 rider ready · " : ""}Waiting for at least 2 riders`
-          : `${connected} riders ready`) +
-        (watchingCount ? ` · ${watchingCount} watching` : ""),
+      // The watchers go beside the riders, before the call for more: "1 rider ready · 1 watching · Waiting for at least 2 riders".
+      count: [
+        ...(connected >= 2
+          ? [`${connected} riders ready`]
+          : connected === 1
+            ? ["1 rider ready"]
+            : []),
+        ...(watchingCount ? [`${watchingCount} watching`] : []),
+        ...(connected < 2 ? ["Waiting for at least 2 riders"] : []),
+      ].join(" · "),
       empty: state.players.length === 0,
       riders: state.players.map((p) => ({
         id: p.id,

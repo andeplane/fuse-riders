@@ -670,6 +670,22 @@ test("the watching list is folded: joins are capped and idempotent, presence rea
     false,
     "a member is a rider or a watcher, never both",
   );
+  // A bot id can only reach the watching list from a modified peer, but a state holding both would fold everywhere and
+  // then fail every snapshot decode, which nothing in the room could recover from.
+  r.tick(
+    streams([
+      "creator",
+      [
+        r.at("creator", SPECTATOR, "join", "bot:9", "Impostor", 13),
+        r.at("creator", BOT, "add", "bot:9", "AI Ada", 2),
+      ],
+    ]),
+  );
+  assert.equal(
+    r.state.game.players.has("bot:9"),
+    false,
+    "and an AI seat is refused for a listed watcher too",
+  );
 });
 
 test("a start and a return to the lobby drop the watchers that are gone, as they free the seats that are", () => {
@@ -733,6 +749,60 @@ test("watchers rank last in the succession order, and a watching creator keeps t
       r.at("watcher", SETTINGS, { ...settings, length: 9 }),
     ),
     true,
+  );
+});
+
+test("a watcher manages nothing while anyone ahead of it is here, and may only say who is absent", () => {
+  const r = playing();
+  r.tick(
+    streams([
+      "creator",
+      [r.at("creator", SPECTATOR, "join", "watcher", "Watcher", 9)],
+    ]),
+  );
+  for (const body of [
+    [SETTINGS, { ...settings, length: 9 }],
+    [ACTION, "lobby", "match-9"],
+    [SPECTATOR, "join", "other", "Other", 10],
+    [JOIN, "other", "Other", 3, "fox", 10],
+  ])
+    assert.equal(
+      permitted(r.state, "creator", "watcher", r.at("watcher", ...body)),
+      false,
+      `a watcher writes no management entry of kind ${String(body[0])} while the room has a manager`,
+    );
+  r.tick(
+    streams([
+      "watcher",
+      [
+        r.at("watcher", SETTINGS, { ...settings, length: 9 }),
+        r.at("watcher", SPECTATOR, "join", "other", "Other", 10),
+      ],
+    ]),
+  );
+  assert.equal(r.state.settings.length, 5, "and the fold drops them");
+  assert.equal(r.state.spectators.size, 1);
+  // Presence forgery (ADR 047, #258 N7, open): a ranked member may say anyone ahead of it is absent, and spectators
+  // rank, so a watcher reaches the same open gap the last rider always could. Pinned so the surface is visible.
+  assert.equal(
+    permitted(
+      r.state,
+      "creator",
+      "watcher",
+      r.at("watcher", PRESENCE, "creator", false, 1),
+    ),
+    true,
+    "KNOWN GAP: a watcher may claim the creator is absent",
+  );
+  assert.equal(
+    permitted(
+      r.state,
+      "creator",
+      "watcher",
+      r.at("watcher", PRESENCE, "creator", true, 1),
+    ),
+    false,
+    "but never that someone ahead of it is back",
   );
   // A creator that never took a seat but watches from the list is present: nobody stands in for it.
   const w = room();

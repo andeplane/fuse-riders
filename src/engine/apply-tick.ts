@@ -300,7 +300,14 @@ function applyManagement(state: RoomState, entry: Entry): void {
       case BOT: {
         if (entry[3] === "add") {
           const [, , , , id, botName, slot] = entry;
-          if (!id.startsWith(BOT_ID_PREFIX) || game.leaderboard.size >= 128)
+          // The same exclusivity JOIN and SPECTATOR keep: a seat and the watching list never hold one id. A bot id is
+          // server-issued nowhere, so only a modified peer could list one as a watcher, and a state with both would
+          // fold on every replica and then fail every snapshot decode, which nothing in the room could recover from.
+          if (
+            !id.startsWith(BOT_ID_PREFIX) ||
+            state.spectators.has(id) ||
+            game.leaderboard.size >= 128
+          )
             return;
           addPlayer(game, {
             id,

@@ -536,12 +536,44 @@ test("a snapshot carries the watching list, and validation refuses a list the fo
     "an installed snapshot is the same state the server folded",
   );
   const fields = unpackMessage(bytes) as unknown[];
-  const mutate = (change: (value: unknown[]) => void) => {
+  // The decoder hashes the state it built, so a mutation the hash alone refuses proves nothing about the field's own
+  // validation — and that validation is what stands between a peer which recomputed the hash over hostile state and
+  // this replica installing it. Every mutation below therefore carries the hash the decoder would compute if it
+  // accepted the list, so the only thing left that can refuse it is the check under test.
+  const rehash = (copy: unknown[]) => {
+    const raw = copy[9] as unknown[][];
+    copy[8] = hashRoomState({
+      ...decoded.state,
+      spectators: new Map(
+        raw.map((seat) => [
+          seat[0] as string,
+          {
+            name: seat[1] as string,
+            connected: seat[2] as boolean,
+            generation: seat[3] as number,
+          },
+        ]),
+      ),
+    });
+  };
+  const mutate = (change: (value: unknown[]) => void, agree = true) => {
     const copy = structuredClone(fields);
     change(copy);
+    if (agree) rehash(copy);
     return decodeSnapshot(packMessage(copy), ROOM);
   };
   assert.ok(decodeSnapshot(packMessage(fields), ROOM));
+  assert.ok(
+    mutate(() => {}),
+    "a payload whose hash agrees with its list decodes: the cases below fail on their own check, not on the hash",
+  );
+  assert.equal(
+    mutate((v) => {
+      (v[9] as unknown[][])[0]![1] = "Renamed";
+    }, false),
+    undefined,
+    "and a list the hash does not cover is still refused",
+  );
   for (const [why, change] of [
     [
       "a sixth watcher is past the cap",
@@ -586,18 +618,13 @@ test("a snapshot carries the watching list, and validation refuses a list the fo
         (v[9] as unknown[][])[0]![3] = -1;
       },
     ],
-    [
-      "a watcher dropped from the list the hash was taken over",
-      (v: unknown[]) => {
-        (v[9] as unknown[][]).pop();
-      },
-    ],
-    [
-      "a list that is not a list",
-      (v: unknown[]) => {
-        v[9] = "w1";
-      },
-    ],
   ] as [string, (value: unknown[]) => void][])
     assert.equal(mutate(change), undefined, why);
+  assert.equal(
+    mutate((v) => {
+      v[9] = "w1";
+    }, false),
+    undefined,
+    "a list that is not a list",
+  );
 });

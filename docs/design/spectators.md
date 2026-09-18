@@ -68,12 +68,19 @@ takes it without a protocol bump. `tests/spectators.test.ts` pins the arithmetic
 `MAX_SPECTATORS` so the three numbers cannot drift apart.
 
 The cost is the mesh. Eleven members is 55 links, against 15 for six. A phone sends one packet per tick to every other
-member, so a full room roughly doubles a rider's upload against today's five-member worst case. Spectators carry no
+member, so a full room roughly doubles a rider's upload against today's six-member worst case. Spectators carry no
 inputs, so their packets are almost empty and they are the cheapest members to add — but they are not free, and they
 are received by everyone. Cheaper spectators (a quarter-cadence tick packet, and riders skipping speculative packets to
 them) is plan §10 O5, and should be measured with `scripts/p2p-measure.ts` at ten members before it is built.
 This change has not been measured at eleven members; the mesh numbers on record are still the five-riders-plus-TV run
 in the [measurement report](../online/P2P-INPUT-LOG-BRIEF.md).
+
+The raised capacity also doubles `L`, the links one member negotiates through the room service, which the signalling
+abuse budget was sized against: see the note in
+[signalling abuse isolation](signalling-abuse-isolation.md#what-eleven-members-cost). Nothing there is a correctness
+bound — a refused signalling frame costs a late link, not a torn mesh — but the room-level publish allowance and the
+flood tolerance no longer have the margin they were sized for, and that should be revisited before rooms routinely
+run full.
 
 ## What is deliberately not here
 
