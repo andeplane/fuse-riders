@@ -461,7 +461,7 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
  * and never further out than one duration, so a list the rules could not have produced is refused rather than left to
  * expire on a schedule no other replica shares.
  */
-const STACK_DURATIONS: Record<"nitro" | "snail", number> = {
+const STACK_DURATIONS: Partial<Record<EffectKind, number>> = {
   nitro: NITRO_DURATION_TICKS,
   snail: SNAIL_DURATION_TICKS,
 };
@@ -485,10 +485,11 @@ function effectsInvariant(
       kept > (rule.stacking === "stack" ? MAX_SPEED_EFFECT_STACK : 1)
     )
       return false;
+    // A stacking kind with no horizon listed here is refused outright rather than left unbounded.
+    const horizon = STACK_DURATIONS[effect.kind];
     if (
       rule.stacking === "stack" &&
-      effect.untilTick >
-        tick + STACK_DURATIONS[effect.kind as keyof typeof STACK_DURATIONS]
+      (horizon === undefined || effect.untilTick > tick + horizon)
     )
       return false;
     if (previous) {
