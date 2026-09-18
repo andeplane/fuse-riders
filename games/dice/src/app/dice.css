@@ -46,9 +46,19 @@ body.dice-page {
 }
 .dice-status {
   flex: 1 1 10rem;
-  min-height: 0;
+  /* One line, always laid out: a status that appears, changes or wraps must not move the buttons below it. */
+  min-width: 0;
+  min-height: 1.25rem;
+  overflow: hidden;
   font-size: 0.75rem;
+  line-height: 1.25rem;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fui-app .dice-status[hidden] {
+  display: block !important;
+  visibility: hidden;
 }
 .dice-top .dice-leave {
   margin-left: auto;
