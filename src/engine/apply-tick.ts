@@ -35,7 +35,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-43"; // 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
+export const RULES = "fuse-p2p-44"; // 44: a member may log its own presence: `PRESENCE false` about itself steps it away (its page is hidden) — its seat, round place and rating stay, its controls are neutral and its own entries unread, and it drops out of the succession order — and `PRESENCE true` about itself brings it back; folds and watchers carry the `away` mark. 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 /** How many named watchers a room lists beside its five seats. The room service admits them (`ROOM_LIMITS.maxGuests`). */
@@ -43,12 +43,20 @@ export const MAX_SPECTATORS = 5;
 
 export interface Fold extends HeldControls {
   generation: number;
+  /**
+   * The rider logged itself away (its page is hidden, ADR-047 §12): it keeps its seat and its place in every round, but
+   * its controls stay neutral and its own entries are not read until it logs its return. Absent unless set, so the
+   * canonical state of a room nobody stepped away from is what it was.
+   */
+  away?: true;
 }
 /** A member that watches: named and listed like a rider, but with no seat, no colour, no inputs and no place in the game. */
 export interface Spectator {
   name: string;
   connected: boolean;
   generation: number;
+  /** Logged itself away, as a rider can (`Fold.away`): still listed and never dropped as absent, but it manages nothing. */
+  away?: true;
 }
 /** State at tick T is a pure fold of the seed and every entry with tick ≤ T. */
 export interface RoomState {
@@ -107,21 +115,34 @@ export function successionOrder(state: RoomState, creatorId: string): string[] {
         (player) =>
           player.connected &&
           !state.bots.has(player.id) &&
-          player.id !== creatorId,
+          player.id !== creatorId &&
+          state.folds.get(player.id)?.away !== true,
       )
       .map((player) => player.id)
       .sort(),
     ...[...state.spectators]
-      .filter(([id, spectator]) => spectator.connected && id !== creatorId)
+      .filter(
+        ([id, spectator]) =>
+          spectator.connected && !spectator.away && id !== creatorId,
+      )
       .map(([id]) => id)
       .sort(),
   ];
 }
-/** Whether the room lists this member as present, in a seat or in the watching list. */
+/** Whether the room lists this member as present, in a seat or in the watching list, and not away (`Fold.away`). */
 export function memberConnected(state: RoomState, id: string): boolean {
   return (
-    state.game.players.get(id)?.connected === true ||
-    state.spectators.get(id)?.connected === true
+    (state.game.players.get(id)?.connected === true &&
+      state.folds.get(id)?.away !== true) ||
+    (state.spectators.get(id)?.connected === true &&
+      state.spectators.get(id)?.away !== true)
+  );
+}
+/** Whether this member logged itself away and has not logged its return. */
+export function memberAway(state: RoomState, id: string): boolean {
+  return (
+    state.folds.get(id)?.away === true ||
+    state.spectators.get(id)?.away === true
   );
 }
 /** The lowest connected human other than the creator: it manages the room while the creator is absent. */
@@ -148,7 +169,9 @@ export function actingCreator(
 /**
  * Whether a management entry from `manager` applies: the creator always; the delegate while the creator is absent; and any
  * connected human may record the absence of someone ahead of it in the succession order, so a creator and a delegate that
- * drop together are both marked absent by the next rider rather than leaving the room stalled.
+ * drop together are both marked absent by the next rider rather than leaving the room stalled. Any member may log its own
+ * presence: `PRESENCE false` about itself while present steps it away (`Fold.away`), and `PRESENCE true` about itself
+ * while away brings it back. Nothing else from an away member applies.
  */
 export function permitted(
   state: RoomState,
@@ -156,6 +179,10 @@ export function permitted(
   manager: string,
   entry: Entry,
 ): boolean {
+  if (entry[2] === PRESENCE && entry[3] === manager) {
+    if (entry[4] === false) return memberConnected(state, manager);
+    if (memberAway(state, manager)) return true;
+  }
   if (manager === creatorId) return true;
   const order = successionOrder(state, creatorId),
     rank = order.indexOf(manager);
@@ -193,7 +220,7 @@ function resetGestures(state: RoomState): void {
 }
 
 /** Every management entry is applied defensively: an inapplicable entry is a no-op on every replica alike. */
-function applyManagement(state: RoomState, entry: Entry): void {
+function applyManagement(state: RoomState, entry: Entry, author: string): void {
   const game = state.game;
   try {
     switch (entry[2]) {
@@ -230,21 +257,34 @@ function applyManagement(state: RoomState, entry: Entry): void {
         } else {
           setPlayerConnected(game, id, false);
           const fold = state.folds.get(id);
-          if (fold) Object.assign(fold, neutralControls());
+          if (fold) {
+            Object.assign(fold, neutralControls());
+            delete fold.away;
+          }
         }
         return;
       }
       case PRESENCE: {
         const [, , , id, connected, generation] = entry;
+        // Its own absence, logged by a present member (`permitted`), is a step away: it stays in the room and in the game.
+        const away = id === author && !connected;
         const spectator = state.spectators.get(id);
         if (spectator) {
-          spectator.connected = connected;
+          if (away) spectator.away = true;
+          else {
+            spectator.connected = connected;
+            delete spectator.away;
+          }
           spectator.generation = generation;
           return;
         }
         if (!game.players.has(id) || state.bots.has(id)) return;
-        setPlayerConnected(game, id, connected);
-        state.folds.set(id, { ...neutralControls(), generation });
+        if (!away) setPlayerConnected(game, id, connected);
+        state.folds.set(id, {
+          ...neutralControls(),
+          generation,
+          ...(away ? { away: true as const } : {}),
+        });
         return;
       }
       case SPECTATOR: {
@@ -257,6 +297,7 @@ function applyManagement(state: RoomState, entry: Entry): void {
         if (existing) {
           existing.connected = true;
           existing.generation = generation;
+          delete existing.away;
           return;
         }
         // A seat and the watching list are exclusive, and the list is capped: both are refused here so every replica refuses alike.
@@ -371,7 +412,12 @@ export function applyTick(
     tick = state.tick + 1,
     // Decided on the state the previous tick left, before this tick's entries: the same count on every replica.
     steps = stepsPerTick(game, state.bots);
-  for (const manager of successionOrder(state, creatorId)) {
+  const order = successionOrder(state, creatorId);
+  // Away members are read after the order, for the one entry they may log: their own return (`permitted`).
+  const away = [...state.folds.keys(), ...state.spectators.keys()]
+    .filter((id) => memberAway(state, id) && !order.includes(id))
+    .sort();
+  for (const manager of [...order, ...away]) {
     const stream = streams.get(manager);
     if (!stream) continue;
     // Management entries are not gated by generation: a returning creator's new stream must be able to log its own presence.
@@ -382,7 +428,7 @@ export function applyTick(
       if (entry[1] !== tick || !isManagementKind(entry[2])) continue;
       // Delegation is re-evaluated per entry: the creator's own return revokes the acting creator mid-tick.
       if (!permitted(state, creatorId, manager, entry)) continue;
-      applyManagement(state, entry);
+      applyManagement(state, entry, manager);
     }
   }
   const inputs = new Map<string, InputIntent>();
@@ -393,7 +439,8 @@ export function applyTick(
     }
     const fold = state.folds.get(player.id);
     if (!fold) continue;
-    if (!player.connected) {
+    // Absent or away: neutral controls, and nothing the member logs is read.
+    if (!player.connected || fold.away) {
       Object.assign(fold, neutralControls());
       inputs.set(player.id, intentOf(fold));
       continue;

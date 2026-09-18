@@ -423,9 +423,9 @@ test("management entries from a non-creator are ignored unless the creator is di
     5,
     "the creator returning revokes delegation in the same tick",
   );
-  r.tick(
-    streams(["creator", [r.at("creator", PRESENCE, "creator", false, 2)]]),
-  );
+  // Absent as judged by the rider behind it: the creator's own PRESENCE false would be a step away (its page hidden),
+  // which keeps the seat through the reset (fuse-p2p-44).
+  r.tick(streams(["guest", [r.at("guest", PRESENCE, "creator", false, 2)]]));
   r.tick(streams(["guest", [r.at("guest", ACTION, "lobby", "delegated")]]));
   assert.equal(r.state.game.phase, "lobby");
   assert.equal(r.state.game.matchId, "delegated");
@@ -514,7 +514,7 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-43");
+  assert.equal(RULES, "fuse-p2p-44");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;
