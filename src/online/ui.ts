@@ -517,6 +517,10 @@ export async function startOnline(): Promise<void> {
     (playerName, avatarId) =>
       runtime.command({ type: "join", name: playerName, avatarId }),
     accountUsername(),
+    // Solo is one rider and four AI on this device: there is no room to watch.
+    solo
+      ? undefined
+      : (playerName) => runtime.command({ type: "spectate", name: playerName }),
   );
   // Signed in on this browser but never opened MY GAMES here (an invite link on a new phone): learn the username while the form is still up.
   if (!solo && remembersSignIn() && !accountUsername())
@@ -759,6 +763,13 @@ export async function startOnline(): Promise<void> {
   const lobbyFooter = node("footer", "", "room-lobby-footer"),
     lobbyCount = node("span", "Waiting for riders");
   lobbyFooter.append(lobbyCount);
+  // The watching list: same row height as a rider, no colour, no avatar and no READY, so the five seats stay the thing being read.
+  const lobbyWatchers = node("div", "", "room-watchers");
+  lobbyWatchers.hidden = true;
+  lobbyWatchers.setAttribute("aria-label", "Watching");
+  lobbyWatchers.append(node("p", "WATCHING", "room-watchers-title"));
+  // Inside the rider column, under the seats: the lobby's own grid has one cell per column, and CSS `order` keeps the list last there.
+  lobbyRiders.append(lobbyWatchers);
   sharedLobby.append(lobbyCopy, qrCard, lobbyRiders, lobbyFooter);
   const lobbyEntries = new Map<
     string,
@@ -769,6 +780,10 @@ export async function startOnline(): Promise<void> {
       status: HTMLElement;
       avatar: AvatarId;
     }
+  >();
+  const watcherEntries = new Map<
+    string,
+    { entry: HTMLElement; name: HTMLElement; status: HTMLElement }
   >();
   if (!solo)
     void QRCode.toDataURL(joinLink)
@@ -953,6 +968,8 @@ export async function startOnline(): Promise<void> {
           joinForm.element.append(joinForm.submitButton);
           lobbyRiders.prepend(joinPanel);
         }
+        // Both ways in stay together wherever the seat invitation lands.
+        joinForm.submitButton.after(joinForm.spectateButton);
       }
     }
     const desktop =
@@ -1342,7 +1359,10 @@ export async function startOnline(): Promise<void> {
         dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
-      const joining = role === "joiner" && !joined;
+      // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
+      const watcher = state.spectators.find((seat) => seat.id === id);
+      const watching = Boolean(watcher);
+      const joining = role === "joiner" && !joined && !watching;
       app.classList.toggle("joining", joining);
       mobileLayout.update({
         joined,
@@ -1351,7 +1371,7 @@ export async function startOnline(): Promise<void> {
         host: isHost,
         recapReady,
       });
-      joinPanel.hidden = joined || displayOnly;
+      joinPanel.hidden = joined || watching || displayOnly;
       /* Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts. */ avatarButton.hidden =
         !joined || state.phase !== "lobby";
       if (
@@ -1362,6 +1382,7 @@ export async function startOnline(): Promise<void> {
         dialog.close();
       controls.hidden = !joined || displayOnly;
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
+      // A watcher the room still lists does the same, asking for its place in the watching list back rather than for a seat.
       if (player && !player.connected && !displayOnly) {
         if (!rejoinPending) {
           rejoinPending = true;
@@ -1370,6 +1391,11 @@ export async function startOnline(): Promise<void> {
             name: player.name,
             avatarId: player.avatarId,
           });
+        }
+      } else if (watcher && !watcher.connected && !displayOnly) {
+        if (!rejoinPending) {
+          rejoinPending = true;
+          runtime.command({ type: "spectate", name: watcher.name });
         }
       } else rejoinPending = false;
       // A phone in the lobby always gets the lobby card (#134); elsewhere solo and a joined shared-TV phone have none.
@@ -1391,12 +1417,45 @@ export async function startOnline(): Promise<void> {
         joining ||
         (!phoneLobby && (solo || arena.controller || mobileLayout.active()));
       app.classList.toggle("room-waiting", !sharedLobby.hidden);
-      const readyCount = state.players.filter((p) => p.connected).length;
+      const readyCount = state.players.filter((p) => p.connected).length,
+        watchingCount = state.spectators.filter(
+          (seat) => seat.connected,
+        ).length;
+      const watchingNote = watchingCount ? ` · ${watchingCount} watching` : "";
       lobbyCount.textContent =
-        readyCount < 2
+        (readyCount < 2
           ? `${readyCount === 1 ? "1 rider ready · " : ""}Waiting for at least 2 riders`
-          : `${readyCount} riders ready`;
+          : `${readyCount} riders ready`) + watchingNote;
       lobbyEmpty.hidden = state.players.length > 0;
+      lobbyWatchers.hidden = state.spectators.length === 0;
+      for (const [watcherId, row] of watcherEntries)
+        if (!state.spectators.some((seat) => seat.id === watcherId)) {
+          row.entry.remove();
+          watcherEntries.delete(watcherId);
+        }
+      for (const seat of state.spectators) {
+        let row = watcherEntries.get(seat.id);
+        if (!row) {
+          const entry = node("div", "", "room-rider room-watcher"),
+            glyph = node("span", "👁", "watcher-glyph"),
+            watcherName = node("strong"),
+            watcherStatus = node("small"),
+            info = node("div");
+          glyph.setAttribute("aria-hidden", "true");
+          info.append(watcherName, watcherStatus);
+          entry.append(glyph, info);
+          row = { entry, name: watcherName, status: watcherStatus };
+          watcherEntries.set(seat.id, row);
+          lobbyWatchers.append(entry);
+        }
+        if (row.name.textContent !== seat.name)
+          row.name.textContent = seat.name;
+        // Whose row this is, is all this screen can say for certain; who manages the room arrives with the host crown.
+        const mine = seat.id === id ? (isHost ? "HOST · " : "YOU · ") : "";
+        row.status.textContent = seat.connected
+          ? `${mine}WATCHING`
+          : `${mine}OFFLINE`;
+      }
       for (const [playerId, row] of lobbyEntries)
         if (!state.players.some((p) => p.id === playerId)) {
           row.entry.remove();
@@ -1514,9 +1573,11 @@ export async function startOnline(): Promise<void> {
       }
       notice.textContent =
         state.phase === "lobby"
-          ? joined && !isHost
-            ? "Waiting for the host to start"
-            : "Join your friends, then start the race"
+          ? watching
+            ? "Watching · waiting for the race to start"
+            : joined && !isHost
+              ? "Waiting for the host to start"
+              : "Join your friends, then start the race"
           : state.phase === "countdown"
             ? `READY · ${Math.max(0, Math.ceil(((state.phaseEndsAtTick ?? state.tick) - state.tick) / 20))}`
             : showsRoundResult(state)

@@ -22,6 +22,7 @@ import {
   LEAVE,
   PRESENCE,
   SETTINGS,
+  SPECTATOR,
   foldPlayerEntries,
   intentOf,
   isManagementKind,
@@ -33,11 +34,19 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-37"; // 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
+export const RULES = "fuse-p2p-38"; // 38: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
+/** How many named watchers a room lists beside its five seats. The room service admits them (`ROOM_LIMITS.maxGuests`). */
+export const MAX_SPECTATORS = 5;
 
 export interface Fold extends HeldControls {
+  generation: number;
+}
+/** A member that watches: named and listed like a rider, but with no seat, no colour, no inputs and no place in the game. */
+export interface Spectator {
+  name: string;
+  connected: boolean;
   generation: number;
 }
 /** State at tick T is a pure fold of the seed and every entry with tick ≤ T. */
@@ -46,6 +55,8 @@ export interface RoomState {
   settings: RoomSettings;
   folds: Map<string, Fold>;
   bots: Set<string>;
+  /** Watchers by member id. Never passed to `step`, the leaderboard or the match report: they are the room's, not the game's. */
+  spectators: Map<string, Spectator>;
 }
 /** A member's entries for one tick from its current stream, plus any retired (older-generation) streams still replayable, oldest first. */
 export interface StreamEntries {
@@ -59,7 +70,13 @@ export function createRoomState(
   settings: RoomSettings,
 ): RoomState {
   const game = createGame(matchId, settings);
-  return { game, settings, folds: new Map(), bots: new Set() };
+  return {
+    game,
+    settings,
+    folds: new Map(),
+    bots: new Set(),
+    spectators: new Map(),
+  };
 }
 export const reclaimable = (game: GameState): boolean =>
   (RECLAIMABLE_PHASES as readonly string[]).includes(game.phase);
@@ -69,7 +86,11 @@ export function freeSlot(game: GameState): number {
   );
 }
 
-/** Who manages the room when those before them are absent: the creator, then the connected humans by id. */
+/**
+ * Who manages the room when those before them are absent: the creator, then the connected human riders by id, then the
+ * connected spectators by id. Watchers rank last because a room with a seat left in it should be managed from that seat,
+ * but they do rank: a room whose riders all dropped is still run by whoever is left watching.
+ */
 export function successionOrder(state: RoomState, creatorId: string): string[] {
   return [
     creatorId,
@@ -82,7 +103,18 @@ export function successionOrder(state: RoomState, creatorId: string): string[] {
       )
       .map((player) => player.id)
       .sort(),
+    ...[...state.spectators]
+      .filter(([id, spectator]) => spectator.connected && id !== creatorId)
+      .map(([id]) => id)
+      .sort(),
   ];
+}
+/** Whether the room lists this member as present, in a seat or in the watching list. */
+export function memberConnected(state: RoomState, id: string): boolean {
+  return (
+    state.game.players.get(id)?.connected === true ||
+    state.spectators.get(id)?.connected === true
+  );
 }
 /** The lowest connected human other than the creator: it manages the room while the creator is absent. */
 export function delegate(
@@ -91,13 +123,19 @@ export function delegate(
 ): string | undefined {
   return successionOrder(state, creatorId)[1];
 }
-/** Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected. */
+/**
+ * Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected.
+ * A creator watching from the spectator row counts as present and keeps the crown, so a room only ever has one manager
+ * once its creator has said what it is; a creator with no record at all (a TV host that never took a seat) still makes
+ * the next member a manager beside it.
+ */
 export function actingCreator(
   state: RoomState,
   creatorId: string,
 ): string | undefined {
-  const creator = state.game.players.get(creatorId);
-  return creator?.connected ? undefined : delegate(state, creatorId);
+  return memberConnected(state, creatorId)
+    ? undefined
+    : delegate(state, creatorId);
 }
 /**
  * Whether a management entry from `manager` applies: the creator always; the delegate while the creator is absent; and any
@@ -128,6 +166,12 @@ function pruneDisconnected(state: RoomState): void {
       state.folds.delete(player.id);
       state.bots.delete(player.id);
     }
+  dropAbsentSpectators(state);
+}
+/** A watcher that is gone is dropped where a rider's seat would be freed: at a start, a rematch and a return to the lobby. */
+function dropAbsentSpectators(state: RoomState): void {
+  for (const [id, spectator] of state.spectators)
+    if (!spectator.connected) state.spectators.delete(id);
 }
 /** Folds and bots for riders the game no longer seats (a lobby reset drops disconnected riders itself) would make every snapshot undecodable. */
 function pruneOrphans(state: RoomState): void {
@@ -150,6 +194,8 @@ function applyManagement(state: RoomState, entry: Entry): void {
     switch (entry[2]) {
       case JOIN: {
         const [, , , id, playerName, slot, avatarId, generation] = entry;
+        // A member is a rider or a watcher, never both: it leaves the watching list first (`SPECTATOR leave`).
+        if (state.spectators.has(id)) return;
         const existing = game.players.get(id);
         if (existing) {
           setPlayerConnected(game, id, true);
@@ -169,6 +215,8 @@ function applyManagement(state: RoomState, entry: Entry): void {
       }
       case LEAVE: {
         const id = entry[3];
+        // A watcher holds no seat and no simulation state, so leaving frees it outright in every phase.
+        if (state.spectators.delete(id)) return;
         if (!game.players.has(id)) return;
         if (reclaimable(game)) {
           removePlayer(game, id);
@@ -183,9 +231,37 @@ function applyManagement(state: RoomState, entry: Entry): void {
       }
       case PRESENCE: {
         const [, , , id, connected, generation] = entry;
+        const spectator = state.spectators.get(id);
+        if (spectator) {
+          spectator.connected = connected;
+          spectator.generation = generation;
+          return;
+        }
         if (!game.players.has(id) || state.bots.has(id)) return;
         setPlayerConnected(game, id, connected);
         state.folds.set(id, { ...neutralControls(), generation });
+        return;
+      }
+      case SPECTATOR: {
+        if (entry[3] === "leave") {
+          state.spectators.delete(entry[4]);
+          return;
+        }
+        const [, , , , id, watcherName, generation] = entry;
+        const existing = state.spectators.get(id);
+        if (existing) {
+          existing.connected = true;
+          existing.generation = generation;
+          return;
+        }
+        // A seat and the watching list are exclusive, and the list is capped: both are refused here so every replica refuses alike.
+        if (game.players.has(id) || state.spectators.size >= MAX_SPECTATORS)
+          return;
+        state.spectators.set(id, {
+          name: watcherName.trim(),
+          connected: true,
+          generation,
+        });
         return;
       }
       case SETTINGS: {
@@ -202,6 +278,7 @@ function applyManagement(state: RoomState, entry: Entry): void {
           returnToLobby(game, matchId);
           game.tick = tick;
           pruneOrphans(state);
+          dropAbsentSpectators(state);
         } else if (action === "start") {
           game.settings = state.settings;
           startMatch(game);
@@ -320,6 +397,7 @@ export function canonicalRoomState(state: RoomState): string {
       settings: state.settings,
       folds: state.folds,
       bots: [...state.bots].sort(),
+      spectators: state.spectators,
     },
     (_key, value: unknown) => {
       if (value instanceof Map)

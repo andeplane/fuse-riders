@@ -18,6 +18,7 @@ import {
   BOT,
   JOIN,
   PRESS,
+  SPECTATOR,
   STEER,
   type Entry,
 } from "../src/engine/input-log.js";
@@ -493,4 +494,110 @@ test("a snapshot is served at the newest retained tick every rider has completed
       .entries.every((entry) => entry[1] > chunks[0]!.tick),
     "entries after the served tick ride along for replay",
   );
+});
+
+test("a snapshot carries the watching list, and validation refuses a list the fold could never hold", () => {
+  // One seated rider and two watchers, all confirmed, so the tick the world serves is the tick it is on.
+  const w = new World(
+    createRoomState("m", defaultRoomSettings()),
+    "creator",
+    "creator",
+  );
+  const creator = w.stream("creator", 1);
+  creator.append(1, [JOIN, "creator", "Creator", 0, "fox", 1]);
+  creator.append(1, [JOIN, "guest", "Guest", 1, "cat", 2]);
+  creator.append(1, [SPECTATOR, "join", "w1", "Watcher One", 5]);
+  creator.append(1, [SPECTATOR, "join", "w2", "Watcher Two", 6]);
+  creator.through = 4;
+  w.stream("guest", 2).through = 4;
+  w.advance(4);
+  assert.equal(w.state.spectators.size, 2);
+  assert.equal(w.servable().tick, w.tick);
+  const bytes = new SnapshotAssembler(ROOM).accept(
+    encodeSnapshot(w, ROOM)[0],
+  )!.bytes;
+  const decoded = decodeSnapshot(bytes, ROOM);
+  assert.ok(decoded, "the snapshot round-trips");
+  assert.deepEqual(
+    [...decoded.state.spectators].map(([id, watcher]) => [
+      id,
+      watcher.name,
+      watcher.connected,
+      watcher.generation,
+    ]),
+    [
+      ["w1", "Watcher One", true, 5],
+      ["w2", "Watcher Two", true, 6],
+    ],
+  );
+  assert.equal(
+    hashRoomState(decoded.state),
+    hashRoomState(w.servable().state),
+    "an installed snapshot is the same state the server folded",
+  );
+  const fields = unpackMessage(bytes) as unknown[];
+  const mutate = (change: (value: unknown[]) => void) => {
+    const copy = structuredClone(fields);
+    change(copy);
+    return decodeSnapshot(packMessage(copy), ROOM);
+  };
+  assert.ok(decodeSnapshot(packMessage(fields), ROOM));
+  for (const [why, change] of [
+    [
+      "a sixth watcher is past the cap",
+      (v: unknown[]) => {
+        for (let extra = 3; extra <= 6; extra++)
+          (v[9] as unknown[][]).push([`w${extra}`, "Extra", true, 1]);
+      },
+    ],
+    [
+      "the same watcher twice",
+      (v: unknown[]) => {
+        (v[9] as unknown[][]).push((v[9] as unknown[][])[0]!);
+      },
+    ],
+    [
+      "a watcher that is also a rider",
+      (v: unknown[]) => {
+        (v[9] as unknown[][])[0]![0] = "guest";
+      },
+    ],
+    [
+      "a name no log entry could carry",
+      (v: unknown[]) => {
+        (v[9] as unknown[][])[0]![1] = "  ";
+      },
+    ],
+    [
+      "an untrimmed name the fold would have trimmed",
+      (v: unknown[]) => {
+        (v[9] as unknown[][])[0]![1] = " Watcher One ";
+      },
+    ],
+    [
+      "a presence flag that is not a boolean",
+      (v: unknown[]) => {
+        (v[9] as unknown[][])[0]![2] = 1;
+      },
+    ],
+    [
+      "a negative generation",
+      (v: unknown[]) => {
+        (v[9] as unknown[][])[0]![3] = -1;
+      },
+    ],
+    [
+      "a watcher dropped from the list the hash was taken over",
+      (v: unknown[]) => {
+        (v[9] as unknown[][]).pop();
+      },
+    ],
+    [
+      "a list that is not a list",
+      (v: unknown[]) => {
+        v[9] = "w1";
+      },
+    ],
+  ] as [string, (value: unknown[]) => void][])
+    assert.equal(mutate(change), undefined, why);
 });

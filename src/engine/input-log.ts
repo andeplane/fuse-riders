@@ -23,7 +23,8 @@ export const JOIN = 10,
   PRESENCE = 12,
   SETTINGS = 13,
   ACTION = 14,
-  BOT = 15;
+  BOT = 15,
+  SPECTATOR = 16;
 export const UINT16_MAX = 0xffff,
   UINT32_MAX = 0xffff_ffff;
 export type RoomAction = "start" | "rematch" | "lobby";
@@ -71,7 +72,17 @@ export type Entry =
       name: string,
       slot: number,
     ]
-  | [seq: number, tick: number, kind: 15, action: "remove", botId: string];
+  | [seq: number, tick: number, kind: 15, action: "remove", botId: string]
+  | [
+      seq: number,
+      tick: number,
+      kind: 16,
+      action: "join",
+      memberId: string,
+      name: string,
+      generation: number,
+    ]
+  | [seq: number, tick: number, kind: 16, action: "leave", memberId: string];
 
 export const uint32 = (value: unknown): value is number =>
   typeof value === "number" &&
@@ -88,7 +99,7 @@ const matchId = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= 64;
 
 export function isManagementKind(kind: number): boolean {
-  return kind >= JOIN && kind <= BOT;
+  return kind >= JOIN && kind <= SPECTATOR;
 }
 
 /** Shape and bounds only. Sequence, tick order and gesture monotony are stream properties checked by the receiver. */
@@ -153,6 +164,13 @@ export function isEntry(raw: unknown): raw is Entry {
             loggedRiderName(raw[5]) &&
             slot(raw[6])
         : raw[3] === "remove" && raw.length === 5 && memberId(raw[4]);
+    case SPECTATOR:
+      return raw[3] === "join"
+        ? raw.length === 7 &&
+            memberId(raw[4]) &&
+            loggedRiderName(raw[5]) &&
+            uint32(raw[6])
+        : raw[3] === "leave" && raw.length === 5 && memberId(raw[4]);
     default:
       return false;
   }

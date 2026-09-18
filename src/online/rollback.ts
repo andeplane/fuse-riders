@@ -28,8 +28,16 @@ export interface WorldReceive extends ReceiveResult {
   events: WorldEvent[];
   rollbackTicks: number;
 }
+/** A watcher as a screen sees it: named and present or not, with no seat, colour or score of its own. */
+export interface SpectatorView {
+  id: string;
+  name: string;
+  connected: boolean;
+}
 export interface Frame extends WorldView {
   matchId: string;
+  /** The room's watching list, by member id. Room state, not game state, so it travels beside the view rather than inside it. */
+  spectators: SpectatorView[];
 }
 
 /**
@@ -83,6 +91,13 @@ export class World {
     return {
       ...toView(state.game),
       matchId: state.game.matchId,
+      spectators: [...state.spectators]
+        .map(([id, watcher]) => ({
+          id,
+          name: watcher.name,
+          connected: watcher.connected,
+        }))
+        .sort((a, b) => (a.id < b.id ? -1 : 1)),
     };
   }
   /** Each member's entries at `tick` from its current stream and from any retired generation still replayable; the reducer picks by fold generation. */

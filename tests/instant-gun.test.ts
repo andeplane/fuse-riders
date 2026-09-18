@@ -25,6 +25,7 @@ const canonical = (game: GameState) =>
     settings: defaultRoomSettings(),
     folds: new Map(),
     bots: new Set(),
+    spectators: new Map(),
   });
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const press: InputIntent = {
