@@ -239,8 +239,10 @@ export function decodeRoom(
     !optionalId(roundWinner) ||
     (roundWinner !== "" && !known.has(roundWinner)) ||
     !optionalId(winner) ||
+    // A winner exactly when the match is over, and only one with the round wins for it.
     (stage === "over") !==
       (winner !== "" && (wins[winner] ?? 0) >= WINS_NEEDED) ||
+    (winner !== "" && stage !== "over") ||
     !uint32(resumeAt) ||
     resumeAt > tick + BETWEEN_TICKS ||
     (turn !== "" && turnNo === 0) ||
