@@ -126,7 +126,11 @@ export class RoomRuntime extends NetRuntime<
         return false;
       }
       if (command.type === "input") return this.input(command);
-      if (!this.game.seating.isAvatar(command.avatarId) || !this.player())
+      if (
+        !this.game.seating.isAvatar(command.avatarId) ||
+        !this.player() ||
+        this.hiddenState
+      )
         return false;
       this.append(AVATAR, command.avatarId);
       this.sendPackets(this.deps.now());

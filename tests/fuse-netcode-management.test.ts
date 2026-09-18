@@ -147,6 +147,15 @@ test("succession and permission over fuseGame.members agree with the engine's re
       });
       if (id.startsWith("bot:")) state.bots.add(id);
       else if (next() % 3 === 0) setPlayerConnected(state.game, id, false);
+      // Some present riders stepped away (their page is hidden): present to the game, absent to the netcode.
+      else if (next() % 3 === 0)
+        state.folds.set(id, {
+          generation: 1,
+          flags: 0,
+          activeGesture: 0,
+          latestGesture: 0,
+          away: true,
+        });
     });
     // Watchers, the creator among them when it holds no seat: a member is a rider or a watcher, never both.
     for (const id of watchers)
@@ -155,6 +164,7 @@ test("succession and permission over fuseGame.members agree with the engine's re
           name: id,
           connected: next() % 3 !== 0,
           generation: 1,
+          ...(next() % 3 === 0 ? { away: true as const } : {}),
         });
     const seats = fuseGame.members(state);
     assert.deepEqual(
