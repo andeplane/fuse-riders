@@ -9,6 +9,7 @@ import {
   foldTick,
   isAvatar,
   isDiceEntry,
+  noStats,
   parseSettings,
   players,
   seatName,
@@ -28,6 +29,10 @@ export interface DicePlayerView {
   /** Banked this round. */
   score: number;
   roundWins: number;
+  /** Their play this match. */
+  rolls: number;
+  busts: number;
+  bestTurn: number;
 }
 /** What the dice UI renders. Outcomes are read from here, not from events, so a rollback's correction shows. */
 export interface DiceView {
@@ -61,16 +66,22 @@ export function diceView(room: DiceRoom): DiceView {
     round: room.round,
     target: TARGET,
     winsNeeded: WINS_NEEDED,
-    players: players(room).map((seat) => ({
-      id: seat.id,
-      name: seat.name,
-      slot: seat.slot,
-      avatarId: seat.avatarId,
-      bot: seat.bot,
-      connected: seat.connected,
-      score: room.scores[seat.id] ?? 0,
-      roundWins: room.wins[seat.id] ?? 0,
-    })),
+    players: players(room).map((seat) => {
+      const { rolls, busts, bestTurn } = room.stats[seat.id] ?? noStats();
+      return {
+        id: seat.id,
+        name: seat.name,
+        slot: seat.slot,
+        avatarId: seat.avatarId,
+        bot: seat.bot,
+        connected: seat.connected,
+        score: room.scores[seat.id] ?? 0,
+        roundWins: room.wins[seat.id] ?? 0,
+        rolls,
+        busts,
+        bestTurn,
+      };
+    }),
     watchers: [...room.seats.values()]
       .filter((seat) => seat.watcher)
       .map((seat) => ({
