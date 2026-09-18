@@ -26,6 +26,18 @@ past the budget check can exceed the hourly failure limit by the bounded local
 in-flight count on each active gateway. This is an abuse limit, not authentication:
 room codes and the trusted-member mesh model are unchanged.
 
+Since the token moved out of the socket URL (#256 S3,
+[token transport](../online/TOKEN-TRANSPORT.md)), a pending admission also covers
+the wait for the socket's first (`auth`) frame. The same four-per-IP and 128-total
+bounds therefore cap unauthenticated sockets, and a missing, late, malformed or
+oversized `auth` frame spends the failure budget like a wrong room code. A socket
+that leaves before authenticating does not, and neither does a full room: the
+budget prices wrong guesses, and a full room is a right one, which was never
+charged when it led to a seat. "Per IP" means per IPv4 address or per IPv6 /64.
+The failure budget does not bound slot holding — a held slot that then
+authenticates is free — the four-per-IP and 128-total counts do, and in production
+Cloud Run's concurrency (80 × 2 instances) binds before them.
+
 The protocol envelopes and database room records do not change. Existing room
 creation limits retain their keys and accounting. The Firestore allowance
 collection retains its existing name; admission uses distinct hashed keys.

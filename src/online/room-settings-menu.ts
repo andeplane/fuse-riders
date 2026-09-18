@@ -119,7 +119,10 @@ export function showRoomSettings(
         "Arena map",
         draft.map,
         [
-          ["rotate", "A different map every round"],
+          [
+            "rotate",
+            "A different map every round · with and without obstacles",
+          ],
           ["desert", ARENA_MAP_LABELS.desert],
           ["forest", ARENA_MAP_LABELS.forest],
           ["city", ARENA_MAP_LABELS.city],
