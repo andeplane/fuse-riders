@@ -1,7 +1,8 @@
 import { StatusNotices } from "./status-notices.js";
 import { TICK_MS, TickClock } from "./clock.js";
-import { World, type Frame } from "./rollback.js";
+import { World, type Frame, type WorldEvent } from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
+import { stepsPerTick } from "../engine/game.js";
 import { PACKET_ENTRIES } from "./stream.js";
 import {
   decodePacket,
@@ -103,6 +104,8 @@ export interface RuntimeMetrics {
   clockTick: number;
   rollbacks: number;
   rollbackTicks: number;
+  /** Simulation steps the current world has run (`World.steps`): catch-up, rollback re-runs and fast log ticks included. */
+  steps: number;
   rtt: Record<string, number>;
   heard: Record<string, number>;
   clock: ReturnType<TickClock["diagnostics"]>;
@@ -205,8 +208,10 @@ export const SNAPSHOT_BUFFER_LIMIT = 4_000_000,
   SNAPSHOT_SERVE_MS = 500;
 export const HASH_INTERVAL = 20,
   HASH_LAG = 40,
-  CATCHUP_TICKS = 8,
-  BEHIND_TICKS = 400,
+  /** Simulation steps per 10 ms loop interval, catch-up and rollback re-runs together (`World.refill`). */
+  CATCHUP_STEPS = 8,
+  /** Estimated steps of backlog past which a member fetches a snapshot instead of catching up (`RoomRuntime.behind`). */
+  BEHIND_STEPS = 400,
   NACK_INTERVAL_MS = 100,
   DIVERGENCE_WINDOW_MS = 60_000,
   DIVERGENCE_LIMIT = 3,
@@ -259,7 +264,8 @@ export class RoomRuntime {
   };
   private lastOwnTick = 0;
   private lastPacketTick = -1;
-  private lastFrameTick = -1;
+  /** The frame last handed to `state`: a rollback's re-run replaces the frames with new ones at the same tick. */
+  private lastFrame: Frame | undefined;
   private pendingJoin?: { name: string; avatarId?: AvatarId; sentAt: number };
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
@@ -349,6 +355,7 @@ export class RoomRuntime {
       for (let index = 0; index < 4; index++)
         this.command({ type: "bot", action: "add" });
       this.command({ type: "action", action: "start" });
+      this.world!.refill(Infinity);
       this.world!.advance(this.lastOwnTick); // The first frame already seats everyone; the clock catches up within a tick.
       this.publish();
     }
@@ -602,16 +609,7 @@ export class RoomRuntime {
         member.lastPacketAt = heardAt;
       return;
     }
-    if (result.rollbackTicks > 0) this.lastFrameTick = -1;
-    for (const event of result.events)
-      this.deliver("event", () =>
-        this.callbacks.event(
-          event.event,
-          event.matchId,
-          event.round,
-          event.tick,
-        ),
-      );
+    this.deliverEvents(result.events);
     const stream = this.world.streams.get(id);
     if (stream?.gap && now - member.nackAt >= NACK_INTERVAL_MS) {
       member.nackAt = now;
@@ -628,6 +626,17 @@ export class RoomRuntime {
       this.compareHash(packet.hash[0], packet.hash[1], now);
     if (result.rollbackTicks > 0) this.publish();
   }
+  private deliverEvents(events: readonly WorldEvent[]): void {
+    for (const event of events)
+      this.deliver("event", () =>
+        this.callbacks.event(
+          event.event,
+          event.matchId,
+          event.round,
+          event.tick,
+        ),
+      );
+  }
   private bump(id: string, member: Member, generation: number): void {
     if (generation > member.generation) member.generation = generation;
     this.ensureStream(id, member);
@@ -639,7 +648,7 @@ export class RoomRuntime {
     if (existing && existing.generation === member.generation) return;
     this.world.stream(id, member.generation, {
       seq: 0,
-      tick: Math.max(0, this.world.tick - STALL_TICKS),
+      tick: Math.max(0, this.world.frontier - STALL_TICKS),
     });
     if (this.creator) this.ensurePresence(id, member);
   }
@@ -654,6 +663,7 @@ export class RoomRuntime {
       this.hostId,
       this.id,
     );
+    this.world.refill(CATCHUP_STEPS);
     this.world.stream(this.id, this.generation);
     // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
     // invariant — "since the first world" — not because anything here could be misjudged.
@@ -749,6 +759,7 @@ export class RoomRuntime {
     if (this.world) this.world.install(decoded.state);
     else {
       this.world = new World(decoded.state, this.hostId, this.id);
+      this.world.refill(CATCHUP_STEPS);
       // Not on a resync: a replica that already judged its members keeps the waits it started.
       this.judgingSince = this.deps.now();
     }
@@ -797,7 +808,7 @@ export class RoomRuntime {
     for (const [id, member] of this.members) this.ensureStream(id, member);
     this.lastOwnTick = Math.max(tick + 1, this.lastOwnTick);
     if (!carried.length) this.resetHeld();
-    this.lastFrameTick = -1;
+    this.lastFrame = undefined;
     this.lastPacketTick = -1;
     // A clock with no samples yet (the returning creator, whose clock nobody else corrects) joins the room's running
     // clock: the freshest peer clock reading, projected to now, else the snapshot tick plus half the request round trip.
@@ -1259,6 +1270,8 @@ export class RoomRuntime {
       }
       // Solo freezes the clock, so the released controls are folded in now rather than when the tab returns.
       if (this.solo && this.world) {
+        // Solo has no peers to roll back for and is at most a tick behind: this fold is not paced.
+        this.world.refill(Infinity);
         this.world.advance(this.lastOwnTick);
         this.clock.pause();
         this.publish();
@@ -1266,14 +1279,28 @@ export class RoomRuntime {
       return;
     }
     if (this.solo) this.clock.resume();
-    else if (
-      this.world &&
-      Math.floor(this.clock.tick()) - this.world.tick > BEHIND_TICKS
-    )
+    else if (this.world && this.behind(Math.floor(this.clock.tick())))
       this.requestSnapshot();
   }
+  /**
+   * Whether catching up to log tick `to` would cost more than `BEHIND_STEPS` steps: the gap in log ticks times the step
+   * count the world's state runs at now. It is an estimate (a gap can cross a phase change), and it keeps the snapshot
+   * path at the CPU cost it had when every log tick was one step.
+   */
+  private behind(to: number): boolean {
+    const world = this.world!;
+    return (
+      (to - world.tick) * stepsPerTick(world.state.game, world.state.bots) >
+      BEHIND_STEPS
+    );
+  }
   private lastLoopAt = -Infinity;
+  /** One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too. */
   private tickLoop(): void {
+    this.tickPass();
+    this.world?.refill(CATCHUP_STEPS);
+  }
+  private tickPass(): void {
     const now = this.deps.now();
     this.status.refresh();
     if (this.transport && this.id === "") return;
@@ -1345,29 +1372,19 @@ export class RoomRuntime {
     )
       this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
-    if (!this.hiddenState && tick > world.tick) {
+    if (this.hiddenState && world.frontier > world.tick)
+      // A hidden world does not advance, but a rollback's re-run is history it already reached: it finishes.
+      this.deliverEvents(world.advance(world.tick).events);
+    else if (!this.hiddenState && tick > world.tick) {
       // Only ticks the stall rule lets us reach count as a backlog: a world waiting on a rider is not behind, and a
       // long stall must end by catching up, never by fetching a snapshot from a peer that waited just as long.
       const reachable = Math.min(tick, world.stallBound().tick);
-      if (
-        this.transport &&
-        reachable - world.tick > BEHIND_TICKS &&
-        this.members.size > 0
-      ) {
+      if (this.transport && this.behind(reachable) && this.members.size > 0) {
         if (!this.snapshotRequest) this.requestSnapshot();
       } else {
-        const result = world.advance(
-          Math.min(tick, world.tick + CATCHUP_TICKS),
-        );
-        for (const event of result.events)
-          this.deliver("event", () =>
-            this.callbacks.event(
-              event.event,
-              event.matchId,
-              event.round,
-              event.tick,
-            ),
-          );
+        // The budget window (`CATCHUP_STEPS`, refilled after every pass) paces how far this pass gets.
+        const result = world.advance(tick);
+        this.deliverEvents(result.events);
         if (result.waitingFor !== undefined) {
           this.status.recurring(`Waiting for ${result.waitingFor}`);
         } else if (!this.outOfSync)
@@ -1534,13 +1551,13 @@ export class RoomRuntime {
   }
   private publish(): void {
     const frame = this.world?.view()[0];
-    if (!frame || frame.tick === this.lastFrameTick) return;
+    if (!frame || frame === this.lastFrame) return;
     if (
       this.deliver("state", () =>
         this.callbacks.state(frame, this.world!.state.settings),
       )
     )
-      this.lastFrameTick = frame.tick;
+      this.lastFrame = frame;
   }
   /**
    * What to draw now, for presentation to place in time (`presentWorld` in `src/render/time/`): the two newest
@@ -1617,6 +1634,7 @@ export class RoomRuntime {
       clockTick: this.clock.tick(),
       rollbacks: this.world?.rollbacks ?? 0,
       rollbackTicks: this.world?.rollbackTicks ?? 0,
+      steps: this.world?.steps ?? 0,
       rtt: Object.fromEntries(
         [...this.members]
           .filter(([, member]) => member.rttMs !== undefined)
