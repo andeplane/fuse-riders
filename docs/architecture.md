@@ -63,7 +63,7 @@ The service renews room lifetime on any member's admission or valid heartbeat, s
 
 ## Simulation and time
 
-Simulation state uses ticks; clocks schedule work and rendering samples presentation time. The current online clock changes pace when only bots survive, using `simulationTimeScale` and runtime pacing logic ([ADR 047 §11](adr/047-p2p-input-log-lockstep-rollback.md#11-game-speed-when-only-ai-survive)). Moving this acceleration into deterministic shared tick execution is proposed in #258. Do not describe the clock as fixed-rate across every current mode.
+Simulation state uses ticks; clocks schedule work and rendering samples presentation time. The online clock has one rate, `TICK_MS` per log tick, in every phase. When only bots survive, the tick driver runs `BOTS_ONLY_STEPS_PER_TICK` simulation steps per log tick, decided by `stepsPerTick` from folded state, so the game runs faster while the clock, the log and the network cadence do not ([ADR 047 §11](adr/047-p2p-input-log-lockstep-rollback.md#11-game-speed-when-only-ai-survive), [design note](design/fixed-clock-game-speed.md)). `RoomState.tick` counts log ticks; `GameState.tick` counts simulation steps.
 
 `src/engine/rider-motion.ts` applies steering before movement at a fixed simulation step. Bots emit ordinary inputs through `BotController`; they do not receive special collision or movement rules. Seeded RNG and pinned deterministic trigonometry live in shared modules. Room settings, pickup definitions and game constants are the sources for balance; this guide intentionally does not duplicate numeric balance tables.
 
