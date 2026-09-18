@@ -282,6 +282,7 @@ try {
         });
         // Recent matches: everyone's by default, your own one tap away, and each opens into its full results.
         await page
+          .locator(".stats-tabs")
           .getByRole("button", { name: "MATCHES", exact: true })
           .click();
         await page.locator(".account-match").first().waitFor();
@@ -332,10 +333,14 @@ try {
           true,
           "back returns focus to the opened match",
         );
-        await page.getByRole("button", { name: "STATS", exact: true }).click();
+        await page
+          .locator(".stats-tabs")
+          .getByRole("button", { name: "STATS", exact: true })
+          .click();
         await page.locator(".stats-finish").first().click();
         await page.locator(".match-recap-report").waitFor();
         await page
+          .locator(".stats-tabs")
           .getByRole("button", { name: "LEADERBOARD", exact: true })
           .click();
         await page.locator(".stats-leaderboard").waitFor();
@@ -348,7 +353,10 @@ try {
         await page.screenshot({
           path: `artifacts/player-leaderboard-${name}-${viewport.width}.png`,
         });
-        await page.getByRole("button", { name: "STATS", exact: true }).click();
+        await page
+          .locator(".stats-tabs")
+          .getByRole("button", { name: "STATS", exact: true })
+          .click();
         await page.locator(".rating-chart").waitFor();
         await page.getByText("Account settings", { exact: true }).click();
         await page
