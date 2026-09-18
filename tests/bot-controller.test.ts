@@ -355,6 +355,36 @@ test("AI presses, holds and releases ordinary bombs through the same charge/cool
   assert.equal(bot.input(game, player.id).bomb, false);
 });
 
+test("AI chooses hold times from the room's eased distance curve", () => {
+  for (const [window, distance, wanted] of [
+    [8, 150, 2],
+    [8, 350, 6],
+    [24, 150, 6],
+    [24, 350, 18],
+  ]) {
+    const game = fixture(),
+      bot = new BotController(),
+      player = game.players.get("bot:1")!;
+    game.settings = {
+      ...defaultRoomSettings(),
+      bombChargeTicks: window!,
+      aimBounce: true,
+    };
+    game.players.get("human")!.x = player.x + distance!;
+    player.bombChargeStartedTick = game.tick - wanted! + 1;
+    assert.equal(
+      bot.input(game, player.id).bomb,
+      true,
+      "holds before the closest distance",
+    );
+    player.bombChargeStartedTick = game.tick - wanted!;
+    assert.equal(
+      bot.input(game, player.id).bombCommands?.[0]?.action,
+      "release",
+    );
+  }
+});
+
 test("AI target/gun/shell shots use normal input actions and target aim is bounded", () => {
   for (const powerup of [
     "targetBombArmed",

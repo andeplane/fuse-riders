@@ -21,6 +21,7 @@ import {
 } from "./game.js";
 import {
   BOMB_MAX_CHARGE_TICKS,
+  bombLaunchDistance,
   BOMB_MIN_LAUNCH_DISTANCE,
   BOMB_MAX_LAUNCH_DISTANCE,
 } from "./bomb-launch.js";
@@ -595,7 +596,7 @@ export class BotController {
       : undefined;
     const maxChargeTicks =
       game.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS;
-    const wantedCharge =
+    let wantedCharge =
       aimed || player.gunArmed || player.shellArmed
         ? 1
         : Math.max(
@@ -609,6 +610,24 @@ export class BotController {
               ),
             ),
           );
+    if (
+      game.settings?.aimBounce &&
+      !aimed &&
+      !player.gunArmed &&
+      !player.shellArmed
+    ) {
+      // The eased curve is nonlinear. Pick the closest attainable first-swing distance.
+      let error = Infinity;
+      for (let ticks = 1; ticks <= maxChargeTicks; ticks++) {
+        const candidate = Math.abs(
+          bombLaunchDistance(ticks, maxChargeTicks, true) - distance,
+        );
+        if (candidate <= error) {
+          wantedCharge = ticks;
+          error = candidate;
+        }
+      }
+    }
     if (player.bombChargeStartedTick !== undefined) {
       const release = game.tick - player.bombChargeStartedTick >= wantedCharge;
       return {
