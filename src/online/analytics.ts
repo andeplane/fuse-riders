@@ -19,6 +19,7 @@ import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import type { MatchPlayerStats } from "../engine/match-stats.js";
 import type { DecidedRound, RoundShot } from "../engine/shot-log.js";
 import { safeStorage, type SafeStorage } from "../client/safe-storage.js";
+import type { GraphicsReport } from "../client/phaser/presentation.js";
 import { bootFailedProps, sanitizeProperties } from "./analytics-text.js";
 
 type MixpanelConfig = import("mixpanel-browser").Config;
@@ -361,6 +362,18 @@ export const analyticsStatusNow = page.status;
 export const setAnalyticsOptOut = page.setOptOut;
 export const onAnalyticsChange = page.onChange;
 export const reportBootFailure = page.reportBootFailure;
+/**
+ * The arena's renderer (`webgl`, or Phaser's `canvas` fallback) is a `Graphics Ready` event and, from then on, a
+ * super property. The event is what counts pages by renderer: the first events of a solo run (`Seat Taken`,
+ * `Match Started`) usually fire while Phaser is still downloading, before the super property exists. A view that
+ * ends on the RETRY GRAPHICS card is a `Graphics Failed` event.
+ */
+export function reportGraphics(event: GraphicsReport): void {
+  if (event.kind === "ready") {
+    page.start({ renderer: event.renderer });
+    page.track("Graphics Ready");
+  } else page.track("Graphics Failed", { stage: event.stage });
+}
 
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
 /** Tenths, where whole seconds would put nearly every Gun, Target and Shell kill in the same bucket. */
