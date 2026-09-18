@@ -168,6 +168,31 @@ try {
     path: `artifacts/arcade-landscape-menu-${kind}.png`,
   });
   await phone.getByRole("button", { name: "SETTINGS", exact: true }).click();
+  const sidePicker = phone.getByLabel("Landscape bomb side");
+  await sidePicker.scrollIntoViewIfNeeded();
+  const labelFits = await sidePicker.evaluate((element) => {
+    const select = element as HTMLSelectElement;
+    const style = getComputedStyle(select);
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d")!;
+    context.font = style.font;
+    // Reserve room for native select chrome as well as CSS padding.
+    return (
+      select.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight) -
+        32 >=
+      context.measureText("Right").width
+    );
+  });
+  assert.equal(
+    labelFits,
+    true,
+    "collapsed side picker has room for Right and native arrow",
+  );
+  await phone.screenshot({
+    path: `artifacts/arcade-landscape-settings-${kind}.png`,
+  });
   await phone.getByLabel("Landscape bomb side").selectOption("left");
   await phone.getByRole("button", { name: "CLOSE", exact: true }).click();
   if (await phone.locator(".mobile-tools-open").count())

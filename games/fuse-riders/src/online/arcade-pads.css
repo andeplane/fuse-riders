@@ -2,13 +2,14 @@
 .arcade-header {
   display: none;
 }
-.controller-layout-setting:not([hidden]) {
+.online-app dialog .controller-layout-setting:not([hidden]) {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 40%);
   gap: 0.75rem;
   padding: 0.75rem 0;
   font-size: 0.75rem;
 }
-.controller-layout-setting select {
+.online-app dialog .controller-layout-setting select {
   min-height: 2.75rem;
   width: 100%;
   color: #fff;
