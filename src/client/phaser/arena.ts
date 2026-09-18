@@ -7,6 +7,7 @@ import {
 import { assetUrl } from "../asset-url.js";
 import {
   GRAVITY_FIELD_TICKS,
+  TRAIL_WIDTH,
   PICKUP_TYPES,
   gravityCoreRadius,
 } from "../../shared/game.js";
@@ -19,7 +20,12 @@ import { bombsPerShot, volleyAngles } from "../../shared/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
-import { TrailHistoryCache, trailTip, type TrailPoint } from "./trails.js";
+import {
+  completeTrailStrokes,
+  TrailHistoryCache,
+  trailTip,
+  type TrailPoint,
+} from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
 import { crossViews, edgeGhosts } from "../arena-views.js";
@@ -31,6 +37,7 @@ import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
 import { GunImpacts, gunImpactFrame } from "./gun-impacts.js";
 import { gunFrame, gunRoots, gunPortalPulses } from "./gun-animation.js";
 import { TrailDebris } from "../trail-debris.js";
+import { BeveledTrails } from "./beveled-trails.js";
 import {
   selfLocatorRing,
   selfLocatorSide,
@@ -269,6 +276,7 @@ class ArenaScene extends Phaser.Scene {
   private floorImage!: Phaser.GameObjects.Image;
   private trails!: Phaser.GameObjects.Graphics;
   private trailTips!: Phaser.GameObjects.Graphics;
+  private beveledTrails?: BeveledTrails;
   private dynamic!: Phaser.GameObjects.Graphics;
   private front!: Phaser.GameObjects.Graphics;
   private gunImpacts = new GunImpacts();
@@ -369,6 +377,12 @@ class ArenaScene extends Phaser.Scene {
       .layer([this.trails, this.trailTips, this.dynamic, this.front])
       .setDepth(1)
       .setMask(mask);
+    if (this.game.renderer.type === Phaser.WEBGL) {
+      this.beveledTrails = new BeveledTrails(this, TRAIL_WIDTH).setDepth(1);
+      this.world.add(this.beveledTrails);
+      this.trails.setVisible(false);
+      this.trailTips.setVisible(false);
+    }
     this.sparks = this.add
       .particles(0, 0, "spark", {
         emitting: false,
@@ -786,7 +800,7 @@ class ArenaScene extends Phaser.Scene {
     if (history.changed) {
       this.trailHistoryBuilds++;
       this.trails.clear();
-      for (const stroke of history.strokes)
+      for (const stroke of this.beveledTrails ? [] : history.strokes)
         this.strokeTrail(
           this.trails,
           stroke.paths,
@@ -796,7 +810,11 @@ class ArenaScene extends Phaser.Scene {
         );
     }
     this.trailTips.clear();
-    for (const player of s.players)
+    if (this.beveledTrails)
+      this.beveledTrails.updateTrails(
+        completeTrailStrokes(s.players, s.tick, s.phase),
+      );
+    for (const player of this.beveledTrails ? [] : s.players)
       this.strokeTrail(
         this.trailTips,
         [trailTip(player, s.tick, s.phase)],
