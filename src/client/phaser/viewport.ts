@@ -25,15 +25,36 @@ export function arenaBacking(
   };
 }
 
+/** Choose a quarter-turn only when it increases the scale of the complete arena. */
+export function arenaQuarterTurn(
+  width: number,
+  height: number,
+  cssWidth: number,
+  cssHeight: number,
+): boolean {
+  return (
+    cssWidth > 0 &&
+    cssHeight > 0 &&
+    Math.min(cssWidth / height, cssHeight / width) >
+      Math.min(cssWidth / width, cssHeight / height)
+  );
+}
+
 /** Cache CSS layout measurements; density is read each frame to handle moving between screens. */
-export function observeArenaDisplay(canvas: HTMLCanvasElement): {
-  backing(width: number, height: number): { width: number; height: number };
+export function observeArenaDisplay(
+  canvas: HTMLCanvasElement,
+  rotateToFit = false,
+): {
+  backing(
+    width: number,
+    height: number,
+  ): { width: number; height: number; rotated: boolean };
   destroy(): void;
 } {
   const bounds = canvas.getBoundingClientRect();
   let cssWidth = bounds.width;
   let cssHeight = bounds.height;
-  const cover = getComputedStyle(canvas).objectFit === "cover";
+  const style = getComputedStyle(canvas);
   const observer = new ResizeObserver((entries) => {
     const entry = entries[0];
     if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
@@ -43,15 +64,26 @@ export function observeArenaDisplay(canvas: HTMLCanvasElement): {
   });
   observer.observe(canvas);
   return {
-    backing: (width, height) =>
-      arenaBacking(
-        width,
-        height,
-        cssWidth,
-        cssHeight,
-        window.devicePixelRatio,
-        cover,
-      ),
+    backing: (width, height) => {
+      // Computed styles are live: lobby/results use cover, play/replay use contain,
+      // including transitions that do not change the canvas CSS dimensions.
+      const cover = style.objectFit === "cover";
+      const rotated =
+        rotateToFit &&
+        !cover &&
+        arenaQuarterTurn(width, height, cssWidth, cssHeight);
+      return {
+        ...arenaBacking(
+          rotated ? height : width,
+          rotated ? width : height,
+          cssWidth,
+          cssHeight,
+          window.devicePixelRatio,
+          cover,
+        ),
+        rotated,
+      };
+    },
     destroy: () => observer.disconnect(),
   };
 }

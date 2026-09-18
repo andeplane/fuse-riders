@@ -1,5 +1,4 @@
 .mobile-tools-toggle,
-.mobile-rotate-gate,
 .mobile-control-hints {
   display: none;
 }
@@ -122,13 +121,11 @@
 .mobile-control-hints span::before {
   content: attr(data-hint);
 }
-/* Touch zones, labels, gate and pill are controls, never selectable text: no iOS callout, no selection, no scroll/zoom gestures. */
+/* Touch zones, labels and pill are controls, never selectable text: no iOS callout, no selection, no scroll/zoom gestures. */
 .mobile-play .online-controls,
 .mobile-play .online-controls > button,
 .mobile-control-hints,
 .mobile-control-hints span,
-.mobile-rotate-gate,
-.mobile-rotate-gate *,
 .mobile-tools-toggle,
 .mobile-play .online-notice {
   user-select: none;
@@ -154,27 +151,6 @@
     opacity: 0;
   }
 }
-.mobile-play.mobile-portrait > .mobile-rotate-gate {
-  display: flex;
-  position: absolute;
-  inset: 0;
-  z-index: 30;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 1.875rem;
-  text-align: center;
-  background: #050e24;
-  color: #eefaff;
-}
-.mobile-rotate-gate h2 {
-  font-size: 1.75rem;
-}
-.mobile-rotate-gate p {
-  max-width: 20rem;
-  line-height: 1.6;
-}
-.mobile-play.mobile-portrait .online-controls,
 .mobile-play.mobile-tools-open .online-controls {
   pointer-events: none;
 }
@@ -334,8 +310,7 @@
 .mobile-hud .hud-round:empty {
   display: none;
 }
-.mobile-play.mobile-tools-open > .mobile-hud,
-.mobile-play.mobile-portrait > .mobile-hud {
+.mobile-play.mobile-tools-open > .mobile-hud {
   display: none !important;
 }
 .mobile-play .online-notice {
@@ -357,9 +332,7 @@
   top: max(3.125rem, calc(env(safe-area-inset-top) + 2.75rem));
   z-index: 13;
 }
-.mobile-play.mobile-tools-open .online-announce,
-.mobile-play.mobile-portrait .online-announce,
-.mobile-play.mobile-portrait .online-feed {
+.mobile-play.mobile-tools-open .online-announce {
   display: none !important;
 }
 /* The open menu stacks header panel, roster strip and host actions without overlap on a 360px-tall phone. */
@@ -403,4 +376,35 @@
   min-width: 1.5rem;
   padding: 0 0.3125rem;
   font-size: 0.75rem;
+}
+
+/* Portrait play keeps the arena tall, with readable HUD and comfortable bottom touch thirds. */
+.mobile-play.mobile-portrait:not(.controller-only) .online-controls,
+.mobile-play.mobile-portrait:not(.controller-only) > .mobile-control-hints {
+  top: auto;
+  height: max(7rem, 20dvh);
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
+}
+.mobile-play.mobile-portrait .mobile-control-hints span {
+  padding: 0.75rem 0.25rem;
+  font-size: 0.625rem;
+}
+.mobile-play.mobile-portrait .online-notice {
+  top: max(3.5rem, calc(env(safe-area-inset-top) + 3rem));
+  left: 0.5rem;
+  right: auto;
+  max-width: calc(100vw - 1rem);
+}
+.mobile-play.mobile-portrait .online-feed {
+  top: max(6rem, calc(env(safe-area-inset-top) + 5.5rem));
+}
+.mobile-play.mobile-portrait > .mobile-hud {
+  flex-wrap: wrap;
+  gap: 0.25rem 0.375rem;
+  font-size: 0.625rem;
+  box-sizing: border-box;
+}
+.mobile-play.mobile-portrait .hud-round {
+  flex-basis: 100%;
 }

@@ -29,6 +29,8 @@ const metrics = (over: Partial<RuntimeMetrics> = {}): RuntimeMetrics => ({
   sentBytes: 0,
   snapshotRequest: false,
   mismatches: 0,
+  hashChecks: 0,
+  refused: [],
   stall: { tick: Infinity },
   streams: {
     a: {
