@@ -195,9 +195,13 @@ test("the fire button says what a press would do", () => {
   const gun = label({ gunArmed: true });
   assert.deepEqual(gun, {
     gunReady: true,
-    title: "Tap to fire Gun (Space)",
-    label: "TAP TO FIRE GUN",
+    title: "Tap to fire Gun, or hold and steer to aim (Space)",
+    label: "HOLD TO AIM GUN",
   });
+  assert.equal(
+    label({ gunArmed: true, gunAim: 0.2 }).label,
+    "STEER TO AIM · RELEASE!",
+  );
   assert.equal(label({ gunArmed: true, alive: false }).gunReady, false);
   assert.equal(label({}).title, "Hold to charge, release to fire (Space)");
   assert.equal(

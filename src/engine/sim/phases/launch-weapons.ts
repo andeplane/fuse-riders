@@ -39,6 +39,12 @@ export function launchWeapons(ctx: TickContext): void {
     if (movement.player.alive) {
       const input = inputs.get(movement.player.id);
       applyBombActions(ctx, movement.player, input?.bombCommands ?? []);
+      // A sight needs a held trigger. A hold whose release never arrives (a connection flap resets the held controls
+      // without one) ends here with the Gun kept, rather than leaving the rider locked on a straight line.
+      if (movement.player.gunAim !== undefined && !input?.bomb) {
+        movement.player.bombChargeStartedTick = undefined;
+        movement.player.gunAim = undefined;
+      }
       if (
         movement.player.targetBombArmed &&
         !movement.player.shellArmed &&
@@ -89,6 +95,7 @@ function applyBombActions(
     if (action === "cancel") {
       player.bombChargeStartedTick = undefined;
       player.bombTarget = undefined;
+      player.gunAim = undefined;
       continue;
     }
     if (action === "press") {
@@ -101,19 +108,22 @@ function applyBombActions(
         player.bombReadyAtTick <= state.tick
       ) {
         player.bombChargeStartedTick = state.tick;
-        if (player.targetBombArmed && !player.shellArmed && !player.gunArmed)
+        if (player.gunArmed) player.gunAim = 0;
+        else if (player.targetBombArmed && !player.shellArmed)
           player.bombTarget = targetPoint(state, player, command.aim);
       }
-      // Guns consume the press immediately. Release/cancel cannot fire a second shot.
-      if (!player.gunArmed) continue;
+      // Every weapon fires on release; a Gun spends the hold sweeping its sight, and a tap fires straight ahead.
+      continue;
     }
 
     const target = player.targetBombArmed
       ? targetPoint(state, player, command.aim, player.bombTarget)
       : undefined;
     const chargeStartedTick = player.bombChargeStartedTick;
+    const gunAim = player.gunAim ?? 0;
     player.bombChargeStartedTick = undefined;
     player.bombTarget = undefined;
+    player.gunAim = undefined;
     if (chargeStartedTick === undefined) continue;
     const ownsBomb = sortedBombs(state).some(
       (bomb) => bomb.ownerId === player.id && !bomb.shell,
@@ -127,7 +137,10 @@ function applyBombActions(
         : Number.MAX_SAFE_INTEGER;
       const speed = gun ? 1 : SHELL_SPEED;
       // Triple, Five and Extra Bomb fan the projectile out exactly as they fan a lob; the pull spends Triple and Five.
-      const angles = volleyAngles(player.angle, bombsPerShot(player));
+      const angles = volleyAngles(
+        player.angle + (gun ? gunAim : 0),
+        bombsPerShot(player),
+      );
       const shot = state.nextBombId;
       facts.push(shotFired(state, player, shot, weapon, angles.length));
       for (const angle of angles) {

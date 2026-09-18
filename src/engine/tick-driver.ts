@@ -103,6 +103,7 @@ export function driveGameTick(
     for (const player of sortedPlayers(game)) {
       player.bombChargeStartedTick = undefined;
       player.bombTarget = undefined;
+      player.gunAim = undefined;
     }
   return { events, removed, roundStarted };
 }
