@@ -11,7 +11,7 @@ import {
   TICK_HZ,
   type InputIntent,
 } from "../src/engine/game.js";
-import { classicSettings } from "../tests/fixtures/classic-settings.js";
+import { classicSettings } from "../src/engine/room-settings.js";
 
 // Same seeds and normal game physics before/after. Steering-only runs remove firing
 // and random pickups to isolate navigation; combat runs retain both.
