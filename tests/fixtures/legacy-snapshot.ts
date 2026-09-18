@@ -62,6 +62,7 @@ export function legacySnapshot(state: GameState) {
       invulnerableUntilTick: player.invulnerableUntilTick,
       nitroUntilTicks: [...player.nitroUntilTicks],
       snailUntilTicks: [...player.snailUntilTicks],
+      rangeLevel: player.rangeLevel,
       grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,

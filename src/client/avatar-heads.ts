@@ -76,8 +76,9 @@ export function createAvatarPicker(
       if (selected === id) return;
       selected = id;
       storage.setItem("fuse-riders-avatar", id);
+      // Buttons are created one-for-one in AVATARS order above.
       buttons.forEach((button, index) =>
-        button.setAttribute("aria-pressed", String(AVATARS[index].id === id)),
+        button.setAttribute("aria-pressed", String(AVATARS[index]!.id === id)),
       );
     },
   };

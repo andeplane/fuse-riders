@@ -103,6 +103,8 @@ export interface RiderView {
   invulnerableUntilTick: number;
   nitroUntilTicks: ReadonlyArray<number>;
   snailUntilTicks: ReadonlyArray<number>;
+  /** Range pickups collected this round: 0 is the base reach. */
+  rangeLevel: number;
   grip: boolean;
   drunkUntilTick: number;
   inkUntilTick: number;
@@ -287,6 +289,7 @@ export function toView(state: GameState): WorldView {
       invulnerableUntilTick: player.invulnerableUntilTick,
       nitroUntilTicks: [...player.nitroUntilTicks],
       snailUntilTicks: [...player.snailUntilTicks],
+      rangeLevel: player.rangeLevel,
       grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,

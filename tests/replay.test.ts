@@ -78,6 +78,7 @@ function world(
       fiveShotArmed: false,
       nitroUntilTicks: [],
       snailUntilTicks: [],
+      rangeLevel: 0,
       grip: false,
       shielded: false,
       shieldGraceUntilTick: 0,

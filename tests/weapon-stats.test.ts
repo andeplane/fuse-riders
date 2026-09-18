@@ -134,6 +134,7 @@ function dueBomb(
     power: 0,
     extraBombs: 0,
     fuseLevel: 0,
+    rangeLevel: 0,
     grip: false,
     kills: [],
   });
@@ -532,6 +533,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     powerPickups: 3,
     extraBombs: 1,
     fuseLevel: 2,
+    rangeLevel: 0,
     grip: true,
   });
   input({ bomb: true, bombCommands: [{ action: "press" }] });
@@ -548,6 +550,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     powerPickups: 9,
     extraBombs: 4,
     fuseLevel: 0,
+    rangeLevel: 0,
     grip: false,
   });
   third.gunArmed = true;
@@ -601,6 +604,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     power: 0,
     extraBombs: 0,
     fuseLevel: 0,
+    rangeLevel: 0,
     grip: false,
     riders: 3,
     bots: 0,
@@ -613,6 +617,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     power: 3,
     extraBombs: 1,
     fuseLevel: 2,
+    rangeLevel: 0,
     grip: true,
     riders: 3,
     bots: 0,

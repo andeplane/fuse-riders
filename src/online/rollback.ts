@@ -175,7 +175,13 @@ export class World {
   ): WorldReceive {
     const stream = this.streams.get(id);
     if (!stream)
-      return { status: "invalid", added: [], events: [], rollbackTicks: 0 };
+      return {
+        status: "invalid",
+        added: [],
+        refusal: "violation",
+        events: [],
+        rollbackTicks: 0,
+      };
     const result = stream.receive(
       entries,
       lastSeq,

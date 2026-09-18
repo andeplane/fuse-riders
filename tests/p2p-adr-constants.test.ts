@@ -4,9 +4,12 @@ import test from "node:test";
 import { BOTS_ONLY_TIME_SCALE, TICK_HZ } from "../src/engine/game.js";
 import { SNAP_TICKS, TICK_MS } from "../src/online/clock.js";
 import {
+  BUFFERED_ENTRIES,
   FUTURE_TICKS,
   PACKET_ENTRIES,
+  RETAINED_ENTRIES,
   ROLLBACK_TICKS,
+  SEQ_AHEAD,
 } from "../src/online/stream.js";
 import {
   SNAPSHOT_INTERVAL,
@@ -16,9 +19,13 @@ import {
 import { MAX_PACKET_BYTES, MAX_PACKET_ENTRIES } from "../src/online/packet.js";
 import { MAX_SNAPSHOT_BYTES } from "../src/online/snapshot.js";
 import {
+  DISCONNECT_MS,
   HASH_INTERVAL,
   HASH_LAG,
   SNAPSHOT_BUFFER_LIMIT,
+  SNAPSHOT_RETRY_MS,
+  STALLED_GAP_MS,
+  WINDOW_GRACE_MS,
 } from "../src/online/room-runtime.js";
 import { DEFAULT_MAX_FAST_BYTES } from "fuse-network-fe";
 import { ROOM_RECONNECT_GRACE_MS } from "fuse-network-protocol";
@@ -127,10 +134,18 @@ test("the couplings ADR 047 marks as checked hold", () => {
   // C5: the clock's tick length is the simulation's.
   assert.equal(TICK_MS * TICK_HZ, 1000);
   assert.ok(BOTS_ONLY_TIME_SCALE > 1);
+  // C6: an honest out-of-reach stream gets a stalled-gap wait and a snapshot retry in before its owner stops counting as heard.
+  assert.ok(WINDOW_GRACE_MS >= STALLED_GAP_MS + SNAPSHOT_RETRY_MS);
+  // C6: a link just up holds off an absence for one DISCONNECT_MS, which nobody stalls on at 1×.
+  assert.ok(DISCONNECT_MS < STALL_TICKS * TICK_MS);
   // C7: a follower still slewing toward the authority is never refused as too far ahead.
   assert.ok(FUTURE_TICKS > SNAP_TICKS);
   // C9: a full snapshot's base64 text fits the buffer it is served through.
   assert.ok(SNAPSHOT_BUFFER_LIMIT > Math.ceil((MAX_SNAPSHOT_BYTES * 4) / 3));
   // C12: the service's room lifetime is the protocol's reconnect grace.
   assert.equal(ROOM_TTL_MS, ROOM_RECONNECT_GRACE_MS);
+  // C13: out of reach starts beyond what a NACK can repair and beyond what the buffer may hold.
+  assert.equal(SEQ_AHEAD, BUFFERED_ENTRIES * 16);
+  assert.ok(SEQ_AHEAD > RETAINED_ENTRIES);
+  assert.ok(SEQ_AHEAD >= BUFFERED_ENTRIES);
 });

@@ -83,6 +83,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   nitroUntilTicks: number[];
   /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#240). */
   snailUntilTicks: number[];
+  /** Round-long maximum bomb reach upgrade, capped at MAX_RANGE_LEVEL. */
+  rangeLevel: number;
   /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
   grip: boolean;
   drunkUntilTick: number;

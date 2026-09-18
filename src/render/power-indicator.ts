@@ -1,3 +1,5 @@
+import { bombRangeMultiplier } from "../engine/view-kit.js";
+
 /** Gold belongs to Power; player names retain their identity color. */
 export const POWER_COLOR = "#ffdf55";
 export const POWER_ICON_SIZE = 10;
@@ -7,8 +9,9 @@ export function powerCountText(
   pickups: number,
   extraBombs = 0,
   grip = false,
+  rangeLevel = 0,
 ): string {
-  return `${pickups}${extraBombs > 0 ? ` · B×${1 + extraBombs}` : ""}${grip ? " · GRIP" : ""}`;
+  return `${pickups}${extraBombs > 0 ? ` · B×${1 + extraBombs}` : ""}${grip ? " · GRIP" : ""}${rangeLevel > 0 ? ` · RANGE×${bombRangeMultiplier(rangeLevel)}` : ""}`;
 }
 /**
  * A phone chip for one stacked speed effect: the factor its unexpired deadlines multiply into, and the time until the
@@ -31,6 +34,7 @@ export function powerLabel(
   pickups: number,
   extraBombs = 0,
   grip = false,
+  rangeLevel = 0,
 ): string {
-  return `◆ ${powerCountText(pickups, extraBombs, grip)}`;
+  return `◆ ${powerCountText(pickups, extraBombs, grip, rangeLevel)}`;
 }

@@ -9,13 +9,14 @@ import type { WorldView } from "../../src/engine/view.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
 export function visualFixture(tick: number): WorldView {
   const game = createGame("renderer-fixture", 42);
+  // The fixture uses five of the available slot colors and avatars.
   for (let p = 0; p < 5; p++)
     addPlayer(game, {
       id: `p${p}`,
       name: `RIDER ${p + 1}`,
       slot: p,
-      color: SLOT_COLORS[p],
-      avatarId: AVATARS[p].id,
+      color: SLOT_COLORS[p]!,
+      avatarId: AVATARS[p]!.id,
     });
   const state = toView(game);
   const phase = tick / 20;

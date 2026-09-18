@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { arenaBacking } from "../src/render/phaser/viewport.js";
+import {
+  arenaBacking,
+  arenaQuarterTurn,
+} from "../src/render/phaser/viewport.js";
 
 test("arena backing follows displayed size and screen density without changing world aspect", () => {
   assert.deepEqual(arenaBacking(1600, 900, 800, 450, 1), {
@@ -49,5 +52,17 @@ test("arena backing bounds oversized displays and survives hidden or unavailable
   assert.deepEqual(arenaBacking(1600, 900, 800, 450, NaN), {
     width: 800,
     height: 450,
+  });
+});
+
+test("fit orientation maximizes the complete arena, leaving squares and hidden canvases stable", () => {
+  assert.equal(arenaQuarterTurn(1600, 900, 390, 844), true);
+  assert.equal(arenaQuarterTurn(1600, 900, 844, 390), false);
+  assert.equal(arenaQuarterTurn(1600, 900, 600, 600), false);
+  assert.equal(arenaQuarterTurn(1600, 900, 0, 0), false);
+  assert.equal(arenaQuarterTurn(900, 900, 390, 844), false);
+  assert.deepEqual(arenaBacking(900, 1600, 390, 844, 2), {
+    width: 780,
+    height: 1387,
   });
 });

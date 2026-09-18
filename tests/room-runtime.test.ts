@@ -1136,13 +1136,16 @@ test("a guest hidden while only AI riders race drops back with the authority at 
   f.net.setHidden(GUESTS[0]!, false);
   // The round's end can land anywhere in the rate-observation window. Recovery slews at one tick per second;
   // a fixed three-second wait only worked for the previous pickup balance's smaller clock gap.
+  // Restoring visibility also requests the frozen world's snapshot. Even when the clocks are already close,
+  // advance the network until that recovery completes before asserting that both clocks and worlds are ready.
   const recoveryMs =
     (apart(f.host, f.guest) / SLEW_TICKS_PER_SECOND) * 1000 +
     SAMPLE_WINDOW_MS +
     RATE_DEFER_MS;
   for (
     let elapsed = 0;
-    elapsed < recoveryMs && apart(f.host, f.guest) >= 5;
+    elapsed < recoveryMs &&
+    (apart(f.host, f.guest) >= 5 || f.guest.metrics().snapshotRequest);
     elapsed += 50
   )
     f.net.step(50);

@@ -4,6 +4,7 @@ import {
   AUDIO_SETTINGS_KEY,
   DEFAULT_VOLUME,
   loadAudioSettings,
+  mutedByQuery,
   requestAmbientAudio,
 } from "../src/client/game-audio.ts";
 import { createMemoryStorage } from "../src/client/safe-storage.ts";
@@ -96,6 +97,18 @@ test("music can start off by default, and a stored choice overrides that default
     { music: true, effects: false },
     "a desktop that turned music off keeps it off",
   );
+});
+
+// Many agents can preview the game at once; ?mute lets automated testing skip the soundtrack without touching a
+// player's own stored choice.
+test("?mute silences the query, and only an explicit 0 or false opts back in", () => {
+  assert.equal(mutedByQuery("?mute"), true);
+  assert.equal(mutedByQuery("?mute=1"), true);
+  assert.equal(mutedByQuery("?room=ABCD&mute=1"), true);
+  assert.equal(mutedByQuery("?mute=0"), false);
+  assert.equal(mutedByQuery("?mute=false"), false);
+  assert.equal(mutedByQuery(""), false);
+  assert.equal(mutedByQuery("?room=ABCD"), false);
 });
 
 // iOS mutes an ambient session with the silent switch and ignores it for a playback session, which is what a page

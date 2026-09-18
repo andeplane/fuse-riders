@@ -14,8 +14,9 @@
 export { advanceRiderPose, type MotionControls } from "./rider-motion.js";
 export { gravityBend } from "./gravity.js";
 
-// The charge marker is drawn at a fractional charge age; the engine only ever evaluates whole ticks.
-export { bombLaunchDistance } from "./bomb-launch.js";
+// The charge marker is drawn at a fractional charge age on the same aim curve a release samples at whole ticks, and the
+// power chip names the reach a Range level gives.
+export { bombAimDistance, bombRangeMultiplier } from "./bomb-launch.js";
 
 // A board with open edges: fold a point back onto it, take the short way round, and list where something near an
 // edge has to be drawn a second time. Plain arithmetic on a width and a height.

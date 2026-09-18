@@ -26,7 +26,7 @@
     "src/client/viewport-lock.ts",
     "src/online/account-panel.ts",
     "src/online/account.ts",
-    "src/online/analytics.ts",
+    "src/online/analytics-setting.ts",
     "src/online/attract.ts",
     "src/online/connect-hint.ts",
     "src/online/endpoints.ts",

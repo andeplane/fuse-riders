@@ -19,6 +19,8 @@ async function fixture(brokenCors = false) {
     error: () => {},
   });
   const browserOrigin = "https://andeplane.github.io";
+  // A rejection in this fixture should fail the test as node:test's unhandled rejection, not be answered.
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, "http://fixture");
     if (req.headers.origin !== browserOrigin) {
@@ -48,7 +50,7 @@ async function fixture(brokenCors = false) {
     if (url.pathname.endsWith("/end")) {
       try {
         await store.end(
-          url.pathname.split("/")[3],
+          url.pathname.split("/")[3]!,
           req.headers.authorization?.replace(/^Bearer /, "") ?? "",
         );
         res.end('{"ok":true}');
@@ -82,7 +84,11 @@ async function fixture(brokenCors = false) {
         if (id) void gateway.disconnect(id);
       });
       void gateway
-        .connect(url.pathname.split("/")[3], url.searchParams.get("token")!, ws)
+        .connect(
+          url.pathname.split("/")[3]!,
+          url.searchParams.get("token")!,
+          ws,
+        )
         .then((value) => {
           id = value;
           for (const raw of pending) void gateway.receive(id, raw);
