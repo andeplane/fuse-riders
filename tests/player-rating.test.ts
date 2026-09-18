@@ -5,7 +5,7 @@ import {
   addPlayer,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   SLOT_COLORS,
 } from "../src/engine/game.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
@@ -570,7 +570,7 @@ test("a real simulation round reaches history settlement before the multi-round 
   );
   startMatch(game);
   for (let i = 0; i < 10000 && !game.decidedRound; i++) step(game, new Map());
-  const state = toSnapshot(game);
+  const state = toView(game);
   assert.equal(state.phase, "roundOver", "the full game has not ended");
   assert.equal(
     state.matchStats.length,

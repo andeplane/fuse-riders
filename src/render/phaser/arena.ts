@@ -5,19 +5,12 @@ import {
   POWER_ICON_GAP,
 } from "../power-indicator.js";
 import { assetUrl } from "../asset-url.js";
-import {
-  GRAVITY_FIELD_TICKS,
-  TRAIL_WIDTH,
-  PICKUP_TYPES,
-  gravityCoreRadius,
-} from "../../engine/game.js";
 import Phaser from "phaser";
-import type { ViewSnapshot } from "../snapshot-stream.js";
+import type { WorldView } from "../../engine/view.js";
 import { themes, type ThemeDefinition } from "../themes.js";
-import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
+import { AVATAR_ATLAS } from "../avatar-atlas.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
 import { drawBombAim } from "./bomb-aim.js";
-import { bombsPerShot, volleyAngles } from "../../engine/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
@@ -36,8 +29,7 @@ import {
   uprightOffset,
   edgeGhosts,
 } from "../arena-views.js";
-import { edgesOpen } from "../../engine/arena-map.js";
-import { wrapCoordinate } from "../../engine/wrap.js";
+import { PICKUP_TYPES, wrapCoordinate } from "../../engine/view-kit.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
@@ -76,7 +68,7 @@ export interface ArenaMetrics {
 export interface PhaserArena {
   ready: Promise<void>;
   render(
-    snapshot: ViewSnapshot,
+    snapshot: WorldView,
     now: number,
     theme: ThemeDefinition,
     matchId: string,
@@ -90,10 +82,16 @@ export interface PhaserArena {
 }
 
 /**
+ * The Phaser release `guardDefaultTextures` was last verified against (#344 checked the READY listeners on Phaser 4).
+ * `tests/phaser-version.test.ts` fails when `package.json` or the installed Phaser differs, so a bump re-verifies it.
+ */
+export const GUARDED_PHASER_VERSION = "4.2.1";
+
+/**
  * A navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still emits READY,
  * and the WebGL renderer then reads `__DEFAULT` and throws (#127). Take over the two READY listeners Phaser
  * registers (renderer boot, then game start) and run them, in that order, only when the default textures exist.
- * A Phaser whose boot does not match is left untouched.
+ * A Phaser whose boot does not match is left untouched, and `metrics().defaultTextureGuard` reports it.
  */
 function guardDefaultTextures(game: Phaser.Game, failed: () => void): boolean {
   const textures = game.textures;
@@ -125,6 +123,32 @@ function guardDefaultTextures(game: Phaser.Game, failed: () => void): boolean {
     internal.texturesReady!.call(game);
   });
   return true;
+}
+
+/** What every draw step of one frame reads: the view, the clock, the two dynamic layers and the board's shape. */
+interface Frame {
+  s: WorldView;
+  now: number;
+  theme: ThemeDefinition;
+  matchId: string;
+  selfId: string | undefined;
+  replay: boolean;
+  /** Under the riders' rings and labels. */
+  g: Phaser.GameObjects.Graphics;
+  /** Over the sprites. */
+  f: Phaser.GameObjects.Graphics;
+  w: number;
+  h: number;
+  b: number;
+  ground: ReturnType<typeof mapGround>;
+  open: boolean;
+  /** Every place something within `reach` of an open edge has to be drawn, its own first. */
+  ghosts(
+    x: number,
+    y: number,
+    reach: number,
+  ): readonly { dx: number; dy: number }[];
+  backgroundKey: string;
 }
 
 /** One external presentation clock; Phaser physics and input are deliberately disabled. */
@@ -341,7 +365,7 @@ class ArenaScene extends Phaser.Scene {
     loader.reset();
   }
   preload(): void {
-    this.load.image("avatars", assetUrl(AVATAR_ATLAS_URL));
+    this.load.image("avatars", assetUrl(AVATAR_ATLAS.url));
     for (const theme of Object.values(themes)) {
       this.load.svg(`${theme.id}:rider`, assetUrl(theme.sprites.rider), {
         width: 64,
@@ -374,14 +398,15 @@ class ArenaScene extends Phaser.Scene {
     if (this.textures.exists("avatars")) {
       const texture = this.textures.get("avatars");
       const source = texture.getSourceImage();
-      AVATARS.forEach((avatar, index) =>
+      const { columns, rows, frames } = AVATAR_ATLAS;
+      frames.forEach((id, index) =>
         texture.add(
-          avatar.id,
+          id,
           0,
-          ((index % 5) * source.width) / 5,
-          (Math.floor(index / 5) * source.height) / 2,
-          source.width / 5,
-          source.height / 2,
+          ((index % columns) * source.width) / columns,
+          (Math.floor(index / columns) * source.height) / rows,
+          source.width / columns,
+          source.height / rows,
         ),
       );
     }
@@ -404,7 +429,7 @@ class ArenaScene extends Phaser.Scene {
       this.world.setMask(this.maskShape.createGeometryMask());
     }
     if (this.game.renderer.type === Phaser.WEBGL) {
-      this.beveledTrails = new BeveledTrails(this, TRAIL_WIDTH).setDepth(1);
+      this.beveledTrails = new BeveledTrails(this).setDepth(1);
       this.world.add(this.beveledTrails);
       this.trails.setVisible(false);
       this.trailTips.setVisible(false);
@@ -499,7 +524,7 @@ class ArenaScene extends Phaser.Scene {
     }
   }
 
-  /** Paints whatever `arenaWall()` chose for this theme; the choice itself lives there, once, for both renderers. */
+  /** Paints whatever `arenaWall()` chose for this theme; the choice itself lives there, once, where it is tested. */
   private drawWall(
     w: number,
     h: number,
@@ -564,8 +589,8 @@ class ArenaScene extends Phaser.Scene {
   }
   /** Scenery is static until a blast clears it, so it is baked into the floor pass rather than redrawn each frame. */
   private drawObstacles(
-    obstacles: ViewSnapshot["obstacles"],
-    map: ViewSnapshot["map"],
+    obstacles: WorldView["obstacles"],
+    map: WorldView["map"],
   ): void {
     for (const obstacle of obstacles)
       for (const part of obstacleParts(obstacle, map)) {
@@ -659,8 +684,13 @@ class ArenaScene extends Phaser.Scene {
     if (label.style.fontSize !== `${size}px`) label.setFontSize(size);
     return label;
   }
+  /**
+   * One frame. The order below is the z-order within each Graphics layer and is part of the look: floor, trails,
+   * one-shot sparks, pickups, portals, bombs, black-hole cores, blasts, debris, riders, ink. Each step reads the view
+   * and nothing else.
+   */
   paint(
-    s: ViewSnapshot,
+    s: WorldView,
     now: number,
     theme: ThemeDefinition,
     matchId: string,
@@ -669,14 +699,53 @@ class ArenaScene extends Phaser.Scene {
   ): void {
     this.imageIndex = 0;
     this.labelIndex = 0;
-    const g = this.dynamic.clear();
-    const f = this.front.clear();
     const { width: w, height: h, boundaryInset: b } = s;
-    const ground = mapGround(s.map, theme);
-    const open = edgesOpen(s);
-    const ghosts = (x: number, y: number, reach: number) =>
-      open ? edgeGhosts(w, h, x, y, reach) : NO_GHOSTS;
-    const backgroundKey = `${w}:${h}:${theme.id}:${s.map}`;
+    const open = s.openEdges;
+    const frame: Frame = {
+      s,
+      now,
+      theme,
+      matchId,
+      selfId,
+      replay,
+      g: this.dynamic.clear(),
+      f: this.front.clear(),
+      w,
+      h,
+      b,
+      ground: mapGround(s.map, theme),
+      open,
+      ghosts: (x, y, reach) =>
+        open ? edgeGhosts(w, h, x, y, reach) : NO_GHOSTS,
+      backgroundKey: `${w}:${h}:${theme.id}:${s.map}`,
+    };
+    this.drawBackground(frame);
+    this.drawFloor(frame);
+    this.drawTrails(frame);
+    this.drawTransitions(frame);
+    this.drawGunImpacts(frame);
+    this.drawPickups(frame);
+    this.drawPortals(frame);
+    this.drawGunMuzzles(frame);
+    this.drawBombs(frame);
+    this.drawFields(frame);
+    this.drawBlasts(frame);
+    this.drawDebris(frame);
+    this.drawRiders(frame);
+    this.drawInk(frame);
+    while (this.images.length > this.imageIndex + 16)
+      this.images.pop()!.destroy();
+    while (this.labels.length > this.labelIndex + 8)
+      this.labels.pop()!.destroy();
+    for (let i = this.imageIndex; i < this.images.length; i++)
+      this.images[i]!.setVisible(false);
+    for (let i = this.labelIndex; i < this.labels.length; i++)
+      this.labels[i]!.setVisible(false);
+    this.world.depthSort();
+  }
+  /** The backdrop texture: redrawn only when the board, the theme or the map changes. */
+  private drawBackground(frame: Frame): void {
+    const { s, w, h, ground, backgroundKey } = frame;
     if (backgroundKey !== this.backgroundKey) {
       this.backgroundKey = backgroundKey;
       // A soft radial wash stays still as the boundary closes in.
@@ -700,6 +769,10 @@ class ArenaScene extends Phaser.Scene {
       this.floorTexture.setFilter(Phaser.Textures.FilterMode.LINEAR);
       this.floorImage.setDisplaySize(w, h);
     }
+  }
+  /** Everything static for a while, baked into one Graphics: grid (bent by black holes), wall or open rim, scenery, and the mask. */
+  private drawFloor(frame: Frame): void {
+    const { s, theme, matchId, w, h, b, ground, open, backgroundKey } = frame;
     // Obstacles are only ever removed within a round, so their count identifies the standing set.
     // Black holes pull the grid toward their cores. The ease is quantised, so the floor only redraws while a hole opens or closes.
     const wells = s.gravityFields
@@ -712,7 +785,7 @@ class ArenaScene extends Phaser.Scene {
           pull:
             (Math.round(
               clamp(left / 20, 0, 1) *
-                clamp((GRAVITY_FIELD_TICKS - left) / 6, 0, 1) *
+                clamp((field.durationTicks - left) / 6, 0, 1) *
                 20,
             ) /
               20) *
@@ -784,7 +857,7 @@ class ArenaScene extends Phaser.Scene {
       };
       for (let x = 0; x <= w; x += ground.gridSize) gridLine(x, 0, x, h);
       for (let y = 0; y <= h; y += ground.gridSize) gridLine(0, y, w, y);
-      if (edgesOpen(s)) {
+      if (open) {
         // No wall to draw. A dashed rim marks where the board repeats, in place of one that would say "stop".
         this.floor.lineStyle(2, color(theme.palette.rim), 0.35);
         for (let x = 0; x < w; x += 28) {
@@ -811,6 +884,10 @@ class ArenaScene extends Phaser.Scene {
         .fillStyle(0xffffff)
         .fillRect(b, b, w - 2 * b, h - 2 * b);
     }
+  }
+  /** Established trail from the cache, restroked only when it changes; the moving tips every frame. */
+  private drawTrails(frame: Frame): void {
+    const { s, theme, matchId } = frame;
     // Snapshot ticks keep advancing during results; the decision owns the frozen board.
     const trailColorTick =
       s.phase === "playing"
@@ -823,6 +900,7 @@ class ArenaScene extends Phaser.Scene {
       s.players,
       `${matchId}:${s.round}:${theme.id}`,
       trailColorTick,
+      s.rules,
     );
     if (history.changed) {
       this.trailHistoryBuilds++;
@@ -833,7 +911,14 @@ class ArenaScene extends Phaser.Scene {
     this.trailTips.clear();
     if (this.beveledTrails)
       this.beveledTrails.updateTrails(
-        completeTrailStrokes(s.players, s.tick, s.phase, trailColorTick),
+        completeTrailStrokes(
+          s.players,
+          s.tick,
+          s.phase,
+          s.rules,
+          trailColorTick,
+        ),
+        s.rules.trailWidth,
       );
     for (const player of this.beveledTrails ? [] : s.players)
       this.strokeTrail(
@@ -845,10 +930,15 @@ class ArenaScene extends Phaser.Scene {
             player.alive,
             player.trail.at(-1),
             trailColorTick,
+            s.rules,
           ),
         ),
         theme,
       );
+  }
+  /** One-shot cosmetics for what changed since the last frame: death sparks and scenery rubble. */
+  private drawTransitions(frame: Frame): void {
+    const { s, matchId, ground } = frame;
     const events = this.transitions.accept(s, matchId);
     for (const p of events.deaths) {
       this.sparks.setParticleTint(color(p.color));
@@ -858,19 +948,23 @@ class ArenaScene extends Phaser.Scene {
       this.sparks.setParticleTint(color(ground.dust));
       this.sparks.explode(10, piece.x, piece.y);
     }
+  }
+  /** Gun impacts: bursts at the endpoints the simulation already resolved, and the new ends of a cut trail. */
+  private drawGunImpacts(frame: Frame): void {
+    const { s, matchId, g, ghosts } = frame;
     for (const hit of this.gunImpacts.accept(s, matchId).active) {
-      const frame = gunImpactFrame(hit, s.presentationTick ?? s.tick);
+      const burst = gunImpactFrame(hit, s.presentationTick ?? s.tick);
       const tint = color(hit.color);
-      for (const fragment of frame.fragments)
+      for (const fragment of burst.fragments)
         for (const { dx, dy } of ghosts(fragment.x, fragment.y, fragment.size))
-          g.fillStyle(tint, frame.alpha).fillRect(
+          g.fillStyle(tint, burst.alpha).fillRect(
             fragment.x + dx - fragment.size / 2,
             fragment.y + dy - fragment.size / 2,
             fragment.size,
             fragment.size,
           );
       for (const end of hit.ends)
-        g.fillStyle(0xffffff, frame.alpha ** 2).fillRect(
+        g.fillStyle(0xffffff, burst.alpha ** 2).fillRect(
           end.x - 2,
           end.y - 2,
           4,
@@ -878,12 +972,15 @@ class ArenaScene extends Phaser.Scene {
         );
       if (hit.kind === "lethal")
         for (const { dx, dy } of ghosts(hit.x, hit.y, 20))
-          g.lineStyle(2, 0xffffff, frame.core).strokeCircle(
+          g.lineStyle(2, 0xffffff, burst.core).strokeCircle(
             hit.x + dx,
             hit.y + dy,
-            5 + (1 - frame.core) * 15,
+            5 + (1 - burst.core) * 15,
           );
     }
+  }
+  private drawPickups(frame: Frame): void {
+    const { s, now, theme, g } = frame;
     for (const p of s.pickups) {
       const pulse = 1 + Math.sin(now / 210 + p.id) * 0.06;
       const power = p.type === "power";
@@ -915,6 +1012,9 @@ class ArenaScene extends Phaser.Scene {
         );
       }
     }
+  }
+  private drawPortals(frame: Frame): void {
+    const { s, now, g } = frame;
     const portalPulses = gunPortalPulses(s, s.presentationTick ?? s.tick);
     const livePortals = s.portalPairs.filter(
       (pair) => pair.expiresAtTick > s.tick,
@@ -991,12 +1091,16 @@ class ArenaScene extends Phaser.Scene {
         }
       }
     }
-    // Only original rays flash at the muzzle; portal/wrap legs never create a second rider.
+  }
+  /** Only original rays flash at the muzzle and kick the rider back; drawn under the tracers themselves. */
+  private drawGunMuzzles(frame: Frame): void {
+    const { s, g, f } = frame;
+    // Portal/wrap legs never create a second rider.
     for (const bomb of gunRoots(s.bombs)) {
-      const frame = gunFrame(bomb, s.presentationTick ?? s.tick);
+      const pose = gunFrame(bomb, s.presentationTick ?? s.tick);
       const owner = s.players.find((p) => p.id === bomb.ownerId);
       const tint = color(owner?.color ?? "#ffffff");
-      const { dx, dy, flash, recoil } = frame;
+      const { dx, dy, flash, recoil } = pose;
       if (flash > 0) {
         const offset = Math.min(
           23,
@@ -1023,6 +1127,10 @@ class ArenaScene extends Phaser.Scene {
           18,
         );
     }
+  }
+  /** Gun tracers, shells, and lobbed bombs with their landing ring and fuse arc. */
+  private drawBombs(frame: Frame): void {
+    const { s, now, theme, g, w, h, open, ghosts } = frame;
     for (const bomb of s.bombs) {
       if (bomb.shell?.gun) {
         const { alpha, glow } = gunFrame(bomb, s.presentationTick ?? s.tick);
@@ -1137,20 +1245,30 @@ class ArenaScene extends Phaser.Scene {
         );
       }
     }
+  }
+  private drawFields(frame: Frame): void {
+    const { s, g } = frame;
     for (const field of s.gravityFields) {
       // The bent floor grid shows the hole's reach; only the black core is drawn here.
       const left = field.expiresAtTick - (s.presentationTick ?? s.tick),
         fade =
           clamp(left / 20, 0, 1) *
-          clamp((GRAVITY_FIELD_TICKS - left) / 6, 0, 1);
+          clamp((field.durationTicks - left) / 6, 0, 1);
       g.fillStyle(0x000000, fade).fillCircle(
         field.x,
         field.y,
-        gravityCoreRadius(field.radius),
+        field.coreRadius,
       );
     }
+  }
+  private drawBlasts(frame: Frame): void {
+    const { s, theme, g } = frame;
     for (const blast of s.blasts) {
-      const frame = blastFrame(blast, s.presentationTick ?? s.tick),
+      const frame = blastFrame(
+          blast,
+          s.presentationTick ?? s.tick,
+          s.rules.blastVisibleTicks,
+        ),
         { x, y, radius } = blast.circle;
       const tints = {
         outer: color(theme.palette.blast),
@@ -1177,6 +1295,9 @@ class ArenaScene extends Phaser.Scene {
           spark.size,
         );
     }
+  }
+  private drawDebris(frame: Frame): void {
+    const { s, now, matchId, g } = frame;
     for (const piece of this.debris.update(s, now, matchId)) {
       const tint = color(piece.color);
       g.lineStyle(piece.width + 5, tint, piece.alpha * 0.16).lineBetween(
@@ -1198,6 +1319,11 @@ class ArenaScene extends Phaser.Scene {
         piece.y2,
       );
     }
+  }
+  /** Riders last, over everything else on the board: locator, portrait, heading, labels, reload ring, status rings, charge markers. */
+  private drawRiders(frame: Frame): void {
+    const { s, now, theme, selfId, replay, g, f, w, h, b, open, ghosts } =
+      frame;
     // A replayed moment is not the round opening for the viewer, so it never points them out.
     const locate = replay ? 0 : selfLocatorStrength(s);
     // Near an open edge a rider is drawn on both sides of it, so it arrives as it leaves rather than popping across.
@@ -1404,7 +1530,8 @@ class ArenaScene extends Phaser.Scene {
             s.aimBounce,
             p.rangeLevel,
           );
-          for (const a of volleyAngles(p.angle, bombsPerShot(p))) {
+          for (const offset of p.nextVolleyAngles) {
+            const a = p.angle + offset;
             const x = open
                 ? p.x + Math.cos(a) * distance
                 : clamp(p.x + Math.cos(a) * distance, b + 20, w - b - 20),
@@ -1427,6 +1554,9 @@ class ArenaScene extends Phaser.Scene {
           this.label(`TARGET · ${p.name}`, text.x, text.y, p.color, 12, 7);
         }
       }
+  }
+  private drawInk(frame: Frame): void {
+    const { s, w, h } = frame;
     const inked = s.players.some((p) => p.alive && p.inkUntilTick > s.tick);
     this.inkImage.setVisible(inked);
     if (inked) {
@@ -1435,14 +1565,5 @@ class ArenaScene extends Phaser.Scene {
       drawInkClouds(this.ink.context, s, s.tick);
       this.ink.refresh();
     }
-    while (this.images.length > this.imageIndex + 16)
-      this.images.pop()!.destroy();
-    while (this.labels.length > this.labelIndex + 8)
-      this.labels.pop()!.destroy();
-    for (let i = this.imageIndex; i < this.images.length; i++)
-      this.images[i]!.setVisible(false);
-    for (let i = this.labelIndex; i < this.labels.length; i++)
-      this.labels[i]!.setVisible(false);
-    this.world.depthSort();
   }
 }

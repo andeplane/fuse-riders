@@ -1,14 +1,6 @@
-import {
-  RIDER_SPEED,
-  SPEED_RAMP_MAX,
-  TICK_HZ,
-  riderSpeedMultiplier,
-} from "../../engine/game.js";
-import { TRAIL_DECAY_PAUSE_TICKS } from "../../engine/view-kit.js";
-import type { TrailSegment } from "../../shared/protocol.js";
-import type { ViewSnapshot } from "../snapshot-stream.js";
+import type { TrailSegment, ViewRules, WorldView } from "../../engine/view.js";
 
-type Rider = ViewSnapshot["players"][number];
+type Rider = WorldView["players"][number];
 export interface TrailPoint {
   x: number;
   y: number;
@@ -18,12 +10,16 @@ export interface TrailStroke {
   alive: boolean;
   paths: readonly (readonly TrailPoint[])[];
 }
+/** What the fade of a detached trail needs of the rules; a `WorldView`'s `rules` is one. */
+export type TrailFadeRules = Pick<ViewRules, "tickHz" | "trailDecayPauseTicks">;
+
 /** Pure snapshot-time styling: detachment fades color over three seconds, never opacity. */
 export function trailColor(
   color: string,
   alive: boolean,
   segment: TrailSegment | undefined,
   tick: number,
+  rules: TrailFadeRules,
 ): string {
   const detached = segment?.detached;
   const saturation = detached
@@ -32,8 +28,8 @@ export function trailColor(
         Math.min(
           1,
           1 -
-            (tick - detached.decayStartTick + TRAIL_DECAY_PAUSE_TICKS) /
-              (3 * TICK_HZ),
+            (tick - detached.decayStartTick + rules.trailDecayPauseTicks) /
+              (3 * rules.tickHz),
         ),
       )
     : alive
@@ -105,7 +101,8 @@ export class TrailHistoryCache {
   update(
     players: readonly Rider[],
     scope: string,
-    tick = 0,
+    tick: number,
+    rules: TrailFadeRules,
   ): { changed: boolean; strokes: readonly TrailStroke[] } {
     const unchanged =
       scope === this.scope &&
@@ -128,8 +125,8 @@ export class TrailHistoryCache {
               segment.detached?.id === next.detached?.id &&
               segment.detached?.decayStartTick ===
                 next.detached?.decayStartTick &&
-              trailColor(old.color, old.alive, segment, this.tick) ===
-                trailColor(player.color, player.alive, next, tick)
+              trailColor(old.color, old.alive, segment, this.tick, rules) ===
+                trailColor(player.color, player.alive, next, tick, rules)
             );
           })
         );
@@ -152,7 +149,13 @@ export class TrailHistoryCache {
       const flush = () => {
         if (segments.length)
           groups.push({
-            color: trailColor(player.color, player.alive, segments[0], tick),
+            color: trailColor(
+              player.color,
+              player.alive,
+              segments[0],
+              tick,
+              rules,
+            ),
             alive: player.alive && !segments[0]!.detached,
             paths: trailPaths(segments),
           });
@@ -174,11 +177,11 @@ export class TrailHistoryCache {
   }
 }
 
-/** The supplied prediction segment is already the local tip. Remote/LAN interpolation needs at most one step. */
+/** The supplied prediction segment is already the local tip. A remote rider's interpolation needs at most one step. */
 export function trailTip(
   player: Rider,
   tick: number,
-  phase: ViewSnapshot["phase"],
+  phase: WorldView["phase"],
 ): readonly TrailPoint[] {
   const last = player.trail.at(-1);
   if (!last) return [];
@@ -194,12 +197,8 @@ export function trailTip(
     last.createdTick === Math.floor(tick) &&
     player.portalCooldownUntilTick <= tick &&
     distance > 1e-6 &&
-    distance <=
-      (RIDER_SPEED *
-        riderSpeedMultiplier(player, last.createdTick) *
-        SPEED_RAMP_MAX) /
-        TICK_HZ +
-        1e-6
+    // One step at most: the view says how far this rider goes on the next tick, whatever is speeding or slowing it.
+    distance <= player.speed + 1e-6
   ) {
     points.push({ x: player.x, y: player.y });
   }
@@ -210,7 +209,8 @@ export function trailTip(
 export function completeTrailStrokes(
   players: readonly Rider[],
   tick: number,
-  phase: ViewSnapshot["phase"],
+  phase: WorldView["phase"],
+  rules: TrailFadeRules,
   colorTick = tick,
 ): TrailStroke[] {
   // Include the moving tip in the same ribbon: no end cap or lighting seam at
@@ -235,7 +235,13 @@ export function completeTrailStrokes(
       const section = segments.slice(start, i);
       if (section.length)
         groups.push({
-          color: trailColor(player.color, player.alive, section[0], colorTick),
+          color: trailColor(
+            player.color,
+            player.alive,
+            section[0],
+            colorTick,
+            rules,
+          ),
           alive: player.alive && !section[0]!.detached,
           paths: trailPaths(section),
         });

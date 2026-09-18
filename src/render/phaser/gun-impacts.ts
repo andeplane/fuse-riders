@@ -1,12 +1,5 @@
-import {
-  edgesOpen,
-  obstacleDistanceSquared,
-  GUN_HEADSHOT_RADIUS,
-  GUN_HOLE_RADIUS,
-  GUN_RADIUS,
-  wrapDelta,
-  type GunView as ViewSnapshot,
-} from "../../engine/view-kit.js";
+import type { WorldView as ViewSnapshot } from "../../engine/view.js";
+import { obstacleDistanceSquared, wrapDelta } from "../../engine/view-kit.js";
 
 type Point = { x: number; y: number };
 export interface GunImpact extends Point {
@@ -25,7 +18,8 @@ function contact(
   previous: ViewSnapshot,
   bomb: ViewSnapshot["bombs"][number],
 ): GunImpact | undefined {
-  const open = edgesOpen(snapshot);
+  const open = snapshot.openEdges;
+  const { gunRadius, gunHoleRadius, gunHeadshotRadius } = snapshot.rules;
   const distance = (a: Point, b: Point) =>
     Math.hypot(
       open ? wrapDelta(a.x - b.x, snapshot.width) : a.x - b.x,
@@ -49,7 +43,7 @@ function contact(
     if (
       !player.alive &&
       before.alive &&
-      distance(player, bomb) <= GUN_HEADSHOT_RADIUS + 0.1
+      distance(player, bomb) <= gunHeadshotRadius + 0.1
     )
       return { ...impact, kind: "lethal", color: player.color };
     // The hole's newly exposed endpoints are supplied by the simulation. Expiry alone is not a cut.
@@ -60,7 +54,7 @@ function contact(
       ])
       .filter(
         (end) =>
-          Math.abs(distance(end, bomb) - GUN_HOLE_RADIUS) < 0.15 &&
+          Math.abs(distance(end, bomb) - gunHoleRadius) < 0.15 &&
           before.trail.some((trail) => {
             if (!trail.detached && trail.expiresAtTick <= snapshot.tick)
               return false;
@@ -82,7 +76,7 @@ function contact(
     if (ends.length)
       return { ...impact, kind: "trail", color: player.color, ends };
   }
-  const inset = snapshot.boundaryInset + GUN_RADIUS;
+  const inset = snapshot.boundaryInset + gunRadius;
   const wall =
     !open &&
     Math.min(
@@ -96,7 +90,7 @@ function contact(
     snapshot.obstacles.some(
       (obstacle) =>
         obstacleDistanceSquared(obstacle, bomb.x, bomb.y) <=
-        (GUN_RADIUS + 0.1) ** 2,
+        (gunRadius + 0.1) ** 2,
     )
   )
     return impact;

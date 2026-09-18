@@ -1,19 +1,21 @@
-import { gravityBend, riderMotionStep } from "../engine/game.js";
+/**
+ * Presentation time, in one place: what is drawn between two simulated ticks, and the local rider led ahead of
+ * them. Nothing here feeds the simulation; a view goes in, a view comes out.
+ */
 import {
   advanceRiderPose,
+  gravityBend,
+  wrapDelta,
   type MotionControls,
-} from "../engine/rider-motion.js";
-import { atan2, cos, hypot2, sin } from "../engine/deterministic-math.js";
-import { edgesOpen } from "../engine/arena-map.js";
-import { wrapDelta } from "../engine/wrap.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
+} from "../../engine/view-kit.js";
+import type { WorldView } from "../../engine/view.js";
 
 /** All discrete state belongs to the earlier tick; never expose future trail/death state. */
 export function interpolateWorld(
-  older: ViewSnapshot | undefined,
-  newer: ViewSnapshot,
+  older: WorldView | undefined,
+  newer: WorldView,
   fraction: number,
-): ViewSnapshot {
+): WorldView {
   if (
     !older ||
     older.round !== newer.round ||
@@ -23,7 +25,7 @@ export function interpolateWorld(
     return newer;
   const f = Math.max(0, Math.min(1, fraction));
   // Over open edges a rider or shell that crossed between the two ticks went the short way round, through the edge.
-  const open = edgesOpen(newer);
+  const open = newer.openEdges;
   const dx = (delta: number): number =>
     open ? wrapDelta(delta, newer.width) : delta;
   const dy = (delta: number): number =>
@@ -40,9 +42,9 @@ export function interpolateWorld(
         previous.portalCooldownUntilTick !== player.portalCooldownUntilTick
       )
         return previous;
-      const delta = atan2(
-        sin(player.angle - previous.angle),
-        cos(player.angle - previous.angle),
+      const delta = Math.atan2(
+        Math.sin(player.angle - previous.angle),
+        Math.cos(player.angle - previous.angle),
       );
       return {
         ...previous,
@@ -80,11 +82,11 @@ export interface LocalRider {
  * while the simulation catches up. Deaths, pickups and scores come from the newest tick as simulated.
  */
 export function presentWorld(
-  older: ViewSnapshot | undefined,
-  newer: ViewSnapshot,
+  older: WorldView | undefined,
+  newer: WorldView,
   presentationTick: number,
   local?: LocalRider,
-): ViewSnapshot {
+): WorldView {
   const shown =
     older && presentationTick < newer.tick
       ? interpolateWorld(older, newer, presentationTick - older.tick)
@@ -95,7 +97,9 @@ export function presentWorld(
       : undefined;
   if (!rider || !rider.alive || local!.lead <= 0) return shown;
   const lead = Math.min(1, local!.lead);
-  const motion = riderMotionStep(rider, newer.tick + 1, newer.roundStartedTick);
+  // The step the simulation will give this rider on the tick after `newer`, as the newest view states it.
+  const next = newer.players.find((p) => p.id === rider.id) ?? rider;
+  const motion = { distance: next.speed, turn: next.turn };
   const pose = advanceRiderPose(
     {
       x: rider.x,
@@ -118,7 +122,7 @@ export function presentWorld(
       drunkHeadingOffset: 0,
     },
   );
-  const distance = hypot2(pose.x - rider.x, pose.y - rider.y);
+  const distance = Math.hypot(pose.x - rider.x, pose.y - rider.y);
   const trail =
     distance > 0 && distance <= motion.distance + 1e-6
       ? [
@@ -148,4 +152,14 @@ export function presentWorld(
         : p,
     ),
   };
+}
+
+/** `presentWorld` over what a runtime hands out (`RoomRuntime.presentation()`): two frames, a time and a lead. */
+export function presentFrames(frames: {
+  older?: WorldView;
+  newer: WorldView;
+  tick: number;
+  local?: LocalRider;
+}): WorldView {
+  return presentWorld(frames.older, frames.newer, frames.tick, frames.local);
 }

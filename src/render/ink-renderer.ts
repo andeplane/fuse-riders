@@ -1,11 +1,11 @@
-import type { GameSnapshot } from "../shared/protocol.js";
+import type { WorldView } from "../engine/view.js";
 
 let layer: HTMLCanvasElement | undefined;
 
 /** Fog is a display effect only; unaffected riders retain a clear nearby area. */
 export function drawInkClouds(
   ctx: CanvasRenderingContext2D,
-  snapshot: GameSnapshot,
+  snapshot: WorldView,
   tick: number,
 ): void {
   const affected = snapshot.players.filter(

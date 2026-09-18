@@ -80,8 +80,9 @@ interface Resources {
  */
 export class BeveledTrails extends Phaser.GameObjects.Extern {
   private ribbons: readonly TrailRibbon[] = [];
-  private cache: TrailRibbonCache;
-  private readonly visualWidth: number;
+  private cache?: TrailRibbonCache;
+  private trailWidth = 0;
+  private visualWidth = 0;
   private resources: Resources | undefined;
   private failed = false;
   private capacity = 0;
@@ -92,14 +93,14 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
     count: 0,
   };
 
-  constructor(scene: Phaser.Scene, trailWidth: number) {
-    super(scene);
-    // Slightly fuller silhouette; the authoritative collision width is unchanged.
-    this.visualWidth = trailWidth * 1.25;
-    this.cache = new TrailRibbonCache(this.visualWidth);
-  }
-
-  updateTrails(strokes: readonly TrailStroke[]): void {
+  /** `trailWidth` is the view's `rules.trailWidth`: the width trails collide at. */
+  updateTrails(strokes: readonly TrailStroke[], trailWidth: number): void {
+    if (!this.cache || trailWidth !== this.trailWidth) {
+      this.trailWidth = trailWidth;
+      // Slightly fuller silhouette; the authoritative collision width is unchanged.
+      this.visualWidth = trailWidth * 1.25;
+      this.cache = new TrailRibbonCache(this.visualWidth);
+    }
     this.ribbons = this.cache.update(strokes);
   }
 

@@ -3,8 +3,8 @@ import { World } from "./rollback.js";
 import { BOT_NAMES, createRoomState } from "../engine/apply-tick.js";
 import { ACTION, BOT } from "../engine/input-log.js";
 import { defaultRoomSettings } from "../engine/room-settings.js";
-import { mountArenaPresentation } from "../client/phaser/presentation.js";
-import { selectedTheme } from "../client/themes.js";
+import { mountArenaPresentation } from "../render/phaser/presentation.js";
+import { selectedTheme } from "../client/theme-choice.js";
 
 /** A separate, silent local game on the shared log core. It never opens a room or a connection. */
 export async function startAttract(

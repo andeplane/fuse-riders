@@ -2,7 +2,7 @@ import {
   createGame,
   addPlayer,
   startMatch,
-  toSnapshot,
+  toView,
   MATCH_WINNER_TICKS,
   ROUND_OVER_TICKS,
   SLOT_COLORS,
@@ -19,9 +19,9 @@ import {
   showsRoundResult,
   type Announcement,
 } from "../src/client/arena-announcer.js";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import type { WorldView } from "../src/engine/view.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
-type ScoredView = ViewSnapshot;
+type ScoredView = WorldView;
 const field = (announcement: Announcement, key: string) =>
   (announcement as unknown as Record<string, unknown>)[key];
 
@@ -34,7 +34,7 @@ const view = (overrides: Partial<ScoredView>): ScoredView => {
     addPlayer(game, { id, name, slot, color: SLOT_COLORS[slot] });
   startMatch(game);
   return {
-    ...toSnapshot(game),
+    ...toView(game),
     phase: "playing",
     tick: 100,
     round: 2,

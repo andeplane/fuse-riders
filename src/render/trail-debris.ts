@@ -1,8 +1,5 @@
-import { BLAST_VISIBLE_TICKS, TRAIL_WIDTH } from "../engine/game.js";
-import { advanceTrail } from "../engine/trail-lifecycle.js";
-import { segmentIntersectsDisk } from "../engine/blast-geometry.js";
-import type { TrailSegment } from "../shared/protocol.js";
-import type { ViewSnapshot } from "./snapshot-stream.js";
+import { advanceTrail, segmentIntersectsDisk } from "../engine/view-kit.js";
+import type { TrailSegment, WorldView } from "../engine/view.js";
 
 export interface DebrisStroke {
   x1: number;
@@ -59,7 +56,7 @@ export class TrailDebris {
     this.blasts.clear();
   }
 
-  update(snapshot: ViewSnapshot, now: number, match: string): DebrisStroke[] {
+  update(snapshot: WorldView, now: number, match: string): DebrisStroke[] {
     const scope = `${match}:${snapshot.round}`;
     const reset =
       scope !== this.scope ||
@@ -77,7 +74,8 @@ export class TrailDebris {
           (blast) =>
             !this.blasts.has(blast.bombId) &&
             blast.expiresAtTick > snapshot.tick &&
-            blast.expiresAtTick - BLAST_VISIBLE_TICKS > Math.floor(this.tick),
+            blast.expiresAtTick - snapshot.rules.blastVisibleTicks >
+              Math.floor(this.tick),
         );
     if (fresh.length) {
       const incoming: Fragment[] = [];
@@ -110,7 +108,7 @@ export class TrailDebris {
           const x = (segment.x1 + segment.x2) / 2,
             y = (segment.y1 + segment.y2) / 2;
           // An overlap launches each piece once, using the strongest local blast.
-          let strongest: ViewSnapshot["blasts"][number] | undefined;
+          let strongest: WorldView["blasts"][number] | undefined;
           let pressure = -Infinity;
           for (const blast of fresh) {
             if (
@@ -120,7 +118,7 @@ export class TrailDebris {
                 segment.x2,
                 segment.y2,
                 blast.circle,
-                TRAIL_WIDTH / 2,
+                snapshot.rules.trailWidth / 2,
               )
             )
               continue;

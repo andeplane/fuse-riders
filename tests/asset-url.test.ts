@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { resolveAssetUrl } from "../src/client/asset-url.js";
+import { resolveAssetUrl } from "../src/render/asset-url.js";
 test("assets resolve once under a Pages base and preserve external URLs", () => {
   const base = "/fuse-riders/";
   for (const source of [

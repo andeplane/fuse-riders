@@ -1,8 +1,4 @@
-import {
-  GUN_RADIUS,
-  PORTAL_WALL_HALF_WIDTH,
-  type GunView as ViewSnapshot,
-} from "../../engine/view-kit.js";
+import type { WorldView as ViewSnapshot } from "../../engine/view.js";
 
 type Tracer = ViewSnapshot["bombs"][number];
 
@@ -45,7 +41,8 @@ export function gunPortalPulses(snapshot: ViewSnapshot, tick: number) {
   const rays = snapshot.bombs.filter(
     (bomb) => bomb.shell?.gun && gunFrame(bomb, tick).alpha > 0,
   );
-  const clearance = PORTAL_WALL_HALF_WIDTH + GUN_RADIUS;
+  const clearance =
+    snapshot.rules.portalWallHalfWidth + snapshot.rules.gunRadius;
   for (const pair of snapshot.portalPairs) {
     if (pair.expiresAtTick <= tick) continue;
     for (const [index, gate] of pair.gates.entries()) {

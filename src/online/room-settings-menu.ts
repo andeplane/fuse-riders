@@ -9,7 +9,7 @@ import {
   weightFor,
 } from "./powerup-rarity.js";
 import { TICK_HZ, type PickupType } from "../engine/game.js";
-import { ARENA_MAP_LABELS } from "../client/arena-maps.js";
+import { ARENA_MAP_LABELS } from "../render/arena-maps.js";
 import type { ArenaMapChoice } from "../engine/arena-map.js";
 import {
   BOMB_MIN_CHARGE_TICKS,

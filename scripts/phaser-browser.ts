@@ -16,14 +16,14 @@ try {
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const result = await page.evaluate(async (recoveryBudgetMs) => {
     const { createPhaserArena } = (await import(
-      String("/src/client/phaser/arena.ts")
-    )) as typeof import("../src/client/phaser/arena.js");
+      String("/src/render/phaser/arena.ts")
+    )) as typeof import("../src/render/phaser/arena.js");
     const { visualFixture } = (await import(
-      String("/src/client/phaser/benchmark-fixture.ts")
-    )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/client/themes.ts")
-    )) as typeof import("../src/client/themes.js");
+      String("/src/render/themes.ts")
+    )) as typeof import("../src/render/themes.js");
     const results = [];
     // #127: a navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still reports
     // READY, and booting the WebGL renderer without __DEFAULT throws. Failing those images (only they are data PNGs set
@@ -336,8 +336,8 @@ try {
       wrapper.remove();
     }
     const { mountArenaPresentation } = (await import(
-      String("/src/client/phaser/presentation.ts")
-    )) as typeof import("../src/client/phaser/presentation.js");
+      String("/src/render/phaser/presentation.ts")
+    )) as typeof import("../src/render/phaser/presentation.js");
     const wrapper = document.createElement("div");
     wrapper.style.cssText = "width:800px;height:450px";
     document.body.append(wrapper);

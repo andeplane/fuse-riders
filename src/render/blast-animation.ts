@@ -1,7 +1,6 @@
-import { BLAST_VISIBLE_TICKS } from "../engine/game.js";
-import type { ViewSnapshot } from "./snapshot-stream.js";
+import type { WorldView } from "../engine/view.js";
 
-type Blast = ViewSnapshot["blasts"][number];
+type Blast = WorldView["blasts"][number];
 export type BlastTone = "outer" | "warm" | "core";
 export interface BlastCircleFrame {
   x: number;
@@ -42,12 +41,16 @@ function variation(id: number, lane: number): number {
 }
 
 /**
- * A stateless pop / bloom / break / clear, sampled from presentation ticks. The existing
- * eight-tick blast lifetime (400 ms) owns expiry; no timers, effect history or physics changes.
+ * A stateless pop / bloom / break / clear, sampled from presentation ticks. The blast's lifetime in the simulation
+ * (`rules.blastVisibleTicks` of the view, 400 ms) owns expiry; no timers, effect history or physics changes.
  * Every filled circle and square stays inside the supplied damage disk, even at overshoot.
  */
-export function blastFrame(blast: Blast, tick: number): BlastFrame {
-  const age = 1 - (blast.expiresAtTick - tick) / BLAST_VISIBLE_TICKS;
+export function blastFrame(
+  blast: Blast,
+  tick: number,
+  visibleTicks: number,
+): BlastFrame {
+  const age = 1 - (blast.expiresAtTick - tick) / visibleTicks;
   const frame: BlastFrame = {
     circles: [],
     sparks: [],

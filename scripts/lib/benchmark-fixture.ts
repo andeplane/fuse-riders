@@ -2,13 +2,13 @@ import {
   createGame,
   classicSettings,
   addPlayer,
-  toSnapshot,
+  toView,
   SLOT_COLORS,
-} from "../../engine/game.js";
-import { AVATARS } from "../../shared/avatars.js";
-import type { ViewSnapshot } from "../snapshot-stream.js";
+} from "../../src/engine/game.js";
+import { AVATARS } from "../../src/shared/avatars.js";
+import type { WorldView } from "../../src/engine/view.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
-export function visualFixture(tick: number): ViewSnapshot {
+export function visualFixture(tick: number): WorldView {
   // The classic board with a parked aim: what this fixture rendered before settings became required (#311).
   const game = createGame("renderer-fixture", classicSettings(), 42);
   // The fixture uses five of the available slot colors and avatars.
@@ -20,7 +20,7 @@ export function visualFixture(tick: number): ViewSnapshot {
       color: SLOT_COLORS[p]!,
       avatarId: AVATARS[p]!.id,
     });
-  const state = toSnapshot(game);
+  const state = toView(game);
   const phase = tick / 20;
   return {
     ...state,
@@ -77,7 +77,7 @@ export function visualFixture(tick: number): ViewSnapshot {
     pickups: ["power", "triple", "five", "beer", "target", "shell"].map(
       (type, i) => ({
         id: i,
-        type: type as ViewSnapshot["pickups"][number]["type"],
+        type: type as WorldView["pickups"][number]["type"],
         x: 180 + i * 240,
         y: 780,
         expiresAtTick: tick + 100,

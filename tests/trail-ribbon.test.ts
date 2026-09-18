@@ -3,22 +3,24 @@ import assert from "node:assert/strict";
 import {
   addPlayer,
   createGame,
-  toSnapshot,
+  toView,
   TRAIL_WIDTH,
 } from "../src/engine/game.js";
 import {
   trailRibbon as buildRibbon,
   TrailRibbonCache,
-} from "../src/client/phaser/trail-ribbon.js";
+} from "../src/render/phaser/trail-ribbon.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import type { WorldView as ViewSnapshot } from "../src/engine/view.js";
 
-import { completeTrailStrokes } from "../src/client/phaser/trails.js";
+import { completeTrailStrokes } from "../src/render/phaser/trails.js";
 const trailRibbon = (path: Parameters<typeof buildRibbon>[0]) =>
   buildRibbon(path, TRAIL_WIDTH / 2);
 const update = (cache: TrailRibbonCache, state: ViewSnapshot) =>
-  cache.update(completeTrailStrokes(state.players, state.tick, state.phase));
+  cache.update(
+    completeTrailStrokes(state.players, state.tick, state.phase, state.rules),
+  );
 
 const segment = (x1: number, x2: number, tick: number): TrailSegment => ({
   x1,
@@ -31,7 +33,7 @@ const segment = (x1: number, x2: number, tick: number): TrailSegment => ({
 function snapshot(): ViewSnapshot {
   const game = createGame("ribbon", classicSettings(), 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
-  const state = toSnapshot(game);
+  const state = toView(game);
   return {
     ...state,
     round: 1,

@@ -18,17 +18,19 @@ try {
   await page.goto(`${server.url}?mute`);
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
-      String("/src/client/phaser/arena.ts")
-    )) as typeof import("../src/client/phaser/arena.js");
+      String("/src/render/phaser/arena.ts")
+    )) as typeof import("../src/render/phaser/arena.js");
     const { visualFixture } = (await import(
-      String("/src/client/phaser/benchmark-fixture.ts")
-    )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/client/themes.ts")
-    )) as typeof import("../src/client/themes.js");
+      String("/src/render/themes.ts")
+    )) as typeof import("../src/render/themes.js");
     const fixture = visualFixture(40);
     const snapshot = {
       ...fixture,
+      // Linear clamped aim unless a case below turns the bounce on; the fixture now carries the default settings.
+      aimBounce: false,
       boundaryInset: 20,
       bombs: [],
       blasts: [],

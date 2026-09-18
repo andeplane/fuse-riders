@@ -6,18 +6,18 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   SLOT_COLORS,
   type GameState,
   type InputIntent,
 } from "../src/engine/game.js";
 import { bombLaunchDistance } from "../src/engine/bomb-launch.js";
-import { bombPreviewDistance } from "../src/client/bomb-preview.js";
+import { bombPreviewDistance } from "../src/render/bomb-preview.js";
 import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { powerLabel } from "../src/client/power-indicator.js";
+import { powerLabel } from "../src/render/power-indicator.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
@@ -66,7 +66,7 @@ test("Range stacks three times, persists across shots, and leaves excess drops f
     drop(game);
     step(game, new Map());
     assert.equal(p.rangeLevel, level);
-    assert.equal(toSnapshot(game).players[0]!.rangeLevel, level);
+    assert.equal(toView(game).players[0]!.rangeLevel, level);
     for (let shot = 0; shot < 2; shot++) {
       p.bombReadyAtTick = game.tick;
       step(game, command("press"));

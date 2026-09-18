@@ -1,32 +1,26 @@
-import type { ViewSnapshot } from "../snapshot-stream.js";
+import type { WorldView } from "../../engine/view.js";
 
 /** Cosmetic identity is bounded by the current frame, never retained for a whole match. */
 export class EffectTransitions {
   private scope = "";
   private tick = -1;
-  private blasts = new Set<number>();
   private living = new Set<string>();
-  private obstacles = new Map<number, ViewSnapshot["obstacles"][number]>();
+  private obstacles = new Map<number, WorldView["obstacles"][number]>();
   reset(): void {
     this.scope = "";
     this.tick = -1;
-    this.blasts.clear();
     this.living.clear();
     this.obstacles.clear();
   }
   accept(
-    snapshot: ViewSnapshot,
+    snapshot: WorldView,
     matchId: string,
   ): {
-    explosions: ViewSnapshot["blasts"];
-    deaths: ViewSnapshot["players"];
-    rubble: ViewSnapshot["obstacles"];
+    deaths: WorldView["players"];
+    rubble: WorldView["obstacles"];
   } {
     const scope = `${matchId}:${snapshot.round}`;
     const reset = scope !== this.scope || snapshot.tick < this.tick;
-    const explosions = reset
-      ? []
-      : snapshot.blasts.filter((blast) => !this.blasts.has(blast.bombId));
     const deaths = reset
       ? []
       : snapshot.players.filter(
@@ -41,7 +35,6 @@ export class EffectTransitions {
         );
     this.scope = scope;
     this.tick = snapshot.tick;
-    this.blasts = new Set(snapshot.blasts.map((blast) => blast.bombId));
     this.living = new Set(
       snapshot.players
         .filter((player) => player.alive)
@@ -50,13 +43,13 @@ export class EffectTransitions {
     this.obstacles = new Map(
       snapshot.obstacles.map((obstacle) => [obstacle.id, obstacle]),
     );
-    return { explosions, deaths, rubble };
+    return { deaths, rubble };
   }
 }
 
 /** Samples the authoritative flight path; the blast circle stays at the landing site. */
 export function bombPose(
-  bomb: ViewSnapshot["bombs"][number],
+  bomb: WorldView["bombs"][number],
   tick: number,
 ): { x: number; y: number; flight: number } {
   const flight = Math.max(

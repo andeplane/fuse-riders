@@ -1,4 +1,4 @@
-import type { ViewSnapshot } from "../snapshot-stream.js";
+import type { WorldView } from "../../engine/view.js";
 import type { ThemeDefinition } from "../themes.js";
 import type { PhaserArena, createPhaserArena } from "./arena.js";
 
@@ -22,7 +22,7 @@ export function mountArenaPresentation(
   dependencies: PresentationDependencies = browserDependencies,
 ): {
   render(
-    snapshot: ViewSnapshot,
+    snapshot: WorldView,
     now: number,
     theme: ThemeDefinition,
     scope: string,
@@ -41,7 +41,7 @@ export function mountArenaPresentation(
   let cancelRestore: (() => void) | undefined;
   let latest:
     | {
-        snapshot: ViewSnapshot;
+        snapshot: WorldView;
         now: number;
         theme: ThemeDefinition;
         scope: string;
