@@ -1,3 +1,4 @@
+import { MAX_RANGE_LEVEL } from "../bomb-launch.js";
 import { parseCombat } from "../combat-stats.js";
 import {
   MAX_TRAIL_SEGMENTS,
@@ -153,6 +154,7 @@ const playerFields = {
   aimSlowSpentTicks: count(AIM_SLOW_MAX_TICKS),
   nitroUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
   snailUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
+  rangeLevel: count(MAX_RANGE_LEVEL),
   grip: boolean,
   drunkUntilTick: integer,
   inkUntilTick: integer,
@@ -266,6 +268,7 @@ const shotRecord = shape({
   power: count(MAX_POWER_PICKUPS),
   extraBombs: count(MAX_EXTRA_BOMBS),
   fuseLevel: count(2),
+  rangeLevel: count(MAX_RANGE_LEVEL),
   grip: boolean,
   kills: array(shape({ victimId: text, elapsed: integer }), 4),
 } satisfies Record<keyof RoundShot, Guard>);

@@ -128,6 +128,7 @@ test("a sweep death and an instant death are recorded the same way", () => {
     power: 0,
     extraBombs: 0,
     fuseLevel: 0,
+    rangeLevel: 0,
     grip: false,
     kills: [],
   });

@@ -63,3 +63,30 @@ export function edgeGhosts(
 ): WrapOffset[] {
   return wrapImages(width, height, x - reach, y - reach, x + reach, y + reach);
 }
+
+/** Clockwise camera viewports. Scroll is the world point at the rotated viewport's origin. */
+export function quarterTurnView(
+  view: ArenaView,
+  screenHeight: number,
+  zoomY: number,
+): ArenaView {
+  return {
+    x: screenHeight - view.y - view.height,
+    y: view.x,
+    width: view.height,
+    height: view.width,
+    scrollX: view.scrollX,
+    scrollY: view.scrollY + view.height / zoomY,
+  };
+}
+
+/** Keep a decoration's screen-relative offset upright while the world turns clockwise. */
+export function uprightOffset(
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+  rotated: boolean,
+) {
+  return rotated ? { x: x + dy, y: y - dx } : { x: x + dx, y: y + dy };
+}

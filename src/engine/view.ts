@@ -56,6 +56,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       invulnerableUntilTick: player.invulnerableUntilTick,
       nitroUntilTicks: [...player.nitroUntilTicks],
       snailUntilTicks: [...player.snailUntilTicks],
+      rangeLevel: player.rangeLevel,
       grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,

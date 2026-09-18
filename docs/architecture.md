@@ -2,20 +2,20 @@
 
 This is the system map for the source tree. Module definitions and tests are authoritative for rules, limits and wire fields; release records describe what was deployed. The [architecture epic #259](https://github.com/andeplane/fuse-riders/issues/259) and [refactor plan #252](https://github.com/andeplane/fuse-riders/pull/252) describe proposed changes, not completed features.
 
-## Two play paths, one simulation core
+## One play path: online rooms
 
 ```text
-LAN:     phone /controller -> WebSocket -> Node simulation -> TV /display
-
-Online:  browser replica <------ WebRTC mesh ------> browser replica
-                  \                                 /
-                   room service: membership + signalling
-                        Firestore metadata / Pub/Sub routing
+browser replica <------ WebRTC mesh ------> browser replica
+         \                                 /
+          room service: membership + signalling
+               Firestore metadata / Pub/Sub routing
 ```
 
-LAN authority lives in `src/server/`: one process accepts validated controller intents, advances the game and publishes snapshots and events. Online authority is the shared input log: every device simulates the same deterministic rules locally, and late inputs trigger rollback. The creator supplies initial clock and management authority; the runtime also supports delegated management and peer snapshot recovery. The service never simulates or relays gameplay.
+Every game is an online room, including solo play (a room with no peers) and a shared screen (a room in shared mode: the TV opens `?room=CODE&display=1` as a display-only member and phones join the same room as controllers). Authority is the shared input log: every device simulates the same deterministic rules locally, and late inputs trigger rollback. The creator supplies initial clock and management authority; the runtime also supports delegated management and peer snapshot recovery. The service never simulates or relays gameplay. `npm run dev` runs the same room protocol over in-memory metadata (`src/service/dev.ts`).
 
-There is one tick driver. `driveGameTick` (`src/engine/tick-driver.ts`) is a tick of a game: `step`, automatic round progression, the room's settings taken over at the round boundary, charges cleared outside play. `applyTick` is a tick of a room: it applies the tick's management entries, folds every rider's log entries and the bots into inputs, and calls the driver. `GameState.settings` is required, so no rule has a fallback that could differ by who built the state, and the checkpoint boundary refuses a state without them ([engine tick driver](design/engine-tick-driver.md)). The second driver this paragraph used to describe, the LAN server's direct calls to `step`, went with `src/server/` in #271; the LAN rows elsewhere on this page predate that and are not updated here.
+The separate LAN server (`src/server/`, a Node process that simulated the game for a TV at `/display` and phones at `/controller`) was removed in [#271](https://github.com/andeplane/fuse-riders/pull/271); those routes no longer exist.
+
+There is one tick driver. `driveGameTick` (`src/engine/tick-driver.ts`) is a tick of a game: `step`, automatic round progression, the room's settings taken over at the round boundary, charges cleared outside play. `applyTick` is a tick of a room: it applies the tick's management entries, folds every rider's log entries and the bots into inputs, and calls the driver. `GameState.settings` is required, so no rule has a fallback that could differ by who built the state, and the checkpoint boundary refuses a state without them ([engine tick driver](design/engine-tick-driver.md)). The second driver this paragraph used to describe, the LAN server's direct calls to `step`, went with `src/server/` in #271.
 
 ## Source ownership
 
@@ -28,7 +28,6 @@ There is one tick driver. `driveGameTick` (`src/engine/tick-driver.ts`) is a tic
 | `src/engine/input-log.ts`, `apply-tick.ts`, `tick-driver.ts`                          | Validated log entries, management ordering, held controls, bots; the room's tick and the game's tick it drives      |
 | `src/engine/bomb-gesture.ts`, `rider-name.ts`                                         | The one bomb-input core the log fold uses; the one rider-name guard, seat normaliser and log bound                  |
 | `src/engine/match-stats.ts`, `shot-log.ts`, `moments.ts`, `leaderboard.ts`            | Match facts, shot outcomes, highlights and session scoring                                                          |
-| `src/server/`                                                                         | LAN HTTP/WebSocket authority, input buffering, seats and scheduling                                                 |
 | `src/online/room-runtime.ts`                                                          | Online membership coordination, world lifecycle, clocks, input delivery and frame publication                       |
 | `src/online/stream.ts`, `rollback.ts`                                                 | Bounded stream history, completeness, repair and rollback                                                           |
 | `src/online/packet.ts`, `snapshot.ts`                                                 | Packet decoding and chunked world transfer                                                                          |
@@ -82,15 +81,15 @@ Every death goes through one `commitDeaths` over `DeathFact`s, and no phase befo
 
 ## Rendering and controls
 
-Phaser is externally stepped by the presentation owner. It renders supplied state and cosmetic fractional time; it must not own authoritative physics, timers or a second render loop. LAN uses bounded extrapolation and online uses interpolation/prediction. Both freeze or reset cosmetic history across appropriate scope, phase and discontinuity boundaries. See [PHASER.md](PHASER.md) for lifecycle, timing and recovery contracts.
+Phaser is externally stepped by the presentation owner. It renders supplied state and cosmetic fractional time; it must not own authoritative physics, timers or a second render loop. The online runtime supplies interpolated and predicted state. Presentation must freeze or reset cosmetic history across appropriate scope, phase and discontinuity boundaries. See [PHASER.md](PHASER.md) for lifecycle, timing and recovery contracts.
 
-Input state, pointer ownership and transport delivery are separate. Press, release and cancel edges must survive buffering and ordering; blur, hidden-page transitions, disconnect and teardown must neutralize controls without accidentally firing. The LAN server authenticates host controls and controller seats; snapshots and public invites must not expose those capabilities. Online input streams use room, member generation, tick and sequence ordering; snapshots and emitted events also carry match/round context. Changes must preserve lifecycle boundaries so stale inputs or outcomes cannot affect a new game.
+Input state, pointer ownership and transport delivery are separate. Press, release and cancel edges must survive buffering and ordering; blur, hidden-page transitions, disconnect and teardown must neutralize controls without accidentally firing. Host capabilities are authenticated by the room service; snapshots and public invites must not expose them. Input streams use room, member generation, tick and sequence ordering; snapshots and emitted events also carry match/round context. Changes must preserve lifecycle boundaries so stale inputs or outcomes cannot affect a new game.
 
-Themes and UI geometry are cosmetic. Keep `/display`, `/controller`, the neon/pixel aesthetic and simulation identity intact while sharing app components. Presentation exceptions must not silently become parser failures or corrupt the simulation loop; the existing callback seams are tracked in #255/#258.
+Themes and UI geometry are cosmetic. Keep the shared-screen display and phone controller modes, the neon/pixel aesthetic and simulation identity intact while sharing app components. Presentation exceptions must not silently become parser failures or corrupt the simulation loop; the existing callback seams are tracked in #255/#258.
 
 ## Service and deployment boundaries
 
-Production runs the room service on Cloud Run with Firestore room metadata and Pub/Sub cross-instance signalling. `src/service/dev.ts` uses in-memory adapters locally and in CI. LAN runs its own Node authority. See the [backend package](../packages/fuse-network-be/README.md), [deployment guide](online/GCP-DEPLOY.md), and [release inventory](online/DEPLOYMENT.md).
+Production runs the room service on Cloud Run with Firestore room metadata and Pub/Sub cross-instance signalling. `src/service/dev.ts` uses in-memory adapters locally and in CI. See the [backend package](../packages/fuse-network-be/README.md), [deployment guide](online/GCP-DEPLOY.md), and [release inventory](online/DEPLOYMENT.md).
 
 Validate admission, signalling and stored records at runtime; bound queues, dedupe maps and recovery. Preserve exact-origin checks, capability authentication, stateless gateways and incarnation fencing. Origin checks are not authentication. The abuse and hosting-cost changes in [#256](https://github.com/andeplane/fuse-riders/issues/256) are pending work, not guarantees made by this map.
 

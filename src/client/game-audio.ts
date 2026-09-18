@@ -71,6 +71,12 @@ const volumeOf = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value)
     ? Math.max(0, Math.min(1, value))
     : fallback;
+/** `?mute` (any value but `0`/`false`) silences music and effects for this load only, without touching the stored
+ * choice — for agents and automated testing, where many pages can be open and playing at once. */
+export function mutedByQuery(search: string = location.search): boolean {
+  const value = new URLSearchParams(search).get("mute");
+  return value !== null && value !== "0" && value !== "false";
+}
 /**
  * Mute and volume have to survive the full page load between the landing page and a room. `musicOffByDefault`
  * is the first-visit default only; a stored choice wins either way.
@@ -422,6 +428,10 @@ export function createGameAudio(
     storage,
     options.musicOffByDefault ?? touchDevice(),
   );
+  if (mutedByQuery()) {
+    settings.muted.music = true;
+    settings.muted.effects = true;
+  }
   const enable = element("button", "audio-enable");
   enable.type = "button";
   enable.textContent = `Enable ${deviceLabel} audio`;

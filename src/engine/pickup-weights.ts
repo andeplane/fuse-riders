@@ -21,6 +21,7 @@ export const PICKUP_WEIGHTS: ReadonlyArray<
   { type: "portal", weight: 160 },
   { type: "gravity", weight: 120 },
   { type: "grip", weight: 160 },
+  { type: "range", weight: 160 },
   { type: "nitro", weight: 160 },
   { type: "snail", weight: 160 },
 ];

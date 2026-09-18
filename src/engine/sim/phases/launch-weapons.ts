@@ -172,6 +172,7 @@ function applyBombActions(
       state.tick - chargeStartedTick,
       state.settings.bombChargeTicks,
       state.settings.aimBounce,
+      player.rangeLevel,
     );
     // Over open edges a lob is never cut short: it flies on past the edge and comes down on the far side.
     const open = edgesOpen(state);
@@ -297,6 +298,7 @@ function shotFired(
       power: shooter.powerPickups,
       extraBombs: shooter.extraBombs,
       fuseLevel: shooter.fuseLevel,
+      rangeLevel: shooter.rangeLevel,
       grip: shooter.grip,
       kills: [],
     },

@@ -116,6 +116,7 @@ export interface GameSnapshot {
     invulnerableUntilTick: number;
     nitroUntilTicks: ReadonlyArray<number>;
     snailUntilTicks: ReadonlyArray<number>;
+    rangeLevel: number;
     grip: boolean;
     drunkUntilTick: number;
     inkUntilTick: number;

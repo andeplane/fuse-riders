@@ -97,6 +97,10 @@ export interface RuntimeMetrics {
   sentBytes: number;
   snapshotRequest: boolean;
   mismatches: number;
+  /** Authority hashes this replica could compare with its own state, whatever the outcome. */
+  hashChecks: number;
+  /** Members refused for announcing different rules: nothing they send is folded in. */
+  refused: string[];
   stall: { tick: number; waitingFor?: string };
   streams: Record<
     string,
@@ -133,17 +137,59 @@ interface Member {
   clockTick?: number;
   gapSince: number;
   rejected: number;
+  /** The peer's hello announced different `RULES`: its stream, joins and snapshots are refused until a matching hello. */
+  refused: boolean;
+  /** The rules a refused peer announced, so the status can say which side is out of date. */
+  rules?: string;
+  /** Since when every packet from this member has fallen outside this replica's window; -Infinity once one is taken. */
+  windowSince: number;
+  /** When this runtime learned of the member's current connection: the start of the wait for a link that never comes up. */
+  since: number;
+  /** When the link to the member's current connection was first seen usable, so its packets could arrive; -Infinity until then. */
+  linkedAt: number;
   presence?: { connected: boolean; tick: number; at: number };
+}
+/**
+ * What a rules mismatch tells each side. Reloading only helps the page that is behind, so only its lines say "reload this
+ * page", which the header turns into a reload button. `staleRoom` and `replyToNewer` are for the page that is current
+ * and stuck: "start a new room" keeps them on screen verbatim (the boot card would otherwise swap in its network hint)
+ * without offering a reload that does nothing. `staleRider` is a passing notice on a page that has nothing to do.
+ */
+export const RULES_MISMATCH = {
+  stale: "This page is out of date — reload this page",
+  staleRider: "A rider is on an older game version — they must reload",
+  staleRoom:
+    "This room is on an older game version — start a new room, or have its riders reload",
+  unknown: "A rider is on a different game version — reload this page",
+  replyToStale: "This room runs a newer game version — reload this page",
+  replyToNewer: "This room is on an older game version — start a new room",
+  replyToUnknown: "This room runs a different game version — reload this page",
+} as const;
+const rulesNumber = (rules: unknown): number | undefined => {
+  const match = typeof rules === "string" && /^fuse-p2p-(\d+)$/.exec(rules);
+  return match ? Number(match[1]) : undefined;
+};
+/** Whether a peer announcing `theirs` is ahead of this build, behind it, or not comparable. */
+export function rulesAge(theirs: unknown): "newer" | "older" | "unknown" {
+  const mine = rulesNumber(RULES),
+    other = rulesNumber(theirs);
+  if (mine === undefined || other === undefined || mine === other)
+    return "unknown";
+  return other > mine ? "newer" : "older";
 }
 
 export const DISCONNECT_MS = 1000,
   CREATOR_SILENCE_MS = 5000,
+  /** How long a member this runtime has never heard is given for its link to come up before that counts as silence. */
+  LINK_WAIT_MS = 5000,
   LAG_INDICATOR_MS = 250,
   SNAPSHOT_RETRY_MS = 2000,
   SNAPSHOT_FAILURES = 3,
   JOIN_RETRY_MS = 1000;
 export const SNAPSHOT_BUFFER_LIMIT = 4_000_000,
   STALLED_GAP_MS = 1500,
+  /** How long a member whose packets all fall outside this replica's window still counts as heard, and is resynced for: several snapshot attempts. */
+  WINDOW_GRACE_MS = 10_000,
   SNAPSHOT_SERVE_MS = 500;
 export const HASH_INTERVAL = 20,
   HASH_LAG = 40,
@@ -187,6 +233,8 @@ export class RoomRuntime {
   private readonly members = new Map<string, Member>();
   private readonly generation: number;
   private world?: World;
+  /** When this runtime first held a world: before that it could judge nobody, so no wait for a link starts earlier. */
+  private judgingSince = -Infinity;
   private id = "";
   private hostId = "";
   private room = 0;
@@ -207,6 +255,7 @@ export class RoomRuntime {
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
   private mismatches: number[] = [];
+  private hashChecks = 0;
   private outOfSync = false;
   private full = true;
   private hiddenState = false;
@@ -328,7 +377,14 @@ export class RoomRuntime {
   }
   private peer(id: string, online: boolean): void {
     if (online) {
-      if (!this.members.has(id))
+      const known = this.members.get(id);
+      // The same member on a new connection (a reload the service saw before the old socket closed): the transport has
+      // dropped the old link, and the new page cannot be heard before its own link is up. A member never heard gets
+      // the whole link wait again, for the connection that can now link.
+      if (known) {
+        known.linkedAt = -Infinity;
+        known.since = this.deps.now();
+      } else
         this.members.set(id, {
           generation: 0,
           snapshotServedAt: -Infinity,
@@ -340,6 +396,10 @@ export class RoomRuntime {
           helloed: false,
           gapSince: -Infinity,
           rejected: 0,
+          refused: false,
+          windowSince: -Infinity,
+          since: this.deps.now(),
+          linkedAt: -Infinity,
         });
       return;
     }
@@ -383,14 +443,37 @@ export class RoomRuntime {
     };
     const member = this.members.get(id);
     if (!member) return;
+    // A peer on different rules folds the same log into a different world: only a matching hello is heard from it.
+    if (member.refused && data.type !== "hello") {
+      if (data.type === "join") {
+        const age = rulesAge(member.rules);
+        this.transport!.send(id, {
+          type: "error",
+          error:
+            age === "older"
+              ? RULES_MISMATCH.replyToStale
+              : age === "newer"
+                ? RULES_MISMATCH.replyToNewer
+                : RULES_MISMATCH.replyToUnknown,
+        });
+      }
+      return;
+    }
     switch (data.type) {
       case "hello":
         if (data.rules !== RULES) {
-          this.status.notice(
-            "A rider is on a different game version — everyone should reload",
-          );
+          member.refused = true;
+          member.rules =
+            typeof data.rules === "string" ? data.rules : undefined;
+          if (this.snapshotRequest?.to === id) {
+            this.snapshotRequest = undefined;
+            this.assembler = undefined;
+          }
+          this.status.notice(this.mismatchStatus());
           return;
         }
+        member.refused = false;
+        member.rules = undefined;
         if (
           typeof data.generation === "number" &&
           Number.isSafeInteger(data.generation) &&
@@ -443,7 +526,7 @@ export class RoomRuntime {
   private fast(id: string, bytes: Uint8Array): void {
     const decoded = decodePacket(bytes),
       member = this.members.get(id);
-    if (!decoded || !member) return;
+    if (!decoded || !member || member.refused) return;
     const now = this.deps.now();
     if ("nack" in decoded) {
       if (
@@ -460,6 +543,7 @@ export class RoomRuntime {
     if (packet.room !== this.room || packet.from !== id) return;
     if (packet.generation < member.generation) return;
     this.bump(id, member, packet.generation);
+    const heardAt = member.lastPacketAt;
     member.lastPacketAt = now;
     member.lastSentAt = packet.sentAt;
     member.lastSentReceivedAt = now;
@@ -483,12 +567,25 @@ export class RoomRuntime {
       packet.through,
       Math.floor(this.clock.tick()),
     );
+    if (result.status !== "invalid") member.windowSince = -Infinity;
     if (result.status === "unrepairable") {
       this.requestSnapshot();
       return;
     }
     if (result.status === "invalid") {
       member.rejected++;
+      // A packet no unmodified client sends is not a sign of life: a rider whose stream cannot be folded is marked
+      // absent like a silent one, so the room plays on instead of waiting for completeness it will never accept.
+      // A packet outside this replica's own window says nothing about its sender, which stays heard while the usual
+      // recovery runs (a resync, a gap closing, this clock catching up) — but only for so long: a member that never
+      // comes back inside the window is then treated as silent too, rather than stalling the room for good.
+      if (result.refusal === "window" && member.windowSince === -Infinity)
+        member.windowSince = now;
+      if (
+        result.refusal !== "window" ||
+        now - member.windowSince > WINDOW_GRACE_MS
+      )
+        member.lastPacketAt = heardAt;
       return;
     }
     if (result.rollbackTicks > 0) this.lastFrameTick = -1;
@@ -544,6 +641,9 @@ export class RoomRuntime {
       this.id,
     );
     this.world.stream(this.id, this.generation);
+    // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
+    // invariant — "since the first world" — not because anything here could be misjudged.
+    this.judgingSince = this.deps.now();
     this.clock.start(0);
     this.lastOwnTick = 0;
     this.resetHeld();
@@ -556,6 +656,31 @@ export class RoomRuntime {
     for (const member of this.members.values()) member.helloed = false;
     if (this.pendingJoin) this.sendJoin();
   }
+  /**
+   * One line for every refused member together, whatever order they arrived in: any of them ahead of this build makes
+   * this page the stale one, and reloading it is the thing to do; otherwise an older one is named; otherwise the rules
+   * do not compare. `waiting`: this page has no world and nobody compatible to get one from, so the older members are the room.
+   */
+  private mismatchStatus(waiting = false): string {
+    const ages = new Set(
+      [...this.members.values()]
+        .filter((member) => member.refused)
+        .map((member) => rulesAge(member.rules)),
+    );
+    return ages.has("newer")
+      ? RULES_MISMATCH.stale
+      : ages.has("older")
+        ? waiting
+          ? RULES_MISMATCH.staleRoom
+          : RULES_MISMATCH.staleRider
+        : RULES_MISMATCH.unknown;
+  }
+  /** Members whose world could be this one: everyone but those refused for announcing different rules. */
+  private compatible(): string[] {
+    return [...this.members]
+      .filter(([, member]) => !member.refused)
+      .map(([id]) => id);
+  }
   private saidNoWorld(id: string): boolean {
     return (
       this.deps.now() - (this.noWorld.get(id) ?? -Infinity) < SNAPSHOT_RETRY_MS
@@ -563,7 +688,7 @@ export class RoomRuntime {
   }
   private requestSnapshot(preferred?: string): void {
     if (!this.transport) return;
-    const all = [...this.members.keys()]
+    const all = this.compatible()
         .filter((id) => this.transport!.linked(id))
         .sort(),
       holders = all.filter((id) => !this.saidNoWorld(id));
@@ -608,7 +733,11 @@ export class RoomRuntime {
     const tick = decoded.state.game.tick,
       previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state);
-    else this.world = new World(decoded.state, this.hostId, this.id);
+    else {
+      this.world = new World(decoded.state, this.hostId, this.id);
+      // Not on a resync: a replica that already judged its members keeps the waits it started.
+      this.judgingSince = this.deps.now();
+    }
     for (const stream of decoded.streams) {
       // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
       // its presence switched) install like anyone else's, and the own-stream creation then retires them in order.
@@ -690,6 +819,7 @@ export class RoomRuntime {
     )
       return;
     const mine = this.world.hashAt(tick);
+    if (mine !== undefined) this.hashChecks++;
     if (mine === undefined || mine === hash) return;
     console.warn(
       `fuse-riders: simulation diverged at tick ${tick}: local ${mine}, authority ${hash}`,
@@ -791,6 +921,10 @@ export class RoomRuntime {
       helloed: true,
       gapSince: -Infinity,
       rejected: 0,
+      refused: false,
+      windowSince: -Infinity,
+      since: -Infinity,
+      linkedAt: -Infinity,
     };
   }
   private ensurePresence(id: string, member: Member): void {
@@ -812,17 +946,40 @@ export class RoomRuntime {
     const tick = this.append(PRESENCE, id, connected, member.generation);
     member.presence = { connected, tick, at: now };
   }
+  /**
+   * Whether `member` has been silent for `ms`, counting only time in which this runtime could have heard it: since its
+   * last packet, or since the link to its current connection became usable if that is later. A page that has just
+   * loaded has heard nobody, and a page that has just loaded cannot be heard — neither is silence. A member never heard
+   * whose link never comes up is given `LINK_WAIT_MS`, counted from when this runtime learned of its connection or from
+   * when it first held a world, whichever is later: a page whose own first link or snapshot took five seconds has
+   * only then begun to wait for the others. Without this a reloaded creator logged every rider it had not heard YET as
+   * absent in its second pass, and a round boundary or lobby reset inside that window took a healthy rider's seat. The
+   * link counts once per connection, so a flapping link cannot stand in for packets.
+   */
+  private silent(member: Member, now: number, ms: number): boolean {
+    const from = Math.max(member.lastPacketAt, member.linkedAt);
+    return from === -Infinity
+      ? now - Math.max(member.since, this.judgingSince) >
+          Math.max(ms, LINK_WAIT_MS)
+      : now - from > ms;
+  }
   private creatorDuties(now: number): void {
     const game = this.world!.state.game,
       stalled = now - this.lastLoopAt > DISCONNECT_MS / 2;
     for (const [id, member] of this.members) {
       const player = game.players.get(id);
       if (!player) continue;
-      const live = now - member.lastPacketAt <= DISCONNECT_MS;
+      // Present again only on a packet; absent only on silence this runtime could have heard. In between — a link
+      // just up and no packet yet — nothing is logged either way.
+      const heard = now - member.lastPacketAt <= DISCONNECT_MS;
       // A creator whose own loop just stalled cannot tell silence from its own absence.
-      if (player.connected && !live && !stalled)
+      if (
+        player.connected &&
+        !stalled &&
+        this.silent(member, now, DISCONNECT_MS)
+      )
         this.logPresence(id, member, false);
-      else if (!player.connected && live) this.ensurePresence(id, member);
+      else if (!player.connected && heard) this.ensurePresence(id, member);
     }
     const self = game.players.get(this.id);
     if (self && !self.connected)
@@ -837,9 +994,10 @@ export class RoomRuntime {
     const state = this.world!.state,
       order = successionOrder(state, this.hostId),
       mine = order.indexOf(this.id);
+    // No record at all: the service says that member is offline. A record not heard yet gets the same fair chance as above.
     const silent = (id: string) => {
       const member = this.members.get(id);
-      return !member || now - member.lastPacketAt > CREATOR_SILENCE_MS;
+      return !member || this.silent(member, now, CREATOR_SILENCE_MS);
     };
     // Only a silent creator opens the succession: while it is heard, it alone marks riders absent, on its one-second rule.
     if (mine < 0 || !silent(this.hostId)) return;
@@ -1008,6 +1166,8 @@ export class RoomRuntime {
       }
       return true;
     }
+    // A manager refused for its rules would only answer with an error this replica drops: the status says what to do.
+    if (this.members.get(this.managerId())?.refused) return false;
     return this.transport!.send(this.managerId(), {
       type: "join",
       name: join.name,
@@ -1166,12 +1326,18 @@ export class RoomRuntime {
     const now = this.deps.now();
     this.status.refresh();
     if (this.transport && this.id === "") return;
-    for (const [id, member] of this.members) this.greet(id, member);
+    for (const [id, member] of this.members) {
+      // Once per connection: a link that flaps cannot keep restarting the wait for a member that never sends.
+      if (member.linkedAt === -Infinity && this.transport!.linked(id))
+        member.linkedAt = now;
+      this.greet(id, member);
+    }
     if (this.needsWorld()) {
       // Creator included: a room whose members all connected together has no world anywhere until every linked peer has said so.
+      const candidates = this.compatible();
       if (
         !this.snapshotRequest &&
-        [...this.members.keys()].some(
+        candidates.some(
           (id) => this.transport!.linked(id) && !this.saidNoWorld(id),
         )
       )
@@ -1180,17 +1346,16 @@ export class RoomRuntime {
         // A fresh world is opened only when nobody can have one: the room is empty, or every linked member answered
         // that it holds none. A returning creator with peers waits for their snapshot however long the links take;
         // opening a lobby on a timer would let the authority serve that lobby over the match its peers are playing.
-        const linked = [...this.members.keys()].filter((id) =>
-          this.transport!.linked(id),
-        );
+        // Members refused for their rules count as nobody: whatever world they hold is not this game's.
+        const linked = candidates.filter((id) => this.transport!.linked(id));
         const nobodyHasIt =
           linked.length > 0 && linked.every((id) => this.saidNoWorld(id));
-        if (this.members.size === 0 || nobodyHasIt) {
+        if (candidates.length === 0 || nobodyHasIt) {
           this.createWorld(this.settings);
           this.publish();
         } else if (now - this.welcomeAt > FRESH_WORLD_WAIT_MS)
           this.status.recurring(
-            `Recovering the room from ${linked.length ? "a rider" : "the riders"} — ${this.transport.explain([...this.members.keys()].sort()[0]!)}`,
+            `Recovering the room from ${linked.length ? "a rider" : "the riders"} — ${this.transport.explain(candidates.sort()[0]!)}`,
           );
       }
       if (
@@ -1202,10 +1367,21 @@ export class RoomRuntime {
         !this.snapshotRequest &&
         !this.creator &&
         now - this.welcomeAt > SNAPSHOT_RETRY_MS
-      )
-        this.status.recurring(
-          `Waiting for the game — ${this.transport!.explain(this.hostId)}`,
+      ) {
+        // Nobody compatible can serve the game and a linked member was refused for its rules: that is why this page
+        // waits, and it stays on screen (the notice at the hello is gone after a few seconds).
+        const refused = [...this.members].some(
+          ([id, member]) => member.refused && this.transport!.linked(id),
         );
+        this.status.recurring(
+          refused &&
+            !candidates.some(
+              (id) => this.transport!.linked(id) && !this.saidNoWorld(id),
+            )
+            ? this.mismatchStatus(true)
+            : `Waiting for the game — ${this.transport!.explain(this.hostId)}`,
+        );
+      }
       if (this.pendingJoin && now - this.pendingJoin.sentAt > JOIN_RETRY_MS)
         this.sendJoin();
       return;
@@ -1275,22 +1451,29 @@ export class RoomRuntime {
       if (tick !== this.lastPacketTick) this.sendPackets(now);
       for (const [id, member] of this.members) {
         const stream = world.streams.get(id);
-        if (!stream?.gap) {
+        // A stream whose owner is out of reach (`ahead`) has no gap to nack, but needs the same snapshot: it takes the
+        // same throttled path. Once the member no longer counts as heard the asking backs off, but never stops: a
+        // replica whose links could not carry a request inside the grace would otherwise be wedged for good.
+        const ahead = stream?.ahead === true,
+          pace =
+            !stream?.gap && now - member.windowSince > WINDOW_GRACE_MS
+              ? WINDOW_GRACE_MS
+              : STALLED_GAP_MS;
+        if (!stream?.gap && !ahead) {
           member.gapSince = -Infinity;
           continue;
         }
         if (member.gapSince === -Infinity) member.gapSince = now;
         // Nack repairs a gap within a round trip. One that outlives the owner's retained window (an entry logged
         // before that peer's links could carry packets) can only be closed by a snapshot from a peer that has it.
-        else if (
-          now - member.gapSince > STALLED_GAP_MS &&
-          !this.snapshotRequest
-        ) {
-          member.gapSince = now;
+        else if (now - member.gapSince > pace && !this.snapshotRequest) {
           this.requestSnapshot();
+          // Only a request that went out uses up the wait: with no link fit to carry one, the next tick tries again.
+          if (this.snapshotRequest) member.gapSince = now;
           continue;
         }
         if (
+          stream.gap &&
           now - member.nackAt >= NACK_INTERVAL_MS &&
           this.transport.linked(id)
         ) {
@@ -1341,8 +1524,10 @@ export class RoomRuntime {
     const tick = Math.floor(this.clock.tick());
     this.lastPacketTick = tick;
     const entries = this.own().packetEntries();
+    // Nothing is sent to a member refused for its rules: a build without the refusal would take this replica's clock
+    // and entries for its own room's, so it must see silence and carry on by its own succession instead.
     for (const [id, member] of this.members)
-      this.sendPacket(id, member, entries, now, tick);
+      if (!member.refused) this.sendPacket(id, member, entries, now, tick);
   }
   private sendPacket(
     id: string,
@@ -1475,6 +1660,11 @@ export class RoomRuntime {
       sentBytes: this.transport?.sentBytes ?? 0,
       snapshotRequest: this.snapshotRequest !== undefined,
       mismatches: this.mismatches.length,
+      hashChecks: this.hashChecks,
+      refused: [...this.members]
+        .filter(([, member]) => member.refused)
+        .map(([id]) => id)
+        .sort(),
       stall: this.world?.stallBound() ?? { tick: Infinity },
       streams,
     };
