@@ -40,7 +40,7 @@ Versioned RoomPreferences include:
 - enabled powerups and nonnegative relative spawn weights;
 - drop interval/pacing preset; optional advanced arena settings later.
 
-Render normalized percentages live; enabled weights sum to 100%. Zero total means no random pickups, not a broken sampler. Star defaults disabled following the current request. Validate finite numbers and bounds server-side. Freeze a rules revision for a running round; pending changes apply next round, while match-format changes apply next match.
+Render normalized percentages live; enabled weights sum to 100%. Zero total means no random pickups, not a broken sampler. Star was first off by default; since rules `fuse-p2p-40` it ships enabled at weight 160 like the other specials. Validate finite numbers and bounds server-side. Freeze a rules revision for a running round; pending changes apply next round, while match-format changes apply next match.
 
 Store defaults under a versioned localStorage key in the host's browser. On create, send these preferences to the server; server validates and broadcasts the accepted revision. Host reconnect retrieves active settings from the server rather than overwriting them with stale local defaults. Handle corrupt/missing storage and schema migrations. localStorage is device/browser-specific; cloud synchronization is outside initial scope.
 

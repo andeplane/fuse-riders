@@ -520,7 +520,6 @@ export function comparisonRows(
             ["ink", entry.inkPickups],
             ["triple", entry.triplePickups],
             ["five", entry.fivePickups],
-            ["target", entry.targetPickups],
             ["shield", entry.shieldPickups],
             ["portal", entry.portalPickups],
           ])}${entry.portalTransits ? ` · ${entry.portalTransits} ${entry.portalTransits === 1 ? "jump" : "jumps"}` : ""}`

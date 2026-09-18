@@ -85,15 +85,13 @@ test("the round boundary drops absent riders and reports them; with one rider le
   );
 });
 
-test("outside play nobody holds a charge or a target", () => {
+test("outside play nobody holds a charge", () => {
   const game = match(defaultRoomSettings());
   const rider = game.players.get("p0")!;
   rider.bombChargeStartedTick = 1;
-  rider.bombTarget = { x: 0.5, y: 0.5 };
   driveGameTick(game, new Map(), defaultRoomSettings());
   assert.equal(game.phase, "countdown");
   assert.equal(rider.bombChargeStartedTick, undefined);
-  assert.equal(rider.bombTarget, undefined);
 });
 
 test("one shared tick is one step unless asked for more, and applyTick has no tick loop of its own", () => {

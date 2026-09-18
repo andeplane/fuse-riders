@@ -30,20 +30,27 @@ test("weighted table gives Five one third Triple probability with deterministic 
   assert.equal(roomPickup(0.5, {}), undefined, "nothing weighted, no drop");
 });
 
-test("Power is abundant while special drops remain optional", () => {
+test("Power is abundant while Star and the other specials stay occasional", () => {
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const power = PICKUP_WEIGHTS.find((row) => row.type === "power")!.weight;
   assert.ok(power / total > 0.7 && power / total < 0.8);
+  // Star ships enabled like every other special; a host can still switch any of them off in room settings.
+  assert.equal(PICKUP_WEIGHTS.find((row) => row.type === "star")?.weight, 160);
   assert.equal(
-    PICKUP_WEIGHTS.some((row) => row.type === "star"),
+    PICKUP_WEIGHTS.map((row): string => row.type).includes("target"),
     false,
   );
 });
 
-test("Target Bomb is disabled by default but remains configurable", () => {
-  const defaults = defaultRoomSettings();
-  assert.equal(defaults.weights.target, 0);
-  assert.equal(roomPickup(0.5, { target: 1 }), "target");
+test("default room settings can roll a Star", () => {
+  const weights = defaultRoomSettings().weights;
+  assert.ok((weights.star ?? 0) > 0, "Star has a default weight");
+  const total = Object.values(weights).reduce((sum, w) => sum + (w ?? 0), 0);
+  const rolls = Array.from({ length: total }, (_, index) =>
+    roomPickup((index + 0.5) / total, weights),
+  );
+  assert.ok(rolls.includes("star"), "some roll of the defaults lands on Star");
+  assert.ok(!rolls.includes("target" as never), "Target Bomb never drops");
 });
 
 test("pickup pacing scales with living riders and stays bounded", () => {

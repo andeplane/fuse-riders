@@ -108,8 +108,6 @@ export interface TickContext {
   readonly shellPaths: Map<number, ShellPoint[][]>;
   /** Blasts opened by fuses and chains before anyone moved. Written by `explodeFuses`. */
   fuseBlasts: NewBlast[];
-  /** Blasts opened by this tick's launches (Target Bombs and what they chain). Written by `explodeInstant`. */
-  instantBlasts: NewBlast[];
   /** Heads reached by this tick's bullets. Written by `fireGuns`. */
   gunHits: Map<PlayerId, GunHit[]>;
 
@@ -167,7 +165,6 @@ export function createTickContext(
     bounced: new Set(),
     shellPaths: new Map(),
     fuseBlasts: [],
-    instantBlasts: [],
     gunHits: new Map(),
     causes: new Map(),
     causeOwners: new Map(),

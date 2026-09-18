@@ -8,7 +8,7 @@ Bots consume no WebRTC connection or backend membership. Their controller runs i
 
 ## Difficulty
 
-Every newly added AI uses **Hard** difficulty, with a plain name such as `AI Turing`. The roster, scoreboard and recap do not show a difficulty label. Hard uses full lookahead, exact aim and no attention lapses; the attract screen uses the same full-strength controller.
+Every newly added AI uses **Hard** difficulty, with a plain name such as `AI Turing`. The roster, scoreboard and recap do not show a difficulty label. Hard uses full lookahead and no attention lapses; the attract screen uses the same full-strength controller.
 
 The controller still recognizes explicit Easy/Medium/Hard suffixes in existing logs and benchmark fixtures, preserving their deterministic replay. `BOT_TIERS` defines those settings; new bot creation does not roll a difficulty or encode one in the name.
 

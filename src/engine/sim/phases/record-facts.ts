@@ -14,7 +14,7 @@ import type { GameState } from "../../state.js";
 /**
  * The only phase that writes match statistics, the shot log and the highlight moments. The physics before it states
  * facts and never reads any of the three, so statistics cannot steer an outcome and a new statistic never touches a
- * phase. Facts are replayed in the order they happened: a kill looks its shot up in the log, and a Target Bomb's pull
+ * phase. Facts are replayed in the order they happened: a kill looks its shot up in the log, and a Gun's pull
  * is logged on the same tick it kills. Runs once every elimination of the tick is known and before the round
  * resolves, because the round's scoring and its decided shot log read what is written here.
  */

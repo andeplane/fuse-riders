@@ -121,8 +121,6 @@ export interface RoomView {
   };
   fire: FireView;
   power: { hidden: boolean; text: string };
-  /** Where a target bomb aims from, as a fraction of the arena; undefined when none is armed. */
-  targetAim: { x: number; y: number } | undefined;
   /** This device's rider colour, when it has a rider. */
   playerColor: string | undefined;
   /** The phone HUD shows only on a phone playing as the controller. */
@@ -181,13 +179,11 @@ function fire(
         ? isAimingGun(player)
           ? "STEER TO AIM · RELEASE!"
           : "HOLD TO AIM GUN"
-        : player.targetBombArmed
-          ? "SLIDE TO AIM"
-          : player.shellArmed
-            ? "FIRE SHELL"
-            : bombHeld
-              ? "RELEASE!"
-              : "HOLD TO FIRE";
+        : player.shellArmed
+          ? "FIRE SHELL"
+          : bombHeld
+            ? "RELEASE!"
+            : "HOLD TO FIRE";
   }
   return {
     gunReady,
@@ -305,10 +301,6 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
           )
         : "",
     },
-    targetAim:
-      player?.targetBombArmed && !player.gunArmed && !player.shellArmed
-        ? { x: player.x / state.width, y: player.y / state.height }
-        : undefined,
     playerColor: player?.color,
     // Phone HUD: who you are, what the fire button would do, match points and the clock.
     hudHidden: !player || !input.mobileActive,

@@ -141,10 +141,6 @@ const playerFields = {
   gunArmed: optional(boolean),
   gunAim: optional(range(-GUN_AIM_MAX, GUN_AIM_MAX)),
   shellArmed: optional(boolean),
-  targetBombArmed: boolean,
-  bombTarget: optional(
-    shape({ x: range(0, ARENA_WIDTH), y: range(0, ARENA_HEIGHT) }),
-  ),
   extraBombs: count(MAX_EXTRA_BOMBS),
   fuseLevel: count(2),
   powerPickups: count(MAX_POWER_PICKUPS),

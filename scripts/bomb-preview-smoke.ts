@@ -51,7 +51,6 @@ try {
         drunkUntilTick: 0,
         inkUntilTick: 0,
         bombChargeStartedTick: 40,
-        targetBombArmed: false,
         tripleShotArmed: false,
         fiveShotArmed: false,
         shellArmed: false,
@@ -259,17 +258,11 @@ try {
         }
         const sheet = document.createElement("canvas");
         sheet.width = 1280;
-        sheet.height = 4 * 350;
+        sheet.height = 3 * 350;
         const ctx = sheet.getContext("2d")!;
         const cases = [
           { name: "Single / gold", angle: 0.16, color: "#ffdd55" },
           { name: "Five-shot / cyan", fiveShotArmed: true },
-          {
-            name: "Target / nearby / pink",
-            targetBombArmed: true,
-            bombTarget: { x: 230, y: 310 },
-            color: "#ff70bd",
-          },
           {
             name: "Wall-clamped / violet",
             x: 60,

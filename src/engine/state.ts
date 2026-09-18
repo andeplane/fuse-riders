@@ -14,14 +14,12 @@ import type { PickupType } from "./pickup-types.js";
 import type { PortalPair } from "./portal.js";
 import type { FlightPoint } from "./launch-modifiers.js";
 import type {
-  AimPoint,
   BlastCircle,
   BombActionCommand,
   PlayerId,
   TrailSegment,
 } from "./primitives.js";
 export type {
-  AimPoint,
   BlastCircle,
   BombAction,
   BombActionCommand,
@@ -54,7 +52,6 @@ export interface InputIntent {
   right: boolean;
   bomb: boolean;
   bombCommands?: readonly BombActionCommand[];
-  aim?: AimPoint;
 }
 
 export interface PlayerState extends Required<PlayerIdentity> {
@@ -72,8 +69,6 @@ export interface PlayerState extends Required<PlayerIdentity> {
   /** The held Gun sight, in radians off the heading. Present only while a Gun's trigger is held. */
   gunAim?: number;
   shellArmed?: boolean;
-  targetBombArmed: boolean;
-  bombTarget?: AimPoint;
   /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
   extraBombs: number;
   fuseLevel: number;

@@ -1,4 +1,4 @@
-import type { AimPoint, BombActionCommand } from "./primitives.js";
+import type { BombActionCommand } from "./primitives.js";
 
 /**
  * The one bomb-input core. A rider's bomb button is a sequence of gestures: each press opens a gesture with an id
@@ -12,24 +12,10 @@ import type { AimPoint, BombActionCommand } from "./primitives.js";
  * start at 1 (`isEntry` refuses 0), so 0 can mean "none held".
  */
 export interface GestureControls {
-  /** Where the rider last aimed while this gesture ran. A press and a release carry a copy; closing a gesture clears it. */
-  aim?: AimPoint;
   /** The gesture being held, 0 for none. */
   activeGesture: number;
   /** The newest gesture ever pressed; never decreases. */
   latestGesture: number;
-}
-
-const command = (
-  controls: GestureControls,
-  action: "press" | "release",
-): BombActionCommand => ({
-  action,
-  ...(controls.aim ? { aim: { ...controls.aim } } : {}),
-});
-
-export function aimGesture(controls: GestureControls, aim: AimPoint): void {
-  controls.aim = aim;
 }
 
 /** A press over a held gesture abandons that one first: `cancel`, then `press`. */
@@ -41,21 +27,17 @@ export function pressGesture(
   if (gesture <= controls.latestGesture) return;
   if (controls.activeGesture) commands.push({ action: "cancel" });
   controls.activeGesture = controls.latestGesture = gesture;
-  commands.push(command(controls, "press"));
+  commands.push({ action: "press" });
 }
 
-/** `aim`, when the release carries one, is where the launch goes, whatever was aimed before. */
 export function releaseGesture(
   controls: GestureControls,
   gesture: number,
-  aim: AimPoint | undefined,
   commands: BombActionCommand[],
 ): void {
   if (gesture !== controls.activeGesture) return;
-  if (aim) controls.aim = aim;
   controls.activeGesture = 0;
-  commands.push(command(controls, "release"));
-  controls.aim = undefined;
+  commands.push({ action: "release" });
 }
 
 export function cancelGesture(
@@ -66,5 +48,4 @@ export function cancelGesture(
   if (gesture !== controls.activeGesture) return;
   controls.activeGesture = 0;
   commands.push({ action: "cancel" });
-  controls.aim = undefined;
 }

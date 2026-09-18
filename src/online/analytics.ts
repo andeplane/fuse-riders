@@ -378,7 +378,7 @@ export const reportBootFailure = page.reportBootFailure;
 export const reportGraphics = page.reportGraphics;
 
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
-/** Tenths, where whole seconds would put nearly every Gun, Target and Shell kill in the same bucket. */
+/** Tenths, where whole seconds would put nearly every Gun and Shell kill in the same bucket. */
 const tenths = (ticks: number) => Math.round((ticks / TICK_HZ) * 10) / 10;
 
 /**

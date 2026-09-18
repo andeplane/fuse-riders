@@ -191,7 +191,6 @@ test("the fire button says what a press would do", () => {
   assert.equal(label({}, true).label, "RELEASE!");
   assert.equal(label({ bombReadyAtTick: 121 }).label, "2s RECHARGE");
   assert.equal(label({ shellArmed: true }).label, "FIRE SHELL");
-  assert.equal(label({ targetBombArmed: true }).label, "SLIDE TO AIM");
   const gun = label({ gunArmed: true });
   assert.deepEqual(gun, {
     gunReady: true,
@@ -209,20 +208,6 @@ test("the fire button says what a press would do", () => {
       .gunReady,
     false,
   );
-});
-
-test("a target bomb aims from the rider, as a fraction of the arena", () => {
-  const state = frame({}, { me: { targetBombArmed: true, x: 50, y: 25 } });
-  assert.deepEqual(present(state).targetAim, {
-    x: 50 / state.width,
-    y: 25 / state.height,
-  });
-  assert.equal(
-    present(frame({}, { me: { targetBombArmed: true, gunArmed: true } }))
-      .targetAim,
-    undefined,
-  );
-  assert.equal(present(frame()).targetAim, undefined);
 });
 
 test("playing: the phone HUD, and the notice for a rider out of this round", () => {

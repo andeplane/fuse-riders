@@ -635,7 +635,8 @@ const PICKUP_OF_WEAPON: Record<Weapon, readonly PickupType[]> = {
   bomb: [],
   triple: ["triple"],
   five: ["five"],
-  target: ["target"],
+  // Target Bomb is gone (rules 40): no pickup arms it, so nothing can be asked for.
+  target: [],
   gun: ["gun"],
   shell: ["shell"],
 };
@@ -669,7 +670,7 @@ export const REQUIREMENTS: readonly Requirement[] = [
     (coverage) => coverage.pulls.gun >= 4 && coverage.gunTracers >= 4,
     ["gun"],
   ),
-  ...(["gun", "shell", "target", "bomb"] as const).map((weapon) =>
+  ...(["gun", "shell", "bomb"] as const).map((weapon) =>
     requirement(
       `kill:${weapon}`,
       `a kill is credited to a ${weapon} pull`,
@@ -761,12 +762,6 @@ export const REQUIREMENTS: readonly Requirement[] = [
     "a shield is carried, then absorbs a hazard while its rider survives",
     (coverage) => coverage.shieldAbsorbs > 0 && coverage.shieldedTicks > 0,
     ["orbitShield"],
-  ),
-  requirement(
-    "target",
-    "target bombs are called in",
-    (coverage) => coverage.pulls.target >= 2,
-    ["target"],
   ),
   requirement(
     "triple",

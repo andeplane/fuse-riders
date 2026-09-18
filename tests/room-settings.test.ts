@@ -114,12 +114,27 @@ test("bomb aim time, chain reaction and aim bounce validate, and older saved pre
   );
 });
 
+test("a pickup enabled since the save drops at its default, and an explicit off stays off", () => {
+  const defaults = defaultRoomSettings();
+  const { star: _star, ...beforeStar } = defaults.weights;
+  const load = (weights: Record<string, number>) =>
+    loadRoomSettings({
+      getItem: () => JSON.stringify({ ...defaults, length: 9, weights }),
+    });
+  assert.deepEqual(
+    load({ ...beforeStar, gun: 7 }),
+    { ...defaults, length: 9, weights: { ...defaults.weights, gun: 7 } },
+    "a blob saved before Star had a default gets it, and keeps its own weights",
+  );
+  assert.equal(load({ ...beforeStar, star: 0 }).weights.star, 0);
+});
+
 test("saved preferences that still weigh a retired pickup keep everything else", () => {
   const defaults = defaultRoomSettings();
   const saved = {
     ...defaults,
     length: 9,
-    weights: { ...defaults.weights, boost: 160, gun: 7 },
+    weights: { ...defaults.weights, boost: 160, target: 165, gun: 7 },
   };
   assert.equal(
     parseRoomSettings(saved),
