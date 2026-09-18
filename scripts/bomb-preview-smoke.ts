@@ -22,7 +22,7 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/`);
+  await page.goto(`http://127.0.0.1:${address.port}/?mute`);
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
       String("/src/client/phaser/arena.ts")
