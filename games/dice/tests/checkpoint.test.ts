@@ -160,11 +160,33 @@ test("a corrupt or hostile checkpoint is refused whole", () => {
   );
   const doubled = wire(between);
   at(doubled, 4)[4] = [
-    [1, "a", { a: 50, b: 0 }],
-    [1, "a", { a: 50, b: 0 }],
+    [1, "a", { a: 50, b: 0 }, 3],
+    [1, "a", { a: 50, b: 0 }, 3],
   ];
   at(doubled, 4)[1] = { a: 2 };
   assert.equal(decode(doubled, between.tick), undefined, "one round twice");
+  const future = wire(between);
+  at(future, 4, 4, 0)[3] = between.tick + 1;
+  assert.equal(
+    decode(future, between.tick),
+    undefined,
+    "a round decided after the room's tick",
+  );
+  const stats: [string, (row: unknown[]) => void][] = [
+    ["more busts than rolls", (row) => (row[3] = 99)],
+    ["a stranger's stats", (row) => (row[0] = "z")],
+    ["a negative roll count", (row) => (row[1] = -1)],
+    ["a best turn past the bank", (row) => (row[4] = 20_000)],
+    ["a short row", (row) => row.pop()],
+  ];
+  for (const [name, change] of stats) {
+    const fields = wire(between);
+    change(at(fields, 4, 5, 0));
+    assert.equal(decode(fields, between.tick), undefined, name);
+  }
+  const twice = wire(between);
+  at(twice, 4)[5] = [at(twice, 4, 5, 0), at(twice, 4, 5, 0)];
+  assert.equal(decode(twice, between.tick), undefined, "one player twice");
 });
 
 test("the entry parser accepts ROLL and HOLD naming a turn, and the shared management entries, and nothing else", () => {

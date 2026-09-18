@@ -65,6 +65,66 @@ test("a roll adds to the turn total and restarts the timer; a 1 busts, loses the
   assert.equal(room.turnNo, 2);
   assert.equal(room.turnTotal, 0);
   assert.equal(room.deadline, 5 + FAST.turnTicks);
+  assert.deepEqual(room.stats.a, {
+    rolls: 3,
+    holds: 0,
+    busts: 1,
+    bestTurn: 0,
+  });
+});
+
+test("a match keeps each player's rolls, holds, busts and best turn, and reports them with the whole match only", () => {
+  const room = started();
+  rig(room, 6);
+  fold(room, { a: [[ROLL, 1]] });
+  rig(room, 5);
+  fold(room, { a: [[ROLL, 1]] });
+  fold(room, { a: [[HOLD, 1]] });
+  rig(room, 3);
+  fold(room, { b: [[ROLL, 2]] });
+  fold(room, { b: [[HOLD, 2]] });
+  assert.deepEqual(room.stats, {
+    a: { rolls: 2, holds: 1, busts: 0, bestTurn: 11 },
+    b: { rolls: 1, holds: 1, busts: 0, bestTurn: 3 },
+  });
+  const view = diceView(room);
+  assert.deepEqual(
+    view.players.map((p) => [p.id, p.rolls, p.busts, p.bestTurn]),
+    [
+      ["a", 2, 0, 11],
+      ["b", 1, 0, 3],
+    ],
+  );
+  room.scores.a = TARGET - 1;
+  rig(room, 4);
+  fold(room, { a: [[ROLL, 3]] });
+  fold(room, { a: [[HOLD, 3]] });
+  assert.equal(room.history[0]!.tick, room.tick, "the round's decision tick");
+  const receipt = roundResult(room, 1)!;
+  assert.deepEqual(
+    receipt.players.map((p) => [p.rolls, p.holds, p.busts, p.bestTurn]),
+    [
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ],
+    "a round receipt carries no play",
+  );
+  runTo(room, room.resumeAt);
+  room.scores[room.turn] = TARGET;
+  const second = room.turn;
+  fold(room, { [second]: [[HOLD, room.turnNo]] });
+  if (room.stage !== "over") {
+    runTo(room, room.resumeAt);
+    room.scores[room.turn] = TARGET;
+    fold(room, { [room.turn]: [[HOLD, room.turnNo]] });
+  }
+  const result = matchResult(room)!;
+  const a = result.players.find((p) => p.playerId === "a")!;
+  assert.equal(a.rolls, 3);
+  assert.equal(a.bestTurn, 11);
+  // A rematch starts every player's play from nothing.
+  fold(room, { a: [[ACTION, "rematch", "m2"]] });
+  assert.deepEqual(room.stats, {});
 });
 
 test("entries from a player whose turn it is not, or naming another turn, are ignored", () => {

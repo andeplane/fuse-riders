@@ -1,8 +1,11 @@
 import type { MatchResult, PlayerResult } from "fuse-platform";
-import { players, type DiceRoom } from "./rules.js";
+import { noStats, players, type DiceRoom, type PlayerStats } from "./rules.js";
 
-/** One player's result as `fuse-platform` stores it: the fields it reads itself, plus the points they banked. */
-export interface DicePlayerResult extends PlayerResult {
+/**
+ * One player's result as `fuse-platform` stores it: the fields it reads itself, the points they banked and their play
+ * in the match. A round receipt carries its points and no play (all zero): it rates, and never credits totals.
+ */
+export interface DicePlayerResult extends PlayerResult, PlayerStats {
   /** Points banked in the rounds reported, summed over rounds. */
   points: number;
 }
@@ -64,6 +67,7 @@ export function matchResult(
       matchPlacement: places[index]!,
       earlyExits: seated.has(row.id) ? 0 : 1,
       points: row.points,
+      ...(room.stats[row.id] ?? noStats()),
     })),
   };
 }
@@ -98,6 +102,7 @@ export function roundResult(
       matchPlacement: places[index]!,
       earlyExits: 0,
       points: row.points,
+      ...noStats(),
     })),
   };
 }

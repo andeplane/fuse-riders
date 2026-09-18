@@ -73,9 +73,26 @@ export interface RosterEntry {
 export interface RoundRecord {
   round: number;
   winnerId: string;
+  /** The log tick the round was decided at: a device reports the round once its confirmed tick reaches it. */
+  tick: number;
   /** Every round player's bank when the round was decided. */
   scores: Record<string, number>;
 }
+
+/** One player's play this match, for the result a device reports and the account totals it credits. */
+export interface PlayerStats {
+  rolls: number;
+  holds: number;
+  busts: number;
+  /** The most banked in one hold. */
+  bestTurn: number;
+}
+export const noStats = (): PlayerStats => ({
+  rolls: 0,
+  holds: 0,
+  busts: 0,
+  bestTurn: 0,
+});
 
 export interface DiceRoom extends ManagedRoom<DiceSettings> {
   /** The log tick folded through; the game's clock is the same tick (one step per log tick). */
@@ -111,6 +128,8 @@ export interface DiceRoom extends ManagedRoom<DiceSettings> {
   /** Everyone who sat in this match, as they were last seated. */
   roster: Record<string, RosterEntry>;
   history: RoundRecord[];
+  /** Each player's play this match, by id: anyone who took a turn. */
+  stats: Record<string, PlayerStats>;
 }
 
 export type DiceEvent =
@@ -252,6 +271,7 @@ export function createRoom(matchId: string, settings: DiceSettings): DiceRoom {
     played: {},
     roster: {},
     history: [],
+    stats: {},
   };
 }
 
@@ -329,6 +349,7 @@ function resetMatch(room: DiceRoom, matchId: string): void {
   room.played = {};
   room.roster = {};
   room.history = [];
+  room.stats = {};
 }
 
 /** Management hooks; `room.tick + 1` is the tick being folded, since management applies before the fold moves `tick`. */
@@ -366,6 +387,7 @@ function endRound(
   room.history.push({
     round: room.round,
     winnerId: id,
+    tick,
     scores: { ...room.scores },
   });
   room.turn = "";
@@ -389,14 +411,17 @@ export function act(
   events: DiceEvent[],
   auto = false,
 ): void {
-  const id = room.turn;
+  const id = room.turn,
+    stats = (room.stats[id] ??= noStats());
   if (action === ROLL) {
     const value = rollDie(room);
     room.rolls++;
+    stats.rolls++;
     room.lastRoll = value;
     room.lastRoller = id;
     events.push({ type: "roll", id, value });
     if (value === 1) {
+      stats.busts++;
       room.turnTotal = 0;
       events.push({ type: "bust", id });
       passTurn(room, tick);
@@ -411,6 +436,8 @@ export function act(
   const banked = room.turnTotal,
     score = (room.scores[id] ?? 0) + banked;
   room.scores[id] = score;
+  stats.holds++;
+  stats.bestTurn = Math.max(stats.bestTurn, banked);
   room.turnTotal = 0;
   events.push({ type: "hold", id, banked, score, auto });
   if (score >= TARGET) endRound(room, id, tick, events);

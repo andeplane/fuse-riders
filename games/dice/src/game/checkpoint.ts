@@ -14,6 +14,7 @@ import {
   players,
   validName,
   type DiceRoom,
+  type PlayerStats,
   type RosterEntry,
   type RoundRecord,
 } from "./rules.js";
@@ -65,6 +66,14 @@ export function encodeRoom(room: DiceRoom): unknown[] {
         record.round,
         record.winnerId,
         record.scores,
+        record.tick,
+      ]),
+      Object.entries(room.stats).map(([id, stats]) => [
+        id,
+        stats.rolls,
+        stats.holds,
+        stats.busts,
+        stats.bestTurn,
       ]),
     ],
   ];
@@ -133,7 +142,7 @@ export function decodeRoom(
     !Array.isArray(rawTurn) ||
     rawTurn.length !== 9 ||
     !Array.isArray(tallies) ||
-    tallies.length !== 5
+    tallies.length !== 6
   )
     return;
   const [matchId, round, stage, rng, turnNo, rolls] = header;
@@ -165,12 +174,15 @@ export function decodeRoom(
   }
   if (watchers > MAX_WATCHERS) return;
 
-  const [rawScores, rawWins, rawPlayed, rawRoster, rawHistory] = tallies;
+  const [rawScores, rawWins, rawPlayed, rawRoster, rawHistory, rawStats] =
+    tallies;
   if (
     !Array.isArray(rawRoster) ||
     rawRoster.length > MAX_PARTICIPANTS ||
     !Array.isArray(rawHistory) ||
-    rawHistory.length > MAX_ROUNDS
+    rawHistory.length > MAX_ROUNDS ||
+    !Array.isArray(rawStats) ||
+    rawStats.length > MAX_PARTICIPANTS
   )
     return;
   const roster: Record<string, RosterEntry> = {};
@@ -194,20 +206,48 @@ export function decodeRoom(
   if (!scores || !wins || !played) return;
   const history: RoundRecord[] = [];
   for (const raw of rawHistory) {
-    if (!Array.isArray(raw) || raw.length !== 3) return;
-    const [at, winnerId, roundScores] = raw;
+    if (!Array.isArray(raw) || raw.length !== 4) return;
+    const [at, winnerId, roundScores, decidedAt] = raw;
     const decided = counts(roundScores, known, MAX_POINTS);
     if (
       !uint32(at) ||
       at < 1 ||
       at > round ||
-      // Rounds are decided in order, one record each.
+      // Rounds are decided in order, one record each, and none after the room's tick.
       at <= (history.at(-1)?.round ?? 0) ||
+      !uint32(decidedAt) ||
+      decidedAt > tick ||
+      decidedAt < (history.at(-1)?.tick ?? 0) ||
       !known.has(winnerId as string) ||
       !decided
     )
       return;
-    history.push({ round: at, winnerId: winnerId as string, scores: decided });
+    history.push({
+      round: at,
+      winnerId: winnerId as string,
+      tick: decidedAt,
+      scores: decided,
+    });
+  }
+  // Anyone who took a turn: seated now, or remembered from a round.
+  const players = new Set([...known, ...seats.keys()]);
+  const stats: Record<string, PlayerStats> = {};
+  for (const raw of rawStats) {
+    if (!Array.isArray(raw) || raw.length !== 5) return;
+    const [id, rolls, holds, busts, bestTurn] = raw;
+    if (
+      typeof id !== "string" ||
+      !players.has(id) ||
+      Object.hasOwn(stats, id) ||
+      !uint32(rolls) ||
+      !uint32(holds) ||
+      !uint32(busts) ||
+      busts > rolls ||
+      !uint32(bestTurn) ||
+      bestTurn > MAX_POINTS
+    )
+      return;
+    stats[id] = { rolls, holds, busts, bestTurn };
   }
 
   const [
@@ -276,6 +316,7 @@ export function decodeRoom(
     played,
     roster,
     history,
+    stats,
   };
 }
 
