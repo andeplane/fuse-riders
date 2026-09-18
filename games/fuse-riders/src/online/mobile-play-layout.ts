@@ -57,15 +57,19 @@ export function installMobilePlayLayout(
       closeTools();
   });
   // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
-  // On own-screen phones the recap opens tools so standings and REMATCH are in view; shared-TV controllers stay on their pads. The pause before
+  // Own-screen phones open the results tools; shared-TV phones show their dedicated rematch button with tools closed. The pause before
   // it keeps the overlay shut: it hides the announcer, which is showing the final round's result and then the match winner. The lobby is its own phone screen (#134), never the controller.
   const enter = () => {
     if (["countdown", "playing"].includes(phase)) {
       closeTools();
       hints.remove();
       app.append(hints);
-    } else if (phase === "matchOver" && recapReady && !controllerOnly)
-      openTools();
+    } else if (phase === "matchOver" && recapReady) {
+      if (controllerOnly) {
+        clearControls();
+        closeTools();
+      } else openTools();
+    }
   };
   return {
     /** A new screen: a frame, the room ending, or (`resized`) the viewport changing. A resize cancels held input and may

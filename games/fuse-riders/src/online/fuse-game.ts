@@ -13,6 +13,7 @@ import {
   BOT_NAMES,
   MAX_SPECTATORS,
   RULES,
+  readyPhase,
   applyTick,
   createRoomState,
   hashRoomState,
@@ -69,7 +70,10 @@ export interface SpectatorView {
   connected: boolean;
 }
 /** What Fuse Riders' screen reads: the engine's view, and the room's watching list beside it (room state, not game state). */
-export type FuseView = WorldView & { spectators: SpectatorView[] };
+export type FuseView = WorldView & {
+  spectators: SpectatorView[];
+  readyPlayers: string[];
+};
 
 const seatOf = (state: RoomState, player: PlayerState): Seat => ({
   id: player.id,
@@ -134,8 +138,8 @@ function decodeRoom(
   }
   const folds = new Map<string, Fold>();
   for (const raw of rawFolds) {
-    if (!Array.isArray(raw) || raw.length !== 5) return;
-    const [id, generation, flags, active, latest] = raw;
+    if (!Array.isArray(raw) || (raw.length !== 5 && raw.length !== 6)) return;
+    const [id, generation, flags, active, latest, ready] = raw;
     if (
       !memberId(id) ||
       !game.players.has(id) ||
@@ -146,6 +150,9 @@ function decodeRoom(
       flags > 3 ||
       !uint32(active) ||
       !uint32(latest) ||
+      (raw.length === 6 && ready !== true) ||
+      (ready === true &&
+        (!game.players.get(id)?.connected || !readyPhase(game))) ||
       (active !== 0 && active !== latest)
     )
       return;
@@ -154,6 +161,7 @@ function decodeRoom(
       flags,
       activeGesture: active,
       latestGesture: latest,
+      ...(ready ? { ready: true as const } : {}),
     });
   }
   for (const player of game.players.values())
@@ -202,6 +210,10 @@ export const fuseGame: RollbackGame<
   maxSteps: MAX_STEPS_PER_TICK,
   view: (state) => ({
     ...toView(state.game),
+    readyPlayers: [...state.folds]
+      .filter(([, fold]) => fold.ready)
+      .map(([id]) => id)
+      .sort(),
     spectators: [...state.spectators]
       .map(([id, watcher]) => ({
         id,
@@ -222,6 +234,7 @@ export const fuseGame: RollbackGame<
         fold.flags,
         fold.activeGesture,
         fold.latestGesture,
+        ...(fold.ready ? [true] : []),
       ]),
       [...state.bots],
       [...state.spectators].map(([id, watcher]) => [

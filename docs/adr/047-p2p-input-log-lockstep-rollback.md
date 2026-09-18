@@ -25,7 +25,7 @@ The simulation runs at `TICK_HZ` = 20 (`games/fuse-riders/src/engine/tuning.ts`)
 
 ### 2. Streams, sequence numbers and generations
 
-Each member owns one append-only stream (`packages/fuse-netcode/src/stream.ts` `StreamLog`). An entry is `[seq, tick, kind, ...args]` (`games/fuse-riders/src/engine/input-log.ts` `Entry`, `isEntry`): `seq` starts at 1 and increases by one; `tick` is absolute and never decreases within a stream. Player kinds are `STEER`, `PRESS`, `RELEASE`, `CANCEL`, `AVATAR`; management kinds are `JOIN`, `LEAVE`, `PRESENCE`, `SETTINGS`, `ACTION`, `BOT`. Kind 1 (Target Bomb's `AIM`) was retired in `fuse-p2p-40` and is refused. Press gesture ids must strictly increase along a stream (`StreamLog.append`, `StreamLog.receive`).
+Each member owns one append-only stream (`packages/fuse-netcode/src/stream.ts` `StreamLog`). An entry is `[seq, tick, kind, ...args]` (`games/fuse-riders/src/engine/input-log.ts` `Entry`, `isEntry`): `seq` starts at 1 and increases by one; `tick` is absolute and never decreases within a stream. Player kinds are `STEER`, `PRESS`, `RELEASE`, `CANCEL`, `AVATAR`, `READY`; management kinds are `JOIN`, `LEAVE`, `PRESENCE`, `SETTINGS`, `ACTION`, `BOT`. Kind 1 (Target Bomb's `AIM`) was retired in `fuse-p2p-40` and is refused. Press gesture ids must strictly increase along a stream (`StreamLog.append`, `StreamLog.receive`).
 
 A member stamps its own entries `max(floor(clock) + 1, lastOwnTick)` (`RoomRuntime.ownTick`), so its own input applies on the next tick with no round trip. Input is edge-filtered: an unchanged frame produces no entry (`RoomRuntime.input`).
 
@@ -317,3 +317,7 @@ These are the relations the code establishes. The test asserts the ones marked â
 ## Validation
 
 `games/fuse-riders/tests/stream.test.ts`, `rollback.test.ts`, `clock.test.ts`, `packet.test.ts`, `snapshot.test.ts`, `input-log.test.ts`, `generation-replay.test.ts`, `room-runtime.test.ts` and `room-lifetime.test.ts` cover the rules above against the deterministic lossy `FakeNetwork`; `scripts/determinism-replay.ts` folds one seeded log to identical hashes in Node, Chromium and WebKit. `tests/p2p-adr-constants.test.ts` keeps the constants table and the âœ” couplings honest. None of this is physical-phone or real-network evidence, and nothing covers N3 or N4.
+
+### Ready checks (#364)
+
+Online lobby starts and rematches now follow unanimous connected-human readiness in the deterministic room fold. `READY` (kind 6) carries a boolean, match id and lobby/results phase, and uses its sender's ordinary generation-scoped stream. At least two connected riders are required, counting AI; bots, spectators and displays need no vote. The check runs after the tick's entries, consumes votes on start, and derives rematch ids deterministically. Settings and presence changes clear votes. Solo still uses ACTION start/rematch. This supersedes N5's host-only start/rematch UI limitation; the other management actions retain their ownership. See [ready-check design](../design/ready-check.md) for scopes and checkpoint validation.

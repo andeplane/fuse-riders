@@ -406,6 +406,7 @@ export async function startOnline(): Promise<void> {
     watching = false,
     settings = loadRoomSettings(storage),
     snapshot: WorldView | undefined;
+  let readyPlayers: readonly string[] = [];
   startAnalytics({ role, mode: settings.mode, solo });
   track("App Opened");
   // When Match Started, Kill / Miss, Seat Taken and Match Ended fire is `funnel.ts`; the render callback only feeds it.
@@ -780,7 +781,18 @@ export async function startOnline(): Promise<void> {
     settingsButton = node("button", "ROOM SETTINGS"),
     share = node("button", "TV VIEW"),
     addAI = node("button", "ADD AI");
-  hostControls.append(start, reset, settingsButton, share, addAI);
+  const readyButton = node("button", "READY");
+  readyButton.type = "button";
+  readyButton.className = "room-ready-button";
+  readyButton.hidden = true;
+  hostControls.append(readyButton, start, reset, settingsButton, share, addAI);
+  const controllerRematch = node("section", "", "controller-rematch");
+  controllerRematch.hidden = true;
+  controllerRematch.setAttribute("aria-label", "Ready for another race");
+  const controllerReadyCount = node("p", "", "controller-ready-count");
+  controllerReadyCount.setAttribute("role", "status");
+  controllerRematch.append(node("h2", "MATCH COMPLETE"), controllerReadyCount);
+  app.append(controllerRematch);
   const rosterEntries = new Map<
     string,
     {
@@ -820,6 +832,10 @@ export async function startOnline(): Promise<void> {
   rematch.hidden = true;
   rematch.title = "Play the same match again";
   dialogActions.prepend(rematch);
+  const readySummary = node("span", "", "ready-summary");
+  readySummary.setAttribute("role", "status");
+  readySummary.hidden = true;
+  dialogActions.prepend(readySummary);
   const fullStats = node("button", "View full stats ↗", "recap-stats-toggle");
   fullStats.type = "button";
   fullStats.hidden = true;
@@ -1001,6 +1017,13 @@ export async function startOnline(): Promise<void> {
       resized,
       next.controllerOnly,
     );
+    const controllerResults = next.controllerOnly && next.kind === "recap";
+    controllerRematch.hidden = !controllerResults;
+    if (controllerResults) {
+      if (readyButton.parentElement !== controllerRematch)
+        controllerRematch.append(readyButton);
+    } else if (readyButton.parentElement !== hostControls)
+      hostControls.prepend(readyButton);
     placeElements(next);
   };
   // A rotation or a resize changes the screen now, not at the next frame; after the room closed only the desktop bar follows it.
@@ -1156,7 +1179,7 @@ export async function startOnline(): Promise<void> {
     dialog.setAttribute("aria-label", "Match results");
     recapOpen = true;
     dialog.classList.add("recap-dialog");
-    rematch.hidden = !isHost;
+    rematch.hidden = solo ? !isHost : !joined || displayOnly;
     recapLobby.hidden = !isHost;
     close.textContent = "✕";
     fullStats.hidden = !snapshot.matchStats.length;
@@ -1304,6 +1327,7 @@ export async function startOnline(): Promise<void> {
       }
       const matchId = state.matchId;
       snapshot = state;
+      readyPlayers = state.readyPlayers;
       renderScope = `${matchId}:${state.round}`;
       if (
         pendingSettings &&
@@ -1358,6 +1382,7 @@ export async function startOnline(): Promise<void> {
       const view = presentRoom({
         state,
         spectators: state.spectators,
+        readyPlayers,
         playerId: id,
         host: isHost,
         replacedHost,
@@ -1543,10 +1568,31 @@ export async function startOnline(): Promise<void> {
       if (startLabel !== view.actions.start.label)
         start.textContent = startLabel = view.actions.start.label;
       start.disabled = view.actions.start.disabled;
+      const waitingRiders = state.players.filter(
+        (p) => p.connected && !p.id.startsWith("bot:"),
+      );
+      readySummary.hidden = solo || !recapOpen || !recapIsReady;
+      readySummary.textContent = `${waitingRiders.filter((p) => readyPlayers.includes(p.id)).length}/${waitingRiders.length} ready`;
+      if (controllerReadyCount.textContent !== readySummary.textContent)
+        controllerReadyCount.textContent = readySummary.textContent;
+      start.hidden = !solo;
+      readyButton.hidden = view.actions.ready.hidden;
+      readyButton.textContent = view.actions.ready.label;
+      readyButton.setAttribute(
+        "aria-pressed",
+        String(view.actions.ready.pressed),
+      );
+      rematch.textContent = solo ? "REMATCH" : view.actions.ready.label;
+      rematch.setAttribute("aria-label", rematch.textContent);
+      rematch.setAttribute("aria-pressed", String(view.actions.ready.pressed));
+      rematch.hidden =
+        !recapOpen || (solo ? !isHost : view.actions.ready.hidden);
+      settingsButton.hidden = !isHost || replacedHost;
+      addAI.hidden = !isHost || replacedHost;
       hostControls.hidden = view.actions.hidden;
       reset.disabled = view.actions.reset.disabled;
-      reset.hidden = view.actions.reset.hidden;
-      share.hidden = view.actions.shareHidden;
+      reset.hidden = !isHost || replacedHost || view.actions.reset.hidden;
+      share.hidden = !isHost || replacedHost || view.actions.shareHidden;
       voice?.setRoster(id, state.players);
       for (const [playerId, row] of rosterEntries)
         if (voice) row.entry.dataset.voice = voice.indicator(playerId);
@@ -1555,6 +1601,11 @@ export async function startOnline(): Promise<void> {
       roundChip.textContent = view.roundClock;
       roundChip.hidden = view.roundChipHidden;
       showAnnouncement(state, view.announcerVisible && !screen.controllerOnly);
+      if (!solo) {
+        announceAction.hidden =
+          view.actions.ready.hidden || state.phase !== "matchOver";
+        announceAction.textContent = view.actions.ready.label;
+      }
       // Phone HUD: who you are, what the fire button would do, match points and the clock. The thirds themselves stay transparent.
       hud.hidden = view.hudHidden;
       if (player) arcadeIdentity.textContent = player.name;
@@ -1591,6 +1642,10 @@ export async function startOnline(): Promise<void> {
           displayOnly,
         },
   );
+  readyButton.onclick = () => {
+    void audio.unlock();
+    runtime.command({ type: "ready", ready: !readyPlayers.includes(id) });
+  };
   start.onclick = () => {
     void audio.unlock();
     runtime.command({
@@ -1598,7 +1653,7 @@ export async function startOnline(): Promise<void> {
       action: snapshot?.phase === "matchOver" ? "rematch" : "start",
     });
   };
-  announceAction.onclick = () => start.click();
+  announceAction.onclick = () => (solo ? start.click() : readyButton.click());
   addAI.onclick = () => runtime.command({ type: "bot", action: "add" });
   // Link quality for the player: hidden unless asked for (?stats=1 or the menu), so a bad Wi-Fi is a fact, not a guess.
   const statsPanel = node("pre", "", "net-stats");
@@ -1606,7 +1661,8 @@ export async function startOnline(): Promise<void> {
   app.append(statsPanel);
   reset.onclick = () => runtime.command({ type: "action", action: "lobby" });
   rematch.onclick = () => {
-    start.click();
+    if (solo) start.click();
+    else readyButton.click();
   };
   menu.onclick = () => {
     dialogTitle.textContent = solo ? "EXIT" : "ROOM";

@@ -15,7 +15,7 @@
  * | `lobby`      | The lobby card (QR, riders, host actions), over the blurred arena, or the phone lobby (#134)         |
  * | `arena`      | The live arena: desktop, TV, solo, or a phone as the thirds controller over its own arena (#13)      |
  * | `controller` | A shared-TV rider's controller (ADR 042): no arena, the TV draws it                                  |
- * | `recap`      | The match report is ready; results open over the arena/lobby; shared-TV controllers stay on their pads |
+ * | `recap`      | The match report is ready; results open over the arena/lobby; shared-TV controllers show a rematch ready screen |
  * | `ended`      | ROOM CLOSED: the room ended for good (4004); everything else is frozen as it was                     |
  *
  * The kind is the name; the flags are what the page does with it. They are kept separately because the same kind

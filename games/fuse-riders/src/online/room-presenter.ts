@@ -58,6 +58,7 @@ export interface RoomPresenterInput {
   bombHeld: boolean;
   /** The room's watching list, from the frame. Watchers hold no seat, so nothing else here reads them. */
   spectators: readonly SpectatorView[];
+  readyPlayers?: readonly string[];
 }
 
 export interface LobbyRiderView {
@@ -65,7 +66,7 @@ export interface LobbyRiderView {
   name: string;
   color: string;
   avatarId: AvatarId;
-  status: "READY" | "OFFLINE";
+  status: "READY" | "NOT READY" | "OFFLINE";
 }
 
 export interface WatcherView {
@@ -132,6 +133,7 @@ export interface RoomView {
   actions: {
     hidden: boolean;
     start: { label: "START RACE" | "REMATCH"; disabled: boolean };
+    ready: { hidden: boolean; pressed: boolean; label: string };
     reset: { disabled: boolean; hidden: boolean };
     shareHidden: boolean;
     addAIDisabled: boolean;
@@ -281,14 +283,17 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     roundClock: clock,
     roundChipHidden: !clock || input.lobbyCard,
     announcerVisible: !input.lobbyCard && !input.joining,
-    notice: notice(state, playerId, joined, host, ready, watching),
+    notice:
+      !solo && joined && state.phase === "lobby"
+        ? "Ready up — the race starts when everyone is ready"
+        : notice(state, playerId, joined, host, ready, watching),
     lobby: {
-      // The watchers go beside the riders, before the call for more: "1 rider ready · 1 watching · Waiting for at least 2 riders".
+      // The watchers go beside the riders, before the call for more: "1 rider · 1 watching · Waiting for at least 2 riders".
       count: [
         ...(connected >= 2
-          ? [`${connected} riders ready`]
+          ? [`${connected} riders`]
           : connected === 1
-            ? ["1 rider ready"]
+            ? ["1 rider"]
             : []),
         ...(watchingCount ? [`${watchingCount} watching`] : []),
         ...(connected < 2 ? ["Waiting for at least 2 riders"] : []),
@@ -299,7 +304,13 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
         name: p.name,
         color: p.color,
         avatarId: p.avatarId,
-        status: p.connected ? "READY" : "OFFLINE",
+        status: !p.connected
+          ? "OFFLINE"
+          : solo ||
+              p.id.startsWith(BOT_ID_PREFIX) ||
+              input.readyPlayers?.includes(p.id)
+            ? "READY"
+            : "NOT READY",
       })),
       watchers: input.spectators.map((seat) => ({
         id: seat.id,
@@ -311,7 +322,17 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     },
     standings: standings(input),
     actions: {
-      hidden: !host || input.replacedHost,
+      hidden: (!host && (!joined || solo)) || input.replacedHost,
+      ready: {
+        hidden:
+          solo || !joined || displayOnly || !(state.phase === "lobby" || ready),
+        pressed: input.readyPlayers?.includes(playerId) ?? false,
+        label: input.readyPlayers?.includes(playerId)
+          ? "NOT READY"
+          : state.phase === "matchOver"
+            ? "READY FOR REMATCH"
+            : "READY",
+      },
       start: {
         label: state.phase === "matchOver" ? "REMATCH" : "START RACE",
         // A rematch during the final pause would skip the match result, the recap and the match report that opens with it.

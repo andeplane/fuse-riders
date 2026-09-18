@@ -18,6 +18,7 @@ import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
 import {
   ACTION,
   AVATAR,
+  READY,
   BOT,
   JOIN,
   LEAVE,
@@ -35,7 +36,8 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-43"; // 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
+export const RULES = "fuse-p2p-45"; // 45: generation- and match-scoped ready votes start games and rematches deterministically. 44 reserved by the hidden-tab policy PR.
+// 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 /** How many named watchers a room lists beside its five seats. The room service admits them (`ROOM_LIMITS.maxGuests`). */
@@ -43,6 +45,7 @@ export const MAX_SPECTATORS = 5;
 
 export interface Fold extends HeldControls {
   generation: number;
+  ready?: true;
 }
 /** A member that watches: named and listed like a rider, but with no seat, no colour, no inputs and no place in the game. */
 export interface Spectator {
@@ -230,7 +233,10 @@ function applyManagement(state: RoomState, entry: Entry): void {
         } else {
           setPlayerConnected(game, id, false);
           const fold = state.folds.get(id);
-          if (fold) Object.assign(fold, neutralControls());
+          if (fold) {
+            Object.assign(fold, neutralControls());
+            delete fold.ready;
+          }
         }
         return;
       }
@@ -272,6 +278,7 @@ function applyManagement(state: RoomState, entry: Entry): void {
       case SETTINGS: {
         const settings = parseRoomSettings(entry[3])!;
         state.settings = settings;
+        for (const fold of state.folds.values()) delete fold.ready;
         if (game.phase === "lobby") game.settings = settings;
         return;
       }
@@ -292,6 +299,7 @@ function applyManagement(state: RoomState, entry: Entry): void {
           resetMatch(game, matchId);
         }
         resetGestures(state);
+        for (const fold of state.folds.values()) delete fold.ready;
         return;
       }
       case BOT: {
@@ -351,6 +359,13 @@ function laterInputs(
   return inputs;
 }
 
+/** Ready votes are accepted only before a race and after the complete results presentation. */
+export const readyPhase = (
+  game: Pick<GameState, "phase" | "tick" | "phaseEndsAtTick">,
+): boolean =>
+  game.phase === "lobby" ||
+  (game.phase === "matchOver" && game.tick >= (game.phaseEndsAtTick ?? 0));
+
 /**
  * Advance the room by one log tick, `state.tick + 1`, from the entries stamped with that tick. Management entries apply first, then each
  * player's entries fold into its held controls, then `driveGameTick`: the shared `step` and automatic round
@@ -394,6 +409,7 @@ export function applyTick(
     const fold = state.folds.get(player.id);
     if (!fold) continue;
     if (!player.connected) {
+      delete fold.ready;
       Object.assign(fold, neutralControls());
       inputs.set(player.id, intentOf(fold));
       continue;
@@ -411,9 +427,35 @@ export function applyTick(
           (entry) => entry[1] === tick && !isManagementKind(entry[2]),
         )
       : [];
-    for (const entry of entries)
+    for (const entry of entries) {
       if (entry[2] === AVATAR) player.avatarId = entry[3];
+      if (
+        entry[2] === READY &&
+        entry[4] === game.matchId &&
+        entry[5] === game.phase &&
+        readyPhase(game)
+      ) {
+        if (entry[3]) fold.ready = true;
+        else delete fold.ready;
+      }
+    }
     inputs.set(player.id, foldPlayerEntries(fold, entries));
+  }
+  const connected = sortedPlayers(game).filter((player) => player.connected);
+  const humans = connected.filter((player) => !state.bots.has(player.id));
+  if (
+    readyPhase(game) &&
+    connected.length >= 2 &&
+    humans.length > 0 &&
+    humans.every((player) => state.folds.get(player.id)?.ready)
+  ) {
+    applyManagement(state, [
+      1,
+      tick,
+      ACTION,
+      game.phase === "lobby" ? "start" : "rematch",
+      `ready-${hashText(`${game.matchId}:${tick}`)}`,
+    ]);
   }
   const driven = driveGameTick(game, inputs, state.settings, phases, {
     count: steps,

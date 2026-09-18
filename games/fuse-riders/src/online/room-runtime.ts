@@ -6,9 +6,10 @@ import {
   type RoomCommand as NetRoomCommand,
   type RuntimeOptions,
 } from "fuse-netcode";
-import { RULES, type RoomState } from "../engine/apply-tick.js";
+import { RULES, readyPhase, type RoomState } from "../engine/apply-tick.js";
 import {
   AVATAR,
+  READY,
   CANCEL,
   PRESS,
   RELEASE,
@@ -39,7 +40,8 @@ export type RoomCommand =
       bomb: boolean;
       bombAction?: "press" | "release" | "cancel";
     }
-  | { type: "avatar"; avatarId: AvatarId };
+  | { type: "avatar"; avatarId: AvatarId }
+  | { type: "ready"; ready: boolean };
 export type Callbacks = NetCallbacks<FuseView, GameEvent, RoomSettings>;
 /** What `presentation()` hands the screen: frames and times, not a finished picture. */
 export interface PresentationFrames {
@@ -116,6 +118,20 @@ export class RoomRuntime extends NetRuntime<
     return { left: (fold.flags & 1) === 1, right: (fold.flags & 2) === 2 };
   }
   override command(command: RoomCommand): boolean {
+    if (command?.type === "ready") {
+      if (
+        typeof command.ready !== "boolean" ||
+        !this.world ||
+        !this.player() ||
+        this.hiddenState ||
+        !readyPhase(this.world.state.game)
+      )
+        return false;
+      const game = this.world.state.game;
+      this.append(READY, command.ready, game.matchId, game.phase);
+      this.sendPackets(this.deps.now());
+      return true;
+    }
     if (
       command &&
       typeof command === "object" &&

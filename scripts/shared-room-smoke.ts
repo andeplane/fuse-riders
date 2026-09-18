@@ -1,3 +1,4 @@
+import { readyRoom } from "./lib/ready-room.js";
 import type { Page } from "playwright";
 import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
@@ -103,7 +104,7 @@ for (const { name, kind } of BOTH_ENGINES) {
             "COPY LINK",
             phone.getByRole("button", { name: "COPY LINK", exact: true }),
           );
-          for (const action of ["START RACE", "ROOM SETTINGS", "ADD AI"])
+          for (const action of ["ROOM SETTINGS", "ADD AI"])
             await onScreen(
               action,
               phone.getByRole("button", { name: action, exact: true }),
@@ -432,7 +433,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       );
       assert.match(
         (await guest.locator(".online-notice").textContent()) ?? "",
-        /^Waiting for the host/,
+        /^Ready up/,
         "guest sees why it waits",
       );
       controlBounds.push({ viewport, rider });
@@ -462,7 +463,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     await host.getByRole("button", { name: "ADD AI", exact: true }).click();
     await host.getByRole("button", { name: /Remove AI/ }).waitFor();
     await host.screenshot({ path: `artifacts/shared-qr-${name}.png` });
-    await host.getByRole("button", { name: "START RACE", exact: true }).click();
+    await readyRoom(host);
     await display.locator(".shared-lobby").waitFor({ state: "hidden" });
     await display.locator(".online-arena").waitFor({ state: "visible" });
     await display.waitForFunction(() =>

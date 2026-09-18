@@ -18,7 +18,8 @@ export const STEER = 0,
   PRESS = 2,
   RELEASE = 3,
   CANCEL = 4,
-  AVATAR = 5;
+  AVATAR = 5,
+  READY = 6;
 export const JOIN = 10,
   LEAVE = 11,
   PRESENCE = 12,
@@ -34,6 +35,14 @@ export type Entry =
   | [seq: number, tick: number, kind: 3, gesture: number]
   | [seq: number, tick: number, kind: 4, gesture: number]
   | [seq: number, tick: number, kind: 5, avatarId: AvatarId]
+  | [
+      seq: number,
+      tick: number,
+      kind: 6,
+      ready: boolean,
+      matchId: string,
+      phase: "lobby" | "matchOver",
+    ]
   | [
       seq: number,
       tick: number,
@@ -119,6 +128,13 @@ export function isEntry(raw: unknown): raw is Entry {
       return raw.length === 4 && uint32(raw[3]) && raw[3] > 0;
     case AVATAR:
       return raw.length === 4 && isAvatarId(raw[3]);
+    case READY:
+      return (
+        raw.length === 6 &&
+        typeof raw[3] === "boolean" &&
+        matchId(raw[4]) &&
+        (raw[5] === "lobby" || raw[5] === "matchOver")
+      );
     case JOIN:
       return (
         raw.length === 8 &&

@@ -168,8 +168,8 @@ test("portrait tablets and narrow mouse windows get compact play without a rotat
     }
 });
 
-// Controller-only phones leave match information on the TV and never open tools automatically.
-test("shared-TV controllers keep tools closed through results, but settings remain usable", async () => {
+// Controllers expose the rematch vote once the shared results presentation has finished.
+test("shared-TV controllers expose readiness after results, and settings remain usable", async () => {
   const { parseHTML } = await import("linkedom");
   const { installMobilePlayLayout } =
     await import("../src/online/mobile-play-layout.js");
@@ -190,8 +190,14 @@ test("shared-TV controllers keep tools closed through results, but settings rema
   };
   layout.update(screen, "playing", false, false, true);
   layout.update(screen, "roundOver", false, false, true);
-  layout.update(screen, "matchOver", true, false, true);
+  layout.update(screen, "matchOver", false, false, true);
   assert.equal(layout.blocked(), false);
+  layout.update(screen, "matchOver", true, false, true);
+  assert.equal(
+    layout.blocked(),
+    false,
+    "the rematch button does not require the tools menu",
+  );
   const before = cancels;
   app.querySelector("button")!.dispatchEvent(new Event("click"));
   assert.equal(layout.blocked(), true);
@@ -200,7 +206,7 @@ test("shared-TV controllers keep tools closed through results, but settings rema
   assert.equal(
     layout.blocked(),
     false,
-    "closing settings returns to pads even after the match",
+    "closing settings returns to the rematch screen after the match",
   );
   layout.update(screen, "playing", false);
   layout.update(screen, "matchOver", true);
