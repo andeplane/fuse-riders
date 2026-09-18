@@ -8,10 +8,17 @@ import {
   createIdentityVerifier,
 } from "fuse-platform";
 import { FirestoreHistoryDatabase } from "fuse-platform/firestore";
-import { platform } from "./history.js";
+import { extraGameIds, platformFor } from "./history.js";
 
-/** The one deployed service: every game's rooms and its shared history, accounts and ratings. */
-export function startService(authClient?: AuthClient): void {
+/**
+ * The one deployed service: every served game's rooms and its shared history, accounts and ratings. Fuse Riders is
+ * always served; `EXTRA_GAME_IDS=dice` adds the dice game (see docs/online/GCP-DEPLOY.md before setting it).
+ */
+export function startService(
+  authClient?: AuthClient,
+  extra = process.env.EXTRA_GAME_IDS,
+): void {
+  const platform = platformFor(extraGameIds(extra));
   startGcpRoomService({
     serviceName: "fuse-riders-gateway",
     defaultPrefix: "fuse-preview",

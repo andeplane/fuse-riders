@@ -12,6 +12,7 @@ import {
   createHistoryHttp,
   createIdentityVerifier,
   type IdentityVerifier,
+  type Platform,
 } from "fuse-platform";
 import { platform } from "./history.js";
 import { FIREBASE_PROJECT_ID } from "../shared/firebase-config.js";
@@ -21,22 +22,25 @@ export interface DevRoomServiceOptions extends Omit<
   "httpExtension"
 > {
   identity?: IdentityVerifier;
+  /** The games served; every game this repo has by default (Cloud Run serves `platformFor(EXTRA_GAME_IDS)`). */
+  platform?: Platform;
 }
 
 /** Game history and capacity on the generic in-memory signalling service. */
 export function createDevRoomService(
   options: DevRoomServiceOptions = {},
 ): DevRoomService {
-  const now = options.now ?? Date.now;
+  const now = options.now ?? Date.now,
+    games = options.platform ?? platform;
   return createService({
     ...ROOM_LIMITS,
-    gameIds: platform.gameIds,
+    gameIds: games.gameIds,
     ...options,
     httpExtension: (store) =>
       createHistoryHttp(
         new HistoryStore(
-          platform,
-          new MemoryHistoryDatabase(platform, now),
+          games,
+          new MemoryHistoryDatabase(games, now),
           store,
           now,
         ),

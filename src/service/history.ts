@@ -290,11 +290,38 @@ if (GAME_ID !== LEGACY_GAME_ID)
   // Fuse Riders' ratings stay on the user document only while it is the legacy game.
   throw new Error("Fuse Riders must remain the legacy game");
 
-/** Every game this service hosts. The room service is configured with the same ids. */
-export const platform = new Platform(ACCOUNT_RULES, [
-  fuseRiders,
-  diceRegistration,
-]);
+/** Every game this repo can serve; Fuse Riders is always served, the others when a service enables them. */
+export const GAMES = [fuseRiders, diceRegistration] as const;
+
+/**
+ * The games named by `EXTRA_GAME_IDS` (comma-separated), beside Fuse Riders. Cloud Run serves only Fuse Riders until
+ * the operator sets it (docs/online/GCP-DEPLOY.md: a second game goes live after the match-record backfill). An id
+ * this repo has no registration for is a configuration error, not a game to skip.
+ */
+export function extraGameIds(value: string | undefined): string[] {
+  const ids = [
+    ...new Set(
+      (value ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ];
+  for (const id of ids)
+    if (id === GAME_ID || !GAMES.some((game) => game.id === id))
+      throw new Error(
+        `EXTRA_GAME_IDS names ${JSON.stringify(id)}, which is not an extra game`,
+      );
+  return ids;
+}
+/** Fuse Riders plus the named extra games. The room service is configured with the same ids. */
+export const platformFor = (extra: readonly string[]): Platform =>
+  new Platform(
+    ACCOUNT_RULES,
+    GAMES.filter((game) => game.id === GAME_ID || extra.includes(game.id)),
+  );
+/** Every game: what the dev service hosts and what a stored record may name. */
+export const platform = platformFor(GAMES.map((game) => game.id));
 
 /** Runtime boundary for a Fuse Riders result, reported or stored: unknown fields are refused, not ignored. */
 export const parseMatchResult = (raw: unknown): MatchResult | undefined =>

@@ -15,7 +15,7 @@ import {
 } from "dice";
 import { diceRegistration, parseDiceStats } from "dice/platform";
 import { createDevRoomService } from "../src/service/dev.js";
-import { platform } from "../src/service/history.js";
+import { extraGameIds, platform, platformFor } from "../src/service/history.js";
 import { GAME_ID } from "../src/shared/game-id.js";
 import { fold, runTo } from "../games/dice/tests/fixtures/dice.js";
 
@@ -253,4 +253,52 @@ test("the dice registration's boundary refuses what the rules could not produce"
   );
   assert.equal(diceRegistration.isBot("bot:1"), true);
   assert.equal(diceRegistration.isBot("a".repeat(24)), false);
+});
+
+test("Cloud Run serves Fuse Riders alone until EXTRA_GAME_IDS names the dice game", async () => {
+  assert.deepEqual(extraGameIds(undefined), []);
+  assert.deepEqual(extraGameIds(""), []);
+  assert.deepEqual(extraGameIds(" dice , dice"), ["dice"]);
+  assert.throws(() => extraGameIds("chess"), /not an extra game/);
+  assert.throws(() => extraGameIds(GAME_ID), /not an extra game/);
+  assert.deepEqual(platformFor(extraGameIds(undefined)).gameIds, [GAME_ID]);
+  assert.deepEqual(platformFor(extraGameIds("dice")).gameIds, [
+    GAME_ID,
+    "dice",
+  ]);
+  for (const [extra, status] of [
+    [undefined, 400],
+    ["dice", 201],
+  ] as const) {
+    const service = createDevRoomService({
+      platform: platformFor(extraGameIds(extra)),
+    });
+    await new Promise<void>((resolve) =>
+      service.server.listen(0, "127.0.0.1", resolve),
+    );
+    const origin = `http://127.0.0.1:${(service.server.address() as AddressInfo).port}`;
+    try {
+      const created = await fetch(`${origin}/api/rooms?gameId=dice`, {
+        method: "POST",
+        headers: { origin },
+      });
+      assert.equal(created.status, status, `EXTRA_GAME_IDS=${extra}`);
+      const board = await fetch(`${origin}/api/games/dice/leaderboard`, {
+        headers: { origin },
+      });
+      assert.equal(board.status, extra ? 200 : 404);
+      assert.equal(
+        (
+          await fetch(`${origin}/api/rooms`, {
+            method: "POST",
+            headers: { origin },
+          })
+        ).status,
+        201,
+        "Fuse Riders is always served",
+      );
+    } finally {
+      await service.close();
+    }
+  }
 });

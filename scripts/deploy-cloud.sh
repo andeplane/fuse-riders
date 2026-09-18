@@ -48,6 +48,7 @@ for (const key of ['GCP_REGION','PUBSUB_TOPIC','ROOM_COLLECTION_PREFIX']) {
   if (!/^[a-z][a-z0-9-]{1,62}$/.test(process.env[key] ?? '')) throw new Error(`Invalid ${key}`);
 }
 if (!/^(\(default\)|[a-z][a-z0-9-]{1,62})$/.test(process.env.FIRESTORE_DATABASE_ID ?? '')) throw new Error('Invalid FIRESTORE_DATABASE_ID');
+if (!/^([a-z][a-z0-9-]{0,31}(,[a-z][a-z0-9-]{0,31})*)?$/.test(process.env.EXTRA_GAME_IDS ?? '')) throw new Error('Invalid EXTRA_GAME_IDS');
 for (const origin of (process.env.ALLOWED_ORIGINS ?? '').split(',')) {
   const parsed=new URL(origin);
   if (parsed.protocol!=='https:' || parsed.origin!==origin) throw new Error('Production ALLOWED_ORIGINS must contain exact HTTPS origins');
@@ -95,6 +96,8 @@ node --input-type=module - "$env_file" <<'NODE'
 import {writeFileSync} from 'node:fs';
 const values={NODE_ENV:'production',GOOGLE_CLOUD_PROJECT:'andershaf-87'};
 for(const key of ['GCP_REGION','FIRESTORE_DATABASE_ID','PUBSUB_TOPIC','ROOM_COLLECTION_PREFIX','ALLOWED_ORIGINS'])values[key]=process.env[key];
+// Games beside Fuse Riders; absent serves Fuse Riders alone (docs/online/GCP-DEPLOY.md).
+if(process.env.EXTRA_GAME_IDS)values.EXTRA_GAME_IDS=process.env.EXTRA_GAME_IDS;
 writeFileSync(process.argv[2],JSON.stringify(values,null,2));
 NODE
 
