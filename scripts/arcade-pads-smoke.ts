@@ -136,6 +136,37 @@ try {
   }
   await multiTouch();
   await phone.locator(".mobile-tools-toggle").click();
+  const menuBounds = await phone.locator(".online-header").boundingBox();
+  const padBounds = await phone.locator(".online-controls").boundingBox();
+  assert.ok(
+    menuBounds &&
+      padBounds &&
+      menuBounds.y >= padBounds.y &&
+      menuBounds.y < padBounds.y + padBounds.height,
+    "menu overlays pads",
+  );
+  assert.equal(
+    await phone
+      .locator(".online-header")
+      .evaluate((e) => e.scrollHeight > e.clientHeight + 1),
+    false,
+    "landscape menu fits without the old scrolling strip",
+  );
+  for (const selector of [
+    ".online-roster",
+    ".online-announce",
+    ".online-notice",
+    ".online-feed",
+    ".online-round",
+  ])
+    assert.equal(
+      await phone.locator(selector).first().isVisible(),
+      false,
+      `${selector} belongs on TV`,
+    );
+  await phone.screenshot({
+    path: `artifacts/arcade-landscape-menu-${kind}.png`,
+  });
   await phone.getByRole("button", { name: "SETTINGS", exact: true }).click();
   await phone.getByLabel("Landscape bomb side").selectOption("left");
   await phone.getByRole("button", { name: "CLOSE", exact: true }).click();
@@ -174,6 +205,21 @@ try {
   // A refresh recovers from a peer; the layout preference is local, never room state.
   await phone.locator(".mobile-play.controller-only").waitFor();
   await layout(false, "left");
+  await host
+    .getByRole("dialog", { name: "Match results", exact: true })
+    .waitFor({ state: "visible", timeout: 90000 });
+  await phone.waitForFunction(
+    () =>
+      document
+        .querySelector(".mobile-tools-toggle")
+        ?.getAttribute("aria-expanded") === "false",
+  );
+  assert.equal(
+    await phone.locator(".game-dialog[open]").count(),
+    0,
+    "TV results do not pop up on controller",
+  );
+  assert.equal(await phone.locator(".online-roster").isVisible(), false);
   assert.deepEqual(errors, []);
   console.log(
     `PASS Arcade Pads (${kind}): real shared room, both orientations/sides, settings, reload, cancellation and multi-touch bindings`,

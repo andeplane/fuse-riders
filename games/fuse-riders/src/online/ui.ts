@@ -22,6 +22,7 @@ import {
 import { ControllerInputState } from "../client/controller-state.js";
 import { ControllerKeyboardBindings } from "../client/controller-keyboard.js";
 import { createControllerLayoutSetting } from "../client/controller-layout.js";
+import "./mobile-play-layout.css";
 import "./arcade-pads.css";
 import { ControllerPointerBindings } from "../client/controller-pointers.js";
 import {
@@ -998,6 +999,7 @@ export async function startOnline(): Promise<void> {
       snapshot?.phase ?? "lobby",
       next.kind !== "ended" && recapIsReady,
       resized,
+      next.controllerOnly,
     );
     placeElements(next);
   };
@@ -1039,6 +1041,14 @@ export async function startOnline(): Promise<void> {
   );
   header.append(topMenu);
   topMenu.append(results, avatarButton, menu, help);
+  for (const extra of [
+    topRadio,
+    topMusic,
+    topMute,
+    roomAccount.leaderboardButton,
+    results,
+  ])
+    extra.classList.add("controller-menu-extra");
   const refreshAccount = () => {
     if (!document.hidden) roomAccount.refresh();
   };
@@ -1441,7 +1451,7 @@ export async function startOnline(): Promise<void> {
       // Opened after the layout above so the close button can say where it lands.
       if (recapIsReady && lastRecap !== String(state.phaseEndsAtTick)) {
         lastRecap = String(state.phaseEndsAtTick);
-        openRecap();
+        if (!screen.controllerOnly) openRecap();
         // Every rider's device reports the result it computed; the room service keeps one that a majority agree on
         // (README, "Login and match history"). Only state the match froze goes in: devices open the recap at different moments.
         const report = solo
@@ -1544,7 +1554,7 @@ export async function startOnline(): Promise<void> {
         if (voice) entry.dataset.voice = voice.indicator(playerId);
       roundChip.textContent = view.roundClock;
       roundChip.hidden = view.roundChipHidden;
-      showAnnouncement(state, view.announcerVisible);
+      showAnnouncement(state, view.announcerVisible && !screen.controllerOnly);
       // Phone HUD: who you are, what the fire button would do, match points and the clock. The thirds themselves stay transparent.
       hud.hidden = view.hudHidden;
       if (player) arcadeIdentity.textContent = player.name;

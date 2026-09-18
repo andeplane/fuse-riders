@@ -167,3 +167,46 @@ test("portrait tablets and narrow mouse windows get compact play without a rotat
       );
     }
 });
+
+// Controller-only phones leave match information on the TV and never open tools automatically.
+test("shared-TV controllers keep tools closed through results, but settings remain usable", async () => {
+  const { parseHTML } = await import("linkedom");
+  const { installMobilePlayLayout } =
+    await import("../src/online/mobile-play-layout.js");
+  const { document, Event } = parseHTML(
+    "<html><body><main><dialog></dialog></main></body></html>",
+  );
+  const app = document.querySelector("main")!;
+  let cancels = 0;
+  const layout = installMobilePlayLayout(app, () => {
+    cancels++;
+  });
+  const screen = {
+    phone: true,
+    active: true,
+    portrait: false,
+    lobby: false,
+    phaseLobby: false,
+  };
+  layout.update(screen, "playing", false, false, true);
+  layout.update(screen, "roundOver", false, false, true);
+  layout.update(screen, "matchOver", true, false, true);
+  assert.equal(layout.blocked(), false);
+  const before = cancels;
+  app.querySelector("button")!.dispatchEvent(new Event("click"));
+  assert.equal(layout.blocked(), true);
+  assert.equal(cancels, before + 1);
+  app.querySelector("dialog")!.dispatchEvent(new Event("close"));
+  assert.equal(
+    layout.blocked(),
+    false,
+    "closing settings returns to pads even after the match",
+  );
+  layout.update(screen, "playing", false);
+  layout.update(screen, "matchOver", true);
+  assert.equal(
+    layout.blocked(),
+    true,
+    "own-screen phones retain the results menu",
+  );
+});
