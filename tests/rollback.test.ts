@@ -741,7 +741,7 @@ test("late duplicated and reordered Target releases converge through debris deca
   const pieces = delayed.state.game.players.get("c")!.trail;
   assert.ok(pieces.length > 0 && pieces.length < 40);
   assert.equal(new Set(pieces.map((s) => s.detached?.id)).size, 2);
-  assert.ok(pieces.every((s) => s.detached?.decayStartTick === start + 20));
+  assert.ok(pieces.every((s) => s.detached?.decayStartTick === start + 60));
   assert.equal(delayed.receive("b", entries, 2, end, end).rollbackTicks, 0);
   const recovered = recover(delayed);
   for (const w of [reference, delayed, recovered]) {

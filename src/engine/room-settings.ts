@@ -16,7 +16,9 @@ export interface RoomSettings {
   map: ArenaMapChoice;
   weights: Partial<Record<PickupType, number>>;
 }
-export const SETTINGS_KEY = "fuse-riders-room-settings-v1";
+// Reset browser preferences once so older saves cannot silently disable newer pickups such as Nitro.
+// This storage generation is independent of the RoomSettings wire schema version.
+export const SETTINGS_KEY = "fuse-riders-room-settings-v2";
 export function defaultRoomSettings(): RoomSettings {
   return {
     version: 1,
