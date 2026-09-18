@@ -151,7 +151,9 @@ async function gateway(): Promise<string> {
               typeof item.port === "number"
             )
               resolve(`http://127.0.0.1:${item.port}`);
-          } catch {}
+          } catch {
+            // The child also prints lines that are not JSON; only the startup record matters here.
+          }
         }
       });
     }),

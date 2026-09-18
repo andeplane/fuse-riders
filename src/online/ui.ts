@@ -2015,7 +2015,9 @@ export async function startOnline(): Promise<void> {
       try {
         const m = JSON.parse(app.dataset.metrics ?? "{}");
         path = m.direct ? "direct" : m.relayed ? "relay" : "none";
-      } catch {}
+      } catch {
+        // Display only: unreadable metrics show as path "none".
+      }
       statsPanel.textContent = formatNetStats(netStats.summary(), path);
     }, 500);
   setInterval(() => {
