@@ -6,6 +6,7 @@ import {
 } from "fuse-network-protocol";
 import { createHash } from "node:crypto";
 import {
+  LEASE_MS,
   isAuthorityGrant,
   reserveAuthority,
   renewAuthority,
@@ -80,6 +81,17 @@ export const CONNECTION_TTL_MS = 30_000;
 export const ROOM_TTL_MS = ROOM_RECONNECT_GRACE_MS;
 /** Deadline written by an explicit end: before every clock, so no instance's `now` can read the room as live. */
 export const ROOM_ENDED_AT = 0;
+/**
+ * A heartbeat writes only once something it keeps is this close to running out; above these the stored room would
+ * change in nothing but timestamps, so the write (and its fan-out to every watching instance) is skipped.
+ * docs/design/heartbeat-write-cost.md has the margins each one leaves.
+ *
+ * The member lease renews with two thirds left: a lapse makes the member leave and rejoin the game, so any silence
+ * under 22 s must be safe. The grant renews at half: a lapsed grant is invisible to players.
+ */
+export const LEASE_RENEW_BELOW_MS = (CONNECTION_TTL_MS * 2) / 3;
+export const GRANT_RENEW_BELOW_MS = LEASE_MS / 2;
+export const ROOM_RENEW_BELOW_MS = ROOM_TTL_MS / 2;
 export const digest = (token: string): string =>
   createHash("sha256").update(token).digest("hex");
 export const peerId = (token: string): string => digest(token).slice(0, 24);
@@ -112,6 +124,39 @@ function live(room: RoomRecord | undefined, now: number): RoomRecord {
 function prune(room: RoomRecord, now: number): void {
   for (const [id, member] of Object.entries(room.members))
     if (member.expiresAt <= now) delete room.members[id];
+}
+/** The seat `member` holds in `room`, or the error its heartbeat must be refused with. */
+function seated(room: RoomRecord, member: Member, now: number): Member {
+  const stored = room.members[member.id];
+  // Only a seat another connection holds is a replacement (terminal for the browser); a pruned or lapsed one retries.
+  if (stored && stored.connectionId !== member.connectionId)
+    throw new RoomError(409, "Reconnected elsewhere");
+  if (!stored || stored.expiresAt <= now)
+    throw new RoomError(410, "Connection lease expired");
+  return stored;
+}
+/**
+ * Whether a heartbeat from a seated `member` must be written: its connection lease, the room deadline or (creator
+ * only) a grant it can still renew is within its renewal margin on this instance's clock.
+ */
+export function renewalDue(
+  room: RoomRecord,
+  member: Member,
+  renew: GrantIdentity | undefined,
+  now: number,
+): boolean {
+  const lease = room.members[member.id]?.expiresAt ?? now;
+  return (
+    lease - now <= LEASE_RENEW_BELOW_MS ||
+    // Defensive only: every write sets the deadline 60 s beyond the writer's lease, so the lease clause fires first
+    // unless instance clocks disagree by more than 35 s or the lifetimes above are changed.
+    room.expiresAt - now <= ROOM_RENEW_BELOW_MS ||
+    (member.host &&
+      !!renew &&
+      !!room.grant &&
+      room.grant.expiresAt - now <= GRANT_RENEW_BELOW_MS &&
+      !!renewAuthority(room.grant, renew, now))
+  );
 }
 export class RoomStore {
   private readonly maxGuests: number;
@@ -214,19 +259,39 @@ export class RoomStore {
       return { room, result: { room: clone(room), member } };
     });
   }
+  /**
+   * A member's heartbeat. It renews the member's lease, the room deadline and the creator's grant, but only writes
+   * once one of them is due (`renewalDue`): most heartbeats change nothing and commit nothing.
+   *
+   * `known` is the caller's watched copy of the room. When it shows a live room, this exact connection seated and
+   * nothing due, it is returned as it is, without touching the database. It can only be older than the stored room,
+   * never newer, so its leases are never longer than the stored ones and a lease cannot lapse by trusting it; a
+   * replacement or an end it has not seen yet changes nothing here (nothing is written) and is refused by the
+   * transaction of the next due heartbeat at the latest.
+   */
   async time(
     code: string,
     member: Member,
     renew: GrantIdentity | undefined,
+    known?: RoomRecord,
   ): Promise<RoomRecord> {
+    if (known && known.code === code) {
+      const now = this.dependencies.now(),
+        seat = known.members[member.id];
+      if (
+        known.expiresAt > now &&
+        seat?.connectionId === member.connectionId &&
+        seat.expiresAt > now &&
+        !renewalDue(known, member, renew, now)
+      )
+        return known;
+    }
     return this.database.transact(code, (current) => {
       const now = this.dependencies.now(),
-        room = live(current, now);
-      if (room.members[member.id]?.connectionId !== member.connectionId)
-        throw new RoomError(409, "Reconnected elsewhere");
-      const stored = room.members[member.id];
-      if (stored.expiresAt <= now)
-        throw new RoomError(410, "Connection lease expired");
+        room = live(current, now),
+        stored = seated(room, member, now);
+      // Authoritative recheck: another instance may already have renewed what the caller's copy showed as due.
+      if (!renewalDue(room, member, renew, now)) return { result: room };
       if (member.host && renew && room.grant) {
         const updated = renewAuthority(room.grant, renew, now);
         if (updated) room.grant = updated;

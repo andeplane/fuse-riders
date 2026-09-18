@@ -429,12 +429,13 @@ export class RoomGateway {
     const room = this.views.get(client.room)?.room;
     if (!room || room.expiresAt <= this.deps.now())
       throw new RoomError(404, "Room expired");
-    if (
-      room.members[client.member.id]?.connectionId !==
-        client.member.connectionId ||
-      room.members[client.member.id].expiresAt <= this.deps.now()
-    )
+    const seat = room.members[client.member.id];
+    // A seat that lapsed or was pruned is not a replacement: the socket closes retryable and the device re-admits,
+    // where "replaced" would tell it, wrongly and terminally, that a newer tab holds its seat.
+    if (seat && seat.connectionId !== client.member.connectionId)
       throw new RoomError(409, "Connection replaced");
+    if (!seat || seat.expiresAt <= this.deps.now())
+      throw new RoomError(410, "Connection lease expired");
     if (m.type === "time") {
       if (!take(client.times, this.deps.now(), TIME_BURST, TIME_PER_SECOND)) {
         this.refuse(client, this.deps.now());
@@ -450,10 +451,12 @@ export class RoomGateway {
         m.sentAt < 0
       )
         return;
+      // The watched view lets the store answer without a transaction while nothing is due for renewal.
       const current = await this.store.time(
         client.room,
         client.member,
         isGrantIdentity(m.renew) ? m.renew : undefined,
+        room,
       );
       if (
         this.clients.get(client.member.connectionId) !== client ||
@@ -570,11 +573,19 @@ export class RoomGateway {
           room.members[client.member.id]?.connectionId !==
             client.member.connectionId
         ) {
+          const ended = !room || room.expiresAt <= this.deps.now(),
+            // Pruned by another admission after its lease lapsed: retryable, unlike a seat taken by a newer connection.
+            lapsed =
+              !ended &&
+              room.incarnation === client.incarnation &&
+              !room.members[client.member.id];
           client.socket.close(
-            !room || room.expiresAt <= this.deps.now() ? 4004 : 4001,
-            !room || room.expiresAt <= this.deps.now()
+            ended ? 4004 : lapsed ? 4000 : 4001,
+            ended
               ? "Room ended or expired"
-              : "Reconnected elsewhere",
+              : lapsed
+                ? "Connection lease expired"
+                : "Reconnected elsewhere",
           );
           void this.disconnect(client.member.connectionId);
           continue;
