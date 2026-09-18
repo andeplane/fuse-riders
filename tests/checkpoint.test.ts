@@ -610,6 +610,7 @@ test("the round shot log names issued pulls and seated riders, and kills each ri
     power: 0,
     extraBombs: 0,
     fuseLevel: 0,
+    rangeLevel: 0,
     grip: false,
     kills: [],
     ...over,
@@ -796,6 +797,7 @@ test("the decided round is held to its own consistency and the clock, and may ou
     power: 0,
     extraBombs: 0,
     fuseLevel: 0,
+    rangeLevel: 0,
     grip: false,
     kills: [],
     ...over,
@@ -888,7 +890,7 @@ test("detached trail identity, schedule and ownership are validated before repla
       y2: 100,
       createdTick: 1,
       expiresAtTick: 81,
-      detached: { id: 1, decayStartTick: 30 },
+      detached: { id: 1, decayStartTick: 70 },
     },
     {
       x1: 200,
@@ -897,18 +899,18 @@ test("detached trail identity, schedule and ownership are validated before repla
       y2: 100,
       createdTick: 2,
       expiresAtTick: 82,
-      detached: { id: 1, decayStartTick: 30 },
+      detached: { id: 1, decayStartTick: 70 },
     },
   ];
   assert.ok(decodeGameState(encodeGameState(game)));
   const segments = (data: Record<string, unknown>) =>
     list(object(mapped(data.players)[0]![1]).trail).map(object);
   for (const detached of [
-    { id: 0, decayStartTick: 30 },
-    { id: 3, decayStartTick: 30 },
+    { id: 0, decayStartTick: 70 },
+    { id: 3, decayStartTick: 70 },
     { id: 1, decayStartTick: 1 },
-    { id: 1, decayStartTick: game.tick + 21 },
-    { id: 1, decayStartTick: 30, mode: "unknown" },
+    { id: 1, decayStartTick: game.tick + 61 },
+    { id: 1, decayStartTick: 70, mode: "unknown" },
     { id: 1 },
   ]) {
     rejected(
@@ -922,7 +924,7 @@ test("detached trail identity, schedule and ownership are validated before repla
   rejected(
     game,
     (data) => {
-      object(segments(data)[1]!.detached).decayStartTick = 31;
+      object(segments(data)[1]!.detached).decayStartTick = 71;
     },
     "one clock per piece",
   );

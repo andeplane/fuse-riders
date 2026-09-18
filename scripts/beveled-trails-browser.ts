@@ -31,7 +31,7 @@ page.on("console", (message) => {
 try {
   await mkdir("artifacts", { recursive: true });
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
+  await page.goto(`http://127.0.0.1:${address.port}/?mute&room=INVALID`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const result = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
@@ -64,7 +64,7 @@ try {
       players: [],
     };
     const rider = {
-      ...fixture.players[0],
+      ...fixture.players[0]!,
       shielded: false,
       x: 1300,
       y: 600,
@@ -102,7 +102,7 @@ try {
         ),
       );
     const distance = (a: number[], b: number[]) =>
-      a.reduce((sum, value, i) => sum + Math.abs(value - b[i]), 0);
+      a.reduce((sum, value, i) => sum + Math.abs(value - b[i]!), 0);
     const empty = paint([]);
     const filled = paint([testRider]);
     // Sample opposite shoulders of the wider body, away from the antialiased rim.
@@ -144,7 +144,7 @@ try {
         if (index === 1 && i >= 78 && i <= 84) return [];
         return [
           {
-            ...segment(points[i].x, points[i].y, point.x, point.y, 20 + i),
+            ...segment(points[i]!.x, points[i]!.y, point.x, point.y, 20 + i),
             ...(index === 1 && i < 78
               ? { detached: { id: 1, decayStartTick: 240 } }
               : {}),
@@ -155,8 +155,8 @@ try {
         ...p,
         shielded: false,
         drunkUntilTick: 0,
-        color: ["#a3e635", "#22d3ee", "#ff4fa3"][index],
-        name: ["LIME", "CYAN", "PINK"][index],
+        color: ["#a3e635", "#22d3ee", "#ff4fa3"][index]!,
+        name: ["LIME", "CYAN", "PINK"][index]!,
         x: points.at(-1)!.x,
         y: points.at(-1)!.y,
         trail,

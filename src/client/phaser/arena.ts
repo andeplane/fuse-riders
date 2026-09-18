@@ -30,7 +30,12 @@ import {
 } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
-import { crossViews, edgeGhosts } from "../arena-views.js";
+import {
+  crossViews,
+  quarterTurnView,
+  uprightOffset,
+  edgeGhosts,
+} from "../arena-views.js";
 import { edgesOpen } from "../../shared/arena-map.js";
 import { wrapCoordinate } from "../../shared/wrap.js";
 import { observeArenaDisplay } from "./viewport.js";
@@ -55,6 +60,7 @@ export interface ArenaOptions {
   renderer?: "auto" | "canvas";
   quality?: "high" | "low";
   resolution?: "display" | "world";
+  rotateToFit?: boolean;
   onStatus?: (status: "ready" | "context-lost" | "restored") => void;
 }
 export interface ArenaMetrics {
@@ -136,7 +142,7 @@ export function createPhaserArena(
   let renderMs = 0;
   canvas.style.width = "100%";
   canvas.style.height = "100%";
-  const display = observeArenaDisplay(canvas);
+  const display = observeArenaDisplay(canvas, options.rotateToFit);
   const scene = new ArenaScene(options.quality === "low" ? 160 : 480, () => {
     if (destroyed) return;
     game.loop.stop();
@@ -190,7 +196,7 @@ export function createPhaserArena(
     if (destroyed || !booted) return;
     const backing =
       options.resolution === "world"
-        ? { width, height }
+        ? { width, height, rotated: false }
         : display.backing(width, height);
     if (
       game.scale.width !== backing.width ||
@@ -202,14 +208,22 @@ export function createPhaserArena(
     canvas.style.height = "100%";
     // The crossed map is the same world seen through four cameras, each showing one quarter in the opposite corner
     // of the screen. Nothing that is drawn knows: every object is clipped at a seam and picked up past it for free.
+    scene.rotated = backing.rotated;
+    canvas.dataset.arenaOrientation = backing.rotated
+      ? "portrait"
+      : "landscape";
+    const screenWidth = backing.rotated ? backing.height : backing.width;
+    const screenHeight = backing.rotated ? backing.width : backing.height;
+    const zoomX = screenWidth / width,
+      zoomY = screenHeight / height;
     const views = crossed
-      ? crossViews(width, height, backing.width, backing.height)
+      ? crossViews(width, height, screenWidth, screenHeight)
       : [
           {
             x: 0,
             y: 0,
-            width: backing.width,
-            height: backing.height,
+            width: screenWidth,
+            height: screenHeight,
             scrollX: 0,
             scrollY: 0,
           },
@@ -218,7 +232,10 @@ export function createPhaserArena(
     while (cameras.cameras.length > views.length)
       cameras.remove(cameras.cameras[cameras.cameras.length - 1]!);
     while (cameras.cameras.length < views.length) cameras.add(0, 0, 1, 1);
-    for (const [index, view] of views.entries()) {
+    for (const [index, original] of views.entries()) {
+      const view = backing.rotated
+        ? quarterTurnView(original, screenHeight, zoomY)
+        : original;
       cameras.cameras[index]!.setViewport(
         view.x,
         view.y,
@@ -227,7 +244,8 @@ export function createPhaserArena(
       )
         .setOrigin(0, 0)
         .setScroll(view.scrollX, view.scrollY)
-        .setZoom(backing.width / width, backing.height / height);
+        .setZoom(zoomX, zoomY)
+        .setRotation(backing.rotated ? Math.PI / 2 : 0);
     }
   };
   return {
@@ -273,6 +291,7 @@ export function createPhaserArena(
 }
 
 class ArenaScene extends Phaser.Scene {
+  rotated = false;
   private floor!: Phaser.GameObjects.Graphics;
   private floorTexture!: Phaser.Textures.CanvasTexture;
   private floorImage!: Phaser.GameObjects.Image;
@@ -592,7 +611,7 @@ class ArenaScene extends Phaser.Scene {
       .setTexture(key, frame)
       .setPosition(x, y)
       .setDisplaySize(size, size)
-      .setRotation(rotation)
+      .setRotation(rotation - (this.rotated ? Math.PI / 2 : 0))
       .setAlpha(1)
       .clearTint();
   }
@@ -625,7 +644,12 @@ class ArenaScene extends Phaser.Scene {
       Math.ceil(Math.max(this.cameras.main.zoomX, this.cameras.main.zoomY)),
     );
     if (label.style.resolution !== resolution) label.setResolution(resolution);
-    label.setDepth(depth).setVisible(true).setPosition(x, y).setAlpha(1);
+    label
+      .setDepth(depth)
+      .setVisible(true)
+      .setPosition(x, y)
+      .setRotation(this.rotated ? -Math.PI / 2 : 0)
+      .setAlpha(1);
     if (label.style.color !== tint) label.setColor(tint);
     if (label.style.fontSize !== `${size}px`) label.setFontSize(size);
     return label;
@@ -650,8 +674,7 @@ class ArenaScene extends Phaser.Scene {
     const backgroundKey = `${w}:${h}:${theme.id}:${s.map}`;
     if (backgroundKey !== this.backgroundKey) {
       this.backgroundKey = backgroundKey;
-      // The pre-Phaser floor: a soft radial wash and a grid anchored to the arena,
-      // so the background stays still as the boundary closes in.
+      // A soft radial wash stays still as the boundary closes in.
       this.floorTexture.setSize(w, h);
       const ctx = this.floorTexture.context;
       const gradient = ctx.createRadialGradient(
@@ -697,11 +720,8 @@ class ArenaScene extends Phaser.Scene {
       this.floorKey = floorKey;
       // Boundary motion must not redraw/upload the full background texture each tick.
       this.floor.clear();
-      // Draw grid lines as geometry: baking them into a texture loses lines on small boards.
-      const grid = Phaser.Display.Color.RGBStringToColor(
-        ground.grid.replace(/,\s*\./, ",0."),
-      );
-      this.floor.lineStyle(1, grid.color, grid.alphaGL);
+      // Only reveal the grid where gravity bends it; the resting floor has no grid.
+      // Draw geometry: baking lines into a texture loses them on small boards.
       // Each point slides toward a core by pull·(1-d/R)², which keeps order along every ray, so lines bunch up without ever crossing.
       const warp = (x: number, y: number): [number, number] => {
         let dx = 0,
@@ -725,43 +745,37 @@ class ArenaScene extends Phaser.Scene {
               : Math.abs(well.y - y1) < well.radius,
           )
         ) {
-          this.floor.lineBetween(x1, y1, x2, y2);
           return;
         }
-        const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 12);
-        this.floor.beginPath();
-        for (let i = 0; i <= steps; i++) {
-          const [px, py] = warp(
-            x1 + ((x2 - x1) * i) / steps,
-            y1 + ((y2 - y1) * i) / steps,
-          );
-          if (i === 0) this.floor.moveTo(px, py);
-          else this.floor.lineTo(px, py);
-        }
-        this.floor.strokePath();
-        // The theme grid is nearly invisible by design, so the bent stretch is traced again in the hole's violet, brighter toward the core.
+        const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 6);
+        // Match the pull's squared falloff: transparent at the edge, violet in the
+        // visibly warped interior. Opening/closing pull also fades opacity to zero.
         for (let i = 0; i < steps; i++) {
           const ax = x1 + ((x2 - x1) * i) / steps,
-            ay = y1 + ((y2 - y1) * i) / steps;
+            ay = y1 + ((y2 - y1) * i) / steps,
+            bx = x1 + ((x2 - x1) * (i + 1)) / steps,
+            by = y1 + ((y2 - y1) * (i + 1)) / steps;
           let depth = 0;
           for (const well of wells)
             depth = Math.max(
               depth,
-              (1 - Math.hypot(well.x - ax, well.y - ay) / well.radius) *
+              Math.max(
+                0,
+                1 -
+                  Math.hypot(well.x - (ax + bx) / 2, well.y - (ay + by) / 2) /
+                    well.radius,
+              ) **
+                2 *
                 well.pull *
                 2,
             );
           if (depth <= 0) continue;
           const [px, py] = warp(ax, ay),
-            [qx, qy] = warp(
-              x1 + ((x2 - x1) * (i + 1)) / steps,
-              y1 + ((y2 - y1) * (i + 1)) / steps,
-            );
+            [qx, qy] = warp(bx, by);
           this.floor
-            .lineStyle(1, 0xa98bff, 0.08 + 0.4 * depth)
+            .lineStyle(1, 0xa98bff, 0.48 * depth)
             .lineBetween(px, py, qx, qy);
         }
-        this.floor.lineStyle(1, grid.color, grid.alphaGL);
       };
       for (let x = 0; x <= w; x += ground.gridSize) gridLine(x, 0, x, h);
       for (let y = 0; y <= h; y += ground.gridSize) gridLine(0, y, w, y);
@@ -879,7 +893,8 @@ class ArenaScene extends Phaser.Scene {
         p.y,
         (power ? 24 : 34) * pulse,
       ).setAlpha(clamp((p.expiresAtTick - s.tick) / 40, 0.15, 1));
-      if (!power)
+      if (!power) {
+        const text = uprightOffset(p.x, p.y, 0, 30, this.rotated);
         this.label(
           p.type === "stopwatch"
             ? "FUSE"
@@ -888,11 +903,12 @@ class ArenaScene extends Phaser.Scene {
               : p.type === "orbitShield"
                 ? "SHIELD"
                 : p.type.toUpperCase(),
-          p.x,
-          p.y + 30,
+          text.x,
+          text.y,
           "#d3fff2",
           9,
         );
+      }
     }
     const portalPulses = gunPortalPulses(s, s.presentationTick ?? s.tick);
     const livePortals = s.portalPairs.filter(
@@ -1277,7 +1293,7 @@ class ArenaScene extends Phaser.Scene {
           self ? 12 : 10,
         );
         const power = this.label(
-          powerCountText(p.powerPickups, p.extraBombs, p.grip),
+          powerCountText(p.powerPickups, p.extraBombs, p.grip, p.rangeLevel),
           p.x,
           labelY,
           POWER_COLOR,
@@ -1291,9 +1307,24 @@ class ArenaScene extends Phaser.Scene {
               POWER_ICON_GAP +
               power.width) /
               2;
-        name.setX(left + name.width / 2);
-        const iconX = left + name.width + gap + POWER_ICON_SIZE / 2,
-          iconY = labelY,
+        const namePoint = uprightOffset(
+          p.x,
+          p.y,
+          left + name.width / 2 - p.x,
+          labelY - p.y,
+          this.rotated,
+        );
+        name.setPosition(namePoint.x, namePoint.y);
+        const iconOffset = left + name.width + gap + POWER_ICON_SIZE / 2 - p.x;
+        const iconPoint = uprightOffset(
+          p.x,
+          p.y,
+          iconOffset,
+          labelY - p.y,
+          this.rotated,
+        );
+        const iconX = iconPoint.x,
+          iconY = iconPoint.y,
           radius = POWER_ICON_SIZE / 2;
         f.fillStyle(color(POWER_COLOR))
           .lineStyle(2, 0x020715)
@@ -1305,7 +1336,14 @@ class ArenaScene extends Phaser.Scene {
           .closePath()
           .fillPath()
           .strokePath();
-        power.setX(iconX + radius + POWER_ICON_GAP + power.width / 2);
+        const powerPoint = uprightOffset(
+          p.x,
+          p.y,
+          iconOffset + radius + POWER_ICON_GAP + power.width / 2,
+          labelY - p.y,
+          this.rotated,
+        );
+        power.setPosition(powerPoint.x, powerPoint.y);
         const reload = reloadRemaining(p, s);
         if (reload > 0) {
           const start = -Math.PI / 2 + (1 - reload) * Math.PI * 2;
@@ -1346,7 +1384,8 @@ class ArenaScene extends Phaser.Scene {
               .fillRect(sx - 2, sy - 8, 4, 16)
               .fillRect(sx - 8, sy - 2, 16, 4);
           }
-          this.label("DIZZY", p.x, p.y + 37, "#fff078", 9);
+          const text = uprightOffset(p.x, p.y, 0, 37, this.rotated);
+          this.label("DIZZY", text.x, text.y, "#fff078", 9);
         }
         if (
           p.bombChargeStartedTick !== undefined &&
@@ -1358,6 +1397,7 @@ class ArenaScene extends Phaser.Scene {
             (p.presentationTick ?? s.tick) - p.bombChargeStartedTick,
             s.bombChargeTicks,
             s.aimBounce,
+            p.rangeLevel,
           );
           for (const a of volleyAngles(p.angle, bombsPerShot(p))) {
             const x = open
@@ -1378,7 +1418,8 @@ class ArenaScene extends Phaser.Scene {
         ) {
           const { x, y } = p.bombTarget;
           drawBombAim(f, p, { x, y }, tint);
-          this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
+          const text = uprightOffset(x, y, 0, 45, this.rotated);
+          this.label(`TARGET · ${p.name}`, text.x, text.y, p.color, 12, 7);
         }
       }
     const inked = s.players.some((p) => p.alive && p.inkUntilTick > s.tick);

@@ -65,7 +65,9 @@ class Peer {
       }
       try {
         this.frames.push(JSON.parse(raw.toString()));
-      } catch {}
+      } catch {
+        // A frame that is not JSON is not recorded; the waiter's timeout reports the frame that never came.
+      }
       this.notify();
     });
     this.socket.on("close", (code) => {

@@ -195,7 +195,7 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
     player = rider();
   player.trail = player.trail.map((s) => ({
     ...s,
-    detached: { id: 1, decayStartTick: 30 },
+    detached: { id: 1, decayStartTick: 70 },
   }));
   const first = cache.update([player], "match:1");
   assert.equal(first.strokes[0]!.alive, false);
@@ -213,7 +213,7 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
   assert.equal(cache.update([active], "match:1").strokes[0]!.alive, true);
   const crossing = [
     segment(1, 0, 0, 10, 0),
-    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 30 } },
+    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 70 } },
   ];
   assert.equal(trailPaths(crossing).length, 2);
 });
@@ -221,24 +221,24 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
 test("pieces desaturate independently from snapshot time, preserving geometry and rider identity", () => {
   const player = rider();
   player.trail = [
-    { ...segment(1, 0, 0, 10, 0), detached: { id: 1, decayStartTick: 30 } },
-    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 60 } },
+    { ...segment(1, 0, 0, 10, 0), detached: { id: 1, decayStartTick: 70 } },
+    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 100 } },
     segment(3, 20, 0, 30, 0),
   ];
   const original = structuredClone(player);
   const fresh = completeTrailStrokes([player], 10, "playing");
   const middle = completeTrailStrokes([player], 40, "playing");
   const gray = completeTrailStrokes([player], 70, "playing");
-  assert.equal(fresh[0].color, player.color);
+  assert.equal(fresh[0]!.color, player.color);
   const channels = (color: string) =>
     [1, 3, 5].map((offset) => parseInt(color.slice(offset, offset + 2), 16));
   const chroma = (color: string) =>
     Math.max(...channels(color)) - Math.min(...channels(color));
-  assert(chroma(middle[0].color) > 0);
-  assert(chroma(middle[0].color) < chroma(fresh[0].color));
-  assert.equal(chroma(gray[0].color), 0);
+  assert(chroma(middle[0]!.color) > 0);
+  assert(chroma(middle[0]!.color) < chroma(fresh[0]!.color));
+  assert.equal(chroma(gray[0]!.color), 0);
   assert.equal(
-    middle[1].color,
+    middle[1]!.color,
     player.color,
     "newer piece starts at full color",
   );
@@ -254,8 +254,8 @@ test("pieces desaturate independently from snapshot time, preserving geometry an
   );
   assert.deepEqual(player, original);
   assert.equal(
-    trailColor(player.color, false, player.trail[0], 70),
-    gray[0].color,
+    trailColor(player.color, false, player.trail[0]!, 70),
+    gray[0]!.color,
     "death does not restart an older piece's fade",
   );
 });
@@ -265,17 +265,17 @@ test("Canvas history refreshes color with stationary geometry, settles at gray a
   const player = rider();
   player.trail = player.trail.map((segment) => ({
     ...segment,
-    detached: { id: 1, decayStartTick: 30 },
+    detached: { id: 1, decayStartTick: 70 },
   }));
   const first = cache.update([player], "match:1", 10);
   const middle = cache.update([player], "match:1", 40.5);
   assert(middle.changed);
-  assert.notEqual(middle.strokes[0].color, first.strokes[0].color);
+  assert.notEqual(middle.strokes[0]!.color, first.strokes[0]!.color);
   assert.equal(
-    middle.strokes[0].color,
-    completeTrailStrokes([player], 40.5, "playing")[0].color,
+    middle.strokes[0]!.color,
+    completeTrailStrokes([player], 40.5, "playing")[0]!.color,
   );
-  assert.deepEqual(middle.strokes[0].paths, first.strokes[0].paths);
+  assert.deepEqual(middle.strokes[0]!.paths, first.strokes[0]!.paths);
   cache.update([player], "match:1", 70);
   assert.equal(cache.update([player], "match:1", 80).changed, false);
   assert.deepEqual(
@@ -283,7 +283,7 @@ test("Canvas history refreshes color with stationary geometry, settles at gray a
     first.strokes,
   );
   player.trail[0] = {
-    ...player.trail[0],
+    ...player.trail[0]!,
     detached: { id: 1, decayStartTick: 0 },
   };
   assert.equal(
