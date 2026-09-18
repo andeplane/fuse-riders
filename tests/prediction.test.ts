@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { interpolateWorld, presentWorld } from "../src/online/prediction.js";
 import { World } from "../src/online/rollback.js";
-import { ACTION, JOIN } from "../src/shared/input-log.js";
-import { createRoomState } from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { COUNTDOWN_TICKS, riderMotionStep } from "../src/shared/game.js";
-import { advanceRiderPose } from "../src/shared/rider-motion.js";
-import { GUN_AIM_STEP } from "../src/shared/gun.js";
+import { ACTION, JOIN } from "../src/engine/input-log.js";
+import { createRoomState } from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { COUNTDOWN_TICKS, riderMotionStep } from "../src/engine/game.js";
+import { advanceRiderPose } from "../src/engine/rider-motion.js";
+import { GUN_AIM_STEP } from "../src/engine/gun.js";
 import { bombPreviewDistance } from "../src/client/bomb-preview.js";
 
 function frames() {
@@ -25,7 +25,9 @@ function frames() {
   log.through = 200;
   world.advance(COUNTDOWN_TICKS + 4);
   const [newer, older] = world.view();
-  return { older: older!, newer };
+  assert.ok(newer);
+  assert.ok(older);
+  return { older, newer };
 }
 
 test("interpolation uses coherent past state and fractional ticks without portal chords or dead riders", () => {

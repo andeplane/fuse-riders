@@ -137,7 +137,7 @@ try {
             startMesh(code: string, token: string): void;
           }
         ).startMesh(code, token),
-      [room.code, tokens[index]!],
+      [room.code, tokens[index]!] as const,
     );
   }
   await waitReady("links");

@@ -4,18 +4,21 @@ import {
   applyTick,
   createRoomState,
   type StreamEntries,
-} from "../src/shared/apply-tick.js";
-import { BotController } from "../src/shared/bot-controller.js";
+} from "../src/engine/apply-tick.js";
+import { BotController } from "../src/engine/bot-controller.js";
 import {
   ACTION,
   JOIN,
   LEAVE,
   PRESENCE,
   type Entry,
-} from "../src/shared/input-log.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { toSnapshot } from "../src/shared/game.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/input-log.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { toSnapshot } from "../src/engine/game.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import {
   buildMatchReport,
   sendMatchReport,

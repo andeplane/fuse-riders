@@ -5,7 +5,7 @@ import {
   type RuntimeDependencies,
   type TransportEvents,
 } from "../../src/online/room-runtime.js";
-import type { RoomSettings } from "../../src/shared/room-settings.js";
+import type { RoomSettings } from "../../src/engine/room-settings.js";
 import type { Frame } from "../../src/online/rollback.js";
 import type { GameEvent } from "../../src/shared/protocol.js";
 import { decodePacket } from "../../src/online/packet.js";

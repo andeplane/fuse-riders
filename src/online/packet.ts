@@ -1,5 +1,5 @@
 import { encode, decode } from "@msgpack/msgpack";
-import { isEntry, memberId, uint32, type Entry } from "../shared/input-log.js";
+import { isEntry, memberId, uint32, type Entry } from "../engine/input-log.js";
 
 export const PACKET_VERSION = 1,
   NACK_VERSION = 2;

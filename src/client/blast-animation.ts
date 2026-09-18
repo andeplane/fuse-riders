@@ -1,4 +1,4 @@
-import { BLAST_VISIBLE_TICKS } from "../shared/game.js";
+import { BLAST_VISIBLE_TICKS } from "../engine/game.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 type Blast = ViewSnapshot["blasts"][number];

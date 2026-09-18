@@ -7,7 +7,7 @@ import {
   MAX_PORTAL_PAIRS,
   type PortalPair,
   type PortalTransitOptions,
-} from "../src/shared/portal.ts";
+} from "../src/engine/portal.ts";
 
 const bounds = { minX: 20, minY: 20, maxX: 1580, maxY: 880 };
 const pair: PortalPair = {
@@ -99,7 +99,7 @@ test("placement remains bounded for unsafe or insufficiently separated sites", (
     [21, 880],
     [1580, 21],
     [100, 100],
-  ]) {
+  ] as const) {
     assert.equal(
       createPortalPair({
         id: "p",
@@ -226,7 +226,7 @@ test("cooldown, expiry, inside, stationary, moving away and short movement do no
       { x: 150, y: 200 },
       { x: 180, y: 200 },
     ],
-  ])
+  ] as const)
     assert.equal(transit({ from, to }), undefined);
 });
 

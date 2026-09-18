@@ -9,16 +9,20 @@ import {
   COUNTDOWN_TICKS,
   SLOT_COLORS,
   type InputIntent,
-} from "../src/shared/game.js";
-import { canonicalRoomState } from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import type { GameState } from "../src/shared/game.js";
+} from "../src/engine/game.js";
+import { canonicalRoomState } from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import type { GameState } from "../src/engine/game.js";
 import {
   GUN_AIM_MAX,
   GUN_AIM_STEP,
   GUN_TRACER_TICKS,
-} from "../src/shared/gun.js";
-import { encodeGameState, decodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/gun.js";
+import {
+  encodeGameState,
+  decodeGameState,
+} from "../src/engine/codec/checkpoint.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const canonical = (game: GameState) =>
   canonicalRoomState({
@@ -43,7 +47,7 @@ const release: InputIntent = {
   bombCommands: [{ action: "release" }],
 };
 function scene() {
-  const game = createGame("gun-regression", 42);
+  const game = createGame("gun-regression", classicSettings(), 42);
   for (let slot = 0; slot < 4; slot++)
     addPlayer(game, {
       id: `p${slot}`,

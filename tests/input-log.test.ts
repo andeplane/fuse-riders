@@ -20,8 +20,8 @@ import {
   neutralControls,
   quantizeAim,
   type Entry,
-} from "../src/shared/input-log.js";
-import { BotController } from "../src/shared/bot-controller.js";
+} from "../src/engine/input-log.js";
+import { BotController } from "../src/engine/bot-controller.js";
 import {
   RULES,
   actingCreator,
@@ -35,13 +35,13 @@ import {
   successionOrder,
   type RoomState,
   type StreamEntries,
-} from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+} from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   COUNTDOWN_TICKS,
   ROUND_OVER_TICKS,
   eliminatePlayer,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 
 const settings = defaultRoomSettings();
 const entry = (seq: number, tick: number, ...body: unknown[]): Entry =>

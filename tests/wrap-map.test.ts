@@ -15,22 +15,25 @@ import {
   type GameState,
   type InputIntent,
   type PlayerState,
-} from "../src/shared/game.js";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
+} from "../src/engine/game.js";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
 import {
   chooseArenaMap,
   edgesOpen,
   type ArenaMapId,
-} from "../src/shared/arena-map.js";
+} from "../src/engine/arena-map.js";
 import {
   splitWrappedSegment,
   wrapCoordinate,
   wrapDelta,
   wrapImages,
-} from "../src/shared/wrap.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { BotController } from "../src/shared/bot-controller.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/wrap.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { BotController } from "../src/engine/bot-controller.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import { renderedSnapshot } from "../src/client/render-snapshot.js";
 import { interpolateWorld } from "../src/online/prediction.js";
 import { trailPaths } from "../src/client/phaser/trails.js";
@@ -39,6 +42,7 @@ import {
   crossViews,
   edgeGhosts,
 } from "../src/client/arena-views.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const press: InputIntent = {
@@ -60,7 +64,7 @@ const release: InputIntent = {
 
 /** A started round on the named map, riders parked well apart in the middle, and no drops of its own. */
 function scene(map: ArenaMapId = "wrap", riders = 2): GameState {
-  const game = createGame("edges", 11);
+  const game = createGame("edges", classicSettings(), 11);
   game.settings = { ...defaultRoomSettings(), map };
   for (let slot = 0; slot < riders; slot += 1)
     addPlayer(game, {
@@ -447,7 +451,7 @@ test("overtime brings the walls in from the very edge, and the round is an ordin
 });
 
 test("bots ride through open edges rather than turning away from them, and only combat can end the round", () => {
-  const game = createGame("bots", 1);
+  const game = createGame("bots", classicSettings(), 1);
   game.settings = { ...defaultRoomSettings(), map: "wrap" };
   for (let slot = 0; slot < 4; slot += 1)
     addPlayer(game, {

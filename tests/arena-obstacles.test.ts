@@ -16,8 +16,8 @@ import {
   type GameState,
   type InputIntent,
   type PlayerState,
-} from "../src/shared/game.js";
-import { BOMB_FLIGHT_TICKS } from "../src/shared/bomb-launch.js";
+} from "../src/engine/game.js";
+import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
 import {
   ARENA_MAPS,
   MAX_OBSTACLES,
@@ -28,10 +28,14 @@ import {
   obstacleHitbox,
   obstacleTouchesCircle,
   type Obstacle,
-} from "../src/shared/arena-map.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { BotController } from "../src/shared/bot-controller.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+} from "../src/engine/arena-map.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { BotController } from "../src/engine/bot-controller.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const press: InputIntent = {
@@ -65,7 +69,7 @@ function scene(
   riders = 2,
   matchId = "obstacles",
 ): GameState {
-  const game = createGame(matchId, 11);
+  const game = createGame(matchId, classicSettings(), 11);
   for (let slot = 0; slot < riders; slot += 1)
     addPlayer(game, {
       id: `p${slot}`,
@@ -599,7 +603,11 @@ test("the closing overtime walls crush the scenery they reach", () => {
 test("every round lays a board that leaves each rider a clear start", () => {
   for (const riders of [2, 3, 5])
     for (let seed = 1; seed <= 25; seed += 1) {
-      const game = createGame(`spawn-${riders}-${seed}`, seed);
+      const game = createGame(
+        `spawn-${riders}-${seed}`,
+        classicSettings(),
+        seed,
+      );
       game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
       for (let slot = 0; slot < riders; slot += 1)
         addPlayer(game, {
@@ -639,7 +647,7 @@ test("every round lays a board that leaves each rider a clear start", () => {
 
 test("the room setting picks the board, and rotate gives each round a different one", () => {
   for (const map of ARENA_MAPS) {
-    const game = createGame(`fixed-${map}`, 4);
+    const game = createGame(`fixed-${map}`, classicSettings(), 4);
     game.settings = { ...defaultRoomSettings(), map };
     for (let slot = 0; slot < 2; slot += 1)
       addPlayer(game, {
@@ -656,7 +664,7 @@ test("the room setting picks the board, and rotate gives each round a different 
       `${map} scenery`,
     );
   }
-  const game = createGame("rotating", 4);
+  const game = createGame("rotating", classicSettings(), 4);
   game.settings = { ...defaultRoomSettings(), map: "rotate" };
   for (let slot = 0; slot < 2; slot += 1)
     addPlayer(game, {
@@ -753,7 +761,7 @@ test("bots ride around scenery instead of into it", () => {
   const controller = new BotController();
   let survived = 0;
   for (let seed = 1; seed <= 12; seed += 1) {
-    const game = createGame(`bot-map-${seed}`, seed);
+    const game = createGame(`bot-map-${seed}`, classicSettings(), seed);
     game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
     addPlayer(game, {
       id: "bot:1",
@@ -845,8 +853,8 @@ test("a shell fired from inside scenery flies out of it rather than rattling bet
   assert.equal(shell.shell!.bounces ?? 0, 0);
 });
 
-test("a game without room settings, as on the LAN, keeps the classic arena", () => {
-  const game = createGame("lan", 4);
+test("a game set to the classic map keeps the arena free of scenery", () => {
+  const game = createGame("classic", classicSettings(), 4);
   for (let slot = 0; slot < 2; slot += 1)
     addPlayer(game, {
       id: `p${slot}`,

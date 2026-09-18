@@ -3,9 +3,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { World, type Frame } from "../src/online/rollback.js";
-import { createRoomState, RULES } from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
-import { JOIN, ACTION, STEER, PRESENCE } from "../src/shared/input-log.js";
+import { createRoomState, RULES } from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { JOIN, ACTION, STEER, PRESENCE } from "../src/engine/input-log.js";
 import { encodeSnapshot } from "../src/online/snapshot.js";
 import { roomHash } from "../src/online/packet.js";
 import {
@@ -113,7 +113,7 @@ test("returning runtime replays its own retired stream from the peer snapshot", 
     tickLoop();
   }
   assert.equal(runtime.tick, 74);
-  const expected = source.view()[0].players.find((p) => p.id === "guest");
+  const expected = source.view()[0]!.players.find((p) => p.id === "guest");
   const actual = frame!.players.find((p) => p.id === "guest");
   assert.equal(
     actual!.angle,

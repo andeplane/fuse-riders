@@ -1,4 +1,4 @@
-import { bombRangeMultiplier } from "../shared/bomb-launch.js";
+import { bombRangeMultiplier } from "../engine/bomb-launch.js";
 
 /** Gold belongs to Power; player names retain their identity color. */
 export const POWER_COLOR = "#ffdf55";

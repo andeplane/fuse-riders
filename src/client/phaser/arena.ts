@@ -10,15 +10,14 @@ import {
   TRAIL_WIDTH,
   PICKUP_TYPES,
   gravityCoreRadius,
-  isAimingGun,
-} from "../../shared/game.js";
+} from "../../engine/game.js";
 import Phaser from "phaser";
 import type { ViewSnapshot } from "../snapshot-stream.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
 import { drawBombAim } from "./bomb-aim.js";
-import { bombsPerShot, volleyAngles } from "../../shared/launch-modifiers.js";
+import { bombsPerShot, volleyAngles } from "../../engine/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
@@ -37,8 +36,9 @@ import {
   uprightOffset,
   edgeGhosts,
 } from "../arena-views.js";
-import { edgesOpen } from "../../shared/arena-map.js";
-import { wrapCoordinate } from "../../shared/wrap.js";
+import { edgesOpen } from "../../engine/arena-map.js";
+import { wrapCoordinate } from "../../engine/wrap.js";
+import { isAimingGun } from "../../engine/view-kit.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
@@ -675,8 +675,7 @@ class ArenaScene extends Phaser.Scene {
     const backgroundKey = `${w}:${h}:${theme.id}:${s.map}`;
     if (backgroundKey !== this.backgroundKey) {
       this.backgroundKey = backgroundKey;
-      // The pre-Phaser floor: a soft radial wash and a grid anchored to the arena,
-      // so the background stays still as the boundary closes in.
+      // A soft radial wash stays still as the boundary closes in.
       this.floorTexture.setSize(w, h);
       const ctx = this.floorTexture.context;
       const gradient = ctx.createRadialGradient(
@@ -722,11 +721,8 @@ class ArenaScene extends Phaser.Scene {
       this.floorKey = floorKey;
       // Boundary motion must not redraw/upload the full background texture each tick.
       this.floor.clear();
-      // Draw grid lines as geometry: baking them into a texture loses lines on small boards.
-      const grid = Phaser.Display.Color.RGBStringToColor(
-        ground.grid.replace(/,\s*\./, ",0."),
-      );
-      this.floor.lineStyle(1, grid.color, grid.alphaGL);
+      // Only reveal the grid where gravity bends it; the resting floor has no grid.
+      // Draw geometry: baking lines into a texture loses them on small boards.
       // Each point slides toward a core by pull·(1-d/R)², which keeps order along every ray, so lines bunch up without ever crossing.
       const warp = (x: number, y: number): [number, number] => {
         let dx = 0,
@@ -750,43 +746,37 @@ class ArenaScene extends Phaser.Scene {
               : Math.abs(well.y - y1) < well.radius,
           )
         ) {
-          this.floor.lineBetween(x1, y1, x2, y2);
           return;
         }
-        const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 12);
-        this.floor.beginPath();
-        for (let i = 0; i <= steps; i++) {
-          const [px, py] = warp(
-            x1 + ((x2 - x1) * i) / steps,
-            y1 + ((y2 - y1) * i) / steps,
-          );
-          if (i === 0) this.floor.moveTo(px, py);
-          else this.floor.lineTo(px, py);
-        }
-        this.floor.strokePath();
-        // The theme grid is nearly invisible by design, so the bent stretch is traced again in the hole's violet, brighter toward the core.
+        const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 6);
+        // Match the pull's squared falloff: transparent at the edge, violet in the
+        // visibly warped interior. Opening/closing pull also fades opacity to zero.
         for (let i = 0; i < steps; i++) {
           const ax = x1 + ((x2 - x1) * i) / steps,
-            ay = y1 + ((y2 - y1) * i) / steps;
+            ay = y1 + ((y2 - y1) * i) / steps,
+            bx = x1 + ((x2 - x1) * (i + 1)) / steps,
+            by = y1 + ((y2 - y1) * (i + 1)) / steps;
           let depth = 0;
           for (const well of wells)
             depth = Math.max(
               depth,
-              (1 - Math.hypot(well.x - ax, well.y - ay) / well.radius) *
+              Math.max(
+                0,
+                1 -
+                  Math.hypot(well.x - (ax + bx) / 2, well.y - (ay + by) / 2) /
+                    well.radius,
+              ) **
+                2 *
                 well.pull *
                 2,
             );
           if (depth <= 0) continue;
           const [px, py] = warp(ax, ay),
-            [qx, qy] = warp(
-              x1 + ((x2 - x1) * (i + 1)) / steps,
-              y1 + ((y2 - y1) * (i + 1)) / steps,
-            );
+            [qx, qy] = warp(bx, by);
           this.floor
-            .lineStyle(1, 0xa98bff, 0.08 + 0.4 * depth)
+            .lineStyle(1, 0xa98bff, 0.48 * depth)
             .lineBetween(px, py, qx, qy);
         }
-        this.floor.lineStyle(1, grid.color, grid.alphaGL);
       };
       for (let x = 0; x <= w; x += ground.gridSize) gridLine(x, 0, x, h);
       for (let y = 0; y <= h; y += ground.gridSize) gridLine(0, y, w, y);

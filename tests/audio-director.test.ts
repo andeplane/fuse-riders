@@ -14,9 +14,10 @@ import {
   addPlayer,
   createGame,
   toSnapshot,
-} from "../src/shared/game.ts";
-import { beginMatchParticipant } from "../src/shared/match-stats.ts";
+} from "../src/engine/game.ts";
+import { beginMatchParticipant } from "../src/engine/match-stats.ts";
 import type { GameEvent, ServerMessage } from "../src/shared/protocol.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 function fixture(stored: Partial<RadioState> = {}) {
   let canUnlock = true;
   let stops = 0;
@@ -56,7 +57,7 @@ function fixture(stored: Partial<RadioState> = {}) {
     { ...defaultRadio(), ...stored },
     (state) => saved.push(structuredClone(state)),
   );
-  const game = createGame("audio");
+  const game = createGame("audio", classicSettings());
   addPlayer(game, { id: "p", name: "P", slot: 0, color: "#ffffff" });
   beginMatchParticipant(game.matchStats, {
     id: "p",
@@ -221,7 +222,7 @@ test("pickup cues use authoritative collection events and reconnect baseline sta
 
 test("engine emits collection once only after a real pickup is consumed", async () => {
   const { startMatch, step, COUNTDOWN_TICKS } =
-    await import("../src/shared/game.ts");
+    await import("../src/engine/game.ts");
   const f = fixture();
   addPlayer(f.game, { id: "q", name: "Q", slot: 1, color: "#aaaaaa" });
   startMatch(f.game);

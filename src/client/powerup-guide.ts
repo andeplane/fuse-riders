@@ -10,10 +10,10 @@ import {
   STAR_DURATION_TICKS,
   TICK_HZ,
   type PickupType,
-} from "../shared/game.js";
-import { DRUNK_DURATION_TICKS } from "../shared/drunk.js";
-import { PICKUP_WEIGHTS } from "../shared/pickup-weights.js";
-import { POWER_TUNING } from "../shared/power-progression.js";
+} from "../engine/game.js";
+import { DRUNK_DURATION_TICKS } from "../engine/drunk.js";
+import { PICKUP_WEIGHTS } from "../engine/pickup-weights.js";
+import { POWER_TUNING } from "../engine/power-progression.js";
 
 export interface PowerupGuideEntry {
   type: PickupType;

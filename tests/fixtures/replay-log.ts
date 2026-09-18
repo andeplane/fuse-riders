@@ -1,13 +1,13 @@
-import { BotController } from "../../src/shared/bot-controller.js";
+import { BotController } from "../../src/engine/bot-controller.js";
 import {
   applyTick,
   createRoomState,
   hashRoomState,
   type StreamEntries,
   type RoomState,
-} from "../../src/shared/apply-tick.ts";
-import type { Entry } from "../../src/shared/input-log.ts";
-import { defaultRoomSettings } from "../../src/shared/room-settings.js";
+} from "../../src/engine/apply-tick.ts";
+import type { Entry } from "../../src/engine/input-log.ts";
+import { defaultRoomSettings } from "../../src/engine/room-settings.js";
 import type { GameEvent } from "../../src/shared/protocol.js";
 
 /** A room's whole input: every member's log entries, and how many ticks to fold them over. Inputs only, no state. */

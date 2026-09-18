@@ -9,7 +9,10 @@ import {
 } from "../src/online/snapshot.js";
 import { World } from "../src/online/rollback.js";
 import { packMessage, unpackMessage } from "../src/online/packet.js";
-import { decodeGameState, encodeGameState } from "../src/online/checkpoint.js";
+import {
+  decodeGameState,
+  encodeGameState,
+} from "../src/engine/codec/checkpoint.js";
 import {
   ACTION,
   BOT,
@@ -17,13 +20,13 @@ import {
   PRESS,
   STEER,
   type Entry,
-} from "../src/shared/input-log.js";
+} from "../src/engine/input-log.js";
 import {
   RULES,
   createRoomState,
   hashRoomState,
-} from "../src/shared/apply-tick.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+} from "../src/engine/apply-tick.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   COUNTDOWN_TICKS,
   addPlayer,
@@ -31,7 +34,8 @@ import {
   startMatch,
   step,
   SLOT_COLORS,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const ROOM = 42;
 function playingWorld(): World {
@@ -386,7 +390,7 @@ test("snapshot validation rejects foreign rules and rooms, corrupt state, incons
 });
 
 test("replica game-state encoding preserves negative zero, maps and connection flags and rejects corruption", () => {
-  const game = createGame("codec");
+  const game = createGame("codec", classicSettings());
   addPlayer(game, {
     id: "p0",
     name: "P0",
