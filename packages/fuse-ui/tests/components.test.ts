@@ -299,6 +299,11 @@ test("roster: rows diff in place, names stay text, avatars rebuild only on chang
     [...roster.entries()].map(([id]) => id),
     ["a", "b"],
   );
+  assert.deepEqual(
+    [...roster.element.children].slice(1),
+    [a, roster.row("b")],
+    "a reordered list keeps the rows where they are; order is the stylesheet's",
+  );
 
   roster.update([{ id: "b", name: "Bobby" }]);
   assert.equal(roster.row("a"), undefined);
@@ -436,8 +441,10 @@ test("notice: a status line holds text; a toast clears itself; repeats are free"
   assert.equal(line.element.children.length, 0);
   assert.equal(line.element.dataset.tone, "warn");
   assert.equal(line.element.getAttribute("role"), "status");
+  assert.equal(line.element.getAttribute("aria-live"), "polite");
   line.show("Room closed", "error");
   assert.equal(line.element.getAttribute("role"), "alert");
+  assert.equal(line.element.getAttribute("aria-live"), "assertive");
   line.show("");
   assert.equal(line.element.hidden, true);
 
@@ -494,15 +501,31 @@ test("controller row: big buttons press on pointer down and release once", () =>
   assert.equal(plain.children.length, 0);
   assert.equal(plain.hasAttribute("aria-keyshortcuts"), false);
 
-  const down = event(window, "pointerdown");
+  const finger = (type: string, pointerId: number, button = 0) =>
+    event(window, type, { pointerId, button });
+  const down = finger("pointerdown", 1);
   hold.dispatchEvent(down);
   assert.ok(down.defaultPrevented);
   assert.ok(hold.classList.contains("active"));
-  hold.dispatchEvent(event(window, "pointerdown"));
-  hold.dispatchEvent(event(window, "pointerup"));
-  hold.dispatchEvent(event(window, "pointerleave"));
+  hold.dispatchEvent(finger("pointerdown", 2));
+  hold.dispatchEvent(finger("pointerup", 2));
+  assert.ok(
+    hold.classList.contains("active"),
+    "a second finger lifting does not release the first",
+  );
+  hold.dispatchEvent(finger("pointerup", 1));
+  hold.dispatchEvent(finger("pointerleave", 1));
   assert.equal(hold.classList.contains("active"), false);
   assert.deepEqual(log, ["hold", "hold up"], "one press, one release");
+
+  // A right click is not a press, and a disabled button takes no press at all, though browsers still send it pointer events.
+  roll.dispatchEvent(finger("pointerdown", 3, 2));
+  roll.disabled = true;
+  roll.dispatchEvent(finger("pointerdown", 4));
+  roll.dispatchEvent(event(window, "click", { detail: 0 }));
+  assert.equal(roll.classList.contains("active"), false);
+  assert.deepEqual(log, ["hold", "hold up"]);
+  roll.disabled = false;
 
   // A mouse click follows its own pointerdown; a keyboard click (detail 0) is a whole tap by itself.
   roll.dispatchEvent(event(window, "click", { detail: 1 }));

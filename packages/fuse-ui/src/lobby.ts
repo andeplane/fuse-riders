@@ -240,9 +240,9 @@ export interface LobbyOptions {
 
 export interface LobbyState {
   members: readonly RosterMember[];
-  /** This device may start the game (the host, with enough players). START hides when false and `canSee` is false. */
+  /** This device may start the game (the host, with enough players). START is disabled when false. */
   canStart: boolean;
-  /** This device sees START at all (the host). Defaults to `canStart`. */
+  /** This device sees START at all (the host). Defaults to `canStart`, so a guest never sees it. */
   showStart?: boolean;
   /** One line under the roster, e.g. "Waiting for at least 2 players". */
   note?: string;

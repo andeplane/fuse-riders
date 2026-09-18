@@ -56,6 +56,10 @@ export function createNotice(options: NoticeOptions = {}): Notice {
       element.textContent = text;
       element.dataset.tone = tone;
       element.setAttribute("role", tone === "error" ? "alert" : "status");
+      element.setAttribute(
+        "aria-live",
+        tone === "error" ? "assertive" : "polite",
+      );
       element.hidden = false;
       stopTimer();
       if (options.holdMs !== undefined) timer = later(clear, options.holdMs);

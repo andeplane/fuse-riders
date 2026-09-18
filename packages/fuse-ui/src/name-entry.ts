@@ -6,6 +6,7 @@ export interface NameEntryOptions {
    * rule (trim, length, allowed characters); the field then shows exactly the name that joins.
    */
   normalize(raw: string): string;
+  /** Called on every valid submit; two quick taps call it twice, so a game whose join is not idempotent guards it. */
   onSubmit(name: string): void;
   /** A remembered name to prefill. It never submits by itself. */
   initial?: string;

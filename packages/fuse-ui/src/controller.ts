@@ -47,17 +47,20 @@ export function createControllerRow<
     if (spec.title) button.title = spec.title;
     if (spec.onPress) {
       const press = spec.onPress;
-      let held = false;
-      const release = () => {
-        if (!held) return;
-        held = false;
+      // The pointer that started the press; only its lift ends it, so a second finger cannot release the first.
+      let held: number | undefined;
+      const release = (event: Event) => {
+        if (held === undefined || (event as PointerEvent).pointerId !== held)
+          return;
+        held = undefined;
         button.classList.remove("active");
         spec.onRelease?.();
       };
       button.addEventListener("pointerdown", (event) => {
         event.preventDefault();
-        if (held) return;
-        held = true;
+        // Browsers still deliver pointer events to a disabled button; a right or middle click is not a press.
+        if (button.disabled || event.button !== 0 || held !== undefined) return;
+        held = event.pointerId;
         button.classList.add("active");
         press();
       });
@@ -65,7 +68,7 @@ export function createControllerRow<
         button.addEventListener(type, release);
       // Keyboard and assistive tech activate with click; a press it did not start through the pointer is one tap.
       button.addEventListener("click", (event) => {
-        if (event.detail !== 0) return;
+        if (event.detail !== 0 || button.disabled) return;
         press();
         spec.onRelease?.();
       });
