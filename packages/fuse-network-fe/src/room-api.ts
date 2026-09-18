@@ -18,8 +18,10 @@ async function failure(response: Response, fallback: string): Promise<Error> {
   return new Error(typeof body?.error === "string" ? body.error : fallback);
 }
 /**
- * Creates a room for `gameId`. Without one the service creates a `LEGACY_GAME_ID` room; a service from before rooms
- * carried a game ignores the query, so a page can send it to either.
+ * Creates a room for `gameId`. Without one the service creates a `LEGACY_GAME_ID` room. A service from before rooms
+ * carried a game ignores the query and stores a room that later reads as `LEGACY_GAME_ID`'s: harmless for that game,
+ * but a room of any other game created there is refused by an up-to-date service. Ship another game only once every
+ * serving revision stores `gameId`.
  */
 export async function createRoom(
   apiUrl: (path: string) => string,

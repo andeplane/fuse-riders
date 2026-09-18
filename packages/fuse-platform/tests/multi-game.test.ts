@@ -523,6 +523,16 @@ test("rate-limit budgets are per game; the legacy game keeps its keys", async ()
     diceKeys = [digest("dice:history:alice"), digest("dice:leaderboard:ip")];
   for (const key of [...legacyKeys, ...diceKeys])
     assert.ok(f.roomDatabase.keys.includes(key));
+  // A room's reports: the per-address budget is the game's too, so one game's busy network cannot refuse another's.
+  const arena = await f.room(undefined, 1),
+    table = await f.room("dice", 3);
+  await f.store.game(LEGACY_GAME_ID).admit(arena.code, arena.tokens[0]!, "ip");
+  await f.store.game("dice").admit(table.code, table.tokens[0]!, "ip");
+  for (const key of [
+    digest("results-address:ip"),
+    digest("dice:results-address:ip"),
+  ])
+    assert.ok(f.roomDatabase.keys.includes(key));
   // The username is the account's in every game, so its budget is shared.
   await f.store.game("dice").rename("alice", { username: "Ace" });
   assert.ok(f.roomDatabase.keys.includes(digest("rename:alice")));

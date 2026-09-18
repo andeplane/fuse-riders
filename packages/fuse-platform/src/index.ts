@@ -9,3 +9,4 @@ export * from "./history.js";
 export * from "./http.js";
 export * from "./memory.js";
 export * from "./pages.js";
+export * from "./backfill.js";

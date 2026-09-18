@@ -161,8 +161,8 @@ export class GameHistory<
 
   /**
    * A rate-limit key for this game. Budgets are per game, so one game's play cannot spend another's; the legacy
-   * game keeps its keys exactly as they were. Room keys need no scope (a room serves one game) and the rename budget
-   * is the shared account's.
+   * game keeps its keys exactly as they were. Keys for one room and rider need no scope (a room serves one game) and
+   * the rename budget is the shared account's; a per-address budget is scoped like any other.
    */
   private limit(key: string): string {
     return digest(
@@ -203,7 +203,7 @@ export class GameHistory<
         roundReport ? 600 : SUBMISSIONS_PER_HOUR,
       )) &&
       (await this.rooms.database.allowance(
-        digest(
+        this.limit(
           `${roundReport ? "round-results" : "results"}-address:${address}`,
         ),
         this.now(),
