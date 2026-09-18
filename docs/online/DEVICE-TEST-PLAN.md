@@ -20,7 +20,8 @@ In scope: the six issues above, tested against the deployed public release at
 a fresh room each time. Out of scope: writing new code or scripts (docs
 only — if a defect is found, file a new issue with reproduction steps and
 link it from the recorded results; do not fix it as part of running this
-plan), Cloudflare/local-Worker testing (covered by existing LAN docs),
+plan), Cloudflare/local-Worker testing (its LAN docs went with the LAN
+server in #271),
 five-player sustained soak content already covered by
 [NETWORK-HARNESS.md](NETWORK-HARNESS.md) and
 [RESPONSE-BENCHMARK.md](RESPONSE-BENCHMARK.md) on desktop browsers.
@@ -50,8 +51,8 @@ five-player sustained soak content already covered by
   network** (e.g. a neighbor's or a mobile hotspot, not the host's own SSID).
   Record which of (a)/(b)/(c) each run used; several sections below specify
   which configuration applies.
-- Keep the LAN game itself untouched; none of this exercises `/display` or
-  `/controller`.
+- The LAN game this item once protected (`/display`, `/controller`) was removed
+  in #271; every run here is an online room.
 
 ## Recording location
 
@@ -91,10 +92,13 @@ phone as guest instead, laptop as host.
 
 1. Host a fresh room from the phone at the public URL (or join as guest for
    the repeat run). Note the room code.
-2. Serve the room from the laptop with `npm run dev` (the dev server records
-   every device's telemetry) and join from the phone over the LAN address, or
-   open the deployed URL with `?telemetry=1` on the phone. Start the race
-   once the laptop's guest has joined.
+2. Join from the phone at the deployed URL and start the race once the
+   laptop's guest has joined. **Not currently runnable as first written:**
+   this step served the room from the laptop with `npm run dev`, joined from
+   the phone over the LAN address and let the dev server record every
+   device's telemetry. Since #271 the dev service is loopback-only, so a
+   phone cannot reach it, and no `/telemetry` receiver exists on the dev
+   service or the deployed site, so `?telemetry=1` posts are not recorded.
 3. For about 60 s, physically operate the phone: hold
    left/right steer continuously across direction changes, fire repeatedly
    including while steering, and charge-and-release a bomb a few times. Count
@@ -104,7 +108,8 @@ phone as guest instead, laptop as host.
 4. Save `artifacts/telemetry/<ROOM>.ndjson` and the output of
    `npx tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson`
    into the evidence folder: inputs, rollbacks, gaps and status changes per
-   device.
+   device. **Not currently runnable:** nothing writes that file since #271
+   (see step 2); record the manual tally and the probe JSON instead.
 
 **Capture**: revision, both device models/OS/browser versions, the saved
 probe JSON (laptop-guest-side local-rejection percentage and fire-edge
@@ -152,9 +157,10 @@ quality.
 3. Rotate to landscape and back: the same lobby screen both times, nothing
    hidden. JOIN AS PLAYER, then add an AI opponent and set a short match
    length so a match can complete quickly.
-4. Start the race; screenshot during **countdown**. In portrait the rotate
-   gate shows; in landscape the three full-screen thirds plus the ☰ MENU
-   pill, hint labels visible and fading per the design (compare against
+4. Start the race; screenshot during **countdown**. Portrait shows the complete
+   arena rotated 90°, with upright avatars/labels and bottom touch thirds;
+   landscape keeps full-screen thirds. The ☰ MENU pill stays accessible in
+   both, with hint labels visible and fading per the design (compare against
    [#14](#14--long-press-text-selection) hint-fade note below).
 5. Screenshot during **playing**. Confirm identical positions/sizes to the
    countdown screenshot (same thirds, same pill).

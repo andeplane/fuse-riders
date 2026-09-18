@@ -22,6 +22,7 @@ import {
 } from "../../tuning.js";
 import { type GameState, type PlayerId, sortedPlayers } from "../../state.js";
 import { MAX_EXTRA_BOMBS } from "../../launch-modifiers.js";
+import { MAX_RANGE_LEVEL } from "../../bomb-launch.js";
 import { MAX_PORTAL_PAIRS, createPortalPair } from "../../portal.js";
 import {
   MAX_POWER_PICKUPS,
@@ -43,6 +44,10 @@ export function collectPickups(ctx: TickContext): void {
   for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
     const collectors = [...movements.values()]
       .filter(({ player }) => pickup.type !== "grip" || !player.grip)
+      .filter(
+        ({ player }) =>
+          pickup.type !== "range" || player.rangeLevel < MAX_RANGE_LEVEL,
+      )
       .map((movement) => ({
         movement,
         distance: pointSegmentDistanceSquared(
@@ -123,6 +128,11 @@ export function collectPickups(ctx: TickContext): void {
       collector.invulnerableUntilTick = Math.max(
         collector.invulnerableUntilTick,
         state.tick + STAR_DURATION_TICKS,
+      );
+    } else if (pickup.type === "range") {
+      collector.rangeLevel = Math.min(
+        MAX_RANGE_LEVEL,
+        collector.rangeLevel + 1,
       );
     } else if (pickup.type === "grip") {
       collector.grip = true;

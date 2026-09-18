@@ -4,15 +4,15 @@
 questions — do riders get from the landing page into a match and what happened when they did, and which powerups
 kill and how often they miss — and nothing else.
 It is unrelated to [`src/online/telemetry.ts`](../src/online/telemetry.ts), which posts raw runtime diagnostics
-(inputs, packets, repairs, rewinds) to `/telemetry` on whatever origin served the page — normally a dev server,
-since it too is on only for a ported address or `?telemetry=1`.
+(inputs, packets, repairs, rewinds) to `/telemetry` on whatever origin served the page. It too is on only for a ported address or `?telemetry=1`,
+but the receiver lived in the LAN server removed by #271, so nothing records those posts today.
 
 ## When it is on
 
 | Address                                             | Analytics                 |
 | --------------------------------------------------- | ------------------------- |
 | Deployed site, no port                              | on                        |
-| `localhost:5173`, LAN play, any address with a port | off                       |
+| `localhost:5173`, a LAN IP, any address with a port | off                       |
 | `?analytics=1`                                      | on, whatever the address  |
 | `?analytics=0`                                      | off, whatever the address |
 
@@ -27,7 +27,7 @@ back on at CREATE ROOM, and `?analytics=1` could never reach the room half of th
 Set it once on any page; clear it with the opposite flag.
 
 Test rooms therefore never reach the production project, and `?analytics=1` is how a build gets verified against
-it on purpose. The Mixpanel bundle is imported only once analytics is on, so a LAN game never downloads it.
+it on purpose. The Mixpanel bundle is imported only once analytics is on, so a local game never downloads it.
 
 The project token is a write-only public identifier. Every browser bundle that reports to a Mixpanel project
 ships one; it is not a credential and grants no read access, so it is checked in rather than plumbed through the
@@ -72,16 +72,16 @@ lobbed bomb every rider has, the baseline), `triple`, `five`, `target`, `gun` or
 
 The point is histograms, so both events carry every dimension an outcome might be broken down by:
 
-| Property                                   | On     | Meaning                                                                                                        |
-| ------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------- |
-| `weapon`                                   | both   | what the pull fired                                                                                            |
-| `bombs`                                    | both   | bombs the pull put in the air — 1 for Target, more for a volley or with Extra Bomb (Gun and Shell fan out too) |
-| `power`, `extraBombs`, `fuseLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                            |
-| `round`, `secondsIntoRound`                | both   | when the trigger was pulled, to a tenth of a second                                                            |
-| `riders`, `bots`                           | both   | the room when the round was reported                                                                           |
-| `victimBot`                                | `Kill` | whether the rider killed was an AI                                                                             |
-| `secondsToKill`                            | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target and Gun                    |
-| `shotKills`, `firstKillOfShot`             | `Kill` | how many riders the pull killed, and one `true` per pull                                                       |
+| Property                                                 | On     | Meaning                                                                                                        |
+| -------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| `weapon`                                                 | both   | what the pull fired                                                                                            |
+| `bombs`                                                  | both   | bombs the pull put in the air — 1 for Target, more for a volley or with Extra Bomb (Gun and Shell fan out too) |
+| `power`, `extraBombs`, `fuseLevel`, `rangeLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                            |
+| `round`, `secondsIntoRound`                              | both   | when the trigger was pulled, to a tenth of a second                                                            |
+| `riders`, `bots`                                         | both   | the room when the round was reported                                                                           |
+| `victimBot`                                              | `Kill` | whether the rider killed was an AI                                                                             |
+| `secondsToKill`                                          | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target and Gun                    |
+| `shotKills`, `firstKillOfShot`                           | `Kill` | how many riders the pull killed, and one `true` per pull                                                       |
 
 | Reading                       | Mixpanel                                                       |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -124,7 +124,7 @@ with the first of these that it spent:
 Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
 under their label, and a rider holding Target as well keeps it armed for the next pull. Below them Target wins because it is the only one the others cannot
 combine with. Rules before `fuse-p2p-24` also reported `gravity`, for the Singularity bomb that Gravity used to arm. The
-round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse and GRIP sharpen every pull rather than
+round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse, Range and GRIP sharpen every pull rather than
 being spent by one.
 
 A **kill** is exactly an elimination credited to an explosion, as the recap's `eliminations` counts it: a wall, a
@@ -152,8 +152,9 @@ reported as `matchLength` for exactly this reason.
   thousands of these. Its detail rides along on `Match Ended` instead, read from the authoritative `matchStats`
   the recap renders. `Kill` and `Miss` are the deliberate exception, bounded by pulls rather than ticks: a rider
   can pull the trigger at most once per reload, and only its own device reports.
-- **The LAN `/controller` and `/display` paths.** Those devices are frequently offline, and analytics is off on
-  a ported address anyway.
+- **Locally served games.** `npm run dev` serves on a ported loopback address, and analytics is off on any ported
+  address unless `?analytics=1` forces it on. (The LAN `/controller` and `/display` server this item once named
+  was removed in #271.)
 - **Bots.** They are counted in `botCount` and never identified as users.
 - **Identity beyond Mixpanel's own anonymous device id.** The `fuse-peer-*` and `fuse-room-*` values are room
   authentication tokens and never leave the browser.

@@ -121,6 +121,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     invulnerableUntilTick: 0,
     nitroUntilTicks: [],
     snailUntilTicks: [],
+    rangeLevel: 0,
     grip: false,
     drunkUntilTick: 0,
     inkUntilTick: 0,
@@ -311,6 +312,7 @@ function prepareRound(state: GameState): void {
     player.invulnerableUntilTick = 0;
     player.nitroUntilTicks = [];
     player.snailUntilTicks = [];
+    player.rangeLevel = 0;
     player.grip = false;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
