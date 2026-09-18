@@ -19,7 +19,7 @@ export function createControllerLayoutSetting(
   for (const side of ["right", "left"] as const) {
     const option = doc.createElement("option");
     option.value = side;
-    option.textContent = `Bomb on ${side}`;
+    option.textContent = side === "left" ? "Left" : "Right";
     option.selected = side === initial;
     select.append(option);
   }
