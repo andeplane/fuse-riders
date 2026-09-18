@@ -18,12 +18,13 @@ COPY packages/fuse-platform/package.json ./packages/fuse-platform/
 COPY packages/fuse-ui/package.json ./packages/fuse-ui/
 # Games are workspaces too: npm ci needs every manifest the lockfile lists, and the service registers each game's stats.
 COPY games/dice/package.json ./games/dice/
+COPY games/fuse-riders/package.json ./games/fuse-riders/
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
-COPY --chown=node:node src ./src
+COPY --chown=node:node service ./service
 COPY --chown=node:node packages ./packages
 COPY --chown=node:node games ./games
 # The running service reports this on /api/health; the Pages release publishes only the revision the backend serves.
 ENV NODE_ENV=production PORT=8080 BUILD_REVISION=$BUILD_REVISION
 USER node
 EXPOSE 8080
-CMD ["node", "--import", "tsx", "src/service/index.ts"]
+CMD ["node", "--import", "tsx", "service/index.ts"]

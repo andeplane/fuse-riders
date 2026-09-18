@@ -7,14 +7,14 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "npm run build && tsx src/service/dev.ts --port ${PORT:-8787}",
+    "dev": "npm run build && tsx service/dev.ts --port ${PORT:-8787}",
     "build": "tsc --noEmit && vite build",
     "prestart": "npm run build",
-    "start": "npm run build && tsx src/service/dev.ts --port ${PORT:-8787}",
+    "start": "npm run build && tsx service/dev.ts --port ${PORT:-8787}",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
     "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
-    "dev:online": "npm run build && tsx src/service/dev.ts --port 8787",
+    "dev:online": "npm run build && tsx service/dev.ts --port 8787",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

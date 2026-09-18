@@ -1,0 +1,13 @@
+{
+  "name": "fuse-riders-game",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fuse Riders: the rules and simulation (src/engine/), the rendering (src/render/), the app, controls and audio (src/client/, src/online/), served at the site root. Its dependencies are still declared in the root package.json.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "exports": {
+    ".": "./src/engine/index.ts"
+  }
+}
