@@ -6,7 +6,7 @@ import {
   type RoomState,
   type StreamEntries,
 } from "../engine/apply-tick.js";
-import { toView } from "../engine/game.js";
+import { TickFault, toView, type Phase } from "../engine/game.js";
 import { LEAVE, PRESENCE } from "../engine/input-log.js";
 import type { GameEvent, WorldView } from "../engine/view.js";
 import { ROLLBACK_TICKS, StreamLog, type ReceiveResult } from "./stream.js";
@@ -20,13 +20,28 @@ export interface WorldEvent {
   matchId: string;
   event: GameEvent;
 }
+/**
+ * A tick threw while it was being simulated. The world has been put back to the newest snapshot it retained from
+ * before that tick, so its state is whole again, and it simulates no further until the fault is cleared: by `install`,
+ * by a late entry at or before the tick (the inputs it threw under were a misprediction), or by `retry`.
+ */
+export interface WorldFault {
+  /** The tick that could not be simulated. */
+  tick: number;
+  /** The phase of the tick that threw, when the engine could name one. */
+  phase?: string;
+  error: unknown;
+}
 export interface AdvanceResult {
   events: WorldEvent[];
   waitingFor?: string;
+  /** Set on the call during which the world faulted, so the owner reports it once. */
+  fault?: WorldFault;
 }
 export interface WorldReceive extends ReceiveResult {
   events: WorldEvent[];
   rollbackTicks: number;
+  fault?: WorldFault;
 }
 export interface Frame extends WorldView {
   matchId: string;
@@ -46,10 +61,14 @@ export class World {
   private readonly bots = new BotController();
   rollbacks = 0;
   rollbackTicks = 0;
+  /** Why this world has stopped, if it has. Cleared by `install`. */
+  fault?: WorldFault;
   constructor(
     public state: RoomState,
     readonly creatorId: string,
     readonly selfId: string,
+    /** Fault-injection seam for tests: the tick's phases, passed through to `step`. */
+    private readonly phases?: readonly Phase[],
   ) {
     this.snapshots.set(state.game.tick, structuredClone(state));
     this.frames = [this.frame(state)];
@@ -152,18 +171,23 @@ export class World {
   advance(targetTick: number): AdvanceResult {
     const events: WorldEvent[] = [];
     let waitingFor: string | undefined,
-      advanced = false;
-    while (this.tick < targetTick) {
+      advanced = false,
+      fault: WorldFault | undefined;
+    while (!this.fault && this.tick < targetTick) {
       const stall = this.stallBound();
       if (this.tick >= stall.tick) {
         waitingFor = stall.waitingFor;
         break;
       }
-      this.simulate(this.state, this.tick + 1, events);
+      fault = this.simulate(this.state, this.tick + 1, events);
       advanced = true;
     }
-    if (advanced) this.retain();
-    return { events, ...(waitingFor === undefined ? {} : { waitingFor }) };
+    if (advanced && !fault) this.retain();
+    return {
+      events,
+      ...(waitingFor === undefined ? {} : { waitingFor }),
+      ...(fault ? { fault } : {}),
+    };
   }
   /** Feed one packet's entries for a stream; a late applicable entry rolls the world back and re-simulates. */
   receive(
@@ -189,7 +213,21 @@ export class World {
       localTick,
       this.tick,
     );
-    if (result.status !== "accepted" || result.rollbackTo === undefined)
+    // The tick threw under inputs that have just changed: what it threw under was a misprediction, or at least is no
+    // longer the log. The stand-in state is a whole snapshot from before the tick, so the ordinary rollback below, or
+    // the next `advance`, simply tries again with the entries as they now are.
+    if (
+      this.fault &&
+      result.status === "accepted" &&
+      result.added.some((entry) => entry[1] <= this.fault!.tick)
+    )
+      this.fault = undefined;
+    // Otherwise a faulted world only logs what it is sent, so that whatever replaces it finds the streams current.
+    if (
+      result.status !== "accepted" ||
+      result.rollbackTo === undefined ||
+      this.fault
+    )
       return { ...result, events: [], rollbackTicks: 0 };
     const events: WorldEvent[] = [],
       rollbackTicks = this.rollback(result.rollbackTo, events);
@@ -200,7 +238,12 @@ export class World {
         events: [],
         rollbackTicks: 0,
       };
-    return { ...result, events, rollbackTicks };
+    return {
+      ...result,
+      events,
+      rollbackTicks,
+      ...(this.fault ? { fault: this.fault } : {}),
+    };
   }
   /** Restore the newest snapshot before `tick` and re-simulate to the current tick. Returns ticks replayed or -1. */
   private rollback(tick: number, events: WorldEvent[]): number {
@@ -220,21 +263,37 @@ export class World {
     this.rollbackTicks += current - base;
     return current - base;
   }
+  /**
+   * `applyTick` is not transactional: a throw leaves `state` part-way through the tick. That state is dropped here
+   * and never looked at again — not hashed, not served to a joiner, not drawn — and the world stands on the newest
+   * snapshot it retained from before the tick instead. Nothing is swallowed: the fault is returned to the caller and
+   * kept on the world, which refuses to simulate until it is replaced.
+   */
   private simulate(
     state: RoomState,
     target: number,
     events: WorldEvent[],
-  ): void {
+  ): WorldFault | undefined {
     while (state.game.tick < target) {
       const tick = state.game.tick + 1,
         matchId = state.game.matchId,
         round = state.game.round;
-      const produced = applyTick(
-        state,
-        this.creatorId,
-        this.entriesAt(tick),
-        this.bots,
-      );
+      let produced: GameEvent[];
+      try {
+        produced = applyTick(
+          state,
+          this.creatorId,
+          this.entriesAt(tick),
+          this.bots,
+          this.phases,
+        );
+      } catch (error) {
+        return this.standDown({
+          tick,
+          ...(error instanceof TickFault ? { phase: error.phase } : {}),
+          error,
+        });
+      }
       produced.forEach((event, index) => {
         const key = `${matchId}:${round}:${tick}:${index}`;
         if (this.emitted.has(key)) return;
@@ -249,6 +308,42 @@ export class World {
       }
     }
     if (!this.frames.length) this.frames = [this.frame(state)];
+    return undefined;
+  }
+  /**
+   * Whether the tick that threw was simulated from a log that will not change for it: every connected rider's stream
+   * is confirmed past it, or, as the stall rule counts it, a disconnect entry for that rider is logged at or past it.
+   * A rider who left sends nothing more, so waiting on their stream would only run out the recovery deadline.
+   */
+  faultConfirmed(): boolean {
+    const fault = this.fault;
+    if (!fault) return false;
+    for (const player of this.state.game.players.values()) {
+      if (!player.connected || this.state.bots.has(player.id)) continue;
+      const stream = this.streams.get(player.id);
+      const through = Math.max(
+        stream ? stream.confirmedThrough() : -1,
+        this.pendingDisconnect(player.id) ?? -1,
+      );
+      if (through < fault.tick) return false;
+    }
+    return true;
+  }
+  /** Clear the fault so the next `advance` simulates the tick again, from the whole snapshot the world stands on. */
+  retry(): void {
+    this.fault = undefined;
+  }
+  private standDown(fault: WorldFault): WorldFault {
+    // A snapshot from before the tick always exists: the constructor, `install` and every rollback leave one.
+    const base = Math.max(
+      ...[...this.snapshots.keys()].filter((at) => at < fault.tick),
+    );
+    for (const at of [...this.snapshots.keys()])
+      if (at > base) this.snapshots.delete(at);
+    this.state = structuredClone(this.snapshots.get(base)!);
+    this.frames = [this.frame(this.state)];
+    this.fault = fault;
+    return fault;
   }
   /** Drop what can never be replayed again: old snapshots, applied entries before them and their event keys. */
   private retain(): void {
@@ -298,11 +393,16 @@ export class World {
   }
   /** Diagnostic hash of the retained state at `tick`, if one is kept there. */
   hashAt(tick: number): string | undefined {
+    // A faulted world vouches for nothing: entries that arrived after it stood down were logged but never applied,
+    // so a retained snapshot may no longer be the fold of its log. A hash is also how peers tell that a replica got
+    // past a tick, which a faulted one has not.
+    if (this.fault) return undefined;
     const state = this.snapshots.get(tick);
     return state ? hashRoomState(state) : undefined;
   }
   /** Replace the world wholesale from a validated snapshot; the caller re-creates streams from its metadata. */
   install(state: RoomState): void {
+    this.fault = undefined;
     this.state = state;
     this.snapshots = new Map([[state.game.tick, structuredClone(state)]]);
     this.frames = [this.frame(state)];

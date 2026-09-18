@@ -1,6 +1,6 @@
 import { StatusNotices } from "./status-notices.js";
 import { TickClock } from "./clock.js";
-import { World, type Frame } from "./rollback.js";
+import { World, type Frame, type WorldFault } from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
 import { PACKET_ENTRIES } from "./stream.js";
 import {
@@ -47,7 +47,11 @@ import {
 } from "../engine/room-settings.js";
 import { botDisplayName, BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { MAX_RIDER_NAME, seatRiderName } from "../engine/rider-name.js";
-import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../engine/game.js";
+import {
+  BOTS_ONLY_TIME_SCALE,
+  simulationTimeScale,
+  type Phase,
+} from "../engine/game.js";
 import type { AimPoint } from "../engine/primitives.js";
 import type { GameEvent } from "../engine/view.js";
 import { uuid } from "../shared/uuid.js";
@@ -110,6 +114,11 @@ export interface RuntimeMetrics {
   sentBytes: number;
   snapshotRequest: boolean;
   mismatches: number;
+  /** Ticks that threw while being simulated (#253 C8), and the last one's tick and phase. */
+  faults: number;
+  lastFault?: { tick: number; phase?: string };
+  /** The simulation has stopped for good on this page: it no longer simulates, sends, serves or asks. */
+  stopped: boolean;
   /** Authority hashes this replica could compare with its own state, whatever the outcome. */
   hashChecks: number;
   /** Members refused for announcing different rules: nothing they send is folded in. */
@@ -132,6 +141,12 @@ export interface RuntimeMetrics {
 export interface RuntimeOptions {
   /** Receives consumer failures; defaults to console.error. Must not throw. */
   callbackError?: (kind: keyof Callbacks, error: unknown) => void;
+  /** Receives a tick that threw while being simulated; defaults to console.error. Must not throw. */
+  simulationError?: (fault: WorldFault) => void;
+  /** Receives the once-per-match note that statistics are being dropped for a damaged state; defaults to console.warn. Must not throw. */
+  simulationWarning?: (text: string) => void;
+  /** Fault-injection seam for tests: the tick's phases, handed to every world this runtime builds. */
+  phases?: readonly Phase[];
   transport?: (events: TransportEvents) => RoomTransport;
   displayOnly?: boolean;
   humanName?: string;
@@ -211,7 +226,12 @@ export const HASH_INTERVAL = 20,
   NACK_INTERVAL_MS = 100,
   DIVERGENCE_WINDOW_MS = 60_000,
   DIVERGENCE_LIMIT = 3,
-  FRESH_WORLD_WAIT_MS = 3000;
+  FRESH_WORLD_WAIT_MS = 3000,
+  /** How long a replica whose confirmed tick threw waits for a peer's hash at or past that tick: twice the 3 s a hash takes to appear. */
+  FAULT_EVIDENCE_MS = 6000;
+/** Total time to resolve one fault, including missing inputs, evidence and snapshot delivery. */
+export const FAULT_RECOVERY_MS =
+  FAULT_EVIDENCE_MS + SNAPSHOT_RETRY_MS * (SNAPSHOT_FAILURES + 1);
 /** How long one reading of the authority's clock rate spans, and how long a follower trusts its own answer against a steady reading. */
 export const RATE_WINDOW_MS = 500,
   RATE_DEFER_MS = 1500;
@@ -268,6 +288,25 @@ export class RoomRuntime {
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
   private mismatches: number[] = [];
+  private faults = 0;
+  private lastFault?: { tick: number; phase?: string };
+  /**
+   * What is being done about a faulted world (docs/design/tick-fault-recovery.md). `retried`: the tick was simulated
+   * again once its inputs were complete. `confirmedAt`: it threw again, so it is this replica's state or the rules,
+   * not a misprediction. `evidence`: a peer's hash shows that peer got past the tick, so its state can replace ours.
+   */
+  private faultWatch?: {
+    tick: number;
+    startedAt: number;
+    retried: boolean;
+    confirmedAt?: number;
+    evidence: boolean;
+    /** When the world was last seen healed but not yet past the tick: that time does not count towards the deadline. */
+    clearedAt?: number;
+  };
+  /** Terminal. Set once; nothing clears it but a reload. */
+  private stopped = false;
+  private warnedDamage?: string;
   private hashChecks = 0;
   private outOfSync = false;
   private full = true;
@@ -353,7 +392,8 @@ export class RoomRuntime {
       for (let index = 0; index < 4; index++)
         this.command({ type: "bot", action: "add" });
       this.command({ type: "action", action: "start" });
-      this.world!.advance(this.lastOwnTick); // The first frame already seats everyone; the clock catches up within a tick.
+      // The first frame already seats everyone; the clock catches up within a tick.
+      this.noteFault(this.world!.advance(this.lastOwnTick).fault);
       this.publish();
     }
     this.hiddenState = this.deps.hidden();
@@ -419,6 +459,8 @@ export class RoomRuntime {
     this.members.delete(id);
     this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
+    // A stopped page logs nothing more.
+    if (this.stopped) return;
     const state = this.world?.state,
       player = state?.game.players.get(id);
     if (!this.manager || !player) return;
@@ -507,7 +549,7 @@ export class RoomRuntime {
         if (data.world === true) this.noWorld.delete(id);
         return;
       case "join":
-        if (this.manager && typeof data.name === "string") {
+        if (this.manager && !this.stopped && typeof data.name === "string") {
           const error = this.join(
             id,
             data.name,
@@ -518,10 +560,16 @@ export class RoomRuntime {
         return;
       case "snapshotRequest": {
         // One snapshot per peer per half second: a requester retries on its own timer, so a storm of requests cannot make this replica encode and queue megabytes.
+        // A faulted world is a stand-in: entries that arrived after it stood down were logged and never applied, so its
+        // state is not the fold of the log it would ship with. Say nothing — not `noWorld`, which a returning creator
+        // counts towards opening a fresh room — and the requester's retry moves on to another peer.
+        if (!this.stopped && this.world?.fault) return;
         const now = this.deps.now();
         if (now - member.snapshotServedAt < SNAPSHOT_SERVE_MS) return;
         member.snapshotServedAt = now;
-        if (this.world) {
+        // A stopped page has no world to give, ever: saying so lets a reloaded page open a fresh room when every
+        // replica stopped, instead of asking this closed tab forever. A healthy peer still answers with its world.
+        if (this.world && !this.stopped) {
           for (const chunk of encodeSnapshot(this.world, this.room))
             if (!this.transport!.send(id, chunk, SNAPSHOT_BUFFER_LIMIT)) break;
         } else this.transport!.send(id, { type: "noWorld" });
@@ -546,6 +594,8 @@ export class RoomRuntime {
     }
   }
   private fast(id: string, bytes: Uint8Array): void {
+    // A stopped page is a closed tab that still shows its last frame: it logs nothing more, so nothing grows.
+    if (this.stopped) return;
     const decoded = decodePacket(bytes),
       member = this.members.get(id);
     if (!decoded || !member || member.refused) return;
@@ -611,6 +661,7 @@ export class RoomRuntime {
       return;
     }
     if (result.rollbackTicks > 0) this.lastFrameTick = -1;
+    this.noteFault(result.fault);
     for (const event of result.events)
       this.deliver("event", () =>
         this.callbacks.event(
@@ -634,6 +685,7 @@ export class RoomRuntime {
     }
     if (packet.hash && id === this.authority())
       this.compareHash(packet.hash[0], packet.hash[1], now);
+    if (packet.hash) this.weighFaultEvidence(id, packet.hash[0], now);
     if (result.rollbackTicks > 0) this.publish();
   }
   private bump(id: string, member: Member, generation: number): void {
@@ -661,6 +713,7 @@ export class RoomRuntime {
       createRoomState(this.deps.token(), settings),
       this.hostId,
       this.id,
+      this.options.phases,
     );
     this.world.stream(this.id, this.generation);
     // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
@@ -709,7 +762,10 @@ export class RoomRuntime {
     );
   }
   private requestSnapshot(preferred?: string): void {
-    if (!this.transport) return;
+    if (!this.transport || this.stopped) return;
+    // A faulted world asks only on evidence that some peer got past the tick. When the throw is deterministic no
+    // peer has, and every answer would be another stand-in from before it.
+    if (this.world?.fault && !this.faultWatch?.evidence) return;
     const all = this.compatible()
         .filter((id) => this.transport!.linked(id))
         .sort(),
@@ -736,6 +792,7 @@ export class RoomRuntime {
     this.transport.send(to, { type: "snapshotRequest" });
   }
   private acceptSnapshotChunk(id: string, raw: unknown): void {
+    if (this.stopped) return;
     if (
       !this.snapshotRequest ||
       this.snapshotRequest.to !== id ||
@@ -754,9 +811,19 @@ export class RoomRuntime {
     }
     const tick = decoded.state.game.tick,
       previous = this.world?.streams.get(this.id);
+    if (this.faultWatch) {
+      // The replacement gets the same scrutiny: if the tick throws again it is confirmed at once, and needs fresh evidence.
+      this.faultWatch.confirmedAt = undefined;
+      this.faultWatch.evidence = false;
+    }
     if (this.world) this.world.install(decoded.state);
     else {
-      this.world = new World(decoded.state, this.hostId, this.id);
+      this.world = new World(
+        decoded.state,
+        this.hostId,
+        this.id,
+        this.options.phases,
+      );
       // Not on a resync: a replica that already judged its members keeps the waits it started.
       this.judgingSince = this.deps.now();
     }
@@ -857,6 +924,157 @@ export class RoomRuntime {
     }
     this.status.transient("Simulation corrected · resyncing");
     this.requestSnapshot();
+  }
+
+  /**
+   * A tick threw (#253 C8; docs/design/tick-fault-recovery.md). The world has already put itself back on a whole state
+   * and stopped. Every occurrence is reported — a hook or the console, and the metrics the telemetry posts — and the
+   * occurrences are bounded: once under speculative inputs per correction, once more when the inputs are complete,
+   * and then at most DIVERGENCE_LIMIT replacements from a peer. Nothing is asked of anyone here; `watchFault` decides.
+   */
+  private noteFault(fault: WorldFault | undefined): void {
+    if (!fault) return;
+    this.faults++;
+    this.lastFault = {
+      tick: fault.tick,
+      ...(fault.phase === undefined ? {} : { phase: fault.phase }),
+    };
+    this.lastFrameTick = -1;
+    try {
+      if (this.options.simulationError) this.options.simulationError(fault);
+      else
+        console.error(
+          `fuse-riders: simulation fault at tick ${fault.tick}${fault.phase ? ` in ${fault.phase}` : ""}`,
+          fault.error,
+        );
+    } catch (reporterError) {
+      console.error(
+        "fuse-riders: simulation fault reporter failed",
+        fault.error,
+        reporterError,
+      );
+    }
+    if (this.faultWatch?.tick !== fault.tick)
+      this.faultWatch = {
+        tick: fault.tick,
+        startedAt: this.deps.now(),
+        retried: false,
+        evidence: false,
+      };
+    this.watchFault(this.deps.now());
+  }
+  /**
+   * Called every loop and on every fault. Speculative: wait — the correcting entry clears the fault by itself, and a
+   * misprediction costs nothing. Inputs complete: simulate the tick once more, which also settles a one-off failure
+   * without touching the network. Threw again: confirmed. The fold is deterministic, so every replica with this state
+   * and these rules throws at the same tick and no snapshot can help; only a peer's hash at or past the tick shows
+   * that this replica is the odd one out. Without that within FAULT_EVIDENCE_MS, or with nobody to hear from, stop.
+   */
+  private watchFault(now: number): void {
+    const world = this.world,
+      watch = this.faultWatch;
+    if (!world || !watch || this.stopped) return;
+    if (!world.fault) {
+      if (world.tick >= watch.tick) this.faultWatch = undefined;
+      // Healed but not yet past the tick — a hidden tab or an ordinary stall holds the world still. That is not a
+      // fault, so it does not run the deadline down; a throw at the same tick picks the deadline up where it left off.
+      else watch.clearedAt ??= now;
+      return;
+    }
+    if (watch.clearedAt !== undefined) {
+      watch.startedAt += now - watch.clearedAt;
+      watch.clearedAt = undefined;
+    }
+    // A departed input owner or an undeliverable snapshot must not keep this page faulted forever.
+    // Evidence and snapshot installation do not reset the deadline; only actually passing the tick does.
+    if (now - watch.startedAt >= FAULT_RECOVERY_MS) {
+      this.stopSimulation();
+      return;
+    }
+    if (watch.confirmedAt === undefined) {
+      if (!world.faultConfirmed()) return;
+      if (!watch.retried) {
+        watch.retried = true;
+        world.retry();
+        return;
+      }
+      watch.confirmedAt = now;
+      // Only a peer on the same rules can vouch: a refused peer's packets, and so its hashes, are dropped.
+      const peers =
+        this.transport !== undefined &&
+        this.compatible().some((id) => this.transport!.linked(id));
+      if (!peers) this.stopSimulation();
+      else this.status.notice("Simulation fault · checking the other riders");
+      return;
+    }
+    if (!watch.evidence && now - watch.confirmedAt > FAULT_EVIDENCE_MS)
+      this.stopSimulation();
+  }
+  /** A peer's hash for a tick at or past the one that threw: that peer simulated it, from a complete log, and went on. */
+  private weighFaultEvidence(
+    id: string,
+    hashedTick: number,
+    now: number,
+  ): void {
+    const watch = this.faultWatch;
+    if (
+      this.stopped ||
+      !this.world?.fault ||
+      !watch ||
+      watch.confirmedAt === undefined ||
+      watch.evidence ||
+      hashedTick < watch.tick
+    )
+      return;
+    // This replica is the odd one out, which is what a divergence is: the same strikes, the same window.
+    this.mismatches = this.mismatches.filter(
+      (at) => now - at <= DIVERGENCE_WINDOW_MS,
+    );
+    this.mismatches.push(now);
+    if (this.mismatches.length >= DIVERGENCE_LIMIT) {
+      this.stopSimulation();
+      return;
+    }
+    watch.evidence = true;
+    this.status.notice("Simulation fault · resyncing");
+    this.requestSnapshot(id);
+  }
+  /**
+   * Terminal for this page. It stops simulating (the world is left where it stands, faulted or not), asking for and
+   * accepting snapshots, logging what it is sent and sending packets, so peers see a closed tab: presence and authority
+   * move on through the paths a closed tab already takes, and nothing here grows or repeats. It answers a snapshot
+   * request with `noWorld`, so a reloaded page is not kept waiting on it. Only a reload undoes it.
+   */
+  private stopSimulation(): void {
+    this.stopped = true;
+    this.outOfSync = true;
+    this.snapshotRequest = undefined;
+    this.assembler = undefined;
+    this.status.terminal("Simulation stopped — reload this page");
+  }
+  /**
+   * The statistics recorders drop what they cannot attribute rather than throw mid-tick, silently. Say so once per
+   * match: a rider of the round without a statistics entry means a damaged state, and the snapshot validator rejects
+   * such a state, so nobody can join this room from this replica.
+   */
+  private noteDroppedStatistics(): void {
+    const game = this.world!.state.game;
+    if (game.phase !== "playing" || this.warnedDamage === game.matchId) return;
+    const missing = [...game.roundParticipants.keys()]
+      .filter((id) => !game.matchStats.has(id))
+      .sort();
+    if (!missing.length) return;
+    this.warnedDamage = game.matchId;
+    const text = `fuse-riders: no match statistics for ${missing.join(", ")}: their statistics are being dropped, and a snapshot of this state will be rejected by any peer`;
+    try {
+      if (this.options.simulationWarning) this.options.simulationWarning(text);
+      else console.warn(text);
+    } catch (reporterError) {
+      console.error(
+        "fuse-riders: simulation warning reporter failed",
+        reporterError,
+      );
+    }
   }
 
   // ---- the creator's management duties -----------------------------------------------------------------------------
@@ -1075,6 +1293,8 @@ export class RoomRuntime {
   }
   command(command: RoomCommand): boolean {
     if (!command || typeof command !== "object") return false;
+    // A stopped page logs nothing more: its own stream would otherwise grow with inputs nobody will ever apply.
+    if (this.stopped) return false;
     if (command.type === "join") {
       if (this.options.displayOnly) return false;
       this.pendingJoin = {
@@ -1253,6 +1473,8 @@ export class RoomRuntime {
     const hidden = this.deps.hidden();
     if (hidden === this.hiddenState) return;
     this.hiddenState = hidden;
+    // A stopped page neither logs nor simulates, hidden or not.
+    if (this.stopped) return;
     this.paceClock(this.deps.now());
     if (hidden) {
       if (this.world && this.player()) {
@@ -1267,7 +1489,7 @@ export class RoomRuntime {
       }
       // Solo freezes the clock, so the released controls are folded in now rather than when the tab returns.
       if (this.solo && this.world) {
-        this.world.advance(this.lastOwnTick);
+        this.noteFault(this.world.advance(this.lastOwnTick).fault);
         this.clock.pause();
         this.publish();
       }
@@ -1347,6 +1569,7 @@ export class RoomRuntime {
   private tickLoop(): void {
     const now = this.deps.now();
     this.status.refresh();
+    if (this.stopped) return;
     if (this.transport && this.id === "") return;
     for (const [id, member] of this.members) {
       // Once per connection: a link that flaps cannot keep restarting the wait for a member that never sends.
@@ -1411,6 +1634,8 @@ export class RoomRuntime {
     const world = this.world!;
     this.paceClock(now);
     const tick = Math.floor(this.clock.tick());
+    this.watchFault(now);
+    if (this.stopped) return;
     if (
       this.snapshotRequest &&
       now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS
@@ -1431,6 +1656,8 @@ export class RoomRuntime {
         const result = world.advance(
           Math.min(tick, world.tick + CATCHUP_TICKS),
         );
+        this.noteFault(result.fault);
+        this.noteDroppedStatistics();
         for (const event of result.events)
           this.deliver("event", () =>
             this.callbacks.event(
@@ -1558,6 +1785,7 @@ export class RoomRuntime {
     now: number,
     tick = Math.floor(this.clock.tick()),
   ): void {
+    if (this.stopped) return;
     const hash =
       tick % HASH_INTERVAL === 0 &&
       tick - HASH_LAG <= this.world!.completeTick()
@@ -1689,6 +1917,9 @@ export class RoomRuntime {
       sentBytes: this.transport?.sentBytes ?? 0,
       snapshotRequest: this.snapshotRequest !== undefined,
       mismatches: this.mismatches.length,
+      faults: this.faults,
+      stopped: this.stopped,
+      ...(this.lastFault ? { lastFault: this.lastFault } : {}),
       hashChecks: this.hashChecks,
       refused: [...this.members]
         .filter(([, member]) => member.refused)

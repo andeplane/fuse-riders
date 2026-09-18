@@ -120,7 +120,7 @@ Two things changed, and neither changes what a throw does to a running room.
 
 What is **not** changed: a throw still leaves the state part-way through the tick — the clock has advanced, some phases have written, the rest have not — and the error still escapes `applyTick`, `World.advance` and the runtime's interval callback exactly as the raw error does on `main` (nothing in `src/online/` catches it; that iteration's packets and frame are skipped). `step` and `applyTick` are deliberately not transactional: a `structuredClone(RoomState)` per tick measured 182 µs on the golden recording against about 215 µs for the tick itself, which would undo C7 on every re-simulated tick.
 
-Recovery — what the `World` and the runtime should do when a tick throws, bounded and honest about the fact that a deterministic throw happens on every replica at once — needs its own design and is a separate pull request stacked on this one. A first version was written in this branch and split out after review found that its resync loop was unbounded when every replica faults.
+Recovery — what the `World` and the runtime do when a tick throws, bounded and honest about the fact that a deterministic throw happens on every replica at once — is [its own note](tick-fault-recovery.md).
 
 ## What is left of #253
 

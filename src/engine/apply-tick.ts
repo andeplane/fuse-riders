@@ -246,9 +246,10 @@ function applyManagement(state: RoomState, entry: Entry): void {
  * player's entries fold into its held controls, then `driveGameTick`: the shared `step` and automatic round
  * progression. What is the room's and not the game's (folds, bot seats) follows what the driver reports.
  *
- * Not transactional, as it never was: if `step` throws (a `TickFault` naming the phase), `state` is left part-way
- * through the tick and the error reaches the caller. `phases` is the fault-injection seam of `step`, passed through
- * for tests.
+ * Not transactional: if `step` throws (a `TickFault`), `state` is left part-way through the tick and the caller must
+ * discard it for a copy from before the tick. `World` does, from the snapshots it already retains; copying the state
+ * here on every tick would nearly double what a re-simulated tick costs. `phases` is the fault-injection seam of
+ * `step`, passed through.
  */
 export function applyTick(
   state: RoomState,
