@@ -9,7 +9,7 @@ become separate drawable pieces on detachment/death.
 All destructive operations use one cut helper. Only the newest surviving suffix still
 linked to the head stays active; older chunks detach. Recut debris inherits its schedule.
 Death detaches only active segments. At each playing tick, before clipping/weapons/collision,
-existing pieces consume 1.875 units at each end (37.5 units/second per end) after a 20-tick pause. Both endpoint budgets
+existing pieces consume 1.875 units at each end (37.5 units/second per end) after a 60-tick (three-second) pause. Both endpoint budgets
 use the original path's arc length. Results freeze the whole trail board. Power extends
 only active expiry. No rendering clock controls decay.
 

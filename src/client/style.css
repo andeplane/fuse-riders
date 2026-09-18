@@ -9,6 +9,12 @@
   --pink: #ff2e9d;
   --navy: #020715;
   --panel: rgba(5, 14, 37, 0.93);
+  --ui-radius: 0.875rem;
+  --ui-panel-radius: 1.125rem;
+  --ui-surface: linear-gradient(180deg, #142640, #081327);
+  --ui-button-fill: linear-gradient(180deg, #2b4b78, #1b3154);
+  --ui-cyan-fill: linear-gradient(180deg, #51f5fa, #00c9df);
+  --ui-edge: inset 0 0.0625rem 0 #ffffff14;
   /* All UI is sized in rem. Up to the 1920x1080 design viewport 1rem is the browser default; on anything larger
      (4K, 8K, a TV) it grows with the viewport, so menus and the HUD keep the same share of the screen.
      Media queries stay in px: they measure the real viewport, and no size breakpoint matches once this scale kicks in. */
@@ -39,6 +45,7 @@ input {
   font: inherit;
 }
 button {
+  border-radius: var(--ui-radius);
   color: inherit;
 }
 .hidden {
@@ -884,14 +891,7 @@ button {
   border: 0.125rem solid #6544c2;
   background: var(--panel);
   box-shadow: 0 0 2.125rem rgba(60, 47, 189, 0.3);
-  clip-path: polygon(
-    0.75rem 0,
-    100% 0,
-    100% calc(100% - 0.75rem),
-    calc(100% - 0.75rem) 100%,
-    0 100%,
-    0 0.75rem
-  );
+  border-radius: var(--ui-panel-radius);
 }
 .join-screen h1 {
   margin: 0.625rem 0 1.75rem;
@@ -914,7 +914,7 @@ button {
   outline: none;
   font-size: 1rem;
   text-transform: uppercase;
-  border-radius: 0;
+  border-radius: var(--ui-radius);
 }
 .name-input:focus {
   border-color: var(--cyan);
