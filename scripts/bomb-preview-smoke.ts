@@ -15,7 +15,7 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript("window.__name = value => value");
-  await page.goto(server.url);
+  await page.goto(`${server.url}?mute`);
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
       String("/src/client/phaser/arena.ts")
