@@ -20,6 +20,17 @@ import {
   speedMultiplier,
 } from "../src/engine/effects.ts";
 import { addPlayer, classicSettings, createGame } from "../src/engine/game.ts";
+import {
+  WEAPONS,
+  WEAPON_KINDS,
+  armWeapon,
+  armedProjectile,
+  isArmed,
+  pullLabel,
+  spendPull,
+  volleyBombs,
+  type WeaponKind,
+} from "../src/engine/weapons.ts";
 
 test("every pickup type has exactly one PICKUPS row, and the weights are read in PICKUP_TYPES order", () => {
   assert.deepEqual(Object.keys(PICKUPS).sort(), [...PICKUP_TYPES].sort());
@@ -99,5 +110,30 @@ test("the readers answer from the table's flags", () => {
       kind,
     );
     assert.equal(speedMultiplier(rider, 15), rule.speed ?? 1, kind);
+  }
+});
+
+test("the weapon table is the priority ladder: Gun, Shell, Five, Triple, then the lob", () => {
+  assert.deepEqual(Object.keys(WEAPONS).sort(), [...WEAPON_KINDS].sort());
+  // Every combination a rider can hold, against the ladder written out by hand.
+  for (let mask = 0; mask < 1 << WEAPON_KINDS.length; mask++) {
+    const game = createGame("weapons", classicSettings());
+    addPlayer(game, { id: "a", name: "A", slot: 0, color: "#fff" });
+    const rider = game.players.get("a")!;
+    const held = WEAPON_KINDS.filter((_, bit) => mask & (1 << bit));
+    for (const kind of held) armWeapon(rider, kind);
+    const has = (kind: WeaponKind) => held.includes(kind);
+    const projectile = has("gun") ? "gun" : has("shell") ? "shell" : undefined;
+    const volley = has("five") ? "five" : has("triple") ? "triple" : undefined;
+    assert.equal(armedProjectile(rider), projectile, held.join("+"));
+    assert.equal(pullLabel(rider), projectile ?? volley ?? "bomb");
+    assert.equal(volleyBombs(rider), has("five") ? 4 : has("triple") ? 2 : 0);
+    spendPull(rider, projectile);
+    // A pull spends the projectile it fired and every volley; a second projectile waits for the next pull.
+    assert.deepEqual(
+      WEAPON_KINDS.filter((kind) => isArmed(rider, kind)),
+      projectile === "gun" && has("shell") ? ["shell"] : [],
+      held.join("+"),
+    );
   }
 });

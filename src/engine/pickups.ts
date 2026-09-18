@@ -8,6 +8,7 @@ import type { MatchPlayerStats } from "./match-stats.js";
 import { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
 import { DRUNK_DURATION_TICKS } from "./drunk.js";
 import { type EffectKind, applyEffect } from "./effects.js";
+import { armWeapon } from "./weapons.js";
 import { cos, hypot2, sin } from "./deterministic-math.js";
 import {
   GRAVITY_CORE_SPAWN_CLEARANCE,
@@ -138,16 +139,12 @@ export const PICKUPS: Readonly<Record<PickupType, PickupRule>> = {
   gun: {
     weight: 400,
     stat: null,
-    collect: ({ collector }) => {
-      collector.gunArmed = true;
-    },
+    collect: ({ collector }) => armWeapon(collector, "gun"),
   },
   shell: {
     weight: 53,
     stat: null,
-    collect: ({ collector }) => {
-      collector.shellArmed = true;
-    },
+    collect: ({ collector }) => armWeapon(collector, "shell"),
   },
   star: {
     weight: 160,
@@ -167,16 +164,12 @@ export const PICKUPS: Readonly<Record<PickupType, PickupRule>> = {
   triple: {
     weight: 540,
     stat: "triplePickups",
-    collect: ({ collector }) => {
-      collector.tripleShotArmed = true;
-    },
+    collect: ({ collector }) => armWeapon(collector, "triple"),
   },
   five: {
     weight: 180,
     stat: "fivePickups",
-    collect: ({ collector }) => {
-      collector.fiveShotArmed = true;
-    },
+    collect: ({ collector }) => armWeapon(collector, "five"),
   },
   orbitShield: {
     weight: 160,

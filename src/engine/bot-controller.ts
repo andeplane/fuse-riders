@@ -34,6 +34,7 @@ import {
 import { wrapCoordinate, wrapDelta, wrapImages } from "./wrap.js";
 import { hasEffect, headingOffset } from "./effects.js";
 import { canCollect } from "./pickups.js";
+import { armedProjectile } from "./weapons.js";
 import type { TrailSegment } from "./primitives.js";
 
 export const BOT_ID_PREFIX = "bot:";
@@ -582,7 +583,7 @@ export class BotController {
       tier.aimError;
     const maxChargeTicks = game.settings.bombChargeTicks;
     let wantedCharge =
-      player.gunArmed || player.shellArmed
+      armedProjectile(player) !== undefined
         ? 1
         : Math.max(
             1,
@@ -616,7 +617,7 @@ export class BotController {
           }
         : { left: off < 0, right: off > 0, bomb: true };
     }
-    if (game.settings.aimBounce && !player.gunArmed && !player.shellArmed) {
+    if (game.settings.aimBounce && armedProjectile(player) === undefined) {
       // The eased curve is nonlinear. Pick the closest attainable first-swing distance.
       let error = Infinity;
       for (let ticks = 1; ticks <= maxChargeTicks; ticks++) {

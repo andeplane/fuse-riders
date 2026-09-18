@@ -12,7 +12,6 @@ import {
   bombLandingPoint,
   bombLaunchDistance,
 } from "../../bomb-launch.js";
-import { GUN_TRACER_TICKS } from "../../gun.js";
 import {
   type LaunchBounds,
   bombsPerShot,
@@ -20,12 +19,16 @@ import {
   volleyAngles,
 } from "../../launch-modifiers.js";
 import { RIDER_RADIUS, bombFuseTicks } from "../../tuning.js";
-import { SHELL_SPEED } from "../../shell.js";
 import type { Weapon } from "../../shot-log.js";
-import { cos, sin } from "../../deterministic-math.js";
 import { edgesOpen } from "../../arena-map.js";
 import { powerBlastRadius, powerReloadTicks } from "../../power-progression.js";
 import { wrapCoordinate } from "../../wrap.js";
+import {
+  WEAPONS,
+  armedProjectile,
+  pullLabel,
+  spendPull,
+} from "../../weapons.js";
 
 /**
  * Every living rider's bomb commands for the tick — press, release, cancel — run against the board as it was just
@@ -70,7 +73,9 @@ function applyBombActions(
         player.bombReadyAtTick <= state.tick
       ) {
         player.bombChargeStartedTick = state.tick;
-        if (player.gunArmed) player.gunAim = 0;
+        const projectile = armedProjectile(player);
+        if (projectile && WEAPONS[projectile].projectile!.aims)
+          player.gunAim = 0;
       }
       // Every weapon fires on release; a Gun spends the hold sweeping its sight, and a tap fires straight ahead.
       continue;
@@ -85,54 +90,21 @@ function applyBombActions(
       (bomb) => bomb.ownerId === player.id && !bomb.shell,
     );
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
-    if (player.shellArmed || player.gunArmed) {
-      const gun = player.gunArmed === true;
-      const weapon: Weapon = gun ? "gun" : "shell";
-      const deadline = gun
-        ? state.tick + GUN_TRACER_TICKS
-        : Number.MAX_SAFE_INTEGER;
-      const speed = gun ? 1 : SHELL_SPEED;
+    // What this pull fires, and what it is called, come from the weapon table (`weapons.ts`), read before the pull
+    // spends anything.
+    const projectile = armedProjectile(player);
+    const weapon = pullLabel(player);
+    if (projectile !== undefined) {
+      const rule = WEAPONS[projectile].projectile!;
       // Triple, Five and Extra Bomb fan the projectile out exactly as they fan a lob; the pull spends Triple and Five.
       const angles = volleyAngles(
-        player.angle + (gun ? gunAim : 0),
+        player.angle + (rule.aims ? gunAim : 0),
         bombsPerShot(player),
       );
       const shot = state.nextBombId;
       facts.push(shotFired(state, player, shot, weapon, angles.length));
-      for (const angle of angles) {
-        const id = state.nextBombId++;
-        state.bombs.set(id, {
-          id,
-          ownerId: player.id,
-          launchX: player.x,
-          launchY: player.y,
-          x: player.x,
-          y: player.y,
-          launchedTick: state.tick,
-          placedTick: state.tick,
-          landsAtTick: deadline,
-          explodeAtTick: deadline,
-          blastRange: 0,
-          flightPath: [],
-          shot,
-          shell: {
-            vx: cos(angle) * speed,
-            vy: sin(angle) * speed,
-            ...(gun ? { gun: true } : {}),
-          },
-        });
-        facts.push({ kind: "bombPlaced", playerId: player.id });
-        events.push({
-          type: "bombPlaced",
-          bombId: id,
-          playerId: player.id,
-          ...(gun ? { gun: true } : {}),
-        });
-      }
-      if (gun) player.gunArmed = false;
-      else player.shellArmed = false;
-      player.tripleShotArmed = false;
-      player.fiveShotArmed = false;
+      rule.launch({ ctx: { state, events, facts }, player, angles, shot });
+      spendPull(player, projectile);
       player.reloadDurationTicks = powerReloadTicks(player.powerPickups);
       player.bombReadyAtTick = state.tick + player.reloadDurationTicks;
       continue;
@@ -158,13 +130,6 @@ function applyBombActions(
           minY: state.boundaryInset + RIDER_RADIUS,
           maxY: state.height - state.boundaryInset - RIDER_RADIUS,
         };
-    // Read before the release below disarms them, so the launch can still say which weapon it spent. Extra Bomb is
-    // not one of them: it is a round-long upgrade that widens every shot, like Power, not a weapon a pull consumes.
-    const volley: Weapon | undefined = player.fiveShotArmed
-      ? "five"
-      : player.tripleShotArmed
-        ? "triple"
-        : undefined;
     const paths =
       bombsPerShot(player) > 1
         ? createVolleyFlightPaths(
@@ -183,11 +148,9 @@ function applyBombActions(
               bounds,
             ),
           ];
-    player.tripleShotArmed = false;
-    player.fiveShotArmed = false;
-    // One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
-    // is why they outrank everything (a Triple or Five they fan out is spent under their label).
-    const weapon: Weapon = volley ?? "bomb";
+    // One label for the whole trigger pull, read above before anything was spent. Extra Bomb is not a weapon: it is a
+    // round-long upgrade that widens every shot, like Power, not something a pull consumes.
+    spendPull(player, undefined);
     // Every bomb of the pull names the same shot: the id its first bomb is about to take.
     const shot = state.nextBombId;
     facts.push(shotFired(state, player, shot, weapon, paths.length));
