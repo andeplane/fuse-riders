@@ -48,7 +48,10 @@ test("new-game copies the dice template to a renamed game whose own tests pass",
       readFileSync(join(dir, "snake-eyes", "package.json"), "utf8"),
     ) as { name: string; exports: Record<string, string> };
     assert.equal(manifest.name, "snake-eyes");
-    assert.deepEqual(manifest.exports, { ".": "./src/game/index.ts" });
+    assert.deepEqual(manifest.exports, {
+      ".": "./src/game/index.ts",
+      "./platform": "./src/platform.ts",
+    });
 
     const run = spawnSync(
       process.execPath,

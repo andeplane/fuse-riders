@@ -14,6 +14,16 @@ import {
   type Stage,
   type StreamEntries,
 } from "fuse-netcode";
+import {
+  CAPACITY,
+  MAX_NAME,
+  MAX_POINTS,
+  MAX_ROUNDS,
+  TARGET,
+  WINS_NEEDED,
+  validName,
+} from "./basics.js";
+export * from "./basics.js";
 
 /**
  * Pig on the shared log. On your turn you roll a d6 as often as you like, adding each roll to the turn total; a 1 busts
@@ -28,10 +38,6 @@ export const ROLL = 0,
   HOLD = 1;
 export type DiceAction = typeof ROLL | typeof HOLD;
 
-export const TARGET = 50;
-export const WINS_NEEDED = 2;
-/** Seats per room: 2–5 players, bots included. */
-export const CAPACITY = 5;
 export const MAX_WATCHERS = 8;
 /** Log ticks are the fixed 50 ms clock: 20 per second. */
 export const TICKS_PER_SECOND = 20;
@@ -39,17 +45,8 @@ export const MIN_TURN_TICKS = 2 * TICKS_PER_SECOND;
 export const MAX_TURN_TICKS = 60 * TICKS_PER_SECOND;
 /** Log ticks between a decided round and the next one. */
 export const BETWEEN_TICKS = 3 * TICKS_PER_SECOND;
-/**
- * The most rounds a match plays. With a fixed roster someone reaches `WINS_NEEDED` by then (every seat but one wins
- * `WINS_NEEDED - 1`, then the deciding round); with seats coming and going it could run on, so the round that reaches
- * this bound ends the match, won by the leader (`leader`).
- */
-export const MAX_ROUNDS = CAPACITY * (WINS_NEEDED - 1) + 1;
 /** Everyone who ever sat in a match, departed seats included. */
 export const MAX_PARTICIPANTS = 64;
-/** The most one turn or one round's bank can hold; far past anything a legal game reaches. */
-export const MAX_POINTS = 10_000;
-export const MAX_NAME = 18;
 
 export interface DiceSettings {
   /** How long a turn waits for its player, in log ticks; running out holds for them. */
@@ -78,6 +75,8 @@ export interface RosterEntry {
 export interface RoundRecord {
   round: number;
   winnerId: string;
+  /** The log tick the round was decided at: a device reports the round once its confirmed tick reaches it. */
+  tick: number;
   /** Every round player's bank when the round was decided. */
   scores: Record<string, number>;
   /** Seated players taking turns (bots, and humans who were here) when the round was decided; sorted. */
@@ -85,6 +84,21 @@ export interface RoundRecord {
   /** The humans among `present`: who can report the round, and the match when this round decided it; sorted. */
   finishers: string[];
 }
+
+/** One player's play this match, for the result a device reports and the account totals it credits. */
+export interface PlayerStats {
+  rolls: number;
+  holds: number;
+  busts: number;
+  /** The most banked in one hold. */
+  bestTurn: number;
+}
+export const noStats = (): PlayerStats => ({
+  rolls: 0,
+  holds: 0,
+  busts: 0,
+  bestTurn: 0,
+});
 
 export interface DiceRoom extends ManagedRoom<DiceSettings> {
   /** The log tick folded through; the game's clock is the same tick (one step per log tick). */
@@ -125,6 +139,8 @@ export interface DiceRoom extends ManagedRoom<DiceSettings> {
   /** Everyone who sat in this match, as they were last seated. */
   roster: Record<string, RosterEntry>;
   history: RoundRecord[];
+  /** Each player's play this match, by id: anyone who took a turn. */
+  stats: Record<string, PlayerStats>;
 }
 
 export type DiceEvent =
@@ -135,18 +151,6 @@ export type DiceEvent =
   | { type: "match"; id: string };
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
-const LONE_SURROGATE = /\p{Cs}/u;
-/** The account name rule every game shares: trimmed, 1–18 code points, no control characters or half surrogate pairs. */
-export function validName(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    value === value.trim() &&
-    Array.from(value).length <= MAX_NAME &&
-    !CONTROL.test(value) &&
-    !LONE_SURROGATE.test(value)
-  );
-}
 /** What a player typed, as it is seated: trimmed and cut to `MAX_NAME` code points, or refused. */
 export function seatName(raw: string): string | undefined {
   if (CONTROL.test(raw)) return;
@@ -272,6 +276,7 @@ export function createRoom(matchId: string, settings: DiceSettings): DiceRoom {
     played: {},
     roster: {},
     history: [],
+    stats: {},
   };
 }
 
@@ -350,6 +355,7 @@ function resetMatch(room: DiceRoom, matchId: string): void {
   room.played = {};
   room.roster = {};
   room.history = [];
+  room.stats = {};
 }
 
 /** Management hooks; `room.tick + 1` is the tick being folded, since management applies before the fold moves `tick`. */
@@ -401,6 +407,7 @@ function endRound(
   room.history.push({
     round: room.round,
     winnerId: id,
+    tick,
     scores: { ...room.scores },
     present: present.map((seat) => seat.id).sort(),
     finishers: present
@@ -430,14 +437,17 @@ export function act(
   events: DiceEvent[],
   auto = false,
 ): void {
-  const id = room.turn;
+  const id = room.turn,
+    stats = (room.stats[id] ??= noStats());
   if (action === ROLL) {
     const value = rollDie(room);
     room.rolls++;
+    stats.rolls++;
     room.lastRoll = value;
     room.lastRoller = id;
     events.push({ type: "roll", id, value });
     if (value === 1) {
+      stats.busts++;
       room.turnTotal = 0;
       events.push({ type: "bust", id });
       passTurn(room, tick);
@@ -452,6 +462,8 @@ export function act(
   const banked = room.turnTotal,
     score = (room.scores[id] ?? 0) + banked;
   room.scores[id] = score;
+  stats.holds++;
+  stats.bestTurn = Math.max(stats.bestTurn, banked);
   room.turnTotal = 0;
   events.push({ type: "hold", id, banked, score, auto });
   if (score >= TARGET) endRound(room, id, tick, events);

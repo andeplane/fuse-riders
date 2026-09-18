@@ -742,9 +742,9 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
       socket.once("error", reject);
     });
   try {
-    // The service hosts Fuse Riders only; an absent gameId is Fuse Riders, as it was for every client before games.
+    // The service hosts Fuse Riders and the dice game; an absent gameId is Fuse Riders, as it was for every client before games.
     assert.equal(
-      (await call("/api/rooms?gameId=dice", { method: "POST" })).status,
+      (await call("/api/rooms?gameId=chess", { method: "POST" })).status,
       400,
     );
     const created = (await (
@@ -900,7 +900,7 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
       mine,
       "the unprefixed routes are Fuse Riders' routes",
     );
-    const unknown = await call("/api/games/dice/leaderboard");
+    const unknown = await call("/api/games/chess/leaderboard");
     assert.equal(unknown.status, 404);
     assert.deepEqual(await unknown.json(), { error: "Unknown game" });
     assert.deepEqual(

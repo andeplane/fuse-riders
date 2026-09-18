@@ -8,7 +8,8 @@
     "node": ">=22.12.0"
   },
   "exports": {
-    ".": "./src/game/index.ts"
+    ".": "./src/game/index.ts",
+    "./platform": "./src/platform.ts"
   },
   "dependencies": {
     "fuse-netcode": "0.1.0",
