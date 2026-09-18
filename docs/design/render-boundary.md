@@ -10,7 +10,7 @@ src/render/**            imports those two, other src/render/ files, and npm pac
 
 `tests/layer-boundaries.test.ts` enforces it from the import graph. `src/render/` has no entry in `tests/fixtures/layer-allowlist.json` and the test refuses one: a new edge from a render file to `engine/tuning`, `shared/`, `online/` or `client/` fails, and so does adding an exception for it. From `engine/view.ts` a render file may import types only (`import type`, or every named binding marked `type`); a value import, a namespace or side-effect import, a value re-export or a dynamic import of it fails, because `toView` would bring the tuning and the rules in behind the contract. Values come from `view-kit` alone.
 
-All of #254 is `[hash-identical]`: `RULES` is main's `fuse-p2p-34` and the golden fixtures are main's, untouched.
+All of #254 is `[hash-identical]`: `RULES` is main's `fuse-p2p-36` and the golden fixtures are main's, untouched.
 
 ## What is on the wire, and what is derived
 
@@ -44,16 +44,16 @@ Adding to the contract: work the value out in `toView` from the state and the tu
 
 ## `view-kit`
 
-A kernel belongs there when presentation has to evaluate it at a time or place the simulation never did. Each is a function of its arguments and holds no state, but not all are free of tuning: `bombLaunchDistance` embeds the minimum and maximum launch distance and defaults to the maximum charge time, and `advanceTrail` embeds the decay per tick. They are the same functions the simulation runs, re-exported, not copies a screen has to keep in step; a balance change reaches the screen with them.
+A kernel belongs there when presentation has to evaluate it at a time or place the simulation never did. Each is a function of its arguments and holds no state, but not all are free of tuning: `bombAimDistance` embeds the minimum and maximum launch distance, the Range multipliers and the aim easing, and defaults to the maximum charge time, and `advanceTrail` embeds the decay per tick. They are the same functions the simulation runs, re-exported, not copies a screen has to keep in step; a balance change reaches the screen with them.
 
-| Export                                                    | Used by                         | Why presentation runs it                                                                                              |
-| --------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `advanceRiderPose`, `gravityBend`, `MotionControls`       | `render/time/present.ts`        | The local rider is led a fraction of a tick ahead with the controls held now; `speed` and `turn` come from the view   |
-| `bombLaunchDistance`                                      | `render/bomb-preview.ts`        | The charge marker is drawn at a fractional charge age                                                                 |
-| `wrapCoordinate`, `wrapDelta`, `wrapImages`, `WrapOffset` | scene, `arena-views`, `present` | Folding and ghosting on an open-edged board is arithmetic on a width and a height                                     |
-| `advanceTrail`, `segmentIntersectsDisk`                   | `render/trail-debris.ts`        | Debris is what a blast removed: the kept trail is aged as the simulation would have, the rest tested against the disk |
-| `obstacleDistanceSquared`                                 | `render/phaser/gun-impacts.ts`  | An impact is drawn where a ray already stopped; it asks whether that point touches scenery, as the simulation did     |
-| `PICKUP_TYPES`                                            | scene preload                   | One sprite per type is loaded before any view exists                                                                  |
+| Export                                                    | Used by                                        | Why presentation runs it                                                                                                                             |
+| --------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `advanceRiderPose`, `gravityBend`, `MotionControls`       | `render/time/present.ts`                       | The local rider is led a fraction of a tick ahead with the controls held now; `speed` and `turn` come from the view                                  |
+| `bombAimDistance`, `bombRangeMultiplier`                  | `render/bomb-preview.ts`, `power-indicator.ts` | The charge marker samples the shared aim curve at a fractional charge age (Range level included); the power chip names the reach a Range level gives |
+| `wrapCoordinate`, `wrapDelta`, `wrapImages`, `WrapOffset` | scene, `arena-views`, `present`                | Folding and ghosting on an open-edged board is arithmetic on a width and a height                                                                    |
+| `advanceTrail`, `segmentIntersectsDisk`                   | `render/trail-debris.ts`                       | Debris is what a blast removed: the kept trail is aged as the simulation would have, the rest tested against the disk                                |
+| `obstacleDistanceSquared`                                 | `render/phaser/gun-impacts.ts`                 | An impact is drawn where a ray already stopped; it asks whether that point touches scenery, as the simulation did                                    |
+| `PICKUP_TYPES`                                            | scene preload                                  | One sprite per type is loaded before any view exists                                                                                                 |
 
 If a renderer wants a constant from the engine, that is a field missing from the view, not an entry missing here.
 
@@ -75,9 +75,9 @@ The netcode does not interpolate or predict any more. `RoomRuntime.presentation(
 
 ## Checking that nothing a player sees changed
 
-`npx tsx scripts/render-parity.ts` replays the golden recording, takes the view at 39 moments chosen to cover every kind of thing the scene draws, renders each at a fixed clock on WebGL and Canvas in both themes, and prints a hash of the pixels: 156 frames. 31 moments are one frame after a `reset()`. The other 8 (`after-gun-*`, `after-death-*`, `after-blast-*`) draw the tick before and then the tick itself, so gun impacts, death sparks, rubble and debris launch are hashed too; `Math.random` is one seeded stream per page, every moment is drawn once before any is hashed, and the 2D canvas is software-rasterised, so the same revision prints the same hashes run after run.
+`npx tsx scripts/render-parity.ts` replays the golden recording, takes the view at 45 moments chosen to cover every kind of thing the scene draws, and hashes the pixels of each on WebGL and Canvas in both themes, and again on WebGL in a tall 450×800 box with `rotateToFit` (the portrait rotation of #326): 270 frames. 35 moments are one frame after a `reset()`: 23 named ones and one every 1500 ticks. 8 (`after-gun-*`, `after-death-*`, `after-blast-*`) draw the tick before and then the tick itself, so gun impacts, death sparks, rubble and debris launch are hashed too. 2 (`charging-range3`, `volley-range3`) are the charging moments redrawn with every rider at Range level 3 (#330), since the recording's riders may never charge while holding Range. `Math.random` is one seeded stream per page, every moment is drawn once before any is hashed, and the 2D canvas is software-rasterised, so the same revision prints the same hashes run after run.
 
-`PARITY_REFERENCE=<ref> npx tsx scripts/render-parity.ts` hashes the checkout, then `<ref>` in a throwaway worktree running the same file (it resolves the renderer's path and `toSnapshot`/`toView` at run time), and lists every frame that differs. Against `origin/codex/arch-step-pipeline` at `4755160` (main `9479799`'s renderer in `src/client/`, reading engine constants), 156 of 156 frames are identical. It does not cover the interpolated tip between two ticks; that is covered by the unit tests of `trails` and `present`.
+`PARITY_REFERENCE=<ref> npx tsx scripts/render-parity.ts` hashes the checkout, then `<ref>` in a throwaway worktree running the same file (it resolves the renderer's path and `toSnapshot`/`toView` at run time), and lists every frame that differs. Against `origin/main` at `0101075` (the renderer in `src/client/`, reading engine constants), 270 of 270 frames are identical, all 270 hashes distinct. It does not cover the interpolated tip between two ticks or the local lead; those are covered by the unit tests of `trails` and `present`.
 
 Two intended differences are not in those frames. Every parity moment is a whole simulated tick with no local lead, so neither can show there.
 

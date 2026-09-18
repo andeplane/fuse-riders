@@ -4,7 +4,7 @@
  * data in the `WorldView`: if a renderer wants a constant from here, publish the value in the view instead.
  *
  * An entry earns its place by being a function of its arguments, holding no state, that presentation must evaluate at a
- * time or place the simulation never did. Some embed tuning (`bombLaunchDistance` the launch range and charge time,
+ * time or place the simulation never did. Some embed tuning (`bombAimDistance` the launch range, Range levels and charge time,
  * `advanceTrail` the decay per tick): they are the same functions the simulation runs, re-exported, so a screen never
  * keeps a copy in step. No simulation is run here.
  */
