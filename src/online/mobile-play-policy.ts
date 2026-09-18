@@ -27,3 +27,21 @@ export function mobilePlayPolicy(
   const active = phone && state.joined && !lobby;
   return { phone, lobby, active, blocked: active && height > width };
 }
+
+export interface ArenaViewState {
+  shared: boolean;
+  displayOnly: boolean;
+  joined: boolean;
+  joining: boolean;
+  phase: string;
+  recapReady: boolean;
+}
+/** Whether this device shows the Phaser arena, and whether it shows it as the blurred scene behind the lobby and results (#321).
+ *  A joined rider in shared-TV mode is a controller (ADR 042's UI mode): the TV draws the arena, so the controller never shows or renders it,
+ *  in any phase — lobby and results included. Every other device keeps the live scene behind the lobby and results. */
+export function arenaView(state: ArenaViewState) {
+  const controller = state.shared && !state.displayOnly && state.joined;
+  const sceneBackground =
+    !controller && (state.phase === "lobby" || state.recapReady);
+  return { controller, sceneBackground, hidden: controller || state.joining };
+}
