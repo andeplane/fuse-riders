@@ -35,8 +35,8 @@ const recording: Recording = JSON.parse(
 
 /** The view with everything issue #254 added taken off again: what a screen was given before. */
 function withoutAddedFields(view: WorldView): unknown {
-  const { tick, round, rules, openEdges, ...before } = view;
-  void [tick, round, rules, openEdges];
+  const { tick, round, rules, openEdges, tracks, ...before } = view;
+  void [tick, round, rules, openEdges, tracks];
   return {
     ...before,
     players: view.players.map(

@@ -4,11 +4,13 @@ import { hashSeed, nextRandom, normalizeSeed } from "./rng.js";
 import { DEFAULT_AVATAR } from "../shared/avatars.js";
 import {
   type ClearCapsule,
+  MAX_OBSTACLES,
   OBSTACLE_WALL_MARGIN,
   chooseArenaMap,
   generateObstacles,
   initialBoundaryInset,
 } from "./arena-map.js";
+import { fixedScenery } from "./scenery-motion.js";
 import { beginMatchParticipant, recordEarlyExit } from "./match-stats.js";
 import { createTickContext } from "./sim/context.js";
 import { PHASES, TickFault, type Phase } from "./sim/pipeline.js";
@@ -347,6 +349,17 @@ function prepareRound(state: GameState): void {
     random: () => nextRandom(state),
     keepClear,
   });
+  // The movers a map starts with are laid after the sampled scenery, with the ids that follow it: nothing is drawn
+  // from the stream for them, and their places keep clear of every spawn by design rather than by rejection.
+  state.obstacles = [
+    ...state.obstacles,
+    ...fixedScenery(
+      state.map,
+      state.width,
+      state.height,
+      state.obstacles.length + 1,
+    ),
+  ].slice(0, MAX_OBSTACLES);
 }
 
 function requireEnoughPlayers(state: GameState): void {

@@ -22,7 +22,15 @@ import {
   type TrailPoint,
 } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
-import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
+import {
+  mapGround,
+  obstacleParts,
+  paintMapGround,
+  trackDecoration,
+  TRACK_COLOURS,
+  type MoverPose,
+  type ObstaclePart,
+} from "../arena-maps.js";
 import {
   crossViews,
   quarterTurnView,
@@ -32,7 +40,9 @@ import {
 import {
   PICKUP_TYPES,
   isAimingGun,
+  trackPose,
   wrapCoordinate,
+  wrapImages,
 } from "../../engine/view-kit.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
@@ -591,32 +601,106 @@ class ArenaScene extends Phaser.Scene {
         .fillRect(stud.x + 2, stud.y + 2, 3, 3);
     }
   }
-  /** Scenery is static until a blast clears it, so it is baked into the floor pass rather than redrawn each frame. */
+  /** Standing scenery is static until a blast clears it, so it is baked into the floor pass rather than redrawn each frame. */
   private drawObstacles(
     obstacles: WorldView["obstacles"],
     map: WorldView["map"],
   ): void {
     for (const obstacle of obstacles)
-      for (const part of obstacleParts(obstacle, map)) {
-        this.floor.fillStyle(color(part.color), part.alpha ?? 1);
-        if (part.shape === "ellipse")
-          this.floor.fillEllipse(
-            part.x,
-            part.y,
-            part.radiusX * 2,
-            part.radiusY * 2,
-          );
-        else if (part.shape === "triangle")
-          this.floor.fillTriangle(
-            part.x1,
-            part.y1,
-            part.x2,
-            part.y2,
-            part.x3,
-            part.y3,
-          );
-        else this.floor.fillRect(part.x, part.y, part.width, part.height);
+      this.paintParts(this.floor, obstacleParts(obstacle, map), 0, 0);
+  }
+  private paintParts(
+    target: Phaser.GameObjects.Graphics,
+    parts: readonly ObstaclePart[],
+    dx: number,
+    dy: number,
+  ): void {
+    for (const part of parts) {
+      target.fillStyle(color(part.color), part.alpha ?? 1);
+      if (part.shape === "ellipse")
+        target.fillEllipse(
+          part.x + dx,
+          part.y + dy,
+          part.radiusX * 2,
+          part.radiusY * 2,
+        );
+      else if (part.shape === "triangle")
+        target.fillTriangle(
+          part.x1 + dx,
+          part.y1 + dy,
+          part.x2 + dx,
+          part.y2 + dy,
+          part.x3 + dx,
+          part.y3 + dy,
+        );
+      else target.fillRect(part.x + dx, part.y + dy, part.width, part.height);
+    }
+  }
+  /** The rails a map's trains run on: decoration in the floor pass, under the trains and everything else. */
+  private drawTracks(tracks: WorldView["tracks"]): void {
+    for (const track of tracks) {
+      const { bed, sleepers, rails } = trackDecoration(track);
+      this.floor.lineStyle(22, color(TRACK_COLOURS.bed), 0.55);
+      for (const piece of bed)
+        this.floor.lineBetween(piece.x1, piece.y1, piece.x2, piece.y2);
+      this.floor.lineStyle(3, color(TRACK_COLOURS.sleeper), 0.9);
+      for (const piece of sleepers)
+        this.floor.lineBetween(piece.x1, piece.y1, piece.x2, piece.y2);
+      this.floor.lineStyle(2, color(TRACK_COLOURS.rail), 0.95);
+      for (const piece of rails)
+        this.floor.lineBetween(piece.x1, piece.y1, piece.x2, piece.y2);
+    }
+  }
+  /**
+   * Scenery that moves is drawn where this frame's (interpolated) view puts it, every frame, with a ghost across any
+   * open edge its footprint overhangs. A car's lights face the way its rails run; the lowest id of a train is its
+   * locomotive and the highest its last car.
+   */
+  private drawMovers(frame: Frame): void {
+    const { s, g, w, h, open } = frame;
+    const ends = new Map<number, { head: number; tail: number }>();
+    for (const obstacle of s.obstacles) {
+      if (obstacle.motion?.kind !== "rail") continue;
+      const train = ends.get(obstacle.motion.train);
+      if (!train)
+        ends.set(obstacle.motion.train, {
+          head: obstacle.id,
+          tail: obstacle.id,
+        });
+      else {
+        train.head = Math.min(train.head, obstacle.id);
+        train.tail = Math.max(train.tail, obstacle.id);
       }
+    }
+    for (const obstacle of s.obstacles) {
+      const motion = obstacle.motion;
+      if (!motion) continue;
+      let mover: MoverPose | undefined;
+      if (motion.kind === "rail") {
+        const track = s.tracks[motion.track];
+        const pose = track ? trackPose(track, motion.along) : { dx: 1, dy: 0 };
+        const forward = motion.speed < 0 ? -1 : 1;
+        const train = ends.get(motion.train);
+        mover = {
+          dx: pose.dx * forward,
+          dy: pose.dy * forward,
+          head: train?.head === obstacle.id,
+          tail: train?.tail === obstacle.id,
+        };
+      }
+      const parts = obstacleParts(obstacle, s.map, mover);
+      const ghosts = open
+        ? wrapImages(
+            w,
+            h,
+            obstacle.x - obstacle.halfWidth,
+            obstacle.y - obstacle.halfHeight,
+            obstacle.x + obstacle.halfWidth,
+            obstacle.y + obstacle.halfHeight,
+          )
+        : NO_GHOSTS;
+      for (const { dx, dy } of ghosts) this.paintParts(g, parts, dx, dy);
+    }
   }
   private sprite(
     texture: string,
@@ -726,6 +810,7 @@ class ArenaScene extends Phaser.Scene {
     this.drawBackground(frame);
     this.drawFloor(frame);
     this.drawTrails(frame);
+    this.drawMovers(frame);
     this.drawTransitions(frame);
     this.drawGunImpacts(frame);
     this.drawPickups(frame);
@@ -777,7 +862,9 @@ class ArenaScene extends Phaser.Scene {
   /** Everything static for a while, baked into one Graphics: grid (bent by black holes), wall or open rim, scenery, and the mask. */
   private drawFloor(frame: Frame): void {
     const { s, theme, matchId, w, h, b, ground, open, backgroundKey } = frame;
-    // Obstacles are only ever removed within a round, so their count identifies the standing set.
+    // Standing obstacles are only ever removed within a round, so their count identifies the standing set. Scenery
+    // that moves is not baked here: `drawMovers` draws it every frame.
+    const standing = s.obstacles.filter((obstacle) => !obstacle.motion);
     // Black holes pull the grid toward their cores. The ease is quantised, so the floor only redraws while a hole opens or closes.
     const wells = s.gravityFields
       .map((field) => {
@@ -797,7 +884,7 @@ class ArenaScene extends Phaser.Scene {
         };
       })
       .filter((well) => well.pull > 0);
-    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${s.obstacles.length}:${wells.map((well) => `${Math.round(well.x)},${Math.round(well.y)},${Math.round(well.radius)},${well.pull}`).join(";")}`;
+    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${standing.length}:${wells.map((well) => `${Math.round(well.x)},${Math.round(well.y)},${Math.round(well.radius)},${well.pull}`).join(";")}`;
     if (floorKey !== this.floorKey) {
       this.floorKey = floorKey;
       // Boundary motion must not redraw/upload the full background texture each tick.
@@ -882,7 +969,8 @@ class ArenaScene extends Phaser.Scene {
         this.drawWall(w, h, b, theme);
       }
       // After the boundary band: an obstacle the closing walls have reached is already gone from the state.
-      this.drawObstacles(s.obstacles, s.map);
+      this.drawTracks(s.tracks);
+      this.drawObstacles(standing, s.map);
       this.maskShape
         ?.clear()
         .fillStyle(0xffffff)

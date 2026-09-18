@@ -21,6 +21,7 @@ import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.js";
 import {
   ARENA_MAPS,
   MAX_OBSTACLES,
+  mapHasScenery,
   OBSTACLE_HIT_SHAPES,
   OBSTACLE_KINDS,
   obstacleBlocksPath,
@@ -667,8 +668,13 @@ test("the room setting picks the board, and rotate gives each round a different 
     assert.equal(game.map, map);
     assert.equal(
       game.obstacles.length > 0,
-      ["desert", "forest", "city"].includes(map),
+      mapHasScenery(map),
       `${map} scenery`,
+    );
+    assert.equal(
+      game.obstacles.some((obstacle) => obstacle.motion !== undefined),
+      map === "drift" || map === "trains",
+      `${map} movers`,
     );
   }
   const game = createGame("rotating", classicSettings(), 4);

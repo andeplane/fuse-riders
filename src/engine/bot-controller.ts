@@ -254,10 +254,29 @@ function chooseSteering(
   ];
   const bombs = sortedBombs(game);
   // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
-  // of this plan are worth testing each step.
-  const obstacles = game.obstacles.filter(
-    (obstacle) =>
-      obstacleDistanceSquared(obstacle, player.x, player.y) < reach * reach,
+  // of this plan are worth testing each step. Over open edges a piece is also met where the far side puts it, so
+  // each image of it that comes within reach is a piece of its own.
+  const obstacles = game.obstacles.flatMap((obstacle) =>
+    (open
+      ? wrapImages(
+          game.width,
+          game.height,
+          obstacle.x - obstacle.halfWidth - reach,
+          obstacle.y - obstacle.halfHeight - reach,
+          obstacle.x + obstacle.halfWidth + reach,
+          obstacle.y + obstacle.halfHeight + reach,
+        )
+      : [{ dx: 0, dy: 0 }]
+    )
+      .map(({ dx, dy }) =>
+        dx === 0 && dy === 0
+          ? obstacle
+          : { ...obstacle, x: obstacle.x + dx, y: obstacle.y + dy },
+      )
+      .filter(
+        (piece) =>
+          obstacleDistanceSquared(piece, player.x, player.y) < reach * reach,
+      ),
   );
   // The sway ahead is the same whichever way the bot steers, so every plan reads one forecast of it.
   const sway = Array.from({ length: lookahead }, (_, future) =>

@@ -9,6 +9,8 @@
  * this: a map says where the rocks are and what colour the ground is, a style says how walls, trails and sprites draw.
  */
 
+import type { ObstacleMotion } from "./scenery-motion.js";
+
 export const ARENA_MAPS = [
   "classic",
   "desert",
@@ -16,6 +18,8 @@ export const ARENA_MAPS = [
   "city",
   "wrap",
   "cross",
+  "drift",
+  "trains",
 ] as const;
 export type ArenaMapId = (typeof ARENA_MAPS)[number];
 /**
@@ -27,6 +31,10 @@ export type ArenaMapId = (typeof ARENA_MAPS)[number];
  * classic arena under exactly the classic rules, and differs only in how it is drawn — shifted by half a board, so
  * the outer wall meets in a cross at the middle of the screen and the screen's own edges are open. Neither is in the
  * rotation: one changes the rules of the edges and the other only how hard the board is to read, so a room opts in.
+ *
+ * Two more put scenery that moves on the board (`scenery-motion.ts`). `drift` is the wrapping board with a cross of
+ * walls on it that wanders like a screensaver logo, turned back by the board's edges. `trains` keeps the classic
+ * walls and runs trains round two loops of track; the track is decoration, the trains kill. Both are opt-in too.
  */
 export type ArenaMapChoice = ArenaMapId | "rotate";
 export const ARENA_MAP_CHOICES = ["rotate", ...ARENA_MAPS] as const;
@@ -44,8 +52,18 @@ export const OBSTACLE_KINDS = [
   "bush",
   "building",
   "crate",
+  "wall",
+  "train",
 ] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
+/** Kinds a blast does not clear and the overtime walls do not crush: the moving pieces a map is made of. */
+export const PERMANENT_OBSTACLE_KINDS: readonly ObstacleKind[] = Object.freeze([
+  "wall",
+  "train",
+]);
+export function obstacleIsPermanent(obstacle: Pick<Obstacle, "kind">): boolean {
+  return PERMANENT_OBSTACLE_KINDS.includes(obstacle.kind);
+}
 
 /** Axis-aligned and centred, so every test below is a clamp rather than a rotation. */
 export interface Obstacle {
@@ -55,6 +73,8 @@ export interface Obstacle {
   y: number;
   halfWidth: number;
   halfHeight: number;
+  /** Present on scenery that moves: advanced once a tick by `moveScenery`, and restored from a checkpoint with it. */
+  motion?: ObstacleMotion;
 }
 
 /** Bounds the whole obstacle rectangle must sit inside, already inset by the boundary. */
@@ -95,6 +115,8 @@ export const OBSTACLE_HIT_SHAPES: Record<
   cactus: { round: false, scale: 0.85 },
   tree: { round: true, scale: 0.9 },
   bush: { round: true, scale: 0.9 },
+  wall: { round: false, scale: 1 },
+  train: { round: false, scale: 1 },
 };
 
 /** An obstacle's footprint scaled about its centre, read as the ellipse inside it when `round`. */
@@ -210,11 +232,27 @@ export const ARENA_MAP_RECIPES: Record<ArenaMapId, ArenaMapRecipe> = {
   },
   wrap: { species: [], spacing: 0 },
   cross: { species: [], spacing: 0 },
+  drift: { species: [], spacing: 0 },
+  trains: { species: [], spacing: 0 },
 };
+
+/** Whether a map's edges are open until overtime: `wrap`, and `drift`, which is `wrap` with a wandering cross on it. */
+export function mapWraps(map: ArenaMapId): boolean {
+  return map === "wrap" || map === "drift";
+}
+
+/** Whether there is anything solid on the board besides the wall: sampled scenery, or the movers a map starts with. */
+export function mapHasScenery(map: ArenaMapId): boolean {
+  return (
+    ARENA_MAP_RECIPES[map].species.length > 0 ||
+    map === "drift" ||
+    map === "trains"
+  );
+}
 
 /** The inset a round starts with. A wrapping board has no wall to inset until overtime brings one in from the edges. */
 export function initialBoundaryInset(map: ArenaMapId, walled: number): number {
-  return map === "wrap" ? 0 : walled;
+  return mapWraps(map) ? 0 : walled;
 }
 
 /**
@@ -225,7 +263,7 @@ export function edgesOpen(board: {
   map: ArenaMapId;
   boundaryInset: number;
 }): boolean {
-  return board.map === "wrap" && board.boundaryInset <= 0;
+  return mapWraps(board.map) && board.boundaryInset <= 0;
 }
 
 export interface ObstacleLayoutOptions {
