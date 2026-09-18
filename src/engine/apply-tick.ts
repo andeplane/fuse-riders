@@ -248,6 +248,27 @@ function applyManagement(state: RoomState, entry: Entry): void {
 }
 
 /**
+ * The inputs of a step after the first in one log tick: a rider holds what its fold holds, without the tick's bomb
+ * commands (a press is one press), and a bot is asked again about the game as it now stands.
+ */
+function laterInputs(
+  state: RoomState,
+  game: Readonly<GameState>,
+  first: ReadonlyMap<string, InputIntent>,
+  bots: BotController,
+): Map<string, InputIntent> {
+  const inputs = new Map<string, InputIntent>();
+  for (const id of first.keys()) {
+    if (state.bots.has(id)) inputs.set(id, bots.input(game, id));
+    else {
+      const fold = state.folds.get(id);
+      if (fold) inputs.set(id, intentOf(fold));
+    }
+  }
+  return inputs;
+}
+
+/**
  * Advance the room by one log tick, `state.tick + 1`, from the entries stamped with that tick. Management entries apply first, then each
  * player's entries fold into its held controls, then `driveGameTick`: the shared `step` and automatic round
  * progression. What is the room's and not the game's (folds, bot seats) follows what the driver reports.
@@ -309,7 +330,10 @@ export function applyTick(
       if (entry[2] === AVATAR) player.avatarId = entry[3];
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }
-  const driven = driveGameTick(game, inputs, state.settings, phases);
+  const driven = driveGameTick(game, inputs, state.settings, phases, {
+    count: 1,
+    later: (current) => laterInputs(state, current, inputs, bots),
+  });
   for (const id of driven.removed) {
     state.folds.delete(id);
     state.bots.delete(id);
