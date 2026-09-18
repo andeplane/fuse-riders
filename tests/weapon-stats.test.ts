@@ -24,6 +24,7 @@ import {
   type RoomSettings,
 } from "../src/engine/room-settings.js";
 import { roundShotEvents } from "../src/online/analytics.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 /**
  * The round's shot log: every trigger pull, labelled with the powerup it spent, and every rider it killed. Shots are
@@ -32,15 +33,14 @@ import { roundShotEvents } from "../src/online/analytics.js";
  */
 function fixture(
   riders = 2,
-  settings?: RoomSettings,
+  settings: RoomSettings = classicSettings(),
 ): {
   game: GameState;
   player: PlayerState;
   victim: PlayerState;
   input: (intent: Partial<InputIntent>) => void;
 } {
-  const game = createGame("weapons");
-  game.settings = settings;
+  const game = createGame("weapons", settings);
   for (let slot = 0; slot < riders; slot += 1)
     addPlayer(game, {
       id: `p${slot}`,

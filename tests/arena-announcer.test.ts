@@ -20,12 +20,13 @@ import {
   type Announcement,
 } from "../src/client/arena-announcer.js";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 type ScoredView = ViewSnapshot;
 const field = (announcement: Announcement, key: string) =>
   (announcement as unknown as Record<string, unknown>)[key];
 
 const view = (overrides: Partial<ScoredView>): ScoredView => {
-  const game = createGame("announcer");
+  const game = createGame("announcer", classicSettings());
   for (const [slot, id, name] of [
     [0, "me", "Anders"],
     [1, "ai", "AI Ada"],

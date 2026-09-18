@@ -3,6 +3,7 @@ import test from "node:test";
 import { AVATARS, avatarCell, isAvatarId } from "../src/shared/avatars.ts";
 import { parseClientMessage } from "../src/shared/protocol.ts";
 import { addPlayer, createGame, toSnapshot } from "../src/engine/game.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 
 test("ten distinct avatar ids address exactly ten atlas cells", () => {
   assert.equal(AVATARS.length, 10);
@@ -46,7 +47,7 @@ test("ten distinct avatar ids address exactly ten atlas cells", () => {
 });
 
 test("default and selected heads appear in authoritative snapshots without changing slot color", () => {
-  const state = createGame("avatars");
+  const state = createGame("avatars", classicSettings());
   addPlayer(state, { id: "a", name: "A", slot: 0, color: "#22d3ee" });
   addPlayer(state, {
     id: "b",

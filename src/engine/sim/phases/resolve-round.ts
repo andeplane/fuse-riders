@@ -44,7 +44,7 @@ export function resolveRound(ctx: TickContext): void {
   const scores = new Map(
     placements?.map((placement) => [placement.playerId, placement.scoreUnits]),
   );
-  const fixedEnd = state.round >= (state.settings?.length ?? 5);
+  const fixedEnd = state.round >= state.settings.length;
   const ranking = [...state.matchStats.values()]
     .map((entry) => ({
       ...entry,

@@ -17,6 +17,7 @@ import {
   encodeGameState,
   decodeGameState,
 } from "../src/engine/codec/checkpoint.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const canonical = (game: GameState) =>
   canonicalRoomState({
@@ -32,7 +33,7 @@ const press: InputIntent = {
   bombCommands: [{ action: "press" }],
 };
 function scene() {
-  const game = createGame("gun-regression", 42);
+  const game = createGame("gun-regression", classicSettings(), 42);
   for (let slot = 0; slot < 4; slot++)
     addPlayer(game, {
       id: `p${slot}`,

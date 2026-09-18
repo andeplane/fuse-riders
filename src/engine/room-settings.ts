@@ -34,6 +34,23 @@ export function defaultRoomSettings(): RoomSettings {
     ),
   };
 }
+
+/**
+ * The obstacle-free `classic` arena with an aim that parks at full reach, every other setting at its default. It is
+ * what a game without settings fell back on before `GameState.settings` became required (#253 A3), so engine tests
+ * and the bot benchmark scripts that were written against that board keep their geometry and their random draws.
+ * A new room plays `defaultRoomSettings()` instead (`rotate` maps, a bouncing aim).
+ */
+export function classicSettings(
+  overrides: Partial<RoomSettings> = {},
+): RoomSettings {
+  return {
+    ...defaultRoomSettings(),
+    map: "classic",
+    aimBounce: false,
+    ...overrides,
+  };
+}
 export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
   if (!raw || typeof raw !== "object") return;
   const value = raw as RoomSettings;
