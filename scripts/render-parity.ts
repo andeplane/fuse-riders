@@ -182,7 +182,7 @@ const wanted: [string, (view: View) => boolean][] = [
   ["debris", (v) => v.players.some((p) => p.trail.some((s) => s.detached))],
   [
     "overtime",
-    (v) => v.phase === "playing" && v.map !== "wrap" && v.boundaryInset > 60,
+    (v) => v.phase === "playing" && v.map !== "wrap" && v.boundaryInset > 40,
   ],
   ["round-over", (v) => v.phase === "roundOver"],
 ];
@@ -258,6 +258,19 @@ const transitions: [string, number, (view: View, previous: View) => boolean][] =
     [],
     "the recording reaches every moment",
   );
+  // Range (rules 36) lengthens the aim guide. The recording's riders may never hold a Range pickup while charging, so
+  // the charging and target moments are drawn again with every rider at the top Range level.
+  for (const name of ["charging", "volley"]) {
+    const base = moments.find((moment) => moment.name === name)!;
+    const view = structuredClone(base.view) as View;
+    moments.push({
+      name: `${name}-range3`,
+      view: {
+        ...view,
+        players: view.players.map((player) => ({ ...player, rangeLevel: 3 })),
+      },
+    });
+  }
 }
 
 const arenaPath = existsSync("src/render/phaser/arena.ts")
@@ -305,9 +318,11 @@ try {
     theme: string;
     sha256: string;
   }[] = [];
-  for (const backend of ["auto", "canvas"] as const) {
+  // "portrait" is WebGL on a tall 450x800 box with rotateToFit, as a phone held upright sees the arena (#326).
+  for (const backend of ["auto", "canvas", "portrait"] as const) {
     const pictures = await page.evaluate(
       async ({ arenaPath, themesPath, backend, moments }) => {
+        const portrait = backend === "portrait";
         const { createPhaserArena } = (await import(
           arenaPath
         )) as typeof import("../src/render/phaser/arena.js");
@@ -318,13 +333,23 @@ try {
         canvas.width = 1600;
         canvas.height = 900;
         canvas.style.cssText = "width:1600px;height:900px";
-        document.body.append(canvas);
-        const arena = createPhaserArena(canvas, {
-          renderer: backend,
-          resolution: "world",
-        });
+        const box = document.createElement("div");
+        box.style.cssText = "width:450px;height:800px";
+        if (portrait) box.append(canvas);
+        document.body.append(portrait ? box : canvas);
+        const arena = createPhaserArena(
+          canvas,
+          portrait
+            ? { renderer: "auto", rotateToFit: true }
+            : { renderer: backend, resolution: "world" },
+        );
         await arena.ready;
-        const pictures: { name: string; theme: string; data: string }[] = [];
+        const pictures: {
+          name: string;
+          theme: string;
+          data: string;
+          orientation: string;
+        }[] = [];
         // Warm-up: a theme's sprites and fonts load on first use, so draw everything once before hashing anything.
         for (const theme of Object.values(themes))
           for (const moment of moments) {
@@ -354,12 +379,17 @@ try {
               name: moment.name,
               theme: theme.id,
               data: canvas.toDataURL("image/png"),
+              orientation: canvas.dataset.arenaOrientation ?? "",
             });
           }
         const renderer = arena.metrics().renderer;
         arena.destroy();
         canvas.remove();
-        return { renderer, pictures };
+        box.remove();
+        return {
+          renderer: portrait ? `${renderer}-portrait` : renderer,
+          pictures,
+        };
       },
       {
         arenaPath,
@@ -373,7 +403,19 @@ try {
         }[],
       },
     );
-    assert.equal(pictures.renderer, backend === "auto" ? "webgl" : "canvas");
+    assert.equal(
+      pictures.renderer,
+      backend === "auto"
+        ? "webgl"
+        : backend === "canvas"
+          ? "canvas"
+          : "webgl-portrait",
+    );
+    if (backend === "portrait")
+      assert.ok(
+        pictures.pictures.some((picture) => picture.orientation === "portrait"),
+        "the tall box turns the arena",
+      );
     for (const picture of pictures.pictures) {
       const bytes = Buffer.from(picture.data.split(",")[1]!, "base64");
       frames.push({
