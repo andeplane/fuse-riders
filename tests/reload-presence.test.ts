@@ -169,7 +169,7 @@ test("a guest reloading mid-round is logged present once, not flapped absent whi
       .frame(HOST)!
       .players.find((player) => player.id === guest)!.connected;
     if (!connected && left < 0)
-      left = elapsed; // The service reported the old page gone: `LEAVE`.
+      left = elapsed; // The service reported the old page gone: absent (`PRESENCE` false).
     else if (connected && left >= 0 && back < 0) back = elapsed;
     else if (!connected && back >= 0) flapped = true;
   }
@@ -448,5 +448,69 @@ test("the graces add up and stay bounded: an inflated lastSeq behind a slow link
     assert.equal(connected(id), undefined, `${id} dropped the seat`);
   }
   assert.ok(net.runtimes.get(GUESTS[0]!)!.metrics().hashChecks > 0);
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});
+
+// The service reports a reloading page's old socket closed before it admits the new one, so every reload reaches the
+// creator as an offline event. Mid-match that is absence, not departure: the seat is pruned when the next round
+// starts, which gives the page the whole `roundOver` to come back. It used to be logged as `LEAVE`, which frees a seat
+// at once in `roundOver`, so a reload whose old socket closed just after a rider's crash ended the round lost the seat
+// inside the same round, with the join card up (the online smoke's guest-refresh step, about one run in two).
+test("a guest whose reload reaches the creator during roundOver keeps its seat in the same round", () => {
+  const { net, reload } = room(() => 0);
+  const guest = GUESTS[1]!;
+  for (let waited = 0; net.frame(HOST)!.phase !== "roundOver"; waited += 10) {
+    assert.ok(waited < 6000, "the round ended");
+    net.step(10);
+  }
+  const round = net.frame(HOST)!.round;
+  reload(guest);
+  let lost: string | undefined;
+  for (let elapsed = 0; elapsed < 1500; elapsed += 10) {
+    net.step(10);
+    for (const id of net.runtimes.keys()) {
+      const frame = net.frame(id);
+      if (
+        frame &&
+        frame.round === round &&
+        !frame.players.some((p) => p.id === guest)
+      )
+        lost ??= `${id} unseated ${guest} in round ${round} (${frame.phase}) after ${elapsed} ms`;
+    }
+  }
+  assert.equal(lost, undefined);
+  for (const id of ALL) {
+    assert.equal(
+      net.frame(id)!.round,
+      round,
+      `${id} is still in round ${round}`,
+    );
+    assert.deepEqual(seated(net, id), ALL, `${id} sees ${guest} back`);
+  }
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});
+
+test("a guest reloading in the lobby still frees its seat, so it confirms its name through the join card", () => {
+  const net = new FakeNetwork(
+    HOST,
+    { loss: 0, baseMs: 20, jitterMs: 0, reliableMs: 30 },
+    7,
+  );
+  for (const id of [HOST, GUESTS[0]!]) {
+    const runtime = net.add(id, settings, { humanName: id });
+    runtime.start();
+    runtime.command({ type: "join", name: id });
+    net.step(400);
+  }
+  net.step(800);
+  assert.deepEqual(seated(net, HOST), [HOST, GUESTS[0]!].sort());
+  net.reload(GUESTS[0]!, settings, { humanName: GUESTS[0]! });
+  net.step(2000);
+  for (const id of [HOST, GUESTS[0]!])
+    assert.deepEqual(
+      net.frame(id)!.players.map((player) => player.id),
+      [HOST],
+      `${id} has the seat freed`,
+    );
   for (const runtime of net.runtimes.values()) runtime.stop();
 });
