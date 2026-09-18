@@ -980,6 +980,7 @@ export async function startOnline(): Promise<void> {
     const side =
       desktop &&
       !canvas.hidden &&
+      !app.classList.contains("scene-background") &&
       !app.classList.contains("booting") &&
       !app.classList.contains("room-over");
     app.classList.toggle("side-standings", side);
@@ -1466,11 +1467,15 @@ export async function startOnline(): Promise<void> {
       const controllerOnly =
         settings.mode === "shared" && !displayOnly && joined && !phoneLobby;
       app.classList.toggle("controller-only", controllerOnly);
-      canvas.hidden = !sharedLobby.hidden || controllerOnly || joining;
+      // The same arena stays behind the lobby and results; only its presentation changes.
+      // Shared-screen phones still skip arena rendering during active controller play.
+      const sceneBackground = state.phase === "lobby" || recapReady;
+      app.classList.toggle("scene-background", sceneBackground);
+      canvas.hidden = (controllerOnly && !sceneBackground) || joining;
       if (!canvas.hidden)
         replay.observe(state, state.matchId, performance.now());
       styleHeading.hidden = styleRow.hidden = controllerOnly;
-      /* A shared-TV rider's phone never draws an arena. */ updateDesktopLayout();
+      updateDesktopLayout();
       if (
         state.phase === "countdown" &&
         joined &&
@@ -2164,10 +2169,7 @@ export async function startOnline(): Promise<void> {
       requestAnimationFrame(frame);
       return;
     }
-    if (
-      predicted &&
-      (!canvas.hidden || (!sharedLobby.hidden && !canvas.dataset.renderer))
-    ) {
+    if (predicted && !canvas.hidden) {
       presentation.render(predicted, now, theme, renderScope, id);
       if (benchmark && (benchmarkInput || now - lastBenchmarkRender >= 100)) {
         const p = predicted.players.find((p) => p.id === id);
