@@ -11,6 +11,7 @@
  * engine under test. `normalise` below lists the only view differences accepted, each named with the reason; any other
  * byte of difference fails with the tick, the workload and the first differing characters.
  */
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -50,16 +51,18 @@ interface Recording {
   entries: Record<string, unknown[]>;
 }
 
+/** Where Fuse Riders lives in a checkout: `games/fuse-riders/`, or the root in one from before the move. */
+const fuseRiders = (root: string): string =>
+  existsSync(path.join(root, "games/fuse-riders/src"))
+    ? "games/fuse-riders"
+    : "";
+
 async function load(root: string, label: string): Promise<Engine> {
-  const at = (file: string) => path.join(root, file);
-  const tick = await import(at("games/fuse-riders/src/engine/apply-tick.ts"));
-  const view = await import(at("games/fuse-riders/src/engine/view.ts"));
-  const settings = await import(
-    at("games/fuse-riders/src/engine/room-settings.ts")
-  );
-  const bots = await import(
-    at("games/fuse-riders/src/engine/bot-controller.ts")
-  );
+  const at = (file: string) => path.join(root, fuseRiders(root), file);
+  const tick = await import(at("src/engine/apply-tick.ts"));
+  const view = await import(at("src/engine/view.ts"));
+  const settings = await import(at("src/engine/room-settings.ts"));
+  const bots = await import(at("src/engine/bot-controller.ts"));
   return {
     label,
     createRoomState: tick.createRoomState,
@@ -167,16 +170,17 @@ const engines = [
   await load(head, `head (${head})`),
 ] as const;
 const { streamReader } = await import(
-  path.join(base, "games/fuse-riders/tests/fixtures/replay-log.ts")
+  path.join(base, fuseRiders(base), "tests/fixtures/replay-log.ts")
 );
 const { makeRecording } = await import(
-  path.join(base, "games/fuse-riders/tests/fixtures/replay-recorder.ts")
+  path.join(base, fuseRiders(base), "tests/fixtures/replay-recorder.ts")
 );
 const golden: Recording = JSON.parse(
   await readFile(
     path.join(
       base,
-      "games/fuse-riders/tests/fixtures/mechanics-recording.json",
+      fuseRiders(base),
+      "tests/fixtures/mechanics-recording.json",
     ),
     "utf8",
   ),

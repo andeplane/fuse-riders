@@ -95,19 +95,25 @@ if (reference) {
   process.exit();
 }
 
+// A PARITY_REFERENCE checkout from before the move keeps Fuse Riders at the repository root.
+const game = existsSync("games/fuse-riders/src") ? "games/fuse-riders/" : "";
 const engine = (await import(
-  String("../src/engine/game.ts")
+  String(`../${game}src/engine/game.ts`)
 )) as typeof import("../games/fuse-riders/src/engine/game.js") & {
   toSnapshot?: (typeof import("../games/fuse-riders/src/engine/game.js"))["toView"];
 };
-const { applyTick, createRoomState } =
-  await import("../games/fuse-riders/src/engine/apply-tick.js");
-const { BotController } =
-  await import("../games/fuse-riders/src/engine/bot-controller.js");
-const { defaultRoomSettings } =
-  await import("../games/fuse-riders/src/engine/room-settings.js");
-const { streamReader } =
-  await import("../games/fuse-riders/tests/fixtures/replay-log.js");
+const { applyTick, createRoomState } = (await import(
+  String(`../${game}src/engine/apply-tick.ts`)
+)) as typeof import("../games/fuse-riders/src/engine/apply-tick.js");
+const { BotController } = (await import(
+  String(`../${game}src/engine/bot-controller.ts`)
+)) as typeof import("../games/fuse-riders/src/engine/bot-controller.js");
+const { defaultRoomSettings } = (await import(
+  String(`../${game}src/engine/room-settings.ts`)
+)) as typeof import("../games/fuse-riders/src/engine/room-settings.js");
+const { streamReader } = (await import(
+  String(`../${game}tests/fixtures/replay-log.ts`)
+)) as typeof import("../games/fuse-riders/tests/fixtures/replay-log.js");
 type View = ReturnType<(typeof engine)["toView"]>;
 const toView = engine.toView ?? engine.toSnapshot!;
 
@@ -271,12 +277,12 @@ const transitions: [string, number, (view: View, previous: View) => boolean][] =
   }
 }
 
-const arenaPath = existsSync("games/fuse-riders/src/render/phaser/arena.ts")
-  ? "/games/fuse-riders/src/render/phaser/arena.ts"
-  : "/games/fuse-riders/src/client/phaser/arena.ts";
-const themesPath = existsSync("games/fuse-riders/src/render/themes.ts")
-  ? "/games/fuse-riders/src/render/themes.ts"
-  : "/games/fuse-riders/src/client/themes.ts";
+const arenaPath = existsSync(`${game}src/render/phaser/arena.ts`)
+  ? `/${game}src/render/phaser/arena.ts`
+  : `/${game}src/client/phaser/arena.ts`;
+const themesPath = existsSync(`${game}src/render/themes.ts`)
+  ? `/${game}src/render/themes.ts`
+  : `/${game}src/client/themes.ts`;
 const server = await createServer({
   server: { port: 0, host: "127.0.0.1", hmr: false },
   logLevel: "error",

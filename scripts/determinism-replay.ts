@@ -36,7 +36,7 @@ console.log(
 );
 const bundle = await build({
   stdin: {
-    contents: `import { replayHashes } from './tests/fixtures/replay-log.ts'; globalThis.replayHashes = replayHashes;`,
+    contents: `import { replayHashes } from './games/fuse-riders/tests/fixtures/replay-log.ts'; globalThis.replayHashes = replayHashes;`,
     resolveDir: process.cwd(),
     loader: "ts",
   },
