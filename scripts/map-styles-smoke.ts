@@ -21,7 +21,7 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
+  await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID&mute`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const pictures = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
