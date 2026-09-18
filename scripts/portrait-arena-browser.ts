@@ -44,10 +44,11 @@ try {
     const results = [];
     for (const backend of ["auto", "canvas"] as const) {
       const wrapper = document.createElement("div");
-      wrapper.style.cssText = "width:800px;height:450px";
+      wrapper.style.cssText = "width:450px;height:800px";
       const canvas = document.createElement("canvas");
       canvas.width = 1600;
       canvas.height = 900;
+      canvas.style.objectFit = "cover";
       wrapper.append(canvas);
       document.body.append(wrapper);
       const arena = createPhaserArena(canvas, {
@@ -91,6 +92,17 @@ try {
         new Promise<void>((resolve) =>
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         );
+      // The online lobby now boots this same arena in cover mode. Play and replay
+      // must switch to contain even when changing fit mode does not resize the element.
+      for (const fit of ["cover", "contain", "cover", "contain"]) {
+        canvas.style.objectFit = fit;
+        await settle();
+        arena.render(fixed, 1000, themes["neon-pixel"], "lobby-to-play");
+        if (canvas.height > canvas.width !== (fit === "contain"))
+          throw Error(
+            `Stale ${fit} sizing after lobby/play transition: ${backend}`,
+          );
+      }
       for (const theme of Object.values(themes))
         for (const map of [
           "classic",

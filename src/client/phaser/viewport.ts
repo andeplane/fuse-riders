@@ -54,7 +54,7 @@ export function observeArenaDisplay(
   const bounds = canvas.getBoundingClientRect();
   let cssWidth = bounds.width;
   let cssHeight = bounds.height;
-  const cover = getComputedStyle(canvas).objectFit === "cover";
+  const style = getComputedStyle(canvas);
   const observer = new ResizeObserver((entries) => {
     const entry = entries[0];
     if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
@@ -65,6 +65,9 @@ export function observeArenaDisplay(
   observer.observe(canvas);
   return {
     backing: (width, height) => {
+      // Computed styles are live: lobby/results use cover, play/replay use contain,
+      // including transitions that do not change the canvas CSS dimensions.
+      const cover = style.objectFit === "cover";
       const rotated =
         rotateToFit &&
         !cover &&
