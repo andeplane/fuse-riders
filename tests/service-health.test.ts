@@ -44,7 +44,9 @@ test("actual service exposes Cloud Run safe health aliases without requiring pro
               clearTimeout(timeout);
               resolve(record.port);
             }
-          } catch {}
+          } catch {
+            // The service also prints lines that are not JSON; the timeout fails the test if no record arrives.
+          }
         }
       });
     });

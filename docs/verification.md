@@ -8,10 +8,13 @@ The `verify` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) inst
 
 ```sh
 npm run format:check
+npm run lint
 npm run typecheck
 npm run test:coverage
 npm run build
 ```
+
+`npm run lint` is ESLint with a deliberately small type-aware rule set ([eslint.config.js](../eslint.config.js)): no floating or misused promises, and no empty block — a `catch` that swallows on purpose says why in a comment. Prettier owns formatting.
 
 `npm test` runs the same unit-test file globs without coverage instrumentation: `tests/*.test.ts` and `packages/*/tests/*.test.ts`. Use focused tests during iteration and the broader checks at integration milestones. Add a regression for a confirmed bug; test the observable contract and failure/recovery boundaries rather than copying implementation logic.
 
@@ -40,7 +43,7 @@ ONLY=core PORT=8801 scripts/ci-local.sh
 ONLY=keyboard PORT=8801 scripts/ci-local.sh
 ```
 
-`core` includes formatting, typecheck, coverage and build. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them. The local mirror still has tracked drift and script consolidation work in #257; consult the workflow for the authoritative matrix.
+`core` includes formatting, lint, typecheck, coverage and build. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them. The local mirror still has tracked drift and script consolidation work in #257; consult the workflow for the authoritative matrix.
 
 `npx tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, online WebRTC rooms, the shared-screen lobby, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
 
