@@ -5,7 +5,7 @@ import {
   type GameSynth,
   type SynthNote,
 } from "./audio-director.js";
-import { assetUrl } from "./asset-url.js";
+import { assetUrl } from "../render/asset-url.js";
 import {
   RADIO_KEY,
   RADIO_SHORTCUT_HINT,

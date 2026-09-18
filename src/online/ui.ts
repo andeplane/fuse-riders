@@ -1,11 +1,12 @@
 import { VoiceChat } from "./voice-chat.js";
-import { powerLabel } from "../client/power-indicator.js";
+import { powerLabel } from "../render/power-indicator.js";
 import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
-import { mountArenaPresentation } from "../client/phaser/presentation.js";
+import { mountArenaPresentation } from "../render/phaser/presentation.js";
+import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { createAccountPanel } from "./account-panel.js";
 import {
@@ -28,12 +29,11 @@ import {
 } from "../client/avatar-heads.js";
 import {
   applyThemeProperties,
-  selectedTheme,
-  storeTheme,
   themes,
   type ThemeDefinition,
   type ThemeId,
-} from "../client/themes.js";
+} from "../render/themes.js";
+import { selectedTheme, storeTheme } from "../client/theme-choice.js";
 import { createGameAudio, type GameAudio } from "../client/game-audio.js";
 import {
   defaultRoomSettings,
@@ -43,8 +43,8 @@ import {
   type RoomSettings,
 } from "../engine/room-settings.js";
 import type { PickupType } from "../engine/game.js";
+import type { WorldView } from "../engine/view.js";
 import { isAimingGun } from "../engine/gun.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { renderMatchRecap } from "./match-recap-view.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
 import { createReplayOverlay } from "../client/replay-overlay.js";
@@ -450,7 +450,7 @@ export async function startOnline(): Promise<void> {
     isHost = false,
     joined = false,
     settings = loadRoomSettings(storage),
-    snapshot: ViewSnapshot | undefined;
+    snapshot: WorldView | undefined;
   startAnalytics({ role, mode: settings.mode, solo });
   track("App Opened");
   // When Match Started, Kill / Miss, Seat Taken and Match Ended fire is `funnel.ts`; the render callback only feeds it.
@@ -652,7 +652,7 @@ export async function startOnline(): Promise<void> {
   let lastAnnouncement = "";
   const touchInput =
     navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches;
-  const showAnnouncement = (state: ViewSnapshot, visible: boolean) => {
+  const showAnnouncement = (state: WorldView, visible: boolean) => {
     const announcement = announcementFor(state, id, touchInput);
     const key = JSON.stringify(announcement) + visible + isHost;
     if (key === lastAnnouncement) return;
@@ -2064,10 +2064,7 @@ export async function startOnline(): Promise<void> {
   }, 1000);
   // `id` marks the local rider in the arena (the YOU ring); every render path passes it as the last argument, replays included.
   /** A running replay takes over the arena: its clip renders under a scope of its own, the overlay dresses it, and live play returns on `done`. */
-  function replayFrame(
-    now: number,
-    predicted: ViewSnapshot | undefined,
-  ): boolean {
+  function replayFrame(now: number, predicted: WorldView | undefined): boolean {
     const update = replay.frame(now);
     if (!update) return false;
     // The arena left the screen under a replay (MAIN MENU, a controller-only seat): take the dressing down and forget the clip.
@@ -2126,7 +2123,8 @@ export async function startOnline(): Promise<void> {
       inputAt = 0;
       if (inputTimes.length > 100) inputTimes.shift();
     }
-    const predicted = runtime.view();
+    const frames = runtime.presentation();
+    const predicted = frames && presentFrames(frames);
     if (replayFrame(now, predicted)) {
       requestAnimationFrame(frame);
       return;

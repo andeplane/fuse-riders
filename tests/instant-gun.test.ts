@@ -5,7 +5,7 @@ import {
   createGame,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   COUNTDOWN_TICKS,
   SLOT_COLORS,
   type InputIntent,
@@ -266,7 +266,7 @@ test("holding the trigger locks the heading and steers the sight; release fires 
   fire(press);
   assert.equal(game.shots.length, 0, "a press alone holds fire");
   assert.equal(shooter.gunAim, 0);
-  assert.equal(toSnapshot(game).players[0]!.gunAim, 0);
+  assert.equal(toView(game).players[0]!.gunAim, 0);
   const held: InputIntent = { ...neutral, bomb: true, right: true };
   for (let tick = 0; tick < 5; tick++) fire(held);
   assert.equal(shooter.angle, 0, "steering went to the sight, not the rider");
@@ -296,7 +296,7 @@ test("holding the trigger locks the heading and steers the sight; release fires 
   );
   assert.equal(shooter.gunAim, undefined);
   assert.equal(shooter.gunArmed, false);
-  assert.equal(toSnapshot(game).players[0]!.gunAim, undefined);
+  assert.equal(toView(game).players[0]!.gunAim, undefined);
   fire({ ...neutral, right: true });
   assert.ok(shooter.angle > 0, "steering returns with the shot");
 });
@@ -406,7 +406,7 @@ test("a Gun collected during an ordinary charge never takes the steering; its re
   fire({ ...neutral, bomb: true, right: true });
   assert.ok(shooter.angle > 0, "still steering");
   assert.equal(shooter.gunAim, undefined);
-  assert.equal(toSnapshot(game).players[0]!.gunAim, undefined);
+  assert.equal(toView(game).players[0]!.gunAim, undefined);
   fire(release);
   assert.equal(game.shots[0]!.weapon, "gun");
   const tracer = [...game.bombs.values()][0]!;

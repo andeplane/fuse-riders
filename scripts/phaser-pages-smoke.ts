@@ -1,11 +1,11 @@
 import { preview } from "vite";
 import { AVATAR_ATLAS_URL } from "../src/shared/avatars.js";
-import { defaultTheme, themes } from "../src/client/themes.js";
+import { defaultTheme, themes } from "../src/render/themes.js";
 import { POWERUP_GUIDE } from "../src/client/powerup-guide.js";
 import { chromium } from "playwright";
 import { readdir } from "node:fs/promises";
 import assert from "node:assert/strict";
-import { visualFixture } from "../src/client/phaser/benchmark-fixture.js";
+import { visualFixture } from "./lib/benchmark-fixture.js";
 const directory = process.env.BUILD_DIRECTORY ?? "artifacts/phaser-pages-dist";
 const chunk = (await readdir(`${directory}/assets`)).find(
   (file) => file.startsWith("arena-") && file.endsWith(".js"),
@@ -38,7 +38,7 @@ try {
     async ({ chunk, state, theme }) => {
       const module = (await import(
         `/fuse-riders/assets/${chunk}`
-      )) as typeof import("../src/client/phaser/arena.js");
+      )) as typeof import("../src/render/phaser/arena.js");
       const canvas = document.createElement("canvas");
       canvas.width = 1600;
       canvas.height = 900;

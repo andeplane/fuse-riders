@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { legendSrc } from "../src/client/legend-src.js";
-import { resolveAssetUrl } from "../src/client/asset-url.js";
+import { resolveAssetUrl } from "../src/render/asset-url.js";
 
 test("legendSrc routes pickup legend icons through assetUrl so they work under a Pages base path", () => {
   assert.equal(

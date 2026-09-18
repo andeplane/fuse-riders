@@ -1,0 +1,128 @@
+import type { WorldView } from "../engine/view.js";
+
+type Blast = WorldView["blasts"][number];
+export type BlastTone = "outer" | "warm" | "core";
+export interface BlastCircleFrame {
+  x: number;
+  y: number;
+  radius: number;
+  alpha: number;
+  tone: BlastTone;
+}
+export interface BlastSparkFrame {
+  x: number;
+  y: number;
+  size: number;
+  alpha: number;
+}
+export interface BlastFrame {
+  circles: BlastCircleFrame[];
+  sparks: BlastSparkFrame[];
+  ring: { radius: number; alpha: number };
+  footprintAlpha: number;
+}
+
+const clamp = (n: number): number => Math.max(0, Math.min(1, n));
+const easeOut = (n: number): number => 1 - (1 - clamp(n)) ** 3;
+const smooth = (n: number): number => {
+  const t = clamp(n);
+  return t * t * (3 - 2 * t);
+};
+const pop = (n: number): number => {
+  const t = clamp(n) - 1;
+  return 1 + 2.4 * t ** 3 + 1.4 * t ** 2;
+};
+
+/** Stable cosmetic variation, independent of frame order and the simulation's random stream. */
+function variation(id: number, lane: number): number {
+  let n = Math.imul(id ^ Math.imul(lane + 1, 0x9e3779b9), 0x85ebca6b);
+  n = Math.imul(n ^ (n >>> 16), 0xc2b2ae35);
+  return ((n ^ (n >>> 16)) >>> 0) / 0x100000000;
+}
+
+/**
+ * A stateless pop / bloom / break / clear, sampled from presentation ticks. The blast's lifetime in the simulation
+ * (`rules.blastVisibleTicks` of the view, 400 ms) owns expiry; no timers, effect history or physics changes.
+ * Every filled circle and square stays inside the supplied damage disk, even at overshoot.
+ */
+export function blastFrame(
+  blast: Blast,
+  tick: number,
+  visibleTicks: number,
+): BlastFrame {
+  const age = 1 - (blast.expiresAtTick - tick) / visibleTicks;
+  const frame: BlastFrame = {
+    circles: [],
+    sparks: [],
+    ring: { radius: 0, alpha: 0 },
+    footprintAlpha: 0,
+  };
+  const { x, y, radius } = blast.circle;
+  if (age < 0 || age >= 1 || radius <= 0) return frame;
+
+  // The faint full-size disk keeps the hazardous footprint readable during the small initial pop.
+  frame.footprintAlpha = 0.045 * (1 - smooth((age - 0.8) / 0.2));
+  frame.ring = {
+    radius: radius * (0.25 + 0.75 * easeOut(age / 0.24)),
+    alpha: 0.24 * (1 - age),
+  };
+  const rotation = variation(blast.bombId, 0) * Math.PI * 2;
+  for (let i = 0; i < 9; i++) {
+    const outer = i < 5;
+    const size = variation(blast.bombId, i * 4 + 1);
+    const timing = variation(blast.bombId, i * 4 + 2);
+    const jitter = variation(blast.bombId, i * 4 + 3);
+    const angle =
+      rotation +
+      (outer ? i / 5 : (i - 5) / 4 + 0.13) * Math.PI * 2 +
+      (jitter - 0.5) * 0.65;
+    const delay = timing * 0.075;
+    const growth = pop((age - delay) / (0.21 + size * 0.07));
+    const collapse = smooth(
+      (age - (0.34 + timing * 0.12)) / (0.42 + size * 0.1),
+    );
+    const distance =
+      radius *
+      ((outer ? 0.41 + jitter * 0.12 : 0.17 + jitter * 0.13) *
+        easeOut((age - delay) / 0.25) +
+        collapse * 0.16);
+    const circleRadius = Math.min(
+      radius - distance,
+      radius *
+        (outer ? 0.27 + size * 0.09 : 0.24 + size * 0.07) *
+        growth *
+        (1 - collapse),
+    );
+    if (circleRadius <= 0) continue;
+    frame.circles.push({
+      x: x + Math.cos(angle) * distance,
+      y: y + Math.sin(angle) * distance,
+      radius: circleRadius,
+      alpha: (outer ? 0.78 : 0.9) * (1 - smooth((age - 0.65) / 0.35)),
+      tone: outer ? "outer" : "warm",
+    });
+  }
+  // The core punches in immediately and contracts before the surrounding lobes separate.
+  const coreRadius =
+    radius * (0.09 + 0.2 * pop(age / 0.15)) * (1 - smooth((age - 0.25) / 0.42));
+  if (coreRadius > 0)
+    frame.circles.push({ x, y, radius: coreRadius, alpha: 0.96, tone: "core" });
+  for (let i = 0; i < 6; i++) {
+    const random = variation(blast.bombId, 50 + i);
+    const travel = easeOut((age - 0.06 - random * 0.05) / 0.75);
+    const size =
+      Math.min(5, radius * 0.035) * (1 - smooth((age - 0.45) / 0.55));
+    const angle = rotation + ((i + 0.3 + random * 0.4) * Math.PI) / 3;
+    const distance = Math.min(
+      radius - size * Math.SQRT1_2,
+      radius * (0.3 + travel * (0.5 + random * 0.12)),
+    );
+    frame.sparks.push({
+      x: x + Math.cos(angle) * distance,
+      y: y + Math.sin(angle) * distance,
+      size,
+      alpha: smooth(age / 0.1) * (1 - smooth((age - 0.5) / 0.5)),
+    });
+  }
+  return frame;
+}

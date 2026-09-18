@@ -31,21 +31,21 @@ try {
   for (const mode of ["webgl", "phaser-canvas"] as const) {
     const results = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/client/phaser/arena.ts")
-      )) as typeof import("../src/client/phaser/arena.js");
+        String("/src/render/phaser/arena.ts")
+      )) as typeof import("../src/render/phaser/arena.js");
       const { visualFixture } = (await import(
-        String("/src/client/phaser/benchmark-fixture.ts")
-      )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+        String("/scripts/lib/benchmark-fixture.ts")
+      )) as typeof import("./lib/benchmark-fixture.js");
       const { themes } = (await import(
-        String("/src/client/themes.ts")
-      )) as typeof import("../src/client/themes.js");
+        String("/src/render/themes.ts")
+      )) as typeof import("../src/render/themes.js");
       const { BOMB_COOLDOWN_TICKS } = (await import(
         String("/src/engine/game.ts")
       )) as typeof import("../src/engine/game.js");
       const { RELOAD_RING_RADIUS } = (await import(
-        String("/src/client/reload-ring.ts")
-      )) as typeof import("../src/client/reload-ring.js");
-      type Snapshot = import("../src/client/snapshot-stream.js").ViewSnapshot;
+        String("/src/render/reload-ring.ts")
+      )) as typeof import("../src/render/reload-ring.js");
+      type Snapshot = import("../src/engine/view.js").WorldView;
       document.body.replaceChildren();
       document.body.style.cssText = "margin:0;background:#020715";
       const canvas = document.createElement("canvas");

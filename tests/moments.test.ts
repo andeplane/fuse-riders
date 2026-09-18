@@ -26,7 +26,7 @@ import {
   returnToLobby,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   type BombState,
   type GameState,
 } from "../src/engine/game.ts";
@@ -627,7 +627,7 @@ test("moments travel only in the match-over snapshot, detached, and clear with t
   assert.deepEqual(kinds(state), ["ownGoal"]);
   assert.equal(state.phase, "roundOver");
   assert.deepEqual(
-    toSnapshot(state).moments,
+    toView(state).moments,
     [],
     "nothing leaks before the match is over",
   );
@@ -639,7 +639,7 @@ test("moments travel only in the match-over snapshot, detached, and clear with t
   dueBomb(decided, "p0", 500, 350);
   step(decided, new Map());
   assert.equal(decided.phase, "matchOver");
-  const snapshot = toSnapshot(decided);
+  const snapshot = toView(decided);
   assert.deepEqual(snapshot.moments, decided.moments);
   snapshot.moments[0]!.targetIds.push("tampered");
   assert.deepEqual(decided.moments[0]!.targetIds, []);

@@ -15,11 +15,11 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type GameState,
   type InputIntent,
 } from "../src/engine/game.js";
-import { presentWorld } from "../src/online/prediction.js";
+import { presentWorld } from "../src/render/time/present.js";
 import {
   decodeGameState,
   encodeGameState,
@@ -320,7 +320,7 @@ test("the local rider's predicted lead uses the slowed stride", () => {
   ratio(game, PRESS);
   ratio(game);
   ratio(game);
-  const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const snapshot = { ...toView(game), tick: game.tick, round: game.round };
   const shown = presentWorld(undefined, snapshot, snapshot.tick, {
     id: "p0",
     controls: NEUTRAL,

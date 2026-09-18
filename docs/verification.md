@@ -9,6 +9,7 @@ The `verify` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) inst
 ```sh
 npm run format:check
 npm run lint
+npm run config:check
 npm run typecheck
 npm run test:coverage
 npm run build
@@ -45,7 +46,9 @@ ONLY=core PORT=8801 scripts/ci-local.sh
 ONLY=keyboard PORT=8801 scripts/ci-local.sh
 ```
 
-`core` includes formatting, lint, typecheck, coverage and build. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them. The local mirror still has tracked drift and script consolidation work in #257; consult the workflow for the authoritative matrix.
+`core` is every `verify` step. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them.
+
+[scripts/ci-manifest.json](../scripts/ci-manifest.json) is the only list of CI steps: the workflow builds its browser matrix from it (one parallel job per smoke, summed up by the `e2e` job) and `scripts/ci-local.sh` runs the same entries through the same runner, `scripts/ci-run.ts`. `tests/ci-manifest.test.ts` fails when the workflow, the local mirror, a smoke's browser list or the README's step names stop agreeing with it. Add or change a smoke in the manifest, nowhere else. `npx tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, including the single retry that CI reports as a flake; the local mirror does not retry.
 
 `npx tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, online WebRTC rooms, the shared-screen lobby, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
 

@@ -28,10 +28,10 @@ export type {
   PlayerId,
   TrailSegment,
 } from "./primitives.js";
-// The one engine module that still names wire types: the avatar id a rider carries, the events a tick reports and the
-// public snapshot. Issue #254 moves the last two into the engine's view.
+// The one engine module that still names a wire type: the avatar id a rider carries.
 import type { AvatarId } from "../shared/protocol.js";
-export type { GameEvent, GameSnapshot } from "../shared/protocol.js";
+export type { AvatarId } from "../shared/protocol.js";
+export type { GameEvent } from "./view.js";
 export type { FlightPoint } from "./launch-modifiers.js";
 import type { RoomSettings } from "./room-settings.js";
 import type { DecidedRound, RoundShot } from "./shot-log.js";
