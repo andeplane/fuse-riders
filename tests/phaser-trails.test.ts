@@ -195,7 +195,7 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
     player = rider();
   player.trail = player.trail.map((s) => ({
     ...s,
-    detached: { id: 1, decayStartTick: 30 },
+    detached: { id: 1, decayStartTick: 70 },
   }));
   const first = cache.update([player], "match:1");
   assert.equal(first.strokes[0]!.alive, false);
@@ -213,7 +213,7 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
   assert.equal(cache.update([active], "match:1").strokes[0]!.alive, true);
   const crossing = [
     segment(1, 0, 0, 10, 0),
-    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 30 } },
+    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 70 } },
   ];
   assert.equal(trailPaths(crossing).length, 2);
 });
@@ -221,8 +221,8 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
 test("pieces desaturate independently from snapshot time, preserving geometry and rider identity", () => {
   const player = rider();
   player.trail = [
-    { ...segment(1, 0, 0, 10, 0), detached: { id: 1, decayStartTick: 30 } },
-    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 60 } },
+    { ...segment(1, 0, 0, 10, 0), detached: { id: 1, decayStartTick: 70 } },
+    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 100 } },
     segment(3, 20, 0, 30, 0),
   ];
   const original = structuredClone(player);
@@ -265,7 +265,7 @@ test("Canvas history refreshes color with stationary geometry, settles at gray a
   const player = rider();
   player.trail = player.trail.map((segment) => ({
     ...segment,
-    detached: { id: 1, decayStartTick: 30 },
+    detached: { id: 1, decayStartTick: 70 },
   }));
   const first = cache.update([player], "match:1", 10);
   const middle = cache.update([player], "match:1", 40.5);

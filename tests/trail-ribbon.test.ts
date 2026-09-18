@@ -148,7 +148,7 @@ test("holes and teleports never get a connecting triangle, and removal clears ca
 
 test("death, detachment, erosion and rider color are reflected without mutating snapshots", () => {
   const state = snapshot();
-  state.players[0].trail[0].detached = { id: 1, decayStartTick: 40 };
+  state.players[0].trail[0].detached = { id: 1, decayStartTick: 80 };
   const original = structuredClone(state);
   const cache = new TrailRibbonCache(TRAIL_WIDTH);
   const first = update(cache, state);
