@@ -179,8 +179,12 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
         const guide = page.getByRole("region", { name: "POWER-UPS" });
         assert.equal(
           await guide.getByRole("listitem").count(),
-          POWERUP_GUIDE.length,
-          "power-up guide lists every pickup",
+          POWERUP_GUIDE.length - 1,
+          "power-up guide lists every pickup except Target Bomb",
+        );
+        assert.equal(
+          await guide.getByText("TARGET", { exact: true }).count(),
+          0,
         );
         await guide.getByText("blocks one crash", { exact: false }).waitFor(); // the landing guide is the only place descriptions render; the TV legend is names alone
         await guide.getByText("STAR", { exact: true }).scrollIntoViewIfNeeded();
@@ -392,7 +396,7 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
               await page.evaluate(
                 () =>
                   JSON.parse(
-                    localStorage.getItem("fuse-riders-room-settings-v1")!,
+                    localStorage.getItem("fuse-riders-room-settings-v2")!,
                   ).bombChargeTicks,
               ),
               24,

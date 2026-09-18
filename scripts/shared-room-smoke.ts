@@ -220,7 +220,15 @@ for (const { name, kind } of BOTH_ENGINES) {
     assert.match(code, /^[A-Z]{2}[0-9]{2}$/);
     await qr(host);
     assert.equal(await host.locator(".shared-room-code").textContent(), code);
-    assert.equal(await host.locator(".online-arena").isVisible(), false);
+    assert.equal(await host.locator(".online-arena").isVisible(), true);
+    assert.ok(
+      await host
+        .locator(".online-arena")
+        .evaluate((element) =>
+          getComputedStyle(element).filter.includes("blur"),
+        ),
+      "lobby retains the blurred scene",
+    );
     // The lobby hands out the join link as text next to the QR, and COPY reports what it managed to do (the clipboard is unavailable on some headless browsers).
     const joinUrl = (await host.locator(".room-qr-url").textContent())!;
     assert.equal(joinUrl, invite, `lobby link must be the invite: ${joinUrl}`);

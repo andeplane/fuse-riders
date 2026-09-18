@@ -22,7 +22,7 @@ for (const { name, kind } of BOTH_ENGINES) {
   // One round ends the match, so matchOver is reachable without a long solo run.
   await page.addInitScript(() =>
     localStorage.setItem(
-      "fuse-riders-room-settings-v1",
+      "fuse-riders-room-settings-v2",
       JSON.stringify({
         version: 1,
         mode: "devices",

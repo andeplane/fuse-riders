@@ -15,9 +15,9 @@ try {
   const base = process.env.ONLINE_URL ?? "http://127.0.0.1:5179/";
   // The rider rides unattended while the bar is measured: keep it on the classic board.
   await page.addInitScript(() => {
-    if (!localStorage.getItem("fuse-riders-room-settings-v1"))
+    if (!localStorage.getItem("fuse-riders-room-settings-v2"))
       localStorage.setItem(
-        "fuse-riders-room-settings-v1",
+        "fuse-riders-room-settings-v2",
         JSON.stringify({
           version: 1,
           mode: "devices",
@@ -249,9 +249,9 @@ try {
   phone.on("pageerror", (error) => errors.push(error.message));
   // The rider rides unattended while the bar is measured: keep it on the classic board.
   await phone.addInitScript(() => {
-    if (!localStorage.getItem("fuse-riders-room-settings-v1"))
+    if (!localStorage.getItem("fuse-riders-room-settings-v2"))
       localStorage.setItem(
-        "fuse-riders-room-settings-v1",
+        "fuse-riders-room-settings-v2",
         JSON.stringify({
           version: 1,
           mode: "devices",

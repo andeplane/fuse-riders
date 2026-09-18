@@ -72,7 +72,7 @@ for (const { name, kind } of BOTH_ENGINES) {
   );
   await page.addInitScript(() => {
     localStorage.setItem(
-      "fuse-riders-room-settings-v1",
+      "fuse-riders-room-settings-v2",
       JSON.stringify({
         version: 1,
         mode: "devices",
