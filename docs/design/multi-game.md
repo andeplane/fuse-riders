@@ -1,22 +1,22 @@
 # Several games, one set of libraries
 
-Status: steps 1 and 2 are built: the netcode (`packages/fuse-netcode`) and the backend (`packages/fuse-platform`). The rest is proposed.
+Status: steps 1 to 3 are built and step 4 has a first cut: the netcode (`packages/fuse-netcode`), the backend (`packages/fuse-platform`), the dice game (`games/dice`: rules, page and service registration) and the menus and styles (`packages/fuse-ui`). Step 5, moving Fuse Riders into `games/`, is proposed. Production serves the dice game only once `EXTRA_GAME_IDS` names it ([GCP deploy](../online/GCP-DEPLOY.md)).
 
-Today the repo holds one game, Fuse Riders. Its networking is split into three game-agnostic packages (`packages/fuse-network-fe`, `-be`, `-protocol`), and its rollback netcode into a fourth (`packages/fuse-netcode`). The rest of what a second game would need is still tied to Fuse Riders: the menus and styles, and the account, history and Elo backend. This note sets out the target layout, the contract a game implements and the order of the work. A small dice game proves that the contract really is game-agnostic.
+The repo holds two games: Fuse Riders (still in `src/`) and Pig, a small dice game (`games/dice`). They share six packages: the networking (`packages/fuse-network-fe`, `-be`, `-protocol`), the rollback netcode (`fuse-netcode`), the account, history and Elo backend (`fuse-platform`) and the menus and styles (`fuse-ui`). Pig proves that the contract really is game-agnostic. What is still Fuse Riders' own: its account panel, recap, room settings dialog and phone layout (planned for `fuse-ui`), and its folder (step 5). This note sets out the layout, the contract a game implements and the order of the work.
 
 ## Decisions
 
 - **One backend for all games.** One Cloud Run room service and one Firestore database. Rooms, match records, ratings and leaderboards carry a `gameId`. An account is shared across games; each game has its own rating. Sharing infrastructure avoids a separate service per game; cost still depends on usage.
 - **Libraries stay inside this repo** as npm workspaces. They are not published to npm until a game outside the repo needs them.
 - **The template game is a dice game**, described under [The dice game](#the-dice-game).
-- **Plain package names.** The three network packages keep their names (renaming them would touch every open branch for no behaviour). New packages are `fuse-netcode`, `fuse-platform` (backend) and `fuse-ui`, each with the same `package.json` shape as the existing ones (private, `type: module`, `"exports": {".": "./src/index.ts"}`). There is no npm scope.
 
 ## Target layout
 
 ```text
 games/
   fuse-riders/        engine/, render/, app/, service entry, tests, golden hashes
-  dice/               the template game; copied to start a new game
+  dice/               the template game (built): rules in src/game/, the page in src/app/ and index.html, the service
+                      registration in src/platform.ts, tests; scripts/new-game.ts copies it to start a new game
 packages/
   fuse-network-fe/        WebRTC mesh, room client
   fuse-network-be/        room admission (one game per room), signalling
@@ -28,7 +28,7 @@ packages/
 service/                  the one deployed entry: composes fuse-network-be and fuse-platform with every game's registration
 ```
 
-The folder stays `packages/` because the workspaces already point there. **Names:** the three network packages keep their names, because renaming them touches every open branch for no change in behaviour. New packages take plain names (`fuse-netcode`, `fuse-platform`, `fuse-ui`) and the same `package.json` shape as the existing ones: private, `type: module`, `"exports": {".": "./src/index.ts"}` plus any subpath a browser or an optional peer needs. Packages must not import `src/` or `games/`. A game may import any package. Games must not import one another.
+The folder stays `packages/` because the workspaces already point there. **Names** (there is no npm scope): the three network packages keep their names, because renaming them touches every open branch for no change in behaviour. New packages take plain names (`fuse-netcode`, `fuse-platform`, `fuse-ui`) and the same `package.json` shape as the existing ones: private, `type: module`, `"exports": {".": "./src/index.ts"}` plus any subpath a browser or an optional peer needs. Packages must not import `src/` or `games/`. A game may import any package. Games must not import one another.
 
 ## The game contract
 
@@ -89,18 +89,18 @@ Built in `packages/fuse-platform` ([README](../../packages/fuse-platform/README.
 - **What a game registers.** A `GameRegistration` has `id`, `isBot`, `parseStats(raw, rounds)` (the wire and storage boundary for one player, rebuilt in a fixed key order so equal results hash equally), optional `validField` (checks across players, such as kills naming riders of the match), `emptyTotals`, `credit` and `addTotals` (what a confirmed whole match adds to an account), `parseTotals` (the storage boundary for those totals) and optional `rivals`. The platform reads eight fields of every player itself: `playerId`, `name`, `slot`, `roundsPlayed`, `roundWins`, `matchScoreUnits`, `matchPlacement` and `earlyExits`; everything else is the game's. It re-checks those fields whatever the game's parser accepts.
 - **The account is shared.** Username, rider name and avatar live on the user document for every game. The name and avatar rules are the platform's `AccountRules`; today they are Fuse Riders' rider-name rule and avatars, because the account predates games.
 - **Fuse Riders is the legacy game** (`LEGACY_GAME_ID`). What an absent `gameId` means everywhere; its rating (`rating`, `ranked`, `elo`), totals, career and `rivals` stay on the user document and its leaderboard query is unchanged, so nothing live changes. Every other game stores its standing in `${prefix}-ratings`, one document per `gameId:uid` (`gameId`, `uid`, `rating`, `ranked`, `elo` and the game's totals spread beside them; totals may not use those names), with its own `rivals` subcollection, and ranks by the composite index `(gameId, ranked, elo)`. The memory adapter mirrors this: one account record, one standing per `gameId:uid`. Moving Fuse Riders' fields into `${prefix}-ratings` is a later migration, not part of this step.
-- **Match records carry `gameId`.** New records of every game have it; a stored record without one is Fuse Riders', with no backfill, and a record naming an unregistered game does not parse. Other games' history queries filter on `gameId` (index `(gameId, participantUids, endedAt desc)`); Fuse Riders' query cannot match a missing field, so it reads every game's page and keeps its own, reading up to five pages to fill one. An account with many newer matches of other games can therefore get a short Fuse Riders page, which the client reads as the end of its history: backfill `gameId` onto Fuse Riders' old records before the dice game (step 3) ships, then filter like any other game. Solo rounds of other games use the incarnation `solo:<gameId>:<uid>`, so their record ids and rating scopes never meet Fuse Riders' `solo:<uid>`.
+- **Match records carry `gameId`.** New records of every game have it; a stored record without one is Fuse Riders', with no backfill, and a record naming an unregistered game does not parse. Other games' history queries filter on `gameId` (index `(gameId, participantUids, endedAt desc)`); Fuse Riders' query cannot match a missing field, so it reads every game's page and keeps its own, reading up to five pages to fill one. An account with many newer matches of other games can therefore get a short Fuse Riders page, which the client reads as the end of its history: backfill `gameId` onto Fuse Riders' old records (`scripts/backfill-match-game-id.ts`) before the dice game is served in production (`EXTRA_GAME_IDS`), then filter like any other game. Solo rounds of other games use the incarnation `solo:<gameId>:<uid>`, so their record ids and rating scopes never meet Fuse Riders' `solo:<uid>`.
 - **Routes.** The existing `/api/...` history routes are Fuse Riders'. `/api/games/<gameId>/...` addresses any registered game with the same routes. `/api/me` and its `PUT` (the username) are the shared account under either form; the profile it returns carries that game's rating and totals. An unregistered `gameId` is `404 Unknown game`.
 - **Rooms carry `gameId`** (`fuse-network-be`, `fuse-network-protocol`). Creation takes `?gameId=`, the room stores it, and a socket whose `auth` frame names another game is closed as a missing room; a history report for a room of another game is refused the same way. The service is configured with the registered ids and refuses others. Room codes stay one namespace, so a code never means two games at once. Absent means `fuse-riders` in both directions, so clients and services from before games keep working ([protocol](../online/PROTOCOL.md#games-on-one-room-service-gameid)).
 
 ## Menus and styles
 
-`packages/fuse-ui` owns the screens every game has: landing, join form, avatar, lobby with a QR code, room settings dialog shell, account panel, recap frame, status notices, the neon/pixel tokens (colours, font, z-index scale) and the shared-screen/phone-controller layout switch. A game supplies its settings fields, its arena view and its recap content. The first cut is built; see [its README](../../packages/fuse-ui/README.md).
+`packages/fuse-ui` owns, today: the neon/pixel tokens (colours, font, spacing, z-index scale), the element factory, and the landing card, join by code, name entry, lobby with its QR invite and roster, status line and toast, dialog shell and controller row. Planned, and still Fuse Riders' own until then: the avatar picker, room settings dialog, account panel, recap frame and the shared-screen/phone-controller layout switch. A game supplies its settings fields, its table or arena and its recap content. See [its README](../../packages/fuse-ui/README.md); Pig's page is built from it alone.
 
 - **Tokens.** `tokens.css` defines the neon palette, the Press Start 2P stack, spacing, borders and glow, and a named z-index scale as `--fui-*` custom properties. The values are the ones Fuse Riders already drew. Fuse imports the file first (`src/client/main.ts`); its own `--cyan`, `--ui-*` names are now aliases of the tokens, and its stylesheets read the tokens wherever the value was identical. Before and after screenshots of the landing, the settings dialog and the lobby match pixel for pixel.
-- **DOM.** One element factory, `el(tag, text, className, document?)`, replaces the eight local copies #255 found; text goes in through `textContent` only. `copyText` and `closeOnBackdrop` moved in with it.
+- **DOM.** One element factory, `el(tag, text, className, document?)`, replaces the four local copies #255 found (with different argument orders); text goes in through `textContent` only. `copyText` and `closeOnBackdrop` moved in with it.
 - **Components.** Small functions that return elements: `createLandingCard` (title, CREATE ROOM, join by code, SOLO), `createJoinByCode`, `createLobby` (invite card with QR, code and COPY LINK; roster with name, avatar, status and HOST; START for whoever may start), `createInviteCard`, `createRoster`, `createNameEntry`, `createNotice` (status line or toast), `createDialog` (title bar, CLOSE, body) and `createControllerRow` (big touch buttons). Each takes an optional `document`, so the package tests run on `linkedom`. Default classes are `fui-*`, styled by `components.css`; a `classes` option renames any part, which is how Fuse keeps its own class names and stylesheet.
-- **What Fuse Riders uses.** The factory everywhere, the join-by-code row on its landing page, both dialogs (landing SETTINGS and the in-room menu), the lobby invite card and rider list, and the controller row. Its landing page, lobby shell (copy, footer, host actions), join form (avatar picker, account name), standings and status line stay in `src/online/ui.ts`.
+- **What Fuse Riders uses.** The factory in most of its DOM (`join-form.ts`, `mobile-play-layout.ts`, `analytics-setting.ts`, `avatar-heads.ts` and `powerup-guide-view.ts` still call `createElement` directly), the join-by-code row on its landing page, both dialogs (landing SETTINGS and the in-room menu), the lobby invite card and rider list, and the controller row. Its landing page, lobby shell (copy, footer, host actions), join form (avatar picker, account name), standings and status line stay in `src/online/ui.ts`.
 
 Still to do: move Fuse's copies of the component rules from `online.css` into `components.css` so both games load one stylesheet; adopt `createNameEntry` in `join-form.ts` once the avatar picker is a slot; the account panel, recap frame and room settings shell; and the shared-screen/phone layout switch (`room-screen.ts`, `mobile-play-layout.css`).
 
@@ -115,7 +115,14 @@ It is small on purpose. It proves the parts of the contract Fuse Riders never ex
 - **Shared randomness.** Dice come from the seeded RNG in the room state, so every replica rolls the same number. That also means any member can compute upcoming rolls. This fits the trust model (every member is trusted with the shared log), and the template documents it.
 - **The whole stack.** Solo against bots, an online room, shared screen with the TV at `?room=CODE&display=1` and phones as roll/hold buttons, a refreshed device recovering from a peer, and rated rounds.
 
-It renders with DOM and CSS from `packages/fuse-ui`, not Phaser, which shows a game can skip Phaser entirely. `scripts/new-game.ts <id>` copies `games/dice` to start a new game.
+It renders with DOM and CSS from `packages/fuse-ui`, not Phaser, which shows a game can skip Phaser entirely. `scripts/new-game.ts <id>` copies `games/dice` to start a new game ([its README](../../games/dice/README.md)).
+
+As built:
+
+- **Rules** (`games/dice/src/game/`): `diceGame` is the `RollbackGame` (`rules: "dice-1"`), with the management entries applied by `applyManagementTick`. Each match keeps every player's rolls, holds, busts and best turn, and each round record its decision tick, so a device reports a round only once its confirmed tick reaches it.
+- **Page** (`games/dice/index.html`, `src/app/`): Vite builds every `games/<id>/index.html` to `dist/<id>/index.html`, and the dev service serves a directory's page, so Pig is at `/dice/` beside Fuse Riders (GitHub Pages: `/fuse-riders/dice/`). `presenter.ts` turns each frame's view into the screen (lobby, table, controller, result) as a pure function; `session.ts` reads the query and storage; `reports.ts` sends confirmed round receipts and match results with the room token; `runtime.ts` adds ROLL and HOLD to `RoomRuntime`; `main.ts` is the DOM glue. The page links the transport exactly as Fuse Riders does, creating rooms with `gameId: "dice"`. Fuse Riders' landing page links to it (MORE GAMES: PIG).
+- **Backend** (`games/dice/src/platform.ts`): the dice `GameRegistration` stores points, rolls, holds, busts and best turn per player and totals per account; `src/service/history.ts` registers it beside Fuse Riders. The dev service serves both games; Cloud Run serves the dice game only when `EXTRA_GAME_IDS=dice`, after the match-record backfill. Until then CREATE ROOM on the page says online rooms are not open yet, and solo against bots runs with no service. The page has no sign-in yet, so its reports go in as a guest's: they settle guest history and rate nobody. Rated rounds need the account panel in `fuse-ui` (planned); `tests/dice-service.test.ts` shows signed-in dice reports moving dice ratings and not Fuse Riders'.
+- **Checks:** `games/dice/tests/` (rules, checkpoint, netcode over lossy links, presenter, reports, session, runtime), `tests/dice-service.test.ts` (admission by game, ratings per game, the `EXTRA_GAME_IDS` switch) and `scripts/dice-smoke.ts` (two devices to a round result with a refresh that recovers from the peer, then a shared screen with a phone controller, in Chromium and WebKit).
 
 ## Order of work
 
@@ -123,13 +130,13 @@ It renders with DOM and CSS from `packages/fuse-ui`, not Phaser, which shows a g
 | --- | ------------------------------------------------------------------------------------------------- | ------------ | -------------------------- |
 | 1   | `packages/fuse-netcode` behind `RollbackGame`, hash-identical (built)                             | 2–3 sessions | —                          |
 | 2   | `packages/fuse-platform`: history and Elo keyed by `gameId`; Fuse Riders stats registered (built) | 2 sessions   | —                          |
-| 3   | `games/dice` against netcode and backend, with a minimal UI                                       | 1–2 sessions | 1, 2                       |
+| 3   | `games/dice` against netcode and backend, with its page on `fuse-ui` (built)                      | 1–2 sessions | 1, 2                       |
 | 4   | `packages/fuse-ui` and CSS tokens; dice and Fuse Riders both use it (first cut built)             | 2–3 sessions | #255                       |
 | 5   | `git mv src games/fuse-riders`, one mechanical PR                                                 | 1 session    | a quiet pull-request queue |
 
 The network packages keep their names, so the rename step of the first draft is gone.
 
-The dice game comes before the UI package so the contract is proven early, with a plain UI for now. The folder move is last because it conflicts with every open branch. Extracting packages while the game stays in `src/` keeps each diff small and lets this run alongside epic #259.
+The dice game was planned before the UI package so the contract would be proven early; in the end both landed together, and Pig's page is the first built on `fuse-ui` alone. The folder move is last because it conflicts with every open branch. Extracting packages while the game stays in `src/` keeps each diff small and lets this run alongside epic #259.
 
 ## Risks
 
