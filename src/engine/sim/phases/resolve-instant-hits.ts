@@ -1,6 +1,6 @@
 import type { TickContext } from "../context.js";
 import { SHIELD_GRACE_TICKS } from "../../tuning.js";
-import { isHazardImmune } from "../riders.js";
+import { applyEffect, isHazardImmune } from "../../effects.js";
 import { sortedPlayers } from "../../state.js";
 import {
   INSTANT_DEATHS_COMMIT_PER_RIDER,
@@ -20,7 +20,12 @@ export function resolveInstantHits(ctx: TickContext): void {
       if (!hits.length) continue;
       if (player.shielded) {
         player.shielded = false;
-        player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
+        applyEffect(
+          player,
+          "shieldGrace",
+          state.tick,
+          state.tick + SHIELD_GRACE_TICKS,
+        );
         continue;
       }
       // The shot is the lowest bomb id among the hits, whether or not that bomb names one: the sweep instead takes

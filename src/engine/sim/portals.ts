@@ -108,7 +108,6 @@ export function isSafePortalPosition(
     return false;
   // Reserve both current flight location and landing site of live projectiles.
   for (const bomb of sortedBombs(state)) {
-    if (bomb.shell?.gun) continue;
     const flight =
       bomb.flightPath[
         Math.max(

@@ -36,6 +36,7 @@ import {
 import type { GameEvent } from "../../src/shared/protocol.js";
 import { SHELL_RADIUS, SHELL_SPEED } from "../../src/engine/shell.js";
 import { WEAPONS, type Weapon } from "../../src/engine/shot-log.js";
+import { effectDeadlines, effectUntil } from "../../src/engine/effects.ts";
 
 /** The timed effects a pickup starts, each with a real duration it can be held to. */
 export const TIMED_EFFECTS = ["star", "nitro", "snail", "beer", "ink"] as const;
@@ -248,14 +249,14 @@ const untilOf = (
   effect: TimedEffect,
 ): number =>
   effect === "star"
-    ? player.invulnerableUntilTick
+    ? effectUntil(player, "star")
     : effect === "beer"
-      ? player.drunkUntilTick
+      ? effectUntil(player, "drunk")
       : effect === "ink"
-        ? player.inkUntilTick
+        ? effectUntil(player, "ink")
         : ((effect === "nitro"
-            ? player.nitroUntilTicks
-            : player.snailUntilTicks)[0] ?? 0);
+            ? effectDeadlines(player, "nitro")
+            : effectDeadlines(player, "snail"))[0] ?? 0);
 
 export function coverageObserver(coverage: ReplayCoverage) {
   /** Black holes that have had a rider inside them, by the tick they close and their size. */
@@ -270,7 +271,7 @@ export function coverageObserver(coverage: ReplayCoverage) {
         id,
         {
           shielded: player.shielded,
-          cooldown: player.portalCooldownUntilTick,
+          cooldown: effectUntil(player, "portalCooldown"),
           x: player.x,
           y: player.y,
           alive: player.alive,
@@ -295,7 +296,7 @@ export function coverageObserver(coverage: ReplayCoverage) {
           x: bomb.x,
           y: bomb.y,
           lobbed: !bomb.shell,
-          shell: bomb.shell !== undefined && !bomb.shell.gun,
+          shell: bomb.shell !== undefined,
           bounces: bomb.shell?.bounces ?? 0,
           explodeAtTick: bomb.explodeAtTick,
         },
@@ -439,37 +440,36 @@ export function coverageObserver(coverage: ReplayCoverage) {
           killsAfter[shot.weapon] += shot.kills.length;
         for (const weapon of WEAPONS)
           coverage.kills[weapon] += killsAfter[weapon] - killsBefore[weapon];
-        for (const bomb of game.bombs.values()) {
-          if (bomb.shell?.gun) {
-            if (bomb.launchedTick !== game.tick) continue;
-            coverage.gunTracers++;
-            const stopped = isObstacleMap(game.map)
-              ? game.obstacles.find(
-                  (obstacle) =>
-                    obstacleDistanceSquared(obstacle, bomb.x, bomb.y) <=
-                    square(GUN_RADIUS + 1e-3),
-                )
-              : undefined;
-            if (!stopped) continue;
-            coverage.gunSceneryStops++;
-            const { vx, vy } = bomb.shell;
-            const reach = game.width + game.height;
-            if (
-              game.obstacles.some(
+        for (const bomb of game.tracers) {
+          if (bomb.launchedTick !== game.tick) continue;
+          coverage.gunTracers++;
+          const stopped = isObstacleMap(game.map)
+            ? game.obstacles.find(
                 (obstacle) =>
-                  obstacle.id > stopped.id &&
-                  segmentObstacleDistanceSquared(
-                    obstacle,
-                    bomb.launchX,
-                    bomb.launchY,
-                    bomb.launchX + vx * reach,
-                    bomb.launchY + vy * reach,
-                  ) <= square(GUN_RADIUS),
+                  obstacleDistanceSquared(obstacle, bomb.x, bomb.y) <=
+                  square(GUN_RADIUS + 1e-3),
               )
+            : undefined;
+          if (!stopped) continue;
+          coverage.gunSceneryStops++;
+          const { vx, vy } = bomb;
+          const reach = game.width + game.height;
+          if (
+            game.obstacles.some(
+              (obstacle) =>
+                obstacle.id > stopped.id &&
+                segmentObstacleDistanceSquared(
+                  obstacle,
+                  bomb.launchX,
+                  bomb.launchY,
+                  bomb.launchX + vx * reach,
+                  bomb.launchY + vy * reach,
+                ) <= square(GUN_RADIUS),
             )
-              coverage.gunScreenedStops++;
-            continue;
-          }
+          )
+            coverage.gunScreenedStops++;
+        }
+        for (const bomb of game.bombs.values()) {
           if (!bomb.shell) continue;
           coverage.shellTicks++;
           const earlier = bombs.get(bomb.id);
@@ -544,7 +544,7 @@ export function coverageObserver(coverage: ReplayCoverage) {
             if (until === game.tick + 1) coverage.effectFullTerms[effect]++;
           }
           if (
-            player.drunkUntilTick > game.tick &&
+            effectUntil(player, "drunk") > game.tick &&
             player.drunkHeadingOffset !== 0
           )
             coverage.drunkSwayTicks++;
@@ -578,7 +578,7 @@ export function coverageObserver(coverage: ReplayCoverage) {
           game.phase === "playing" &&
           before.alive &&
           player.alive &&
-          player.portalCooldownUntilTick === before.cooldown &&
+          effectUntil(player, "portalCooldown") === before.cooldown &&
           (Math.abs(player.x - before.x) > game.width / 2 ||
             Math.abs(player.y - before.y) > game.height / 2)
         )
@@ -587,14 +587,15 @@ export function coverageObserver(coverage: ReplayCoverage) {
           before.shielded &&
           !player.shielded &&
           player.alive &&
-          player.shieldGraceUntilTick === state.game.tick + SHIELD_GRACE_TICKS
+          effectUntil(player, "shieldGrace") ===
+            state.game.tick + SHIELD_GRACE_TICKS
         )
           coverage.shieldAbsorbs++;
         if (
-          player.portalCooldownUntilTick > before.cooldown &&
-          player.portalCooldownUntilTick ===
+          effectUntil(player, "portalCooldown") > before.cooldown &&
+          effectUntil(player, "portalCooldown") ===
             state.game.tick + PORTAL_COOLDOWN_TICKS &&
-          player.portalGraceUntilTick ===
+          effectUntil(player, "portalGrace") ===
             state.game.tick + PORTAL_GRACE_TICKS &&
           Math.abs(player.x - before.x) > 100
         )

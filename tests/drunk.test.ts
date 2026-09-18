@@ -13,6 +13,7 @@ import {
   step,
 } from "../src/engine/game.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setEffect } from "./fixtures/rider-state.ts";
 
 const delta = (a: number, b: number) =>
   Math.atan2(Math.sin(a - b), Math.cos(a - b));
@@ -91,8 +92,7 @@ test("engine adds bounded sway to ordinary steering and restores intended headin
   while (game.phase === "countdown") step(game, new Map());
   const player = game.players.get("p0")!;
   const other = game.players.get("p1")!;
-  player.drunkStartedTick = game.tick;
-  player.drunkUntilTick = game.tick + 80;
+  setEffect(player, "drunk", game.tick + 80, game.tick);
   let intended = player.angle;
   for (let tick = 1; tick <= 82; tick += 1) {
     // Keep geometry out of this heading invariant; wall reactions are covered separately.

@@ -18,6 +18,7 @@ import {
 import { beginMatchParticipant } from "../src/engine/match-stats.ts";
 import type { GameEvent, ServerMessage } from "../src/shared/protocol.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
+import { setArmed } from "./fixtures/rider-state.ts";
 function fixture(stored: Partial<RadioState> = {}) {
   let canUnlock = true;
   let stops = 0;
@@ -234,7 +235,6 @@ test("engine emits collection once only after a real pickup is consumed", async 
       type: "star",
       x: player.x,
       y: player.y,
-      expiresAtTick: f.game.tick + 100,
     },
   ];
   assert.deepEqual(
@@ -790,7 +790,7 @@ test("Gun pickup racks once after the pickup cue, while joins and hidden transit
   await f.director.unlock();
   f.director.message(f.snapshot(10));
   const player = f.game.players.get("p")!;
-  player.gunArmed = true;
+  setArmed(player, "gun", true);
   f.director.message(f.snapshot(11));
   assert.equal(f.notes.length, 2);
   assert.ok(f.notes.every(({ note }) => note.delay! >= 0.32));
@@ -799,10 +799,10 @@ test("Gun pickup racks once after the pickup cue, while joins and hidden transit
   f.director.disconnect();
   f.director.message(f.snapshot(12));
   assert.equal(f.notes.length, 2, "rejoining armed stays silent");
-  player.gunArmed = false;
+  setArmed(player, "gun", false);
   f.director.message(f.snapshot(13));
   f.director.setEffectsSilenced(true);
-  player.gunArmed = true;
+  setArmed(player, "gun", true);
   f.director.message(f.snapshot(14));
   f.director.setEffectsSilenced(false);
   f.director.message(f.snapshot(15));

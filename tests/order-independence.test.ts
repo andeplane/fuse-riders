@@ -24,6 +24,9 @@ import {
 import type { Obstacle } from "../src/engine/arena-map.js";
 import { streamReader, type Recording } from "./fixtures/replay-log.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { EFFECT_KINDS } from "../src/engine/effects.ts";
+import { WEAPON_KINDS } from "../src/engine/weapons.ts";
+import { setArmed } from "./fixtures/rider-state.ts";
 
 test("every weighted pickup interval is independent of object insertion order", () => {
   const weights = Object.fromEntries(
@@ -58,7 +61,8 @@ const backwardsKeys = <T extends object>(value: T): T =>
  * tallies inside them, the session leaderboard, the round's participants, the folds, the bots and both copies of the
  * pickup weights. Rebuilt, not reversed: a Map the engine leaves alone would be back in its own order every second
  * tick if it were only turned over. Obstacles and pickups are arrays, whose order the hash does keep; both are
- * generated in id order, so they are reversed before the tick and put back in id order after it. Reading either in
+ * generated in id order, so they are reversed before the tick and put back in id order after it; so are the Gun
+ * tracers, which take bomb ids. Reading either in
  * array order would then show up as a different outcome. Blasts, portal pairs, gravity fields, trails, shots, moments,
  * placements and rating standings are sequences: their order is the order things happened in or were ranked in,
  * which is state in its own right rather than an accident of construction.
@@ -66,6 +70,7 @@ const backwardsKeys = <T extends object>(value: T): T =>
 function permute(state: RoomState): void {
   state.game.obstacles = [...state.game.obstacles].reverse();
   state.game.pickups = [...state.game.pickups].reverse();
+  state.game.tracers = [...state.game.tracers].reverse();
   state.game.players = backwardsMap(state.game.players);
   state.game.bombs = backwardsMap(state.game.bombs);
   state.game.matchStats = backwardsMap(state.game.matchStats);
@@ -105,14 +110,38 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
   let bombTicks = 0,
     obstacleTicks = 0,
     pickupTicks = 0,
+    multiEffectRiderTicks = 0,
     tiedRounds = 0;
   for (let tick = 1; tick <= recording.ticks; tick++) {
-    for (const list of [state.game.obstacles, state.game.pickups])
+    for (const list of [
+      state.game.obstacles,
+      state.game.pickups,
+      state.game.tracers,
+    ])
       assert.deepEqual(
         list.map((item) => item.id),
         list.map((item) => item.id).sort((a, b) => a - b),
-        "the engine keeps obstacles and pickups in id order",
+        "the engine keeps obstacles, pickups and tracers in id order",
       );
+    // A rider's effects and weapons are sequences the engine keeps canonical itself (`applyEffect` inserts into a
+    // sorted list): table order, then deadline; weapons in priority order.
+    for (const player of state.game.players.values()) {
+      const effects = player.effects.map(
+        (effect) =>
+          [EFFECT_KINDS.indexOf(effect.kind), effect.untilTick] as const,
+      );
+      assert.deepEqual(
+        effects,
+        [...effects].sort((a, b) => a[0] - b[0] || a[1] - b[1]),
+        `tick ${tick}: ${player.id}'s effects are in table and deadline order`,
+      );
+      if (player.effects.length > 1) multiEffectRiderTicks++;
+      assert.deepEqual(
+        player.armed,
+        WEAPON_KINDS.filter((kind) => player.armed.includes(kind)),
+        `tick ${tick}: ${player.id}'s weapons are in priority order, once each`,
+      );
+    }
     if (state.game.phase === "playing") {
       if (state.game.obstacles.length > 1) obstacleTicks++;
       if (state.game.pickups.length > 1) pickupTicks++;
@@ -127,6 +156,7 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
       tiedRounds++;
     state.game.obstacles.sort((a, b) => a.id - b.id);
     state.game.pickups.sort((a, b) => a.id - b.id);
+    state.game.tracers.sort((a, b) => a.id - b.id);
     if (state.game.bombs.size > 1) bombTicks++;
     assert.equal(
       hashRoomState(state),
@@ -137,6 +167,10 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
   assert.ok(bombTicks > 0, "the workload exercises concurrent bombs");
   assert.ok(obstacleTicks > 0, "the workload plays among several obstacles");
   assert.ok(pickupTicks > 0, "the workload plays among several pickups");
+  assert.ok(
+    multiEffectRiderTicks > 0,
+    "the workload has riders holding several effects at once",
+  );
   assert.ok(
     tiedRounds > 0,
     "the workload ranks riders that share a place, whose order in the placements is the seats' and not a Map's",
@@ -183,7 +217,7 @@ test("a gun ray stops at the same point whichever order the scenery in its line 
   ];
   const tracers = [rocks, [...rocks].reverse()].map((obstacles) => {
     const game = lane(obstacles);
-    game.players.get("p0")!.gunArmed = true;
+    setArmed(game.players.get("p0")!, "gun", true);
     step(
       game,
       new Map([
@@ -198,7 +232,7 @@ test("a gun ray stops at the same point whichever order the scenery in its line 
         ],
       ]),
     );
-    const tracer = [...game.bombs.values()].find((bomb) => bomb.shell?.gun)!;
+    const tracer = game.tracers[0]!;
     return { x: tracer.x, y: tracer.y };
   });
   assert.ok(tracers[0]!.x > 600 && tracers[0]!.x < 703.1 - 41.3 + 1e-6);
@@ -289,7 +323,6 @@ test("a shell against two pieces of scenery at once reflects the same way whiche
       x: 588,
       y: 506,
       launchedTick: game.tick - 5,
-      placedTick: game.tick - 5,
       landsAtTick: Number.MAX_SAFE_INTEGER,
       explodeAtTick: Number.MAX_SAFE_INTEGER,
       blastRange: 0,

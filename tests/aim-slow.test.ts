@@ -25,6 +25,8 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setArmed, setDeadlines } from "./fixtures/rider-state.ts";
+import { isArmed } from "../src/engine/weapons.ts";
 
 // Holding the bomb button eases the rider down to AIM_SLOW_SPEED to steady the aim, for at most a second, and eases
 // them back up afterwards. `control` is the same game with nobody aiming: the round's own speed ramp cancels out.
@@ -185,7 +187,7 @@ test("cancelling into a fresh press buys no more slowdown: the second is a budge
 test("aiming under three Snails stays survivable: the slowdown stops at the floor", () => {
   const game = playing();
   const aimer = game.players.get("p0")!;
-  aimer.snailUntilTicks = [1e6, 1e6, 1e6];
+  setDeadlines(aimer, "snail", [1e6, 1e6, 1e6]);
   const floor = SNAIL_SPEED ** 3;
   assert.equal(
     floor,
@@ -205,7 +207,7 @@ test("aiming under three Snails stays survivable: the slowdown stops at the floo
     "and the rider never catches their own trail",
   );
 
-  aimer.snailUntilTicks = [1e6];
+  setDeadlines(aimer, "snail", [1e6]);
   aimer.aimSlowSpentTicks = 0;
   aimer.aimSlowTicks = AIM_SLOW_RAMP_TICKS - 1;
   close(
@@ -218,19 +220,19 @@ test("aiming under three Snails stays survivable: the slowdown stops at the floo
 test("a tapped gun fires at once and never slows; a held gun sight slows like any charge", () => {
   const game = playing();
   const shooter = game.players.get("p0")!;
-  shooter.gunArmed = true;
+  setArmed(shooter, "gun", true);
   ratio(game, {
     ...NEUTRAL,
     bombCommands: [{ action: "press" }, { action: "release" }],
   });
-  assert.equal(game.bombs.size, 1, "the tap fired the bullet");
+  assert.equal(game.tracers.length, 1, "the tap fired the bullet");
   assert.equal(shooter.bombChargeStartedTick, undefined, "and left no charge");
   for (let tick = 0; tick < 4; tick += 1)
     close(ratio(game), 1, "no charge, no slowdown");
 
   const held = playing();
   const aimer = held.players.get("p0")!;
-  aimer.gunArmed = true;
+  setArmed(aimer, "gun", true);
   ratio(held, { ...PRESS, bomb: true });
   assert.equal(aimer.gunAim, 0, "the press raised the sight");
   for (let tick = 0; tick < AIM_SLOW_RAMP_TICKS; tick += 1)
@@ -246,7 +248,7 @@ test("a tapped gun fires at once and never slows; a held gun sight slows like an
     "at the aiming speed",
   );
   ratio(held, RELEASE);
-  assert.equal(aimer.gunArmed, false, "the release fired the Gun");
+  assert.equal(isArmed(aimer, "gun"), false, "the release fired the Gun");
   assert.equal(aimer.gunAim, undefined, "and lowered the sight");
 });
 

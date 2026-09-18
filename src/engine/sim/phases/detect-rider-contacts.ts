@@ -6,7 +6,7 @@ import {
   square,
 } from "../../geometry.js";
 import { RIDER_CONTACT_RADIUS } from "../../tuning.js";
-import { isHazardImmune } from "../riders.js";
+import { hasDefensiveGrace, isHazardImmune } from "../../effects.js";
 import { markCause } from "../marks.js";
 import { nearestDelta } from "../field.js";
 
@@ -43,8 +43,8 @@ export function detectRiderContacts(ctx: TickContext): void {
       ) {
         // Portal grace is defensive: neither rider is harmed by this contact.
         if (
-          a.player.portalGraceUntilTick > state.tick ||
-          b.player.portalGraceUntilTick > state.tick
+          hasDefensiveGrace(a.player, state.tick) ||
+          hasDefensiveGrace(b.player, state.tick)
         )
           continue;
         const aInvulnerable = isHazardImmune(a.player, state.tick);

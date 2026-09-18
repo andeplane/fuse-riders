@@ -11,6 +11,8 @@ import {
 } from "../../src/engine/state.js";
 import { snapshotMatchStats } from "../../src/engine/match-stats.js";
 import { sortedLeaderboard } from "../../src/engine/leaderboard.js";
+import { effectDeadlines, effectUntil } from "../../src/engine/effects.ts";
+import { isArmed } from "../../src/engine/weapons.ts";
 
 export function legacySnapshot(state: GameState) {
   return {
@@ -58,38 +60,56 @@ export function legacySnapshot(state: GameState) {
       fuseLevel: player.fuseLevel,
       powerPickups: player.powerPickups,
       reloadDurationTicks: player.reloadDurationTicks,
-      invulnerableUntilTick: player.invulnerableUntilTick,
-      nitroUntilTicks: [...player.nitroUntilTicks],
-      snailUntilTicks: [...player.snailUntilTicks],
+      invulnerableUntilTick: effectUntil(player, "star"),
+      nitroUntilTicks: [...effectDeadlines(player, "nitro")],
+      snailUntilTicks: [...effectDeadlines(player, "snail")],
       rangeLevel: player.rangeLevel,
       grip: player.grip,
-      drunkUntilTick: player.drunkUntilTick,
-      inkUntilTick: player.inkUntilTick,
-      gunArmed: player.gunArmed,
+      drunkUntilTick: effectUntil(player, "drunk"),
+      inkUntilTick: effectUntil(player, "ink"),
+      gunArmed: isArmed(player, "gun"),
       ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
-      shellArmed: player.shellArmed,
-      tripleShotArmed: player.tripleShotArmed,
-      fiveShotArmed: player.fiveShotArmed,
+      shellArmed: isArmed(player, "shell"),
+      tripleShotArmed: isArmed(player, "triple"),
+      fiveShotArmed: isArmed(player, "five"),
       shielded: player.shielded,
-      shieldGraceUntilTick: player.shieldGraceUntilTick,
-      portalCooldownUntilTick: player.portalCooldownUntilTick,
-      portalGraceUntilTick: player.portalGraceUntilTick,
+      shieldGraceUntilTick: effectUntil(player, "shieldGrace"),
+      portalCooldownUntilTick: effectUntil(player, "portalCooldown"),
+      portalGraceUntilTick: effectUntil(player, "portalGrace"),
       trail: player.trail.map((segment) => ({ ...segment })),
     })),
-    bombs: sortedBombs(state).map((bomb) => ({
-      id: bomb.id,
-      ownerId: bomb.ownerId,
-      launchX: bomb.launchX,
-      launchY: bomb.launchY,
-      x: bomb.x,
-      y: bomb.y,
-      launchedTick: bomb.launchedTick,
-      landsAtTick: bomb.landsAtTick,
-      flightPath: bomb.flightPath.map((point) => ({ ...point })),
-      explodeAtTick: bomb.explodeAtTick,
-      blastRange: bomb.blastRange,
-      ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
-    })),
+    // Since #253 A4 a Gun's tracers are kept apart from the bombs; this snapshot publishes them among the bombs, in id
+    // order, as it always did (scripts/engine-differential.ts compares the bytes against main).
+    bombs: [
+      ...sortedBombs(state).map((bomb) => ({
+        id: bomb.id,
+        ownerId: bomb.ownerId,
+        launchX: bomb.launchX,
+        launchY: bomb.launchY,
+        x: bomb.x,
+        y: bomb.y,
+        launchedTick: bomb.launchedTick,
+        landsAtTick: bomb.landsAtTick,
+        flightPath: bomb.flightPath.map((point) => ({ ...point })),
+        explodeAtTick: bomb.explodeAtTick,
+        blastRange: bomb.blastRange,
+        ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
+      })),
+      ...state.tracers.map((tracer) => ({
+        id: tracer.id,
+        ownerId: tracer.ownerId,
+        launchX: tracer.launchX,
+        launchY: tracer.launchY,
+        x: tracer.x,
+        y: tracer.y,
+        launchedTick: tracer.launchedTick,
+        landsAtTick: tracer.expiresAtTick,
+        flightPath: [],
+        explodeAtTick: tracer.expiresAtTick,
+        blastRange: 0,
+        shell: { vx: tracer.vx, vy: tracer.vy, gun: true },
+      })),
+    ].sort((a, b) => a.id - b.id),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,
       circle: { ...blast.circle },
@@ -100,7 +120,10 @@ export function legacySnapshot(state: GameState) {
       gates: [{ ...pair.gates[0] }, { ...pair.gates[1] }] as const,
     })),
     gravityFields: state.gravityFields.map((field) => ({ ...field })),
-    pickups: state.pickups.map((pickup) => ({ ...pickup })),
+    pickups: state.pickups.map((pickup) => ({
+      ...pickup,
+      expiresAtTick: Number.MAX_SAFE_INTEGER,
+    })),
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({
       ...placement,

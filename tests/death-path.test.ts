@@ -11,6 +11,7 @@ import {
 } from "../src/engine/game.ts";
 import { INSTANT_DEATHS_COMMIT_PER_RIDER } from "../src/engine/sim/phases/commit-deaths.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
+import { setArmed } from "./fixtures/rider-state.ts";
 
 const NEUTRAL: InputIntent = { left: false, right: false, bomb: false };
 
@@ -66,15 +67,15 @@ test("instant kills in one tick detach their wrecks in seat order", () => {
     y: 300,
     angle: 0,
     trail: [],
-    gunArmed: true,
   });
+  setArmed(first!, "gun", true);
   Object.assign(second!, {
     x: 200,
     y: 600,
     angle: 0,
     trail: [],
-    gunArmed: true,
   });
+  setArmed(second!, "gun", true);
   // Each victim's trail runs away from the bullet's line, so only the head is hit.
   for (const [victim, y] of [
     [firstVictim!, 300],
@@ -154,7 +155,6 @@ test("a sweep death and an instant death are recorded the same way", () => {
     x: 1000,
     y: 450,
     launchedTick: swept.tick - 40,
-    placedTick: swept.tick - 40,
     landsAtTick: swept.tick - 30,
     explodeAtTick: swept.tick + 1,
     blastRange: 90,
@@ -171,8 +171,8 @@ test("a sweep death and an instant death are recorded the same way", () => {
     y: 450,
     angle: 0,
     trail: [],
-    gunArmed: true,
   });
+  setArmed(instant.players.get("p0")!, "gun", true);
   Object.assign(instant.players.get("p1")!, {
     x: 1000,
     y: 450,

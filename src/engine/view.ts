@@ -14,6 +14,8 @@ import {
   riderMotionStep,
 } from "./tuning.js";
 import { edgesOpen } from "./arena-map.js";
+import { effectDeadlines, effectUntil } from "./effects.js";
+import { isArmed } from "./weapons.js";
 import { GUN_HEADSHOT_RADIUS, GUN_HOLE_RADIUS, GUN_RADIUS } from "./gun.js";
 import { PORTAL_WALL_HALF_WIDTH } from "./portal.js";
 import { TRAIL_DECAY_PAUSE_TICKS } from "./trail-lifecycle.js";
@@ -291,22 +293,22 @@ export function toView(state: GameState): WorldView {
       fuseLevel: player.fuseLevel,
       powerPickups: player.powerPickups,
       reloadDurationTicks: player.reloadDurationTicks,
-      invulnerableUntilTick: player.invulnerableUntilTick,
-      nitroUntilTicks: [...player.nitroUntilTicks],
-      snailUntilTicks: [...player.snailUntilTicks],
+      invulnerableUntilTick: effectUntil(player, "star"),
+      nitroUntilTicks: [...effectDeadlines(player, "nitro")],
+      snailUntilTicks: [...effectDeadlines(player, "snail")],
       rangeLevel: player.rangeLevel,
       grip: player.grip,
-      drunkUntilTick: player.drunkUntilTick,
-      inkUntilTick: player.inkUntilTick,
-      gunArmed: player.gunArmed,
+      drunkUntilTick: effectUntil(player, "drunk"),
+      inkUntilTick: effectUntil(player, "ink"),
+      gunArmed: isArmed(player, "gun"),
       ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
-      shellArmed: player.shellArmed,
-      tripleShotArmed: player.tripleShotArmed,
-      fiveShotArmed: player.fiveShotArmed,
+      shellArmed: isArmed(player, "shell"),
+      tripleShotArmed: isArmed(player, "triple"),
+      fiveShotArmed: isArmed(player, "five"),
       shielded: player.shielded,
-      shieldGraceUntilTick: player.shieldGraceUntilTick,
-      portalCooldownUntilTick: player.portalCooldownUntilTick,
-      portalGraceUntilTick: player.portalGraceUntilTick,
+      shieldGraceUntilTick: effectUntil(player, "shieldGrace"),
+      portalCooldownUntilTick: effectUntil(player, "portalCooldown"),
+      portalGraceUntilTick: effectUntil(player, "portalGrace"),
       trail: player.trail.map((segment) => ({ ...segment })),
       ...nextStep(player, state),
       nextVolleyAngles: volleyAngles(
@@ -314,20 +316,37 @@ export function toView(state: GameState): WorldView {
         Math.max(1, Math.min(MAX_VOLLEY_BOMBS, bombsPerShot(player))),
       ),
     })),
-    bombs: sortedBombs(state).map((bomb) => ({
-      id: bomb.id,
-      ownerId: bomb.ownerId,
-      launchX: bomb.launchX,
-      launchY: bomb.launchY,
-      x: bomb.x,
-      y: bomb.y,
-      launchedTick: bomb.launchedTick,
-      landsAtTick: bomb.landsAtTick,
-      flightPath: bomb.flightPath.map((point) => ({ ...point })),
-      explodeAtTick: bomb.explodeAtTick,
-      blastRange: bomb.blastRange,
-      ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
-    })),
+    // Tracers are drawn with the bombs, as the gun shells they are to a screen: one id sequence, in id order.
+    bombs: [
+      ...sortedBombs(state).map((bomb) => ({
+        id: bomb.id,
+        ownerId: bomb.ownerId,
+        launchX: bomb.launchX,
+        launchY: bomb.launchY,
+        x: bomb.x,
+        y: bomb.y,
+        launchedTick: bomb.launchedTick,
+        landsAtTick: bomb.landsAtTick,
+        flightPath: bomb.flightPath.map((point) => ({ ...point })),
+        explodeAtTick: bomb.explodeAtTick,
+        blastRange: bomb.blastRange,
+        ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
+      })),
+      ...state.tracers.map((tracer) => ({
+        id: tracer.id,
+        ownerId: tracer.ownerId,
+        launchX: tracer.launchX,
+        launchY: tracer.launchY,
+        x: tracer.x,
+        y: tracer.y,
+        launchedTick: tracer.launchedTick,
+        landsAtTick: tracer.expiresAtTick,
+        flightPath: [],
+        explodeAtTick: tracer.expiresAtTick,
+        blastRange: 0,
+        shell: { vx: tracer.vx, vy: tracer.vy, gun: true },
+      })),
+    ].sort((a, b) => a.id - b.id),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,
       circle: { ...blast.circle },
@@ -342,7 +361,11 @@ export function toView(state: GameState): WorldView {
       durationTicks: GRAVITY_FIELD_TICKS,
       coreRadius: gravityCoreRadius(field.radius),
     })),
-    pickups: state.pickups.map((pickup) => ({ ...pickup })),
+    // Pickups stay until taken or blasted; the view keeps the finite deadline screens were written against.
+    pickups: state.pickups.map((pickup) => ({
+      ...pickup,
+      expiresAtTick: Number.MAX_SAFE_INTEGER,
+    })),
     leaderboard: sortedLeaderboard(state.leaderboard),
     roundPlacements: state.roundPlacements.map((placement) => ({
       ...placement,

@@ -21,6 +21,8 @@ import {
 import type { InputIntent } from "../src/engine/state.js";
 import { GUN_AIM_STEP } from "../src/engine/gun.js";
 import { readFileSync } from "node:fs";
+import { setArmed } from "./fixtures/rider-state.ts";
+import { isArmed } from "../src/engine/weapons.ts";
 
 function match(settings: RoomSettings, riders = 3): GameState {
   const game = createGame("driver", settings);
@@ -163,7 +165,7 @@ test("extra steps get the later inputs: the tick's bomb commands reach the first
 test("a held Gun sight sweeps on every step of a multi-step tick, as it would over as many ordinary ticks", () => {
   const game = playing();
   const rider = game.players.get("p0")!;
-  rider.gunArmed = true;
+  setArmed(rider, "gun", true);
   rider.bombReadyAtTick = game.tick;
   driveGameTick(
     game,
@@ -195,7 +197,7 @@ test("a held Gun sight sweeps on every step of a multi-step tick, as it would ov
   );
   assert.ok(Math.abs(rider.gunAim! - 3 * GUN_AIM_STEP) < 1e-12);
   assert.equal(rider.angle, heading, "steering swept the sight, not the rider");
-  assert.equal(rider.gunArmed, true, "nothing fired");
+  assert.equal(isArmed(rider, "gun"), true, "nothing fired");
 });
 
 test("a round that ends on an early step is not stepped on into its pause", () => {

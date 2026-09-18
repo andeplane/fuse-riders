@@ -30,6 +30,8 @@ import {
 import { speedEffectLabel } from "../src/render/power-indicator.js";
 import { POWERUP_GUIDE } from "../src/client/powerup-guide.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setDeadlines } from "./fixtures/rider-state.ts";
+import { effectDeadlines } from "../src/engine/effects.ts";
 
 // Nitro and Snail are the stacking speed pickups: every collection is its own five-second deadline, so unlike the
 // refreshing effect, two Nitros run at four times speed until the first expires, and a Snail cancels a Nitro one for one.
@@ -82,7 +84,6 @@ const drop = (game: GameState, id: string, type: PickupType) => {
     type,
     x: rider.x + 3,
     y: rider.y,
-    expiresAtTick: game.tick + 100,
   });
 };
 /** Advances both games one tick and returns the ratio of the rider's stride to the untouched control's. */
@@ -99,6 +100,22 @@ const close = (actual: number, expected: number, why: string) =>
     `${why}: ${actual} should be ${expected}`,
   );
 
+/** A rider's speed effects as the state holds them: the given Nitro and Snail deadlines. */
+const speeds = (nitro: number[], snail: number[]) => ({
+  effects: [
+    ...nitro.map((untilTick) => ({
+      kind: "nitro" as const,
+      sinceTick: 0,
+      untilTick,
+    })),
+    ...snail.map((untilTick) => ({
+      kind: "snail" as const,
+      sinceTick: 0,
+      untilTick,
+    })),
+  ],
+});
+
 test("Nitro doubles the collector for five seconds, on distance alone, then hands the speed back", () => {
   const game = playing(),
     control = playing();
@@ -111,7 +128,7 @@ test("Nitro doubles the collector for five seconds, on distance alone, then hand
     "the tick you collect on is ordinary speed",
   );
   assert.deepEqual(
-    rider.nitroUntilTicks,
+    effectDeadlines(rider, "nitro"),
     [game.tick + NITRO_DURATION_TICKS],
     "one absolute deadline, five seconds out",
   );
@@ -142,13 +159,14 @@ test("Nitro doubles the collector for five seconds, on distance alone, then hand
       control.roundStartedTick,
     ).turn,
   );
-  while (game.tick < rider.nitroUntilTicks[0]! - 2) both(game, control);
+  while (game.tick < effectDeadlines(rider, "nitro")[0]! - 2)
+    both(game, control);
   close(
     ratio(game, control, "p0"),
     NITRO_SPEED,
     "the last tick under the deadline is still doubled",
   );
-  const deadline = rider.nitroUntilTicks[0]!;
+  const deadline = effectDeadlines(rider, "nitro")[0]!;
   close(
     ratio(game, control, "p0"),
     1,
@@ -156,13 +174,13 @@ test("Nitro doubles the collector for five seconds, on distance alone, then hand
   );
   assert.equal(game.tick, deadline);
   assert.deepEqual(
-    rider.nitroUntilTicks,
+    effectDeadlines(rider, "nitro"),
     [],
     "a spent deadline leaves the state, so replicas never carry stale ones",
   );
   for (const other of ["p1", "p2"])
     assert.deepEqual(
-      game.players.get(other)!.nitroUntilTicks,
+      effectDeadlines(game.players.get(other)!, "nitro"),
       [],
       "Nitro is the collector's alone",
     );
@@ -179,12 +197,12 @@ test("two Nitros stack to four times speed until the first expires, then two, th
   const rider = game.players.get("p0")!;
   drop(game, "p0", "nitro");
   both(game, control);
-  const first = rider.nitroUntilTicks[0]!;
+  const first = effectDeadlines(rider, "nitro")[0]!;
   for (let tick = 0; tick < 20; tick += 1) both(game, control);
   drop(game, "p0", "nitro");
   both(game, control);
   assert.deepEqual(
-    rider.nitroUntilTicks,
+    effectDeadlines(rider, "nitro"),
     [first, game.tick + NITRO_DURATION_TICKS],
     "the second is its own deadline, not a refresh of the first",
   );
@@ -195,7 +213,7 @@ test("two Nitros stack to four times speed until the first expires, then two, th
   );
   while (game.tick < first) both(game, control);
   assert.deepEqual(
-    rider.nitroUntilTicks,
+    effectDeadlines(rider, "nitro"),
     [first + 21],
     "only the later deadline remains once the first is spent: twenty ticks apart plus the collection step",
   );
@@ -204,7 +222,7 @@ test("two Nitros stack to four times speed until the first expires, then two, th
     NITRO_SPEED,
     "back to double speed on the second alone",
   );
-  while (game.tick < rider.nitroUntilTicks[0]!) both(game, control);
+  while (game.tick < effectDeadlines(rider, "nitro")[0]!) both(game, control);
   close(
     ratio(game, control, "p0"),
     1,
@@ -223,13 +241,15 @@ test("Snail halves every living rival for five seconds and leaves the collector 
   const collector = game.players.get("p0")!,
     rival = game.players.get("p1")!;
   assert.deepEqual(
-    collector.snailUntilTicks,
+    effectDeadlines(collector, "snail"),
     [],
     "the collector is never slowed by their own Snail",
   );
-  assert.deepEqual(rival.snailUntilTicks, [game.tick + SNAIL_DURATION_TICKS]);
+  assert.deepEqual(effectDeadlines(rival, "snail"), [
+    game.tick + SNAIL_DURATION_TICKS,
+  ]);
   assert.deepEqual(
-    game.players.get("p2")!.snailUntilTicks,
+    effectDeadlines(game.players.get("p2")!, "snail"),
     [],
     "the eliminated rider was not a target",
   );
@@ -242,7 +262,7 @@ test("Snail halves every living rival for five seconds and leaves the collector 
   step(control, new Map());
   const plain = control.players.get("p1")!.x - plainBefore;
   close(slowed / plain, SNAIL_SPEED, "the rival crawls at half speed");
-  while (game.tick < rival.snailUntilTicks[0]!) both(game, control);
+  while (game.tick < effectDeadlines(rival, "snail")[0]!) both(game, control);
   close(
     ratio(game, control, "p1"),
     1,
@@ -259,7 +279,7 @@ test("Snails stack on a rival, and a Snail cancels a Nitro one for one", () => {
   step(control, new Map());
   const rival = game.players.get("p1")!;
   assert.equal(
-    rival.snailUntilTicks.length,
+    effectDeadlines(rival, "snail").length,
     2,
     "both Snails from one tick land as two deadlines",
   );
@@ -286,15 +306,12 @@ test("Snails stack on a rival, and a Snail cancels a Nitro one for one", () => {
     "two Nitros against two Snails is exactly ordinary speed",
   );
   assert.equal(
-    riderSpeedMultiplier(
-      { nitroUntilTicks: [10, 10, 10], snailUntilTicks: [10] },
-      5,
-    ),
+    riderSpeedMultiplier(speeds([10, 10, 10], [10]), 5),
     4,
     "three Nitros and a Snail multiply to four",
   );
   assert.equal(
-    riderSpeedMultiplier({ nitroUntilTicks: [5], snailUntilTicks: [6] }, 5),
+    riderSpeedMultiplier(speeds([5], [6]), 5),
     SNAIL_SPEED,
     "a deadline equal to the tick has expired; a later one has not",
   );
@@ -306,10 +323,10 @@ test("speed deadlines stay sorted, are bounded, and are cleared by a new round",
   // Collection appends deadlines in tick order, so an out-of-order list cannot arise through play: hand-set a later
   // deadline first to pin that insertion sorts, so the earliest to expire is first on every replica regardless.
   const late = game.tick + 500;
-  rider.nitroUntilTicks = [late];
+  setDeadlines(rider, "nitro", [late]);
   drop(game, "p0", "nitro");
   step(game, new Map());
-  assert.deepEqual(rider.nitroUntilTicks, [
+  assert.deepEqual(effectDeadlines(rider, "nitro"), [
     game.tick + NITRO_DURATION_TICKS,
     late,
   ]);
@@ -320,34 +337,34 @@ test("speed deadlines stay sorted, are bounded, and are cleared by a new round",
   assert.equal(game.pickups.length, 0, "every Snail was consumed");
   for (const other of ["p1", "p2"])
     assert.equal(
-      game.players.get(other)!.snailUntilTicks.length,
+      effectDeadlines(game.players.get(other)!, "snail").length,
       MAX_SPEED_EFFECT_STACK,
       "a full stack drops the extra rather than growing without bound",
     );
-  assert.deepEqual(rider.snailUntilTicks, []);
+  assert.deepEqual(effectDeadlines(rider, "snail"), []);
   const shown = toView(game).players;
   assert.deepEqual(
     shown.find((player) => player.id === "p0")!.nitroUntilTicks,
-    rider.nitroUntilTicks,
+    effectDeadlines(rider, "nitro"),
     "the snapshot carries every deadline for the HUD and prediction",
   );
   assert.deepEqual(
     shown.find((player) => player.id === "p1")!.snailUntilTicks,
-    game.players.get("p1")!.snailUntilTicks,
+    effectDeadlines(game.players.get("p1")!, "snail"),
   );
   // The same pile of Nitros on the collector: the two deadlines it holds count towards the cap.
   for (let count = 0; count <= MAX_SPEED_EFFECT_STACK; count += 1)
     drop(game, "p0", "nitro");
   step(game, new Map());
   assert.equal(game.pickups.length, 0);
-  assert.equal(rider.nitroUntilTicks.length, MAX_SPEED_EFFECT_STACK);
+  assert.equal(effectDeadlines(rider, "nitro").length, MAX_SPEED_EFFECT_STACK);
   for (const id of ["p1", "p2"]) eliminatePlayer(game, id);
   while (game.phase === "playing") step(game, new Map()); // the round ends inside step, not on elimination
   game.tick = game.phaseEndsAtTick!;
   startNextRound(game);
   for (const player of game.players.values()) {
-    assert.deepEqual(player.nitroUntilTicks, []);
-    assert.deepEqual(player.snailUntilTicks, []);
+    assert.deepEqual(effectDeadlines(player, "nitro"), []);
+    assert.deepEqual(effectDeadlines(player, "snail"), []);
   }
 });
 
@@ -359,13 +376,18 @@ test("checkpoints carry the deadlines exactly and reject lists past the stack bo
   const restored = decodeGameState(encodeGameState(game));
   assert.ok(restored);
   assert.deepEqual(
-    restored.players.get("p0")!.nitroUntilTicks,
-    game.players.get("p0")!.nitroUntilTicks,
+    effectDeadlines(restored.players.get("p0")!, "nitro"),
+    effectDeadlines(game.players.get("p0")!, "nitro"),
   );
   assert.deepEqual(
-    restored.players.get("p1")!.snailUntilTicks,
-    game.players.get("p1")!.snailUntilTicks,
+    effectDeadlines(restored.players.get("p1")!, "snail"),
+    effectDeadlines(game.players.get("p1")!, "snail"),
   );
+  const nitro = (untilTick: number) => ({
+    kind: "nitro",
+    sinceTick: game.tick,
+    untilTick,
+  });
   const corrupt = (change: (player: Record<string, unknown>) => void) => {
     const data = JSON.parse(encodeGameState(game)) as {
       players: { $map: [string, Record<string, unknown>][] };
@@ -375,9 +397,8 @@ test("checkpoints carry the deadlines exactly and reject lists past the stack bo
   };
   assert.equal(
     corrupt((player) => {
-      player.nitroUntilTicks = Array.from(
-        { length: MAX_SPEED_EFFECT_STACK + 1 },
-        () => 5,
+      player.effects = Array.from({ length: MAX_SPEED_EFFECT_STACK + 1 }, () =>
+        nitro(5),
       );
     }),
     undefined,
@@ -385,43 +406,79 @@ test("checkpoints carry the deadlines exactly and reject lists past the stack bo
   );
   assert.equal(
     corrupt((player) => {
-      player.snailUntilTicks = [1.5];
+      player.effects = [{ kind: "snail", sinceTick: 0, untilTick: 1.5 }];
     }),
     undefined,
     "a fractional deadline",
   );
   assert.equal(
     corrupt((player) => {
-      player.snailUntilTicks = 7;
+      player.effects = 7;
     }),
     undefined,
-    "a deadline that is not a list",
+    "effects that are not a list",
   );
   assert.equal(
     corrupt((player) => {
-      player.nitroUntilTicks = [game.tick + 50, game.tick + 20];
+      player.effects = [nitro(game.tick + 50), nitro(game.tick + 20)];
     }),
     undefined,
     "a list the rules never produce: out of order",
   );
   assert.equal(
     corrupt((player) => {
-      player.nitroUntilTicks = [game.tick + NITRO_DURATION_TICKS + 1];
+      player.effects = [nitro(game.tick + NITRO_DURATION_TICKS + 1)];
     }),
     undefined,
     "a deadline further out than one Nitro lasts",
   );
   assert.ok(
     corrupt((player) => {
-      player.nitroUntilTicks = [game.tick + NITRO_DURATION_TICKS];
+      player.effects = [nitro(game.tick + NITRO_DURATION_TICKS)];
     }),
     "a deadline exactly one Nitro out is what a collection this tick leaves",
   );
   assert.ok(
     corrupt((player) => {
-      player.nitroUntilTicks = [];
+      player.effects = [];
     }),
     "an empty list is the ordinary case",
+  );
+  assert.equal(
+    corrupt((player) => {
+      player.effects = [
+        { kind: "star", sinceTick: 0, untilTick: game.tick + 5 },
+        { kind: "star", sinceTick: 0, untilTick: game.tick + 9 },
+      ];
+    }),
+    undefined,
+    "a second entry of an effect that does not stack",
+  );
+  assert.equal(
+    corrupt((player) => {
+      player.effects = [
+        { kind: "snail", sinceTick: 0, untilTick: game.tick + 5 },
+        nitro(game.tick + 5),
+      ];
+    }),
+    undefined,
+    "kinds out of table order",
+  );
+  assert.equal(
+    corrupt((player) => {
+      player.effects = [
+        { kind: "star", sinceTick: game.tick + 1, untilTick: game.tick + 5 },
+      ];
+    }),
+    undefined,
+    "a spell begun in the future",
+  );
+  assert.equal(
+    corrupt((player) => {
+      player.effects = [{ kind: "haste", sinceTick: 0, untilTick: 5 }];
+    }),
+    undefined,
+    "an effect the rules do not know",
   );
 });
 

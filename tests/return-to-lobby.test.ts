@@ -11,6 +11,7 @@ import {
   type GamePhase,
 } from "../src/engine/game.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
+import { setArmed, setEffect } from "./fixtures/rider-state.ts";
 for (const phase of [
   "lobby",
   "countdown",
@@ -39,14 +40,12 @@ for (const phase of [
     const player = game.players.get("p0")!;
     player.avatarId = "dragon";
     player.roundWins = 2;
-    player.gunArmed = true;
-    player.fiveShotArmed = true;
+    setArmed(player, "gun", true);
+    setArmed(player, "five", true);
     player.bombChargeStartedTick = game.tick;
-    player.invulnerableUntilTick = 999;
-    player.inkUntilTick = 999;
-    game.pickups = [
-      { id: 1, type: "star", x: 200, y: 300, expiresAtTick: 999 },
-    ];
+    setEffect(player, "star", 999);
+    setEffect(player, "ink", 999);
+    game.pickups = [{ id: 1, type: "star", x: 200, y: 300 }];
     game.portalPairs = [
       {
         id: "old",

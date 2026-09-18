@@ -56,6 +56,7 @@ import {
 } from "../src/render/arena-maps.js";
 import { eliminationLine } from "../src/client/arena-announcer.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setDeadlines } from "./fixtures/rider-state.ts";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 /** A Gun fires on release; a tap is the press and its release arriving in one tick. */
@@ -389,11 +390,11 @@ test("a car that runs into a rider standing still kills it, and the rider dies w
   // Riders always move, so the nearest thing to standing still is a rider under three Snails crawling straight up
   // the line ahead of the train, which closes on it at four units a tick to its one.
   place(game, "p0", { x: head.x, y: head.y - 120, angle: -Math.PI / 2 });
-  rider(game, "p0").snailUntilTicks = [
+  setDeadlines(rider(game, "p0"), "snail", [
     game.tick + 1000,
     game.tick + 1000,
     game.tick + 1000,
-  ];
+  ]);
   place(game, "p1", { x: 1200, y: 450, angle: 0 });
   const deaths = run(game, 60);
   assert.deepEqual(deaths, [{ playerId: "p0", cause: "wall" }]);
@@ -415,14 +416,13 @@ test("a shell reflects off a car as it does off a rock, and a shield turns a rid
     x: car.x - 120,
     y: car.y,
     angle: 0,
-    shellArmed: true,
+    armed: ["shell"],
     bombReadyAtTick: 0,
   });
   place(game, "p1", { x: 1200, y: 450, angle: 0 });
   place(game, "p2", { x: 1200, y: 700, angle: 0 });
   step(game, new Map([["p0", tap]]));
-  const shell = () =>
-    [...game.bombs.values()].find((bomb) => bomb.shell && !bomb.shell.gun)!;
+  const shell = () => [...game.bombs.values()].find((bomb) => bomb.shell)!;
   assert.ok(shell().shell!.vx > 0, "launched at the car");
   // Tick by tick up to the bounce: left to fly on, the shell comes straight back at the rider that fired it.
   let reflected = false;
@@ -496,7 +496,6 @@ test("neither a blast nor the closing overtime walls remove a train, while ordin
     y: car.y + 30,
     launchedTick: game.tick - 10,
     landsAtTick: game.tick,
-    placedTick: game.tick - 10,
     explodeAtTick: game.tick + 1,
     blastRange: 90,
     flightPath: [],
@@ -579,12 +578,12 @@ test("a bullet fired across an open edge stops at the wall on the far side, and 
       x: 20,
       y: 300,
       angle: Math.PI,
-      gunArmed: true,
+      armed: ["gun"],
       bombReadyAtTick: 0,
     });
     place(game, "p1", { x: 800, y: 700, angle: 0 });
     step(game, new Map([["p0", tap]]));
-    const tracers = [...game.bombs.values()].filter((bomb) => bomb.shell?.gun);
+    const tracers = game.tracers;
     return { count: tracers.length, ends: tracers.map((bomb) => bomb.x) };
   };
   const blocked = shots(ARENA_WIDTH - CROSS_WALL_HALF_THICKNESS);

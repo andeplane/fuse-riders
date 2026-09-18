@@ -100,7 +100,6 @@ export interface PortalTransitOptions {
   tick: number;
   from: PortalPoint;
   to: PortalPoint;
-  heading: number;
   cooldownUntilTick: number;
   bounds: PortalBounds;
   riderRadius: number;
@@ -111,7 +110,6 @@ export interface PortalTransit {
   entryGateIndex: 0 | 1;
   entryPoint: PortalPoint;
   exitPoint: PortalPoint;
-  heading: number;
   cooldownUntilTick: number;
   graceUntilTick: number;
 }
@@ -254,7 +252,6 @@ export function findPortalTransit(
     entryGateIndex: entry.index,
     entryPoint,
     exitPoint,
-    heading: options.heading,
     cooldownUntilTick: tick + PORTAL_COOLDOWN_TICKS,
     graceUntilTick: tick + PORTAL_GRACE_TICKS,
   };

@@ -50,6 +50,8 @@ import {
   type Requirement,
 } from "./replay-coverage.js";
 import { streamReader, type Recording } from "./replay-log.js";
+import { effectUntil } from "../../src/engine/effects.ts";
+import { isArmed } from "../../src/engine/weapons.ts";
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -326,7 +328,7 @@ export function makeRecording(
     if (stage === "duel" && member === rider && elapsed < held.joustAfter)
       flags = 2;
     held.armedSince =
-      player.gunArmed || player.shellArmed
+      isArmed(player, "gun") || isArmed(player, "shell")
         ? (held.armedSince ?? tick)
         : undefined;
     let press = intent.bombCommands?.some(({ action }) => action === "press");
@@ -334,12 +336,12 @@ export function makeRecording(
       ({ action }) => action === "release",
     );
     if (
-      (player.gunArmed || player.shellArmed) &&
+      (isArmed(player, "gun") || isArmed(player, "shell")) &&
       game.tick >= player.bombReadyAtTick &&
       !held.gesture
     ) {
       // Both leave on the release, a tick after the press: a bullet along its held sight, a shell along the heading.
-      const lined = player.gunArmed
+      const lined = isArmed(player, "gun")
         ? linedUp(game, player, Infinity, 1, GUN_SIGHT, 8) ||
           (isObstacleMap(game.map) &&
             coverage.gunScreenedStops === 0 &&
@@ -347,14 +349,14 @@ export function makeRecording(
         : linedUp(game, player, SHELL_SPEED / TICK_HZ, 2, SHELL_SIGHT, 14);
       press = lined || (press && tick - held.armedSince! > GUN_PATIENCE_TICKS);
       // Either leaves along the heading the tick ends on, so the shot is taken with the wheel straight.
-      if (lined) held.steadyUntil = tick + (player.gunArmed ? 1 : 3);
+      if (lined) held.steadyUntil = tick + (isArmed(player, "gun") ? 1 : 3);
     }
     if (tick < held.steadyUntil) flags = 0;
     // A Star is for riding at the wall with: straight on until it turns the rider back.
     if (
       coverage.immuneBounces === 0 &&
       !edgesOpen(game) &&
-      player.invulnerableUntilTick - game.tick > 10
+      effectUntil(player, "star") - game.tick > 10
     )
       flags = 0;
     // A duel is sat out, all the way into overtime, and a joust needs no bombs.

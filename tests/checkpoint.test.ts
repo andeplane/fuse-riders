@@ -77,7 +77,6 @@ const withBomb = (game: GameState) => {
     launchY: y,
     x,
     y,
-    placedTick: game.tick,
     launchedTick: game.tick,
     landsAtTick: game.tick + BOMB_FLIGHT_TICKS,
     explodeAtTick: game.tick + 40,
@@ -148,6 +147,48 @@ test("a well-formed playing state with a bomb, a gravity field and two portal pa
     "the control fixture is valid, so every rejection below is a guard talking",
   );
   assert.equal(encodeGameState(restored), encodeGameState(game));
+});
+
+test("Gun tracers round-trip in id order, and a checkpoint holding them out of order, twice or beside a bomb id is refused", () => {
+  const game = playing();
+  const { x, y } = game.players.get("p0")!;
+  for (const id of [1, 2]) {
+    game.tracers.push({
+      id,
+      ownerId: "p0",
+      launchX: x,
+      launchY: y,
+      x: x + 100,
+      y,
+      vx: 1,
+      vy: 0,
+      launchedTick: game.tick,
+      expiresAtTick: game.tick + 3,
+      shot: 1,
+    });
+  }
+  game.nextBombId = 3;
+  const restored = decodeGameState(encodeGameState(game));
+  assert.ok(restored, "two tracers of one pull are a valid state");
+  assert.equal(encodeGameState(restored), encodeGameState(game));
+  rejected(
+    game,
+    (data) => {
+      data.tracers = list(data.tracers).reverse();
+    },
+    "tracers in descending id order",
+  );
+  rejected(
+    game,
+    (data) => {
+      const [first] = list(data.tracers);
+      data.tracers = [first, first];
+    },
+    "the same tracer twice",
+  );
+  withBomb(game);
+  game.nextBombId = 3;
+  rejected(game, () => undefined, "a tracer sharing its id with a bomb");
 });
 
 test("bombs, black holes and portal pairs must name issued bombs, seated owners, live ticks and sane geometry", () => {
@@ -306,8 +347,8 @@ test("players, trails, history and statistics are bounded and internally consist
     "drunkHeadingOffset",
     "shielded",
     "avatarId",
-    "nitroUntilTicks",
-    "snailUntilTicks",
+    "effects",
+    "armed",
     "grip",
     "aimSlowTicks",
     "aimSlowSpentTicks",

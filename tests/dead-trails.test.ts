@@ -19,6 +19,7 @@ import {
   type InputIntent,
 } from "../src/engine/game.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setArmed, setDeadlines, setEffect } from "./fixtures/rider-state.ts";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 function fixture() {
@@ -55,7 +56,7 @@ function fixture() {
 
 function advanceWithSurvivors(game: GameState, ticks: number) {
   for (const player of game.players.values())
-    if (player.alive) player.invulnerableUntilTick = game.tick + ticks + 100;
+    if (player.alive) setEffect(player, "star", game.tick + ticks + 100);
   for (let i = 0; i < ticks; i++) {
     step(game, new Map());
     assert.equal(game.phase, "playing", "two survivors keep the round running");
@@ -90,7 +91,6 @@ for (const cause of ["leave", "wall", "trail", "rider", "bomb"] as const) {
         launchX: 500,
         launchY: 450,
         launchedTick: game.tick,
-        placedTick: game.tick,
         landsAtTick: game.tick,
         explodeAtTick: game.tick + 1,
         blastRange: 90,
@@ -143,9 +143,9 @@ test("a dead trail past its original expiry still kills crossing riders and is a
     x: 250,
     y: 160,
     angle: Math.PI / 2,
-    invulnerableUntilTick: 0,
     trail: [],
   });
+  setEffect(survivor, "star", 0);
   const input = new BotController({ random: () => 0.25 }).input(
     game,
     survivor.id,
@@ -182,7 +182,6 @@ test("explosions can still destroy a dead trail after its original expiry", () =
     launchX: 250,
     launchY: 200,
     launchedTick: game.tick,
-    placedTick: game.tick,
     landsAtTick: game.tick,
     explodeAtTick: game.tick + 1,
     blastRange: 90,
@@ -228,9 +227,9 @@ test("riders can pass through space eroded before this tick collision check", ()
     x: 220,
     y: 193,
     angle: Math.PI / 2,
-    invulnerableUntilTick: 0,
     trail: [],
   });
+  setEffect(survivor, "star", 0);
   step(game, new Map());
   assert.equal(survivor.alive, true);
 });
@@ -253,9 +252,9 @@ for (const weapon of ["bomb", "gun"] as const) {
         x: 350,
         y: 160,
         angle: Math.PI / 2,
-        gunArmed: true,
         trail: [],
       });
+      setArmed(survivor, "gun", true);
       inputs = new Map([
         [
           survivor.id,
@@ -274,7 +273,6 @@ for (const weapon of ["bomb", "gun"] as const) {
         launchX: 350,
         launchY: 200,
         launchedTick: game.tick,
-        placedTick: game.tick,
         landsAtTick: game.tick,
         explodeAtTick: game.tick + 1,
         blastRange: 25,
@@ -291,7 +289,7 @@ for (const weapon of ["bomb", "gun"] as const) {
       "newest tail remains active",
     );
     const start = rider.trail[0]!.detached!.decayStartTick;
-    rider.nitroUntilTicks = [game.tick + 60];
+    setDeadlines(rider, "nitro", [game.tick + 60]);
     advanceWithSurvivors(game, 330);
     assert.equal(
       rider.trail.length,

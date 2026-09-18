@@ -1,10 +1,9 @@
 import type { TickContext } from "../context.js";
 import {
-  type BombState,
   type GameState,
   type PlayerId,
   type PlayerState,
-  sortedBombs,
+  type TracerState,
   sortedObstacles,
   sortedPlayers,
 } from "../../state.js";
@@ -57,7 +56,6 @@ function findGunPortalEntry(
     tick: state.tick,
     from,
     to,
-    heading: 0,
     cooldownUntilTick: 0, // A ray lives for one tick, so it has no cooldown of its own.
     bounds: portalBounds(state),
     riderRadius: GUN_RADIUS,
@@ -81,21 +79,18 @@ function findGunPortalEntry(
  */
 function continueGunTracer(
   state: GameState,
-  bomb: BombState,
+  bullet: TracerState,
   from: PortalPoint,
-): BombState {
-  const id = state.nextBombId++;
-  const tracer: BombState = {
-    ...bomb,
-    id,
+): TracerState {
+  const tracer: TracerState = {
+    ...bullet,
+    id: state.nextBombId++,
     launchX: from.x,
     launchY: from.y,
     x: from.x,
     y: from.y,
-    flightPath: [],
-    shell: { vx: bomb.shell!.vx, vy: bomb.shell!.vy, gun: true },
   };
-  state.bombs.set(id, tracer);
+  state.tracers.push(tracer);
   return tracer;
 }
 
@@ -113,10 +108,12 @@ function resolveGunShots(
   const impacts: { x: number; y: number }[] = [];
   // Snapshot first: a ray that crosses a gate adds tracers for the segments past it, and those are
   // already resolved — re-reading them here would cast the same bullet twice.
-  for (const bomb of sortedBombs(state)) {
-    if (!bomb.shell?.gun || bomb.launchedTick !== state.tick) continue;
-    const { vx, vy } = bomb.shell;
-    let segment = bomb;
+  const fired = [...state.tracers]
+    .filter((tracer) => tracer.launchedTick === state.tick)
+    .sort((a, b) => a.id - b.id);
+  for (const bullet of fired) {
+    const { vx, vy } = bullet;
+    let segment = bullet;
     // Each pair carries a ray once, so two gates facing each other cannot hold a bullet in a loop.
     const spent = new Set<string>();
     // Over open edges a bullet flies on from the opposite side, for one board's width in all: far enough to shoot
@@ -161,7 +158,7 @@ function resolveGunShots(
         : NO_WRAP;
       // Slot order is stable even when a checkpoint was decoded with another Map insertion order.
       for (const player of sortedPlayers(state)) {
-        if (player.id === bomb.ownerId) continue;
+        if (player.id === bullet.ownerId) continue;
         const consider = (
           x1: number,
           y1: number,
@@ -244,7 +241,7 @@ function resolveGunShots(
         segment.x = gate.transit.entryPoint.x;
         segment.y = gate.transit.entryPoint.y;
         spent.add(gate.transit.pairId);
-        segment = continueGunTracer(state, bomb, gate.transit.exitPoint);
+        segment = continueGunTracer(state, bullet, gate.transit.exitPoint);
         range -= distance * gate.time;
         hop += 1;
         continue;
@@ -265,7 +262,7 @@ function resolveGunShots(
           throughY = wallY <= wallX;
         if (throughX) segment.x = vx > 0 ? state.width : 0;
         if (throughY) segment.y = vy > 0 ? state.height : 0;
-        segment = continueGunTracer(state, bomb, {
+        segment = continueGunTracer(state, bullet, {
           x: throughX ? (vx > 0 ? 0 : state.width) : segment.x,
           y: throughY ? (vy > 0 ? 0 : state.height) : segment.y,
         });
@@ -293,9 +290,9 @@ function resolveGunShots(
       ) {
         const previous = hits.get(hit.id) ?? [];
         previous.push({
-          bombId: bomb.id,
-          ownerId: bomb.ownerId,
-          shot: bomb.shot,
+          bombId: bullet.id,
+          ownerId: bullet.ownerId,
+          shot: bullet.shot,
         });
         hits.set(hit.id, previous);
       }

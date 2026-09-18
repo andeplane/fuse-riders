@@ -1,6 +1,7 @@
 import type { TickContext } from "../context.js";
 import { SHIELD_GRACE_TICKS } from "../../tuning.js";
 import { reflectAtBoundary, reflectAtObstacle } from "../riders.js";
+import { applyEffect } from "../../effects.js";
 
 /**
  * An orbit shield takes the hit for a marked rider: the shield is spent, a few ticks of grace begin, the rider is turned
@@ -20,7 +21,12 @@ export function resolveDefences(ctx: TickContext): void {
   for (const movement of movements.values()) {
     if (!causes.has(movement.player.id) || !movement.player.shielded) continue;
     movement.player.shielded = false;
-    movement.player.shieldGraceUntilTick = state.tick + SHIELD_GRACE_TICKS;
+    applyEffect(
+      movement.player,
+      "shieldGrace",
+      state.tick,
+      state.tick + SHIELD_GRACE_TICKS,
+    );
     // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
     // blast must not leave it inside the rock, riding out its grace ticks in there.
     const obstacleTime = sceneryReached.get(movement.player.id);

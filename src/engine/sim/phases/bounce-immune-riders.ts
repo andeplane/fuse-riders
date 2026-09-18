@@ -1,5 +1,6 @@
 import type { TickContext } from "../context.js";
-import { isHazardImmune, reflectAtBoundary } from "../riders.js";
+import { isHazardImmune } from "../../effects.js";
+import { reflectAtBoundary } from "../riders.js";
 
 /**
  * A rider no hazard can touch — a Star, shield grace, portal grace — is turned back by the wall instead of dying on it.
