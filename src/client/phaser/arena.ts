@@ -16,6 +16,8 @@ import type { ViewSnapshot } from "../snapshot-stream.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATARS, AVATAR_ATLAS_URL } from "../../shared/avatars.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
+import { powerBlastRadius } from "../../shared/power-progression.js";
+import { drawBombAim } from "./bomb-aim.js";
 import { bombsPerShot, volleyAngles } from "../../shared/launch-modifiers.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
@@ -1358,10 +1360,7 @@ class ArenaScene extends Phaser.Scene {
               y = open
                 ? p.y + Math.sin(a) * distance
                 : clamp(p.y + Math.sin(a) * distance, b + 20, h - b - 20);
-            f.lineStyle(2, tint, 0.5)
-              .lineBetween(p.x, p.y, x, y)
-              .lineStyle(2, tint, 0.9)
-              .strokeRect(x - 9, y - 9, 18, 18);
+            drawBombAim(f, p, { x, y }, tint, powerBlastRadius(p.powerPickups));
           }
         }
         if (
@@ -1372,14 +1371,13 @@ class ArenaScene extends Phaser.Scene {
           p.bombTarget
         ) {
           const { x, y } = p.bombTarget;
-          f.lineStyle(2, tint, 0.5)
-            .lineBetween(p.x, p.y, x, y)
-            .lineStyle(3, tint)
-            .strokeCircle(x, y, 23)
-            .lineBetween(x - 32, y, x - 11, y)
-            .lineBetween(x + 11, y, x + 32, y)
-            .lineBetween(x, y - 32, x, y - 11)
-            .lineBetween(x, y + 11, x, y + 32);
+          drawBombAim(
+            f,
+            p,
+            { x, y },
+            tint,
+            powerBlastRadius(p.powerPickups) * 0.7,
+          );
           this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
         }
       }
